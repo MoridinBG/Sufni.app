@@ -45,7 +45,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private readonly ILiveDaqStore liveDaqStore;
 
     private readonly LiveDaqSessionState sessionState = new();
-    private readonly DispatcherTimer uiRefreshTimer;
+    private IDisposable? uiRefreshTimer;
     private readonly CancellableOperation connectOperation = new();
     private readonly CancellableOperation managementOperation = new();
     private string? managementHost;
@@ -142,7 +142,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         managementPort = snapshot.Port;
         ApplyRequestedRates(sharedStream.RequestedConfiguration);
         RefreshTravelCalibration();
-        uiRefreshTimer = CreateUiRefreshTimer();
         RefreshSharedStreamState();
         RefreshSnapshot();
     }
@@ -835,22 +834,11 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         return FormattableString.Invariant($"{label}: {travel:0}mm ({sagPercent:0}%)");
     }
 
-    // Frames arrive far faster than the UI needs to repaint. The session state
-    // accumulates every frame, and this timer snapshots it at a fixed cadence
-    // so the UI thread is not overwhelmed by per-frame updates.
-    private DispatcherTimer CreateUiRefreshTimer()
-    {
-        var timer = new DispatcherTimer(DispatcherPriority.Background)
-        {
-            Interval = TimeSpan.FromMilliseconds(100)
-        };
-        timer.Tick += (_, _) => RefreshSnapshot();
-        return timer;
-    }
-
     private void StartForegroundUpdates()
     {
-        uiRefreshTimer.Start();
+        // Frames arrive far faster than the UI needs to repaint. The session state
+        // accumulates every frame, and this timer snapshots it at a fixed cadence.
+        uiRefreshTimer ??= PeriodicUiTimer.SchedulePeriodic(TimeSpan.FromMilliseconds(100), RefreshSnapshot);
         EnsureScopedSubscription(disposables =>
         {
             disposables.Add(sharedStream.Frames.Subscribe(frame => HandleFrame(frame)));
@@ -869,7 +857,8 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     private void StopForegroundUpdates()
     {
-        uiRefreshTimer.Stop();
+        uiRefreshTimer?.Dispose();
+        uiRefreshTimer = null;
         DisposeScopedSubscriptions();
     }
 }

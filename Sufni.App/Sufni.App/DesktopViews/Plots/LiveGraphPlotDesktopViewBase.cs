@@ -4,7 +4,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Input;
-using Avalonia.Threading;
 using Sufni.App.Models;
 using Sufni.App.Plots;
 using Sufni.App.Services.LiveStreaming;
@@ -19,7 +18,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
     private const int DefaultPendingSampleMargin = 512;
     private const int PendingSampleMarginStep = 128;
 
-    private readonly DispatcherTimer uiRefreshTimer;
+    private IDisposable? uiRefreshTimer;
     private readonly object pendingGraphBatchesGate = new();
     private IDisposable? graphBatchesSubscription;
     private bool applyingTimelineRange;
@@ -109,8 +108,6 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
 
     protected LiveGraphPlotDesktopViewBase()
     {
-        uiRefreshTimer = CreateUiRefreshTimer();
-
         PropertyChanged += (_, e) =>
         {
             switch (e.Property.Name)
@@ -168,14 +165,17 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
 
         AttachedToVisualTree += (_, _) =>
         {
-            uiRefreshTimer.Start();
+            uiRefreshTimer ??= PeriodicUiTimer.SchedulePeriodic(
+                TimeSpan.FromMilliseconds(PlotSettings.LiveGraphRefreshIntervalMs),
+                FlushPendingGraphBatches);
             EnsureGraphBatchSubscription();
         };
         DetachedFromVisualTree += (_, _) =>
         {
             graphBatchesSubscription?.Dispose();
             graphBatchesSubscription = null;
-            uiRefreshTimer.Stop();
+            uiRefreshTimer?.Dispose();
+            uiRefreshTimer = null;
             ClearPendingGraphBatches();
         };
     }
@@ -397,16 +397,6 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
 
         stopwatch.Stop();
         AdjustPendingSampleMargin(stopwatch.Elapsed);
-    }
-
-    private DispatcherTimer CreateUiRefreshTimer()
-    {
-        var timer = new DispatcherTimer(DispatcherPriority.Normal)
-        {
-            Interval = TimeSpan.FromMilliseconds(PlotSettings.LiveGraphRefreshIntervalMs)
-        };
-        timer.Tick += (_, _) => FlushPendingGraphBatches();
-        return timer;
     }
 
     private void ClearPendingGraphBatches()

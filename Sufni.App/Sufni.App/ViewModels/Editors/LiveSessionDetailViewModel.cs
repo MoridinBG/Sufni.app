@@ -42,7 +42,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private readonly BikeCoordinator? bikeCoordinator;
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
-    private readonly DispatcherTimer uiRefreshTimer;
+    private IDisposable? uiRefreshTimer;
     private readonly object presentationGate = new();
     private readonly object graphBatchRefreshGate = new();
     private bool hasLoaded;
@@ -236,7 +236,6 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         var timeline = new SessionTimelineLinkViewModel();
         graphWorkspace = new LiveSessionGraphWorkspaceViewModel(timeline, CreatePlotRanges(context), liveSessionService.GraphBatches);
         mediaWorkspace = new LiveSessionMediaWorkspaceViewModel(tileLayerService, dialogService, timeline, uiThreadDispatcher);
-        uiRefreshTimer = CreateUiRefreshTimer();
         Name = CreateDefaultName(DateTimeOffset.Now);
         LiveGraphPage = new LiveGraphPageViewModel(graphWorkspace, mediaWorkspace);
         SpringPage = new SpringPageViewModel(this);
@@ -273,7 +272,11 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             lastPresentationDimensions = dimensions;
         }
 
-        uiRefreshTimer.Start();
+        // Live session updates arrive far faster than the controls need to repaint.
+        // Keep the latest snapshot and project it into the UI at a fixed cadence.
+        uiRefreshTimer ??= PeriodicUiTimer.SchedulePeriodic(
+            TimeSpan.FromMilliseconds(PlotSettings.LiveUiRefreshIntervalMs),
+            RefreshUi);
         RefreshUi();
 
         EnsureScopedSubscription(disposables =>
@@ -297,7 +300,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     [RelayCommand]
     private async Task Unloaded()
     {
-        uiRefreshTimer.Stop();
+        uiRefreshTimer?.Dispose();
+        uiRefreshTimer = null;
         CancelBake();
         DisposeScopedSubscriptions();
         await Task.CompletedTask;
@@ -315,7 +319,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     protected override async Task CloseImplementation()
     {
-        uiRefreshTimer.Stop();
+        uiRefreshTimer?.Dispose();
+        uiRefreshTimer = null;
         CancelBake();
 
         await liveSessionService.DisposeAsync();
@@ -1020,18 +1025,6 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
         DamperPercentages = SessionDamperPercentages.Empty;
         EnsureBalancePage(balanceAvailable: false);
-    }
-
-    // Live session updates arrive far faster than the controls need to repaint.
-    // Keep the latest snapshot and project it into the UI at a fixed cadence.
-    private DispatcherTimer CreateUiRefreshTimer()
-    {
-        var timer = new DispatcherTimer(DispatcherPriority.Background)
-        {
-            Interval = TimeSpan.FromMilliseconds(PlotSettings.LiveUiRefreshIntervalMs)
-        };
-        timer.Tick += (_, _) => RefreshUi();
-        return timer;
     }
 
     private static TimeSpan? RefreshCaptureDuration(DateTimeOffset? captureStartUtc)
