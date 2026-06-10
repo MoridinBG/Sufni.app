@@ -2,9 +2,9 @@
 x:Class="Sufni.App.DesktopViews.Editors.SessionShellDesktopView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:converters="clr-namespace:Sufni.App.Views.Converters"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:editors="clr-namespace:Sufni.App.DesktopViews.Editors"
-xmlns:items="clr-namespace:Sufni.App.DesktopViews.Items"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 d:DesignHeight="800"
 d:DesignWidth="800"
@@ -17,7 +17,7 @@ mc:Ignorable="d">
 
         <Grid x:Name="TopLayoutGrid" Grid.Row="0">
             <Grid.Resources>
-                <items:BooleanToGridLengthConverter x:Key="BooleanToGridLengthConverter" />
+                <converters:BooleanToGridLengthConverter x:Key="BooleanToGridLengthConverter" />
             </Grid.Resources>
 
             <Grid.ColumnDefinitions>

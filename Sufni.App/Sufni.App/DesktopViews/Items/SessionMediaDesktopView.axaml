@@ -2,6 +2,7 @@
 x:Class="Sufni.App.DesktopViews.Items.SessionMediaDesktopView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:converters="clr-namespace:Sufni.App.Views.Converters"
 xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:items="clr-namespace:Sufni.App.DesktopViews.Items"
@@ -19,7 +20,7 @@ mc:Ignorable="d">
     MinWidth="{Binding MapVideoWidth, TargetNullValue=400}"
     IsVisible="{Binding HasMediaContent}">
         <Grid.Resources>
-            <controls:SurfaceStateToGridLengthConverter x:Key="SurfaceStateToGridLengthConverter" />
+            <converters:SurfaceStateToGridLengthConverter x:Key="SurfaceStateToGridLengthConverter" />
         </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="{Binding VideoState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=Auto}" />

@@ -4,7 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Data.Converters;
 
-namespace Sufni.App.DesktopViews.Items;
+namespace Sufni.App.Views.Converters;
 
 public class GridWidthConverter : IValueConverter
 {
@@ -33,16 +33,7 @@ public class NullToGridLengthConverter : IValueConverter
         if (value is null)
             return new GridLength(0);
 
-        var param = parameter as string ?? "Auto";
-        if (param.EndsWith('*'))
-        {
-            var starValue = param.Length > 1 ? double.Parse(param[..^1], CultureInfo.InvariantCulture) : 1;
-            return new GridLength(starValue, GridUnitType.Star);
-        }
-        if (param.Equals("Auto", StringComparison.OrdinalIgnoreCase))
-            return GridLength.Auto;
-
-        return new GridLength(double.Parse(param, CultureInfo.InvariantCulture), GridUnitType.Pixel);
+        return GridLengthParameterParser.Parse(parameter);
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
@@ -70,19 +61,7 @@ public class BooleanToGridLengthConverter : IValueConverter
             return new GridLength(0);
         }
 
-        var param = parameter as string ?? "Auto";
-        if (param.EndsWith('*'))
-        {
-            var starValue = param.Length > 1 ? double.Parse(param[..^1], CultureInfo.InvariantCulture) : 1;
-            return new GridLength(starValue, GridUnitType.Star);
-        }
-
-        if (param.Equals("Auto", StringComparison.OrdinalIgnoreCase))
-        {
-            return GridLength.Auto;
-        }
-
-        return new GridLength(double.Parse(param, CultureInfo.InvariantCulture), GridUnitType.Pixel);
+        return GridLengthParameterParser.Parse(parameter);
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

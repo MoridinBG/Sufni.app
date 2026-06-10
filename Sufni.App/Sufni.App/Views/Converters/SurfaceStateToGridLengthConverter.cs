@@ -6,7 +6,7 @@ using Avalonia.Data.Converters;
 using Sufni.App.Presentation;
 using Sufni.App.ExtensionHost.Presentation;
 
-namespace Sufni.App.Views.Controls;
+namespace Sufni.App.Views.Converters;
 
 public sealed class SurfaceStateToGridLengthConverter : IValueConverter
 {
@@ -14,7 +14,7 @@ public sealed class SurfaceStateToGridLengthConverter : IValueConverter
     {
         if (value is SurfacePresentationState { ReservesLayout: true })
         {
-            return GridLength.Parse(parameter?.ToString() ?? "Auto");
+            return GridLengthParameterParser.Parse(parameter);
         }
 
         return new GridLength(0, GridUnitType.Pixel);

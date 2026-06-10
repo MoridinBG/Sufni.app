@@ -7,7 +7,7 @@ using Avalonia.Data.Converters;
 using Sufni.App.Presentation;
 using Sufni.App.ExtensionHost.Presentation;
 
-namespace Sufni.App.Views.Controls;
+namespace Sufni.App.Views.Converters;
 
 public sealed class AnySurfaceStateToGridLengthMultiConverter : IMultiValueConverter
 {
@@ -17,12 +17,12 @@ public sealed class AnySurfaceStateToGridLengthMultiConverter : IMultiValueConve
         {
             if (value is SurfacePresentationState { ReservesLayout: true })
             {
-                return GridLength.Parse(parameter?.ToString() ?? "Auto");
+                return GridLengthParameterParser.Parse(parameter);
             }
 
             if (value is bool boolValue && boolValue)
             {
-                return GridLength.Parse(parameter?.ToString() ?? "Auto");
+                return GridLengthParameterParser.Parse(parameter);
             }
         }
 

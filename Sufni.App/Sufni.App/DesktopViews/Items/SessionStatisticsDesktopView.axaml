@@ -3,6 +3,7 @@ x:Class="Sufni.App.DesktopViews.Items.SessionStatisticsDesktopView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:commonplots="clr-namespace:Sufni.App.Views.Plots"
+xmlns:converters="clr-namespace:Sufni.App.Views.Converters"
 xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:itemviews="clr-namespace:Sufni.App.Views.Items"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -16,8 +17,8 @@ mc:Ignorable="d">
 
     <Grid RowDefinitions="auto auto *">
         <Grid.Resources>
-            <controls:SurfaceStateToGridLengthConverter x:Key="SurfaceStateToGridLengthConverter" />
-            <controls:AnySurfaceStateToGridLengthMultiConverter x:Key="AnySurfaceStateToGridLengthMultiConverter" />
+            <converters:SurfaceStateToGridLengthConverter x:Key="SurfaceStateToGridLengthConverter" />
+            <converters:AnySurfaceStateToGridLengthMultiConverter x:Key="AnySurfaceStateToGridLengthMultiConverter" />
         </Grid.Resources>
 
         <TabStrip Name="TabControl" Grid.Row="0">

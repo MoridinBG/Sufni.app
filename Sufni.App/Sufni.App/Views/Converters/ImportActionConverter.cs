@@ -2,7 +2,7 @@ using System;
 using System.Globalization;
 using Avalonia.Data.Converters;
 
-namespace Sufni.App.Views.Controls;
+namespace Sufni.App.Views.Converters;
 
 public sealed class ImportActionConverter : IValueConverter
 {
