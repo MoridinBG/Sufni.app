@@ -71,12 +71,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     private readonly IRecordedSessionGraph recordedSessionGraph;
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly ISessionAnalysisService sessionAnalysisService;
-    private readonly ISessionPreferences sessionPreferences;
     private readonly RecordedSessionExtensionSlots emptyExtensionSlots = new();
     private readonly RecordedSessionExtensionManager? recordedSessionExtensions;
     private readonly SessionStalenessReconciler stalenessReconciler;
     private readonly StatisticsSelectionController statisticsSelectionController = new();
     private readonly RecordedPresentationApplier presentationApplier;
+    private readonly RecordedPreferenceStore recordedPreferenceStore;
     private readonly Dictionary<string, PageViewModelBase> recordedSessionExtensionPages = [];
     private Session session;
     private RecordedGraphPageViewModel GraphPage { get; }
@@ -91,11 +91,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     private double? pendingAnalysisRangeBoundary;
     private bool suppressDirtinessEvaluation;
     private bool suppressAnalysisRecompute;
-    private bool processingPreferenceRecomputeRunning;
-    private bool recordedPreferencePersistenceEnabled; // Prevent property set on creation from re-writing preferences
     private bool viewLoaded;
     private bool hasBeenActivated;
-    private SessionPreferences recordedPreferences = SessionPreferences.Default;
     private SessionPlotPreferences plotPreferences = SessionPreferences.Default.Plots;
     private SessionGraphPreferences graphPreferences = SessionPreferences.Default.Graph;
     private readonly TelemetryPlotRowAction showAirtimeAction;
@@ -147,9 +144,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
                 return;
             }
 
-            recordedPreferences = recordedPreferences with { Graph = value };
+            recordedPreferenceStore.UpdateCurrent(current => current with { Graph = value });
             SessionContext.GraphPreferences = value;
-            PersistRecordedPreferenceChangeIfEnabled(current => current with { Graph = value });
+            recordedPreferenceStore.PersistChangeIfEnabled(current => current with { Graph = value });
         }
     }
     public TelemetrySourceVisibilityStore SourceVisibility => SessionContext.SourceVisibility;
@@ -737,7 +734,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
 
     internal Guid? CurrentSessionFullTrack => session.FullTrack;
 
-    internal SessionPlotPreferences RecordedPlotPreferences => recordedPreferences.Plots;
+    internal SessionPlotPreferences RecordedPlotPreferences => recordedPreferenceStore.Current.Plots;
 
     internal void SetSessionFullTrack(Guid? fullTrackId)
     {
@@ -1018,7 +1015,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         this.recordedSessionGraph = recordedSessionGraph;
         this.sessionPresentationService = sessionPresentationService;
         this.sessionAnalysisService = sessionAnalysisService;
-        this.sessionPreferences = sessionPreferences;
+        recordedPreferenceStore = new RecordedPreferenceStore(
+            sessionPreferences,
+            () => Id,
+            ErrorMessages.Add);
         showAirtimeAction = CreateAirtimeAction("travel_airtime", ShowAirtime, () => ShowAirtime = !ShowAirtime);
         showVelocityAirtimeAction = CreateAirtimeAction("velocity_airtime", ShowVelocityAirtime, () => ShowVelocityAirtime = !ShowVelocityAirtime);
         showImuAirtimeAction = CreateAirtimeAction("imu_airtime", ShowImuAirtime, () => ShowImuAirtime = !ShowImuAirtime);
@@ -1297,31 +1297,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
 
     private async Task RestoreRecordedPreferencesAsync()
     {
-        recordedPreferencePersistenceEnabled = false;
-        try
-        {
-            ApplyRecordedPreferences(await sessionPreferences.GetRecordedAsync(Id));
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Session preferences could not be loaded: {e.Message}");
-            ApplyRecordedPreferences(SessionPreferences.Default);
-        }
-        finally
-        {
-            recordedPreferencePersistenceEnabled = true;
-        }
+        await recordedPreferenceStore.RestoreAsync(ApplyRecordedPreferences);
     }
 
     private void ApplyRecordedPreferences(SessionPreferences preferences)
     {
-        recordedPreferences = preferences;
         PlotPreferences = preferences.Plots;
         GraphPreferences = preferences.Graph;
         PreferencesPage.ApplyPlotPreferences(preferences.Plots);
         PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
         ApplyRecordedStatisticsPreferences(preferences.Statistics);
-        presentationApplier.RefreshRecordedGraphStates(recordedPreferences.Plots);
+        presentationApplier.RefreshRecordedGraphStates(recordedPreferenceStore.Current.Plots);
     }
 
     private void ApplyRecordedStatisticsPreferences(SessionStatisticsPreferences preferences)
@@ -1350,9 +1336,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
 
         var plots = PreferencesPage.CreatePlotPreferences();
         PlotPreferences = plots;
-        recordedPreferences = recordedPreferences with { Plots = plots };
-        presentationApplier.RefreshRecordedGraphStates(recordedPreferences.Plots);
-        PersistRecordedPreferenceChangeIfEnabled(current => current with { Plots = plots });
+        recordedPreferenceStore.UpdateCurrent(current => current with { Plots = plots });
+        presentationApplier.RefreshRecordedGraphStates(recordedPreferenceStore.Current.Plots);
+        recordedPreferenceStore.PersistChangeIfEnabled(current => current with { Plots = plots });
     }
 
     private SessionStatisticsPreferences CreateStatisticsPreferences()
@@ -1368,8 +1354,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     private void PersistRecordedStatisticsPreferencesIfEnabled()
     {
         var statistics = CreateStatisticsPreferences();
-        recordedPreferences = recordedPreferences with { Statistics = statistics };
-        PersistRecordedPreferenceChangeIfEnabled(current => current with { Statistics = statistics });
+        recordedPreferenceStore.UpdateCurrent(current => current with { Statistics = statistics });
+        recordedPreferenceStore.PersistChangeIfEnabled(current => current with { Statistics = statistics });
     }
 
     private void OnProcessingPreferenceChangeCommitted(object? sender, EventArgs args)
@@ -1379,24 +1365,24 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
 
     private async Task PersistRecordedProcessingPreferenceAndRecomputeAsync()
     {
-        if (!recordedPreferencePersistenceEnabled || !viewLoaded)
+        if (!recordedPreferenceStore.PersistenceEnabled || !viewLoaded)
         {
             return;
         }
 
-        if (processingPreferenceRecomputeRunning)
+        if (!recordedPreferenceStore.TryBeginProcessingPreferenceRecompute())
         {
-            PreferencesPage.ApplyProcessingPreferences(recordedPreferences.Processing);
+            PreferencesPage.ApplyProcessingPreferences(recordedPreferenceStore.Current.Processing);
             return;
         }
 
         var processing = PreferencesPage.CreateProcessingPreferences();
-        if (processing == recordedPreferences.Processing)
+        if (processing == recordedPreferenceStore.Current.Processing)
         {
+            recordedPreferenceStore.EndProcessingPreferenceRecompute();
             return;
         }
 
-        processingPreferenceRecomputeRunning = true;
         try
         {
             if (IsDirty)
@@ -1406,7 +1392,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
                     "Changing the velocity filter recomputes this session and will discard unsaved changes.");
                 if (!confirmed)
                 {
-                    PreferencesPage.ApplyProcessingPreferences(recordedPreferences.Processing);
+                    PreferencesPage.ApplyProcessingPreferences(recordedPreferenceStore.Current.Processing);
                     return;
                 }
 
@@ -1416,17 +1402,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
                 }
             }
 
-            var previousProcessing = recordedPreferences.Processing;
-            recordedPreferences = recordedPreferences with { Processing = processing };
-            try
+            var previousProcessing = recordedPreferenceStore.Current.Processing;
+            recordedPreferenceStore.UpdateCurrent(current => current with { Processing = processing });
+            if (!await recordedPreferenceStore.PersistChangeAsync(current => current with { Processing = processing }))
             {
-                await sessionPreferences.UpdateRecordedAsync(Id, current => current with { Processing = processing });
-            }
-            catch (Exception e)
-            {
-                recordedPreferences = recordedPreferences with { Processing = previousProcessing };
-                PreferencesPage.ApplyProcessingPreferences(recordedPreferences.Processing);
-                ErrorMessages.Add($"Session preferences could not be saved: {e.Message}");
+                recordedPreferenceStore.UpdateCurrent(current => current with { Processing = previousProcessing });
+                PreferencesPage.ApplyProcessingPreferences(recordedPreferenceStore.Current.Processing);
                 return;
             }
 
@@ -1435,29 +1416,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         }
         finally
         {
-            processingPreferenceRecomputeRunning = false;
-        }
-    }
-
-    private void PersistRecordedPreferenceChangeIfEnabled(Func<SessionPreferences, SessionPreferences> update)
-    {
-        if (!recordedPreferencePersistenceEnabled)
-        {
-            return;
-        }
-
-        _ = PersistRecordedPreferenceChangeAsync(update);
-    }
-
-    private async Task PersistRecordedPreferenceChangeAsync(Func<SessionPreferences, SessionPreferences> update)
-    {
-        try
-        {
-            await sessionPreferences.UpdateRecordedAsync(Id, update);
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Session preferences could not be saved: {e.Message}");
+            recordedPreferenceStore.EndProcessingPreferenceRecompute();
         }
     }
 
@@ -1681,7 +1640,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         }
         EnsureScopedSubscription(s =>
         {
-            s.Add(sessionPreferences.ObserveRecorded(Id).Subscribe(OnSyncedPreferencesArrived));
+            s.Add(recordedPreferenceStore.Observe().Subscribe(OnSyncedPreferencesArrived));
             s.Add(watch.Subscribe(domain => _ = stalenessReconciler.HandleDomainChangedAsync(domain)));
         });
 
@@ -1723,17 +1682,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
 
         if (!viewLoaded) return;
 
-        // Suppress the persist echo: applying inbound sync values must not
-        // bounce back through UpdateRecordedAsync.
-        recordedPreferencePersistenceEnabled = false;
-        try
-        {
-            ApplyRecordedPreferences(prefs);
-        }
-        finally
-        {
-            recordedPreferencePersistenceEnabled = true;
-        }
+        recordedPreferenceStore.ApplyWithoutPersisting(prefs, ApplyRecordedPreferences);
     }
 
     [RelayCommand]
