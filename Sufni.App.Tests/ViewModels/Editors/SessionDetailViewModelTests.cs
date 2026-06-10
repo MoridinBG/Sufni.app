@@ -21,6 +21,7 @@ using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Models;
 using Sufni.App.ExtensionHost.Presentation;
 using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.Services;
 using Sufni.App.ExtensionHost.SessionGraph;
 using Sufni.App.ExtensionHost.ViewModels.Editors;
 using Sufni.App.ExtensionHost.Views.Controls;
@@ -57,7 +58,8 @@ public class SessionDetailViewModelTests
         bool? isDesktop = null,
         ISessionPreferences? sessionPreferences = null,
         BikeCoordinator? bikeCoordinator = null,
-        IReadOnlyList<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories = null)
+        IReadOnlyList<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories = null,
+        IUiThreadDispatcher? uiThreadDispatcher = null)
     {
         if (isDesktop.HasValue)
         {
@@ -78,7 +80,7 @@ public class SessionDetailViewModelTests
             shell,
             dialogService,
             preferencesService,
-            new InlineUiThreadDispatcher(),
+            uiThreadDispatcher ?? new InlineUiThreadDispatcher(),
             bikeCoordinator,
             recordedSessionExtensionFactories,
             Substitute.For<IExtensionDatabaseConnection>(),
@@ -1130,6 +1132,41 @@ public class SessionDetailViewModelTests
         };
         syncStream.OnNext(synced);
 
+        Assert.Equal(TravelHistogramMode.DynamicSag, editor.SelectedTravelHistogramMode);
+        await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
+    }
+
+    [AvaloniaFact]
+    public async Task SyncedPreferenceArrival_UsesInjectedDispatcher_WhenOffUiThread()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var preferences = Substitute.For<ISessionPreferences>();
+        var syncStream = new Subject<SessionPreferences>();
+        var dispatcher = new RecordingUiThreadDispatcher(checkAccess: false);
+        preferences.ObserveRecorded(snapshot.Id).Returns(syncStream);
+        ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
+        SetDesktop(true);
+
+        var editor = CreateEditor(
+            snapshot,
+            sessionPreferences: preferences,
+            uiThreadDispatcher: dispatcher);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        preferences.ClearReceivedCalls();
+        var beforeInvokeCount = dispatcher.InvokeCount;
+
+        var synced = SessionPreferences.Default with
+        {
+            Statistics = SessionPreferences.Default.Statistics with
+            {
+                TravelHistogramMode = TravelHistogramMode.DynamicSag,
+            },
+        };
+        syncStream.OnNext(synced);
+
+        Assert.Equal(beforeInvokeCount + 1, dispatcher.InvokeCount);
         Assert.Equal(TravelHistogramMode.DynamicSag, editor.SelectedTravelHistogramMode);
         await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
     }

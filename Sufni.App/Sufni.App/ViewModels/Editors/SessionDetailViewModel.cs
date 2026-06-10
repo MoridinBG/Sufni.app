@@ -11,7 +11,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Media;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
@@ -2341,9 +2340,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     private void OnSyncedPreferencesArrived(SessionPreferences prefs)
     {
-        if (!Dispatcher.UIThread.CheckAccess())
+        if (!UiThreadDispatcher.CheckAccess())
         {
-            _ = Dispatcher.UIThread.InvokeAsync(() => OnSyncedPreferencesArrived(prefs));
+            _ = UiThreadDispatcher.InvokeAsync(() => OnSyncedPreferencesArrived(prefs));
             return;
         }
 
