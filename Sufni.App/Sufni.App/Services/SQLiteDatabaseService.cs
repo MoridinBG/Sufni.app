@@ -145,7 +145,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         recordedSessionSourceRepository = new RecordedSessionSourceRepository(connectionContext);
         sessionCacheStore = new SessionCacheStore(connectionContext);
         trackRepository = new TrackRepository(connectionContext);
-        sessionRepository = new SessionRepository(connectionContext, this.sessionTelemetryProcessor);
+        sessionRepository = new SessionRepository(connectionContext, this.sessionTelemetryProcessor, trackRepository);
     }
 
     public async Task<IExtensionDatabaseSession> OpenSessionAsync(CancellationToken cancellationToken = default)
@@ -159,88 +159,6 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         await Initialization.WaitAsync(cancellationToken);
         return connection;
     }
-
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "All persisted entity types are statically referenced in this table list.")]
-    private async Task CreateTablesAsync()
-    {
-        await connection.CreateTablesAsync(CreateFlags.None,
-        [
-            typeof(Board),
-            typeof(Setup),
-            typeof(Bike),
-            typeof(Session),
-            typeof(RecordedSessionSource),
-            typeof(SessionCache),
-            typeof(Synchronization),
-            typeof(PairedDevice),
-            typeof(Track)
-        ]);
-    }
-
-    private async Task EnsureSessionProcessingFingerprintColumnAsync()
-    {
-        var columns = await connection.QueryAsync<TableColumnInfo>("PRAGMA table_info(session)");
-        if (columns.Any(column => column.Name == "session_processing_fingerprint"))
-        {
-            return;
-        }
-
-        await connection.ExecuteAsync("ALTER TABLE session ADD COLUMN session_processing_fingerprint TEXT");
-    }
-
-    private async Task EnsureSessionSummaryMetricColumnsAsync()
-    {
-        var columns = await connection.QueryAsync<TableColumnInfo>("PRAGMA table_info(session)");
-        var columnNames = columns.Select(column => column.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var columnName in SessionSummaryMetricColumnNames)
-        {
-            if (!columnNames.Contains(columnName))
-            {
-                await connection.ExecuteAsync($"ALTER TABLE session ADD COLUMN {columnName} REAL");
-            }
-        }
-    }
-
-    private async Task EnsureBikeDampingSpeedCutoffColumnsAsync()
-    {
-        var columns = await connection.QueryAsync<TableColumnInfo>("PRAGMA table_info(bike)");
-        var columnNames = columns.Select(column => column.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var columnName in BikeDampingSpeedCutoffColumnNames)
-        {
-            if (!columnNames.Contains(columnName))
-            {
-                await connection.ExecuteAsync($"ALTER TABLE bike ADD COLUMN {columnName} REAL");
-            }
-
-            await connection.ExecuteAsync(
-                $"UPDATE bike SET {columnName} = ? WHERE {columnName} IS NULL",
-                DampingSpeedCutoffs.DefaultMmPerSecond);
-        }
-    }
-
-    private async Task EnsureSessionCacheDampingSpeedCutoffColumnsAsync()
-    {
-        var columns = await connection.QueryAsync<TableColumnInfo>("PRAGMA table_info(session_cache)");
-        var columnNames = columns.Select(column => column.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var columnName in DampingSpeedCutoffColumnNames)
-        {
-            if (!columnNames.Contains(columnName))
-            {
-                await connection.ExecuteAsync($"ALTER TABLE session_cache ADD COLUMN {columnName} REAL");
-            }
-
-            await connection.ExecuteAsync(
-                $"UPDATE session_cache SET {columnName} = ? WHERE {columnName} IS NULL",
-                DampingSpeedCutoffs.DefaultMmPerSecond);
-        }
-    }
-
-    private Task<int> BackfillRearSuspensionKindAsync() => connection.ExecuteAsync(
-        "UPDATE bike SET rear_suspension_kind = ? WHERE linkage IS NOT NULL AND (rear_suspension_kind IS NULL OR rear_suspension_kind = ?)",
-        [(int)RearSuspensionKind.Linkage, (int)RearSuspensionKind.None]);
 
     private AsyncTableQuery<T> Table<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>() where T : new()
     {
@@ -290,24 +208,6 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
 
     private const string SessionProcessingFingerprintColumn = "session_processing_fingerprint";
 
-    private static readonly string[] SessionSummaryMetricColumnNames =
-    [
-        "duration_seconds",
-        "distance_meters",
-        "ascent_meters",
-        "descent_meters"
-    ];
-
-    private static readonly string[] DampingSpeedCutoffColumnNames =
-    [
-        "front_compression_damping_cutoff_mm_per_second",
-        "front_rebound_damping_cutoff_mm_per_second",
-        "rear_compression_damping_cutoff_mm_per_second",
-        "rear_rebound_damping_cutoff_mm_per_second"
-    ];
-
-    private static readonly string[] BikeDampingSpeedCutoffColumnNames = DampingSpeedCutoffColumnNames;
-
     private const string SessionHasDataProjection = """
                                                     CASE
                                                        WHEN data IS NOT NULL THEN 1
@@ -335,64 +235,6 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
                                                                       deleted,
                                                                       {SessionHasDataProjection}
                                                                       """;
-
-    private const string ProcessedSessionUpdateAssignments = """
-                                                             name=?,
-                                                             setup_id=?,
-                                                             description=?,
-                                                             timestamp=?,
-                                                             duration_seconds=?,
-                                                             distance_meters=?,
-                                                             ascent_meters=?,
-                                                             descent_meters=?,
-                                                             full_track_id=?,
-                                                             session_processing_fingerprint=?,
-                                                             track=?,
-                                                             data=?,
-                                                             front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
-                                                             rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
-                                                             updated=?,
-                                                             deleted=NULL
-                                                             """;
-
-    private const string SessionMetadataSaveUpdateAssignments = """
-                                                                name=?,
-                                                                setup_id=?,
-                                                                description=?,
-                                                                timestamp=?,
-                                                                full_track_id=?,
-                                                                session_processing_fingerprint=?,
-                                                                track=COALESCE(?, track),
-                                                                data=COALESCE(?, data),
-                                                                front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
-                                                                rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
-                                                                updated=?,
-                                                                deleted=NULL
-                                                                """;
-
-    private static readonly string UpdateProcessedSessionSql = $"""
-                                                                UPDATE session
-                                                                SET
-                                                                    {ProcessedSessionUpdateAssignments}
-                                                                WHERE
-                                                                    id=?
-                                                                """;
-
-    private static readonly string UpdateProcessedSessionIfUnchangedSql = $"""
-                                                                           UPDATE session
-                                                                           SET
-                                                                               {ProcessedSessionUpdateAssignments}
-                                                                           WHERE
-                                                                               id=? AND updated=?
-                                                                           """;
-
-    private static readonly string UpdateSessionMetadataSaveSql = $"""
-                                                                   UPDATE session
-                                                                   SET
-                                                                       {SessionMetadataSaveUpdateAssignments}
-                                                                   WHERE
-                                                                       id=?
-                                                                   """;
 
     private const string RemoteSessionMetadataUpdateAssignments = """
                                                                   name=?,
@@ -520,229 +362,6 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         session.Id
     ];
 
-    private async Task ApplySessionSummaryMetricsAsync(Session session, Track? generatedFullTrack)
-    {
-        var durationSeconds = sessionTelemetryProcessor.ReadProcessedDurationSeconds(session.ProcessedData) ?? session.DurationSeconds;
-        var points = await GetMetricTrackPointsAsync(session, generatedFullTrack, durationSeconds);
-        var metrics = sessionTelemetryProcessor.ComputeSummaryMetrics(durationSeconds, points);
-
-        session.DurationSeconds = metrics.DurationSeconds;
-        session.DistanceMeters = metrics.DistanceMeters;
-        session.AscentMeters = metrics.AscentMeters;
-        session.DescentMeters = metrics.DescentMeters;
-    }
-
-    private async Task<IReadOnlyList<TrackPoint>?> GetMetricTrackPointsAsync(
-        Session session,
-        Track? generatedFullTrack,
-        double? durationSeconds)
-    {
-        if (session.Track is { Count: > 0 })
-        {
-            return session.Track;
-        }
-
-        if (generatedFullTrack?.Points is { Count: > 0 } generatedPoints)
-        {
-            return generatedPoints;
-        }
-
-        return await TryGenerateSessionTrackFromFullTrackAsync(session.FullTrack, session.Timestamp, durationSeconds);
-    }
-
-    private async Task<List<TrackPoint>?> TryGenerateSessionTrackFromFullTrackAsync(
-        Guid? fullTrackId,
-        long? timestamp,
-        double? durationSeconds)
-    {
-        if (!fullTrackId.HasValue ||
-            !timestamp.HasValue ||
-            durationSeconds is not { } duration ||
-            !double.IsFinite(duration) ||
-            duration <= 0)
-        {
-            return null;
-        }
-
-        var fullTrack = await connection.Table<Track>()
-            .Where(track => track.Id == fullTrackId.Value && track.Deleted == null)
-            .FirstOrDefaultAsync();
-        if (fullTrack is null)
-        {
-            return null;
-        }
-
-        return sessionTelemetryProcessor.GenerateSessionTrackFromFullTrack(fullTrack, timestamp, durationSeconds);
-    }
-
-    private Task<int> UpdateProcessedSessionAsync(Session session)
-    {
-        return connection.ExecuteAsync(
-            UpdateProcessedSessionSql,
-            CreateProcessedSessionUpdateValuesWithId(session));
-    }
-
-    private Task<int> UpdateProcessedSessionIfUnchangedAsync(Session session, long baselineUpdated)
-    {
-        return connection.ExecuteAsync(
-            UpdateProcessedSessionIfUnchangedSql,
-            CreateProcessedSessionUpdateValues(session, baselineUpdated));
-    }
-
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Callers use persisted entity types that are statically rooted or flow through annotated generic parameters.")]
-    private Task<int> DeleteEntityAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T entity) where T : new()
-    {
-        return connection.DeleteAsync(entity);
-    }
-
-    private sealed class TableColumnInfo
-    {
-        [Column("name")]
-        public string Name { get; set; } = string.Empty;
-    }
-
-    private sealed class TrackTimeRow
-    {
-        [Column("id")]
-        public Guid Id { get; set; }
-
-        [Column("start_time")]
-        public long StartTime { get; set; }
-
-        [Column("end_time")]
-        public long EndTime { get; set; }
-
-        [Column("updated")]
-        public long Updated { get; set; }
-    }
-
-    private sealed class SessionTrackReferenceRow
-    {
-        [Column("id")]
-        public Guid Id { get; set; }
-
-        [Column("full_track_id")]
-        public Guid? FullTrackId { get; set; }
-    }
-
-    private sealed record CleanupSummary(
-        int SessionCaches,
-        int RecordedSessionSources,
-        int Sessions,
-        int Tracks,
-        int Boards,
-        int Setups,
-        int Bikes,
-        int PairedDevices);
-
-    private async Task<CleanupSummary> Cleanup()
-    {
-        var oneDayAgo = DateTimeOffset.Now.AddDays(-1).ToUnixTimeSeconds();
-
-        var cleanSessionCachesQuery = $"""
-                                       DELETE FROM session_cache
-                                       WHERE session_id IN (
-                                           SELECT id
-                                           FROM session
-                                           WHERE deleted IS NOT NULL AND deleted < {oneDayAgo}
-                                       )
-                                       """;
-        var deletedSessionCaches = await connection.ExecuteAsync(cleanSessionCachesQuery);
-
-        var cleanRecordedSourcesForPurgedSessionsQuery = $"""
-                                                          DELETE FROM session_recording_source
-                                                          WHERE session_id IN (
-                                                              SELECT id
-                                                              FROM session
-                                                              WHERE deleted IS NOT NULL AND deleted < {oneDayAgo}
-                                                          )
-                                                          """;
-        var deletedRecordedSources = await connection.ExecuteAsync(cleanRecordedSourcesForPurgedSessionsQuery);
-        var deletedSessions = await connection.Table<Session>().DeleteAsync(s => s.Deleted != null && s.Deleted < oneDayAgo);
-        deletedRecordedSources += await connection.ExecuteAsync(
-            "DELETE FROM session_recording_source WHERE session_id NOT IN (SELECT id FROM session)");
-        var duplicateTracks = await CleanupDuplicateTrackTimeRangesAsync();
-        var deletedTracks = await connection.Table<Track>().DeleteAsync(t => t.Deleted != null && t.Deleted < oneDayAgo);
-        var deletedBoards = await connection.Table<Board>().DeleteAsync(b => b.Deleted != null && b.Deleted < oneDayAgo);
-        var deletedSetups = await connection.Table<Setup>().DeleteAsync(s => s.Deleted != null && s.Deleted < oneDayAgo);
-        var deletedBikes = await connection.Table<Bike>().DeleteAsync(b => b.Deleted != null && b.Deleted < oneDayAgo);
-        var deletedPairedDevices = await connection.Table<PairedDevice>().DeleteAsync(pd => pd.Expires < DateTime.UtcNow);
-
-        return new CleanupSummary(
-            deletedSessionCaches,
-            deletedRecordedSources,
-            deletedSessions,
-            deletedTracks + duplicateTracks,
-            deletedBoards,
-            deletedSetups,
-            deletedBikes,
-            deletedPairedDevices);
-    }
-
-    private async Task<int> CleanupDuplicateTrackTimeRangesAsync()
-    {
-        var tracks = await connection.QueryAsync<TrackTimeRow>(
-            """
-            SELECT id, start_time, end_time, updated
-            FROM track
-            WHERE deleted IS NULL
-            """);
-        var duplicates = tracks
-            .Where(track => track.StartTime <= track.EndTime)
-            .GroupBy(track => (track.StartTime, track.EndTime))
-            .Where(group => group.Count() > 1)
-            .ToList();
-
-        if (duplicates.Count == 0)
-        {
-            return 0;
-        }
-
-        var sessionReferences = await connection.QueryAsync<SessionTrackReferenceRow>(
-            """
-            SELECT id, full_track_id
-            FROM session
-            WHERE deleted IS NULL AND full_track_id IS NOT NULL
-            """);
-        var sessionReferenceCounts = sessionReferences
-            .Where(reference => reference.FullTrackId.HasValue)
-            .GroupBy(reference => reference.FullTrackId!.Value)
-            .ToDictionary(group => group.Key, group => group.Count());
-
-        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        var removed = 0;
-        foreach (var group in duplicates)
-        {
-            var canonicalTrack = SelectCanonicalDuplicateTrack(group, sessionReferenceCounts);
-            foreach (var duplicateTrack in group.Where(track => track.Id != canonicalTrack.Id))
-            {
-                await connection.ExecuteAsync(
-                    "UPDATE session SET full_track_id=?, track=NULL, updated=? WHERE deleted IS NULL AND full_track_id=?",
-                    canonicalTrack.Id,
-                    now,
-                    duplicateTrack.Id);
-                removed += await connection.ExecuteAsync(
-                    "UPDATE track SET deleted=?, updated=? WHERE id=? AND deleted IS NULL",
-                    now,
-                    now,
-                    duplicateTrack.Id);
-            }
-        }
-
-        return removed;
-    }
-
-    private static TrackTimeRow SelectCanonicalDuplicateTrack(
-        IEnumerable<TrackTimeRow> tracks,
-        IReadOnlyDictionary<Guid, int> sessionReferenceCounts)
-    {
-        return tracks
-            .OrderByDescending(track => sessionReferenceCounts.TryGetValue(track.Id, out var count) ? count : 0)
-            .ThenBy(track => track.Updated == 0 ? long.MaxValue : track.Updated)
-            .ThenBy(track => track.Id)
-            .First();
-    }
-
     public async Task<List<T>> GetAllAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>() where T : Synchronizable, new()
     {
         await Initialization;
@@ -856,24 +475,8 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
     public Task<List<TrackPoint>?> GetSessionTrackAsync(Guid id) =>
         sessionRepository.GetSessionTrackAsync(id);
 
-    public async Task<Guid> PutSessionAsync(Session session)
-    {
-        await Initialization;
-
-        var existing = await EntityExistsAsync<Session>(session.Id);
-        session.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        session.Deleted = null;
-        if (existing)
-        {
-            await connection.ExecuteAsync(UpdateSessionMetadataSaveSql, CreateSessionMetadataSaveUpdateValuesWithId(session));
-        }
-        else
-        {
-            await InsertEntityAsync(session);
-        }
-
-        return session.Id;
-    }
+    public Task<Guid> PutSessionAsync(Session session) =>
+        sessionRepository.PutSessionAsync(session);
 
     public Task PutRecordedSessionSourceAsync(RecordedSessionSource source) =>
         recordedSessionSourceRepository.PutRecordedSessionSourceAsync(source);
@@ -881,11 +484,8 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
     public Task DeleteRecordedSessionSourceAsync(Guid sessionId) =>
         recordedSessionSourceRepository.DeleteRecordedSessionSourceAsync(sessionId);
 
-    public async Task<Session> PutProcessedSessionAsync(Session session, Track? newFullTrack, RecordedSessionSource? source)
-    {
-        return await PutProcessedSessionCoreAsync(session, newFullTrack, source, baselineUpdated: null)
-               ?? throw new InvalidOperationException($"Session {session.Id} was not found after processed-session persistence.");
-    }
+    public Task<Session> PutProcessedSessionAsync(Session session, Track? newFullTrack, RecordedSessionSource? source) =>
+        sessionRepository.PutProcessedSessionAsync(session, newFullTrack, source);
 
     public Task<Session?> PutProcessedSessionIfUnchangedAsync(
         Session session,
@@ -893,173 +493,17 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         RecordedSessionSource? source,
         long baselineUpdated)
     {
-        return PutProcessedSessionCoreAsync(session, newFullTrack, source, baselineUpdated);
-    }
-
-    private async Task<Session?> PutProcessedSessionCoreAsync(
-        Session session,
-        Track? newFullTrack,
-        RecordedSessionSource? source,
-        long? baselineUpdated)
-    {
-        await Initialization;
-
-        if (source is not null && source.SessionId != session.Id)
-        {
-            throw new InvalidOperationException("Recorded session source must belong to the processed session.");
-        }
-
-        await connection.ExecuteAsync("BEGIN TRANSACTION");
-
-        try
-        {
-            if (newFullTrack is not null)
-            {
-                var existingTrack = await EntityExistsAsync<Track>(newFullTrack.Id);
-                newFullTrack.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                newFullTrack.Deleted = null;
-
-                if (existingTrack)
-                {
-                    await UpdateEntityAsync(newFullTrack);
-                }
-                else
-                {
-                    await InsertEntityAsync(newFullTrack);
-                }
-
-                session.FullTrack = newFullTrack.Id;
-            }
-            else if (session.FullTrack is null && session.Timestamp.HasValue)
-            {
-                session.FullTrack = await trackRepository.FindTrackContainingTimestampAsync(session.Timestamp.Value);
-            }
-
-            await ApplySessionSummaryMetricsAsync(session, newFullTrack);
-
-            var existingSession = await EntityExistsAsync<Session>(session.Id);
-            session.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            session.Deleted = null;
-
-            if (existingSession)
-            {
-                var updatedRows = baselineUpdated.HasValue
-                    ? await UpdateProcessedSessionIfUnchangedAsync(session, baselineUpdated.Value)
-                    : await UpdateProcessedSessionAsync(session);
-                if (updatedRows == 0)
-                {
-                    await connection.ExecuteAsync("ROLLBACK");
-                    return null;
-                }
-            }
-            else
-            {
-                if (baselineUpdated.HasValue)
-                {
-                    await connection.ExecuteAsync("ROLLBACK");
-                    return null;
-                }
-
-                await InsertEntityAsync(session);
-            }
-
-                if (source is not null)
-                {
-                    await RecordedSessionSourceRepository.PutRecordedSessionSourceInCurrentTransactionAsync(
-                        connection,
-                        source);
-                }
-
-            await connection.ExecuteAsync("COMMIT");
-        }
-        catch
-        {
-            await connection.ExecuteAsync("ROLLBACK");
-            throw;
-        }
-
-        return await GetSessionAsync(session.Id)
-               ?? throw new InvalidOperationException($"Session {session.Id} was not found after processed-session persistence.");
+        return sessionRepository.PutProcessedSessionIfUnchangedAsync(session, newFullTrack, source, baselineUpdated);
     }
 
     public Task<Guid?> FindTrackByTimeRangeAsync(long startTime, long endTime) =>
         trackRepository.FindTrackByTimeRangeAsync(startTime, endTime);
 
-    public async Task PatchSessionPsstAsync(Guid id, byte[] data)
-    {
-        await Initialization;
+    public Task PatchSessionPsstAsync(Guid id, byte[] data) =>
+        sessionRepository.PatchSessionPsstAsync(id, data);
 
-        var session = await connection.Table<Session>()
-            .Where(s => s.Id == id && s.Deleted == null)
-            .FirstOrDefaultAsync();
-        if (session is null)
-        {
-            throw new Exception($"Session {id} does not exist.");
-        }
-
-        var telemetryData = sessionTelemetryProcessor.ReadProcessedTelemetryData(data);
-        session.ProcessedData = data;
-        var durationSeconds = telemetryData.Metadata?.Duration ?? session.DurationSeconds;
-        var metrics = sessionTelemetryProcessor.ComputeSummaryMetrics(durationSeconds, session.Track);
-        var hasTrackPoints = session.Track is { Count: > 0 };
-
-        await connection.ExecuteAsync(
-            """
-            UPDATE session
-            SET
-                data=?,
-                duration_seconds=?,
-                distance_meters=?,
-                ascent_meters=?,
-                descent_meters=?
-            WHERE id=?
-            """,
-            data,
-            metrics.DurationSeconds,
-            hasTrackPoints ? metrics.DistanceMeters : session.DistanceMeters,
-            hasTrackPoints ? metrics.AscentMeters : session.AscentMeters,
-            hasTrackPoints ? metrics.DescentMeters : session.DescentMeters,
-            id);
-    }
-
-    public async Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points)
-    {
-        await Initialization;
-
-        var session = await connection.Table<Session>()
-            .Where(s => s.Id == id && s.Deleted == null)
-            .FirstOrDefaultAsync();
-        if (session is null)
-        {
-            throw new Exception($"Session {id} does not exist.");
-        }
-
-        session.Track = points;
-        var metrics = sessionTelemetryProcessor.ComputeSummaryMetrics(
-            sessionTelemetryProcessor.ReadProcessedDurationSeconds(session.ProcessedData) ?? session.DurationSeconds,
-            points);
-        var pointsJson = AppJson.Serialize(points);
-        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        await connection.ExecuteAsync(
-            """
-            UPDATE session
-            SET
-                track=?,
-                duration_seconds=?,
-                distance_meters=?,
-                ascent_meters=?,
-                descent_meters=?,
-                updated=?
-            WHERE id=?
-            """,
-            pointsJson,
-            metrics.DurationSeconds,
-            metrics.DistanceMeters,
-            metrics.AscentMeters,
-            metrics.DescentMeters,
-            now,
-            id);
-    }
+    public Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points) =>
+        sessionRepository.PatchSessionTrackAsync(id, points);
 
     public Task<SessionCache?> GetSessionCacheAsync(Guid sessionId) =>
         sessionCacheStore.GetSessionCacheAsync(sessionId);
