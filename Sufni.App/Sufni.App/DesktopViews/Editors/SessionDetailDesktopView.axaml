@@ -68,7 +68,7 @@ mc:Ignorable="d">
             </editors:SessionShellDesktopView.MediaContent>
 
             <editors:SessionShellDesktopView.StatisticsContent>
-                <items:SessionStatisticsDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext)}" />
+                <items:SessionStatisticsDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).StatisticsWorkspace}" />
             </editors:SessionShellDesktopView.StatisticsContent>
 
             <editors:SessionShellDesktopView.SidebarContent>

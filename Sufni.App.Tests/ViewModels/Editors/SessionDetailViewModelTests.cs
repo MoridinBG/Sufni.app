@@ -155,12 +155,19 @@ public class SessionDetailViewModelTests
         Assert.Same(editor.SessionContext.ExtensionSlots, editor.GraphWorkspace.ExtensionSlots);
         Assert.Same(editor.Timeline, editor.MediaWorkspace.Timeline);
         Assert.Same(editor.SessionContext.ExtensionSlots, editor.MediaWorkspace.ExtensionSlots);
+        Assert.Same(editor.SessionContext.ExtensionSlots, editor.StatisticsWorkspace.ExtensionSlots);
         Assert.Same(editor.NotesPage, editor.SidebarWorkspace.NotesPage);
         Assert.Same(editor.PreferencesPage, editor.SidebarWorkspace.PreferencesPage);
         Assert.Same(editor.SaveCommand, editor.SidebarWorkspace.SaveCommand);
         Assert.Same(editor.ResetCommand, editor.SidebarWorkspace.ResetCommand);
         var graphPage = Assert.IsType<RecordedGraphPageViewModel>(editor.Pages[0]);
         Assert.Same(editor.GraphWorkspace, graphPage.Workspace);
+        Assert.Same(editor.StatisticsWorkspace, editor.Pages.OfType<SpringPageViewModel>().Single().StatisticsWorkspace);
+        Assert.Same(editor.StatisticsWorkspace, editor.Pages.OfType<StrokesPageViewModel>().Single().Workspace);
+        Assert.Same(editor.StatisticsWorkspace, editor.DamperPage.StatisticsWorkspace);
+        Assert.Same(editor.StatisticsWorkspace, editor.Pages.OfType<BalancePageViewModel>().Single().StatisticsWorkspace);
+        Assert.Same(editor.StatisticsWorkspace, editor.Pages.OfType<VibrationPageViewModel>().Single().Workspace);
+        Assert.Same(editor.StatisticsWorkspace, editor.Pages.OfType<SessionAnalysisPageViewModel>().Single().Workspace);
         Assert.Equal(snapshot, editor.SessionContext.SessionSnapshot);
         Assert.Equal(editor.ScreenState, editor.MobileWorkspace.ScreenState);
         Assert.Equal(editor.SessionOperationState, editor.MobileWorkspace.SessionOperationState);
@@ -244,6 +251,39 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public void StatisticsWorkspace_TracksContextStatisticsStateAndCommands()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var observed = new List<string?>();
+        ((INotifyPropertyChanged)editor.StatisticsWorkspace).PropertyChanged += (_, args) =>
+            observed.Add(args.PropertyName);
+
+        editor.TelemetryData = telemetry;
+        editor.SetAnalysisRange(0.02, 0.16);
+        editor.FrontStatisticsState = SurfacePresentationState.Ready;
+        editor.StatisticsWorkspace.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
+        var selection = CreateFrontDampingSelection(telemetry, editor.SelectedVelocityAverageMode);
+
+        editor.StatisticsWorkspace.SelectTelemetryRangeSelectionCommand.Execute(selection);
+
+        Assert.Same(telemetry, editor.StatisticsWorkspace.TelemetryData);
+        Assert.Equal(editor.AnalysisRange, editor.StatisticsWorkspace.AnalysisRange);
+        Assert.Equal("Selected range 0.0-0.2s", editor.StatisticsWorkspace.SessionAnalysisRangeText);
+        Assert.Equal(editor.FrontStatisticsState, editor.StatisticsWorkspace.FrontStatisticsState);
+        Assert.Equal(VelocityAverageMode.StrokePeakAveraged, editor.SelectedVelocityAverageMode);
+        Assert.Equal(VelocityAverageMode.StrokePeakAveraged, editor.StatisticsWorkspace.SelectedVelocityAverageMode);
+        Assert.Equal(editor.SessionAnalysisModesText, editor.StatisticsWorkspace.SessionAnalysisModesText);
+        Assert.Equal(selection, editor.SelectedFrontRangeSelection);
+        Assert.Equal(selection, editor.StatisticsWorkspace.SelectedFrontRangeSelection);
+        Assert.Contains(nameof(ISessionStatisticsWorkspace.TelemetryData), observed);
+        Assert.Contains(nameof(ISessionStatisticsWorkspace.AnalysisRange), observed);
+        Assert.Contains(nameof(ISessionStatisticsWorkspace.FrontStatisticsState), observed);
+        Assert.Contains(nameof(ISessionStatisticsWorkspace.SelectedVelocityAverageMode), observed);
+        Assert.Contains(nameof(ISessionStatisticsWorkspace.SelectedFrontRangeSelection), observed);
+    }
+
+    [AvaloniaFact]
     public void SidebarWorkspace_DelegatesEditableFieldsToShellAndNotesPage()
     {
         var editor = CreateEditor(TestSnapshots.Session(name: "Before", description: "old notes"));
@@ -271,6 +311,16 @@ public class SessionDetailViewModelTests
         Assert.Equal(BalanceSpeedMode.Both, editor.SelectedBalanceSpeedMode);
         Assert.Equal(VelocityAverageMode.SampleAveraged, editor.SelectedVelocityAverageMode);
         Assert.Equal(SessionAnalysisTargetProfile.Trail, editor.SelectedSessionAnalysisTargetProfile);
+        Assert.Equal(TravelHistogramMode.ActiveSuspension, editor.StatisticsWorkspace.SelectedTravelHistogramMode);
+        Assert.Equal(BalanceDisplacementMode.Zenith, editor.StatisticsWorkspace.SelectedBalanceDisplacementMode);
+        Assert.Equal(BalanceSpeedMode.Both, editor.StatisticsWorkspace.SelectedBalanceSpeedMode);
+        Assert.Equal(VelocityAverageMode.SampleAveraged, editor.StatisticsWorkspace.SelectedVelocityAverageMode);
+        Assert.Equal(SessionAnalysisTargetProfile.Trail, editor.StatisticsWorkspace.SelectedSessionAnalysisTargetProfile);
+        Assert.Same(editor.TravelHistogramModeOptions, editor.StatisticsWorkspace.TravelHistogramModeOptions);
+        Assert.Same(editor.VelocityAverageModeOptions, editor.StatisticsWorkspace.VelocityAverageModeOptions);
+        Assert.Same(editor.BalanceDisplacementModeOptions, editor.StatisticsWorkspace.BalanceDisplacementModeOptions);
+        Assert.Same(editor.BalanceSpeedModeOptions, editor.StatisticsWorkspace.BalanceSpeedModeOptions);
+        Assert.Same(editor.SessionAnalysisTargetProfileOptions, editor.StatisticsWorkspace.SessionAnalysisTargetProfileOptions);
     }
 
     [AvaloniaFact]

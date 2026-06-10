@@ -49,7 +49,7 @@ public class SessionDetailDesktopViewTests
 
         Assert.Same(mounted.Editor.GraphWorkspace, graphView.DataContext);
         Assert.Same(mounted.Editor.MediaWorkspace, mediaView.DataContext);
-        Assert.Same(mounted.Editor, statisticsView.DataContext);
+        Assert.Same(mounted.Editor.StatisticsWorkspace, statisticsView.DataContext);
         Assert.Same(mounted.Editor.SidebarWorkspace, sidebarView.DataContext);
         Assert.Same(mounted.Editor, errorMessagesBar!.DataContext);
     }

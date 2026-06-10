@@ -61,6 +61,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     public ISessionShellMobileWorkspace MobileWorkspace { get; }
     public IRecordedSessionGraphWorkspace GraphWorkspace { get; }
     public ISessionMediaWorkspace MediaWorkspace { get; }
+    public ISessionStatisticsWorkspace StatisticsWorkspace { get; }
     public ISessionSidebarWorkspace SidebarWorkspace { get; }
     public SessionTimelineLinkViewModel Timeline => SessionContext.Timeline;
 
@@ -298,6 +299,46 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         SessionContext.ElevationGraphState = value;
     }
 
+    partial void OnFrontStatisticsStateChanged(SurfacePresentationState value)
+    {
+        SessionContext.FrontStatisticsState = value;
+    }
+
+    partial void OnRearStatisticsStateChanged(SurfacePresentationState value)
+    {
+        SessionContext.RearStatisticsState = value;
+    }
+
+    partial void OnCompressionBalanceStateChanged(SurfacePresentationState value)
+    {
+        SessionContext.CompressionBalanceState = value;
+    }
+
+    partial void OnReboundBalanceStateChanged(SurfacePresentationState value)
+    {
+        SessionContext.ReboundBalanceState = value;
+    }
+
+    partial void OnFrontForkVibrationStateChanged(SurfacePresentationState value)
+    {
+        SessionContext.FrontForkVibrationState = value;
+    }
+
+    partial void OnFrontFrameVibrationStateChanged(SurfacePresentationState value)
+    {
+        SessionContext.FrontFrameVibrationState = value;
+    }
+
+    partial void OnRearForkVibrationStateChanged(SurfacePresentationState value)
+    {
+        SessionContext.RearForkVibrationState = value;
+    }
+
+    partial void OnRearFrameVibrationStateChanged(SurfacePresentationState value)
+    {
+        SessionContext.RearFrameVibrationState = value;
+    }
+
     partial void OnTelemetryDataChanged(TelemetryData? value)
     {
         SessionContext.TelemetryData = value;
@@ -337,6 +378,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     partial void OnSelectedTravelHistogramModeChanged(TravelHistogramMode value)
     {
+        SessionContext.SelectedTravelHistogramMode = value;
         OnPropertyChanged(nameof(SessionAnalysisModesText));
         RecomputeSessionAnalysis();
         PersistRecordedStatisticsPreferencesIfEnabled();
@@ -345,6 +387,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     partial void OnSelectedBalanceDisplacementModeChanged(BalanceDisplacementMode value)
     {
+        SessionContext.SelectedBalanceDisplacementMode = value;
         OnPropertyChanged(nameof(SessionAnalysisModesText));
         RecomputeSessionAnalysis();
         PersistRecordedStatisticsPreferencesIfEnabled();
@@ -352,6 +395,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     partial void OnSelectedBalanceSpeedModeChanged(BalanceSpeedMode value)
     {
+        SessionContext.SelectedBalanceSpeedMode = value;
         OnPropertyChanged(nameof(SessionAnalysisModesText));
         RecomputeSessionAnalysis();
         PersistRecordedStatisticsPreferencesIfEnabled();
@@ -359,6 +403,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     partial void OnSelectedVelocityAverageModeChanged(VelocityAverageMode value)
     {
+        SessionContext.SelectedVelocityAverageMode = value;
         ClearDampingRangeSelections();
         OnPropertyChanged(nameof(SessionAnalysisModesText));
         RecomputeDamperPercentagesForAnalysisRange();
@@ -369,15 +414,32 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     partial void OnSelectedSessionAnalysisTargetProfileChanged(SessionAnalysisTargetProfile value)
     {
+        SessionContext.SelectedSessionAnalysisTargetProfile = value;
         RecomputeSessionAnalysis();
         PersistRecordedStatisticsPreferencesIfEnabled();
     }
 
     partial void OnDampingSpeedCutoffsChanged(DampingSpeedCutoffs value)
     {
+        SessionContext.DampingSpeedCutoffs = value;
         RecomputeDamperPercentagesForAnalysisRange();
         RecomputeSessionAnalysisIfAllowed();
         UpdateRecordedSessionExtensionHostState();
+    }
+
+    partial void OnDamperPercentagesChanged(SessionDamperPercentages value)
+    {
+        SessionContext.DamperPercentages = value;
+    }
+
+    partial void OnPlotDampingSpeedCutoffsChanged(DampingSpeedCutoffs value)
+    {
+        SessionContext.PlotDampingSpeedCutoffs = value;
+    }
+
+    partial void OnSessionAnalysisChanged(SessionAnalysisResult value)
+    {
+        SessionContext.SessionAnalysis = value;
     }
 
     partial void OnFullTrackPointsChanged(List<TrackPoint>? value)
@@ -543,6 +605,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         persistedDampingSpeedCutoffs = cutoffs.ClampValues();
         dampingSpeedCutoffPreviewOrigin = null;
         dampingSpeedCutoffOwner = owner;
+        SessionContext.CanEditDampingSpeedCutoffs = dampingSpeedCutoffOwner is not null;
         OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
         PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
         DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
@@ -1598,6 +1661,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             ClearAnalysisRange,
             SetAnalysisRangeBoundary);
         MediaWorkspace = new SessionMediaWorkspaceViewModel(SessionContext);
+        StatisticsWorkspace = new SessionStatisticsWorkspaceViewModel(
+            SessionContext,
+            value => SelectedTravelHistogramMode = value,
+            value => SelectedBalanceDisplacementMode = value,
+            value => SelectedBalanceSpeedMode = value,
+            value => SelectedVelocityAverageMode = value,
+            value => SelectedSessionAnalysisTargetProfile = value,
+            SelectTelemetryRangeSelectionCommand,
+            PreviewDampingSpeedCutoff,
+            CancelDampingSpeedCutoffPreview,
+            CommitDampingSpeedCutoffAsync);
         SidebarWorkspace = new SessionSidebarWorkspaceViewModel(
             this,
             () => Name,
@@ -1632,12 +1706,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         SessionContext.ExtensionSlots = ExtensionSlots;
 
         GraphPage = new RecordedGraphPageViewModel(GraphWorkspace, MediaWorkspace);
-        SpringPage = new SpringPageViewModel(this);
-        StrokesPage = new StrokesPageViewModel(this);
-        DamperPage = new DamperPageViewModel(this);
-        BalancePage = new BalancePageViewModel(this);
-        VibrationPage = new VibrationPageViewModel(this);
-        AnalysisPage = new SessionAnalysisPageViewModel(this);
+        SpringPage = new SpringPageViewModel(StatisticsWorkspace);
+        StrokesPage = new StrokesPageViewModel(StatisticsWorkspace);
+        DamperPage = new DamperPageViewModel(StatisticsWorkspace);
+        BalancePage = new BalancePageViewModel(StatisticsWorkspace);
+        VibrationPage = new VibrationPageViewModel(StatisticsWorkspace);
+        AnalysisPage = new SessionAnalysisPageViewModel(StatisticsWorkspace);
         Pages.Add(GraphPage);
         Pages.Add(SpringPage);
         Pages.Add(StrokesPage);
@@ -1739,10 +1813,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     private void ClearStatisticsSelections()
     {
-        frontTelemetryRangeSelection = null;
-        rearTelemetryRangeSelection = null;
-        OnPropertyChanged(nameof(SelectedFrontRangeSelection));
-        OnPropertyChanged(nameof(SelectedRearRangeSelection));
+        SetSelectedFrontRangeSelection(null);
+        SetSelectedRearRangeSelection(null);
         StatisticsSelectionHighlightRanges = [];
         ClearStatisticsSelectionToggles();
         RefreshStatisticsSelectionActionStates();
@@ -1753,15 +1825,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         var changed = false;
         if (frontTelemetryRangeSelection is DampingRangeSelection)
         {
-            frontTelemetryRangeSelection = null;
-            OnPropertyChanged(nameof(SelectedFrontRangeSelection));
+            SetSelectedFrontRangeSelection(null);
             changed = true;
         }
 
         if (rearTelemetryRangeSelection is DampingRangeSelection)
         {
-            rearTelemetryRangeSelection = null;
-            OnPropertyChanged(nameof(SelectedRearRangeSelection));
+            SetSelectedRearRangeSelection(null);
             changed = true;
         }
 
@@ -1790,15 +1860,37 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
         if (ShouldClearStatisticsSelection(frontTelemetryRangeSelection, clearDampingSelections, clearStrokeSelections))
         {
-            frontTelemetryRangeSelection = null;
-            OnPropertyChanged(nameof(SelectedFrontRangeSelection));
+            SetSelectedFrontRangeSelection(null);
         }
 
         if (ShouldClearStatisticsSelection(rearTelemetryRangeSelection, clearDampingSelections, clearStrokeSelections))
         {
-            rearTelemetryRangeSelection = null;
-            OnPropertyChanged(nameof(SelectedRearRangeSelection));
+            SetSelectedRearRangeSelection(null);
         }
+    }
+
+    private void SetSelectedFrontRangeSelection(TelemetryRangeSelection? selection)
+    {
+        if (frontTelemetryRangeSelection == selection)
+        {
+            return;
+        }
+
+        frontTelemetryRangeSelection = selection;
+        SessionContext.SelectedFrontRangeSelection = selection;
+        OnPropertyChanged(nameof(SelectedFrontRangeSelection));
+    }
+
+    private void SetSelectedRearRangeSelection(TelemetryRangeSelection? selection)
+    {
+        if (rearTelemetryRangeSelection == selection)
+        {
+            return;
+        }
+
+        rearTelemetryRangeSelection = selection;
+        SessionContext.SelectedRearRangeSelection = selection;
+        OnPropertyChanged(nameof(SelectedRearRangeSelection));
     }
 
     private static bool ShouldClearStatisticsSelection(
@@ -2349,13 +2441,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
         if (selection.SuspensionType == SuspensionType.Front)
         {
-            frontTelemetryRangeSelection = isClearingSelection ? null : selection;
-            OnPropertyChanged(nameof(SelectedFrontRangeSelection));
+            SetSelectedFrontRangeSelection(isClearingSelection ? null : selection);
         }
         else
         {
-            rearTelemetryRangeSelection = isClearingSelection ? null : selection;
-            OnPropertyChanged(nameof(SelectedRearRangeSelection));
+            SetSelectedRearRangeSelection(isClearingSelection ? null : selection);
         }
 
         if (!isClearingSelection)
