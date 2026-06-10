@@ -6,6 +6,7 @@ using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.SensorConfigurations;
 using Sufni.App.Views.Editors;
 using Sufni.App.Views.SensorConfigurations;
+using Sufni.App.Views.Shared;
 
 namespace Sufni.App.Tests.Views.Editors;
 
@@ -20,7 +21,10 @@ public class SetupEditorViewTests
         var view = mounted.View;
         var editor = mounted.Editor;
 
-        var forkContent = view.FindControl<ContentControl>("ForkSensorConfigContent");
+        var commonFields = view.FindFirstVisual<SetupEditorCommonFields>();
+        Assert.NotNull(commonFields);
+
+        var forkContent = commonFields!.FindControl<ContentControl>("ForkSensorConfigContent");
         Assert.NotNull(forkContent);
         Assert.NotNull(forkContent!.FindFirstVisual<LinearForkSensorConfigurationView>());
 
@@ -41,8 +45,11 @@ public class SetupEditorViewTests
 
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var forkSensorTypeComboBox = view.FindControl<ComboBox>("ForkSensorTypeComboBox");
-        var shockSensorTypeComboBox = view.FindControl<ComboBox>("ShockSensorTypeComboBox");
+        var commonFields = view.FindFirstVisual<SetupEditorCommonFields>();
+        Assert.NotNull(commonFields);
+
+        var forkSensorTypeComboBox = commonFields!.FindControl<ComboBox>("ForkSensorTypeComboBox");
+        var shockSensorTypeComboBox = commonFields.FindControl<ComboBox>("ShockSensorTypeComboBox");
         Assert.NotNull(forkSensorTypeComboBox);
         Assert.NotNull(shockSensorTypeComboBox);
 
@@ -62,8 +69,11 @@ public class SetupEditorViewTests
         var view = mounted.View;
         var editor = mounted.Editor;
 
-        var forkContent = view.FindControl<ContentControl>("ForkSensorConfigContent");
-        var forkSensorTypeComboBox = view.FindControl<ComboBox>("ForkSensorTypeComboBox");
+        var commonFields = view.FindFirstVisual<SetupEditorCommonFields>();
+        Assert.NotNull(commonFields);
+
+        var forkContent = commonFields!.FindControl<ContentControl>("ForkSensorConfigContent");
+        var forkSensorTypeComboBox = commonFields.FindControl<ComboBox>("ForkSensorTypeComboBox");
         Assert.NotNull(forkContent);
         Assert.NotNull(forkSensorTypeComboBox);
 
@@ -86,8 +96,11 @@ public class SetupEditorViewTests
         var view = mounted.View;
         var editor = mounted.Editor;
 
-        var shockContent = view.FindControl<ContentControl>("ShockSensorConfigContent");
-        var shockSensorTypeComboBox = view.FindControl<ComboBox>("ShockSensorTypeComboBox");
+        var commonFields = view.FindFirstVisual<SetupEditorCommonFields>();
+        Assert.NotNull(commonFields);
+
+        var shockContent = commonFields!.FindControl<ContentControl>("ShockSensorConfigContent");
+        var shockSensorTypeComboBox = commonFields.FindControl<ComboBox>("ShockSensorTypeComboBox");
         Assert.NotNull(shockContent);
         Assert.NotNull(shockSensorTypeComboBox);
 

@@ -7,6 +7,7 @@ using NSubstitute;
 using Sufni.App.DesktopViews.Editors;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Views.Shared;
 
 namespace Sufni.App.Tests.Views.Editors;
 
@@ -60,10 +61,13 @@ public class SetupEditorDesktopViewTests
         var view = mounted.View;
         var editor = mounted.Editor;
 
-        var bikeComboBox = view.FindControl<ComboBox>("BikeComboBox");
+        var commonFields = view.FindFirstVisual<SetupEditorCommonFields>();
+        Assert.NotNull(commonFields);
+
+        var bikeComboBox = commonFields!.FindControl<ComboBox>("BikeComboBox");
         Assert.NotNull(bikeComboBox);
 
-        var selectedItemHost = AttachSelectedBikeTemplateHost(view, bikeComboBox!, bike);
+        var selectedItemHost = AttachSelectedBikeTemplateHost(commonFields, bikeComboBox!, bike);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var editBikeButton = Assert.Single(selectedItemHost.GetLogicalDescendants().OfType<Button>());
@@ -80,10 +84,13 @@ public class SetupEditorDesktopViewTests
         await using var mounted = await context.MountDesktopAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
         var view = mounted.View;
 
-        var bikeComboBox = view.FindControl<ComboBox>("BikeComboBox");
+        var commonFields = view.FindFirstVisual<SetupEditorCommonFields>();
+        Assert.NotNull(commonFields);
+
+        var bikeComboBox = commonFields!.FindControl<ComboBox>("BikeComboBox");
         Assert.NotNull(bikeComboBox);
 
-        var selectedItemHost = AttachSelectedBikeTemplateHost(view, bikeComboBox!, bike);
+        var selectedItemHost = AttachSelectedBikeTemplateHost(commonFields, bikeComboBox!, bike);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var editBikeButton = Assert.Single(selectedItemHost.GetLogicalDescendants().OfType<Button>());
@@ -94,10 +101,13 @@ public class SetupEditorDesktopViewTests
         await context.BikeCoordinator.Received(1).OpenEditAsync(bike.Id);
     }
 
-    private static ContentControl AttachSelectedBikeTemplateHost(SetupEditorDesktopView view, ComboBox bikeComboBox, BikeSnapshot bike)
+    private static ContentControl AttachSelectedBikeTemplateHost(
+        SetupEditorCommonFields commonFields,
+        ComboBox bikeComboBox,
+        BikeSnapshot bike)
     {
         // Headless tests do not realize the ComboBox selected-item presenter button, so render the real item template in-tree.
-        var rootGrid = view.FindFirstVisual<Grid>();
+        var rootGrid = commonFields.FindFirstVisual<Grid>();
         Assert.NotNull(rootGrid);
 
         var template = Assert.Single(bikeComboBox.DataTemplates);
