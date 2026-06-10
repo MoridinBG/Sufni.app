@@ -36,7 +36,6 @@ public class Suspension
 }
 
 public record BikeData(
-    double HeadAngle,
     double? FrontMaxTravel,
     double? RearMaxTravel,
     Func<ushort, double>? FrontMeasurementToTravel,

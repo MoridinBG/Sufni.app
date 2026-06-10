@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using System.Globalization;
-using System.Text;
 using Serilog;
 
 namespace Sufni.Kinematics;
@@ -98,48 +96,6 @@ public class KinematicSolver
             solutions.Count);
 
         return solutions;
-    }
-
-    public static void ExportSolutionCsv(string filename, Dictionary<string, CoordinateList> solution)
-    {
-        if (solution.Count == 0)
-            return;
-
-        // Determine number of steps from first CoordinateList
-        var steps = 0;
-        foreach (var cl in solution.Values)
-        {
-            steps = cl.Count; break;
-        }
-
-        // Ordered joint names
-        var jointNames = new List<string>(solution.Keys);
-        jointNames.Sort();
-
-        using var writer = new StreamWriter(filename, false, Encoding.UTF8);
-
-        // --- Header ---
-        var header = new StringBuilder();
-        foreach (var name in jointNames)
-        {
-            header.Append(name).Append("_X,").Append(name).Append("_Y,");
-        }
-        header.Length--; // remove last comma
-        writer.WriteLine(header.ToString());
-
-        // --- Rows ---
-        for (var step = 0; step < steps; step++)
-        {
-            var row = new StringBuilder();
-            foreach (var name in jointNames)
-            {
-                var cl = solution[name];
-                row.Append(cl.X[step].ToString(CultureInfo.InvariantCulture)).Append(',');
-                row.Append(cl.Y[step].ToString(CultureInfo.InvariantCulture)).Append(',');
-            }
-            row.Length--; // remove last comma
-            writer.WriteLine(row.ToString());
-        }
     }
 
     #endregion Public methods

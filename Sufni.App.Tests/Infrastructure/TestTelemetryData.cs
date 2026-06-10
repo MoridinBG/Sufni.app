@@ -25,7 +25,6 @@ public static class TestTelemetryData
         };
 
         var bikeData = new BikeData(
-            HeadAngle: 65.0,
             FrontMaxTravel: frontPresent ? 200.0 : null,
             RearMaxTravel: rearPresent ? 200.0 : null,
             FrontMeasurementToTravel: frontPresent ? MeasurementToTravel : null,

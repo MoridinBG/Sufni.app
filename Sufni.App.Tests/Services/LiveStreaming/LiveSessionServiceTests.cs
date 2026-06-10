@@ -654,7 +654,6 @@ public class LiveSessionServiceTests
             BikeId: Guid.NewGuid(),
             BikeName: "demo",
             BikeData: new BikeData(
-                HeadAngle: 63,
                 FrontMaxTravel: 180,
                 RearMaxTravel: 170,
                 FrontMeasurementToTravel: measurement => measurement / 10.0,

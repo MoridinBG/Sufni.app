@@ -82,7 +82,7 @@ public class RecordedSessionReprocessorTests
                 Timestamp = 1_700_000_000,
                 Duration = 0.64
             },
-            BikeData: new BikeData(63, 180, null, measurement => measurement / 10.0, null),
+            BikeData: new BikeData(180, null, measurement => measurement / 10.0, null),
             FrontMeasurements: Enumerable.Range(0, 64).Select(sample => (ushort)(1200 + sample)).ToArray(),
             RearMeasurements: [],
             ImuData: null,

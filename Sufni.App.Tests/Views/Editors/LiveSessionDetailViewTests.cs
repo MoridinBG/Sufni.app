@@ -115,7 +115,7 @@ public class LiveSessionDetailViewTests
             SetupName: "race",
             BikeId: Guid.NewGuid(),
             BikeName: "demo",
-            BikeData: new BikeData(63, 180, 170, measurement => measurement, measurement => measurement),
+            BikeData: new BikeData(180, 170, measurement => measurement, measurement => measurement),
             TravelCalibration: new LiveDaqTravelCalibration(
                 new LiveDaqTravelChannelCalibration(180, measurement => measurement),
                 new LiveDaqTravelChannelCalibration(170, measurement => measurement)),

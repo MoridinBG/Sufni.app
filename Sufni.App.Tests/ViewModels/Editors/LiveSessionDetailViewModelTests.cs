@@ -1108,7 +1108,7 @@ public class LiveSessionDetailViewModelTests
             SetupName: "race",
             BikeId: resolvedBikeId,
             BikeName: "demo",
-            BikeData: new BikeData(63, 180, 170, measurement => measurement, measurement => measurement),
+            BikeData: new BikeData(180, 170, measurement => measurement, measurement => measurement),
             TravelCalibration: new LiveDaqTravelCalibration(
                 hasFrontTravelCalibration ? CreateTravelCalibration(180) : null,
                 hasRearTravelCalibration ? CreateTravelCalibration(170) : null),

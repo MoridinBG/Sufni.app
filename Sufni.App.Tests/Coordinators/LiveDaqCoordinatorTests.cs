@@ -352,7 +352,7 @@ public class LiveDaqCoordinatorTests
             SetupName: "setup",
             BikeId: Guid.NewGuid(),
             BikeName: "bike",
-            BikeData: new BikeData(63, 180, 170, measurement => measurement, measurement => measurement),
+            BikeData: new BikeData(180, 170, measurement => measurement, measurement => measurement),
             TravelCalibration: new LiveDaqTravelCalibration(null, null),
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             DampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(Guid.Empty, 0));

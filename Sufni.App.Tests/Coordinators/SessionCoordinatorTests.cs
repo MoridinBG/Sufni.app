@@ -1345,7 +1345,7 @@ public class SessionCoordinatorTests
             SetupName: "race",
             BikeId: Guid.NewGuid(),
             BikeName: "demo",
-            BikeData: new BikeData(63, 180, 170, measurement => measurement / 10.0, measurement => measurement / 10.0),
+            BikeData: new BikeData(180, 170, measurement => measurement / 10.0, measurement => measurement / 10.0),
             TravelCalibration: new LiveDaqTravelCalibration(null, null),
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             DampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(Guid.Empty, 0));
@@ -1392,7 +1392,7 @@ public class SessionCoordinatorTests
         };
         var bike = new Bike(capture.Context.BikeId, capture.Context.BikeName)
         {
-            HeadAngle = capture.Context.BikeData.HeadAngle,
+            HeadAngle = 63,
             ForkStroke = capture.Context.BikeData.FrontMaxTravel,
             ShockStroke = capture.Context.BikeData.RearMaxTravel
         };

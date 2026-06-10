@@ -13,7 +13,6 @@ public static class TelemetryBikeData
         RearTravelCalibration? rearTravelCalibration)
     {
         return new BikeData(
-            bike.HeadAngle,
             frontSensorConfiguration?.MaxTravel,
             rearTravelCalibration?.MaxTravel,
             frontSensorConfiguration?.MeasurementToTravel,

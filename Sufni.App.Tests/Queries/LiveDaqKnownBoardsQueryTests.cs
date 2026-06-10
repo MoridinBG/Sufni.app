@@ -250,7 +250,6 @@ public class LiveDaqKnownBoardsQueryTests
         Assert.Equal("session setup", context.SetupName);
         Assert.Equal(bike.Id, context.BikeId);
         Assert.Equal("session bike", context.BikeName);
-        Assert.Equal(bike.HeadAngle, context.BikeData.HeadAngle);
         Assert.NotNull(context.BikeData.FrontMeasurementToTravel);
         Assert.NotNull(context.BikeData.RearMeasurementToTravel);
         Assert.NotNull(context.TravelCalibration.Front);
