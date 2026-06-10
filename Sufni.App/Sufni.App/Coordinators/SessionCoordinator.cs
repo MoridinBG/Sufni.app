@@ -35,6 +35,7 @@ public class SessionCoordinator
 
     private readonly ISessionStoreWriter sessionStore;
     private readonly IDatabaseService databaseService;
+    private readonly ISessionCacheStore sessionCacheStore;
     private readonly IHttpApiService httpApiService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly TrackCoordinator trackCoordinator;
@@ -58,6 +59,7 @@ public class SessionCoordinator
     public SessionCoordinator(
         ISessionStoreWriter sessionStore,
         IDatabaseService databaseService,
+        ISessionCacheStore sessionCacheStore,
         IHttpApiService httpApiService,
         IBackgroundTaskRunner backgroundTaskRunner,
         TrackCoordinator trackCoordinator,
@@ -81,6 +83,7 @@ public class SessionCoordinator
     {
         this.sessionStore = sessionStore;
         this.databaseService = databaseService;
+        this.sessionCacheStore = sessionCacheStore;
         this.httpApiService = httpApiService;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.trackCoordinator = trackCoordinator;
@@ -216,7 +219,7 @@ public class SessionCoordinator
 
             logger.Verbose("Checking cached mobile presentation for session {SessionId}", sessionId);
             var cached = await backgroundTaskRunner.RunAsync(
-                () => databaseService.GetSessionCacheAsync(sessionId),
+                () => sessionCacheStore.GetSessionCacheAsync(sessionId),
                 cancellationToken);
             if (cached is not null)
             {
@@ -299,7 +302,7 @@ public class SessionCoordinator
 
             logger.Verbose("Persisting mobile session cache for {SessionId}", sessionId);
             await backgroundTaskRunner.RunAsync(
-                () => databaseService.PutSessionCacheAsync(presentation.ToCache(sessionId)),
+                () => sessionCacheStore.PutSessionCacheAsync(presentation.ToCache(sessionId)),
                 cancellationToken);
 
             logger.Information("Mobile session load completed for {SessionId}", sessionId);

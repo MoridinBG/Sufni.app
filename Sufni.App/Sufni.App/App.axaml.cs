@@ -126,6 +126,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton(typeof(ISynchronizableRepository<>), typeof(SynchronizableRepository<>));
         ServiceCollection.AddSingleton<IPairedDeviceRepository, PairedDeviceRepository>();
         ServiceCollection.AddSingleton<IRecordedSessionSourceRepository, RecordedSessionSourceRepository>();
+        ServiceCollection.AddSingleton<ISessionCacheStore, SessionCacheStore>();
         ServiceCollection.AddSingleton<IDatabaseService>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IExtensionDatabaseConnection>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IRecordedSessionDataReader, RecordedSessionDataReader>();
@@ -168,6 +169,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<SessionCoordinator>(sp => new SessionCoordinator(
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<IDatabaseService>(),
+            sp.GetRequiredService<ISessionCacheStore>(),
             sp.GetRequiredService<IHttpApiService>(),
             sp.GetRequiredService<IBackgroundTaskRunner>(),
             sp.GetRequiredService<TrackCoordinator>(),

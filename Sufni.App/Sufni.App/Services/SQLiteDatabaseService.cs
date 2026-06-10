@@ -30,6 +30,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
     private readonly ISessionTelemetryProcessor sessionTelemetryProcessor;
     private readonly IPairedDeviceRepository pairedDeviceRepository;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
+    private readonly ISessionCacheStore sessionCacheStore;
 
     public SqLiteDatabaseService()
         : this(
@@ -111,6 +112,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         this.sessionTelemetryProcessor = sessionTelemetryProcessor ?? new SessionTelemetryProcessor();
         pairedDeviceRepository = new PairedDeviceRepository(this);
         recordedSessionSourceRepository = new RecordedSessionSourceRepository(this);
+        sessionCacheStore = new SessionCacheStore(this);
 
         if (createAppDirectories)
         {
@@ -150,6 +152,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         this.sessionTelemetryProcessor = sessionTelemetryProcessor ?? new SessionTelemetryProcessor();
         pairedDeviceRepository = new PairedDeviceRepository(this);
         recordedSessionSourceRepository = new RecordedSessionSourceRepository(this);
+        sessionCacheStore = new SessionCacheStore(this);
 
         if (createAppDirectories)
         {
@@ -1217,32 +1220,11 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
             id);
     }
 
-    public async Task<SessionCache?> GetSessionCacheAsync(Guid sessionId)
-    {
-        await Initialization;
-        return await connection.Table<SessionCache>()
-            .Where(s => s.SessionId == sessionId)
-            .FirstOrDefaultAsync();
-    }
+    public Task<SessionCache?> GetSessionCacheAsync(Guid sessionId) =>
+        sessionCacheStore.GetSessionCacheAsync(sessionId);
 
-    public async Task<Guid> PutSessionCacheAsync(SessionCache sessionCache)
-    {
-        await Initialization;
-
-        var existing = await connection.Table<SessionCache>()
-            .Where(s => s.SessionId == sessionCache.SessionId)
-            .FirstOrDefaultAsync() is not null;
-        if (existing)
-        {
-            await UpdateEntityAsync(sessionCache);
-        }
-        else
-        {
-            await InsertEntityAsync(sessionCache);
-        }
-
-        return sessionCache.SessionId;
-    }
+    public Task<Guid> PutSessionCacheAsync(SessionCache sessionCache) =>
+        sessionCacheStore.PutSessionCacheAsync(sessionCache);
 
     public async Task<Guid?> AssociateSessionWithTrackAsync(Guid sessionId)
     {

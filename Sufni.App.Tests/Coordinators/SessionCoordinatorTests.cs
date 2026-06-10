@@ -28,6 +28,7 @@ public class SessionCoordinatorTests
 {
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
+    private readonly ISessionCacheStore sessionCacheStore = Substitute.For<ISessionCacheStore>();
     private readonly IHttpApiService http = Substitute.For<IHttpApiService>();
     private readonly TrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
@@ -60,6 +61,7 @@ public class SessionCoordinatorTests
         new(
             sessionStore,
             database,
+            sessionCacheStore,
             http,
             backgroundTaskRunner,
             trackCoordinator,
@@ -877,7 +879,7 @@ public class SessionCoordinatorTests
         var cache = new SessionCache { SessionId = sessionId, FrontTravelHistogram = "cached" };
         var telemetry = TestTelemetryData.CreateProcessed();
         var trackData = new SessionTrackPresentationData(Guid.NewGuid(), [], [], 400);
-        database.GetSessionCacheAsync(sessionId).Returns(cache);
+        sessionCacheStore.GetSessionCacheAsync(sessionId).Returns(cache);
         database.GetSessionPsstAsync(sessionId).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(sessionId, null, telemetry, Arg.Any<CancellationToken>())
             .Returns(trackData);
@@ -897,7 +899,7 @@ public class SessionCoordinatorTests
     {
         var sessionId = Guid.NewGuid();
         var cache = new SessionCache { SessionId = sessionId, FrontTravelHistogram = "cached" };
-        database.GetSessionCacheAsync(sessionId).Returns(cache);
+        sessionCacheStore.GetSessionCacheAsync(sessionId).Returns(cache);
         database.GetSessionPsstAsync(sessionId).Returns(Task.FromResult<TelemetryData?>(null));
 
         var result = await CreateCoordinator().LoadMobileDetailAsync(sessionId, new SessionPresentationDimensions(320, 180));
@@ -936,7 +938,7 @@ public class SessionCoordinatorTests
 
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         domainQuery.Get(snapshot.Id).Returns(DomainWithBike(snapshot, bike));
-        database.GetSessionCacheAsync(snapshot.Id).Returns(cache);
+        sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns(cache);
         database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(new SessionTrackPresentationData(null, null, null, null));
@@ -954,7 +956,7 @@ public class SessionCoordinatorTests
         Assert.Equal(currentPercentages, loaded.Data.DamperPercentages);
         Assert.Equal(currentCutoffs, loaded.Data.DampingSpeedCutoffs);
         Assert.Equal(new DampingSpeedCutoffOwner(bike.Id, bike.Updated), loaded.Data.DampingSpeedCutoffOwner);
-        await database.DidNotReceive().PutSessionCacheAsync(Arg.Any<SessionCache>());
+        await sessionCacheStore.DidNotReceive().PutSessionCacheAsync(Arg.Any<SessionCache>());
     }
 
     [Fact]
@@ -975,7 +977,7 @@ public class SessionCoordinatorTests
             false);
 
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        database.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
+        sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
         database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(trackData);
@@ -992,7 +994,7 @@ public class SessionCoordinatorTests
         Assert.Equal("front-travel", built.Data.FrontTravelHistogram);
         Assert.Same(telemetry, built.Telemetry);
         Assert.Same(trackData, built.TrackData);
-        await database.Received(1).PutSessionCacheAsync(Arg.Is<SessionCache>(cache =>
+        await sessionCacheStore.Received(1).PutSessionCacheAsync(Arg.Is<SessionCache>(cache =>
             cache.SessionId == snapshot.Id && cache.FrontTravelHistogram == "front-travel"));
     }
 
@@ -1022,7 +1024,7 @@ public class SessionCoordinatorTests
 
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         domainQuery.Get(snapshot.Id).Returns(DomainWithBike(snapshot, bike));
-        database.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
+        sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
         database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(new SessionTrackPresentationData(null, null, null, null));
@@ -1038,7 +1040,7 @@ public class SessionCoordinatorTests
         var built = Assert.IsType<SessionMobileLoadResult.BuiltCache>(result);
         Assert.Equal(cutoffs, built.Data.DampingSpeedCutoffs);
         Assert.Equal(new DampingSpeedCutoffOwner(bike.Id, bike.Updated), built.Data.DampingSpeedCutoffOwner);
-        await database.Received(1).PutSessionCacheAsync(Arg.Is<SessionCache>(cache =>
+        await sessionCacheStore.Received(1).PutSessionCacheAsync(Arg.Is<SessionCache>(cache =>
             cache.SessionId == snapshot.Id &&
             cache.DampingSpeedCutoffs == cutoffs));
     }
@@ -1048,7 +1050,7 @@ public class SessionCoordinatorTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        database.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
+        sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
         database.GetSessionPsstAsync(snapshot.Id).Returns(Task.FromResult<TelemetryData?>(null));
         http.GetSessionPsstAsync(snapshot.Id).Returns((byte[]?)null);
 
@@ -1062,7 +1064,7 @@ public class SessionCoordinatorTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        database.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
+        sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
         database.GetSessionPsstAsync(snapshot.Id).Returns(Task.FromResult<TelemetryData?>(null));
 
         var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
@@ -1076,7 +1078,7 @@ public class SessionCoordinatorTests
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        database.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
+        sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
         database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(new SessionTrackPresentationData(null, null, null, null));
@@ -1098,7 +1100,7 @@ public class SessionCoordinatorTests
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        database.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
+        sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
         database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(new SessionTrackPresentationData(null, null, null, null));
@@ -1132,7 +1134,7 @@ public class SessionCoordinatorTests
                 new SessionPresentationDimensions(320, 180),
                 cancellationTokenSource.Token));
 
-        await database.DidNotReceive().PutSessionCacheAsync(Arg.Any<SessionCache>());
+        await sessionCacheStore.DidNotReceive().PutSessionCacheAsync(Arg.Any<SessionCache>());
     }
 
     // ----- Sync arrival handlers -----
