@@ -13,7 +13,7 @@ namespace Sufni.App.Stores;
 /// startup and updated by coordinators via
 /// <see cref="ISessionStoreWriter"/>.
 /// </summary>
-internal sealed class SessionStore(IDatabaseService databaseService)
+internal sealed class SessionStore(ISessionRepository sessionRepository)
     : SourceCacheStoreBase<SessionSnapshot, Guid>(s => s.Id), ISessionStoreWriter
 {
     public IObservable<SessionSnapshot> Watch(Guid id) =>
@@ -27,7 +27,7 @@ internal sealed class SessionStore(IDatabaseService databaseService)
 
     public async Task RefreshAsync()
     {
-        var sessions = await databaseService.GetSessionsAsync();
+        var sessions = await sessionRepository.GetSessionsAsync();
         ReplaceWith(sessions.Select(SessionSnapshot.From));
     }
 }

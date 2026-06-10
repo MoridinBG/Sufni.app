@@ -9,7 +9,7 @@ namespace Sufni.App.Tests.Stores;
 
 public class PersistedStoreTests
 {
-    private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
+    private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
 
     [Fact]
     public async Task BikeStore_RefreshLoadsSnapshots_AndWriterMutationsUpdateCache()
@@ -80,8 +80,8 @@ public class PersistedStoreTests
             HasProcessedData = true,
             Updated = 11
         };
-        database.GetSessionsAsync().Returns([session]);
-        var store = new SessionStore(database);
+        sessionRepository.GetSessionsAsync().Returns([session]);
+        var store = new SessionStore(sessionRepository);
         using var snapshotsSubscription = store.Connect().Bind(out var snapshots).Subscribe();
         var watched = new List<SessionSnapshot>();
         using var watchSubscription = store.Watch(sessionId).Subscribe(watched.Add);

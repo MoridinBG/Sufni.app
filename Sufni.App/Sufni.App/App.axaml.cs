@@ -128,6 +128,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IRecordedSessionSourceRepository, RecordedSessionSourceRepository>();
         ServiceCollection.AddSingleton<ISessionCacheStore, SessionCacheStore>();
         ServiceCollection.AddSingleton<ITrackRepository, TrackRepository>();
+        ServiceCollection.AddSingleton<ISessionRepository, SessionRepository>();
         ServiceCollection.AddSingleton<IDatabaseService>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IExtensionDatabaseConnection>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IRecordedSessionDataReader, RecordedSessionDataReader>();

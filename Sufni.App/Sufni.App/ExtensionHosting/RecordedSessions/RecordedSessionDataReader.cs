@@ -12,13 +12,13 @@ using Sufni.App.ExtensionHost.RecordedSessions;
 
 namespace Sufni.App.ExtensionHosting.RecordedSessions;
 
-internal sealed class RecordedSessionDataReader(IDatabaseService databaseService) : IRecordedSessionDataReader
+internal sealed class RecordedSessionDataReader(ISessionRepository sessionRepository) : IRecordedSessionDataReader
 {
     public async Task<IReadOnlyList<RecordedSessionCatalogItem>> GetSessionsAsync(
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var sessions = await databaseService.GetSessionsAsync();
+        var sessions = await sessionRepository.GetSessionsAsync();
         cancellationToken.ThrowIfCancellationRequested();
         return sessions
             .Select(session => new RecordedSessionCatalogItem(
@@ -34,7 +34,7 @@ internal sealed class RecordedSessionDataReader(IDatabaseService databaseService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var session = await databaseService.GetSessionAsync(sessionId);
+        var session = await sessionRepository.GetSessionAsync(sessionId);
         cancellationToken.ThrowIfCancellationRequested();
         return session is null
             ? null
@@ -50,7 +50,7 @@ internal sealed class RecordedSessionDataReader(IDatabaseService databaseService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var telemetry = await databaseService.GetSessionPsstAsync(sessionId);
+        var telemetry = await sessionRepository.GetSessionPsstAsync(sessionId);
         cancellationToken.ThrowIfCancellationRequested();
         return telemetry;
     }
@@ -60,7 +60,7 @@ internal sealed class RecordedSessionDataReader(IDatabaseService databaseService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var track = await databaseService.GetSessionTrackAsync(sessionId);
+        var track = await sessionRepository.GetSessionTrackAsync(sessionId);
         cancellationToken.ThrowIfCancellationRequested();
         return track;
     }

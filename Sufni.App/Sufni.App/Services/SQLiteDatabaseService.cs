@@ -32,6 +32,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly ISessionCacheStore sessionCacheStore;
     private readonly ITrackRepository trackRepository;
+    private readonly ISessionRepository sessionRepository;
 
     public SqLiteDatabaseService()
         : this(
@@ -115,6 +116,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         recordedSessionSourceRepository = new RecordedSessionSourceRepository(this);
         sessionCacheStore = new SessionCacheStore(this);
         trackRepository = new TrackRepository(this);
+        sessionRepository = new SessionRepository(this, this.sessionTelemetryProcessor);
 
         if (createAppDirectories)
         {
@@ -156,6 +158,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         recordedSessionSourceRepository = new RecordedSessionSourceRepository(this);
         sessionCacheStore = new SessionCacheStore(this);
         trackRepository = new TrackRepository(this);
+        sessionRepository = new SessionRepository(this, this.sessionTelemetryProcessor);
 
         if (createAppDirectories)
         {
@@ -386,24 +389,6 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
                                                        ELSE 0
                                                     END AS has_data
                                                     """;
-
-    private static readonly string ActiveSessionMetadataProjection = $"""
-                                                                     id,
-                                                                     name,
-                                                                     setup_id,
-                                                                     description,
-                                                                     timestamp,
-                                                                     duration_seconds,
-                                                                     distance_meters,
-                                                                     ascent_meters,
-                                                                     descent_meters,
-                                                                     full_track_id,
-                                                                     {SessionProcessingFingerprintColumn},
-                                                                     front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
-                                                                     rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
-                                                                     updated,
-                                                                     {SessionHasDataProjection}
-                                                                     """;
 
     private static readonly string SessionSynchronizationProjection = $"""
                                                                       id,
@@ -919,46 +904,14 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         }
     }
 
-    public async Task<List<Session>> GetSessionsAsync()
-    {
-        await Initialization;
+    public Task<List<Session>> GetSessionsAsync() =>
+        sessionRepository.GetSessionsAsync();
 
-        var query = $"""
-                     SELECT
-                         {ActiveSessionMetadataProjection}
-                     FROM
-                         session
-                     WHERE
-                         deleted IS NULL
-                     ORDER BY timestamp DESC
-                     """;
-        var sessions = await connection.QueryAsync<Session>(query);
-        return sessions;
-    }
+    public Task<Session?> GetSessionAsync(Guid id) =>
+        sessionRepository.GetSessionAsync(id);
 
-    public async Task<Session?> GetSessionAsync(Guid id)
-    {
-        await Initialization;
-
-        var query = $"""
-                     SELECT
-                         {ActiveSessionMetadataProjection}
-                     FROM
-                         session
-                     WHERE
-                         deleted IS NULL AND id = ?
-                     """;
-        var sessions = await connection.QueryAsync<Session>(query, id);
-        return sessions.Count == 1 ? sessions[0] : null;
-    }
-
-    public async Task<List<Guid>> GetIncompleteSessionIdsAsync()
-    {
-        await Initialization;
-
-        const string query = "SELECT id FROM session WHERE deleted IS null AND data IS null";
-        return (await connection.QueryAsync<Session>(query)).Select(s => s.Id).ToList();
-    }
+    public Task<List<Guid>> GetIncompleteSessionIdsAsync() =>
+        sessionRepository.GetIncompleteSessionIdsAsync();
 
     public Task<List<RecordedSessionSource>> GetRecordedSessionSourcesAsync() =>
         recordedSessionSourceRepository.GetRecordedSessionSourcesAsync();
@@ -969,34 +922,14 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
     public Task<List<Guid>> GetSessionIdsMissingRecordedSourceAsync() =>
         recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync();
 
-    public async Task<TelemetryData?> GetSessionPsstAsync(Guid id)
-    {
-        await Initialization;
-        var sessions = await connection.QueryAsync<Session>(
-            "SELECT data FROM session WHERE deleted IS null AND id = ?", id);
-        if (sessions.Count != 1 || sessions[0].ProcessedData is not { } processedData)
-        {
-            return null;
-        }
+    public Task<TelemetryData?> GetSessionPsstAsync(Guid id) =>
+        sessionRepository.GetSessionPsstAsync(id);
 
-        return sessionTelemetryProcessor.ReadProcessedTelemetryData(processedData);
-    }
+    public Task<byte[]?> GetSessionRawPsstAsync(Guid id) =>
+        sessionRepository.GetSessionRawPsstAsync(id);
 
-    public async Task<byte[]?> GetSessionRawPsstAsync(Guid id)
-    {
-        await Initialization;
-        var sessions = await connection.QueryAsync<Session>(
-            "SELECT data FROM session WHERE deleted IS null AND id = ?", id);
-        return sessions.Count == 1 ? sessions[0].ProcessedData : null;
-    }
-
-    public async Task<List<TrackPoint>?> GetSessionTrackAsync(Guid id)
-    {
-        await Initialization;
-        var sessions = await connection.QueryAsync<Session>(
-            "SELECT track FROM session WHERE deleted IS null AND id = ?", id);
-        return sessions.Count == 1 ? sessions[0].Track : null;
-    }
+    public Task<List<TrackPoint>?> GetSessionTrackAsync(Guid id) =>
+        sessionRepository.GetSessionTrackAsync(id);
 
     public async Task<Guid> PutSessionAsync(Session session)
     {
