@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 
 namespace Sufni.App.Stores;
 
@@ -10,6 +11,12 @@ namespace Sufni.App.Stores;
 /// </summary>
 public interface ISetupStoreWriter : ISetupStore
 {
+    /// <summary>
+    /// Load setups (and their board associations) from the database
+    /// and replace the current contents.
+    /// </summary>
+    Task RefreshAsync();
+
     /// <summary>
     /// Insert or replace the snapshot for a setup.
     /// </summary>

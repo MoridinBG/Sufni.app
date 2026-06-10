@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 using DynamicData;
 
 namespace Sufni.App.Stores;
@@ -31,10 +30,4 @@ public interface ISessionStore
     /// </summary>
     SessionSnapshot? Get(Guid id);
 
-    /// <summary>
-    /// Load all sessions from the database and replace the current
-    /// contents. Called once at startup; the store is otherwise
-    /// mutated via <see cref="ISessionStoreWriter"/>.
-    /// </summary>
-    Task RefreshAsync();
 }

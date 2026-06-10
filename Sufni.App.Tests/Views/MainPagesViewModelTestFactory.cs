@@ -27,28 +27,20 @@ internal static class MainPagesViewModelTestFactory
     public static MainPagesViewModel Create(
         LiveDaqListViewModel? liveDaqsPage = null,
         TrackCoordinator? trackCoordinator = null,
-        IRecordedSessionSourceStore? recordedSessionSourceStore = null,
+        IAppDataRefresher? appDataRefresher = null,
         IThemeService? themeService = null,
         SyncCoordinator? syncCoordinator = null,
         IEnumerable<IAppToolbarContributionProvider>? appToolbarContributionProviders = null,
         PairingServerViewModel? pairingServerViewModel = null,
         IEnumerable<IExtensionStateRefreshParticipant>? extensionStateRefreshParticipants = null)
     {
-        var bikeStore = Substitute.For<IBikeStore>();
-        var setupStore = Substitute.For<ISetupStore>();
-        var sessionStore = Substitute.For<ISessionStore>();
-        recordedSessionSourceStore ??= Substitute.For<IRecordedSessionSourceStore>();
-        var pairedDeviceStore = Substitute.For<IPairedDeviceStore>();
+        appDataRefresher ??= Substitute.For<IAppDataRefresher>();
         var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
         trackCoordinator ??= TestCoordinatorSubstitutes.Track();
         syncCoordinator ??= TestCoordinatorSubstitutes.Sync();
         var shell = Substitute.For<IShellCoordinator>();
 
-        bikeStore.RefreshAsync().Returns(Task.CompletedTask);
-        setupStore.RefreshAsync().Returns(Task.CompletedTask);
-        sessionStore.RefreshAsync().Returns(Task.CompletedTask);
-        recordedSessionSourceStore.RefreshAsync().Returns(Task.CompletedTask);
-        pairedDeviceStore.RefreshAsync().Returns(Task.CompletedTask);
+        appDataRefresher.RefreshAsync().Returns(Task.CompletedTask);
         if (themeService is null)
         {
             themeService = Substitute.For<IThemeService>();
@@ -58,11 +50,7 @@ internal static class MainPagesViewModelTestFactory
         }
 
         return new MainPagesViewModel(
-            bikeStore,
-            setupStore,
-            sessionStore,
-            recordedSessionSourceStore,
-            pairedDeviceStore,
+            appDataRefresher,
             importSessionsCoordinator,
             trackCoordinator,
             syncCoordinator,

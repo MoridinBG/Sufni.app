@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 
 namespace Sufni.App.Stores;
 
@@ -10,6 +11,12 @@ namespace Sufni.App.Stores;
 /// </summary>
 public interface ISessionStoreWriter : ISessionStore
 {
+    /// <summary>
+    /// Load all sessions from the database and replace the current
+    /// contents.
+    /// </summary>
+    Task RefreshAsync();
+
     /// <summary>
     /// Insert or replace the snapshot for a session. Typically called
     /// by <c>SessionCoordinator</c> after a save, after sync arrival,

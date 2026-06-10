@@ -167,6 +167,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<RecordedSessionSourceStore>();
         ServiceCollection.AddSingleton<IRecordedSessionSourceStore>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
         ServiceCollection.AddSingleton<IRecordedSessionSourceStoreWriter>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
+        ServiceCollection.AddSingleton<IAppDataRefresher, AppDataRefresher>();
         ServiceCollection.AddSingleton<IProcessingFingerprintService, ProcessingFingerprintService>();
         ServiceCollection.AddSingleton<IRecordedSessionDomainQuery, RecordedSessionDomainQuery>();
         ServiceCollection.AddSingleton<IRecordedSessionGraph, RecordedSessionGraph>();

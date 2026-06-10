@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 using DynamicData;
 
 namespace Sufni.App.Stores;
@@ -29,9 +28,4 @@ public interface ISetupStore
     /// </summary>
     SetupSnapshot? FindByBoardId(Guid boardId);
 
-    /// <summary>
-    /// Load setups (and their board associations) from the database
-    /// and replace the current contents.
-    /// </summary>
-    Task RefreshAsync();
 }

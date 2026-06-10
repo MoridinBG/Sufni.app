@@ -1,3 +1,5 @@
+using System.Threading.Tasks;
+
 namespace Sufni.App.Stores;
 
 /// <summary>
@@ -9,6 +11,12 @@ namespace Sufni.App.Stores;
 /// </summary>
 public interface IPairedDeviceStoreWriter : IPairedDeviceStore
 {
+    /// <summary>
+    /// Load paired devices from the database and replace the current
+    /// contents.
+    /// </summary>
+    Task RefreshAsync();
+
     /// <summary>
     /// Insert or replace the snapshot for a paired device. Called by
     /// the coordinator on <c>PairingConfirmed</c> and after a refresh.

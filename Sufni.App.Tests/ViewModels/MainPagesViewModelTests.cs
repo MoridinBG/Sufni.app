@@ -126,14 +126,14 @@ public class MainPagesViewModelTests
     }
 
     [Fact]
-    public async Task Constructor_RefreshesRecordedSourceStore_WithInitialDatabaseLoad()
+    public async Task Constructor_RefreshesAppData_WithInitialDatabaseLoad()
     {
-        var sourceStore = Substitute.For<IRecordedSessionSourceStore>();
-        sourceStore.RefreshAsync().Returns(Task.CompletedTask);
+        var appDataRefresher = Substitute.For<IAppDataRefresher>();
+        appDataRefresher.RefreshAsync().Returns(Task.CompletedTask);
 
-        _ = MainPagesViewModelTestFactory.Create(recordedSessionSourceStore: sourceStore);
+        _ = MainPagesViewModelTestFactory.Create(appDataRefresher: appDataRefresher);
 
-        await sourceStore.Received(1).RefreshAsync();
+        await appDataRefresher.Received(1).RefreshAsync();
     }
 
     [Fact]
@@ -226,7 +226,7 @@ public class MainPagesViewModelTests
             Substitute.For<IBikeStoreWriter>(),
             Substitute.For<ISetupStoreWriter>(),
             Substitute.For<ISessionStoreWriter>(),
-            Substitute.For<IRecordedSessionSourceStore>(),
+            Substitute.For<IRecordedSessionSourceStoreWriter>(),
             Substitute.For<IPairedDeviceStoreWriter>(),
             synchronizationClientService: null,
             pairingClientCoordinator: null,

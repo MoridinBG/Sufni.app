@@ -9,7 +9,6 @@ using Sufni.App.ExtensionHost;
 using Sufni.App.ExtensionHost.Database;
 using Sufni.App.Models;
 using Sufni.App.Services;
-using Sufni.App.Stores;
 using Sufni.App.Theming;
 using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.ExtensionHost.Services;
@@ -19,11 +18,7 @@ namespace Sufni.App.ViewModels;
 
 public partial class MainPagesViewModel : ViewModelBase
 {
-    private readonly IBikeStore bikeStore;
-    private readonly ISetupStore setupStore;
-    private readonly ISessionStore sessionStore;
-    private readonly IRecordedSessionSourceStore recordedSessionSourceStore;
-    private readonly IPairedDeviceStore pairedDeviceStore;
+    private readonly IAppDataRefresher appDataRefresher;
     private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly ITrackCoordinator trackCoordinator;
     private readonly ISyncCoordinator syncCoordinator;
@@ -64,11 +59,7 @@ public partial class MainPagesViewModel : ViewModelBase
     #region Constructors
 
     public MainPagesViewModel(
-        IBikeStore bikeStore,
-        ISetupStore setupStore,
-        ISessionStore sessionStore,
-        IRecordedSessionSourceStore recordedSessionSourceStore,
-        IPairedDeviceStore pairedDeviceStore,
+        IAppDataRefresher appDataRefresher,
         IImportSessionsCoordinator importSessionsCoordinator,
         ITrackCoordinator trackCoordinator,
         ISyncCoordinator syncCoordinator,
@@ -87,11 +78,7 @@ public partial class MainPagesViewModel : ViewModelBase
         IEnumerable<IExtensionStateRefreshParticipant>? extensionStateRefreshParticipants = null)
         : base(uiThreadDispatcher)
     {
-        this.bikeStore = bikeStore;
-        this.setupStore = setupStore;
-        this.sessionStore = sessionStore;
-        this.recordedSessionSourceStore = recordedSessionSourceStore;
-        this.pairedDeviceStore = pairedDeviceStore;
+        this.appDataRefresher = appDataRefresher;
         this.importSessionsCoordinator = importSessionsCoordinator;
         this.trackCoordinator = trackCoordinator;
         this.syncCoordinator = syncCoordinator;
@@ -214,11 +201,7 @@ public partial class MainPagesViewModel : ViewModelBase
     {
         DatabaseLoaded = false;
 
-        await bikeStore.RefreshAsync();
-        await setupStore.RefreshAsync();
-        await sessionStore.RefreshAsync();
-        await recordedSessionSourceStore.RefreshAsync();
-        await pairedDeviceStore.RefreshAsync();
+        await appDataRefresher.RefreshAsync();
         foreach (var participant in extensionStateRefreshParticipants)
         {
             await participant.RefreshExtensionStateAsync();

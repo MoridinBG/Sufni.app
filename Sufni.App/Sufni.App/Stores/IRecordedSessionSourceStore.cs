@@ -16,5 +16,4 @@ public interface IRecordedSessionSourceStore
     IObservable<IChangeSet<RecordedSessionSourceSnapshot, Guid>> Connect();
     RecordedSessionSourceSnapshot? Get(Guid sessionId);
     Task<RecordedSessionSource?> LoadAsync(Guid sessionId, CancellationToken cancellationToken = default);
-    Task RefreshAsync();
 }

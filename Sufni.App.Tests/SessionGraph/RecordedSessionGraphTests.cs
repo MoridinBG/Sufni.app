@@ -317,8 +317,6 @@ public class RecordedSessionGraphTests
             return result.HasValue ? result.Value : null;
         }
 
-        public Task RefreshAsync() => Task.CompletedTask;
-
         public void Add(SessionSnapshot snapshot) => cache.AddOrUpdate(snapshot);
 
         public void RefreshWith(SessionSnapshot snapshot)
@@ -350,8 +348,6 @@ public class RecordedSessionGraphTests
         public SetupSnapshot? FindByBoardId(Guid boardId) =>
             cache.Items.FirstOrDefault(snapshot => snapshot.BoardId == boardId);
 
-        public Task RefreshAsync() => Task.CompletedTask;
-
         public void Add(SetupSnapshot snapshot) => cache.AddOrUpdate(snapshot);
 
         public void Dispose() => cache.Dispose();
@@ -368,8 +364,6 @@ public class RecordedSessionGraphTests
             var result = cache.Lookup(id);
             return result.HasValue ? result.Value : null;
         }
-
-        public Task RefreshAsync() => Task.CompletedTask;
 
         public void Add(BikeSnapshot snapshot) => cache.AddOrUpdate(snapshot);
 
@@ -390,8 +384,6 @@ public class RecordedSessionGraphTests
 
         public Task<RecordedSessionSource?> LoadAsync(Guid sessionId, CancellationToken cancellationToken = default) =>
             Task.FromResult<RecordedSessionSource?>(null);
-
-        public Task RefreshAsync() => Task.CompletedTask;
 
         public void Add(RecordedSessionSourceSnapshot snapshot) => cache.AddOrUpdate(snapshot);
 

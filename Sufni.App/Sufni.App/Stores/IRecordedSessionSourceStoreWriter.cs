@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Sufni.App.Models;
 
 namespace Sufni.App.Stores;
@@ -9,6 +10,7 @@ namespace Sufni.App.Stores;
 /// </summary>
 public interface IRecordedSessionSourceStoreWriter : IRecordedSessionSourceStore
 {
+    Task RefreshAsync();
     void Upsert(RecordedSessionSourceSnapshot snapshot);
     void Remove(Guid sessionId);
 }

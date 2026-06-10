@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 using DynamicData;
 
 namespace Sufni.App.Stores;
@@ -26,9 +25,4 @@ public interface IPairedDeviceStore
     /// </summary>
     PairedDeviceSnapshot? Get(string deviceId);
 
-    /// <summary>
-    /// Load paired devices from the database and replace the current
-    /// contents.
-    /// </summary>
-    Task RefreshAsync();
 }

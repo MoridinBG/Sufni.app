@@ -17,7 +17,7 @@ public class SyncCoordinator : ISyncCoordinator
     private readonly IBikeStoreWriter bikeStore;
     private readonly ISetupStoreWriter setupStore;
     private readonly ISessionStoreWriter sessionStore;
-    private readonly IRecordedSessionSourceStore recordedSessionSourceStore;
+    private readonly IRecordedSessionSourceStoreWriter recordedSessionSourceStore;
     private readonly IPairedDeviceStoreWriter pairedDeviceStore;
     private readonly ISynchronizationClientService? synchronizationClientService;
     private readonly IPairingClientCoordinator? pairingClientCoordinator;
@@ -69,7 +69,7 @@ public class SyncCoordinator : ISyncCoordinator
         IBikeStoreWriter bikeStore,
         ISetupStoreWriter setupStore,
         ISessionStoreWriter sessionStore,
-        IRecordedSessionSourceStore recordedSessionSourceStore,
+        IRecordedSessionSourceStoreWriter recordedSessionSourceStore,
         IPairedDeviceStoreWriter pairedDeviceStore,
         ISynchronizationClientService? synchronizationClientService = null,
         IPairingClientCoordinator? pairingClientCoordinator = null,

@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 using DynamicData;
 
 namespace Sufni.App.Stores;
@@ -14,6 +13,4 @@ public interface IBikeStore
     /// store (e.g. never loaded, or deleted).
     BikeSnapshot? Get(Guid id);
 
-    /// Load all bikes from the database and replace the current contents.
-    Task RefreshAsync();
 }

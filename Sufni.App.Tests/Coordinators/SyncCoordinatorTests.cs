@@ -14,7 +14,7 @@ public class SyncCoordinatorTests
     private readonly IBikeStoreWriter bikeStore = Substitute.For<IBikeStoreWriter>();
     private readonly ISetupStoreWriter setupStore = Substitute.For<ISetupStoreWriter>();
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
-    private readonly IRecordedSessionSourceStore recordedSessionSourceStore = Substitute.For<IRecordedSessionSourceStore>();
+    private readonly IRecordedSessionSourceStoreWriter recordedSessionSourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
     private readonly IPairedDeviceStoreWriter pairedDeviceStore = Substitute.For<IPairedDeviceStoreWriter>();
     private readonly ISynchronizationClientService syncClient = Substitute.For<ISynchronizationClientService>();
     private readonly IPairingClientCoordinator pairing = Substitute.For<IPairingClientCoordinator>();

@@ -213,7 +213,7 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<IBikeStoreWriter>(),
             Substitute.For<ISetupStoreWriter>(),
             Substitute.For<ISessionStoreWriter>(),
-            Substitute.For<IRecordedSessionSourceStore>(),
+            Substitute.For<IRecordedSessionSourceStoreWriter>(),
             Substitute.For<IPairedDeviceStoreWriter>(),
             null,
             null);

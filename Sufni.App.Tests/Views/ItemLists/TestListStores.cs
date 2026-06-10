@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using System.Reactive.Linq;
-using System.Threading.Tasks;
 using DynamicData;
 using Sufni.App.Stores;
 
@@ -28,7 +27,6 @@ internal sealed class BikeStoreStub : IBikeStore
         return result.HasValue ? result.Value : null;
     }
 
-    public Task RefreshAsync() => Task.CompletedTask;
 }
 
 internal sealed class SetupStoreStub : ISetupStore
@@ -54,7 +52,6 @@ internal sealed class SetupStoreStub : ISetupStore
 
     public SetupSnapshot? FindByBoardId(Guid boardId) => cache.Items.FirstOrDefault(snapshot => snapshot.BoardId == boardId);
 
-    public Task RefreshAsync() => Task.CompletedTask;
 }
 
 internal sealed class PairedDeviceStoreStub : IPairedDeviceStore
@@ -78,5 +75,4 @@ internal sealed class PairedDeviceStoreStub : IPairedDeviceStore
         return result.HasValue ? result.Value : null;
     }
 
-    public Task RefreshAsync() => Task.CompletedTask;
 }

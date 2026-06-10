@@ -104,7 +104,7 @@ public class MainViewTests
             Substitute.For<IBikeStoreWriter>(),
             Substitute.For<ISetupStoreWriter>(),
             Substitute.For<ISessionStoreWriter>(),
-            Substitute.For<IRecordedSessionSourceStore>(),
+            Substitute.For<IRecordedSessionSourceStoreWriter>(),
             Substitute.For<IPairedDeviceStoreWriter>(),
             synchronizationClientService: null,
             pairingClientCoordinator: null,
