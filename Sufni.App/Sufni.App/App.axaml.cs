@@ -116,13 +116,16 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISessionTelemetryProcessor, SessionTelemetryProcessor>();
         ServiceCollection.AddSingleton<IDaqManagementService, DaqManagementService>();
         ServiceCollection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
-        ServiceCollection.AddSingleton<SqLiteDatabaseService>(sp =>
-            new SqLiteDatabaseService(
+        ServiceCollection.AddSingleton<SqliteConnectionContext>(sp =>
+            new SqliteConnectionContext(
                 AppPaths.DatabasePath,
                 createAppDirectories: true,
                 sp.GetServices<IExtensionDatabaseMigrator>().ToArray(),
                 sp.GetServices<IExtensionCascadeRuleProvider>().ToArray(),
-                () => sp.GetServices<IExtensionStateRefreshParticipant>().ToArray(),
+                () => sp.GetServices<IExtensionStateRefreshParticipant>().ToArray()));
+        ServiceCollection.AddSingleton<SqLiteDatabaseService>(sp =>
+            new SqLiteDatabaseService(
+                sp.GetRequiredService<SqliteConnectionContext>(),
                 sp.GetRequiredService<ISessionTelemetryProcessor>()));
         ServiceCollection.AddSingleton(typeof(ISynchronizableRepository<>), typeof(SynchronizableRepository<>));
         ServiceCollection.AddSingleton<IPairedDeviceRepository, PairedDeviceRepository>();

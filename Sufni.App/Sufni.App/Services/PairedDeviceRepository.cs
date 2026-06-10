@@ -17,17 +17,17 @@ public interface IPairedDeviceRepository
     Task DeletePairedDeviceAsync(string id);
 }
 
-internal sealed class PairedDeviceRepository(SqLiteDatabaseService databaseService) : IPairedDeviceRepository
+internal sealed class PairedDeviceRepository(SqliteConnectionContext connectionContext) : IPairedDeviceRepository
 {
     public async Task<List<PairedDevice>> GetPairedDevicesAsync()
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         return await connection.Table<PairedDevice>().ToListAsync();
     }
 
     public async Task<PairedDevice?> GetPairedDeviceAsync(string id)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         return await connection.Table<PairedDevice>()
             .Where(device => device.DeviceId == id)
             .FirstOrDefaultAsync();
@@ -35,7 +35,7 @@ internal sealed class PairedDeviceRepository(SqLiteDatabaseService databaseServi
 
     public async Task<PairedDevice?> GetPairedDeviceByTokenAsync(string token)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         return await connection.Table<PairedDevice>()
             .Where(device => device.Token == token)
             .FirstOrDefaultAsync();
@@ -43,7 +43,7 @@ internal sealed class PairedDeviceRepository(SqLiteDatabaseService databaseServi
 
     public async Task PutPairedDeviceAsync(PairedDevice device)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         var existing = await connection.Table<PairedDevice>()
             .Where(storedDevice => storedDevice.DeviceId == device.DeviceId)
             .FirstOrDefaultAsync() is not null;
@@ -59,7 +59,7 @@ internal sealed class PairedDeviceRepository(SqLiteDatabaseService databaseServi
 
     public async Task DeletePairedDeviceAsync(string id)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         var device = await connection.Table<PairedDevice>()
             .Where(storedDevice => storedDevice.DeviceId == id)
             .FirstOrDefaultAsync();

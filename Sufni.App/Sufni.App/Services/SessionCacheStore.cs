@@ -11,11 +11,11 @@ public interface ISessionCacheStore
     Task<Guid> PutSessionCacheAsync(SessionCache sessionCache);
 }
 
-internal sealed class SessionCacheStore(SqLiteDatabaseService databaseService) : ISessionCacheStore
+internal sealed class SessionCacheStore(SqliteConnectionContext connectionContext) : ISessionCacheStore
 {
     public async Task<SessionCache?> GetSessionCacheAsync(Guid sessionId)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         return await connection.Table<SessionCache>()
             .Where(cache => cache.SessionId == sessionId)
             .FirstOrDefaultAsync();
@@ -23,7 +23,7 @@ internal sealed class SessionCacheStore(SqLiteDatabaseService databaseService) :
 
     public async Task<Guid> PutSessionCacheAsync(SessionCache sessionCache)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         var existing = await connection.Table<SessionCache>()
             .Where(cache => cache.SessionId == sessionCache.SessionId)
             .FirstOrDefaultAsync() is not null;

@@ -22,20 +22,20 @@ public interface IRecordedSessionSourceRepository
     Task DeleteRecordedSessionSourceAsync(Guid sessionId);
 }
 
-internal sealed class RecordedSessionSourceRepository(SqLiteDatabaseService databaseService)
+internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext connectionContext)
     : IRecordedSessionSourceRepository
 {
     private const string SessionProcessingFingerprintColumn = "session_processing_fingerprint";
 
     public async Task<List<RecordedSessionSource>> GetRecordedSessionSourcesAsync()
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         return await connection.Table<RecordedSessionSource>().ToListAsync();
     }
 
     public async Task<RecordedSessionSource?> GetRecordedSessionSourceAsync(Guid id)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         return await connection.Table<RecordedSessionSource>()
             .Where(source => source.SessionId == id)
             .FirstOrDefaultAsync();
@@ -43,7 +43,7 @@ internal sealed class RecordedSessionSourceRepository(SqLiteDatabaseService data
 
     public async Task<List<Guid>> GetSessionIdsMissingRecordedSourceAsync()
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         var query = $"""
                      SELECT
                          s.id,
@@ -74,13 +74,13 @@ internal sealed class RecordedSessionSourceRepository(SqLiteDatabaseService data
 
     public async Task PutRecordedSessionSourceAsync(RecordedSessionSource source)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         await PutRecordedSessionSourceInCurrentTransactionAsync(connection, source);
     }
 
     public async Task DeleteRecordedSessionSourceAsync(Guid sessionId)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         await connection.ExecuteAsync("DELETE FROM session_recording_source WHERE session_id=?", sessionId);
     }
 

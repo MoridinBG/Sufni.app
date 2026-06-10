@@ -17,11 +17,11 @@ public interface ITrackRepository
     Task<List<Track>> GetTracksByIdsAsync(IReadOnlyCollection<Guid> trackIds);
 }
 
-internal sealed class TrackRepository(SqLiteDatabaseService databaseService) : ITrackRepository
+internal sealed class TrackRepository(SqliteConnectionContext connectionContext) : ITrackRepository
 {
     public async Task<Guid?> FindTrackByTimeRangeAsync(long startTime, long endTime)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
 
         var rows = await connection.QueryAsync<TrackIdRow>(
             """
@@ -38,7 +38,7 @@ internal sealed class TrackRepository(SqLiteDatabaseService databaseService) : I
 
     public async Task<Guid?> AssociateSessionWithTrackAsync(Guid sessionId)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
 
         var sessions = await connection.QueryAsync<Session>(
             "SELECT id,timestamp FROM session WHERE deleted IS null AND id = ?", sessionId);
@@ -63,7 +63,7 @@ internal sealed class TrackRepository(SqLiteDatabaseService databaseService) : I
             return null;
         }
 
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         var rows = await connection.QueryAsync<TrackIdRow>(
             """
             SELECT id
@@ -79,7 +79,7 @@ internal sealed class TrackRepository(SqLiteDatabaseService databaseService) : I
 
     public async Task<List<Track>> GetTracksByIdsAsync(IReadOnlyCollection<Guid> trackIds)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         var tracks = new List<Track>(trackIds.Count);
 
         foreach (var trackId in trackIds)

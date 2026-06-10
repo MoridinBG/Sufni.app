@@ -24,7 +24,7 @@ public interface ISessionRepository
 }
 
 internal sealed class SessionRepository(
-    SqLiteDatabaseService databaseService,
+    SqliteConnectionContext connectionContext,
     ISessionTelemetryProcessor sessionTelemetryProcessor) : ISessionRepository
 {
     private const string SessionProcessingFingerprintColumn = "session_processing_fingerprint";
@@ -55,7 +55,7 @@ internal sealed class SessionRepository(
 
     public async Task<List<Session>> GetSessionsAsync()
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
 
         var query = $"""
                      SELECT
@@ -71,7 +71,7 @@ internal sealed class SessionRepository(
 
     public async Task<Session?> GetSessionAsync(Guid id)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
 
         var query = $"""
                      SELECT
@@ -87,7 +87,7 @@ internal sealed class SessionRepository(
 
     public async Task<List<Guid>> GetIncompleteSessionIdsAsync()
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
 
         const string query = "SELECT id FROM session WHERE deleted IS null AND data IS null";
         return (await connection.QueryAsync<Session>(query)).Select(session => session.Id).ToList();
@@ -95,7 +95,7 @@ internal sealed class SessionRepository(
 
     public async Task<TelemetryData?> GetSessionPsstAsync(Guid id)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         var sessions = await connection.QueryAsync<Session>(
             "SELECT data FROM session WHERE deleted IS null AND id = ?", id);
         if (sessions.Count != 1 || sessions[0].ProcessedData is not { } processedData)
@@ -108,7 +108,7 @@ internal sealed class SessionRepository(
 
     public async Task<byte[]?> GetSessionRawPsstAsync(Guid id)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         var sessions = await connection.QueryAsync<Session>(
             "SELECT data FROM session WHERE deleted IS null AND id = ?", id);
         return sessions.Count == 1 ? sessions[0].ProcessedData : null;
@@ -116,7 +116,7 @@ internal sealed class SessionRepository(
 
     public async Task<List<TrackPoint>?> GetSessionTrackAsync(Guid id)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         var sessions = await connection.QueryAsync<Session>(
             "SELECT track FROM session WHERE deleted IS null AND id = ?", id);
         return sessions.Count == 1 ? sessions[0].Track : null;

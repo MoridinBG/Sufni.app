@@ -22,11 +22,9 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
 {
     private static readonly ILogger logger = Log.ForContext<SqLiteDatabaseService>();
 
-    private Task Initialization { get; }
-    private readonly SQLiteAsyncConnection connection;
-    private readonly ExtensionDatabaseTableCatalog extensionTableCatalog;
-    private readonly ExtensionDatabaseMigratorRunner extensionMigratorRunner;
-    private readonly ExtensionCascadeService extensionCascadeService;
+    private Task Initialization => connectionContext.Initialization;
+    private SQLiteAsyncConnection connection => connectionContext.Connection;
+    private readonly SqliteConnectionContext connectionContext;
     private readonly ISessionTelemetryProcessor sessionTelemetryProcessor;
     private readonly IPairedDeviceRepository pairedDeviceRepository;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
@@ -108,38 +106,15 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         IEnumerable<IExtensionCascadeRuleProvider> extensionCascadeRuleProviders,
         Func<IReadOnlyList<IExtensionStateRefreshParticipant>> extensionStateRefreshParticipantsProvider,
         ISessionTelemetryProcessor? sessionTelemetryProcessor = null)
+        : this(
+            new SqliteConnectionContext(
+                databasePath,
+                createAppDirectories,
+                extensionMigrators,
+                extensionCascadeRuleProviders,
+                extensionStateRefreshParticipantsProvider),
+            sessionTelemetryProcessor)
     {
-        var extensionMigratorList = extensionMigrators.ToArray();
-        var extensionCascadeRuleProviderList = extensionCascadeRuleProviders.ToArray();
-        this.sessionTelemetryProcessor = sessionTelemetryProcessor ?? new SessionTelemetryProcessor();
-        pairedDeviceRepository = new PairedDeviceRepository(this);
-        recordedSessionSourceRepository = new RecordedSessionSourceRepository(this);
-        sessionCacheStore = new SessionCacheStore(this);
-        trackRepository = new TrackRepository(this);
-        sessionRepository = new SessionRepository(this, this.sessionTelemetryProcessor);
-
-        if (createAppDirectories)
-        {
-            AppPaths.CreateRequiredDirectories();
-        }
-        else
-        {
-            var directory = Path.GetDirectoryName(databasePath);
-            if (!string.IsNullOrWhiteSpace(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-        }
-
-        connection = new SQLiteAsyncConnection(databasePath);
-        extensionTableCatalog = ExtensionDatabaseTableCatalog.Create(extensionMigratorList);
-        extensionMigratorRunner = new ExtensionDatabaseMigratorRunner(extensionMigratorList);
-        extensionCascadeService = new ExtensionCascadeService(
-            connection,
-            extensionMigratorList,
-            extensionCascadeRuleProviderList,
-            extensionStateRefreshParticipantsProvider);
-        Initialization = Init();
     }
 
     private SqLiteDatabaseService(
@@ -149,84 +124,34 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         IEnumerable<IExtensionCascadeRuleProvider> extensionCascadeRuleProviders,
         IEnumerable<IExtensionStateRefreshParticipant> extensionStateRefreshParticipants,
         ISessionTelemetryProcessor? sessionTelemetryProcessor = null)
+        : this(
+            new SqliteConnectionContext(
+                databasePath,
+                createAppDirectories,
+                extensionMigrators,
+                extensionCascadeRuleProviders,
+                () => extensionStateRefreshParticipants.ToArray()),
+            sessionTelemetryProcessor)
     {
-        var extensionMigratorList = extensionMigrators.ToArray();
-        var extensionCascadeRuleProviderList = extensionCascadeRuleProviders.ToArray();
-        var extensionStateRefreshParticipantList = extensionStateRefreshParticipants.ToArray();
-        this.sessionTelemetryProcessor = sessionTelemetryProcessor ?? new SessionTelemetryProcessor();
-        pairedDeviceRepository = new PairedDeviceRepository(this);
-        recordedSessionSourceRepository = new RecordedSessionSourceRepository(this);
-        sessionCacheStore = new SessionCacheStore(this);
-        trackRepository = new TrackRepository(this);
-        sessionRepository = new SessionRepository(this, this.sessionTelemetryProcessor);
-
-        if (createAppDirectories)
-        {
-            AppPaths.CreateRequiredDirectories();
-        }
-        else
-        {
-            var directory = Path.GetDirectoryName(databasePath);
-            if (!string.IsNullOrWhiteSpace(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-        }
-
-        connection = new SQLiteAsyncConnection(databasePath);
-        extensionTableCatalog = ExtensionDatabaseTableCatalog.Create(extensionMigratorList);
-        extensionMigratorRunner = new ExtensionDatabaseMigratorRunner(extensionMigratorList);
-        extensionCascadeService = new ExtensionCascadeService(
-            connection,
-            extensionMigratorList,
-            extensionCascadeRuleProviderList,
-            extensionStateRefreshParticipantList);
-        Initialization = Init();
     }
 
-    private async Task Init()
+    internal SqLiteDatabaseService(
+        SqliteConnectionContext connectionContext,
+        ISessionTelemetryProcessor? sessionTelemetryProcessor = null)
     {
-        try
-        {
-            if (connection == null)
-            {
-                throw new Exception("Database connection failed!");
-            }
-
-            await connection.EnableWriteAheadLoggingAsync();
-            await CreateTablesAsync();
-            await EnsureSessionProcessingFingerprintColumnAsync();
-            await EnsureSessionSummaryMetricColumnsAsync();
-            await EnsureBikeDampingSpeedCutoffColumnsAsync();
-            await EnsureSessionCacheDampingSpeedCutoffColumnsAsync();
-            await BackfillRearSuspensionKindAsync();
-            await extensionMigratorRunner.RunAsync(connection);
-
-            var cleanupSummary = await Cleanup();
-            await extensionCascadeService.RepairOrphansAsync(refreshExtensionState: false);
-            logger.Information("SQLite database initialized at {DatabasePath}", AppPaths.DatabasePath);
-            logger.Verbose(
-                "SQLite startup cleanup removed {SessionCacheCount} session caches, {RecordedSessionSourceCount} recorded session sources, {SessionCount} sessions, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
-                cleanupSummary.SessionCaches,
-                cleanupSummary.RecordedSessionSources,
-                cleanupSummary.Sessions,
-                cleanupSummary.Tracks,
-                cleanupSummary.Boards,
-                cleanupSummary.Setups,
-                cleanupSummary.Bikes,
-                cleanupSummary.PairedDevices);
-        }
-        catch (Exception ex)
-        {
-            logger.Error(ex, "SQLite database initialization failed at {DatabasePath}", AppPaths.DatabasePath);
-            throw;
-        }
+        this.connectionContext = connectionContext;
+        this.sessionTelemetryProcessor = sessionTelemetryProcessor ?? new SessionTelemetryProcessor();
+        pairedDeviceRepository = new PairedDeviceRepository(connectionContext);
+        recordedSessionSourceRepository = new RecordedSessionSourceRepository(connectionContext);
+        sessionCacheStore = new SessionCacheStore(connectionContext);
+        trackRepository = new TrackRepository(connectionContext);
+        sessionRepository = new SessionRepository(connectionContext, this.sessionTelemetryProcessor);
     }
 
     public async Task<IExtensionDatabaseSession> OpenSessionAsync(CancellationToken cancellationToken = default)
     {
         await Initialization.WaitAsync(cancellationToken);
-        return new ExtensionDatabaseSession(connection, extensionTableCatalog);
+        return new ExtensionDatabaseSession(connection, connectionContext.ExtensionTableCatalog);
     }
 
     internal async Task<SQLiteAsyncConnection> GetInitializedConnectionAsync(CancellationToken cancellationToken = default)

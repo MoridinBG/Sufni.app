@@ -27,13 +27,13 @@ public interface ISynchronizableRepository<
 
 internal sealed class SynchronizableRepository<
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-    SqLiteDatabaseService databaseService)
+    SqliteConnectionContext connectionContext)
     : ISynchronizableRepository<T>
     where T : Synchronizable, new()
 {
     public async Task<List<T>> GetAllAsync()
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         return await connection.Table<T>()
             .Where(entity => entity.Deleted == null)
             .ToListAsync();
@@ -41,7 +41,7 @@ internal sealed class SynchronizableRepository<
 
     public async Task<List<T>> GetChangedAsync(long since)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         return await connection.Table<T>()
             .Where(entity => entity.Updated > since || (entity.Deleted != null && entity.Deleted > since))
             .ToListAsync();
@@ -49,7 +49,7 @@ internal sealed class SynchronizableRepository<
 
     public async Task<T?> GetAsync(Guid id)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         return await connection.Table<T>()
             .Where(entity => entity.Id == id && entity.Deleted == null)
             .FirstOrDefaultAsync();
@@ -57,7 +57,7 @@ internal sealed class SynchronizableRepository<
 
     public async Task<Guid> PutAsync(T item)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         var existing = await EntityExistsAsync(connection, item.Id);
         item.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         item.Deleted = null;
@@ -75,7 +75,7 @@ internal sealed class SynchronizableRepository<
 
     public async Task DeleteAsync(Guid id)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         var item = await connection.Table<T>()
             .Where(entity => entity.Id == id)
             .FirstOrDefaultAsync();
@@ -88,7 +88,7 @@ internal sealed class SynchronizableRepository<
 
     public async Task DeleteAsync(T item)
     {
-        var connection = await databaseService.GetInitializedConnectionAsync();
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         var itemFromDatabase = await connection.Table<T>()
             .Where(entity => entity.Id == item.Id)
             .FirstOrDefaultAsync();
