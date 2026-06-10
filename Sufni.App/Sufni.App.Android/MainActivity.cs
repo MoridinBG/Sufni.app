@@ -1,15 +1,8 @@
-using Sufni.App.ExtensionHost.Services;
-using Sufni.App.ExtensionHosting.Sync;
 ﻿using Android.App;
 using Android.Content.PM;
 using Avalonia;
 using Avalonia.Android;
-using Avalonia.Logging;
-using Microsoft.Extensions.DependencyInjection;
-using Sufni.App.Coordinators;
-using Sufni.App.ExtensionHost.Sync;
 using Sufni.App.Services;
-using Sufni.App.ViewModels;
 
 namespace Sufni.App.Android
 {
@@ -24,25 +17,15 @@ namespace Sufni.App.Android
         protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
         {
             LoggingBootstrapper.Initialize("Android");
-            Logger.Sink = new AvaloniaSerilogSink(LogEventLevel.Warning);
+            MobileAppBootstrapper.RegisterMobileSync(
+                App.ServiceCollection,
+                static () => new AndroidSecureStorage(),
+                static () => new AndroidFriendlyNameProvider(),
+                static _ => new SocketServiceDiscovery(),
+                () => new AndroidHapticFeedback(Window!));
 
-            App.ServiceCollection.AddSingleton<ISecureStorage, AndroidSecureStorage>();
-            App.ServiceCollection.AddSingleton<IFriendlyNameProvider, AndroidFriendlyNameProvider>();
-            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, SocketServiceDiscovery>("gosst");
-            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, SocketServiceDiscovery>("sync");
-            App.ServiceCollection.AddSingleton<IHapticFeedback>(_ => new AndroidHapticFeedback(Window!));
-            App.ServiceCollection.AddSingleton<ISynchronizationClientService>(sp => new SynchronizationClientService(
-                sp.GetRequiredService<IDatabaseService>(),
-                sp.GetRequiredService<IHttpApiService>(),
-                sp.GetRequiredService<IAppPreferences>(),
-                sp.GetService<IExtensionSyncService>()));
-            App.ServiceCollection.AddSingleton<IPairingClientCoordinator, PairingClientCoordinator>();
-            App.ServiceCollection.AddSingleton<PairingClientViewModel>();
-
-            return base.CustomizeAppBuilder(builder)
-                .UseAndroid()
-                .WithInterFont()
-                .With(new SkiaOptions { UseOpacitySaveLayer = true });
+            return MobileAppBootstrapper.ConfigureMobileAvalonia(
+                base.CustomizeAppBuilder(builder).UseAndroid());
         }
     }
 }

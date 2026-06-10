@@ -1,15 +1,8 @@
 using Avalonia;
 using Avalonia.iOS;
-using Avalonia.Logging;
 using Foundation;
-using Microsoft.Extensions.DependencyInjection;
-using Sufni.App.Coordinators;
-using Sufni.App.ExtensionHost.Sync;
 using Sufni.App.Services;
-using Sufni.App.ViewModels;
 using UIKit;
-using Sufni.App.ExtensionHost.Services;
-using Sufni.App.ExtensionHosting.Sync;
 
 namespace Sufni.App.iOS
 {
@@ -27,23 +20,15 @@ namespace Sufni.App.iOS
             LoggingBootstrapper.PlatformSink = new OsLogSink(LoggingBootstrapper.OutputTemplate);
             LoggingBootstrapper.Initialize("iOS");
             InstallLifecycleObservers();
-            Logger.Sink = new AvaloniaSerilogSink(LogEventLevel.Warning);
+            MobileAppBootstrapper.RegisterMobileSync(
+                App.ServiceCollection,
+                static () => new IosSecureStorage(),
+                static () => new IosFriendlyNameProvider(),
+                static _ => new BonjourServiceDiscovery(),
+                static () => new IosHapticFeedback());
 
-            App.ServiceCollection.AddSingleton<ISecureStorage, IosSecureStorage>();
-            App.ServiceCollection.AddSingleton<IFriendlyNameProvider, IosFriendlyNameProvider>();
-            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, BonjourServiceDiscovery>("gosst");
-            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, BonjourServiceDiscovery>("sync");
-            App.ServiceCollection.AddSingleton<IHapticFeedback, IosHapticFeedback>();
-            App.ServiceCollection.AddSingleton<ISynchronizationClientService>(sp => new SynchronizationClientService(
-                sp.GetRequiredService<IDatabaseService>(),
-                sp.GetRequiredService<IHttpApiService>(),
-                sp.GetRequiredService<IAppPreferences>(),
-                sp.GetService<IExtensionSyncService>()));
-            App.ServiceCollection.AddSingleton<IPairingClientCoordinator, PairingClientCoordinator>();
-            App.ServiceCollection.AddSingleton<PairingClientViewModel>();
-            return base.CustomizeAppBuilder(builder)
-                .WithInterFont()
-                .With(new SkiaOptions { UseOpacitySaveLayer = true });
+            return MobileAppBootstrapper.ConfigureMobileAvalonia(
+                base.CustomizeAppBuilder(builder));
         }
 
         private void InstallLifecycleObservers()
