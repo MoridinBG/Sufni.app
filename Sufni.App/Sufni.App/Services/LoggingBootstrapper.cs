@@ -17,12 +17,11 @@ public static class LoggingBootstrapper
     private static bool isInitialized;
     private static bool hooksInstalled;
     private static string? currentPlatformName;
-
-    public static ILogEventSink? PlatformSink { get; set; }
+    private static ILogEventSink? currentPlatformSink;
 
     public static string? CurrentLogFilePath { get; private set; }
 
-    public static void Initialize(string platformName)
+    public static void Initialize(string platformName, ILogEventSink? platformSink = null)
     {
         lock (gate)
         {
@@ -34,10 +33,11 @@ public static class LoggingBootstrapper
             try
             {
                 currentPlatformName = platformName;
+                currentPlatformSink = platformSink;
                 AppPaths.CreateRequiredDirectories();
                 CurrentLogFilePath ??= AppPaths.CreateSessionLogPath(DateTimeOffset.Now);
 
-                Log.Logger = CreateLogger(platformName, CurrentLogFilePath);
+                Log.Logger = CreateLogger(platformName, CurrentLogFilePath, platformSink);
                 isInitialized = true;
 
                 Log.Information("Starting Sufni.App on {PlatformName}", platformName);
@@ -70,7 +70,7 @@ public static class LoggingBootstrapper
                 var logger = Log.Logger;
                 Log.Logger = new LoggerConfiguration().CreateLogger();
                 (logger as IDisposable)?.Dispose();
-                Log.Logger = CreateLogger(currentPlatformName, CurrentLogFilePath);
+                Log.Logger = CreateLogger(currentPlatformName, CurrentLogFilePath, currentPlatformSink);
             }
             catch (Exception ex)
             {
@@ -130,7 +130,10 @@ public static class LoggingBootstrapper
         }
     }
 
-    private static Serilog.Core.Logger CreateLogger(string platformName, string logFilePath)
+    private static Serilog.Core.Logger CreateLogger(
+        string platformName,
+        string logFilePath,
+        ILogEventSink? platformSink)
     {
         var configuration = new LoggerConfiguration()
             .MinimumLevel.Verbose()
@@ -148,9 +151,9 @@ public static class LoggingBootstrapper
                 .WriteTo.File(logFilePath, outputTemplate: OutputTemplate));
 #endif
 
-        if (PlatformSink is not null)
+        if (platformSink is not null)
         {
-            configuration = configuration.WriteTo.Sink(PlatformSink);
+            configuration = configuration.WriteTo.Sink(platformSink);
         }
 
         return configuration.CreateLogger();

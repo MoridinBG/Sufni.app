@@ -17,8 +17,7 @@ namespace Sufni.App.iOS
 
         protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
         {
-            LoggingBootstrapper.PlatformSink = new OsLogSink(LoggingBootstrapper.OutputTemplate);
-            LoggingBootstrapper.Initialize("iOS");
+            LoggingBootstrapper.Initialize("iOS", new OsLogSink(LoggingBootstrapper.OutputTemplate));
             InstallLifecycleObservers();
             MobileAppBootstrapper.RegisterMobileSync(
                 App.ServiceCollection,

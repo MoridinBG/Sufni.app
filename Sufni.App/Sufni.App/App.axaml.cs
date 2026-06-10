@@ -33,7 +33,7 @@ namespace Sufni.App;
 
 public partial class App : Application
 {
-    public static IServiceCollection ServiceCollection { get; } = new ServiceCollection();
+    internal static IServiceCollection ServiceCollection { get; } = new ServiceCollection();
     internal static AppExtensionCollection Extensions { get; } = new();
 
     public new static App? Current => Application.Current as App;
