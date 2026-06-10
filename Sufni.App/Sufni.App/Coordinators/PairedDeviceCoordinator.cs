@@ -20,17 +20,17 @@ public sealed class PairedDeviceCoordinator
     private static readonly ILogger logger = Log.ForContext<PairedDeviceCoordinator>();
 
     private readonly IPairedDeviceStoreWriter pairedDeviceStore;
-    private readonly IDatabaseService databaseService;
+    private readonly IPairedDeviceRepository pairedDeviceRepository;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
 
     public PairedDeviceCoordinator(
         IPairedDeviceStoreWriter pairedDeviceStore,
-        IDatabaseService databaseService,
+        IPairedDeviceRepository pairedDeviceRepository,
         ISynchronizationServerService? synchronizationServer = null,
         IUiThreadDispatcher? uiThreadDispatcher = null)
     {
         this.pairedDeviceStore = pairedDeviceStore;
-        this.databaseService = databaseService;
+        this.pairedDeviceRepository = pairedDeviceRepository;
         this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
 
         if (synchronizationServer is not null)
@@ -46,7 +46,7 @@ public sealed class PairedDeviceCoordinator
 
         try
         {
-            await databaseService.DeletePairedDeviceAsync(deviceId);
+            await pairedDeviceRepository.DeletePairedDeviceAsync(deviceId);
             pairedDeviceStore.Remove(deviceId);
 
             logger.Information("Paired-device unpair completed for {DeviceId}", deviceId);

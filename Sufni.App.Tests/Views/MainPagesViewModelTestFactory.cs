@@ -120,7 +120,7 @@ internal static class MainPagesViewModelTestFactory
         new(new PairedDeviceStoreStub(), CreatePairedDeviceCoordinator(), UiThreadDispatcher);
 
     private static PairedDeviceCoordinator CreatePairedDeviceCoordinator() =>
-        new(Substitute.For<IPairedDeviceStoreWriter>(), Substitute.For<IDatabaseService>());
+        new(Substitute.For<IPairedDeviceStoreWriter>(), Substitute.For<IPairedDeviceRepository>());
 
     private static ImportSessionsViewModel CreateImportSessionsPage(
         IShellCoordinator shell,

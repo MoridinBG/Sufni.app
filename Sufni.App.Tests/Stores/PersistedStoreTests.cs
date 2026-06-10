@@ -101,8 +101,9 @@ public class PersistedStoreTests
     {
         var expires = DateTime.UtcNow.AddHours(1);
         var device = new PairedDevice("device-1", "Phone", expires);
-        database.GetPairedDevicesAsync().Returns([device]);
-        var store = new PairedDeviceStore(database);
+        var pairedDeviceRepository = Substitute.For<IPairedDeviceRepository>();
+        pairedDeviceRepository.GetPairedDevicesAsync().Returns([device]);
+        var store = new PairedDeviceStore(pairedDeviceRepository);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
         await store.RefreshAsync();

@@ -30,11 +30,11 @@ public class PairedDeviceListViewModelTests
         storeWriter.When(w => w.Remove(Arg.Any<string>()))
             .Do(call => pairedDeviceCache.RemoveKey(call.Arg<string>()));
 
-        var dbService = Substitute.For<IDatabaseService>();
+        var pairedDeviceRepository = Substitute.For<IPairedDeviceRepository>();
         var deleteTcs = new TaskCompletionSource();
-        dbService.DeletePairedDeviceAsync(snapshot.DeviceId).Returns(deleteTcs.Task);
+        pairedDeviceRepository.DeletePairedDeviceAsync(snapshot.DeviceId).Returns(deleteTcs.Task);
 
-        var coordinator = new PairedDeviceCoordinator(storeWriter, dbService);
+        var coordinator = new PairedDeviceCoordinator(storeWriter, pairedDeviceRepository);
         var viewModel = new PairedDeviceListViewModel(pairedDeviceStore, coordinator, UiThreadDispatcher);
         Assert.Single(viewModel.Items);
 
@@ -68,11 +68,11 @@ public class PairedDeviceListViewModelTests
 
         var storeWriter = Substitute.For<IPairedDeviceStoreWriter>();
 
-        var dbService = Substitute.For<IDatabaseService>();
-        dbService.DeletePairedDeviceAsync(snapshot.DeviceId)
+        var pairedDeviceRepository = Substitute.For<IPairedDeviceRepository>();
+        pairedDeviceRepository.DeletePairedDeviceAsync(snapshot.DeviceId)
             .Returns(Task.FromException(new InvalidOperationException("boom")));
 
-        var coordinator = new PairedDeviceCoordinator(storeWriter, dbService);
+        var coordinator = new PairedDeviceCoordinator(storeWriter, pairedDeviceRepository);
         var viewModel = new PairedDeviceListViewModel(pairedDeviceStore, coordinator, UiThreadDispatcher);
         Assert.Single(viewModel.Items);
 

@@ -29,6 +29,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
     private readonly ExtensionDatabaseMigratorRunner extensionMigratorRunner;
     private readonly ExtensionCascadeService extensionCascadeService;
     private readonly ISessionTelemetryProcessor sessionTelemetryProcessor;
+    private readonly IPairedDeviceRepository pairedDeviceRepository;
 
     public SqLiteDatabaseService()
         : this(
@@ -108,6 +109,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         var extensionMigratorList = extensionMigrators.ToArray();
         var extensionCascadeRuleProviderList = extensionCascadeRuleProviders.ToArray();
         this.sessionTelemetryProcessor = sessionTelemetryProcessor ?? new SessionTelemetryProcessor();
+        pairedDeviceRepository = new PairedDeviceRepository(this);
 
         if (createAppDirectories)
         {
@@ -145,6 +147,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         var extensionCascadeRuleProviderList = extensionCascadeRuleProviders.ToArray();
         var extensionStateRefreshParticipantList = extensionStateRefreshParticipants.ToArray();
         this.sessionTelemetryProcessor = sessionTelemetryProcessor ?? new SessionTelemetryProcessor();
+        pairedDeviceRepository = new PairedDeviceRepository(this);
 
         if (createAppDirectories)
         {
@@ -1482,54 +1485,20 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         await connection.UpdateAsync(synchronization);
     }
 
-    public async Task<List<PairedDevice>> GetPairedDevicesAsync()
-    {
-        await Initialization;
-        return await connection.Table<PairedDevice>().ToListAsync();
-    }
+    public Task<List<PairedDevice>> GetPairedDevicesAsync() =>
+        pairedDeviceRepository.GetPairedDevicesAsync();
 
-    public async Task<PairedDevice?> GetPairedDeviceAsync(string id)
-    {
-        await Initialization;
+    public Task<PairedDevice?> GetPairedDeviceAsync(string id) =>
+        pairedDeviceRepository.GetPairedDeviceAsync(id);
 
-        return await connection.Table<PairedDevice>().Where(d => d.DeviceId == id).FirstOrDefaultAsync();
-    }
+    public Task<PairedDevice?> GetPairedDeviceByTokenAsync(string token) =>
+        pairedDeviceRepository.GetPairedDeviceByTokenAsync(token);
 
-    public async Task<PairedDevice?> GetPairedDeviceByTokenAsync(string token)
-    {
-        await Initialization;
+    public Task PutPairedDeviceAsync(PairedDevice device) =>
+        pairedDeviceRepository.PutPairedDeviceAsync(device);
 
-        return await connection.Table<PairedDevice>().Where(d => d.Token == token).FirstOrDefaultAsync();
-    }
-
-    public async Task PutPairedDeviceAsync(PairedDevice device)
-    {
-        await Initialization;
-
-        var existing = await connection.Table<PairedDevice>()
-            .Where(t => t.DeviceId == device.DeviceId)
-            .FirstOrDefaultAsync() is not null;
-        if (existing)
-        {
-            await UpdateEntityAsync(device);
-        }
-        else
-        {
-            await InsertEntityAsync(device);
-        }
-    }
-
-    public async Task DeletePairedDeviceAsync(string id)
-    {
-        await Initialization;
-        var token = await connection.Table<PairedDevice>()
-            .Where(t => t.DeviceId == id)
-            .FirstOrDefaultAsync();
-        if (token is not null)
-        {
-            await DeleteEntityAsync(token);
-        }
-    }
+    public Task DeletePairedDeviceAsync(string id) =>
+        pairedDeviceRepository.DeletePairedDeviceAsync(id);
 
     private async Task<List<Track>> GetTracksByIdsAsync(IReadOnlyCollection<Guid> trackIds)
     {

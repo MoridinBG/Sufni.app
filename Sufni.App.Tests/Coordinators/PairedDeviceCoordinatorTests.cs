@@ -12,10 +12,10 @@ namespace Sufni.App.Tests.Coordinators;
 public class PairedDeviceCoordinatorTests
 {
     private readonly IPairedDeviceStoreWriter pairedDeviceStore = Substitute.For<IPairedDeviceStoreWriter>();
-    private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
+    private readonly IPairedDeviceRepository pairedDeviceRepository = Substitute.For<IPairedDeviceRepository>();
 
     private PairedDeviceCoordinator CreateCoordinator(ISynchronizationServerService? server = null) =>
-        new(pairedDeviceStore, database, server);
+        new(pairedDeviceStore, pairedDeviceRepository, server);
 
     // ----- UnpairAsync -----
 
@@ -27,14 +27,14 @@ public class PairedDeviceCoordinatorTests
         var result = await coordinator.UnpairAsync("device-123");
 
         Assert.IsType<PairedDeviceUnpairResult.Unpaired>(result);
-        await database.Received(1).DeletePairedDeviceAsync("device-123");
+        await pairedDeviceRepository.Received(1).DeletePairedDeviceAsync("device-123");
         pairedDeviceStore.Received(1).Remove("device-123");
     }
 
     [Fact]
     public async Task UnpairAsync_ReturnsFailed_AndDoesNotRemoveFromStore_WhenDatabaseThrows()
     {
-        database.DeletePairedDeviceAsync(Arg.Any<string>())
+        pairedDeviceRepository.DeletePairedDeviceAsync(Arg.Any<string>())
             .ThrowsAsync(new InvalidOperationException("boom"));
         var coordinator = CreateCoordinator();
 
@@ -53,7 +53,7 @@ public class PairedDeviceCoordinatorTests
 
         var result = await coordinator.UnpairAsync("device-abc");
         Assert.IsType<PairedDeviceUnpairResult.Unpaired>(result);
-        await database.Received(1).DeletePairedDeviceAsync("device-abc");
+        await pairedDeviceRepository.Received(1).DeletePairedDeviceAsync("device-abc");
     }
 
     // ----- Server event subscriptions -----

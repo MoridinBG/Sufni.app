@@ -123,6 +123,7 @@ public partial class App : Application
                 sp.GetServices<IExtensionCascadeRuleProvider>().ToArray(),
                 () => sp.GetServices<IExtensionStateRefreshParticipant>().ToArray(),
                 sp.GetRequiredService<ISessionTelemetryProcessor>()));
+        ServiceCollection.AddSingleton<IPairedDeviceRepository, PairedDeviceRepository>();
         ServiceCollection.AddSingleton<IDatabaseService>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IExtensionDatabaseConnection>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IRecordedSessionDataReader, RecordedSessionDataReader>();

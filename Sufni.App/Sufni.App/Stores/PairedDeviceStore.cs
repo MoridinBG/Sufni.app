@@ -13,12 +13,12 @@ namespace Sufni.App.Stores;
 /// behind both <see cref="IPairedDeviceStore"/> and
 /// <see cref="IPairedDeviceStoreWriter"/>.
 /// </summary>
-internal sealed class PairedDeviceStore(IDatabaseService databaseService)
+internal sealed class PairedDeviceStore(IPairedDeviceRepository pairedDeviceRepository)
     : SourceCacheStoreBase<PairedDeviceSnapshot, string>(s => s.DeviceId), IPairedDeviceStoreWriter
 {
     public async Task RefreshAsync()
     {
-        var devices = await databaseService.GetPairedDevicesAsync();
+        var devices = await pairedDeviceRepository.GetPairedDevicesAsync();
         ReplaceWith(devices.Select(PairedDeviceSnapshot.From));
     }
 }

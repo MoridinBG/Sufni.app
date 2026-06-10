@@ -70,7 +70,7 @@ public class PairedDeviceListDesktopViewTests
     }
 
     private static PairedDeviceCoordinator CreateCoordinator() =>
-        new(Substitute.For<IPairedDeviceStoreWriter>(), Substitute.For<IDatabaseService>());
+        new(Substitute.For<IPairedDeviceStoreWriter>(), Substitute.For<IPairedDeviceRepository>());
 }
 
 internal sealed class MountedPairedDeviceListDesktopView(Window host, PairedDeviceListDesktopView view) : IAsyncDisposable
