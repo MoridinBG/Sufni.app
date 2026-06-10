@@ -15,11 +15,11 @@ public class TrackCoordinatorTests
 {
     private readonly ITrackRepository trackRepository = Substitute.For<ITrackRepository>();
     private readonly ISynchronizableRepository<Track> trackEntityRepository = Substitute.For<ISynchronizableRepository<Track>>();
-    private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
+    private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
     private readonly IFilesService filesService = Substitute.For<IFilesService>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
 
-    private TrackCoordinator CreateCoordinator() => new(trackRepository, trackEntityRepository, database, filesService, backgroundTaskRunner);
+    private TrackCoordinator CreateCoordinator() => new(trackRepository, trackEntityRepository, sessionRepository, filesService, backgroundTaskRunner);
 
     [Fact]
     public async Task ImportGpxAsync_ImportsSelectedFiles()
@@ -97,7 +97,7 @@ public class TrackCoordinatorTests
             ]
         };
         trackEntityRepository.GetAsync(fullTrackId).Returns(fullTrack);
-        database.GetSessionTrackAsync(sessionId).Returns(existingTrack);
+        sessionRepository.GetSessionTrackAsync(sessionId).Returns(existingTrack);
 
         var result = await CreateCoordinator().LoadSessionTrackAsync(sessionId, fullTrackId, telemetry);
 
@@ -105,7 +105,7 @@ public class TrackCoordinatorTests
         Assert.Same(fullTrack.Points, result.FullTrackPoints);
         Assert.Same(existingTrack, result.TrackPoints);
         Assert.Equal(400.0, result.MapVideoWidth);
-        await database.DidNotReceive().PatchSessionTrackAsync(Arg.Any<Guid>(), Arg.Any<List<TrackPoint>>());
+        await sessionRepository.DidNotReceive().PatchSessionTrackAsync(Arg.Any<Guid>(), Arg.Any<List<TrackPoint>>());
     }
 
     [Fact]
@@ -131,12 +131,12 @@ public class TrackCoordinatorTests
 
         trackRepository.AssociateSessionWithTrackAsync(sessionId).Returns(fullTrackId);
         trackEntityRepository.GetAsync(fullTrackId).Returns(fullTrack);
-        database.GetSessionTrackAsync(sessionId).Returns((List<TrackPoint>?)null);
+        sessionRepository.GetSessionTrackAsync(sessionId).Returns((List<TrackPoint>?)null);
 
         var result = await CreateCoordinator().LoadSessionTrackAsync(sessionId, null, telemetry);
 
         await trackRepository.Received(1).AssociateSessionWithTrackAsync(sessionId);
-        await database.Received(1).PatchSessionTrackAsync(
+        await sessionRepository.Received(1).PatchSessionTrackAsync(
             sessionId,
             Arg.Is<List<TrackPoint>>(points => points.Count > 0
                                                && points.All(point => point.Elevation.HasValue && point.Elevation.Value > 0)

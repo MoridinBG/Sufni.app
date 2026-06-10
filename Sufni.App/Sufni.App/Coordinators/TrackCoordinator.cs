@@ -14,7 +14,7 @@ namespace Sufni.App.Coordinators;
 public class TrackCoordinator(
     ITrackRepository trackRepository,
     ISynchronizableRepository<Track> trackEntityRepository,
-    IDatabaseService databaseService,
+    ISessionRepository sessionRepository,
     IFilesService filesService,
     IBackgroundTaskRunner backgroundTaskRunner)
 {
@@ -95,14 +95,14 @@ public class TrackCoordinator(
         cancellationToken.ThrowIfCancellationRequested();
 
         var fullTrack = (await trackEntityRepository.GetAsync(resolvedFullTrackId.Value))!;
-        var trackPoints = await databaseService.GetSessionTrackAsync(sessionId);
+        var trackPoints = await sessionRepository.GetSessionTrackAsync(sessionId);
 
         if (trackPoints is null)
         {
             var start = telemetryData.Metadata.Timestamp;
             var end = start + (int)Math.Ceiling(telemetryData.Metadata.Duration);
             trackPoints = fullTrack.GenerateSessionTrack(start, end);
-            await databaseService.PatchSessionTrackAsync(sessionId, trackPoints);
+            await sessionRepository.PatchSessionTrackAsync(sessionId, trackPoints);
         }
 
         return new SessionTrackPresentationData(

@@ -219,7 +219,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<SyncCoordinator>();
         ServiceCollection.AddSingleton<ImportSessionsCoordinator>(sp =>
             new ImportSessionsCoordinator(
-                sp.GetRequiredService<IDatabaseService>(),
+                sp.GetRequiredService<ISessionRepository>(),
                 sp.GetRequiredService<ISynchronizableRepository<Setup>>(),
                 sp.GetRequiredService<ISynchronizableRepository<Bike>>(),
                 sp.GetRequiredService<ISessionStoreWriter>(),
