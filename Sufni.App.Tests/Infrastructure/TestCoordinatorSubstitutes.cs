@@ -85,6 +85,8 @@ internal static class TestCoordinatorSubstitutes
     public static TrackCoordinator Track()
     {
         var coordinator = Substitute.For<TrackCoordinator>(
+            Substitute.For<ITrackRepository>(),
+            Substitute.For<ISynchronizableRepository<Track>>(),
             Substitute.For<IDatabaseService>(),
             Substitute.For<IFilesService>(),
             Substitute.For<IBackgroundTaskRunner>());

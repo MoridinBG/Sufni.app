@@ -127,6 +127,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IPairedDeviceRepository, PairedDeviceRepository>();
         ServiceCollection.AddSingleton<IRecordedSessionSourceRepository, RecordedSessionSourceRepository>();
         ServiceCollection.AddSingleton<ISessionCacheStore, SessionCacheStore>();
+        ServiceCollection.AddSingleton<ITrackRepository, TrackRepository>();
         ServiceCollection.AddSingleton<IDatabaseService>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IExtensionDatabaseConnection>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IRecordedSessionDataReader, RecordedSessionDataReader>();

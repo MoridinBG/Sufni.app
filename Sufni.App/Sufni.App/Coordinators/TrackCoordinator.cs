@@ -12,6 +12,8 @@ using Sufni.App.ExtensionHost.Services;
 namespace Sufni.App.Coordinators;
 
 public class TrackCoordinator(
+    ITrackRepository trackRepository,
+    ISynchronizableRepository<Track> trackEntityRepository,
     IDatabaseService databaseService,
     IFilesService filesService,
     IBackgroundTaskRunner backgroundTaskRunner)
@@ -62,14 +64,14 @@ public class TrackCoordinator(
                 throw new InvalidOperationException("GPX file did not contain any valid track points.");
             }
 
-            var existingTrackId = await databaseService.FindTrackByTimeRangeAsync(track.StartTime, track.EndTime);
+            var existingTrackId = await trackRepository.FindTrackByTimeRangeAsync(track.StartTime, track.EndTime);
             if (existingTrackId is not null)
             {
                 alreadyImportedCount++;
                 continue;
             }
 
-            await databaseService.PutAsync(track);
+            await trackEntityRepository.PutAsync(track);
             importedCount++;
         }
 
@@ -84,7 +86,7 @@ public class TrackCoordinator(
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var resolvedFullTrackId = fullTrackId ?? await databaseService.AssociateSessionWithTrackAsync(sessionId);
+        var resolvedFullTrackId = fullTrackId ?? await trackRepository.AssociateSessionWithTrackAsync(sessionId);
         if (resolvedFullTrackId is null)
         {
             return new SessionTrackPresentationData(null, null, null, null);
@@ -92,7 +94,7 @@ public class TrackCoordinator(
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var fullTrack = await databaseService.GetAsync<Track>(resolvedFullTrackId.Value);
+        var fullTrack = (await trackEntityRepository.GetAsync(resolvedFullTrackId.Value))!;
         var trackPoints = await databaseService.GetSessionTrackAsync(sessionId);
 
         if (trackPoints is null)
