@@ -23,8 +23,7 @@ public class BikeCoordinator(
     IBikeDependencyQuery dependencyQuery,
     IShellCoordinator shell,
     IBikeEditorService bikeEditorService,
-    IDialogService dialogService,
-    IUiThreadDispatcher uiThreadDispatcher,
+    Func<IEditorFactory> editorFactory,
     IExtensionCascadeService? extensionCascadeService = null)
     : IBikeCoordinator
 {
@@ -34,17 +33,8 @@ public class BikeCoordinator(
     {
         var seed = new Bike(Guid.NewGuid(), "new bike");
         var snapshot = BikeSnapshot.From(seed);
-        var editor = new BikeEditorViewModel(
-            snapshot,
-            isNew: true,
-            this,
-            dependencyQuery,
-            shell,
-            dialogService,
-            uiThreadDispatcher)
-        {
-            IsDirty = true
-        };
+        var editor = editorFactory().CreateBikeEditor(snapshot, isNew: true);
+        editor.IsDirty = true;
         shell.Open(editor);
         return Task.CompletedTask;
     }
@@ -56,14 +46,7 @@ public class BikeCoordinator(
 
         shell.OpenOrFocus<BikeEditorViewModel>(
             editor => editor.Id == bikeId,
-            () => new BikeEditorViewModel(
-                snapshot,
-                isNew: false,
-                this,
-                dependencyQuery,
-                shell,
-                dialogService,
-                uiThreadDispatcher));
+            () => editorFactory().CreateBikeEditor(snapshot, isNew: false));
         return Task.CompletedTask;
     }
 

@@ -18,7 +18,6 @@ namespace Sufni.App.Coordinators;
 public class SetupCoordinator(
     ISetupStoreWriter setupStore,
     IBikeStoreWriter bikeStore,
-    IBikeCoordinator bikeCoordinator,
     ISynchronizableRepository<Setup> setupRepository,
     ISynchronizableRepository<Bike> bikeRepository,
     ISynchronizableRepository<Board> boardRepository,
@@ -26,8 +25,7 @@ public class SetupCoordinator(
     IFilesService filesService,
     IBackgroundTaskRunner backgroundTaskRunner,
     IShellCoordinator shell,
-    IDialogService dialogService,
-    IUiThreadDispatcher uiThreadDispatcher,
+    Func<IEditorFactory> editorFactory,
     IExtensionCascadeService? extensionCascadeService = null)
     : ISetupCoordinator
 {
@@ -44,18 +42,8 @@ public class SetupCoordinator(
 
         var seed = new Setup(Guid.NewGuid(), "new setup");
         var snapshot = SetupSnapshot.From(seed, actualBoardId);
-        var editor = new SetupEditorViewModel(
-            snapshot,
-            isNew: true,
-            bikeStore,
-            bikeCoordinator,
-            this,
-            shell,
-            dialogService,
-            uiThreadDispatcher)
-        {
-            IsDirty = true
-        };
+        var editor = editorFactory().CreateSetupEditor(snapshot, isNew: true);
+        editor.IsDirty = true;
         shell.Open(editor);
         return Task.CompletedTask;
     }
@@ -75,15 +63,7 @@ public class SetupCoordinator(
 
         shell.OpenOrFocus<SetupEditorViewModel>(
             editor => editor.Id == setupId,
-            () => new SetupEditorViewModel(
-                snapshot,
-                isNew: false,
-                bikeStore,
-                bikeCoordinator,
-                this,
-                shell,
-                dialogService,
-                uiThreadDispatcher));
+            () => editorFactory().CreateSetupEditor(snapshot, isNew: false));
         return Task.CompletedTask;
     }
 

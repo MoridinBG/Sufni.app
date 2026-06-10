@@ -34,8 +34,7 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<IBikeDependencyQuery>(),
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IBikeEditorService>(),
-            Substitute.For<IDialogService>(),
-            new InlineUiThreadDispatcher(),
+            new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()),
             Substitute.For<IExtensionCascadeService>());
 
         coordinator.OpenCreateAsync().Returns(Task.CompletedTask);
@@ -59,7 +58,6 @@ internal static class TestCoordinatorSubstitutes
         var coordinator = Substitute.For<SetupCoordinator>(
             Substitute.For<ISetupStoreWriter>(),
             Substitute.For<IBikeStoreWriter>(),
-            Bike(),
             Substitute.For<ISynchronizableRepository<Setup>>(),
             Substitute.For<ISynchronizableRepository<Bike>>(),
             Substitute.For<ISynchronizableRepository<Board>>(),
@@ -67,8 +65,7 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<IFilesService>(),
             Substitute.For<IBackgroundTaskRunner>(),
             Substitute.For<IShellCoordinator>(),
-            Substitute.For<IDialogService>(),
-            new InlineUiThreadDispatcher(),
+            new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()),
             Substitute.For<IExtensionCascadeService>());
 
         coordinator.OpenCreateAsync(Arg.Any<Guid?>()).Returns(Task.CompletedTask);
@@ -113,21 +110,14 @@ internal static class TestCoordinatorSubstitutes
             Track(),
             Substitute.For<ISessionPresentationService>(),
             Substitute.For<ISessionAnalysisService>(),
-            Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges(),
             Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded(),
             Substitute.For<IShellCoordinator>(),
-            Substitute.For<IDialogService>(),
-            new InlineUiThreadDispatcher(),
+            new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()),
             Substitute.For<IRecordedSessionSourceStoreWriter>(),
             Substitute.For<IRecordedSessionDomainQuery>(),
-            Substitute.For<IRecordedSessionGraph>(),
             Substitute.For<IRecordedSessionReprocessor>(),
-            Substitute.For<IRecordedSessionDataReader>(),
             null,
-            Bike(),
-            Substitute.For<IExtensionCascadeService>(),
-            Array.Empty<IRecordedSessionExtensionFactory>(),
-            Substitute.For<IExtensionDatabaseConnection>());
+            Substitute.For<IExtensionCascadeService>());
 
         coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         coordinator.RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>())
@@ -144,16 +134,8 @@ internal static class TestCoordinatorSubstitutes
             Substitute.For<ILiveDaqCatalogService>(),
             Substitute.For<ILiveDaqSharedStreamRegistry>(),
             Substitute.For<ILiveSessionServiceFactory>(),
-            Session(),
-            Substitute.For<ISessionPresentationService>(),
-            Substitute.For<IBackgroundTaskRunner>(),
-            Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges(),
-            Substitute.For<IDaqManagementService>(),
-            Substitute.For<IFilesService>(),
             Substitute.For<IShellCoordinator>(),
-            Substitute.For<IDialogService>(),
-            new InlineUiThreadDispatcher(),
-            Bike());
+            new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()));
 
         coordinator.SelectAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
         coordinator.OpenSessionAsync(Arg.Any<string>()).Returns(Task.CompletedTask);

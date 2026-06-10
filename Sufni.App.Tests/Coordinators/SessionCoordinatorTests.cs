@@ -49,6 +49,7 @@ public class SessionCoordinatorTests
     private readonly IRecordedSessionDataReader recordedSessionDataReader = Substitute.For<IRecordedSessionDataReader>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
+    private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
     private readonly IExtensionCascadeService extensionCascade = Substitute.For<IExtensionCascadeService>();
 
     public SessionCoordinatorTests()
@@ -77,16 +78,12 @@ public class SessionCoordinatorTests
             trackCoordinator,
             sessionPresentationService,
             sessionAnalysisService,
-            tileLayerService,
             sessionPreferences,
             shell,
-            dialogService,
-            uiThreadDispatcher,
+            () => editorFactory,
             sourceStore,
             domainQuery,
-            recordedSessionGraph,
             reprocessor,
-            recordedSessionDataReader,
             synchronizationServer: sync,
             extensionCascadeService: extensionCascade);
 

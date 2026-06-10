@@ -25,16 +25,8 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
     private readonly ILiveDaqCatalogService liveDaqCatalogService;
     private readonly ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry;
     private readonly ILiveSessionServiceFactory liveSessionServiceFactory;
-    private readonly ISessionCoordinator sessionCoordinator;
-    private readonly IBikeCoordinator? bikeCoordinator;
-    private readonly ISessionPresentationService sessionPresentationService;
-    private readonly IBackgroundTaskRunner backgroundTaskRunner;
-    private readonly ITileLayerService tileLayerService;
-    private readonly IDaqManagementService daqManagementService;
-    private readonly IFilesService filesService;
     private readonly IShellCoordinator shell;
-    private readonly IDialogService dialogService;
-    private readonly IUiThreadDispatcher uiThreadDispatcher;
+    private readonly Func<IEditorFactory> editorFactory;
 
     private readonly object reconcileGate = new();
     private IReadOnlyDictionary<string, KnownLiveDaqRecord> knownBoards = new Dictionary<string, KnownLiveDaqRecord>();
@@ -47,32 +39,16 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
         ILiveDaqCatalogService liveDaqCatalogService,
         ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry,
         ILiveSessionServiceFactory liveSessionServiceFactory,
-        ISessionCoordinator sessionCoordinator,
-        ISessionPresentationService sessionPresentationService,
-        IBackgroundTaskRunner backgroundTaskRunner,
-        ITileLayerService tileLayerService,
-        IDaqManagementService daqManagementService,
-        IFilesService filesService,
         IShellCoordinator shell,
-        IDialogService dialogService,
-        IUiThreadDispatcher uiThreadDispatcher,
-        IBikeCoordinator? bikeCoordinator = null)
+        Func<IEditorFactory> editorFactory)
     {
         this.liveDaqStore = liveDaqStore;
         this.knownBoardsQuery = knownBoardsQuery;
         this.liveDaqCatalogService = liveDaqCatalogService;
         this.liveDaqSharedStreamRegistry = liveDaqSharedStreamRegistry;
         this.liveSessionServiceFactory = liveSessionServiceFactory;
-        this.sessionCoordinator = sessionCoordinator;
-        this.bikeCoordinator = bikeCoordinator;
-        this.sessionPresentationService = sessionPresentationService;
-        this.backgroundTaskRunner = backgroundTaskRunner;
-        this.tileLayerService = tileLayerService;
-        this.daqManagementService = daqManagementService;
-        this.filesService = filesService;
         this.shell = shell;
-        this.dialogService = dialogService;
-        this.uiThreadDispatcher = uiThreadDispatcher;
+        this.editorFactory = editorFactory;
     }
 
     public virtual void Activate()
@@ -145,17 +121,9 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
 
         shell.OpenOrFocus<LiveDaqDetailViewModel>(
             detail => detail.IdentityKey == snapshot.IdentityKey,
-            () => new LiveDaqDetailViewModel(
+            () => editorFactory().CreateLiveDaqDetail(
                 snapshot,
-                liveDaqSharedStreamRegistry.GetOrCreate(snapshot),
-                this,
-                daqManagementService,
-                filesService,
-                shell,
-                dialogService,
-                knownBoardsQuery,
-                liveDaqStore,
-                uiThreadDispatcher));
+                liveDaqSharedStreamRegistry.GetOrCreate(snapshot)));
 
         return Task.CompletedTask;
     }
@@ -188,17 +156,11 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
 
         shell.OpenOrFocus<LiveSessionDetailViewModel>(
             detail => detail.IdentityKey == snapshot.IdentityKey,
-            () => new LiveSessionDetailViewModel(
+            () => editorFactory().CreateLiveSessionDetail(
                 context,
-                liveSessionServiceFactory.Create(context, liveDaqSharedStreamRegistry.GetOrCreate(snapshot)),
-                sessionCoordinator,
-                sessionPresentationService,
-                backgroundTaskRunner,
-                tileLayerService,
-                shell,
-                dialogService,
-                uiThreadDispatcher,
-                bikeCoordinator));
+                liveSessionServiceFactory.Create(
+                    context,
+                    liveDaqSharedStreamRegistry.GetOrCreate(snapshot))));
 
         return Task.CompletedTask;
     }

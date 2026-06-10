@@ -27,10 +27,37 @@ public class SetupCoordinatorTests
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
+    private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
     private readonly IExtensionCascadeService extensionCascade = Substitute.For<IExtensionCascadeService>();
 
-    private SetupCoordinator CreateCoordinator() => new(
-        setupStore, bikeStore, bikeCoordinator, setupRepository, bikeRepository, boardRepository, telemetry, filesService, backgroundTaskRunner, shell, dialogService, uiThreadDispatcher, extensionCascade);
+    private SetupCoordinator CreateCoordinator()
+    {
+        SetupCoordinator? coordinator = null;
+        coordinator = new(
+            setupStore,
+            bikeStore,
+            setupRepository,
+            bikeRepository,
+            boardRepository,
+            telemetry,
+            filesService,
+            backgroundTaskRunner,
+            shell,
+            () => editorFactory,
+            extensionCascade);
+        editorFactory
+            .CreateSetupEditor(Arg.Any<SetupSnapshot>(), Arg.Any<bool>())
+            .Returns(callInfo => new SetupEditorViewModel(
+                callInfo.ArgAt<SetupSnapshot>(0),
+                callInfo.ArgAt<bool>(1),
+                bikeStore,
+                bikeCoordinator,
+                coordinator,
+                shell,
+                dialogService,
+                uiThreadDispatcher));
+        return coordinator;
+    }
 
     // ----- OpenCreateAsync -----
 

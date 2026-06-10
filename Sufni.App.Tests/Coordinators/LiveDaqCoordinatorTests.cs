@@ -36,6 +36,7 @@ public class LiveDaqCoordinatorTests
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
+    private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> knownBoardsChanges = new([]);
     private readonly BehaviorSubject<IReadOnlyList<LiveDaqCatalogEntry>> catalogEntries = new([]);
     private readonly BehaviorSubject<LiveSessionPresentationSnapshot> liveSessionSnapshots = new(LiveSessionPresentationSnapshot.Empty);
@@ -56,6 +57,32 @@ public class LiveDaqCoordinatorTests
         liveSessionService.DisposeAsync().Returns(ValueTask.CompletedTask);
         liveSessionServiceFactory.Create(Arg.Any<LiveDaqSessionContext>(), Arg.Any<ILiveDaqSharedStream>())
             .Returns(liveSessionService);
+        editorFactory
+            .CreateLiveDaqDetail(Arg.Any<LiveDaqSnapshot>(), Arg.Any<ILiveDaqSharedStream>())
+            .Returns(callInfo => new LiveDaqDetailViewModel(
+                callInfo.ArgAt<LiveDaqSnapshot>(0),
+                callInfo.ArgAt<ILiveDaqSharedStream>(1),
+                TestCoordinatorSubstitutes.LiveDaq(),
+                daqManagementService,
+                filesService,
+                shell,
+                dialogService,
+                knownBoardsQuery,
+                liveDaqStore,
+                uiThreadDispatcher));
+        editorFactory
+            .CreateLiveSessionDetail(Arg.Any<LiveDaqSessionContext>(), Arg.Any<ILiveSessionService>())
+            .Returns(callInfo => new LiveSessionDetailViewModel(
+                callInfo.ArgAt<LiveDaqSessionContext>(0),
+                callInfo.ArgAt<ILiveSessionService>(1),
+                sessionCoordinator,
+                sessionPresentationService,
+                backgroundTaskRunner,
+                tileLayerService,
+                shell,
+                dialogService,
+                uiThreadDispatcher,
+                TestCoordinatorSubstitutes.Bike()));
     }
 
     private LiveDaqCoordinator CreateCoordinator() =>
@@ -65,15 +92,8 @@ public class LiveDaqCoordinatorTests
             catalogService,
             sharedStreamRegistry,
             liveSessionServiceFactory,
-            sessionCoordinator,
-            sessionPresentationService,
-            backgroundTaskRunner,
-            tileLayerService,
-            daqManagementService,
-            filesService,
             shell,
-            dialogService,
-            uiThreadDispatcher);
+            () => editorFactory);
 
     [Fact]
     public void Activate_SeedsOfflineKnownBoards_AndAcquiresBrowse()

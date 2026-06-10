@@ -29,10 +29,32 @@ public class BikeCoordinatorTests
     private readonly IBikeEditorService bikeEditorService = Substitute.For<IBikeEditorService>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
+    private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
     private readonly IExtensionCascadeService extensionCascade = Substitute.For<IExtensionCascadeService>();
 
-    private BikeCoordinator CreateCoordinator() => new(
-        bikeStore, bikeRepository, dependencyQuery, shell, bikeEditorService, dialogService, uiThreadDispatcher, extensionCascade);
+    private BikeCoordinator CreateCoordinator()
+    {
+        BikeCoordinator? coordinator = null;
+        coordinator = new(
+            bikeStore,
+            bikeRepository,
+            dependencyQuery,
+            shell,
+            bikeEditorService,
+            () => editorFactory,
+            extensionCascade);
+        editorFactory
+            .CreateBikeEditor(Arg.Any<BikeSnapshot>(), Arg.Any<bool>())
+            .Returns(callInfo => new BikeEditorViewModel(
+                callInfo.ArgAt<BikeSnapshot>(0),
+                callInfo.ArgAt<bool>(1),
+                coordinator,
+                dependencyQuery,
+                shell,
+                dialogService,
+                uiThreadDispatcher));
+        return coordinator;
+    }
 
     // ----- OpenCreateAsync -----
 

@@ -46,20 +46,13 @@ public class SessionCoordinator : ISessionCoordinator
     private readonly ITrackCoordinator trackCoordinator;
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly ISessionAnalysisService sessionAnalysisService;
-    private readonly ITileLayerService tileLayerService;
     private readonly ISessionPreferences sessionPreferences;
     private readonly IShellCoordinator shell;
-    private readonly IDialogService dialogService;
-    private readonly IUiThreadDispatcher uiThreadDispatcher;
+    private readonly Func<IEditorFactory> editorFactory;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
     private readonly IRecordedSessionDomainQuery recordedSessionDomainQuery;
-    private readonly IRecordedSessionGraph recordedSessionGraph;
     private readonly IRecordedSessionReprocessor recordedSessionReprocessor;
-    private readonly IRecordedSessionDataReader recordedSessionDataReader;
-    private readonly IBikeCoordinator? bikeCoordinator;
     private readonly IExtensionCascadeService? extensionCascadeService;
-    private readonly IReadOnlyList<IRecordedSessionExtensionFactory> recordedSessionExtensionFactories;
-    private readonly IExtensionDatabaseConnection? extensionDatabase;
 
     public SessionCoordinator(
         ISessionStoreWriter sessionStore,
@@ -75,21 +68,14 @@ public class SessionCoordinator : ISessionCoordinator
         ITrackCoordinator trackCoordinator,
         ISessionPresentationService sessionPresentationService,
         ISessionAnalysisService sessionAnalysisService,
-        ITileLayerService tileLayerService,
         ISessionPreferences sessionPreferences,
         IShellCoordinator shell,
-        IDialogService dialogService,
-        IUiThreadDispatcher uiThreadDispatcher,
+        Func<IEditorFactory> editorFactory,
         IRecordedSessionSourceStoreWriter sourceStore,
         IRecordedSessionDomainQuery recordedSessionDomainQuery,
-        IRecordedSessionGraph recordedSessionGraph,
         IRecordedSessionReprocessor recordedSessionReprocessor,
-        IRecordedSessionDataReader recordedSessionDataReader,
         ISynchronizationServerService? synchronizationServer = null,
-        IBikeCoordinator? bikeCoordinator = null,
-        IExtensionCascadeService? extensionCascadeService = null,
-        IEnumerable<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories = null,
-        IExtensionDatabaseConnection? extensionDatabase = null)
+        IExtensionCascadeService? extensionCascadeService = null)
     {
         this.sessionStore = sessionStore;
         this.sessionRepository = sessionRepository;
@@ -104,20 +90,13 @@ public class SessionCoordinator : ISessionCoordinator
         this.trackCoordinator = trackCoordinator;
         this.sessionPresentationService = sessionPresentationService;
         this.sessionAnalysisService = sessionAnalysisService;
-        this.tileLayerService = tileLayerService;
         this.sessionPreferences = sessionPreferences;
         this.shell = shell;
-        this.dialogService = dialogService;
-        this.uiThreadDispatcher = uiThreadDispatcher;
+        this.editorFactory = editorFactory;
         this.sourceStore = sourceStore;
         this.recordedSessionDomainQuery = recordedSessionDomainQuery;
-        this.recordedSessionGraph = recordedSessionGraph;
         this.recordedSessionReprocessor = recordedSessionReprocessor;
-        this.recordedSessionDataReader = recordedSessionDataReader;
-        this.bikeCoordinator = bikeCoordinator;
         this.extensionCascadeService = extensionCascadeService;
-        this.recordedSessionExtensionFactories = recordedSessionExtensionFactories?.ToArray() ?? [];
-        this.extensionDatabase = extensionDatabase;
 
         if (synchronizationServer is not null)
         {
@@ -134,23 +113,7 @@ public class SessionCoordinator : ISessionCoordinator
 
         shell.OpenOrFocus<SessionDetailViewModel>(
             editor => editor.Id == sessionId,
-            () => new SessionDetailViewModel(
-                snapshot,
-                this,
-                sessionStore,
-                recordedSessionGraph,
-                sessionPresentationService,
-                sessionAnalysisService,
-                tileLayerService,
-                shell,
-                dialogService,
-                sessionPreferences,
-                uiThreadDispatcher,
-                bikeCoordinator,
-                this.recordedSessionExtensionFactories,
-                extensionDatabase,
-                recordedSessionDataReader: this.recordedSessionDataReader,
-                backgroundTaskRunner));
+            () => editorFactory().CreateSessionDetail(snapshot));
         return Task.CompletedTask;
     }
 
