@@ -1,0 +1,85 @@
+using System.Collections.Specialized;
+using System.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ViewModels;
+
+namespace Sufni.App.ViewModels.Editors;
+
+internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessionMediaWorkspace
+{
+    private readonly RecordedSessionContext context;
+    private INotifyCollectionChanged? mediaPanes;
+
+    public SessionMediaWorkspaceViewModel(RecordedSessionContext context)
+    {
+        this.context = context;
+        context.PropertyChanged += OnContextPropertyChanged;
+        SubscribeToMediaPanes(context.ExtensionSlots);
+    }
+
+    public bool HasMediaContent =>
+        MapState.ReservesLayout ||
+        VideoState.ReservesLayout ||
+        ExtensionSlots.MediaPanes.Count > 0;
+
+    public MapViewModel? MapViewModel => context.MapViewModel;
+
+    public SurfacePresentationState MapState => context.MapState;
+
+    public SurfacePresentationState VideoState => context.VideoState;
+
+    public SessionTimelineLinkViewModel Timeline => context.Timeline;
+
+    public RecordedSessionExtensionSlots ExtensionSlots => context.ExtensionSlots;
+
+    public double? MapVideoWidth => context.MapVideoWidth;
+
+    public string? VideoUrl => context.VideoUrl;
+
+    private void OnContextPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        switch (args.PropertyName)
+        {
+            case nameof(RecordedSessionContext.MapViewModel):
+                OnPropertyChanged(nameof(MapViewModel));
+                break;
+            case nameof(RecordedSessionContext.MapState):
+                OnPropertyChanged(nameof(MapState));
+                OnPropertyChanged(nameof(HasMediaContent));
+                break;
+            case nameof(RecordedSessionContext.VideoState):
+                OnPropertyChanged(nameof(VideoState));
+                OnPropertyChanged(nameof(HasMediaContent));
+                break;
+            case nameof(RecordedSessionContext.MapVideoWidth):
+                OnPropertyChanged(nameof(MapVideoWidth));
+                break;
+            case nameof(RecordedSessionContext.VideoUrl):
+                OnPropertyChanged(nameof(VideoUrl));
+                break;
+            case nameof(RecordedSessionContext.ExtensionSlots):
+                SubscribeToMediaPanes(context.ExtensionSlots);
+                OnPropertyChanged(nameof(ExtensionSlots));
+                OnPropertyChanged(nameof(HasMediaContent));
+                break;
+        }
+    }
+
+    private void SubscribeToMediaPanes(RecordedSessionExtensionSlots slots)
+    {
+        if (mediaPanes is not null)
+        {
+            mediaPanes.CollectionChanged -= OnMediaPanesChanged;
+        }
+
+        mediaPanes = slots.MediaPanes;
+        mediaPanes.CollectionChanged += OnMediaPanesChanged;
+    }
+
+    private void OnMediaPanesChanged(object? sender, NotifyCollectionChangedEventArgs args)
+    {
+        OnPropertyChanged(nameof(HasMediaContent));
+    }
+}

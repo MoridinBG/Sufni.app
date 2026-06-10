@@ -7,6 +7,7 @@ using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Presentation;
 using Sufni.App.SessionDetails;
 using Sufni.App.Stores;
+using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.Telemetry;
 
@@ -24,6 +25,11 @@ public sealed partial class RecordedSessionContext : ObservableObject
     [ObservableProperty] private List<TrackPoint>? fullTrackPoints;
     [ObservableProperty] private List<TrackPoint>? trackPoints;
     [ObservableProperty] private TrackTimeRange? trackTimelineContext;
+    [ObservableProperty] private MapViewModel? mapViewModel;
+    [ObservableProperty] private string? videoUrl;
+    [ObservableProperty] private double? mapVideoWidth;
+    [ObservableProperty] private SurfacePresentationState mapState = SurfacePresentationState.Hidden;
+    [ObservableProperty] private SurfacePresentationState videoState = SurfacePresentationState.Hidden;
     [ObservableProperty] private RecordedSessionExtensionSlots extensionSlots = new();
     [ObservableProperty] private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
     [ObservableProperty] private SessionOperationPresentationState sessionOperationState = SessionOperationPresentationState.Hidden;

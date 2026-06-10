@@ -151,6 +151,8 @@ public class SessionDetailViewModelTests
         Assert.Same(editor.Pages, editor.SessionContext.Pages);
         Assert.Same(editor.Timeline, editor.SessionContext.Timeline);
         Assert.Same(editor.Pages, editor.MobileWorkspace.Pages);
+        Assert.Same(editor.Timeline, editor.MediaWorkspace.Timeline);
+        Assert.Same(editor.SessionContext.ExtensionSlots, editor.MediaWorkspace.ExtensionSlots);
         Assert.Equal(snapshot, editor.SessionContext.SessionSnapshot);
         Assert.Equal(editor.ScreenState, editor.MobileWorkspace.ScreenState);
         Assert.Equal(editor.SessionOperationState, editor.MobileWorkspace.SessionOperationState);
@@ -185,6 +187,23 @@ public class SessionDetailViewModelTests
         Assert.Same(telemetry, editor.SessionContext.TelemetryData);
         Assert.Equal(editor.AnalysisRange, editor.SessionContext.AnalysisRange);
         Assert.Equal(editor.TrackTimelineContext, editor.SessionContext.TrackTimelineContext);
+    }
+
+    [AvaloniaFact]
+    public void MediaWorkspace_TracksContextMediaState()
+    {
+        var editor = CreateEditor(TestSnapshots.Session());
+
+        editor.MapState = SurfacePresentationState.Ready;
+        editor.MapVideoWidth = 480;
+        editor.VideoUrl = "session-video.mp4";
+
+        Assert.Same(editor.MapViewModel, editor.MediaWorkspace.MapViewModel);
+        Assert.Equal(editor.MapState, editor.MediaWorkspace.MapState);
+        Assert.Equal(editor.VideoState, editor.MediaWorkspace.VideoState);
+        Assert.Equal(editor.MapVideoWidth, editor.MediaWorkspace.MapVideoWidth);
+        Assert.Equal(editor.VideoUrl, editor.MediaWorkspace.VideoUrl);
+        Assert.True(editor.MediaWorkspace.HasMediaContent);
     }
 
     [AvaloniaFact]

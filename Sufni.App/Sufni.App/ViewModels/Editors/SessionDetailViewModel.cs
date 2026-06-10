@@ -59,6 +59,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     public SuspensionSettings ShockSettings => NotesPage.ShockSettings;
     public RecordedSessionContext SessionContext { get; } = new();
     public ISessionShellMobileWorkspace MobileWorkspace { get; }
+    public ISessionMediaWorkspace MediaWorkspace { get; }
     public SessionTimelineLinkViewModel Timeline => SessionContext.Timeline;
 
     #region Private fields
@@ -157,7 +158,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     }
     public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
     public PreferencesPageViewModel PreferencesPage { get; } = new();
-    public MapViewModel? MapViewModel { get; }
+    public MapViewModel? MapViewModel => SessionContext.MapViewModel;
     public IReadOnlyList<TelemetryPlotRowAction> TravelHeaderActions { get; }
     public IReadOnlyList<TelemetryPlotRowAction> VelocityHeaderActions { get; }
     public IReadOnlyList<TelemetryPlotRowAction> ImuHeaderActions { get; }
@@ -394,9 +395,25 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     partial void OnVideoUrlChanged(string? value)
     {
+        SessionContext.VideoUrl = value;
         VideoState = string.IsNullOrWhiteSpace(value)
             ? SurfacePresentationState.Hidden
             : SurfacePresentationState.Ready;
+    }
+
+    partial void OnMapVideoWidthChanged(double? value)
+    {
+        SessionContext.MapVideoWidth = value;
+    }
+
+    partial void OnMapStateChanged(SurfacePresentationState value)
+    {
+        SessionContext.MapState = value;
+    }
+
+    partial void OnVideoStateChanged(SurfacePresentationState value)
+    {
+        SessionContext.VideoState = value;
     }
 
     partial void OnShowStatisticsSelectionChanged(bool value) =>
@@ -1484,6 +1501,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         BaselineUpdated = snapshot.Updated;
         SessionContext.SessionSnapshot = snapshot;
         MobileWorkspace = new SessionShellMobileWorkspaceViewModel(SessionContext);
+        MediaWorkspace = new SessionMediaWorkspaceViewModel(SessionContext);
         IsComplete = snapshot.HasProcessedData;
         lastObservedHasProcessedData = snapshot.HasProcessedData;
         if (extensionDatabase is not null && recordedSessionDataReader is not null && backgroundTaskRunner is not null)
@@ -1509,7 +1527,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         }
         SessionContext.ExtensionSlots = ExtensionSlots;
 
-        GraphPage = new RecordedGraphPageViewModel(this, this);
+        GraphPage = new RecordedGraphPageViewModel(this, MediaWorkspace);
         SpringPage = new SpringPageViewModel(this);
         StrokesPage = new StrokesPageViewModel(this);
         DamperPage = new DamperPageViewModel(this);
@@ -1525,8 +1543,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         Pages.Add(AnalysisPage);
         Pages.Add(NotesPage);
         Pages.Add(PreferencesPage);
-        MapViewModel = new MapViewModel(tileLayerService, dialogService, uiThreadDispatcher);
-        _ = MapViewModel.InitializeAsync();
+        SessionContext.MapViewModel = new MapViewModel(tileLayerService, dialogService, uiThreadDispatcher);
+        _ = SessionContext.MapViewModel.InitializeAsync();
         if (snapshot.HasProcessedData)
         {
             ApplyRecordedLoadingStates(snapshot.FullTrackId is not null);
