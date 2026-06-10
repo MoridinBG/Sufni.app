@@ -4,6 +4,7 @@ xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:shared="clr-namespace:Sufni.App.Views.Shared"
 xmlns:views="clr-namespace:Sufni.App.Views"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels"
 d:DesignHeight="600"
@@ -23,34 +24,7 @@ mc:Ignorable="d">
 
     <views:ImportSessionsContentView>
         <views:ImportSessionsContentView.BottomContent>
-            <Grid>
-
-                <!--  Import button  -->
-                <Button
-                HorizontalAlignment="Stretch"
-                VerticalAlignment="Stretch"
-                HorizontalContentAlignment="Center"
-                VerticalContentAlignment="Center"
-                Command="{Binding ImportSessionsCommand}"
-                Content="process selected" />
-
-                <!--  Create Setup button  -->
-                <Button
-                HorizontalAlignment="Stretch"
-                VerticalAlignment="Stretch"
-                HorizontalContentAlignment="Center"
-                VerticalContentAlignment="Center"
-                Command="{Binding AddSetupCommand}"
-                Content="create setup for this DAQ">
-                    <Button.IsVisible>
-                        <MultiBinding Converter="{x:Static BoolConverters.And}">
-                            <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="SelectedDataStore" />
-                            <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="SelectedSetup" />
-                        </MultiBinding>
-                    </Button.IsVisible>
-                </Button>
-
-            </Grid>
+            <shared:ImportSessionsActionRow />
         </views:ImportSessionsContentView.BottomContent>
     </views:ImportSessionsContentView>
 </UserControl>
