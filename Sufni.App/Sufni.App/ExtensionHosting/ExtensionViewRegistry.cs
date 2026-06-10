@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Avalonia.Controls;
+using Sufni.App;
 using Sufni.App.ExtensionHosting;
 
 namespace Sufni.App.ExtensionHosting;
@@ -71,10 +72,4 @@ internal sealed class ExtensionViewRegistry : IExtensionViewRegistry
         Func<IServiceProvider, Control> SharedFactory,
         Func<IServiceProvider, Control>? DesktopFactory);
 
-    private sealed class EmptyServiceProvider : IServiceProvider
-    {
-        public static EmptyServiceProvider Instance { get; } = new();
-
-        public object? GetService(Type serviceType) => null;
-    }
 }
