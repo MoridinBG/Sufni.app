@@ -450,9 +450,12 @@ public class LiveDaqSharedStreamTests
             Assert.True(receivedOffsets.Count < publishedFrameCount);
             Assert.Contains((ulong)publishedFrameCount, receivedOffsets);
             // Depending on when the drain task starts, the first delivered
-            // frame can already be the retained suffix. Frame 2 should still
-            // be dropped once the blocked subscriber overflows its buffer.
-            Assert.DoesNotContain((ulong)2, receivedOffsets);
+            // frame can be either an early frame or the retained suffix.
+            // In both valid interleavings, at least one published offset is
+            // missing before the latest retained frame.
+            Assert.True(
+                receivedOffsets[0] > 1 ||
+                receivedOffsets.Zip(receivedOffsets.Skip(1), (previous, current) => current > previous + 1).Any(hasGap => hasGap));
         }
 
         Assert.True(stream.CurrentState.ClientDropCounters.SubscriberFramesDropped > 0);
