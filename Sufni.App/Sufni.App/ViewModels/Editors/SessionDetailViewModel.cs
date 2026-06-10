@@ -74,9 +74,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     private readonly ISessionPreferences sessionPreferences;
     private readonly RecordedSessionExtensionSlots emptyExtensionSlots = new();
     private readonly RecordedSessionExtensionManager? recordedSessionExtensions;
+    private readonly SessionStalenessReconciler stalenessReconciler;
     private readonly Dictionary<string, PageViewModelBase> recordedSessionExtensionPages = [];
     private Session session;
-    private RecordedSessionDomainSnapshot? latestDomain;
     private RecordedGraphPageViewModel GraphPage { get; }
     private StrokesPageViewModel StrokesPage { get; }
     private SpringPageViewModel SpringPage { get; }
@@ -85,17 +85,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     private SessionAnalysisPageViewModel AnalysisPage { get; }
 
     private readonly CancellableOperation loadOperation = new();
-    private bool lastObservedHasProcessedData;
     private SessionPresentationDimensions? lastPresentationDimensions;
     private double? pendingAnalysisRangeBoundary;
     private bool suppressDirtinessEvaluation;
     private bool suppressAnalysisRecompute;
-    private bool observedInitialDomain;
-    private bool recomputePromptRunning;
     private bool processingPreferenceRecomputeRunning;
-    private string? promptedRecomputeSignature;
-    private RecordedSessionDomainSnapshot? deferredDomainWhileInactive;
-    private bool reportedNotRecomputableStale;
     private bool recordedPreferencePersistenceEnabled; // Prevent property set on creation from re-writing preferences
     private bool viewLoaded;
     private bool hasBeenActivated;
@@ -1034,13 +1028,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
                 ApplyModeAwareDamperPercentages(loaded.Data.DamperPercentages);
                 ApplyRecordedLoadedStates(loaded.Data);
                 RecomputeSessionAnalysis();
-                lastObservedHasProcessedData = true;
                 break;
 
             case SessionDesktopLoadResult.TelemetryPending:
                 ClearRecordedPresentation();
                 ApplyRecordedWaitingStates(session.FullTrack is not null);
-                lastObservedHasProcessedData = false;
                 break;
 
             case SessionDesktopLoadResult.Failed failed:
@@ -1075,7 +1067,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
                 ScreenState = SessionScreenPresentationState.Ready;
                 IsComplete = true;
                 RecomputeSessionAnalysis();
-                lastObservedHasProcessedData = true;
                 break;
 
             case SessionMobileLoadResult.BuiltCache builtCache:
@@ -1099,12 +1090,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
                 ScreenState = SessionScreenPresentationState.Ready;
                 IsComplete = true;
                 RecomputeSessionAnalysis();
-                lastObservedHasProcessedData = true;
                 break;
 
             case SessionMobileLoadResult.TelemetryPending:
                 ApplyRecordedWaitingStates(mapExpected: false);
-                lastObservedHasProcessedData = false;
                 break;
 
             case SessionMobileLoadResult.Failed failed:
@@ -1213,214 +1202,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         }
     }
 
-    private static bool ShouldPromptForDerivedChange(DerivedChangeKind changeKind) =>
-        changeKind.HasFlag(DerivedChangeKind.ProcessedDataAvailabilityChanged) ||
-        changeKind.HasFlag(DerivedChangeKind.DependencyChanged) ||
-        changeKind.HasFlag(DerivedChangeKind.SourceAvailabilityChanged) ||
-        changeKind.HasFlag(DerivedChangeKind.FingerprintChanged);
-
     private async Task ApplyPersistedSnapshotAsync(SessionSnapshot snapshot)
     {
         session = SessionFromSnapshot(snapshot);
         SessionContext.SessionSnapshot = snapshot;
         BaselineUpdated = snapshot.Updated;
         IsComplete = snapshot.HasProcessedData;
-        lastObservedHasProcessedData = snapshot.HasProcessedData;
         await ResetImplementation();
         EvaluateDirtiness();
         NotifyEditorCommandStateChanged();
         UpdateRecordedSessionExtensionHostState();
-    }
-
-    private async Task HandleDomainChangedAsync(RecordedSessionDomainSnapshot domain)
-    {
-        if (!viewLoaded)
-        {
-            return;
-        }
-
-        latestDomain = domain;
-        UpdateRecordedSessionExtensionHostState();
-
-        if (ShouldDeferDomainHandling())
-        {
-            deferredDomainWhileInactive = domain;
-            return;
-        }
-
-        deferredDomainWhileInactive = null;
-
-        var initial = !observedInitialDomain;
-        observedInitialDomain = true;
-
-        if (initial)
-        {
-            await HandleInitialDomainAsync(domain);
-            return;
-        }
-
-        if (!domain.Staleness.IsStale)
-        {
-            promptedRecomputeSignature = null;
-        }
-
-        if (ShouldPromptForDerivedChange(domain.ChangeKind) && domain.Staleness.CanRecompute)
-        {
-            await PromptForRecomputeAsync(domain);
-            return;
-        }
-
-        if (domain.Session.Updated > BaselineUpdated && !domain.Staleness.IsStale)
-        {
-            await ReloadFreshExternalUpdateAsync(domain);
-            return;
-        }
-
-        if (domain.ChangeKind.HasFlag(DerivedChangeKind.ProcessedDataAvailabilityChanged) &&
-            domain.Session.HasProcessedData &&
-            !domain.Staleness.IsStale)
-        {
-            lastObservedHasProcessedData = domain.Session.HasProcessedData;
-            _ = RequestLoadAsync();
-        }
-    }
-
-    private async Task HandleInitialDomainAsync(RecordedSessionDomainSnapshot domain)
-    {
-        if (!domain.Staleness.IsStale)
-        {
-            return;
-        }
-
-        if (domain.Staleness.CanRecompute)
-        {
-            await PromptForRecomputeAsync(domain);
-            return;
-        }
-
-        ReportNotRecomputableStale();
-    }
-
-    private async Task ReloadFreshExternalUpdateAsync(RecordedSessionDomainSnapshot domain)
-    {
-        if (IsDirty)
-        {
-            var reload = await dialogService.ShowConfirmationAsync(
-                "Session changed elsewhere",
-                "This session has been updated from another source. Discard your changes and reload?");
-            if (!reload)
-            {
-                return;
-            }
-        }
-
-        await ApplyPersistedSnapshotAsync(domain.Session);
-        await RequestLoadAsync();
-    }
-
-    private void ReportNotRecomputableStale()
-    {
-        if (reportedNotRecomputableStale)
-        {
-            return;
-        }
-
-        reportedNotRecomputableStale = true;
-        ErrorMessages.Add("Session is stale and cannot be recomputed until the source recording is restored.");
-    }
-
-    private async Task PromptForRecomputeAsync(RecordedSessionDomainSnapshot domain)
-    {
-        if (recomputePromptRunning)
-        {
-            return;
-        }
-
-        var signature = RecomputePromptSignature(domain);
-        if (promptedRecomputeSignature == signature)
-        {
-            return;
-        }
-
-        promptedRecomputeSignature = signature;
-        recomputePromptRunning = true;
-        try
-        {
-            var confirmed = await dialogService.ShowConfirmationAsync(
-                RecomputePromptTitle(domain),
-                RecomputePromptMessage(IsDirty));
-            if (!confirmed || !viewLoaded)
-            {
-                return;
-            }
-
-            await ApplyPersistedSnapshotAsync(domain.Session);
-            var result = await sessionCoordinator.RecomputeAsync(Id, BaselineUpdated);
-            await ApplyRecomputeResultAsync(result);
-        }
-        finally
-        {
-            recomputePromptRunning = false;
-        }
-    }
-
-    private static string RecomputePromptTitle(RecordedSessionDomainSnapshot domain) =>
-        string.IsNullOrWhiteSpace(domain.Session.Name)
-            ? "Session has to be recomputed"
-            : $"Session {domain.Session.Name} has to be recomputed";
-
-    private static string RecomputePromptMessage(bool isDirty) =>
-        isDirty
-            ? "Recompute this session now? This will discard unsaved changes."
-            : "Recompute this session now?";
-
-    private static string RecomputePromptSignature(RecordedSessionDomainSnapshot domain) =>
-        string.Join(
-            "|",
-            domain.Session.Id,
-            domain.Session.Updated,
-            domain.Session.ProcessingFingerprintJson,
-            domain.CurrentFingerprint?.SchemaVersion,
-            domain.CurrentFingerprint?.ProcessingVersion,
-            domain.CurrentFingerprint?.SetupId,
-            domain.CurrentFingerprint?.BikeId,
-            domain.CurrentFingerprint?.DependencyHash,
-            domain.CurrentFingerprint?.SourceHash,
-            domain.Staleness.GetType().FullName);
-
-    private async Task ApplyRecomputeResultAsync(SessionRecomputeResult result)
-    {
-        switch (result)
-        {
-            case SessionRecomputeResult.Recomputed recomputed:
-                BaselineUpdated = recomputed.NewBaselineUpdated;
-                if (sessionStore.Get(Id) is { } current)
-                {
-                    await ApplyPersistedSnapshotAsync(current);
-                }
-
-                await RequestLoadAsync();
-                break;
-
-            case SessionRecomputeResult.Conflict conflict:
-                var reload = await dialogService.ShowConfirmationAsync(
-                    "Session changed elsewhere",
-                    "This session has been updated from another source. Discard your changes and reload?");
-                if (reload)
-                {
-                    await ApplyPersistedSnapshotAsync(conflict.CurrentSnapshot);
-                    await RequestLoadAsync();
-                }
-                break;
-
-            case SessionRecomputeResult.NotRecomputable:
-                ReportNotRecomputableStale();
-                break;
-
-            case SessionRecomputeResult.Failed failed:
-                ErrorMessages.Add($"Session could not be recomputed: {failed.ErrorMessage}");
-                break;
-        }
     }
 
     private RecordedSessionHostState CreateRecordedSessionExtensionHostState()
@@ -1676,7 +1467,20 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
             SaveCommand,
             ResetCommand);
         IsComplete = snapshot.HasProcessedData;
-        lastObservedHasProcessedData = snapshot.HasProcessedData;
+        stalenessReconciler = new SessionStalenessReconciler(
+            sessionCoordinator,
+            sessionStore,
+            dialogService,
+            () => Id,
+            () => BaselineUpdated,
+            value => BaselineUpdated = value,
+            () => IsDirty,
+            () => viewLoaded,
+            ShouldDeferDomainHandling,
+            ApplyPersistedSnapshotAsync,
+            RequestLoadAsync,
+            UpdateRecordedSessionExtensionHostState,
+            ErrorMessages.Add);
         if (extensionDatabase is not null && recordedSessionDataReader is not null && backgroundTaskRunner is not null)
         {
             recordedSessionExtensions = new RecordedSessionExtensionManager(
@@ -2192,7 +1996,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
             }
 
             var result = await sessionCoordinator.RecomputeAsync(Id, BaselineUpdated);
-            await ApplyRecomputeResultAsync(result);
+            await stalenessReconciler.ApplyRecomputeResultAsync(result);
         }
         finally
         {
@@ -2276,7 +2080,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
                     SessionContext.SessionSnapshot = conflict.CurrentSnapshot;
                     BaselineUpdated = conflict.CurrentSnapshot.Updated;
                     IsComplete = conflict.CurrentSnapshot.HasProcessedData;
-                    lastObservedHasProcessedData = conflict.CurrentSnapshot.HasProcessedData;
                     await ResetImplementation();
                     EvaluateDirtiness();
                 }
@@ -2465,7 +2268,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         EnsureScopedSubscription(s =>
         {
             s.Add(sessionPreferences.ObserveRecorded(Id).Subscribe(OnSyncedPreferencesArrived));
-            s.Add(watch.Subscribe(domain => _ = HandleDomainChangedAsync(domain)));
+            s.Add(watch.Subscribe(domain => _ = stalenessReconciler.HandleDomainChangedAsync(domain)));
         });
 
         await InitializeRecordedSessionExtensionsAsync();
@@ -2478,14 +2281,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         hasBeenActivated = true;
         UpdateRecordedSessionExtensionHostState();
 
-        if (!viewLoaded || deferredDomainWhileInactive is null)
+        if (!viewLoaded)
         {
             return;
         }
 
-        var domain = deferredDomainWhileInactive;
-        deferredDomainWhileInactive = null;
-        _ = HandleDomainChangedAsync(domain);
+        _ = stalenessReconciler.HandleDeferredDomainAsync();
     }
 
     protected override void OnDeactivated()
@@ -2531,10 +2332,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     {
         viewLoaded = false;
         loadOperation.Cancel();
-        observedInitialDomain = false;
-        promptedRecomputeSignature = null;
-        deferredDomainWhileInactive = null;
-        latestDomain = null;
+        stalenessReconciler.ResetForUnload();
         UpdateRecordedSessionExtensionHostState();
         await DisposeRecordedSessionExtensionScopesAsync();
         DisposeScopedSubscriptions();
