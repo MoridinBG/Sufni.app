@@ -48,7 +48,10 @@ public class LiveDaqDetailDesktopViewTests
         editor.HasPendingConfig = true;
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var text = mounted.View.FindControl<TextBlock>("PendingConfigTextBlock");
+        var deviceManagement = mounted.View.FindControl<LiveDaqDeviceManagementCard>("DeviceManagementCard");
+        Assert.NotNull(deviceManagement);
+
+        var text = deviceManagement!.FindControl<TextBlock>("PendingConfigTextBlock");
         Assert.NotNull(text);
         Assert.True(text!.IsVisible);
         Assert.Equal("Staged: CONFIG", text.Text);

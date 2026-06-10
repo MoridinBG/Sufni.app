@@ -94,37 +94,7 @@ mc:Ignorable="d">
                         </StackPanel>
                     </Border>
 
-                    <Border
-                    x:Name="DeviceManagementCard"
-                    Padding="12"
-                    Background="{DynamicResource SufniBackgroundDisabled}"
-                    CornerRadius="8">
-                        <StackPanel Spacing="10">
-                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="Device Management" />
-
-                            <Border x:Name="SetTimeButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
-                                <Button x:Name="SetTimeButton" Command="{Binding SetTimeCommand}" Content="Set Time" IsEnabled="{Binding CanManage}" />
-                            </Border>
-
-                            <Border x:Name="EditConfigButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
-                                <Button x:Name="EditConfigButton" Command="{Binding EditConfigCommand}" Content="Edit CONFIG" IsEnabled="{Binding CanManage}" />
-                            </Border>
-
-                            <Border x:Name="SelectConfigButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
-                                <Button x:Name="SelectConfigButton" Command="{Binding SelectConfigFileCommand}" Content="Replace Config" IsEnabled="{Binding CanManage}" />
-                            </Border>
-
-                            <TextBlock
-                            x:Name="PendingConfigTextBlock"
-                            IsVisible="{Binding HasPendingConfig}"
-                            Opacity="0.7"
-                            Text="{Binding PendingConfigFileName, StringFormat='Staged: {0}'}" />
-
-                            <Border x:Name="UploadConfigButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
-                                <Button x:Name="UploadConfigButton" Command="{Binding UploadConfigCommand}" Content="Upload CONFIG" IsEnabled="{Binding CanUploadConfig}" />
-                            </Border>
-                        </StackPanel>
-                    </Border>
+                    <shared:LiveDaqDeviceManagementCard x:Name="DeviceManagementCard" />
 
                     <controls:NotificationsBar
                     x:Name="ManagementNotificationsBar"

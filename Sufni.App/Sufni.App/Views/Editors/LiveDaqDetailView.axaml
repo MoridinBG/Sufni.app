@@ -262,60 +262,7 @@ mc:Ignorable="d">
                 </StackPanel>
 
                 <!--  6. Device Management  -->
-                <Border
-                Name="DeviceManagementCard"
-                Padding="14"
-                Background="{DynamicResource SufniBackgroundDisabled}"
-                CornerRadius="8">
-                    <StackPanel Spacing="10">
-                        <TextBlock
-                        FontSize="16"
-                        FontWeight="SemiBold"
-                        Text="Device Management" />
-
-                        <Border Name="SetTimeButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
-                            <Button
-                            Name="SetTimeButton"
-                            HorizontalAlignment="Stretch"
-                            Command="{Binding SetTimeCommand}"
-                            Content="Set Time"
-                            IsEnabled="{Binding CanManage}" />
-                        </Border>
-
-                        <Border Name="EditConfigButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
-                            <Button
-                            Name="EditConfigButton"
-                            HorizontalAlignment="Stretch"
-                            Command="{Binding EditConfigCommand}"
-                            Content="Edit CONFIG"
-                            IsEnabled="{Binding CanManage}" />
-                        </Border>
-
-                        <Border Name="SelectConfigButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
-                            <Button
-                            Name="SelectConfigButton"
-                            HorizontalAlignment="Stretch"
-                            Command="{Binding SelectConfigFileCommand}"
-                            Content="Replace Config"
-                            IsEnabled="{Binding CanManage}" />
-                        </Border>
-
-                        <TextBlock
-                        Name="PendingConfigTextBlock"
-                        IsVisible="{Binding HasPendingConfig}"
-                        Opacity="0.7"
-                        Text="{Binding PendingConfigFileName, StringFormat='Staged: {0}'}" />
-
-                        <Border Name="UploadConfigButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
-                            <Button
-                            Name="UploadConfigButton"
-                            HorizontalAlignment="Stretch"
-                            Command="{Binding UploadConfigCommand}"
-                            Content="Upload CONFIG"
-                            IsEnabled="{Binding CanUploadConfig}" />
-                        </Border>
-                    </StackPanel>
-                </Border>
+                <shared:LiveDaqDeviceManagementCard Name="DeviceManagementCard" />
 
                 <!--  9. Notifications  -->
                 <controls:NotificationsBar Name="ManagementNotificationsBar" />
