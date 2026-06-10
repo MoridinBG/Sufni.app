@@ -6,7 +6,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Threading;
 using Sufni.App.Behaviors;
 using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Formatting;
@@ -454,17 +453,9 @@ public class VelocityBandView : TemplatedControl
         CancelPendingMobileLongPress();
         pendingMobilePointer = pointer;
         pendingMobileCircuit = circuit;
-        var timer = new DispatcherTimer(DispatcherPriority.Normal)
-        {
-            Interval = DampingSpeedCutoffs.MobileLongPressDelay,
-        };
-        timer.Tick += (_, _) =>
-        {
-            timer.Stop();
-            CompleteMobileLongPress();
-        };
-        timer.Start();
-        pendingMobileLongPress = new DispatcherTimerSubscription(timer);
+        pendingMobileLongPress = PeriodicUiTimer.ScheduleOnce(
+            DampingSpeedCutoffs.MobileLongPressDelay,
+            CompleteMobileLongPress);
     }
 
     private void CompleteMobileLongPress()
@@ -609,8 +600,4 @@ public class VelocityBandView : TemplatedControl
     private static GridLength CreateZoneLength(double value) =>
         new(Math.Max(0, value), GridUnitType.Star);
 
-    private sealed class DispatcherTimerSubscription(DispatcherTimer timer) : IDisposable
-    {
-        public void Dispose() => timer.Stop();
-    }
 }

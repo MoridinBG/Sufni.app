@@ -5,7 +5,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Threading;
 using Sufni.App.Behaviors;
 using Sufni.App.Models;
 using Sufni.App.Plots;
@@ -624,17 +623,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     protected virtual IDisposable ScheduleMobileAnalysisRangeLongPress(Action callback)
     {
-        var timer = new DispatcherTimer(DispatcherPriority.Normal)
-        {
-            Interval = TimeSpan.FromMilliseconds(500),
-        };
-        timer.Tick += (_, _) =>
-        {
-            timer.Stop();
-            callback();
-        };
-        timer.Start();
-        return new DispatcherTimerSubscription(timer);
+        return PeriodicUiTimer.ScheduleOnce(TimeSpan.FromMilliseconds(500), callback);
     }
 
     private double GetClampedTimeSeconds(PointerEventArgs args)
@@ -905,11 +894,6 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         }
 
         RefreshPlot();
-    }
-
-    private sealed class DispatcherTimerSubscription(DispatcherTimer timer) : IDisposable
-    {
-        public void Dispose() => timer.Stop();
     }
 
     private bool CanLoadNow()
