@@ -175,7 +175,8 @@ public partial class App : Application
         ServiceCollection.AddSingleton<TrackCoordinator>();
         ServiceCollection.AddSingleton<SessionCoordinator>(sp => new SessionCoordinator(
             sp.GetRequiredService<ISessionStoreWriter>(),
-            sp.GetRequiredService<IDatabaseService>(),
+            sp.GetRequiredService<ISessionRepository>(),
+            sp.GetRequiredService<IRecordedSessionSourceRepository>(),
             sp.GetRequiredService<ISynchronizableRepository<Setup>>(),
             sp.GetRequiredService<ISynchronizableRepository<Bike>>(),
             sp.GetRequiredService<ISynchronizableRepository<Track>>(),

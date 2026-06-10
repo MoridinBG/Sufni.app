@@ -34,7 +34,8 @@ public class SessionCoordinator
     private static readonly ILogger logger = Log.ForContext<SessionCoordinator>();
 
     private readonly ISessionStoreWriter sessionStore;
-    private readonly IDatabaseService databaseService;
+    private readonly ISessionRepository sessionRepository;
+    private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly ISynchronizableRepository<Setup> setupRepository;
     private readonly ISynchronizableRepository<Bike> bikeRepository;
     private readonly ISynchronizableRepository<Track> trackEntityRepository;
@@ -62,7 +63,8 @@ public class SessionCoordinator
 
     public SessionCoordinator(
         ISessionStoreWriter sessionStore,
-        IDatabaseService databaseService,
+        ISessionRepository sessionRepository,
+        IRecordedSessionSourceRepository recordedSessionSourceRepository,
         ISynchronizableRepository<Setup> setupRepository,
         ISynchronizableRepository<Bike> bikeRepository,
         ISynchronizableRepository<Track> trackEntityRepository,
@@ -90,7 +92,8 @@ public class SessionCoordinator
         IExtensionDatabaseConnection? extensionDatabase = null)
     {
         this.sessionStore = sessionStore;
-        this.databaseService = databaseService;
+        this.sessionRepository = sessionRepository;
+        this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.setupRepository = setupRepository;
         this.bikeRepository = bikeRepository;
         this.trackEntityRepository = trackEntityRepository;
@@ -357,10 +360,10 @@ public class SessionCoordinator
                 session.ProcessingFingerprintJson = current.ProcessingFingerprintJson;
             }
 
-            await databaseService.PutSessionAsync(session);
+            await sessionRepository.PutSessionAsync(session);
             // Re-fetch via the SQL-computed has_data path so the snapshot's
             // HasProcessedData reflects the current DB state.
-            var fresh = await databaseService.GetSessionAsync(session.Id);
+            var fresh = await sessionRepository.GetSessionAsync(session.Id);
             if (fresh is null)
             {
                 logger.Error("Session save failed because the session disappeared after save for {SessionId}", session.Id);
@@ -421,7 +424,7 @@ public class SessionCoordinator
             session.ProcessedData = reprocessResult.TelemetryData.BinaryForm;
             session.ProcessingFingerprintJson = AppJson.Serialize(reprocessResult.Fingerprint);
 
-            var fresh = await databaseService.PutProcessedSessionAsync(session, reprocessResult.GeneratedFullTrack, source);
+            var fresh = await sessionRepository.PutProcessedSessionAsync(session, reprocessResult.GeneratedFullTrack, source);
 
             var snapshot = SessionSnapshot.From(fresh);
             await sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences);
@@ -510,7 +513,7 @@ public class SessionCoordinator
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            var persisted = await databaseService.GetSessionAsync(sessionId);
+            var persisted = await sessionRepository.GetSessionAsync(sessionId);
             if (persisted is null)
             {
                 logger.Warning("Recorded session recompute failed because session {SessionId} disappeared before persistence", sessionId);
@@ -549,14 +552,14 @@ public class SessionCoordinator
             persisted.ProcessedData = reprocessResult.TelemetryData.BinaryForm;
             persisted.ProcessingFingerprintJson = AppJson.Serialize(reprocessResult.Fingerprint);
 
-            var fresh = await databaseService.PutProcessedSessionIfUnchangedAsync(
+            var fresh = await sessionRepository.PutProcessedSessionIfUnchangedAsync(
                 persisted,
                 newFullTrack,
                 source: null,
                 baselineUpdated);
             if (fresh is null)
             {
-                var current = await databaseService.GetSessionAsync(sessionId);
+                var current = await sessionRepository.GetSessionAsync(sessionId);
                 if (current is null)
                 {
                     return new SessionRecomputeResult.Failed("Session is missing.");
@@ -590,7 +593,7 @@ public class SessionCoordinator
 
         try
         {
-            var session = await databaseService.GetSessionAsync(sessionId);
+            var session = await sessionRepository.GetSessionAsync(sessionId);
             var trackId = session?.FullTrack;
             var shouldDeleteTrack = false;
 
@@ -640,7 +643,7 @@ public class SessionCoordinator
     private Task<TelemetryData?> LoadTelemetryDataAsync(Guid sessionId, CancellationToken cancellationToken)
     {
         return backgroundTaskRunner.RunAsync(
-            () => databaseService.GetSessionPsstAsync(sessionId),
+            () => sessionRepository.GetSessionPsstAsync(sessionId),
             cancellationToken);
     }
 
@@ -703,11 +706,11 @@ public class SessionCoordinator
         cancellationToken.ThrowIfCancellationRequested();
 
         await backgroundTaskRunner.RunAsync(
-            () => databaseService.PatchSessionPsstAsync(sessionId, psst),
+            () => sessionRepository.PatchSessionPsstAsync(sessionId, psst),
             cancellationToken);
 
         var fresh = await backgroundTaskRunner.RunAsync(
-            () => databaseService.GetSessionAsync(sessionId),
+            () => sessionRepository.GetSessionAsync(sessionId),
             cancellationToken);
         if (fresh is not null)
         {
@@ -743,7 +746,7 @@ public class SessionCoordinator
                 continue;
             }
 
-            var fresh = await databaseService.GetSessionAsync(session.Id);
+            var fresh = await sessionRepository.GetSessionAsync(session.Id);
             if (fresh is not null)
             {
                 upserts.Add(SessionSnapshot.From(fresh));
@@ -785,7 +788,7 @@ public class SessionCoordinator
     {
         logger.Verbose("Applying inbound session data for {SessionId}", e.SessionId);
 
-        var fresh = await databaseService.GetSessionAsync(e.SessionId);
+        var fresh = await sessionRepository.GetSessionAsync(e.SessionId);
         if (fresh is null)
         {
             logger.Verbose("Ignoring inbound session data because session {SessionId} is missing", e.SessionId);
@@ -815,7 +818,7 @@ public class SessionCoordinator
     {
         logger.Verbose("Applying inbound recorded source for {SessionId}", e.SessionId);
 
-        var source = await databaseService.GetRecordedSessionSourceAsync(e.SessionId);
+        var source = await recordedSessionSourceRepository.GetRecordedSessionSourceAsync(e.SessionId);
         if (source is null)
         {
             logger.Verbose("Ignoring inbound recorded source because source {SessionId} is missing", e.SessionId);

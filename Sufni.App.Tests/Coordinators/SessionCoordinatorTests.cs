@@ -27,7 +27,8 @@ namespace Sufni.App.Tests.Coordinators;
 public class SessionCoordinatorTests
 {
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
-    private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
+    private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
+    private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
     private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
     private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
     private readonly ISynchronizableRepository<Track> trackEntityRepository = Substitute.For<ISynchronizableRepository<Track>>();
@@ -64,7 +65,8 @@ public class SessionCoordinatorTests
     private SessionCoordinator CreateCoordinator(ISynchronizationServerService? sync = null) =>
         new(
             sessionStore,
-            database,
+            sessionRepository,
+            recordedSessionSourceRepository,
             setupRepository,
             bikeRepository,
             trackEntityRepository,
@@ -131,12 +133,12 @@ public class SessionCoordinatorTests
             Updated = 7,
             HasProcessedData = true,
         };
-        database.GetSessionAsync(existing.Id).Returns(fresh);
+        sessionRepository.GetSessionAsync(existing.Id).Returns(fresh);
 
         var result = await CreateCoordinator().SaveAsync(session, baselineUpdated: 5);
 
-        await database.Received(1).PutSessionAsync(session);
-        await database.Received(1).GetSessionAsync(existing.Id);
+        await sessionRepository.Received(1).PutSessionAsync(session);
+        await sessionRepository.Received(1).GetSessionAsync(existing.Id);
         sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s =>
             s.Id == existing.Id && s.Name == "renamed" && s.Updated == 7 && s.HasProcessedData));
         shell.Received(1).GoBack();
@@ -149,7 +151,7 @@ public class SessionCoordinatorTests
     {
         var existing = TestSnapshots.Session(updated: 5);
         sessionStore.Get(existing.Id).Returns(existing);
-        database.GetSessionAsync(existing.Id).Returns((Session?)null);
+        sessionRepository.GetSessionAsync(existing.Id).Returns((Session?)null);
 
         var session = new Session(existing.Id, "renamed", "", null);
 
@@ -172,7 +174,7 @@ public class SessionCoordinatorTests
 
         var conflict = Assert.IsType<SessionSaveResult.Conflict>(result);
         Assert.Same(current, conflict.CurrentSnapshot);
-        await database.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
+        await sessionRepository.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
         sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
         shell.DidNotReceive().GoBack();
     }
@@ -182,7 +184,7 @@ public class SessionCoordinatorTests
     {
         var existing = TestSnapshots.Session(updated: 5);
         sessionStore.Get(existing.Id).Returns(existing);
-        database.PutSessionAsync(Arg.Any<Session>()).ThrowsAsync(new InvalidOperationException("disk full"));
+        sessionRepository.PutSessionAsync(Arg.Any<Session>()).ThrowsAsync(new InvalidOperationException("disk full"));
 
         var session = new Session(existing.Id, "x", "", null);
 
@@ -204,7 +206,7 @@ public class SessionCoordinatorTests
             HasProcessedData = true,
         };
         SeedLiveCaptureDependencies(capture);
-        database
+        sessionRepository
             .PutProcessedSessionAsync(
                 Arg.Any<Session>(),
                 Arg.Any<Track?>(),
@@ -218,7 +220,7 @@ public class SessionCoordinatorTests
 
         var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture, SessionPreferences.Default);
 
-        await database.DidNotReceive().PutAsync(Arg.Any<Track>());
+        await trackEntityRepository.DidNotReceive().PutAsync(Arg.Any<Track>());
         await reprocessor.Received(1).ReprocessAsync(
             Arg.Is<RecordedSessionDomainSnapshot>(domain =>
                 domain.Session.Id == session.Id &&
@@ -231,7 +233,7 @@ public class SessionCoordinatorTests
                 RecordedSessionSourceHash.Matches(source)),
             Arg.Any<TelemetryProcessingOptions>(),
             Arg.Any<CancellationToken>());
-        await database.Received(1).PutProcessedSessionAsync(
+        await sessionRepository.Received(1).PutProcessedSessionAsync(
             Arg.Is<Session>(saved =>
                 saved.Id == session.Id
                 && saved.ProcessedData != null
@@ -277,7 +279,7 @@ public class SessionCoordinatorTests
                 SessionAnalysisTargetProfile.DH));
         Func<SessionPreferences, SessionPreferences>? update = null;
         SeedLiveCaptureDependencies(capture);
-        database
+        sessionRepository
             .PutProcessedSessionAsync(
                 Arg.Any<Session>(),
                 Arg.Any<Track?>(),
@@ -302,7 +304,7 @@ public class SessionCoordinatorTests
         var capture = CreateLiveCapturePackage(withGps: false);
         var session = new Session(Guid.NewGuid(), "live session", "desc", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
         SeedLiveCaptureDependencies(capture);
-        database
+        sessionRepository
             .PutProcessedSessionAsync(
                 Arg.Any<Session>(),
                 Arg.Any<Track?>(),
@@ -328,7 +330,7 @@ public class SessionCoordinatorTests
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
             CreateCoordinator().SaveLiveCaptureAsync(session, capture, SessionPreferences.Default, cancellationTokenSource.Token));
 
-        await database.DidNotReceive().PutProcessedSessionAsync(
+        await sessionRepository.DidNotReceive().PutProcessedSessionAsync(
             Arg.Any<Session>(),
             Arg.Any<Track?>(),
             Arg.Any<RecordedSessionSource?>());
@@ -353,12 +355,12 @@ public class SessionCoordinatorTests
         sourceStore.LoadAsync(context.Session.Id, Arg.Any<CancellationToken>()).Returns(context.Source);
         reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, null, fingerprint));
-        database.GetSessionAsync(context.Session.Id).Returns(persisted);
-        database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5).Returns(fresh);
+        sessionRepository.GetSessionAsync(context.Session.Id).Returns(persisted);
+        sessionRepository.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5).Returns(fresh);
 
         var result = await CreateCoordinator().RecomputeAsync(context.Session.Id, baselineUpdated: 5);
 
-        await database.Received(1).PutProcessedSessionIfUnchangedAsync(
+        await sessionRepository.Received(1).PutProcessedSessionIfUnchangedAsync(
             Arg.Is<Session>(session =>
                 session.Id == context.Session.Id &&
                 session.ProcessedData != null &&
@@ -399,8 +401,8 @@ public class SessionCoordinatorTests
                 Arg.Is<TelemetryProcessingOptions>(options => options.VelocityFilterWindowMilliseconds == 250),
                 Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, null, fingerprint));
-        database.GetSessionAsync(context.Session.Id).Returns(persisted);
-        database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5).Returns(fresh);
+        sessionRepository.GetSessionAsync(context.Session.Id).Returns(persisted);
+        sessionRepository.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5).Returns(fresh);
 
         await CreateCoordinator().RecomputeAsync(context.Session.Id, baselineUpdated: 5);
 
@@ -425,13 +427,13 @@ public class SessionCoordinatorTests
         sourceStore.LoadAsync(context.Session.Id, Arg.Any<CancellationToken>()).Returns(context.Source);
         reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, null, fingerprint));
-        database.GetSessionAsync(context.Session.Id).Returns(persisted);
-        database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5).Returns(fresh);
+        sessionRepository.GetSessionAsync(context.Session.Id).Returns(persisted);
+        sessionRepository.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5).Returns(fresh);
 
         var result = await CreateCoordinator().RecomputeAsync(context.Session.Id, baselineUpdated: 5);
 
         Assert.IsType<SessionRecomputeResult.Recomputed>(result);
-        await database.Received(1).PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5);
+        await sessionRepository.Received(1).PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5);
     }
 
     [Fact]
@@ -448,13 +450,13 @@ public class SessionCoordinatorTests
         sourceStore.LoadAsync(context.Session.Id, Arg.Any<CancellationToken>()).Returns(context.Source);
         reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, null, fingerprint));
-        database.GetSessionAsync(context.Session.Id).Returns(persisted);
-        database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5).Returns(fresh);
+        sessionRepository.GetSessionAsync(context.Session.Id).Returns(persisted);
+        sessionRepository.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5).Returns(fresh);
 
         var result = await CreateCoordinator().RecomputeAsync(context.Session.Id, baselineUpdated: 5);
 
         Assert.IsType<SessionRecomputeResult.Recomputed>(result);
-        await database.Received(1).PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5);
+        await sessionRepository.Received(1).PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5);
     }
 
     [Fact]
@@ -472,7 +474,7 @@ public class SessionCoordinatorTests
         var conflict = Assert.IsType<SessionRecomputeResult.Conflict>(result);
         Assert.Equal(10, conflict.CurrentSnapshot.Updated);
         await sourceStore.DidNotReceive().LoadAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
-        await database.DidNotReceive().PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource?>(), Arg.Any<long>());
+        await sessionRepository.DidNotReceive().PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource?>(), Arg.Any<long>());
     }
 
     [Fact]
@@ -488,8 +490,8 @@ public class SessionCoordinatorTests
         sourceStore.LoadAsync(context.Session.Id, Arg.Any<CancellationToken>()).Returns(context.Source);
         reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, null, fingerprint));
-        database.GetSessionAsync(context.Session.Id).Returns(persisted, current);
-        database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5)
+        sessionRepository.GetSessionAsync(context.Session.Id).Returns(persisted, current);
+        sessionRepository.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5)
             .Returns((Session?)null);
 
         var result = await CreateCoordinator().RecomputeAsync(context.Session.Id, baselineUpdated: 5);
@@ -523,7 +525,7 @@ public class SessionCoordinatorTests
         var result = await CreateCoordinator().RecomputeAsync(context.Session.Id, baselineUpdated: 5);
 
         Assert.IsType<SessionRecomputeResult.Failed>(result);
-        await database.DidNotReceive().PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource?>(), Arg.Any<long>());
+        await sessionRepository.DidNotReceive().PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource?>(), Arg.Any<long>());
     }
 
     [Fact]
@@ -543,13 +545,13 @@ public class SessionCoordinatorTests
         sourceStore.LoadAsync(context.Session.Id, Arg.Any<CancellationToken>()).Returns(context.Source);
         reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, null, fingerprint));
-        database.GetSessionAsync(context.Session.Id).Returns(persisted);
-        database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5).Returns(fresh);
+        sessionRepository.GetSessionAsync(context.Session.Id).Returns(persisted);
+        sessionRepository.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5).Returns(fresh);
 
         var result = await CreateCoordinator().RecomputeAsync(context.Session.Id, baselineUpdated: 5);
 
         Assert.IsType<SessionRecomputeResult.Recomputed>(result);
-        await database.Received(1).PutProcessedSessionIfUnchangedAsync(
+        await sessionRepository.Received(1).PutProcessedSessionIfUnchangedAsync(
             Arg.Is<Session>(session =>
                 session.FullTrack == previousTrackId &&
                 session.Track == null &&
@@ -557,7 +559,7 @@ public class SessionCoordinatorTests
             null,
             null,
             5);
-        await database.DidNotReceive().DeleteAsync<Track>(previousTrackId);
+        await trackEntityRepository.DidNotReceive().DeleteAsync(previousTrackId);
     }
 
     [Fact]
@@ -580,21 +582,21 @@ public class SessionCoordinatorTests
         sourceStore.LoadAsync(context.Session.Id, Arg.Any<CancellationToken>()).Returns(context.Source);
         reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, generatedTrack, fingerprint));
-        database.GetSessionAsync(context.Session.Id).Returns(persisted);
+        sessionRepository.GetSessionAsync(context.Session.Id).Returns(persisted);
         trackEntityRepository.GetAsync(previousTrackId).Returns(Task.FromResult<Track?>(existingTrack));
-        database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5).Returns(fresh);
+        sessionRepository.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5).Returns(fresh);
 
         var result = await CreateCoordinator().RecomputeAsync(context.Session.Id, baselineUpdated: 5);
 
         Assert.IsType<SessionRecomputeResult.Recomputed>(result);
-        await database.Received(1).PutProcessedSessionIfUnchangedAsync(
+        await sessionRepository.Received(1).PutProcessedSessionIfUnchangedAsync(
             Arg.Is<Session>(session =>
                 session.FullTrack == previousTrackId &&
                 session.Track != null),
             null,
             null,
             5);
-        await database.DidNotReceive().DeleteAsync<Track>(previousTrackId);
+        await trackEntityRepository.DidNotReceive().DeleteAsync(previousTrackId);
     }
 
     [Fact]
@@ -617,15 +619,15 @@ public class SessionCoordinatorTests
         sourceStore.LoadAsync(context.Session.Id, Arg.Any<CancellationToken>()).Returns(context.Source);
         reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, generatedTrack, fingerprint));
-        database.GetSessionAsync(context.Session.Id).Returns(persisted);
+        sessionRepository.GetSessionAsync(context.Session.Id).Returns(persisted);
         trackEntityRepository.GetAsync(previousTrackId).Returns(Task.FromResult<Track?>(existingTrack));
-        database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), generatedTrack, null, 5).Returns(fresh);
+        sessionRepository.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), generatedTrack, null, 5).Returns(fresh);
         sessionEntityRepository.GetAllAsync().Returns(Task.FromResult(new List<Session> { fresh }));
 
         var result = await CreateCoordinator().RecomputeAsync(context.Session.Id, baselineUpdated: 5);
 
         Assert.IsType<SessionRecomputeResult.Recomputed>(result);
-        await database.Received(1).PutProcessedSessionIfUnchangedAsync(
+        await sessionRepository.Received(1).PutProcessedSessionIfUnchangedAsync(
             Arg.Is<Session>(session =>
                 session.Track == null &&
                 session.ProcessingFingerprintJson != null),
@@ -656,15 +658,15 @@ public class SessionCoordinatorTests
         sourceStore.LoadAsync(context.Session.Id, Arg.Any<CancellationToken>()).Returns(context.Source);
         reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, generatedTrack, fingerprint));
-        database.GetSessionAsync(context.Session.Id).Returns(persisted);
+        sessionRepository.GetSessionAsync(context.Session.Id).Returns(persisted);
         trackEntityRepository.GetAsync(previousTrackId).Returns(Task.FromResult<Track?>(existingTrack));
-        database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), generatedTrack, null, 5).Returns(fresh);
+        sessionRepository.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), generatedTrack, null, 5).Returns(fresh);
         sessionEntityRepository.GetAllAsync().Returns(Task.FromResult(new List<Session> { fresh }));
 
         var result = await CreateCoordinator().RecomputeAsync(context.Session.Id, baselineUpdated: 5);
 
         Assert.IsType<SessionRecomputeResult.Recomputed>(result);
-        await database.Received(1).PutProcessedSessionIfUnchangedAsync(
+        await sessionRepository.Received(1).PutProcessedSessionIfUnchangedAsync(
             Arg.Is<Session>(session =>
                 session.Track == null &&
                 session.ProcessingFingerprintJson != null),
@@ -682,7 +684,7 @@ public class SessionCoordinatorTests
     {
         var id = Guid.NewGuid();
         var trackId = Guid.NewGuid();
-        database.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
+        sessionRepository.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
         sessionEntityRepository.GetAllAsync().Returns(Task.FromResult(new List<Session>
         {
             new(id, "name", "desc", null) { FullTrack = trackId }
@@ -707,7 +709,7 @@ public class SessionCoordinatorTests
         var id = Guid.NewGuid();
         var otherSessionId = Guid.NewGuid();
         var trackId = Guid.NewGuid();
-        database.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
+        sessionRepository.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
         sessionEntityRepository.GetAllAsync().Returns(Task.FromResult(new List<Session>
         {
             new(id, "name", "desc", null) { FullTrack = trackId },
@@ -731,7 +733,7 @@ public class SessionCoordinatorTests
     {
         var id = Guid.NewGuid();
         var trackId = Guid.NewGuid();
-        database.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
+        sessionRepository.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
         sessionEntityRepository.GetAllAsync().Returns(Task.FromResult(new List<Session>
         {
             new(id, "name", "desc", null) { FullTrack = trackId }
@@ -780,7 +782,7 @@ public class SessionCoordinatorTests
             400.0);
 
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
+        sessionRepository.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(trackData);
         sessionPresentationService
@@ -817,7 +819,7 @@ public class SessionCoordinatorTests
 
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         domainQuery.Get(snapshot.Id).Returns(DomainWithBike(snapshot, bike));
-        database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
+        sessionRepository.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(new SessionTrackPresentationData(null, null, null, null));
         sessionPresentationService
@@ -841,7 +843,7 @@ public class SessionCoordinatorTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        database.GetSessionPsstAsync(snapshot.Id).Returns(Task.FromResult<TelemetryData?>(null));
+        sessionRepository.GetSessionPsstAsync(snapshot.Id).Returns(Task.FromResult<TelemetryData?>(null));
 
         var result = await CreateCoordinator().LoadDesktopDetailAsync(snapshot.Id);
 
@@ -858,7 +860,7 @@ public class SessionCoordinatorTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        database.GetSessionPsstAsync(snapshot.Id).Returns(Task.FromResult<TelemetryData?>(null));
+        sessionRepository.GetSessionPsstAsync(snapshot.Id).Returns(Task.FromResult<TelemetryData?>(null));
 
         var result = await CreateCoordinator().LoadDesktopDetailAsync(snapshot.Id);
 
@@ -871,7 +873,7 @@ public class SessionCoordinatorTests
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
+        sessionRepository.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("track failed"));
 
@@ -888,7 +890,7 @@ public class SessionCoordinatorTests
         var telemetry = TestTelemetryData.CreateProcessed();
         var trackData = new SessionTrackPresentationData(Guid.NewGuid(), [], [], 400);
         sessionCacheStore.GetSessionCacheAsync(sessionId).Returns(cache);
-        database.GetSessionPsstAsync(sessionId).Returns(telemetry);
+        sessionRepository.GetSessionPsstAsync(sessionId).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(sessionId, null, telemetry, Arg.Any<CancellationToken>())
             .Returns(trackData);
 
@@ -898,7 +900,7 @@ public class SessionCoordinatorTests
         Assert.Equal("cached", loaded.Data.FrontTravelHistogram);
         Assert.Same(telemetry, loaded.Telemetry);
         Assert.Same(trackData, loaded.TrackData);
-        await database.Received(1).GetSessionPsstAsync(sessionId);
+        await sessionRepository.Received(1).GetSessionPsstAsync(sessionId);
         await http.DidNotReceive().GetSessionPsstAsync(Arg.Any<Guid>());
     }
 
@@ -908,7 +910,7 @@ public class SessionCoordinatorTests
         var sessionId = Guid.NewGuid();
         var cache = new SessionCache { SessionId = sessionId, FrontTravelHistogram = "cached" };
         sessionCacheStore.GetSessionCacheAsync(sessionId).Returns(cache);
-        database.GetSessionPsstAsync(sessionId).Returns(Task.FromResult<TelemetryData?>(null));
+        sessionRepository.GetSessionPsstAsync(sessionId).Returns(Task.FromResult<TelemetryData?>(null));
 
         var result = await CreateCoordinator().LoadMobileDetailAsync(sessionId, new SessionPresentationDimensions(320, 180));
 
@@ -916,7 +918,7 @@ public class SessionCoordinatorTests
         Assert.Equal("cached", loaded.Data.FrontTravelHistogram);
         Assert.Null(loaded.Telemetry);
         Assert.Null(loaded.TrackData);
-        await database.Received(1).GetSessionPsstAsync(sessionId);
+        await sessionRepository.Received(1).GetSessionPsstAsync(sessionId);
         await http.DidNotReceive().GetSessionPsstAsync(Arg.Any<Guid>());
     }
 
@@ -947,7 +949,7 @@ public class SessionCoordinatorTests
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         domainQuery.Get(snapshot.Id).Returns(DomainWithBike(snapshot, bike));
         sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns(cache);
-        database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
+        sessionRepository.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(new SessionTrackPresentationData(null, null, null, null));
         sessionPresentationService
@@ -986,7 +988,7 @@ public class SessionCoordinatorTests
 
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
-        database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
+        sessionRepository.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(trackData);
         sessionPresentationService.BuildCachePresentation(
@@ -1033,7 +1035,7 @@ public class SessionCoordinatorTests
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         domainQuery.Get(snapshot.Id).Returns(DomainWithBike(snapshot, bike));
         sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
-        database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
+        sessionRepository.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(new SessionTrackPresentationData(null, null, null, null));
         sessionPresentationService.BuildCachePresentation(
@@ -1059,7 +1061,7 @@ public class SessionCoordinatorTests
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
-        database.GetSessionPsstAsync(snapshot.Id).Returns(Task.FromResult<TelemetryData?>(null));
+        sessionRepository.GetSessionPsstAsync(snapshot.Id).Returns(Task.FromResult<TelemetryData?>(null));
         http.GetSessionPsstAsync(snapshot.Id).Returns((byte[]?)null);
 
         var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
@@ -1073,7 +1075,7 @@ public class SessionCoordinatorTests
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
-        database.GetSessionPsstAsync(snapshot.Id).Returns(Task.FromResult<TelemetryData?>(null));
+        sessionRepository.GetSessionPsstAsync(snapshot.Id).Returns(Task.FromResult<TelemetryData?>(null));
 
         var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
 
@@ -1087,7 +1089,7 @@ public class SessionCoordinatorTests
         var telemetry = TestTelemetryData.CreateProcessed();
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
-        database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
+        sessionRepository.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(new SessionTrackPresentationData(null, null, null, null));
         sessionPresentationService.BuildCachePresentation(
@@ -1109,7 +1111,7 @@ public class SessionCoordinatorTests
         var telemetry = TestTelemetryData.CreateProcessed();
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
-        database.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
+        sessionRepository.GetSessionPsstAsync(snapshot.Id).Returns(telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(new SessionTrackPresentationData(null, null, null, null));
         sessionPresentationService.BuildCachePresentation(
@@ -1155,7 +1157,7 @@ public class SessionCoordinatorTests
 
         var sessionId = Guid.NewGuid();
         var fresh = new Session(sessionId, "n", "", null) { Updated = 4, HasProcessedData = true };
-        database.GetSessionAsync(sessionId).Returns(fresh);
+        sessionRepository.GetSessionAsync(sessionId).Returns(fresh);
 
         sync.SessionDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(sessionId));
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -1171,7 +1173,7 @@ public class SessionCoordinatorTests
         _ = CreateCoordinator(sync);
 
         var sessionId = Guid.NewGuid();
-        database.GetSessionAsync(sessionId).ThrowsAsync(new InvalidOperationException());
+        sessionRepository.GetSessionAsync(sessionId).ThrowsAsync(new InvalidOperationException());
 
         sync.SessionDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(sessionId));
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -1186,7 +1188,7 @@ public class SessionCoordinatorTests
         _ = CreateCoordinator(sync);
 
         var source = CreateRecordedSource(Guid.NewGuid());
-        database.GetRecordedSessionSourceAsync(source.SessionId).Returns(source);
+        recordedSessionSourceRepository.GetRecordedSessionSourceAsync(source.SessionId).Returns(source);
 
         sync.SessionSourceDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(source.SessionId));
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -1203,7 +1205,7 @@ public class SessionCoordinatorTests
         _ = CreateCoordinator(sync);
 
         var sessionId = Guid.NewGuid();
-        database.GetRecordedSessionSourceAsync(sessionId).ThrowsAsync(new InvalidOperationException());
+        recordedSessionSourceRepository.GetRecordedSessionSourceAsync(sessionId).ThrowsAsync(new InvalidOperationException());
 
         sync.SessionSourceDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(sessionId));
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -1220,7 +1222,7 @@ public class SessionCoordinatorTests
         var liveId = Guid.NewGuid();
         var deletedId = Guid.NewGuid();
         var fresh = new Session(liveId, "live", "", null) { Updated = 6 };
-        database.GetSessionAsync(liveId).Returns(fresh);
+        sessionRepository.GetSessionAsync(liveId).Returns(fresh);
 
         var data = new SynchronizationData
         {
@@ -1245,7 +1247,7 @@ public class SessionCoordinatorTests
         _ = CreateCoordinator(sync);
 
         var liveId = Guid.NewGuid();
-        database.GetSessionAsync(liveId).ThrowsAsync(new InvalidOperationException());
+        sessionRepository.GetSessionAsync(liveId).ThrowsAsync(new InvalidOperationException());
 
         var data = new SynchronizationData
         {

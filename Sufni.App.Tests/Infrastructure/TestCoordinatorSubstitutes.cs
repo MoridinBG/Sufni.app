@@ -87,7 +87,7 @@ internal static class TestCoordinatorSubstitutes
         var coordinator = Substitute.For<TrackCoordinator>(
             Substitute.For<ITrackRepository>(),
             Substitute.For<ISynchronizableRepository<Track>>(),
-            Substitute.For<IDatabaseService>(),
+            Substitute.For<ISessionRepository>(),
             Substitute.For<IFilesService>(),
             Substitute.For<IBackgroundTaskRunner>());
 
@@ -101,7 +101,8 @@ internal static class TestCoordinatorSubstitutes
     {
         var coordinator = Substitute.For<SessionCoordinator>(
             Substitute.For<ISessionStoreWriter>(),
-            Substitute.For<IDatabaseService>(),
+            Substitute.For<ISessionRepository>(),
+            Substitute.For<IRecordedSessionSourceRepository>(),
             Substitute.For<ISynchronizableRepository<Setup>>(),
             Substitute.For<ISynchronizableRepository<Bike>>(),
             Substitute.For<ISynchronizableRepository<Track>>(),
@@ -163,7 +164,7 @@ internal static class TestCoordinatorSubstitutes
     public static ImportSessionsCoordinator ImportSessions()
     {
         var coordinator = Substitute.For<ImportSessionsCoordinator>(
-            Substitute.For<IDatabaseService>(),
+            Substitute.For<ISessionRepository>(),
             Substitute.For<ISynchronizableRepository<Setup>>(),
             Substitute.For<ISynchronizableRepository<Bike>>(),
             Substitute.For<ISessionStoreWriter>(),
