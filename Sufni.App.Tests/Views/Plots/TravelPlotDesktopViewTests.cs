@@ -13,7 +13,7 @@ using Sufni.App.DesktopViews.Plots;
 using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
-using Sufni.App.SessionGraphs;
+using Sufni.App.Plots;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views.Controls;

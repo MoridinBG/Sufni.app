@@ -5,7 +5,7 @@ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-xmlns:sessionGraphs="clr-namespace:Sufni.App.SessionGraphs"
+xmlns:plots="clr-namespace:Sufni.App.Plots"
 xmlns:v="clr-namespace:Sufni.App.Views"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels.SessionPages"
 d:DesignHeight="600"
@@ -25,7 +25,7 @@ mc:Ignorable="d">
                 Margin="-8,0,-8,0"
                 DataContext="{Binding Workspace}"
                 HideRightAxis="True"
-                MaximumDisplayHz="{x:Static sessionGraphs:SessionGraphSettings.RecordedMobileMaximumDisplayHz}" />
+                MaximumDisplayHz="{x:Static plots:PlotSettings.RecordedMobileMaximumDisplayHz}" />
 
                 <controls:SurfacePlaceholderCard
                 Name="NoGraphDataPlaceholder"

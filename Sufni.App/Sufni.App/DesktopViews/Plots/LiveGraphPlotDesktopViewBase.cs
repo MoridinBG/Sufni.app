@@ -7,7 +7,6 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using Sufni.App.Models;
 using Sufni.App.Plots;
-using Sufni.App.SessionGraphs;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Theming;
 using Sufni.App.ViewModels.Editors;
@@ -404,7 +403,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
     {
         var timer = new DispatcherTimer(DispatcherPriority.Normal)
         {
-            Interval = TimeSpan.FromMilliseconds(SessionGraphSettings.LiveGraphRefreshIntervalMs)
+            Interval = TimeSpan.FromMilliseconds(PlotSettings.LiveGraphRefreshIntervalMs)
         };
         timer.Tick += (_, _) => FlushPendingGraphBatches();
         return timer;
@@ -425,7 +424,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
 
     private void AdjustPendingSampleMargin(TimeSpan flushDuration)
     {
-        var refreshInterval = TimeSpan.FromMilliseconds(SessionGraphSettings.LiveGraphRefreshIntervalMs);
+        var refreshInterval = TimeSpan.FromMilliseconds(PlotSettings.LiveGraphRefreshIntervalMs);
         lock (pendingGraphBatchesGate)
         {
             if (flushDuration > refreshInterval && pendingSampleMargin > 0)

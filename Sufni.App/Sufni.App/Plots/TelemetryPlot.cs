@@ -6,7 +6,7 @@ using Sufni.App.ExtensionHost.RecordedSessions;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Models;
-using Sufni.App.SessionGraphs;
+using Sufni.App.Plots;
 using Sufni.App.Theming;
 using Sufni.Telemetry;
 
@@ -215,7 +215,7 @@ public class TelemetryPlot : SufniPlot
     {
         Plot.Axes.Title.Label.Text = string.Empty;
         SetAxisLabels(string.Empty, string.Empty);
-        Plot.Layout.Fixed(SessionGraphSettings.CreateTimeSeriesPlotPadding(!HideRightAxis));
+        Plot.Layout.Fixed(PlotSettings.CreateTimeSeriesPlotPadding(!HideRightAxis));
         ConfigureRightAxisStyle();
         Plot.Axes.Top.IsVisible = false;
         ConfigureTimeTicks(labelFormatter: timeLabelFormatter);

@@ -1,8 +1,8 @@
-namespace Sufni.App.SessionGraphs;
+namespace Sufni.App.Plots;
 
 using ScottPlot;
 
-public static class SessionGraphSettings
+public static class PlotSettings
 {
     // Controls how often live graph plot controls flush queued stream samples to the visible plots.
     public const int LiveGraphRefreshIntervalMs = 33;
