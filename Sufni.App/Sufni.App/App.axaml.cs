@@ -125,6 +125,7 @@ public partial class App : Application
                 sp.GetRequiredService<ISessionTelemetryProcessor>()));
         ServiceCollection.AddSingleton(typeof(ISynchronizableRepository<>), typeof(SynchronizableRepository<>));
         ServiceCollection.AddSingleton<IPairedDeviceRepository, PairedDeviceRepository>();
+        ServiceCollection.AddSingleton<IRecordedSessionSourceRepository, RecordedSessionSourceRepository>();
         ServiceCollection.AddSingleton<IDatabaseService>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IExtensionDatabaseConnection>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
         ServiceCollection.AddSingleton<IRecordedSessionDataReader, RecordedSessionDataReader>();

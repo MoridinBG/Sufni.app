@@ -12,32 +12,32 @@ namespace Sufni.App.Stores;
 /// It keeps source identity and hash information in a DynamicData cache and
 /// leaves payload retrieval to explicit load calls.
 /// </summary>
-internal sealed class RecordedSessionSourceStore(IDatabaseService databaseService)
+internal sealed class RecordedSessionSourceStore(IRecordedSessionSourceRepository sourceRepository)
     : SourceCacheStoreBase<RecordedSessionSourceSnapshot, Guid>(s => s.SessionId), IRecordedSessionSourceStoreWriter
 {
     public Task<RecordedSessionSource?> LoadAsync(Guid sessionId, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return databaseService.GetRecordedSessionSourceAsync(sessionId);
+        return sourceRepository.GetRecordedSessionSourceAsync(sessionId);
     }
 
     public async Task RefreshAsync()
     {
-        var sources = await databaseService.GetRecordedSessionSourcesAsync();
+        var sources = await sourceRepository.GetRecordedSessionSourcesAsync();
         ReplaceWith(sources.Select(RecordedSessionSourceSnapshot.From));
     }
 
     public async Task SaveAsync(RecordedSessionSource recordedSource, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        await databaseService.PutRecordedSessionSourceAsync(recordedSource);
+        await sourceRepository.PutRecordedSessionSourceAsync(recordedSource);
         Upsert(RecordedSessionSourceSnapshot.From(recordedSource));
     }
 
     public async Task RemoveAsync(Guid sessionId, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        await databaseService.DeleteRecordedSessionSourceAsync(sessionId);
+        await sourceRepository.DeleteRecordedSessionSourceAsync(sessionId);
         Remove(sessionId);
     }
 }

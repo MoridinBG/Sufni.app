@@ -4,7 +4,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using SQLite;
@@ -30,6 +29,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
     private readonly ExtensionCascadeService extensionCascadeService;
     private readonly ISessionTelemetryProcessor sessionTelemetryProcessor;
     private readonly IPairedDeviceRepository pairedDeviceRepository;
+    private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
 
     public SqLiteDatabaseService()
         : this(
@@ -110,6 +110,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         var extensionCascadeRuleProviderList = extensionCascadeRuleProviders.ToArray();
         this.sessionTelemetryProcessor = sessionTelemetryProcessor ?? new SessionTelemetryProcessor();
         pairedDeviceRepository = new PairedDeviceRepository(this);
+        recordedSessionSourceRepository = new RecordedSessionSourceRepository(this);
 
         if (createAppDirectories)
         {
@@ -148,6 +149,7 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         var extensionStateRefreshParticipantList = extensionStateRefreshParticipants.ToArray();
         this.sessionTelemetryProcessor = sessionTelemetryProcessor ?? new SessionTelemetryProcessor();
         pairedDeviceRepository = new PairedDeviceRepository(this);
+        recordedSessionSourceRepository = new RecordedSessionSourceRepository(this);
 
         if (createAppDirectories)
         {
@@ -350,67 +352,6 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         {
             throw new InvalidOperationException("Track must contain at least one point.");
         }
-    }
-
-    private Task PutRecordedSessionSourceInCurrentTransactionAsync(RecordedSessionSource source)
-    {
-        ValidateRecordedSessionSource(source);
-
-        const string query = """
-                             INSERT OR REPLACE INTO session_recording_source (
-                                 session_id,
-                                 source_kind,
-                                 source_name,
-                                 schema_version,
-                                 source_hash,
-                                 payload
-                             )
-                             VALUES (?, ?, ?, ?, ?, ?)
-                             """;
-
-        return connection.ExecuteAsync(query,
-            [
-                source.SessionId,
-                source.SourceKindValue,
-                source.SourceName,
-                source.SchemaVersion,
-                source.SourceHash,
-                source.Payload
-            ]);
-    }
-
-    private static void ValidateRecordedSessionSource(RecordedSessionSource source)
-    {
-        if (!RecordedSessionSourceHash.Matches(source))
-        {
-            throw new InvalidOperationException("Recorded session source hash does not match its payload.");
-        }
-    }
-
-    private static string? TryReadFingerprintSourceHash(string? processingFingerprintJson)
-    {
-        if (string.IsNullOrWhiteSpace(processingFingerprintJson))
-        {
-            return null;
-        }
-
-        try
-        {
-            using var document = JsonDocument.Parse(processingFingerprintJson);
-            foreach (var property in document.RootElement.EnumerateObject())
-            {
-                if (string.Equals(property.Name, "SourceHash", StringComparison.OrdinalIgnoreCase) &&
-                    property.Value.ValueKind == JsonValueKind.String)
-                {
-                    return property.Value.GetString();
-                }
-            }
-        }
-        catch (JsonException)
-        {
-        }
-
-        return null;
     }
 
     private const string SessionProcessingFingerprintColumn = "session_processing_fingerprint";
@@ -744,18 +685,6 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         public string Name { get; set; } = string.Empty;
     }
 
-    private sealed class SessionSourceStatusRow
-    {
-        [Column("id")]
-        public Guid Id { get; set; }
-
-        [Column("session_processing_fingerprint")]
-        public string? ProcessingFingerprintJson { get; set; }
-
-        [Column("source_hash")]
-        public string? SourceHash { get; set; }
-    }
-
     private sealed class TrackIdRow
     {
         [Column("id")]
@@ -1031,51 +960,14 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         return (await connection.QueryAsync<Session>(query)).Select(s => s.Id).ToList();
     }
 
-    public async Task<List<RecordedSessionSource>> GetRecordedSessionSourcesAsync()
-    {
-        await Initialization;
-        return await connection.Table<RecordedSessionSource>().ToListAsync();
-    }
+    public Task<List<RecordedSessionSource>> GetRecordedSessionSourcesAsync() =>
+        recordedSessionSourceRepository.GetRecordedSessionSourcesAsync();
 
-    public async Task<RecordedSessionSource?> GetRecordedSessionSourceAsync(Guid id)
-    {
-        await Initialization;
-        return await connection.Table<RecordedSessionSource>()
-            .Where(source => source.SessionId == id)
-            .FirstOrDefaultAsync();
-    }
+    public Task<RecordedSessionSource?> GetRecordedSessionSourceAsync(Guid id) =>
+        recordedSessionSourceRepository.GetRecordedSessionSourceAsync(id);
 
-    public async Task<List<Guid>> GetSessionIdsMissingRecordedSourceAsync()
-    {
-        await Initialization;
-
-        var query = $"""
-                     SELECT
-                         s.id,
-                         s.{SessionProcessingFingerprintColumn},
-                         source.source_hash
-                     FROM session s
-                     LEFT JOIN session_recording_source source ON source.session_id = s.id
-                     WHERE s.deleted IS null
-                     """;
-        var rows = await connection.QueryAsync<SessionSourceStatusRow>(query);
-        return
-        [
-            .. rows
-                .Where(row =>
-                {
-                    if (string.IsNullOrWhiteSpace(row.SourceHash))
-                    {
-                        return true;
-                    }
-
-                    var expectedSourceHash = TryReadFingerprintSourceHash(row.ProcessingFingerprintJson);
-                    return !string.IsNullOrWhiteSpace(expectedSourceHash) &&
-                           !StringComparer.Ordinal.Equals(row.SourceHash, expectedSourceHash);
-                })
-                .Select(row => row.Id)
-        ];
-    }
+    public Task<List<Guid>> GetSessionIdsMissingRecordedSourceAsync() =>
+        recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync();
 
     public async Task<TelemetryData?> GetSessionPsstAsync(Guid id)
     {
@@ -1125,17 +1017,11 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         return session.Id;
     }
 
-    public async Task PutRecordedSessionSourceAsync(RecordedSessionSource source)
-    {
-        await Initialization;
-        await PutRecordedSessionSourceInCurrentTransactionAsync(source);
-    }
+    public Task PutRecordedSessionSourceAsync(RecordedSessionSource source) =>
+        recordedSessionSourceRepository.PutRecordedSessionSourceAsync(source);
 
-    public async Task DeleteRecordedSessionSourceAsync(Guid sessionId)
-    {
-        await Initialization;
-        await connection.ExecuteAsync("DELETE FROM session_recording_source WHERE session_id=?", sessionId);
-    }
+    public Task DeleteRecordedSessionSourceAsync(Guid sessionId) =>
+        recordedSessionSourceRepository.DeleteRecordedSessionSourceAsync(sessionId);
 
     public async Task<Session> PutProcessedSessionAsync(Session session, Track? newFullTrack, RecordedSessionSource? source)
     {
@@ -1219,10 +1105,12 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
                 await InsertEntityAsync(session);
             }
 
-            if (source is not null)
-            {
-                await PutRecordedSessionSourceInCurrentTransactionAsync(source);
-            }
+                if (source is not null)
+                {
+                    await RecordedSessionSourceRepository.PutRecordedSessionSourceInCurrentTransactionAsync(
+                        connection,
+                        source);
+                }
 
             await connection.ExecuteAsync("COMMIT");
         }
