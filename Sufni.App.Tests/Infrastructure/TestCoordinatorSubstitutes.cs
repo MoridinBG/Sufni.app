@@ -96,25 +96,38 @@ internal static class TestCoordinatorSubstitutes
 
     public static SessionCoordinator Session()
     {
+        var sessionStore = Substitute.For<ISessionStoreWriter>();
+        var sessionRepository = Substitute.For<ISessionRepository>();
+        var backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
+        var trackCoordinator = Track();
+        var sessionPresentationService = Substitute.For<ISessionPresentationService>();
+        var domainQuery = Substitute.For<IRecordedSessionDomainQuery>();
+        var sessionLoader = new SessionLoader(
+            sessionStore,
+            sessionRepository,
+            Substitute.For<ISessionCacheStore>(),
+            Substitute.For<IHttpApiService>(),
+            backgroundTaskRunner,
+            trackCoordinator,
+            sessionPresentationService,
+            domainQuery);
+
         var coordinator = Substitute.For<SessionCoordinator>(
-            Substitute.For<ISessionStoreWriter>(),
-            Substitute.For<ISessionRepository>(),
+            sessionStore,
+            sessionLoader,
+            sessionRepository,
             Substitute.For<IRecordedSessionSourceRepository>(),
             Substitute.For<ISynchronizableRepository<Setup>>(),
             Substitute.For<ISynchronizableRepository<Bike>>(),
             Substitute.For<ISynchronizableRepository<Track>>(),
             Substitute.For<ISynchronizableRepository<Session>>(),
-            Substitute.For<ISessionCacheStore>(),
-            Substitute.For<IHttpApiService>(),
-            Substitute.For<IBackgroundTaskRunner>(),
-            Track(),
-            Substitute.For<ISessionPresentationService>(),
+            backgroundTaskRunner,
             Substitute.For<ISessionAnalysisService>(),
             Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded(),
             Substitute.For<IShellCoordinator>(),
             new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()),
             Substitute.For<IRecordedSessionSourceStoreWriter>(),
-            Substitute.For<IRecordedSessionDomainQuery>(),
+            domainQuery,
             Substitute.For<IRecordedSessionReprocessor>(),
             null,
             Substitute.For<IExtensionCascadeService>());

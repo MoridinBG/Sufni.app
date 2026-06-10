@@ -63,20 +63,28 @@ public class SessionCoordinatorTests
             .Returns(Task.CompletedTask);
     }
 
+    private SessionLoader CreateLoader() =>
+        new(
+            sessionStore,
+            sessionRepository,
+            sessionCacheStore,
+            http,
+            backgroundTaskRunner,
+            trackCoordinator,
+            sessionPresentationService,
+            domainQuery);
+
     private SessionCoordinator CreateCoordinator(ISynchronizationServerService? sync = null) =>
         new(
             sessionStore,
+            CreateLoader(),
             sessionRepository,
             recordedSessionSourceRepository,
             setupRepository,
             bikeRepository,
             trackEntityRepository,
             sessionEntityRepository,
-            sessionCacheStore,
-            http,
             backgroundTaskRunner,
-            trackCoordinator,
-            sessionPresentationService,
             sessionAnalysisService,
             sessionPreferences,
             shell,

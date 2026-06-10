@@ -173,19 +173,17 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IRecordedSessionReprocessor, RecordedSessionReprocessor>();
         ServiceCollection.AddSingleton<TrackCoordinator>();
         ServiceCollection.AddSingleton<ITrackCoordinator>(sp => sp.GetRequiredService<TrackCoordinator>());
+        ServiceCollection.AddSingleton<SessionLoader>();
         ServiceCollection.AddSingleton<SessionCoordinator>(sp => new SessionCoordinator(
             sp.GetRequiredService<ISessionStoreWriter>(),
+            sp.GetRequiredService<SessionLoader>(),
             sp.GetRequiredService<ISessionRepository>(),
             sp.GetRequiredService<IRecordedSessionSourceRepository>(),
             sp.GetRequiredService<ISynchronizableRepository<Setup>>(),
             sp.GetRequiredService<ISynchronizableRepository<Bike>>(),
             sp.GetRequiredService<ISynchronizableRepository<Track>>(),
             sp.GetRequiredService<ISynchronizableRepository<Session>>(),
-            sp.GetRequiredService<ISessionCacheStore>(),
-            sp.GetRequiredService<IHttpApiService>(),
             sp.GetRequiredService<IBackgroundTaskRunner>(),
-            sp.GetRequiredService<ITrackCoordinator>(),
-            sp.GetRequiredService<ISessionPresentationService>(),
             sp.GetRequiredService<ISessionAnalysisService>(),
             sp.GetRequiredService<ISessionPreferences>(),
             sp.GetRequiredService<IShellCoordinator>(),
