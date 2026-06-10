@@ -33,8 +33,9 @@ public class BikeEditorViewModelTests
 
     private BikeEditorViewModel CreateEditor(BikeSnapshot snapshot, bool isNew = false, bool isDesktop = true)
     {
-        TestApp.SetIsDesktop(isDesktop);
-        return new BikeEditorViewModel(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService, uiThreadDispatcher);
+        var editor = new BikeEditorViewModel(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService, uiThreadDispatcher);
+        editor.CanChangeRearSuspensionMode = isDesktop;
+        return editor;
     }
 
     private static BikeAnalysisPresentationData PresentationData(CoordinateList leverageRatioData) =>

@@ -99,7 +99,7 @@ Do not bombard the SUT with random junk just to create more cases. Prefer inputs
 ## Desktop And Mobile Branches
 
 - When behavior branches on desktop versus mobile mode, cover both relevant branches.
-- Use `TestApp.SetIsDesktop(true)` and `TestApp.SetIsDesktop(false)` to select the platform mode in headless tests.
+- Use `TestApp.SetIsDesktop(true)` and `TestApp.SetIsDesktop(false)` only when testing `ViewLocator` or plot gesture branches; other shell-specific behavior should use the same explicit service configuration or view command parameters used in production.
 - Keep the assertion focused on the behavioral difference caused by the platform branch, not on the toggle itself.
 
 ## Layer Ownership

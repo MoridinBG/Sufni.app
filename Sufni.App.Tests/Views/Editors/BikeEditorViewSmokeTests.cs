@@ -190,7 +190,7 @@ public class BikeEditorViewSmokeTests
         dependencyQuery.Changes.Returns(Observable.Empty<Unit>());
         dependencyQuery.IsBikeInUse(Arg.Any<Guid>()).Returns(false);
 
-        return new BikeEditorViewModel(
+        var editor = new BikeEditorViewModel(
             snapshot ?? CreateSnapshot(),
             isNew: false,
             bikeCoordinator,
@@ -198,6 +198,8 @@ public class BikeEditorViewSmokeTests
             Substitute.For<IShellCoordinator>(),
             dialogService ?? Substitute.For<IDialogService>(),
             new InlineUiThreadDispatcher());
+        editor.CanChangeRearSuspensionMode = true;
+        return editor;
     }
 
     private static BikeSnapshot CreateSnapshot()

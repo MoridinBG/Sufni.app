@@ -112,9 +112,9 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     public LinkageEditorViewModel LinkageEditor { get; } = new();
     public LeverageRatioBikeEditorViewModel LeverageRatioEditor { get; }
 
+    [ObservableProperty] private bool canChangeRearSuspensionMode;
     [ObservableProperty] private BikeRearSuspensionMode rearSuspensionMode;
 
-    public bool CanChangeRearSuspensionMode => App.Current?.IsDesktop == true;
     public bool HasRearSuspension => RearSuspensionMode != BikeRearSuspensionMode.None;
     public bool IsHardtailMode => RearSuspensionMode == BikeRearSuspensionMode.None;
     public bool IsLinkageMode => RearSuspensionMode == BikeRearSuspensionMode.Linkage;
@@ -180,6 +180,11 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         }
 
         _ = HandleRearSuspensionModeChangedAsync(oldValue, newValue);
+    }
+
+    partial void OnCanChangeRearSuspensionModeChanged(bool value)
+    {
+        LeverageRatioEditor.CanEdit = value;
     }
 
     #endregion Property change handlers

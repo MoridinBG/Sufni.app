@@ -20,6 +20,7 @@ public class DialogService : IDialogService, IExtensionDialogService
     private readonly ViewLocator viewLocator;
     private Window? owner;
     private Control? overlayHost;
+    private DialogPresentationMode presentationMode = DialogPresentationMode.Window;
 
     public DialogService()
         : this(new ViewLocator())
@@ -41,6 +42,11 @@ public class DialogService : IDialogService, IExtensionDialogService
         overlayHost = host;
     }
 
+    public void SetPresentationMode(DialogPresentationMode mode)
+    {
+        presentationMode = mode;
+    }
+
     public async Task<PromptResult> ShowCloseConfirmationAsync(bool isSaveEnabled = true)
     {
         Debug.Assert(owner != null, nameof(owner) + " != null");
@@ -60,7 +66,7 @@ public class DialogService : IDialogService, IExtensionDialogService
 
     public Task<TileLayerConfig?> ShowAddTileLayerDialogAsync()
     {
-        return App.Current?.IsDesktop == true
+        return presentationMode == DialogPresentationMode.Window
             ? ShowAddTileLayerWindowAsync()
             : ShowAddTileLayerOverlayAsync();
     }
@@ -70,7 +76,7 @@ public class DialogService : IDialogService, IExtensionDialogService
         ArgumentNullException.ThrowIfNull(contentViewModel);
         ArgumentNullException.ThrowIfNull(options);
 
-        return App.Current?.IsDesktop == true
+        return presentationMode == DialogPresentationMode.Window
             ? ShowContentDialogWindowAsync(contentViewModel, options)
             : ShowContentDialogOverlayAsync(contentViewModel, options);
     }
@@ -79,7 +85,7 @@ public class DialogService : IDialogService, IExtensionDialogService
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        return App.Current?.IsDesktop == true
+        return presentationMode == DialogPresentationMode.Window
             ? ShowExtensionDialogWindowAsync(request)
             : ShowExtensionDialogOverlayAsync(request);
     }
@@ -504,7 +510,7 @@ public class DialogService : IDialogService, IExtensionDialogService
 
     public async Task<bool> ShowConfirmationAsync(string title, string message)
     {
-        if (App.Current?.IsDesktop != true)
+        if (presentationMode == DialogPresentationMode.Overlay)
         {
             return await ShowConfirmationOverlayAsync(title, message);
         }

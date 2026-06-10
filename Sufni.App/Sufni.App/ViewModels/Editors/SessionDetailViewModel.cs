@@ -44,6 +44,13 @@ namespace Sufni.App.ViewModels.Editors;
 /// </summary>
 public sealed partial class SessionDetailViewModel : TabPageViewModelBase
 {
+    private enum PresentationMode
+    {
+        Unknown,
+        Desktop,
+        Mobile
+    }
+
     public Guid Id { get; private set; }
     public long BaselineUpdated { get; private set; }
 
@@ -88,6 +95,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
 
     private readonly CancellableOperation loadOperation = new();
     private SessionPresentationDimensions? lastPresentationDimensions;
+    private PresentationMode presentationMode = PresentationMode.Unknown;
     private double? pendingAnalysisRangeBoundary;
     private bool suppressDirtinessEvaluation;
     private bool suppressAnalysisRecompute;
@@ -790,11 +798,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
 
         try
         {
-            if (App.Current?.IsDesktop == true)
+            if (presentationMode == PresentationMode.Desktop)
             {
                 var result = await sessionCoordinator.LoadDesktopDetailAsync(Id, token);
                 if (token.IsCancellationRequested) return;
                 presentationApplier.ApplyDesktopLoadResult(result);
+                return;
+            }
+
+            if (presentationMode == PresentationMode.Unknown)
+            {
                 return;
             }
 
@@ -1625,6 +1638,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     private async Task Loaded(Rect? bounds = null)
     {
         viewLoaded = true;
+        presentationMode = bounds is null ? PresentationMode.Desktop : PresentationMode.Mobile;
         var dimensions = CreatePresentationDimensions(bounds);
         if (dimensions is not null)
         {
@@ -1668,7 +1682,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     }
 
     private bool ShouldDeferDomainHandling() =>
-        App.Current?.IsDesktop == true &&
+        presentationMode == PresentationMode.Desktop &&
         hasBeenActivated &&
         !IsTabActive;
 

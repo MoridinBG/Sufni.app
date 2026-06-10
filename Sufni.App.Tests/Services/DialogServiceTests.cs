@@ -15,9 +15,7 @@ public class DialogServiceTests
     [AvaloniaFact]
     public async Task ShowContentDialogAsync_DesktopMode_UsesOwnedWindowAndReturnsOkOnCompletion()
     {
-        TestApp.SetIsDesktop(true);
-
-        var service = new DialogService();
+        var service = CreateService(DialogPresentationMode.Window);
         var owner = new Window();
         var viewModel = new TestContentDialogCompletionSource();
         owner.Show();
@@ -66,9 +64,7 @@ public class DialogServiceTests
     [AvaloniaFact]
     public async Task ShowContentDialogAsync_MobileMode_UsesOverlayAndReturnsOkOnCompletion()
     {
-        TestApp.SetIsDesktop(false);
-
-        var service = new DialogService();
+        var service = CreateService(DialogPresentationMode.Overlay);
         var overlayHost = new Grid();
         var owner = ViewTestHelpers.ShowView(overlayHost);
         var viewModel = new TestContentDialogCompletionSource();
@@ -114,9 +110,7 @@ public class DialogServiceTests
     [AvaloniaFact]
     public async Task ShowDialogAsync_DesktopMode_UsesOwnedWindowAndReturnsCompletionResult()
     {
-        TestApp.SetIsDesktop(true);
-
-        var service = new DialogService();
+        var service = CreateService(DialogPresentationMode.Window);
         var owner = new Window();
         var viewModel = new TestExtensionDialogResultSource<string>();
         owner.Show();
@@ -159,9 +153,7 @@ public class DialogServiceTests
     [AvaloniaFact]
     public async Task ShowDialogAsync_DesktopMode_ReturnsDefault_WhenWindowClosesWithoutCompletion()
     {
-        TestApp.SetIsDesktop(true);
-
-        var service = new DialogService();
+        var service = CreateService(DialogPresentationMode.Window);
         var owner = new Window();
         var viewModel = new TestExtensionDialogResultSource<string>();
         owner.Show();
@@ -193,9 +185,7 @@ public class DialogServiceTests
     [AvaloniaFact]
     public async Task ShowDialogAsync_MobileMode_UsesOverlayAndReturnsCompletionResult()
     {
-        TestApp.SetIsDesktop(false);
-
-        var service = new DialogService();
+        var service = CreateService(DialogPresentationMode.Overlay);
         var overlayHost = new Grid();
         var owner = ViewTestHelpers.ShowView(overlayHost);
         var viewModel = new TestExtensionDialogResultSource<string>();
@@ -232,9 +222,7 @@ public class DialogServiceTests
     [AvaloniaFact]
     public async Task ShowDialogAsync_MobileMode_ReturnsDefault_WhenOverlayClosesWithoutCompletion()
     {
-        TestApp.SetIsDesktop(false);
-
-        var service = new DialogService();
+        var service = CreateService(DialogPresentationMode.Overlay);
         var overlayHost = new Grid();
         var owner = ViewTestHelpers.ShowView(overlayHost);
         var viewModel = new TestExtensionDialogResultSource<string>();
@@ -270,9 +258,7 @@ public class DialogServiceTests
     [AvaloniaFact]
     public async Task ShowConfirmationAsync_MobileMode_UsesOverlayHostAndReturnsTrue_WhenOkClicked()
     {
-        TestApp.SetIsDesktop(false);
-
-        var service = new DialogService();
+        var service = CreateService(DialogPresentationMode.Overlay);
         var overlayHost = new Grid();
         var owner = ViewTestHelpers.ShowView(overlayHost);
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -308,9 +294,7 @@ public class DialogServiceTests
     [AvaloniaFact]
     public async Task ShowConfirmationAsync_MobileMode_ReturnsFalse_WhenCancelClicked()
     {
-        TestApp.SetIsDesktop(false);
-
-        var service = new DialogService();
+        var service = CreateService(DialogPresentationMode.Overlay);
         var overlayHost = new Grid();
         var owner = ViewTestHelpers.ShowView(overlayHost);
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -344,9 +328,7 @@ public class DialogServiceTests
     [AvaloniaFact]
     public async Task ShowAddTileLayerDialogAsync_DesktopMode_UsesOwnedWindow()
     {
-        TestApp.SetIsDesktop(true);
-
-        var service = new DialogService();
+        var service = CreateService(DialogPresentationMode.Window);
         var owner = new Window();
         owner.Show();
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -380,9 +362,7 @@ public class DialogServiceTests
     [AvaloniaFact]
     public async Task ShowAddTileLayerDialogAsync_MobileMode_UsesOverlayHost()
     {
-        TestApp.SetIsDesktop(false);
-
-        var service = new DialogService();
+        var service = CreateService(DialogPresentationMode.Overlay);
         var overlayHost = new Grid();
         var owner = ViewTestHelpers.ShowView(overlayHost);
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -416,6 +396,13 @@ public class DialogServiceTests
             owner.Close();
             await ViewTestHelpers.FlushDispatcherAsync();
         }
+    }
+
+    private static DialogService CreateService(DialogPresentationMode presentationMode)
+    {
+        var service = new DialogService();
+        service.SetPresentationMode(presentationMode);
+        return service;
     }
 
     private static void SubmitLayer(AddTileLayerView view, string name, string urlTemplate)

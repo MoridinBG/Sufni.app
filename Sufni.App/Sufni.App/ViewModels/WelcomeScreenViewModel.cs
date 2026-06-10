@@ -13,8 +13,6 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly IFilesService filesService;
 
-    public bool IsDesktop => App.Current?.IsDesktop == true;
-
     #region Constructors
 
     public WelcomeScreenViewModel(

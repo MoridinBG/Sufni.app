@@ -308,6 +308,7 @@ public partial class App : Application
                 fileService.SetTarget(TopLevel.GetTopLevel(desktop.MainWindow));
                 dialogService.SetOwner(desktop.MainWindow);
                 dialogService.SetOverlayHost(desktop.MainWindow);
+                dialogService.SetPresentationMode(DialogPresentationMode.Window);
                 desktop.MainWindow.DataContext = mainWindowViewModel;
                 desktop.Exit += (_, _) => LoggingBootstrapper.FlushAndClose();
                 break;
@@ -319,6 +320,7 @@ public partial class App : Application
                 if (singleViewPlatform.MainView is Control mainView)
                 {
                     dialogService.SetOverlayHost(mainView);
+                    dialogService.SetPresentationMode(DialogPresentationMode.Overlay);
                 }
                 singleViewPlatform.MainView.Loaded += (_, _) =>
                 {

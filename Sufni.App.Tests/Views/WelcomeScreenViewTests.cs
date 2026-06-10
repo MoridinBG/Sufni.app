@@ -13,25 +13,15 @@ namespace Sufni.App.Tests.Views;
 public class WelcomeScreenViewTests
 {
     [AvaloniaFact]
-    public async Task WelcomeScreenView_ShowsLogsButton_OnDesktopOnly()
+    public async Task WelcomeScreenView_ShowsLogsButton()
     {
-        TestApp.SetIsDesktop(true);
-        await using var desktopMounted = await MountAsync(CreateViewModel());
-        Assert.True(desktopMounted.View.FindControl<Button>("OpenLogsFolderButton")!.IsVisible);
-
-        desktopMounted.Host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        TestApp.SetIsDesktop(false);
-        await using var mobileMounted = await MountAsync(CreateViewModel());
-        Assert.False(mobileMounted.View.FindControl<Button>("OpenLogsFolderButton")!.IsVisible);
+        await using var mounted = await MountAsync(CreateViewModel());
+        Assert.True(mounted.View.FindControl<Button>("OpenLogsFolderButton")!.IsVisible);
     }
 
     [AvaloniaFact]
     public async Task WelcomeScreenView_WiresButtonsToCommands()
     {
-        TestApp.SetIsDesktop(true);
-
         var shell = Substitute.For<IShellCoordinator>();
         var dialogService = Substitute.For<IDialogService>();
         var bikeCoordinator = TestCoordinatorSubstitutes.Bike();

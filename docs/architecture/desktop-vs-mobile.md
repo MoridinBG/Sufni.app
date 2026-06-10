@@ -42,15 +42,31 @@ The `ViewLocator` (`Sufni.App/Sufni.App/ViewLocator.cs`) holds two dictionaries 
 
 ## The `IsDesktop` Flag
 
-`App.IsDesktop` (`Sufni.App/Sufni.App/App.axaml.cs`) is the single runtime source of truth for which shell is active. It is set once in `OnFrameworkInitializationCompleted` from the Avalonia application lifetime: `IClassicDesktopStyleApplicationLifetime` → `true`, `ISingleViewApplicationLifetime` → `false`.
+`App.IsDesktop` (`Sufni.App/Sufni.App/App.axaml.cs`) is set once in
+`OnFrameworkInitializationCompleted` from the Avalonia application lifetime:
+`IClassicDesktopStyleApplicationLifetime` → `true`,
+`ISingleViewApplicationLifetime` → `false`.
 
-The flag is consulted in three places, deliberately kept narrow:
+Direct reads of the flag are deliberately limited to the view composition edge:
 
 - `ViewLocator` — picks `DesktopViewFactories` first when the flag is set.
-- A handful of view models that expose desktop-only affordances as bindable booleans (e.g. `WelcomeScreenViewModel.IsDesktop` gates the "Open logs folder" link, `BikeEditorViewModel.CanChangeRearSuspensionMode`).
-- `SessionDetailViewModel` and `DialogService` — branch into different load and dialog presentation paths (window vs in-tree overlay).
+- Plot view gesture handling under `Views/Plots/` — keeps touch long-press
+  behavior mobile-only where views cannot receive platform services through DI.
 
-Coordinators and services do **not** branch on `IsDesktop` for behavior they would otherwise own. Where workflow really differs the divergence is expressed as separate coordinator entry points (e.g. `SessionCoordinator.LoadDesktopDetailAsync` vs `LoadMobileDetailAsync`) or as a separate coordinator type (`IShellCoordinator` implementations). Tests use `TestApp.SetIsDesktop(...)` — see [Testing](#testing).
+Other desktop/mobile differences are carried by composition or view contracts
+rather than by reading `App.IsDesktop` from services or view models. For
+example, `App` configures `DialogService` with window or overlay presentation,
+desktop-only views expose desktop-only controls directly, and the session detail
+views select desktop versus mobile loading through the command parameter they
+pass on load.
+
+Coordinators and services do **not** branch on `IsDesktop` for behavior they
+would otherwise own. Where workflow really differs the divergence is expressed
+as separate coordinator entry points (e.g.
+`SessionCoordinator.LoadDesktopDetailAsync` vs `LoadMobileDetailAsync`) or as a
+separate coordinator type (`IShellCoordinator` implementations). Tests use
+`TestApp.SetIsDesktop(...)` only when exercising `ViewLocator` or plot gesture
+branches — see [Testing](#testing).
 
 ## Navigation Shells
 
@@ -119,7 +135,14 @@ The mobile solutions deliberately omit `Sufni.App.Desktop` and the test projects
 
 ## Testing
 
-The headless test app (`Sufni.App.Tests/Infrastructure/TestApp.cs`) is a subclass of `App` that skips both XAML loading and the DI bootstrap. Tests that need a specific shell branch call `TestApp.SetIsDesktop(true)` or `TestApp.SetIsDesktop(false)` from inside an `[AvaloniaFact]`, which forwards to `App.SetIsDesktopForTests(...)`. View tests also use `ViewTestHelpers` which accepts the same flag. As called out in [CLAUDE.md](../../CLAUDE.md), tests should cover both branches whenever behavior differs by shell.
+The headless test app (`Sufni.App.Tests/Infrastructure/TestApp.cs`) is a
+subclass of `App` that skips both XAML loading and the DI bootstrap. Tests that
+exercise `ViewLocator` or plot gesture behavior call
+`TestApp.SetIsDesktop(true)` or `TestApp.SetIsDesktop(false)` from inside an
+`[AvaloniaFact]`, which forwards to `App.SetIsDesktopForTests(...)`. View tests
+also use `ViewTestHelpers` which accepts the same flag. Other shell-specific
+behavior should be selected through the same explicit service configuration or
+view command parameters used in production.
 
 ## Behavioral Differences
 
@@ -130,6 +153,7 @@ The places where the same workflow takes a meaningfully different desktop vs mob
 - **Editor presentation**. Desktop opens editors as additional `TabPageViewModelBase` tabs that can coexist with the list page; mobile pushes the editor onto the back stack and pops it on save / cancel. The same `IShellCoordinator` calls drive both.
 - **Dialogs**. `DialogService` shows tile-layer, live-DAQ-config, and generic extension dialogs as standalone Avalonia `Window`s on desktop and as in-tree overlays anchored on `MainView` on mobile. Close-confirmation dialogs use the desktop `Window` form on both shells when an owner window is set.
 - **Bike linkage editing**. `BikeEditorViewModel.CanChangeRearSuspensionMode` is desktop-only — the linkage / leverage-ratio editing affordances are not exposed on mobile because the linkage editor canvas is built for a desktop pointer interaction model.
-- **Welcome screen and logs link**. The welcome screen is desktop-only, and even there the `Open logs folder` link is bound to `IsDesktop` so it can disappear cleanly if the screen is ever surfaced elsewhere.
+- **Welcome screen and logs link**. The welcome screen is desktop-only, so the
+  `Open logs folder` link is part of that desktop surface.
 
 Anything else (entity editing, save / conflict semantics, sensor calibration, plot rendering) goes through the same coordinators, services, and stores on both shells.

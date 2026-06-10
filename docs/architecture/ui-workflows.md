@@ -124,9 +124,10 @@ keyed singletons under `"gosst"` and optionally `"sync"`),
 `IInboundSyncCoordinator` + `PairingServerViewModel` (desktop only),
 or `ISynchronizationClientService` + `IPairingClientCoordinator` +
 `PairingClientViewModel` (mobile only). Platform mode is determined
-once from the Avalonia application lifetime and stored on `App.IsDesktop`,
-which is the single runtime source of truth for desktop versus mobile
-branches.
+once from the Avalonia application lifetime and stored on `App.IsDesktop`;
+direct reads stay at the view composition edge (`ViewLocator` and plot gesture
+handling), while services receive any shell-specific presentation choice from
+composition.
 
 After `BuildServiceProvider()`, `App` eagerly resolves
 `SessionCoordinator`, `PairedDeviceCoordinator`,
