@@ -9,6 +9,7 @@ using Sufni.App.SessionDetails;
 using Sufni.App.Theming;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.Formatting;
 
 namespace Sufni.App.Plots;
 
@@ -75,12 +76,12 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type, SufniTheme? t
 
     private void AddStatistics(VelocityStatistics statistics)
     {
-        var maxReboundVelString = $"{statistics.MaxRebound:0.0} mm/s";
-        var percentileReboundString = $"95%: {statistics.Percentile95Rebound:0.0} mm/s";
-        var avgReboundVelString = $"{statistics.AverageRebound:0.0} mm/s";
-        var avgCompVelString = $"{statistics.AverageCompression:0.0} mm/s";
-        var percentileCompString = $"95%: {statistics.Percentile95Compression:0.0} mm/s";
-        var maxCompVelString = $"{statistics.MaxCompression:0.0} mm/s";
+        var maxReboundVelString = FormatVelocityLabel(statistics.MaxRebound);
+        var percentileReboundString = $"95%: {FormatVelocityLabel(statistics.Percentile95Rebound)}";
+        var avgReboundVelString = FormatVelocityLabel(statistics.AverageRebound);
+        var avgCompVelString = FormatVelocityLabel(statistics.AverageCompression);
+        var percentileCompString = $"95%: {FormatVelocityLabel(statistics.Percentile95Compression)}";
+        var maxCompVelString = FormatVelocityLabel(statistics.MaxCompression);
 
         // TODO: Restore original behaviour: label at bottom when not in range, but moves to its proper
         // place when it is scrolled into view.
@@ -277,6 +278,9 @@ public class VelocityHistogramPlot(Plot plot, SuspensionType type, SufniTheme? t
             cutoffs.CompressionMmPerSecond,
             cutoffs.ReboundMmPerSecond);
     }
+
+    private static string FormatVelocityLabel(double value) =>
+        $"{UnitsFormatter.FormatNumber(value, 1)} mm/s";
 
     private readonly record struct VelocityHistogramSelectableSegment(
         Bar Bar,

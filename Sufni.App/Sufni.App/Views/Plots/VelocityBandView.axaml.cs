@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -10,6 +9,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Sufni.App.Behaviors;
 using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.Formatting;
 using Sufni.App.SessionDetails;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
@@ -604,7 +604,7 @@ public class VelocityBandView : TemplatedControl
     }
 
     private static string FormatGuideLabel(double signedVelocity) =>
-        $"{signedVelocity.ToString("0", CultureInfo.CurrentCulture)} mm/s";
+        $"{UnitsFormatter.FormatSpeed(signedVelocity)} mm/s";
 
     private static GridLength CreateZoneLength(double value) =>
         new(Math.Max(0, value), GridUnitType.Star);

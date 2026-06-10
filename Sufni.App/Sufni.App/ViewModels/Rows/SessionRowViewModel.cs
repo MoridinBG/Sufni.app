@@ -9,6 +9,7 @@ using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.SessionGraph;
 using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.ExtensionHost.SessionGraph;
+using Sufni.App.Formatting;
 
 namespace Sufni.App.ViewModels.Rows;
 
@@ -220,12 +221,12 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
 
         if (durationSeconds is { } duration && double.IsFinite(duration) && duration >= 0)
         {
-            parts.Add(FormatDuration(duration));
+            parts.Add(UnitsFormatter.FormatDuration(TimeSpan.FromSeconds(duration)));
         }
 
         if (distanceMeters is { } distance && double.IsFinite(distance) && distance >= 0)
         {
-            parts.Add(FormatDistance(distance));
+            parts.Add(UnitsFormatter.FormatDistance(distance));
         }
 
         if (ascentMeters is { } ascent &&
@@ -241,40 +242,10 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
         return string.Join(" | ", parts);
     }
 
-    private static string FormatDuration(double durationSeconds)
-    {
-        var roundedSeconds = Math.Max(0, (long)Math.Round(durationSeconds, MidpointRounding.AwayFromZero));
-        var culture = CultureInfo.CurrentCulture;
-        var hours = roundedSeconds / 3600;
-        var minutes = roundedSeconds % 3600 / 60;
-        var seconds = roundedSeconds % 60;
-
-        if (hours > 0)
-        {
-            return $"{hours.ToString("0", culture)}h {minutes.ToString("00", culture)}m";
-        }
-
-        if (minutes > 0)
-        {
-            return $"{minutes.ToString("0", culture)}m {seconds.ToString("00", culture)}s";
-        }
-
-        return $"{seconds.ToString("0", culture)}s";
-    }
-
-    private static string FormatDistance(double distanceMeters)
-    {
-        var culture = CultureInfo.CurrentCulture;
-        return distanceMeters >= 1000
-            ? $"{(distanceMeters / 1000.0).ToString("0.0", culture)} km"
-            : $"{Math.Round(distanceMeters, MidpointRounding.AwayFromZero).ToString("0", culture)} m";
-    }
-
     private static string FormatElevationGain(double ascentMeters, double descentMeters)
     {
-        var culture = CultureInfo.CurrentCulture;
-        var ascent = Math.Round(ascentMeters, MidpointRounding.AwayFromZero).ToString("0", culture);
-        var descent = Math.Round(descentMeters, MidpointRounding.AwayFromZero).ToString("0", culture);
+        var ascent = UnitsFormatter.FormatNumber(Math.Round(ascentMeters, MidpointRounding.AwayFromZero), 0);
+        var descent = UnitsFormatter.FormatNumber(Math.Round(descentMeters, MidpointRounding.AwayFromZero), 0);
         return $"+{ascent} m / -{descent} m";
     }
 }

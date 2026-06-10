@@ -1,4 +1,5 @@
 using ScottPlot;
+using Sufni.App.Formatting;
 
 namespace Sufni.App.Plots;
 
@@ -60,7 +61,13 @@ internal sealed class BalancePointReadout : IPointerReadoutTarget
             Y,
             [
                 new CursorReadoutLine(XLabel, X, "%", Colors.LightGray, "0.#"),
-                new CursorReadoutLine($"{SideLabel} peak speed", Y, "mm/s", Color, "0.#"),
+                new CursorReadoutLine(
+                    $"{SideLabel} peak speed",
+                    Y,
+                    "mm/s",
+                    Color,
+                    "0.#",
+                    $"{UnitsFormatter.FormatNumber(Y, 1)} mm/s"),
             ],
             Header: null,
             KeepTooltipInsideDataArea: true);

@@ -8,6 +8,7 @@ using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Models;
 using Sufni.App.ExtensionHost.Presentation;
 using Sufni.App.ExtensionHost.SessionDetails;
+using static Sufni.App.Formatting.UnitsFormatter;
 
 namespace Sufni.App.Services;
 
@@ -1373,11 +1374,6 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
         return $"{FormatSpeed(band.Low)}-{FormatSpeed(band.High)}";
     }
 
-    private static string FormatSpeed(double value)
-    {
-        return FormatNumber(value, 0);
-    }
-
     private static string FormatPercent(double value)
     {
         return $"{FormatNumber(value, 1)}%";
@@ -1386,11 +1382,6 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
     private static string FormatNullablePercent(double? value)
     {
         return value is null ? "n/a" : FormatNumber(value.Value, 1);
-    }
-
-    private static string FormatNumber(double value, int decimals)
-    {
-        return value.ToString($"F{decimals}", CultureInfo.InvariantCulture);
     }
 
     private static string Capitalize(string value)

@@ -6,6 +6,7 @@ using Sufni.App.SessionDetails;
 using Sufni.App.Theming;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.Formatting;
 
 namespace Sufni.App.Plots;
 
@@ -24,8 +25,8 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
             balance.RearVelocity.Max());
 
         var msd = balance.MeanSignedDeviation / maxVelocity * 100.0;
-        var slopeString = $"Δ {balance.SignedSlopeDeltaPercent:+0.0;-#.0}%";
-        var msdString = $"MSD {msd:+0.0;-#.0}%";
+        var slopeString = $"Δ {FormatSignedPercent(balance.SignedSlopeDeltaPercent)}";
+        var msdString = $"MSD {FormatSignedPercent(msd)}";
 
         AddLabel($"{slopeString}   {msdString}", 100, 0, -10, -30, Alignment.LowerRight);
     }
@@ -125,6 +126,9 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
         DampingSpeedCutoffs.Front.ReboundMmPerSecond,
         DampingSpeedCutoffs.Rear.CompressionMmPerSecond,
         DampingSpeedCutoffs.Rear.ReboundMmPerSecond);
+
+    private static string FormatSignedPercent(double value) =>
+        $"{(value >= 0 ? "+" : "")}{UnitsFormatter.FormatNumber(value, 1)}%";
 
     private void AddPointReadouts(BalanceData balance, string xReadoutLabel)
     {
