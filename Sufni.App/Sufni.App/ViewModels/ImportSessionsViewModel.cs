@@ -49,7 +49,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     private readonly ITelemetryDataStoreService telemetryDataStoreService;
     private readonly IFilesService filesService;
     private readonly ISetupCoordinator setupCoordinator;
-    private readonly ImportSessionsCoordinator importSessionsCoordinator;
+    private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly ISetupStore setupStore;
 
     #endregion Private members
@@ -62,7 +62,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         IShellCoordinator shell,
         IDialogService dialogService,
         ISetupCoordinator setupCoordinator,
-        ImportSessionsCoordinator importSessionsCoordinator,
+        IImportSessionsCoordinator importSessionsCoordinator,
         ISetupStore setupStore,
         IUiThreadDispatcher uiThreadDispatcher)
         : base(shell, dialogService, uiThreadDispatcher)

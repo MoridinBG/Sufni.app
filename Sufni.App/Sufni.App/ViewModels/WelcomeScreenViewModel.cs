@@ -10,7 +10,7 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
 {
     private readonly IBikeCoordinator bikeCoordinator;
     private readonly ISetupCoordinator setupCoordinator;
-    private readonly ImportSessionsCoordinator importSessionsCoordinator;
+    private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly IFilesService filesService;
 
     public bool IsDesktop => App.Current?.IsDesktop == true;
@@ -22,7 +22,7 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
         IDialogService dialogService,
         IBikeCoordinator bikeCoordinator,
         ISetupCoordinator setupCoordinator,
-        ImportSessionsCoordinator importSessionsCoordinator,
+        IImportSessionsCoordinator importSessionsCoordinator,
         IFilesService filesService,
         IUiThreadDispatcher uiThreadDispatcher)
         : base(shell, dialogService, uiThreadDispatcher)

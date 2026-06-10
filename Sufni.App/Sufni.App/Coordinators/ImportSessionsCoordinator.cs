@@ -32,7 +32,7 @@ public class ImportSessionsCoordinator(
     IUiThreadDispatcher uiThreadDispatcher,
     IDaqManagementService daqManagementService,
     IRecordedSessionReprocessor reprocessor,
-    Func<ImportSessionsViewModel> importSessionsResolver)
+    Func<ImportSessionsViewModel> importSessionsResolver) : IImportSessionsCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<ImportSessionsCoordinator>();
 

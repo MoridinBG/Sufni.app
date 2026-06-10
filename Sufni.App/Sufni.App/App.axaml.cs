@@ -230,6 +230,8 @@ public partial class App : Application
                 sp.GetRequiredService<IDaqManagementService>(),
                 sp.GetRequiredService<IRecordedSessionReprocessor>(),
                 () => sp.GetRequiredService<ImportSessionsViewModel>()));
+        ServiceCollection.AddSingleton<IImportSessionsCoordinator>(sp =>
+            sp.GetRequiredService<ImportSessionsCoordinator>());
         ServiceCollection.AddSingleton<BikeListViewModel>();
         ServiceCollection.AddSingleton<SessionListViewModel>();
         ServiceCollection.AddSingleton<LiveDaqListViewModel>();

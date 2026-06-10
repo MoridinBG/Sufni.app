@@ -24,7 +24,7 @@ public partial class MainPagesViewModel : ViewModelBase
     private readonly ISessionStore sessionStore;
     private readonly IRecordedSessionSourceStore recordedSessionSourceStore;
     private readonly IPairedDeviceStore pairedDeviceStore;
-    private readonly ImportSessionsCoordinator importSessionsCoordinator;
+    private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly ITrackCoordinator trackCoordinator;
     private readonly SyncCoordinator syncCoordinator;
     private readonly IShellCoordinator shell;
@@ -69,7 +69,7 @@ public partial class MainPagesViewModel : ViewModelBase
         ISessionStore sessionStore,
         IRecordedSessionSourceStore recordedSessionSourceStore,
         IPairedDeviceStore pairedDeviceStore,
-        ImportSessionsCoordinator importSessionsCoordinator,
+        IImportSessionsCoordinator importSessionsCoordinator,
         ITrackCoordinator trackCoordinator,
         SyncCoordinator syncCoordinator,
         IShellCoordinator shell,
