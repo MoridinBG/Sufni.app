@@ -1,6 +1,5 @@
 using System;
 using System.Collections.ObjectModel;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -38,7 +37,7 @@ public sealed partial class LeverageRatioEditorViewModel : ObservableObject
             : [.. value.Points];
         LeverageRatioPlotData = value is null
             ? null
-            : BuildCoordinateList(value);
+            : value.DeriveLeverageRatioData();
 
         OnPropertyChanged(nameof(PointCount));
         OnPropertyChanged(nameof(MaxShockStroke));
@@ -101,13 +100,5 @@ public sealed partial class LeverageRatioEditorViewModel : ObservableObject
         ValidationErrors = [];
         Value = null;
         Changed?.Invoke(this, EventArgs.Empty);
-    }
-
-    private static CoordinateList BuildCoordinateList(LeverageRatio leverageRatio)
-    {
-        var samples = leverageRatio.DeriveLeverageRatioSamples();
-        return new CoordinateList(
-            [.. samples.Select(sample => sample.WheelTravelMm)],
-            [.. samples.Select(sample => sample.Ratio)]);
     }
 }

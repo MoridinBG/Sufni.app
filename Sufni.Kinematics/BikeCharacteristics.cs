@@ -75,16 +75,7 @@ public class BikeCharacteristics
     {
         var wheelTravels = CalculateRearWheelTravel();
         var shockStroke = CalculateShockStroke();
-
-        List<double> lr = [];
-        for (var i = 1; i < wheelTravels.Count; ++i)
-        {
-            var wdiff = wheelTravels[i] - wheelTravels[i - 1];
-            var sdiff = shockStroke[i] - shockStroke[i - 1];
-            lr.Add(wdiff / sdiff);
-        }
-
-        return new CoordinateList(wheelTravels[1..], lr);
+        return LeverageRatioDerivation.DeriveData(shockStroke, wheelTravels);
     }
 
     private List<double> CalculateAngles(string centralJoint, string adjacentJoint1, string adjacentJoint2)

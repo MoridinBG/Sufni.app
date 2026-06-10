@@ -66,14 +66,10 @@ public sealed class LeverageRatio
 
     public double WheelTravelAt(double shockStroke) => TravelInterpolation.WheelTravelAt(travelCurve, shockStroke);
 
-    public IReadOnlyList<LeverageRatioSample> DeriveLeverageRatioSamples()
-    {
-        return points
-            .Zip(points.Skip(1), (previous, current) => new LeverageRatioSample(
-                WheelTravelMm: (previous.WheelTravelMm + current.WheelTravelMm) / 2.0,
-                Ratio: (current.WheelTravelMm - previous.WheelTravelMm) / (current.ShockTravelMm - previous.ShockTravelMm)))
-            .ToArray();
-    }
+    public CoordinateList DeriveLeverageRatioData() => LeverageRatioDerivation.DeriveData(travelCurve.X, travelCurve.Y);
+
+    public IReadOnlyList<LeverageRatioSample> DeriveLeverageRatioSamples() =>
+        LeverageRatioDerivation.DeriveSamples(travelCurve.X, travelCurve.Y);
 
     private sealed record LeverageRatioJsonModel([property: JsonPropertyName("points")] List<LeverageRatioPoint> Points);
 }

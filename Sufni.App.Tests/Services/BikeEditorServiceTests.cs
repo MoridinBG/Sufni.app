@@ -146,8 +146,14 @@ public class BikeEditorServiceTests
         var result = await CreateService().LoadAnalysisAsync(new LeverageRatioRearSuspension(leverageRatio));
 
         var computed = Assert.IsType<BikeEditorAnalysisResult.Computed>(result);
-        Assert.NotEmpty(computed.Data.LeverageRatioData.X);
-        Assert.NotEmpty(computed.Data.LeverageRatioData.Y);
+        Assert.Collection(
+            computed.Data.LeverageRatioData.X,
+            wheelTravel => Assert.Equal(12.5, wheelTravel),
+            wheelTravel => Assert.Equal(35, wheelTravel));
+        Assert.Collection(
+            computed.Data.LeverageRatioData.Y,
+            ratio => Assert.Equal(2.5, ratio),
+            ratio => Assert.Equal(2, ratio));
         Assert.Null(computed.Data.RearAxlePathData);
     }
 

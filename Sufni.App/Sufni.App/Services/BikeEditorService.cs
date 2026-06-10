@@ -259,10 +259,7 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
 
     private BikeEditorAnalysisResult AnalyzeLeverageRatio(LeverageRatio leverageRatio)
     {
-        var samples = leverageRatio.DeriveLeverageRatioSamples();
-        var coordinateList = new CoordinateList(
-            [.. samples.Select(sample => sample.WheelTravelMm)],
-            [.. samples.Select(sample => sample.Ratio)]);
+        var coordinateList = leverageRatio.DeriveLeverageRatioData();
 
         logger.Verbose(
             "Bike leverage ratio analysis computed {LeveragePointCount} leverage points",

@@ -34,6 +34,26 @@ public class BikeCharacteristicsRearMappingTests
         Assert.NotEqual(angleDataset.X[0], angleDataset.X[^1]);
     }
 
+    [Fact]
+    public void LeverageRatioData_UsesShockStrokeToWheelTravelSegments()
+    {
+        var characteristics = CreateCharacteristics();
+
+        var strokeDataset = characteristics.ShockStrokeToWheelTravelDataset();
+        var leverageRatioData = characteristics.LeverageRatioData;
+
+        Assert.Equal(strokeDataset.X.Count - 1, leverageRatioData.X.Count);
+        Assert.Equal(strokeDataset.Y.Count - 1, leverageRatioData.Y.Count);
+        for (var index = 1; index < strokeDataset.Count; index++)
+        {
+            var expectedWheelTravel = (strokeDataset.Y[index - 1] + strokeDataset.Y[index]) / 2.0;
+            var expectedRatio = (strokeDataset.Y[index] - strokeDataset.Y[index - 1]) /
+                (strokeDataset.X[index] - strokeDataset.X[index - 1]);
+            Assert.Equal(expectedWheelTravel, leverageRatioData.X[index - 1], 6);
+            Assert.Equal(expectedRatio, leverageRatioData.Y[index - 1], 6);
+        }
+    }
+
     private static BikeCharacteristics CreateCharacteristics()
     {
         var solution = new KinematicSolver(TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true))
