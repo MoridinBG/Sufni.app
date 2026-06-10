@@ -25,14 +25,14 @@ public class ExtensionCascadeServiceTests
 
         try
         {
-            var database = new SqLiteDatabaseService(databasePath, [migrator]);
-            var connection = await database.GetInitializedConnectionAsync();
+            var context = CreateConnectionContext(databasePath, [migrator]);
+            var connection = await context.GetInitializedConnectionAsync();
             await connection.InsertAsync(new SoftCascadeRow
             {
                 Id = "soft",
                 SessionId = sessionId,
             });
-            var service = new ExtensionCascadeService(database, [migrator], [provider], [refresh]);
+            var service = new ExtensionCascadeService(context, [migrator], [provider], [refresh]);
 
             await service.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, sessionId);
 
@@ -67,14 +67,14 @@ public class ExtensionCascadeServiceTests
 
         try
         {
-            var database = new SqLiteDatabaseService(databasePath, [migrator]);
-            var connection = await database.GetInitializedConnectionAsync();
+            var context = CreateConnectionContext(databasePath, [migrator]);
+            var connection = await context.GetInitializedConnectionAsync();
             await connection.InsertAsync(new HardCascadeRow
             {
                 Id = "hard",
                 TrackId = trackId,
             });
-            var service = new ExtensionCascadeService(database, [migrator], [provider], []);
+            var service = new ExtensionCascadeService(context, [migrator], [provider], []);
 
             await service.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, trackId);
 
@@ -119,9 +119,8 @@ public class ExtensionCascadeServiceTests
 
         try
         {
-            var database = new SqLiteDatabaseService(
+            var context = CreateConnectionContext(
                 databasePath,
-                createAppDirectories: false,
                 [migrator],
                 [provider],
                 () =>
@@ -129,7 +128,7 @@ public class ExtensionCascadeServiceTests
                     refreshProviderWasResolved = true;
                     return [new RecordingRefreshParticipant()];
                 });
-            var connection = await database.GetInitializedConnectionAsync();
+            var connection = await context.GetInitializedConnectionAsync();
 
             var row = Assert.Single(await connection.Table<SoftCascadeRow>().ToListAsync());
             Assert.NotNull(row.Deleted);
@@ -161,11 +160,11 @@ public class ExtensionCascadeServiceTests
 
         try
         {
-            var database = new SqLiteDatabaseService(databasePath, [migrator]);
-            _ = await database.GetInitializedConnectionAsync();
+            var context = CreateConnectionContext(databasePath, [migrator]);
+            _ = await context.GetInitializedConnectionAsync();
 
             var exception = Assert.Throws<InvalidOperationException>(() =>
-                new ExtensionCascadeService(database, [migrator], [provider], []));
+                new ExtensionCascadeService(context, [migrator], [provider], []));
 
             Assert.Contains("not_owned", exception.Message);
         }
@@ -198,11 +197,11 @@ public class ExtensionCascadeServiceTests
 
         try
         {
-            var database = new SqLiteDatabaseService(databasePath, [migrator]);
-            _ = await database.GetInitializedConnectionAsync();
+            var context = CreateConnectionContext(databasePath, [migrator]);
+            _ = await context.GetInitializedConnectionAsync();
 
             var exception = Assert.Throws<InvalidOperationException>(() =>
-                new ExtensionCascadeService(database, [migrator], [provider], []));
+                new ExtensionCascadeService(context, [migrator], [provider], []));
 
             Assert.Contains("other", exception.Message);
             Assert.Contains("owner", exception.Message);
@@ -224,6 +223,18 @@ public class ExtensionCascadeServiceTests
 
     private static TestCascadeRuleProvider CreateProvider(params ExtensionCascadeRule[] rules) =>
         new(rules);
+
+    private static SqliteConnectionContext CreateConnectionContext(
+        string databasePath,
+        IEnumerable<IExtensionDatabaseMigrator> migrators,
+        IEnumerable<IExtensionCascadeRuleProvider>? ruleProviders = null,
+        Func<IReadOnlyList<IExtensionStateRefreshParticipant>>? refreshParticipantsProvider = null) =>
+        new(
+            databasePath,
+            createAppDirectories: false,
+            migrators,
+            ruleProviders ?? [],
+            refreshParticipantsProvider ?? (() => []));
 
     [Table("soft_cascade_row")]
     private sealed class SoftCascadeRow

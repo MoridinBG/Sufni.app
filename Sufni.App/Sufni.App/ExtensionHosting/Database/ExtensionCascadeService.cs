@@ -18,12 +18,12 @@ internal sealed class ExtensionCascadeService : IExtensionCascadeService
     private readonly ExtensionDatabaseTableCatalog tableCatalog;
 
     public ExtensionCascadeService(
-        SqLiteDatabaseService database,
+        SqliteConnectionContext connectionContext,
         IEnumerable<IExtensionDatabaseMigrator> migrators,
         IEnumerable<IExtensionCascadeRuleProvider> ruleProviders,
         IEnumerable<IExtensionStateRefreshParticipant> refreshParticipants)
         : this(
-            database.GetInitializedConnectionAsync,
+            connectionContext.GetInitializedConnectionAsync,
             migrators,
             ruleProviders,
             () => refreshParticipants.ToArray())

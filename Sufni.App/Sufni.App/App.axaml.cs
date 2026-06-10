@@ -135,7 +135,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISessionRepository, SessionRepository>();
         ServiceCollection.AddSingleton<ISyncDataStore, SynchronizationMergeEngine>();
         ServiceCollection.AddSingleton<IDatabaseService>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
-        ServiceCollection.AddSingleton<IExtensionDatabaseConnection>(sp => sp.GetRequiredService<SqLiteDatabaseService>());
+        ServiceCollection.AddSingleton<IExtensionDatabaseConnection, ExtensionDatabaseConnection>();
         ServiceCollection.AddSingleton<IRecordedSessionDataReader, RecordedSessionDataReader>();
         ServiceCollection.AddSingleton<IExtensionNotificationService, ExtensionNotificationService>();
         ServiceCollection.AddSingleton<IExtensionCascadeService, ExtensionCascadeService>();

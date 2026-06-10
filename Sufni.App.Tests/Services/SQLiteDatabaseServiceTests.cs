@@ -258,9 +258,9 @@ public class SQLiteDatabaseServiceTests
                 targetVersion: 0,
                 [typeof(TestExtensionRow)],
                 []);
-            var database = new SqLiteDatabaseService(databasePath, [migrator]);
+            var context = CreateConnectionContext(databasePath, [migrator]);
 
-            _ = await database.GetInitializedConnectionAsync();
+            _ = await context.GetInitializedConnectionAsync();
 
             using var connection = new SQLiteConnection(databasePath);
             var tables = connection.Query<SqliteMasterRow>(
@@ -395,10 +395,10 @@ public class SQLiteDatabaseServiceTests
 
         try
         {
-            var firstRun = new SqLiteDatabaseService(databasePath, [migrator]);
+            var firstRun = CreateConnectionContext(databasePath, [migrator]);
             _ = await firstRun.GetInitializedConnectionAsync();
 
-            var secondRun = new SqLiteDatabaseService(databasePath, [migrator]);
+            var secondRun = CreateConnectionContext(databasePath, [migrator]);
             _ = await secondRun.GetInitializedConnectionAsync();
 
             using var connection = new SQLiteConnection(databasePath);
@@ -442,7 +442,8 @@ public class SQLiteDatabaseServiceTests
 
         try
         {
-            IExtensionDatabaseConnection database = new SqLiteDatabaseService(databasePath, [migrator]);
+            IExtensionDatabaseConnection database = new ExtensionDatabaseConnection(
+                CreateConnectionContext(databasePath, [migrator]));
 
             var session = await database.OpenSessionAsync();
             var rows = await session.Table<TestExtensionRow>().ToListAsync();
@@ -468,9 +469,10 @@ public class SQLiteDatabaseServiceTests
 
         try
         {
-            IExtensionDatabaseConnection database = new SqLiteDatabaseService(
-                databasePath,
-                [new TestExtensionMigrator("test", targetVersion: 0, [typeof(TestExtensionRow)], [])]);
+            IExtensionDatabaseConnection database = new ExtensionDatabaseConnection(
+                CreateConnectionContext(
+                    databasePath,
+                    [new TestExtensionMigrator("test", targetVersion: 0, [typeof(TestExtensionRow)], [])]));
             var session = await database.OpenSessionAsync();
 
             _ = session.Table<TestExtensionRow>();
@@ -2146,6 +2148,16 @@ public class SQLiteDatabaseServiceTests
             Duration = durationSeconds
         }
     }.BinaryForm;
+
+    private static SqliteConnectionContext CreateConnectionContext(
+        string databasePath,
+        IEnumerable<IExtensionDatabaseMigrator> extensionMigrators) =>
+        new(
+            databasePath,
+            createAppDirectories: false,
+            extensionMigrators,
+            extensionCascadeRuleProviders: [],
+            extensionStateRefreshParticipantsProvider: () => []);
 
     private sealed class TableColumnInfo
     {

@@ -4,7 +4,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Threading;
 using System.Threading.Tasks;
 using SQLite;
 using Sufni.App.ExtensionHost.Database;
@@ -14,11 +13,10 @@ using Sufni.Telemetry;
 using Serilog;
 using Sufni.App.ExtensionHost.Models;
 using Sufni.App.ExtensionHost.SessionDetails;
-using Sufni.App.ExtensionHosting.Database;
 
 namespace Sufni.App.Services;
 
-public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnection
+public class SqLiteDatabaseService : IDatabaseService
 {
     private static readonly ILogger logger = Log.ForContext<SqLiteDatabaseService>();
 
@@ -148,18 +146,6 @@ public class SqLiteDatabaseService : IDatabaseService, IExtensionDatabaseConnect
         trackRepository = new TrackRepository(connectionContext);
         sessionRepository = new SessionRepository(connectionContext, this.sessionTelemetryProcessor, trackRepository);
         syncDataStore = new SynchronizationMergeEngine(connectionContext, trackRepository);
-    }
-
-    public async Task<IExtensionDatabaseSession> OpenSessionAsync(CancellationToken cancellationToken = default)
-    {
-        await Initialization.WaitAsync(cancellationToken);
-        return new ExtensionDatabaseSession(connection, connectionContext.ExtensionTableCatalog);
-    }
-
-    internal async Task<SQLiteAsyncConnection> GetInitializedConnectionAsync(CancellationToken cancellationToken = default)
-    {
-        await Initialization.WaitAsync(cancellationToken);
-        return connection;
     }
 
     private AsyncTableQuery<T> Table<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>() where T : new()
