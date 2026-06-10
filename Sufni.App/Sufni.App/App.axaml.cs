@@ -111,7 +111,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IUiThreadDispatcher, AvaloniaUiThreadDispatcher>();
         ServiceCollection.AddSingleton<IBikeEditorService, BikeEditorService>();
         ServiceCollection.AddSingleton<ISessionPresentationService, SessionPresentationService>();
-        ServiceCollection.AddSingleton<ISessionAnalysisService>(_ => new SessionAnalysisService());
+        ServiceCollection.AddSingleton<ISessionAnalysisService, SessionAnalysisService>();
         ServiceCollection.AddSingleton<IDaqManagementService, DaqManagementService>();
         ServiceCollection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         ServiceCollection.AddSingleton<SqLiteDatabaseService>(sp =>
@@ -216,28 +216,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<PairedDeviceListViewModel>();
         ServiceCollection.AddSingleton<ImportSessionsViewModel>();
         ServiceCollection.AddSingleton<SetupListViewModel>();
-        ServiceCollection.AddSingleton<MainPagesViewModel>(sp => new MainPagesViewModel(
-            sp.GetRequiredService<IBikeStore>(),
-            sp.GetRequiredService<ISetupStore>(),
-            sp.GetRequiredService<ISessionStore>(),
-            sp.GetRequiredService<IRecordedSessionSourceStore>(),
-            sp.GetRequiredService<IPairedDeviceStore>(),
-            sp.GetRequiredService<ImportSessionsCoordinator>(),
-            sp.GetRequiredService<TrackCoordinator>(),
-            sp.GetRequiredService<SyncCoordinator>(),
-            sp.GetRequiredService<IShellCoordinator>(),
-            sp.GetRequiredService<IThemeService>(),
-            sp.GetRequiredService<BikeListViewModel>(),
-            sp.GetRequiredService<SessionListViewModel>(),
-            sp.GetRequiredService<SetupListViewModel>(),
-            sp.GetRequiredService<LiveDaqListViewModel>(),
-            sp.GetRequiredService<ImportSessionsViewModel>(),
-            sp.GetRequiredService<PairedDeviceListViewModel>(),
-            sp.GetRequiredService<IUiThreadDispatcher>(),
-            sp.GetServices<IAppToolbarContributionProvider>(),
-            sp.GetService<PairingClientViewModel>(),
-            sp.GetService<PairingServerViewModel>(),
-            sp.GetServices<IExtensionStateRefreshParticipant>()));
+        ServiceCollection.AddSingleton<MainPagesViewModel>();
         ServiceCollection.AddSingleton<WelcomeScreenViewModel>();
         ServiceCollection.AddSingleton<MainViewModel>();
         ServiceCollection.AddSingleton<MainWindowViewModel>();
