@@ -6,6 +6,7 @@
     xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:shared="clr-namespace:Sufni.App.Views.Shared"
     xmlns:v="clr-namespace:Sufni.App.Views"
     xmlns:vm="clr-namespace:Sufni.App.ViewModels"
     xmlns:vml="clr-namespace:Sufni.App.ViewModels.ItemLists"
@@ -30,22 +31,7 @@
             </controls:PullableMenuScrollViewer.TopContent>
         </controls:PullableMenuScrollViewer>
 
-        <!--  Notifications  -->
-        <controls:NotificationsBar
-            Grid.Row="1"
-            Grid.Column="0"
-            Margin="5,0"
-            IsVisible="{Binding Notifications.Count}" />
-
-        <!--  Error messages  -->
-        <controls:ErrorMessagesBar
-            Grid.Row="2"
-            Grid.Column="0"
-            Margin="5,0"
-            IsVisible="{Binding ErrorMessages.Count}" />
-
-        <!--  Undo last deleted  -->
-        <controls:UndoDeleteButton
+        <shared:ItemListStatusOverlay
             Grid.Row="0"
             Grid.RowSpan="3"
             Grid.Column="0" />

@@ -6,6 +6,7 @@ xmlns:c="clr-namespace:Sufni.App.DesktopViews.Controls"
 xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:shared="clr-namespace:Sufni.App.Views.Shared"
 xmlns:vml="clr-namespace:Sufni.App.ViewModels.ItemLists"
 d:DesignHeight="600"
 d:DesignWidth="500"
@@ -30,14 +31,9 @@ mc:Ignorable="d">
             </ItemsRepeater>
         </ScrollViewer>
 
-        <controls:NotificationsBar
-        Grid.Row="2"
-        Margin="5,0"
-        ZIndex="10" />
-
-        <controls:ErrorMessagesBar
-        Grid.Row="3"
-        Margin="5,0"
-        ZIndex="10" />
+        <shared:ItemListStatusOverlay
+        Grid.Row="0"
+        Grid.RowSpan="4"
+        ShowUndoDeleteButton="False" />
     </Grid>
 </UserControl>
