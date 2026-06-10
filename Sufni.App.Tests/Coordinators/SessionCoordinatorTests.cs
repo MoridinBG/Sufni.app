@@ -90,12 +90,26 @@ public class SessionCoordinatorTests
             sourceStore,
             reprocessor);
 
+    private SessionRecomputer CreateRecomputer() =>
+        new(
+            sessionStore,
+            sessionRepository,
+            trackEntityRepository,
+            sessionEntityRepository,
+            backgroundTaskRunner,
+            sessionPreferences,
+            sourceStore,
+            domainQuery,
+            reprocessor,
+            extensionCascade);
+
     private SessionCoordinator CreateCoordinator(ISynchronizationServerService? sync = null) =>
         new(
             sessionStore,
             CreateLoader(),
             CreateSaver(),
             CreateLiveCaptureSaver(),
+            CreateRecomputer(),
             sessionRepository,
             recordedSessionSourceRepository,
             trackEntityRepository,
@@ -105,8 +119,6 @@ public class SessionCoordinatorTests
             shell,
             () => editorFactory,
             sourceStore,
-            domainQuery,
-            reprocessor,
             synchronizationServer: sync,
             extensionCascadeService: extensionCascade);
 

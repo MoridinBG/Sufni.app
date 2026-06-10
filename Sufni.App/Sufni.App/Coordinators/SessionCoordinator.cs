@@ -37,6 +37,7 @@ public class SessionCoordinator : ISessionCoordinator
     private readonly SessionLoader sessionLoader;
     private readonly SessionSaver sessionSaver;
     private readonly LiveCaptureSaver liveCaptureSaver;
+    private readonly SessionRecomputer sessionRecomputer;
     private readonly ISessionRepository sessionRepository;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly ISynchronizableRepository<Track> trackEntityRepository;
@@ -46,8 +47,6 @@ public class SessionCoordinator : ISessionCoordinator
     private readonly IShellCoordinator shell;
     private readonly Func<IEditorFactory> editorFactory;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
-    private readonly IRecordedSessionDomainQuery recordedSessionDomainQuery;
-    private readonly IRecordedSessionReprocessor recordedSessionReprocessor;
     private readonly IExtensionCascadeService? extensionCascadeService;
 
     public SessionCoordinator(
@@ -55,6 +54,7 @@ public class SessionCoordinator : ISessionCoordinator
         SessionLoader sessionLoader,
         SessionSaver sessionSaver,
         LiveCaptureSaver liveCaptureSaver,
+        SessionRecomputer sessionRecomputer,
         ISessionRepository sessionRepository,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
         ISynchronizableRepository<Track> trackEntityRepository,
@@ -64,8 +64,6 @@ public class SessionCoordinator : ISessionCoordinator
         IShellCoordinator shell,
         Func<IEditorFactory> editorFactory,
         IRecordedSessionSourceStoreWriter sourceStore,
-        IRecordedSessionDomainQuery recordedSessionDomainQuery,
-        IRecordedSessionReprocessor recordedSessionReprocessor,
         ISynchronizationServerService? synchronizationServer = null,
         IExtensionCascadeService? extensionCascadeService = null)
     {
@@ -73,6 +71,7 @@ public class SessionCoordinator : ISessionCoordinator
         this.sessionLoader = sessionLoader;
         this.sessionSaver = sessionSaver;
         this.liveCaptureSaver = liveCaptureSaver;
+        this.sessionRecomputer = sessionRecomputer;
         this.sessionRepository = sessionRepository;
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.trackEntityRepository = trackEntityRepository;
@@ -82,8 +81,6 @@ public class SessionCoordinator : ISessionCoordinator
         this.shell = shell;
         this.editorFactory = editorFactory;
         this.sourceStore = sourceStore;
-        this.recordedSessionDomainQuery = recordedSessionDomainQuery;
-        this.recordedSessionReprocessor = recordedSessionReprocessor;
         this.extensionCascadeService = extensionCascadeService;
 
         if (synchronizationServer is not null)
@@ -126,146 +123,11 @@ public class SessionCoordinator : ISessionCoordinator
         CancellationToken cancellationToken = default)
         => liveCaptureSaver.SaveLiveCaptureAsync(session, capture, preferences, cancellationToken);
 
-    public virtual async Task<SessionRecomputeResult> RecomputeAsync(
+    public virtual Task<SessionRecomputeResult> RecomputeAsync(
         Guid sessionId,
         long baselineUpdated,
         CancellationToken cancellationToken = default)
-    {
-        logger.Information("Starting recorded session recompute for {SessionId}", sessionId);
-
-        try
-        {
-            var domain = recordedSessionDomainQuery.Get(sessionId);
-            if (domain is null)
-            {
-                logger.Warning("Recorded session recompute failed because session {SessionId} is missing", sessionId);
-                return new SessionRecomputeResult.Failed("Session is missing.");
-            }
-
-            if (domain.Session.Updated > baselineUpdated)
-            {
-                logger.Warning("Recorded session recompute conflict for {SessionId}", sessionId);
-                return new SessionRecomputeResult.Conflict(domain.Session);
-            }
-
-            if (!domain.Staleness.CanManualRecompute)
-            {
-                logger.Warning("Recorded session {SessionId} is not recomputable because {Reason}", sessionId, domain.Staleness.GetType().Name);
-                return new SessionRecomputeResult.NotRecomputable(domain.Staleness);
-            }
-
-            var source = await sourceStore.LoadAsync(sessionId, cancellationToken);
-            if (source is null)
-            {
-                logger.Warning("Recorded session recompute failed because source {SessionId} is missing", sessionId);
-                return new SessionRecomputeResult.NotRecomputable(new SessionStaleness.MissingRawSource());
-            }
-
-            var loadedSourceSnapshot = RecordedSessionSourceSnapshot.From(source);
-            if (domain.Source != loadedSourceSnapshot)
-            {
-                sourceStore.Upsert(loadedSourceSnapshot);
-                domain = recordedSessionDomainQuery.Get(sessionId);
-                if (domain is null)
-                {
-                    logger.Warning("Recorded session recompute failed because session {SessionId} disappeared after source refresh", sessionId);
-                    return new SessionRecomputeResult.Failed("Session is missing.");
-                }
-
-                if (domain.Session.Updated > baselineUpdated)
-                {
-                    logger.Warning("Recorded session recompute conflict for {SessionId} after source refresh", sessionId);
-                    return new SessionRecomputeResult.Conflict(domain.Session);
-                }
-
-                if (!domain.Staleness.CanManualRecompute)
-                {
-                    logger.Warning("Recorded session {SessionId} is not recomputable after source refresh because {Reason}", sessionId, domain.Staleness.GetType().Name);
-                    return new SessionRecomputeResult.NotRecomputable(domain.Staleness);
-                }
-            }
-
-            var preferences = await sessionPreferences.GetRecordedAsync(sessionId);
-            var processingOptions = preferences.Processing.ToTelemetryProcessingOptions();
-            var reprocessResult = await backgroundTaskRunner.RunAsync(
-                () => recordedSessionReprocessor.ReprocessAsync(domain, source, processingOptions, cancellationToken),
-                cancellationToken);
-
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var persisted = await sessionRepository.GetSessionAsync(sessionId);
-            if (persisted is null)
-            {
-                logger.Warning("Recorded session recompute failed because session {SessionId} disappeared before persistence", sessionId);
-                return new SessionRecomputeResult.Failed("Session is missing.");
-            }
-
-            if (persisted.Updated > baselineUpdated)
-            {
-                var current = SessionSnapshot.From(persisted);
-                logger.Warning("Recorded session recompute conflict for {SessionId} before persistence", sessionId);
-                return new SessionRecomputeResult.Conflict(current);
-            }
-
-            var previousFullTrackId = persisted.FullTrack;
-            var previousFullTrack = previousFullTrackId.HasValue
-                ? await trackEntityRepository.GetAsync(previousFullTrackId.Value)
-                : null;
-            Track? newFullTrack = null;
-
-            if (reprocessResult.GeneratedFullTrack is null)
-            {
-                persisted.FullTrack = previousFullTrackId;
-                persisted.Track = null;
-            }
-            else if (previousFullTrack is not null &&
-                     TrackContentHash.PointsEqual(previousFullTrack, reprocessResult.GeneratedFullTrack))
-            {
-                persisted.FullTrack = previousFullTrackId;
-            }
-            else
-            {
-                newFullTrack = reprocessResult.GeneratedFullTrack;
-                persisted.Track = null;
-            }
-
-            persisted.ProcessedData = reprocessResult.TelemetryData.BinaryForm;
-            persisted.ProcessingFingerprintJson = AppJson.Serialize(reprocessResult.Fingerprint);
-
-            var fresh = await sessionRepository.PutProcessedSessionIfUnchangedAsync(
-                persisted,
-                newFullTrack,
-                source: null,
-                baselineUpdated);
-            if (fresh is null)
-            {
-                var current = await sessionRepository.GetSessionAsync(sessionId);
-                if (current is null)
-                {
-                    return new SessionRecomputeResult.Failed("Session is missing.");
-                }
-
-                return new SessionRecomputeResult.Conflict(SessionSnapshot.From(current));
-            }
-
-            var snapshot = SessionSnapshot.From(fresh);
-            sessionStore.Upsert(snapshot);
-
-            await DeletePreviousFullTrackIfOrphanedAsync(previousFullTrackId, fresh.FullTrack, sessionId);
-
-            logger.Information("Recorded session recompute completed for {SessionId}", sessionId);
-            return new SessionRecomputeResult.Recomputed(snapshot.Updated);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception e)
-        {
-            logger.Error(e, "Recorded session recompute failed for {SessionId}", sessionId);
-            return new SessionRecomputeResult.Failed(e.Message);
-        }
-    }
+        => sessionRecomputer.RecomputeAsync(sessionId, baselineUpdated, cancellationToken);
 
     public virtual async Task<SessionDeleteResult> DeleteAsync(Guid sessionId)
     {
@@ -318,37 +180,6 @@ public class SessionCoordinator : ISessionCoordinator
         sessionStore.Remove(sessionId);
         logger.Information("Session delete completed for {SessionId}", sessionId);
         return new SessionDeleteResult(SessionDeleteOutcome.Deleted);
-    }
-
-    private async Task DeletePreviousFullTrackIfOrphanedAsync(Guid? previousFullTrackId, Guid? currentFullTrackId, Guid sessionId)
-    {
-        if (!previousFullTrackId.HasValue || previousFullTrackId == currentFullTrackId)
-        {
-            return;
-        }
-
-        var sessions = await sessionEntityRepository.GetAllAsync();
-        var stillReferenced = sessions.Any(existing =>
-            existing.Id != sessionId &&
-            existing.Deleted is null &&
-            existing.FullTrack == previousFullTrackId.Value);
-        if (stillReferenced)
-        {
-            return;
-        }
-
-        try
-        {
-            await trackEntityRepository.DeleteAsync(previousFullTrackId.Value);
-            if (extensionCascadeService is not null)
-            {
-                await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, previousFullTrackId.Value);
-            }
-        }
-        catch (Exception e)
-        {
-            logger.Warning(e, "Failed to delete orphaned track {TrackId} after recomputing session {SessionId}", previousFullTrackId.Value, sessionId);
-        }
     }
 
     private async void OnSynchronizationDataArrived(object? sender, SynchronizationDataArrivedEventArgs e)

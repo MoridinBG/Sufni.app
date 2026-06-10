@@ -106,6 +106,9 @@ internal static class TestCoordinatorSubstitutes
         var sessionPreferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
         var sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
         var reprocessor = Substitute.For<IRecordedSessionReprocessor>();
+        var trackEntityRepository = Substitute.For<ISynchronizableRepository<Track>>();
+        var sessionEntityRepository = Substitute.For<ISynchronizableRepository<Session>>();
+        var extensionCascadeService = Substitute.For<IExtensionCascadeService>();
         var sessionLoader = new SessionLoader(
             sessionStore,
             sessionRepository,
@@ -128,25 +131,35 @@ internal static class TestCoordinatorSubstitutes
             sessionPreferences,
             sourceStore,
             reprocessor);
+        var sessionRecomputer = new SessionRecomputer(
+            sessionStore,
+            sessionRepository,
+            trackEntityRepository,
+            sessionEntityRepository,
+            backgroundTaskRunner,
+            sessionPreferences,
+            sourceStore,
+            domainQuery,
+            reprocessor,
+            extensionCascadeService);
 
         var coordinator = Substitute.For<SessionCoordinator>(
             sessionStore,
             sessionLoader,
             sessionSaver,
             liveCaptureSaver,
+            sessionRecomputer,
             sessionRepository,
             Substitute.For<IRecordedSessionSourceRepository>(),
-            Substitute.For<ISynchronizableRepository<Track>>(),
-            Substitute.For<ISynchronizableRepository<Session>>(),
+            trackEntityRepository,
+            sessionEntityRepository,
             backgroundTaskRunner,
             sessionPreferences,
             shell,
             new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()),
             sourceStore,
-            domainQuery,
-            reprocessor,
             null,
-            Substitute.For<IExtensionCascadeService>());
+            extensionCascadeService);
 
         coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         coordinator.RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>())
