@@ -99,7 +99,6 @@ public class TelemetryDataLiveCaptureTests
     private static BikeData CreateBikeData(double measurementScale = 0.1)
     {
         return new BikeData(
-            HeadAngle: 63,
             FrontMaxTravel: 180,
             RearMaxTravel: 170,
             FrontMeasurementToTravel: measurement => measurement * measurementScale,

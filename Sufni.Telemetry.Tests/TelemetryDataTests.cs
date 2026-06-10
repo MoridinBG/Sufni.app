@@ -22,7 +22,6 @@ public class TelemetryDataTests
         };
         var metadata = new Metadata { SampleRate = 1000 };
         var bikeData = new BikeData(
-            65.0,
             4095.0,
             null,
             measurement => measurement,
@@ -52,7 +51,6 @@ public class TelemetryDataTests
         };
         var metadata = new Metadata { SampleRate = 1000 };
         var bikeData = new BikeData(
-            65.0,
             4095.0,
             null,
             measurement => measurement,
@@ -95,7 +93,7 @@ public class TelemetryDataTests
 
         var metadata = new Metadata { SampleRate = 1000 };
         var bikeData = new BikeData(
-            65.0, 160.0, 150.0,
+            160.0, 150.0,
             (v) => v / 10.0,
             (v) => v / 10.0
         );
@@ -143,7 +141,7 @@ public class TelemetryDataTests
 
         var metadata = new Metadata { SampleRate = 1000 };
         var bikeData = new BikeData(
-            65.0, 100.0, 100.0,
+            100.0, 100.0,
             (v) => v / 10.0,
             (v) => v / 10.0
         );
@@ -210,7 +208,7 @@ public class TelemetryDataTests
 
         var metadata = new Metadata { SampleRate = 1000 };
         var bikeData = new BikeData(
-            65.0, 100.0, 100.0,
+            100.0, 100.0,
             (v) => v / 10.0,
             (v) => v / 10.0
         );
@@ -289,7 +287,7 @@ public class TelemetryDataTests
 
         var metadata = new Metadata { SampleRate = 1000 };
         var bikeData = new BikeData(
-            65.0, 100.0, 100.0,
+            100.0, 100.0,
             value => value / 10.0,
             value => value / 10.0
         );
@@ -370,7 +368,6 @@ public class TelemetryDataTests
         };
         var metadata = new Metadata { SampleRate = 1000 };
         var bikeData = new BikeData(
-            65.0,
             100.0,
             100.0,
             measurement => measurement,
@@ -401,7 +398,6 @@ public class TelemetryDataTests
 
         var metadata = new Metadata { SampleRate = 1000 };
         var bikeData = new BikeData(
-            65.0,
             100.0,
             100.0,
             value => value / 10.0,
@@ -517,7 +513,7 @@ public class TelemetryDataTests
 
         var metadata = new Metadata { SampleRate = 1000 };
         var bikeData = new BikeData(
-            65.0, maxTravel, maxTravel,
+            maxTravel, maxTravel,
             v => v / 10.0,
             v => v / 10.0);
 
