@@ -579,7 +579,7 @@ public class LiveSessionDetailViewModelTests
                 Arg.Any<CancellationToken>(),
                 Arg.Any<DampingSpeedCutoffs?>())
             .Returns(bakeData);
-        ConfigureRunnerToRunSynchronously();
+        ConfigureRunnerToRunOnBackgroundTask();
 
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
@@ -757,7 +757,8 @@ public class LiveSessionDetailViewModelTests
     [AvaloniaFact]
     public async Task Bake_SecondSnapshot_CancelsInFlightToken_AndDoesNotApplyStaleResult()
     {
-        var firstBakeGate = new TaskCompletionSource<SessionCachePresentationData>();
+        var firstBakeGate = new TaskCompletionSource<SessionCachePresentationData>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         var firstData = new SessionCachePresentationData(
             FrontTravelHistogram: "<svg id='first-front' />",
             RearTravelHistogram: null,
@@ -789,12 +790,12 @@ public class LiveSessionDetailViewModelTests
                 {
                     capturedFirstToken = callInfo.Arg<CancellationToken>();
                     firstBakeStarted.TrySetResult();
-                    return firstBakeGate.Task.Result;
+                    return firstBakeGate.Task.WaitAsync(capturedFirstToken).GetAwaiter().GetResult();
                 }
 
                 return secondData;
             });
-        ConfigureRunnerToRunSynchronously();
+        ConfigureRunnerToRunOnBackgroundTask();
 
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
@@ -809,11 +810,11 @@ public class LiveSessionDetailViewModelTests
         var secondTelemetry = TestTelemetryData.CreateProcessed();
         currentSnapshot = CreateSnapshot(canSave: true, telemetryData: secondTelemetry, captureRevision: 2);
         snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
 
         // Release the first bake — but by now the CTS for the first bake should be cancelled.
         firstBakeGate.SetResult(firstData);
 
-        await WaitForUiRefreshAsync();
         await WaitForUiRefreshAsync();
 
         Assert.True(capturedFirstToken.IsCancellationRequested);
@@ -978,7 +979,8 @@ public class LiveSessionDetailViewModelTests
     [AvaloniaFact]
     public async Task Reset_DuringInFlightBake_DoesNotRepaintWithStaleData()
     {
-        var bakeGate = new TaskCompletionSource<SessionCachePresentationData>();
+        var bakeGate = new TaskCompletionSource<SessionCachePresentationData>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         var staleData = new SessionCachePresentationData(
             FrontTravelHistogram: "<svg id='stale' />",
             RearTravelHistogram: null,
@@ -1002,9 +1004,9 @@ public class LiveSessionDetailViewModelTests
             {
                 capturedBakeToken = callInfo.Arg<CancellationToken>();
                 bakeStarted.TrySetResult();
-                return bakeGate.Task.Result;
+                return bakeGate.Task.WaitAsync(capturedBakeToken).GetAwaiter().GetResult();
             });
-        ConfigureRunnerToRunSynchronously();
+        ConfigureRunnerToRunOnBackgroundTask();
 
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
@@ -1044,6 +1046,16 @@ public class LiveSessionDetailViewModelTests
                 var work = callInfo.Arg<Func<SessionCachePresentationData>>();
                 return Task.FromResult(work());
             });
+    }
+
+    private void ConfigureRunnerToRunOnBackgroundTask()
+    {
+        backgroundTaskRunner
+            .RunAsync(Arg.Any<Func<SessionCachePresentationData>>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+                Task.Run(
+                    callInfo.Arg<Func<SessionCachePresentationData>>(),
+                    callInfo.Arg<CancellationToken>()));
     }
 
     private LiveSessionDetailViewModel CreateEditor(

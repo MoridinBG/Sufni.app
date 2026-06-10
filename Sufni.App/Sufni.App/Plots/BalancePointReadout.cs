@@ -1,5 +1,4 @@
 using ScottPlot;
-using Sufni.App.Formatting;
 
 namespace Sufni.App.Plots;
 
@@ -66,8 +65,7 @@ internal sealed class BalancePointReadout : IPointerReadoutTarget
                     Y,
                     "mm/s",
                     Color,
-                    "0.#",
-                    $"{UnitsFormatter.FormatNumber(Y, 1)} mm/s"),
+                    "0.#"),
             ],
             Header: null,
             KeepTooltipInsideDataArea: true);

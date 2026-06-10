@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using ScottPlot;
-using Sufni.App.Formatting;
 
 namespace Sufni.App.Plots;
 
@@ -57,8 +56,7 @@ internal sealed class BalanceTrendReadout : IPointerReadoutTarget
                 frontValue,
                 "mm/s",
                 TelemetryPlot.FrontColor,
-                "0.#",
-                $"{UnitsFormatter.FormatNumber(frontValue, 1)} mm/s"));
+                "0.#"));
         }
 
         var rearValue = InterpolateAt(RearXValues, RearYValues, pointer.X);
@@ -69,8 +67,7 @@ internal sealed class BalanceTrendReadout : IPointerReadoutTarget
                 rearValue,
                 "mm/s",
                 TelemetryPlot.RearColor,
-                "0.#",
-                $"{UnitsFormatter.FormatNumber(rearValue, 1)} mm/s"));
+                "0.#"));
         }
 
         return new CursorReadout(
