@@ -26,7 +26,7 @@ public class LiveDaqCoordinator
     private readonly ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry;
     private readonly ILiveSessionServiceFactory liveSessionServiceFactory;
     private readonly SessionCoordinator sessionCoordinator;
-    private readonly BikeCoordinator? bikeCoordinator;
+    private readonly IBikeCoordinator? bikeCoordinator;
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ITileLayerService tileLayerService;
@@ -56,7 +56,7 @@ public class LiveDaqCoordinator
         IShellCoordinator shell,
         IDialogService dialogService,
         IUiThreadDispatcher uiThreadDispatcher,
-        BikeCoordinator? bikeCoordinator = null)
+        IBikeCoordinator? bikeCoordinator = null)
     {
         this.liveDaqStore = liveDaqStore;
         this.knownBoardsQuery = knownBoardsQuery;

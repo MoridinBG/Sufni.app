@@ -153,6 +153,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IBikeDependencyQuery, BikeDependencyQuery>();
         ServiceCollection.AddSingleton<ILiveDaqKnownBoardsQuery, LiveDaqKnownBoardsQuery>();
         ServiceCollection.AddSingleton<BikeCoordinator>();
+        ServiceCollection.AddSingleton<IBikeCoordinator>(sp => sp.GetRequiredService<BikeCoordinator>());
         ServiceCollection.AddSingleton<SetupStore>();
         ServiceCollection.AddSingleton<ISetupStore>(sp => sp.GetRequiredService<SetupStore>());
         ServiceCollection.AddSingleton<ISetupStoreWriter>(sp => sp.GetRequiredService<SetupStore>());
@@ -193,7 +194,7 @@ public partial class App : Application
             sp.GetRequiredService<IRecordedSessionReprocessor>(),
             sp.GetRequiredService<IRecordedSessionDataReader>(),
             sp.GetService<ISynchronizationServerService>(),
-            sp.GetRequiredService<BikeCoordinator>(),
+            sp.GetRequiredService<IBikeCoordinator>(),
             sp.GetRequiredService<IExtensionCascadeService>(),
             sp.GetServices<IRecordedSessionExtensionFactory>(),
             sp.GetRequiredService<IExtensionDatabaseConnection>()));

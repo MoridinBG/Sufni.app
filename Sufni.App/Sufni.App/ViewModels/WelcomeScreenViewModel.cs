@@ -8,7 +8,7 @@ namespace Sufni.App.ViewModels;
 
 public partial class WelcomeScreenViewModel : TabPageViewModelBase
 {
-    private readonly BikeCoordinator bikeCoordinator;
+    private readonly IBikeCoordinator bikeCoordinator;
     private readonly SetupCoordinator setupCoordinator;
     private readonly ImportSessionsCoordinator importSessionsCoordinator;
     private readonly IFilesService filesService;
@@ -20,7 +20,7 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
     public WelcomeScreenViewModel(
         IShellCoordinator shell,
         IDialogService dialogService,
-        BikeCoordinator bikeCoordinator,
+        IBikeCoordinator bikeCoordinator,
         SetupCoordinator setupCoordinator,
         ImportSessionsCoordinator importSessionsCoordinator,
         IFilesService filesService,

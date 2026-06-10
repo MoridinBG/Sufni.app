@@ -18,7 +18,7 @@ namespace Sufni.App.Coordinators;
 public class SetupCoordinator(
     ISetupStoreWriter setupStore,
     IBikeStoreWriter bikeStore,
-    BikeCoordinator bikeCoordinator,
+    IBikeCoordinator bikeCoordinator,
     ISynchronizableRepository<Setup> setupRepository,
     ISynchronizableRepository<Bike> bikeRepository,
     ISynchronizableRepository<Board> boardRepository,

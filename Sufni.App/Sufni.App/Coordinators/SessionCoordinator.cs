@@ -56,7 +56,7 @@ public class SessionCoordinator
     private readonly IRecordedSessionGraph recordedSessionGraph;
     private readonly IRecordedSessionReprocessor recordedSessionReprocessor;
     private readonly IRecordedSessionDataReader recordedSessionDataReader;
-    private readonly BikeCoordinator? bikeCoordinator;
+    private readonly IBikeCoordinator? bikeCoordinator;
     private readonly IExtensionCascadeService? extensionCascadeService;
     private readonly IReadOnlyList<IRecordedSessionExtensionFactory> recordedSessionExtensionFactories;
     private readonly IExtensionDatabaseConnection? extensionDatabase;
@@ -86,7 +86,7 @@ public class SessionCoordinator
         IRecordedSessionReprocessor recordedSessionReprocessor,
         IRecordedSessionDataReader recordedSessionDataReader,
         ISynchronizationServerService? synchronizationServer = null,
-        BikeCoordinator? bikeCoordinator = null,
+        IBikeCoordinator? bikeCoordinator = null,
         IExtensionCascadeService? extensionCascadeService = null,
         IEnumerable<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories = null,
         IExtensionDatabaseConnection? extensionDatabase = null)

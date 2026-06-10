@@ -63,7 +63,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     #region Private fields
 
     private readonly SessionCoordinator sessionCoordinator;
-    private readonly BikeCoordinator? bikeCoordinator;
+    private readonly IBikeCoordinator? bikeCoordinator;
     private readonly ISessionStore sessionStore;
     private readonly IRecordedSessionGraph recordedSessionGraph;
     private readonly ISessionPresentationService sessionPresentationService;
@@ -1417,7 +1417,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         IDialogService dialogService,
         ISessionPreferences sessionPreferences,
         IUiThreadDispatcher uiThreadDispatcher,
-        BikeCoordinator? bikeCoordinator = null,
+        IBikeCoordinator? bikeCoordinator = null,
         IEnumerable<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories = null,
         IExtensionDatabaseConnection? extensionDatabase = null,
         IRecordedSessionDataReader? recordedSessionDataReader = null,

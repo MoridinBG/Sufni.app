@@ -40,7 +40,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     #region Private fields
 
     private readonly SetupCoordinator setupCoordinator;
-    private readonly BikeCoordinator bikeCoordinator;
+    private readonly IBikeCoordinator bikeCoordinator;
     private readonly IBikeStore bikeStore;
     private readonly ObservableCollectionExtended<BikeSnapshot> bikesSource = new();
     private readonly CancellableOperation importOperation = new();
@@ -140,7 +140,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         SetupSnapshot snapshot,
         bool isNew,
         IBikeStore bikeStore,
-        BikeCoordinator bikeCoordinator,
+        IBikeCoordinator bikeCoordinator,
         SetupCoordinator setupCoordinator,
         IShellCoordinator shell,
         IDialogService dialogService,

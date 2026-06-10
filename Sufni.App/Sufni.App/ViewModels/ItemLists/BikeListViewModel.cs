@@ -23,7 +23,7 @@ public partial class BikeListViewModel : ItemListViewModelBase
     #region Private fields
 
     private readonly IBikeStore bikeStore;
-    private readonly BikeCoordinator bikeCoordinator;
+    private readonly IBikeCoordinator bikeCoordinator;
     private readonly IBikeDependencyQuery dependencyQuery;
     private readonly ReadOnlyObservableCollection<BikeRowViewModel> bikeRows;
     private readonly BehaviorSubject<Func<BikeRowViewModel, bool>> filterSubject = new(_ => true);
@@ -41,7 +41,7 @@ public partial class BikeListViewModel : ItemListViewModelBase
 
     public BikeListViewModel(
         IBikeStore bikeStore,
-        BikeCoordinator bikeCoordinator,
+        IBikeCoordinator bikeCoordinator,
         IBikeDependencyQuery dependencyQuery,
         IUiThreadDispatcher uiThreadDispatcher,
         IBackgroundTaskRunner? backgroundTaskRunner = null)

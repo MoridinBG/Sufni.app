@@ -39,7 +39,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private readonly LiveSessionMediaWorkspaceViewModel mediaWorkspace;
     private readonly ILiveSessionService liveSessionService;
     private readonly SessionCoordinator sessionCoordinator;
-    private readonly BikeCoordinator? bikeCoordinator;
+    private readonly IBikeCoordinator? bikeCoordinator;
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private IDisposable? uiRefreshTimer;
@@ -213,7 +213,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         IShellCoordinator shell,
         IDialogService dialogService,
         IUiThreadDispatcher uiThreadDispatcher,
-        BikeCoordinator? bikeCoordinator = null)
+        IBikeCoordinator? bikeCoordinator = null)
         : base(shell, dialogService, uiThreadDispatcher)
     {
         IdentityKey = context.IdentityKey;

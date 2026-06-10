@@ -26,6 +26,7 @@ public class BikeCoordinator(
     IDialogService dialogService,
     IUiThreadDispatcher uiThreadDispatcher,
     IExtensionCascadeService? extensionCascadeService = null)
+    : IBikeCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<BikeCoordinator>();
 

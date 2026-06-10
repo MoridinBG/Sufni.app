@@ -36,7 +36,7 @@ public enum BikeRearSuspensionMode
 public sealed record RimSizeOption(EtrtoRimSize Value, string DisplayName);
 
 /// <summary>
-/// Editor view model for a bike. Created by <c>BikeCoordinator</c>
+/// Editor view model for a bike. Created by <c>IBikeCoordinator</c>
 /// from a <see cref="BikeSnapshot"/>; the snapshot's <c>Updated</c>
 /// value is kept as <see cref="BaselineUpdated"/> for optimistic
 /// conflict detection at save time.
@@ -49,7 +49,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     #region Private fields
 
-    private readonly BikeCoordinator bikeCoordinator;
+    private readonly IBikeCoordinator bikeCoordinator;
     private readonly IBikeDependencyQuery dependencyQuery;
     // Immutable editor baseline used for dirty checks and reset/conflict reload.
     private BikeSnapshot acceptedSnapshot;
@@ -189,7 +189,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     public BikeEditorViewModel(
         BikeSnapshot snapshot,
         bool isNew,
-        BikeCoordinator bikeCoordinator,
+        IBikeCoordinator bikeCoordinator,
         IBikeDependencyQuery dependencyQuery,
         IShellCoordinator shell,
         IDialogService dialogService,
