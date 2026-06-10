@@ -7,9 +7,9 @@ using Sufni.App.Views.Controls;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Plots;
 using Sufni.App.ExtensionHost.Presentation;
-using Sufni.App.ExtensionHost.Services;
 using Sufni.App.ExtensionHost.ViewModels.Editors;
 using Sufni.App.ExtensionHost.Views.Controls;
+using Sufni.App.Tests.Infrastructure;
 
 namespace Sufni.App.Tests.ExtensionHost;
 
@@ -218,20 +218,4 @@ public class RecordedSessionExtensionSlotsTests
             RecordedSessionToolbarZone.Leading,
             new TestContributionViewModel());
 
-    private sealed class InlineUiThreadDispatcher : Sufni.App.ExtensionHost.Services.IUiThreadDispatcher
-    {
-        public bool CheckAccess() => true;
-
-        public void Post(Action action) => action();
-
-        public Task InvokeAsync(Action action)
-        {
-            action();
-            return Task.CompletedTask;
-        }
-
-        public Task InvokeAsync(Func<Task> action) => action();
-
-        public Task<T> InvokeAsync<T>(Func<T> action) => Task.FromResult(action());
-    }
 }
