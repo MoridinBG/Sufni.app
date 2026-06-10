@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -25,15 +26,18 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     private bool hasPendingLoad;
     private bool isSelectingAnalysisRange;
     private bool isGraphClickCandidate;
+    private bool isPlaybackStopClickCandidate;
     private bool suppressGraphClickClear;
     private bool suppressLegendTogglePointerRelease;
     private Point graphClickStartPoint;
+    private Point playbackStopClickStartPoint;
     private double selectionStartSeconds;
     private double selectionEndSeconds;
     private readonly HashSet<string> appliedTimeRangeOverlayIds = new(StringComparer.Ordinal);
     private IDisposable? mobileAnalysisRangeLongPress;
     private Point mobileAnalysisRangeLongPressStartPoint;
     private double mobileAnalysisRangeLongPressSeconds;
+    private TopLevel? keyDownTopLevel;
 
     protected TelemetryPlot PlotModel => plot!;
     protected bool HasPlotModel => plot is not null;
@@ -190,6 +194,49 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         EffectiveViewportChanged += (_, _) => TryApplyPendingLoad();
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
+        keyDownTopLevel = TopLevel.GetTopLevel(this);
+        keyDownTopLevel?.AddHandler<KeyEventArgs>(
+            KeyDownEvent,
+            OnTopLevelKeyDown,
+            RoutingStrategies.Bubble);
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        keyDownTopLevel?.RemoveHandler(KeyDownEvent, OnTopLevelKeyDown);
+        keyDownTopLevel = null;
+
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void OnTopLevelKeyDown(object? sender, KeyEventArgs args)
+    {
+        // Space toggles timeline playback only while the pointer hovers this
+        // plot and a cursor is published; key input belonging to text-editing
+        // controls must keep typing spaces.
+        if (args.Handled ||
+            args.Key != Key.Space ||
+            args.KeyModifiers != KeyModifiers.None ||
+            args.Source is TextBox)
+        {
+            return;
+        }
+
+        if (!HasPlotControl ||
+            !PlotControl.IsPointerOver ||
+            Timeline is not { NormalizedCursorPosition: not null } timeline)
+        {
+            return;
+        }
+
+        timeline.RequestPlaybackToggle();
+        args.Handled = true;
+    }
+
     protected void SetPlotModel(TelemetryPlot plotModel)
     {
         plot = plotModel;
@@ -244,6 +291,15 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             InputElement.PointerPressedEvent,
             (_, args) =>
             {
+                // Playback must stop on a plain click only; a drag that pans
+                // or zooms the viewport keeps it running, so the stop request
+                // is deferred to the release and cancelled on movement.
+                if (IsPrimaryPointerPressed(args))
+                {
+                    isPlaybackStopClickCandidate = true;
+                    playbackStopClickStartPoint = args.GetPosition(PlotControl);
+                }
+
                 if (TryShowMobileTelemetryPlotContextMenu(args))
                 {
                     return;
@@ -302,6 +358,11 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         PlotControl.PointerMoved += (_, args) =>
         {
             UpdateCursor(args);
+            if (isPlaybackStopClickCandidate && HasExceededPlaybackStopClickMovement(args))
+            {
+                isPlaybackStopClickCandidate = false;
+            }
+
             if (isSelectingAnalysisRange)
             {
                 selectionEndSeconds = GetClampedTimeSeconds(args);
@@ -323,6 +384,15 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             InputElement.PointerReleasedEvent,
             (_, args) =>
             {
+                if (isPlaybackStopClickCandidate)
+                {
+                    isPlaybackStopClickCandidate = false;
+                    if (!HasExceededPlaybackStopClickMovement(args))
+                    {
+                        Timeline?.RequestPlaybackStop();
+                    }
+                }
+
                 if (suppressLegendTogglePointerRelease)
                 {
                     suppressLegendTogglePointerRelease = false;
@@ -366,6 +436,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             }
 
             isGraphClickCandidate = false;
+            isPlaybackStopClickCandidate = false;
             suppressGraphClickClear = false;
             CancelMobileAnalysisRangeLongPress();
             PlotControl.Cursor = Cursor.Default;
@@ -376,6 +447,14 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     protected void SetCursorPositionWithReadoutFromPointer(PointerEventArgs args)
     {
+        // While timeline playback drives the cursor, pointer moves must not
+        // fight it; a primary press stops playback first, so click-to-place
+        // still works.
+        if (Timeline is { IsPlaybackActive: true })
+        {
+            return;
+        }
+
         if (!TryGetTimelineSeconds(args, out var seconds) ||
             TimelineDurationSeconds is not { } duration ||
             duration <= 0)
@@ -783,6 +862,13 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             pointerSeconds,
             thresholdSeconds,
             out markerSeconds);
+    }
+
+    private bool HasExceededPlaybackStopClickMovement(PointerEventArgs args)
+    {
+        var delta = args.GetPosition(PlotControl) - playbackStopClickStartPoint;
+        return Math.Abs(delta.X) > ClickMovementThresholdPixels ||
+               Math.Abs(delta.Y) > ClickMovementThresholdPixels;
     }
 
     private bool HasExceededClickMovement(PointerEventArgs args)

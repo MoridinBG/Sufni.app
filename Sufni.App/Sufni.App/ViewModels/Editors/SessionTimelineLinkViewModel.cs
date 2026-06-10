@@ -9,10 +9,13 @@ public sealed partial class SessionTimelineLinkViewModel : ObservableObject, IRe
     private const double Epsilon = 0.000001;
 
     [ObservableProperty] private double? normalizedCursorPosition;
+    [ObservableProperty] private bool isPlaybackActive;
     [ObservableProperty] private double visibleRangeStart;
     [ObservableProperty] private double visibleRangeEnd = 1;
 
     public event EventHandler? VisibleRangeChanged;
+    public event EventHandler? PlaybackToggleRequested;
+    public event EventHandler? PlaybackStopRequested;
 
     public object? VisibleRangeChangeSource { get; private set; }
 
@@ -35,11 +38,35 @@ public sealed partial class SessionTimelineLinkViewModel : ObservableObject, IRe
         }
 
         NormalizedCursorPosition = clamped;
+
+        if (IsPlaybackActive && clamped is { } cursor)
+        {
+            KeepPlaybackCursorVisible(cursor);
+        }
+    }
+
+    private void KeepPlaybackCursorVisible(double cursor)
+    {
+        var span = VisibleRangeEnd - VisibleRangeStart;
+        if (span <= 0 || (cursor >= VisibleRangeStart && cursor <= VisibleRangeEnd))
+        {
+            return;
+        }
+
+        // Pan only — the span (zoom) is kept and the cursor re-enters at the
+        // window edge, clamped so the window never runs past the timeline.
+        var start = Math.Min(cursor, 1 - span);
+        SetVisibleRange(start, start + span, this);
     }
 
     public void ClearCursorPosition()
     {
         SetCursorPosition(null);
+    }
+
+    public void SetPlaybackActive(bool active)
+    {
+        IsPlaybackActive = active;
     }
 
     public void SetVisibleRange(double start, double end, object? source = null)
@@ -67,9 +94,20 @@ public sealed partial class SessionTimelineLinkViewModel : ObservableObject, IRe
         VisibleRangeChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    public void RequestPlaybackToggle()
+    {
+        PlaybackToggleRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void RequestPlaybackStop()
+    {
+        PlaybackStopRequested?.Invoke(this, EventArgs.Empty);
+    }
+
     public void Reset()
     {
         ClearCursorPosition();
+        SetPlaybackActive(false);
         SetVisibleRange(0, 1);
     }
 

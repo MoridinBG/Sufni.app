@@ -64,4 +64,24 @@ public static class PlotTestHelpers
         Assert.Equal(expected.Bottom, actual.Bottom, precision: 8);
         Assert.Equal(expected.Top, actual.Top, precision: 8);
     }
+
+    public static void RenderPlotInMemory(ScottPlot.Avalonia.AvaPlot plot)
+    {
+        var width = Math.Max(1, (int)plot.Bounds.Width);
+        var height = Math.Max(1, (int)plot.Bounds.Height);
+        plot.Plot.RenderInMemory(width, height);
+        plot.Refresh();
+    }
+
+    public static Point GetDataAreaCenterPoint(ScottPlot.Avalonia.AvaPlot plot)
+    {
+        var dataRect = plot.Plot.LastRender.DataRect;
+        var figureRect = plot.Plot.LastRender.FigureRect;
+        Assert.True(dataRect.HasArea);
+        Assert.True(figureRect.HasArea);
+
+        return new Point(
+            (dataRect.Center.X - figureRect.Left) / figureRect.Width * plot.Bounds.Width,
+            (dataRect.Center.Y - figureRect.Top) / figureRect.Height * plot.Bounds.Height);
+    }
 }
