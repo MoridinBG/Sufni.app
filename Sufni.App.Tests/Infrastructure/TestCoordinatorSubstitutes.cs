@@ -105,6 +105,7 @@ internal static class TestCoordinatorSubstitutes
         var shell = Substitute.For<IShellCoordinator>();
         var sessionPreferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
         var sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
+        var sourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
         var reprocessor = Substitute.For<IRecordedSessionReprocessor>();
         var trackEntityRepository = Substitute.For<ISynchronizableRepository<Track>>();
         var sessionEntityRepository = Substitute.For<ISynchronizableRepository<Session>>();
@@ -149,6 +150,7 @@ internal static class TestCoordinatorSubstitutes
             sessionEntityRepository,
             sessionPreferences,
             shell,
+            sourceRepository,
             sourceStore,
             extensionCascadeService);
 

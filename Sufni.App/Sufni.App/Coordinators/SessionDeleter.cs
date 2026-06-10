@@ -21,6 +21,7 @@ public sealed class SessionDeleter
     private readonly ISynchronizableRepository<Session> sessionEntityRepository;
     private readonly ISessionPreferences sessionPreferences;
     private readonly IShellCoordinator shell;
+    private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
     private readonly IExtensionCascadeService? extensionCascadeService;
 
@@ -31,6 +32,7 @@ public sealed class SessionDeleter
         ISynchronizableRepository<Session> sessionEntityRepository,
         ISessionPreferences sessionPreferences,
         IShellCoordinator shell,
+        IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IRecordedSessionSourceStoreWriter sourceStore,
         IExtensionCascadeService? extensionCascadeService = null)
     {
@@ -40,6 +42,7 @@ public sealed class SessionDeleter
         this.sessionEntityRepository = sessionEntityRepository;
         this.sessionPreferences = sessionPreferences;
         this.shell = shell;
+        this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.sourceStore = sourceStore;
         this.extensionCascadeService = extensionCascadeService;
     }
@@ -65,7 +68,8 @@ public sealed class SessionDeleter
             {
                 await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, sessionId);
             }
-            await sourceStore.RemoveAsync(sessionId);
+            await recordedSessionSourceRepository.DeleteRecordedSessionSourceAsync(sessionId);
+            sourceStore.Remove(sessionId);
 
             if (shouldDeleteTrack && trackId.HasValue)
             {

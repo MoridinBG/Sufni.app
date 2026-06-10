@@ -11,17 +11,15 @@ public class RecordedSessionSourceStoreTests
     private readonly IRecordedSessionSourceRepository sourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
 
     [Fact]
-    public async Task SaveAsync_PersistsSourceAndPublishesMetadataSnapshot()
+    public void Upsert_PublishesMetadataSnapshot()
     {
         var store = new RecordedSessionSourceStore(sourceRepository);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
         var source = CreateSource();
 
-        sourceRepository.PutRecordedSessionSourceAsync(source).Returns(Task.CompletedTask);
+        store.Upsert(RecordedSessionSourceSnapshot.From(source));
 
-        await store.SaveAsync(source);
-
-        await sourceRepository.Received(1).PutRecordedSessionSourceAsync(source);
+        _ = sourceRepository.DidNotReceiveWithAnyArgs().PutRecordedSessionSourceAsync(default!);
         var snapshot = Assert.Single(snapshots);
         Assert.Equal(source.SessionId, snapshot.SessionId);
         Assert.Equal(source.SourceKind, snapshot.SourceKind);
@@ -63,17 +61,16 @@ public class RecordedSessionSourceStoreTests
     }
 
     [Fact]
-    public async Task RemoveAsync_DeletesSourceAndRemovesCachedSnapshot()
+    public void Remove_RemovesCachedSnapshot()
     {
         var store = new RecordedSessionSourceStore(sourceRepository);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
         var source = CreateSource();
         store.Upsert(RecordedSessionSourceSnapshot.From(source));
-        sourceRepository.DeleteRecordedSessionSourceAsync(source.SessionId).Returns(Task.CompletedTask);
 
-        await store.RemoveAsync(source.SessionId);
+        store.Remove(source.SessionId);
 
-        await sourceRepository.Received(1).DeleteRecordedSessionSourceAsync(source.SessionId);
+        _ = sourceRepository.DidNotReceiveWithAnyArgs().DeleteRecordedSessionSourceAsync(default);
         Assert.Empty(snapshots);
         Assert.Null(store.Get(source.SessionId));
     }

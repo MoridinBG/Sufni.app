@@ -111,6 +111,7 @@ public class SessionCoordinatorTests
             sessionEntityRepository,
             sessionPreferences,
             shell,
+            recordedSessionSourceRepository,
             sourceStore,
             extensionCascade);
 
@@ -739,7 +740,8 @@ public class SessionCoordinatorTests
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
         await sessionEntityRepository.Received(1).DeleteAsync(id);
         await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, id);
-        await sourceStore.Received(1).RemoveAsync(id, Arg.Any<CancellationToken>());
+        await recordedSessionSourceRepository.Received(1).DeleteRecordedSessionSourceAsync(id);
+        sourceStore.Received(1).Remove(id);
         await trackEntityRepository.Received(1).DeleteAsync(trackId);
         await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, trackId);
         await sessionPreferences.Received(1).RemoveRecordedAsync(id);
@@ -765,7 +767,8 @@ public class SessionCoordinatorTests
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
         await sessionEntityRepository.Received(1).DeleteAsync(id);
         await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, id);
-        await sourceStore.Received(1).RemoveAsync(id, Arg.Any<CancellationToken>());
+        await recordedSessionSourceRepository.Received(1).DeleteRecordedSessionSourceAsync(id);
+        sourceStore.Received(1).Remove(id);
         await trackEntityRepository.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
         await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, Arg.Any<Guid>());
         shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>(), forgetRestoreHistory: true);
@@ -789,7 +792,8 @@ public class SessionCoordinatorTests
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
         await sessionEntityRepository.Received(1).DeleteAsync(id);
         await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, id);
-        await sourceStore.Received(1).RemoveAsync(id, Arg.Any<CancellationToken>());
+        await recordedSessionSourceRepository.Received(1).DeleteRecordedSessionSourceAsync(id);
+        sourceStore.Received(1).Remove(id);
         await trackEntityRepository.Received(1).DeleteAsync(trackId);
         await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, trackId);
         shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>(), forgetRestoreHistory: true);

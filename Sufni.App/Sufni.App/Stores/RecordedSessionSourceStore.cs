@@ -27,17 +27,4 @@ internal sealed class RecordedSessionSourceStore(IRecordedSessionSourceRepositor
         ReplaceWith(sources.Select(RecordedSessionSourceSnapshot.From));
     }
 
-    public async Task SaveAsync(RecordedSessionSource recordedSource, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        await sourceRepository.PutRecordedSessionSourceAsync(recordedSource);
-        Upsert(RecordedSessionSourceSnapshot.From(recordedSource));
-    }
-
-    public async Task RemoveAsync(Guid sessionId, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        await sourceRepository.DeleteRecordedSessionSourceAsync(sessionId);
-        Remove(sessionId);
-    }
 }

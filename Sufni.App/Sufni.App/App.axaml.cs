@@ -194,6 +194,7 @@ public partial class App : Application
             sp.GetRequiredService<ISynchronizableRepository<Session>>(),
             sp.GetRequiredService<ISessionPreferences>(),
             sp.GetRequiredService<IShellCoordinator>(),
+            sp.GetRequiredService<IRecordedSessionSourceRepository>(),
             sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
             sp.GetRequiredService<IExtensionCascadeService>()));
         ServiceCollection.AddSingleton<SessionSyncApplier>(sp => new SessionSyncApplier(
