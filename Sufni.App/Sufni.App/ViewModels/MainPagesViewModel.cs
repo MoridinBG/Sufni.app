@@ -26,7 +26,7 @@ public partial class MainPagesViewModel : ViewModelBase
     private readonly IPairedDeviceStore pairedDeviceStore;
     private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly ITrackCoordinator trackCoordinator;
-    private readonly SyncCoordinator syncCoordinator;
+    private readonly ISyncCoordinator syncCoordinator;
     private readonly IShellCoordinator shell;
     private readonly IThemeService themeService;
     private readonly IReadOnlyList<IExtensionStateRefreshParticipant> extensionStateRefreshParticipants;
@@ -71,7 +71,7 @@ public partial class MainPagesViewModel : ViewModelBase
         IPairedDeviceStore pairedDeviceStore,
         IImportSessionsCoordinator importSessionsCoordinator,
         ITrackCoordinator trackCoordinator,
-        SyncCoordinator syncCoordinator,
+        ISyncCoordinator syncCoordinator,
         IShellCoordinator shell,
         IThemeService themeService,
         BikeListViewModel bikesPage,

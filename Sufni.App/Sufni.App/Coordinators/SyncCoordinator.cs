@@ -7,7 +7,7 @@ using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Coordinators;
 
-public class SyncCoordinator
+public class SyncCoordinator : ISyncCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SyncCoordinator>();
     private static readonly TimeSpan ServerDiscoveryTimeout = TimeSpan.FromSeconds(5);

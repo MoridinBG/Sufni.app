@@ -219,6 +219,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<PairedDeviceCoordinator>();
         ServiceCollection.AddSingleton<IPairedDeviceCoordinator>(sp => sp.GetRequiredService<PairedDeviceCoordinator>());
         ServiceCollection.AddSingleton<SyncCoordinator>();
+        ServiceCollection.AddSingleton<ISyncCoordinator>(sp => sp.GetRequiredService<SyncCoordinator>());
         ServiceCollection.AddSingleton<ImportSessionsCoordinator>(sp =>
             new ImportSessionsCoordinator(
                 sp.GetRequiredService<ISessionRepository>(),
@@ -267,7 +268,7 @@ public partial class App : Application
         // sync, pairing, or telemetry arrival can happen.
         _ = Services.GetRequiredService<SessionCoordinator>();
         _ = Services.GetRequiredService<IPairedDeviceCoordinator>();
-        _ = Services.GetRequiredService<SyncCoordinator>();
+        _ = Services.GetRequiredService<ISyncCoordinator>();
 
         // Mobile-only: eagerly resolve so DeviceId / IsPaired probe runs
         // before the pairing screen is opened.
