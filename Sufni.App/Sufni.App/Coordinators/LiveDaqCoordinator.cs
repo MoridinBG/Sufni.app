@@ -16,7 +16,7 @@ namespace Sufni.App.Coordinators;
 
 // Reconciles discovery entries with known-board app data and routes row selection to
 // identity-keyed live preview tabs.
-public class LiveDaqCoordinator
+public class LiveDaqCoordinator : ILiveDaqCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<LiveDaqCoordinator>();
 

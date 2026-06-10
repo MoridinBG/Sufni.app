@@ -38,7 +38,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private string? bikeName;
 
     private readonly ILiveDaqSharedStream sharedStream;
-    private readonly LiveDaqCoordinator liveDaqCoordinator;
+    private readonly ILiveDaqCoordinator liveDaqCoordinator;
     private readonly IDaqManagementService daqManagementService;
     private readonly IFilesService filesService;
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery;
@@ -116,7 +116,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     public LiveDaqDetailViewModel(
         LiveDaqSnapshot snapshot,
         ILiveDaqSharedStream sharedStream,
-        LiveDaqCoordinator liveDaqCoordinator,
+        ILiveDaqCoordinator liveDaqCoordinator,
         IDaqManagementService daqManagementService,
         IFilesService filesService,
         IShellCoordinator shell,

@@ -18,7 +18,7 @@ namespace Sufni.App.ViewModels.ItemLists;
 public partial class LiveDaqListViewModel : ItemListViewModelBase
 {
     private readonly ILiveDaqStore liveDaqStore;
-    private readonly LiveDaqCoordinator liveDaqCoordinator;
+    private readonly ILiveDaqCoordinator liveDaqCoordinator;
     private readonly ReadOnlyObservableCollection<LiveDaqRowViewModel> liveDaqRows;
     private readonly BehaviorSubject<Func<LiveDaqSnapshot, bool>> filterSubject = new(_ => true);
 
@@ -27,7 +27,7 @@ public partial class LiveDaqListViewModel : ItemListViewModelBase
 
     public LiveDaqListViewModel(
         ILiveDaqStore liveDaqStore,
-        LiveDaqCoordinator liveDaqCoordinator,
+        ILiveDaqCoordinator liveDaqCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
         IBackgroundTaskRunner? backgroundTaskRunner = null)
         : base(uiThreadDispatcher, backgroundTaskRunner)
