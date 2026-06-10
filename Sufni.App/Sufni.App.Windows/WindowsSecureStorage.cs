@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Serilog;
+using Sufni.App.Models;
 using Sufni.App.Services;
 using SecureStorageDictionary = System.Collections.Concurrent.ConcurrentDictionary<string, byte[]>;
 using Sufni.App.ExtensionHost.Services;
@@ -52,7 +53,7 @@ public class WindowsSecureStorage : ISecureStorage
         try
         {
             await using var stream = File.OpenRead(AppSecureStoragePath);
-            var readPreferences = await JsonSerializer.DeserializeAsync<SecureStorageDictionary>(stream);
+            var readPreferences = await AppJson.DeserializeAsync<SecureStorageDictionary>(stream);
 
             if (readPreferences != null)
             {
@@ -81,7 +82,7 @@ public class WindowsSecureStorage : ISecureStorage
         Directory.CreateDirectory(dir);
 
         await using var stream = File.Create(AppSecureStoragePath);
-        await JsonSerializer.SerializeAsync(stream, secureStorage);
+        await AppJson.SerializeAsync(stream, secureStorage);
         logger.Verbose("Windows secure storage persisted {EntryCount} entries", secureStorage.Count);
     }
 

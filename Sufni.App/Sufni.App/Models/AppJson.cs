@@ -4,6 +4,8 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
+using System.Threading.Tasks;
 using Sufni.App.ExtensionHost.Models;
 using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.SessionGraph;
@@ -14,6 +16,8 @@ namespace Sufni.App.Models;
 
 internal static class AppJson
 {
+    public static JsonSerializerOptions Options { get; } = CreateOptions();
+
     public static AppJsonContext Context { get; } = new(CreateOptions());
 
     public static string Serialize<T>(T? value)
@@ -24,6 +28,16 @@ internal static class AppJson
     public static T? Deserialize<T>(string json) where T : class
     {
         return (T?)JsonSerializer.Deserialize(json, typeof(T), Context);
+    }
+
+    public static ValueTask<T?> DeserializeAsync<T>(Stream stream, CancellationToken cancellationToken = default)
+    {
+        return JsonSerializer.DeserializeAsync<T>(stream, Options, cancellationToken);
+    }
+
+    public static Task SerializeAsync<T>(Stream stream, T? value, CancellationToken cancellationToken = default)
+    {
+        return JsonSerializer.SerializeAsync(stream, value, Options, cancellationToken);
     }
 
     public static string SerializeIndented<T>(T? value)

@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Sufni.App.Models;
 using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Stores;
@@ -19,18 +18,6 @@ namespace Sufni.App.SessionGraph;
 /// </summary>
 public static class ProcessingDependencyHash
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        DefaultIgnoreCondition = JsonIgnoreCondition.Never,
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-        WriteIndented = false
-    };
-
-    static ProcessingDependencyHash()
-    {
-        JsonOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
-    }
-
     public static string Compute(SetupSnapshot setup, BikeSnapshot bike)
     {
         var payload = new DependencyPayload(
@@ -49,7 +36,7 @@ public static class ProcessingDependencyHash
                 LeverageRatioPayload.FromLeverageRatio(bike.LeverageRatio)));
 
         using var stream = new MemoryStream();
-        JsonSerializer.Serialize(stream, payload, JsonOptions);
+        JsonSerializer.Serialize(stream, payload, AppJson.Options);
         return Convert.ToHexString(SHA256.HashData(stream.GetBuffer().AsSpan(0, checked((int)stream.Length)))).ToLowerInvariant();
     }
 
