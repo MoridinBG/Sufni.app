@@ -92,4 +92,15 @@ public class SessionDetailDesktopViewTests
         Assert.NotNull(errorText);
         Assert.False(shell.IsVisible);
     }
+
+    [AvaloniaFact]
+    public async Task SessionDetailDesktopView_TakesKeyboardFocus_WhenLoaded()
+    {
+        var context = new SessionDetailViewTestContext();
+
+        await using var mounted = await context.MountDesktopAsync(
+            loadResult: context.CreateDesktopLoadedState());
+
+        Assert.True(mounted.View.IsFocused);
+    }
 }
