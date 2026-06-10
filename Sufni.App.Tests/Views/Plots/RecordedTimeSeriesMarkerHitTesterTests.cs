@@ -1,4 +1,4 @@
-using Sufni.App.DesktopViews.Plots;
+using Sufni.App.Views.Plots;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
 

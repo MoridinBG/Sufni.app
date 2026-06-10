@@ -3,9 +3,9 @@ using System.Diagnostics;
 using Sufni.App.Plots;
 using Sufni.App.Services.LiveStreaming;
 
-namespace Sufni.App.DesktopViews.Plots;
+namespace Sufni.App.Views.Plots;
 
-public sealed class LiveVelocityPlotDesktopView : LiveGraphPlotDesktopViewBase
+public sealed class LiveVelocityPlotView : LiveGraphPlotViewBase
 {
     protected override void CreatePlot()
     {

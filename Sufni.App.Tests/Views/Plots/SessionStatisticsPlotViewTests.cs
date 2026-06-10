@@ -7,7 +7,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using ScottPlot;
 using ScottPlot.Plottables;
-using Sufni.App.DesktopViews.Plots;
+using Sufni.App.Views.Plots;
 using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Plots;
 using Sufni.App.Tests.Infrastructure;

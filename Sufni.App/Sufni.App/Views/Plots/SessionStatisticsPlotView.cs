@@ -10,7 +10,7 @@ using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.SessionDetails;
 
-namespace Sufni.App.DesktopViews.Plots;
+namespace Sufni.App.Views.Plots;
 
 public enum PlotKind
 {

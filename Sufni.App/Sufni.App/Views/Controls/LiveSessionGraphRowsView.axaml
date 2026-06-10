@@ -8,7 +8,7 @@ xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:models="clr-namespace:Sufni.App.Models"
 xmlns:plotModels="clr-namespace:Sufni.App.Plots"
-xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
+xmlns:plots="clr-namespace:Sufni.App.Views.Plots"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
 d:DesignHeight="450"
 d:DesignWidth="800"
@@ -22,7 +22,7 @@ mc:Ignorable="d">
             Title="Travel (mm)"
             PresentationState="{Binding TravelGraphState}">
                 <controls:TelemetryPlotRow.PlotContent>
-                    <plots:LiveTravelPlotDesktopView
+                    <plots:LiveTravelPlotView
                     x:Name="TravelPlot"
                     GraphBatches="{Binding GraphBatches}"
                     HideRightAxis="{Binding #Root.HideRightAxis}"
@@ -40,7 +40,7 @@ mc:Ignorable="d">
                     Title="Velocity (m/s)"
                     PresentationState="{Binding VelocityGraphState}">
                         <controls:TelemetryPlotRow.PlotContent>
-                            <plots:LiveVelocityPlotDesktopView
+                            <plots:LiveVelocityPlotView
                             x:Name="VelocityPlot"
                             GraphBatches="{Binding GraphBatches}"
                             HideRightAxis="{Binding #Root.HideRightAxis}"
@@ -62,7 +62,7 @@ mc:Ignorable="d">
             Title="Vibration RMS (g)"
             PresentationState="{Binding ImuGraphState}">
                 <controls:TelemetryPlotRow.PlotContent>
-                    <plots:LiveImuPlotDesktopView
+                    <plots:LiveImuPlotView
                     x:Name="ImuPlot"
                     GraphBatches="{Binding GraphBatches}"
                     HideRightAxis="{Binding #Root.HideRightAxis}"
@@ -80,7 +80,7 @@ mc:Ignorable="d">
                     Title="Frame pitch/roll (deg)"
                     PresentationState="{Binding PitchRollGraphState}">
                         <controls:TelemetryPlotRow.PlotContent>
-                            <plots:LiveFramePitchRollPlotDesktopView
+                            <plots:LiveFramePitchRollPlotView
                             x:Name="PitchRollPlot"
                             GraphBatches="{Binding GraphBatches}"
                             HideRightAxis="{Binding #Root.HideRightAxis}"
@@ -101,7 +101,7 @@ mc:Ignorable="d">
             Title="GPS speed (km/h)"
             PresentationState="{Binding SpeedGraphState}">
                 <controls:TelemetryPlotRow.PlotContent>
-                    <plots:TrackSignalPlotDesktopView
+                    <plots:TrackSignalPlotView
                     x:Name="SpeedPlot"
                     HideRightAxis="{Binding #Root.HideRightAxis}"
                     SignalKind="{x:Static plotModels:TrackSignalKind.Speed}"
@@ -119,7 +119,7 @@ mc:Ignorable="d">
                     Title="Elevation (m)"
                     PresentationState="{Binding ElevationGraphState}">
                         <controls:TelemetryPlotRow.PlotContent>
-                            <plots:TrackSignalPlotDesktopView
+                            <plots:TrackSignalPlotView
                             x:Name="ElevationPlot"
                             HideRightAxis="{Binding #Root.HideRightAxis}"
                             SignalKind="{x:Static plotModels:TrackSignalKind.Elevation}"

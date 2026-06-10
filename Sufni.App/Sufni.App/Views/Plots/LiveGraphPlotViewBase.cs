@@ -11,9 +11,9 @@ using Sufni.App.Theming;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views.Plots;
 
-namespace Sufni.App.DesktopViews.Plots;
+namespace Sufni.App.Views.Plots;
 
-public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
+public abstract class LiveGraphPlotViewBase : SufniPlotView
 {
     private const int DefaultPendingSampleMargin = 512;
     private const int PendingSampleMarginStep = 128;
@@ -44,7 +44,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
     }
 
     public static readonly StyledProperty<IObservable<LiveGraphBatch>?> GraphBatchesProperty =
-        AvaloniaProperty.Register<LiveGraphPlotDesktopViewBase, IObservable<LiveGraphBatch>?>(nameof(GraphBatches));
+        AvaloniaProperty.Register<LiveGraphPlotViewBase, IObservable<LiveGraphBatch>?>(nameof(GraphBatches));
 
     public IObservable<LiveGraphBatch>? GraphBatches
     {
@@ -53,7 +53,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
     }
 
     public static readonly StyledProperty<SessionTimelineLinkViewModel?> TimelineProperty =
-        AvaloniaProperty.Register<LiveGraphPlotDesktopViewBase, SessionTimelineLinkViewModel?>(nameof(Timeline));
+        AvaloniaProperty.Register<LiveGraphPlotViewBase, SessionTimelineLinkViewModel?>(nameof(Timeline));
 
     public SessionTimelineLinkViewModel? Timeline
     {
@@ -62,7 +62,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
     }
 
     public static readonly StyledProperty<double?> MinimumYProperty =
-        AvaloniaProperty.Register<LiveGraphPlotDesktopViewBase, double?>(nameof(MinimumY));
+        AvaloniaProperty.Register<LiveGraphPlotViewBase, double?>(nameof(MinimumY));
 
     public double? MinimumY
     {
@@ -71,7 +71,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
     }
 
     public static readonly StyledProperty<double?> MaximumYProperty =
-        AvaloniaProperty.Register<LiveGraphPlotDesktopViewBase, double?>(nameof(MaximumY));
+        AvaloniaProperty.Register<LiveGraphPlotViewBase, double?>(nameof(MaximumY));
 
     public double? MaximumY
     {
@@ -80,7 +80,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
     }
 
     public static readonly StyledProperty<PlotSmoothingLevel> SmoothingLevelProperty =
-        AvaloniaProperty.Register<LiveGraphPlotDesktopViewBase, PlotSmoothingLevel>(nameof(SmoothingLevel));
+        AvaloniaProperty.Register<LiveGraphPlotViewBase, PlotSmoothingLevel>(nameof(SmoothingLevel));
 
     public PlotSmoothingLevel SmoothingLevel
     {
@@ -89,7 +89,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
     }
 
     public static readonly StyledProperty<bool> HideRightAxisProperty =
-        AvaloniaProperty.Register<LiveGraphPlotDesktopViewBase, bool>(nameof(HideRightAxis));
+        AvaloniaProperty.Register<LiveGraphPlotViewBase, bool>(nameof(HideRightAxis));
 
     public bool HideRightAxis
     {
@@ -98,7 +98,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
     }
 
     public static readonly StyledProperty<TelemetrySourceVisibilityStore?> SourceVisibilityProperty =
-        AvaloniaProperty.Register<LiveGraphPlotDesktopViewBase, TelemetrySourceVisibilityStore?>(nameof(SourceVisibility));
+        AvaloniaProperty.Register<LiveGraphPlotViewBase, TelemetrySourceVisibilityStore?>(nameof(SourceVisibility));
 
     public TelemetrySourceVisibilityStore? SourceVisibility
     {
@@ -106,7 +106,7 @@ public abstract class LiveGraphPlotDesktopViewBase : SufniPlotView
         set => SetValue(SourceVisibilityProperty, value);
     }
 
-    protected LiveGraphPlotDesktopViewBase()
+    protected LiveGraphPlotViewBase()
     {
         PropertyChanged += (_, e) =>
         {

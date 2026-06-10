@@ -4,7 +4,7 @@ using System.Collections.Specialized;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
-using Sufni.App.DesktopViews.Plots;
+using Sufni.App.Views.Plots;
 using Sufni.App.ExtensionHost;
 using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;

@@ -5,14 +5,14 @@ using Sufni.App.Plots;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Models;
 
-namespace Sufni.App.DesktopViews.Plots;
+namespace Sufni.App.Views.Plots;
 
-public class TrackSignalPlotDesktopView : SufniTimeSeriesPlotView
+public class TrackSignalPlotView : SufniTimeSeriesPlotView
 {
     protected override double? TimelineDurationSeconds => TimelineContext?.DurationSeconds;
 
     public static readonly StyledProperty<TrackSignalKind> SignalKindProperty =
-        AvaloniaProperty.Register<TrackSignalPlotDesktopView, TrackSignalKind>(nameof(SignalKind));
+        AvaloniaProperty.Register<TrackSignalPlotView, TrackSignalKind>(nameof(SignalKind));
 
     public TrackSignalKind SignalKind
     {
@@ -21,7 +21,7 @@ public class TrackSignalPlotDesktopView : SufniTimeSeriesPlotView
     }
 
     public static readonly StyledProperty<IReadOnlyList<TrackPoint>?> TrackPointsProperty =
-        AvaloniaProperty.Register<TrackSignalPlotDesktopView, IReadOnlyList<TrackPoint>?>(nameof(TrackPoints));
+        AvaloniaProperty.Register<TrackSignalPlotView, IReadOnlyList<TrackPoint>?>(nameof(TrackPoints));
 
     public IReadOnlyList<TrackPoint>? TrackPoints
     {
@@ -30,7 +30,7 @@ public class TrackSignalPlotDesktopView : SufniTimeSeriesPlotView
     }
 
     public static readonly StyledProperty<TrackTimeRange?> TimelineContextProperty =
-        AvaloniaProperty.Register<TrackSignalPlotDesktopView, TrackTimeRange?>(nameof(TimelineContext));
+        AvaloniaProperty.Register<TrackSignalPlotView, TrackTimeRange?>(nameof(TimelineContext));
 
     public TrackTimeRange? TimelineContext
     {
@@ -39,7 +39,7 @@ public class TrackSignalPlotDesktopView : SufniTimeSeriesPlotView
     }
 
     public static readonly StyledProperty<TelemetryData?> TelemetryProperty =
-        AvaloniaProperty.Register<TrackSignalPlotDesktopView, TelemetryData?>(nameof(Telemetry));
+        AvaloniaProperty.Register<TrackSignalPlotView, TelemetryData?>(nameof(Telemetry));
 
     public TelemetryData? Telemetry
     {
@@ -49,7 +49,7 @@ public class TrackSignalPlotDesktopView : SufniTimeSeriesPlotView
 
     protected override TelemetryData? MarkerSource => Telemetry;
 
-    public TrackSignalPlotDesktopView()
+    public TrackSignalPlotView()
     {
         PropertyChanged += (_, e) =>
         {

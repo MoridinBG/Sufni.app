@@ -1,8 +1,8 @@
 using Sufni.App.Plots;
 
-namespace Sufni.App.DesktopViews.Plots;
+namespace Sufni.App.Views.Plots;
 
-public class ImuPlotDesktopView : SufniTelemetryPlotView
+public class ImuPlotView : SufniTelemetryPlotView
 {
     protected override void CreatePlot()
     {

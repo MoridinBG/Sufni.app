@@ -14,7 +14,7 @@ using Sufni.App.Plots;
 using ScottPlot.Avalonia;
 using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Items;
-using Sufni.App.DesktopViews.Plots;
+using Sufni.App.Views.Plots;
 using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
@@ -136,7 +136,7 @@ public class RecordedSessionGraphDesktopViewTests
         var graphRoot = Assert.Single(mounted.View.GetVisualDescendants().OfType<TelemetryPlotsRoot>());
         Assert.DoesNotContain(hostedRowTarget.StableKey, FlattenRowIds(graphRoot.CaptureGraphPreferences().Rows));
 
-        var travelView = GetNamedVisual<TravelPlotDesktopView>(mounted.View, "Travel");
+        var travelView = GetNamedVisual<TravelPlotView>(mounted.View, "Travel");
         Assert.Same(contextAction, Assert.Single(travelView.AdditionalContextMenuActions!));
         Assert.Same(overlayRegistration, Assert.Single(travelView.TimeRangeOverlays!));
 
@@ -159,12 +159,12 @@ public class RecordedSessionGraphDesktopViewTests
 
         await using var mounted = await MountAsync(workspace);
 
-        var travelView = GetNamedVisual<TravelPlotDesktopView>(mounted.View, "Travel");
-        var velocityView = GetNamedVisual<VelocityPlotDesktopView>(mounted.View, "Velocity");
-        var imuView = GetNamedVisual<ImuPlotDesktopView>(mounted.View, "Imu");
-        var pitchRollView = GetNamedVisual<FramePitchRollPlotDesktopView>(mounted.View, "PitchRoll");
-        var speedView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "Speed");
-        var elevationView = GetNamedVisual<TrackSignalPlotDesktopView>(mounted.View, "Elevation");
+        var travelView = GetNamedVisual<TravelPlotView>(mounted.View, "Travel");
+        var velocityView = GetNamedVisual<VelocityPlotView>(mounted.View, "Velocity");
+        var imuView = GetNamedVisual<ImuPlotView>(mounted.View, "Imu");
+        var pitchRollView = GetNamedVisual<FramePitchRollPlotView>(mounted.View, "PitchRoll");
+        var speedView = GetNamedVisual<TrackSignalPlotView>(mounted.View, "Speed");
+        var elevationView = GetNamedVisual<TrackSignalPlotView>(mounted.View, "Elevation");
         Assert.NotNull(travelView);
         Assert.NotNull(velocityView);
         Assert.NotNull(imuView);
@@ -214,7 +214,7 @@ public class RecordedSessionGraphDesktopViewTests
 
         await using var mounted = await MountAsync(workspace);
 
-        var velocityView = GetNamedVisual<VelocityPlotDesktopView>(mounted.View, "Velocity");
+        var velocityView = GetNamedVisual<VelocityPlotView>(mounted.View, "Velocity");
         Assert.NotNull(velocityView);
         var plot = Assert.Single(velocityView!.GetVisualDescendants().OfType<AvaPlot>());
         workspace.SetAnalysisRange(0.25, 0.75);

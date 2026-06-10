@@ -2,7 +2,7 @@ using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
-using Sufni.App.DesktopViews.Plots;
+using Sufni.App.Views.Plots;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
@@ -13,12 +13,12 @@ namespace Sufni.App.Tests.Views.Plots;
 public class TimeSeriesPlotPlaybackRequestTests
 {
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_SpaceOverPlotWithCursor_RequestsTimelinePlaybackToggle()
+    public async Task TravelPlotView_SpaceOverPlotWithCursor_RequestsTimelinePlaybackToggle()
     {
         var timeline = new SessionTimelineLinkViewModel();
         var toggleRequests = 0;
         timeline.PlaybackToggleRequested += (_, _) => toggleRequests++;
-        var view = new TravelPlotDesktopView { Timeline = timeline };
+        var view = new TravelPlotView { Timeline = timeline };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
         view.Telemetry = CreateMinimal();
@@ -39,12 +39,12 @@ public class TimeSeriesPlotPlaybackRequestTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_SpaceWithoutPointerOverPlot_DoesNotRequestToggle()
+    public async Task TravelPlotView_SpaceWithoutPointerOverPlot_DoesNotRequestToggle()
     {
         var timeline = new SessionTimelineLinkViewModel();
         var toggleRequests = 0;
         timeline.PlaybackToggleRequested += (_, _) => toggleRequests++;
-        var view = new TravelPlotDesktopView { Timeline = timeline };
+        var view = new TravelPlotView { Timeline = timeline };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
         view.Telemetry = CreateMinimal();
@@ -57,12 +57,12 @@ public class TimeSeriesPlotPlaybackRequestTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_ClickInsidePlot_RequestsTimelinePlaybackStop()
+    public async Task TravelPlotView_ClickInsidePlot_RequestsTimelinePlaybackStop()
     {
         var timeline = new SessionTimelineLinkViewModel();
         var stopRequests = 0;
         timeline.PlaybackStopRequested += (_, _) => stopRequests++;
-        var view = new TravelPlotDesktopView { Timeline = timeline };
+        var view = new TravelPlotView { Timeline = timeline };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
         view.Telemetry = CreateMinimal();
@@ -80,12 +80,12 @@ public class TimeSeriesPlotPlaybackRequestTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_DragInsidePlot_DoesNotRequestPlaybackStop()
+    public async Task TravelPlotView_DragInsidePlot_DoesNotRequestPlaybackStop()
     {
         var timeline = new SessionTimelineLinkViewModel();
         var stopRequests = 0;
         timeline.PlaybackStopRequested += (_, _) => stopRequests++;
-        var view = new TravelPlotDesktopView { Timeline = timeline };
+        var view = new TravelPlotView { Timeline = timeline };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
         view.Telemetry = CreateMinimal();
@@ -105,10 +105,10 @@ public class TimeSeriesPlotPlaybackRequestTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_PointerMove_DoesNotMoveCursor_WhilePlaybackIsActive()
+    public async Task TravelPlotView_PointerMove_DoesNotMoveCursor_WhilePlaybackIsActive()
     {
         var timeline = new SessionTimelineLinkViewModel();
-        var view = new TravelPlotDesktopView { Timeline = timeline };
+        var view = new TravelPlotView { Timeline = timeline };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
         view.Telemetry = CreateMinimal();
@@ -128,13 +128,13 @@ public class TimeSeriesPlotPlaybackRequestTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_ClickDuringPlayback_StopsAndPlacesCursorAtClick()
+    public async Task TravelPlotView_ClickDuringPlayback_StopsAndPlacesCursorAtClick()
     {
         var timeline = new SessionTimelineLinkViewModel();
         // Mimic the playback owner: a stop request deactivates playback, so
         // the same click may place the cursor again.
         timeline.PlaybackStopRequested += (_, _) => timeline.SetPlaybackActive(false);
-        var view = new TravelPlotDesktopView { Timeline = timeline };
+        var view = new TravelPlotView { Timeline = timeline };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
         view.Telemetry = CreateMinimal();

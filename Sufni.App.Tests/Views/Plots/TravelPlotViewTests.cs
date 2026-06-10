@@ -9,7 +9,7 @@ using NSubstitute;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Behaviors;
-using Sufni.App.DesktopViews.Plots;
+using Sufni.App.Views.Plots;
 using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
@@ -28,12 +28,12 @@ using Sufni.App.ExtensionHost.Views.Controls;
 
 namespace Sufni.App.Tests.Views.Plots;
 
-public class TravelPlotDesktopViewTests
+public class TravelPlotViewTests
 {
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_StartsEmpty_BeforeTelemetryIsAssigned()
+    public async Task TravelPlotView_StartsEmpty_BeforeTelemetryIsAssigned()
     {
-        var view = new TravelPlotDesktopView
+        var view = new TravelPlotView
         {
             ShowAirtime = true,
         };
@@ -47,9 +47,9 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_LoadsSignalsFromTelemetryProperty()
+    public async Task TravelPlotView_LoadsSignalsFromTelemetryProperty()
     {
-        var view = new TravelPlotDesktopView
+        var view = new TravelPlotView
         {
             ShowAirtime = true,
         };
@@ -71,9 +71,9 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_ClickingLegendEntry_HidesSource()
+    public async Task TravelPlotView_ClickingLegendEntry_HidesSource()
     {
-        var view = new TravelPlotDesktopView
+        var view = new TravelPlotView
         {
             SourceVisibility = new TelemetrySourceVisibilityStore(),
         };
@@ -96,9 +96,9 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_ShowsEmptyState_WhenTelemetryHasNoTravelData()
+    public async Task TravelPlotView_ShowsEmptyState_WhenTelemetryHasNoTravelData()
     {
-        var view = new TravelPlotDesktopView
+        var view = new TravelPlotView
         {
             ShowAirtime = true,
         };
@@ -120,9 +120,9 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_AppliesPlotBackgroundProperties()
+    public async Task TravelPlotView_AppliesPlotBackgroundProperties()
     {
-        var view = new TravelPlotDesktopView
+        var view = new TravelPlotView
         {
             PlotFigureBackground = AvaloniaColor.Parse("#101820"),
             PlotDataBackground = AvaloniaColor.Parse("#203040"),
@@ -146,9 +146,9 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_AnalysisRangeUpdatesOverlayWithoutReloadingSignals()
+    public async Task TravelPlotView_AnalysisRangeUpdatesOverlayWithoutReloadingSignals()
     {
-        var view = new TravelPlotDesktopView
+        var view = new TravelPlotView
         {
             ShowAirtime = true,
         };
@@ -178,9 +178,9 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_CullsCollidingAirtimeLabelsAfterTelemetryLoad()
+    public async Task TravelPlotView_CullsCollidingAirtimeLabelsAfterTelemetryLoad()
     {
-        var view = new TravelPlotDesktopView
+        var view = new TravelPlotView
         {
             ShowAirtime = true,
         };
@@ -201,9 +201,9 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_ShowAirtime_ForwardsVisibilityToLoadedPlot()
+    public async Task TravelPlotView_ShowAirtime_ForwardsVisibilityToLoadedPlot()
     {
-        var view = new TravelPlotDesktopView
+        var view = new TravelPlotView
         {
             ShowAirtime = true,
         };
@@ -236,9 +236,9 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_ShowAirtimeFalseBeforeLoad_HidesAirtimeAfterTelemetryLoads()
+    public async Task TravelPlotView_ShowAirtimeFalseBeforeLoad_HidesAirtimeAfterTelemetryLoads()
     {
-        var view = new TravelPlotDesktopView
+        var view = new TravelPlotView
         {
             ShowAirtime = false,
         };
@@ -256,9 +256,9 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task VelocityPlotDesktopView_AirtimeDefaultsHiddenAndCanBeShown()
+    public async Task VelocityPlotView_AirtimeDefaultsHiddenAndCanBeShown()
     {
-        var view = new VelocityPlotDesktopView();
+        var view = new VelocityPlotView();
         var telemetry = CreateMinimal(duration: 10);
         telemetry.Airtimes = [new Airtime { Start = 1.8, End = 2.2 }];
 
@@ -278,9 +278,9 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_ClearsAndReloadsTelemetryWhileHidden()
+    public async Task TravelPlotView_ClearsAndReloadsTelemetryWhileHidden()
     {
-        var view = new TravelPlotDesktopView();
+        var view = new TravelPlotView();
         var oldTelemetry = CreateMinimal();
         oldTelemetry.Markers = [new MarkerData(0.5)];
         var freshTelemetry = CreateMinimal();
@@ -307,10 +307,10 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_TimelineSyncConstrainsOverscrolledFullRange()
+    public async Task TravelPlotView_TimelineSyncConstrainsOverscrolledFullRange()
     {
         var timeline = new SessionTimelineLinkViewModel();
-        var view = new TestableTravelPlotDesktopView
+        var view = new TestableTravelPlotView
         {
             Timeline = timeline,
         };
@@ -329,11 +329,11 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_ContextMenuContext_UsesRowIdClickSecondsAndAnalysisRange()
+    public async Task TravelPlotView_ContextMenuContext_UsesRowIdClickSecondsAndAnalysisRange()
     {
         var telemetry = CreateMinimal(duration: 10);
         var analysisRange = new TelemetryTimeRange(2, 4);
-        var view = new ContextMenuTravelPlotDesktopView
+        var view = new ContextMenuTravelPlotView
         {
             Telemetry = telemetry,
             GraphWorkspace = new RecordedSessionGraphWorkspaceStub(telemetry),
@@ -358,7 +358,7 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_ContextMenuActions_ResolveFromWorkspaceRowId()
+    public async Task TravelPlotView_ContextMenuActions_ResolveFromWorkspaceRowId()
     {
         var telemetry = CreateMinimal(duration: 10);
         var action = new TelemetryPlotContextMenuAction("test", "Test", Substitute.For<ICommand>());
@@ -368,7 +368,7 @@ public class TravelPlotDesktopViewTests
             {
                 [TelemetryGraphRowIds.Travel] = [action],
             });
-        var view = new ContextMenuTravelPlotDesktopView
+        var view = new ContextMenuTravelPlotView
         {
             Telemetry = telemetry,
             GraphWorkspace = workspace,
@@ -384,13 +384,13 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_MobileSecondaryPointer_ShowsInstalledPlotMenu()
+    public async Task TravelPlotView_MobileSecondaryPointer_ShowsInstalledPlotMenu()
     {
         TestApp.SetIsDesktop(false);
         try
         {
             var telemetry = CreateMinimal(duration: 10);
-            var view = new MobileContextMenuTravelPlotDesktopView
+            var view = new MobileContextMenuTravelPlotView
             {
                 Telemetry = telemetry,
                 GraphWorkspace = new RecordedSessionGraphWorkspaceStub(telemetry),
@@ -417,14 +417,14 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_MobileLongPress_SetsAnalysisRangeBoundaryWithoutClearingOnRelease()
+    public async Task TravelPlotView_MobileLongPress_SetsAnalysisRangeBoundaryWithoutClearingOnRelease()
     {
         TestApp.SetIsDesktop(false);
         try
         {
             var telemetry = CreateMinimal(duration: 10);
             var workspace = new RecordedSessionGraphWorkspaceStub(telemetry);
-            var view = new LongPressTravelPlotDesktopView
+            var view = new LongPressTravelPlotView
             {
                 Telemetry = telemetry,
                 GraphWorkspace = workspace,
@@ -463,14 +463,14 @@ public class TravelPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotDesktopView_MobileLongPressInsideAnalysisRange_ShowsInstalledPlotMenu()
+    public async Task TravelPlotView_MobileLongPressInsideAnalysisRange_ShowsInstalledPlotMenu()
     {
         TestApp.SetIsDesktop(false);
         try
         {
             var telemetry = CreateMinimal(duration: 10);
             var workspace = new RecordedSessionGraphWorkspaceStub(telemetry);
-            var view = new LongPressContextMenuTravelPlotDesktopView
+            var view = new LongPressContextMenuTravelPlotView
             {
                 Telemetry = telemetry,
                 AnalysisRange = new TelemetryTimeRange(2, 4),
@@ -507,7 +507,7 @@ public class TravelPlotDesktopViewTests
         }
     }
 
-    private sealed class TestableTravelPlotDesktopView : TravelPlotDesktopView
+    private sealed class TestableTravelPlotView : TravelPlotView
     {
         public void UpdateTimelineRangeForTest()
         {
@@ -515,7 +515,7 @@ public class TravelPlotDesktopViewTests
         }
     }
 
-    private sealed class ContextMenuTravelPlotDesktopView : TravelPlotDesktopView
+    private sealed class ContextMenuTravelPlotView : TravelPlotView
     {
         private Func<Pixel, TelemetryPlotContextMenuContext?>? createContext;
         private Func<TelemetryPlotContextMenuContext, IReadOnlyList<TelemetryPlotContextMenuAction>>? getActions;
@@ -540,7 +540,7 @@ public class TravelPlotDesktopViewTests
         }
     }
 
-    private sealed class MobileContextMenuTravelPlotDesktopView : TravelPlotDesktopView
+    private sealed class MobileContextMenuTravelPlotView : TravelPlotView
     {
         public NoOpPlotMenu PlotMenu { get; } = new();
 
@@ -630,7 +630,7 @@ public class TravelPlotDesktopViewTests
         }
     }
 
-    private sealed class LongPressTravelPlotDesktopView : TravelPlotDesktopView
+    private sealed class LongPressTravelPlotView : TravelPlotView
     {
         private Action? scheduledLongPress;
 
@@ -647,7 +647,7 @@ public class TravelPlotDesktopViewTests
         }
     }
 
-    private sealed class LongPressContextMenuTravelPlotDesktopView : TravelPlotDesktopView
+    private sealed class LongPressContextMenuTravelPlotView : TravelPlotView
     {
         private Action? scheduledLongPress;
         public NoOpPlotMenu PlotMenu { get; } = new();

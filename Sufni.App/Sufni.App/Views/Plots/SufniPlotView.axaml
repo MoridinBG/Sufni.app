@@ -1,7 +1,6 @@
 ﻿<Styles
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:desktopplots="clr-namespace:Sufni.App.DesktopViews.Plots"
     xmlns:plots="clr-namespace:Sufni.App.Views.Plots">
     <Design.PreviewWith>
         <plots:SufniPlotView />
@@ -16,7 +15,7 @@
         </Setter>
     </Style>
 
-    <Style Selector=":is(desktopplots|SessionStatisticsPlotView)">
+    <Style Selector=":is(plots|SessionStatisticsPlotView)">
         <Setter Property="Template">
             <ControlTemplate>
                 <Grid RowDefinitions="Auto,*">

@@ -9,7 +9,7 @@ xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:models="clr-namespace:Sufni.App.Models"
 xmlns:plotModels="clr-namespace:Sufni.App.Plots"
-xmlns:plots="clr-namespace:Sufni.App.DesktopViews.Plots"
+xmlns:plots="clr-namespace:Sufni.App.Views.Plots"
 xmlns:vm="clr-namespace:Sufni.App.ViewModels.Editors"
 d:DesignHeight="450"
 d:DesignWidth="800"
@@ -26,7 +26,7 @@ mc:Ignorable="d">
             Title="Travel (mm)"
             PresentationState="{Binding TravelGraphState}">
                 <controls:TelemetryPlotRow.PlotContent>
-                    <plots:TravelPlotDesktopView
+                    <plots:TravelPlotView
                     Name="Travel"
                     AnalysisRange="{Binding AnalysisRange}"
                     GraphWorkspace="{Binding}"
@@ -52,7 +52,7 @@ mc:Ignorable="d">
                     Title="Velocity (m/s)"
                     PresentationState="{Binding VelocityGraphState}">
                         <controls:TelemetryPlotRow.PlotContent>
-                            <plots:VelocityPlotDesktopView
+                            <plots:VelocityPlotView
                             Name="Velocity"
                             AnalysisRange="{Binding AnalysisRange}"
                             GraphWorkspace="{Binding}"
@@ -81,7 +81,7 @@ mc:Ignorable="d">
             Title="Vibration RMS (g)"
             PresentationState="{Binding ImuGraphState}">
                 <controls:TelemetryPlotRow.PlotContent>
-                    <plots:ImuPlotDesktopView
+                    <plots:ImuPlotView
                     Name="Imu"
                     AnalysisRange="{Binding AnalysisRange}"
                     GraphWorkspace="{Binding}"
@@ -107,7 +107,7 @@ mc:Ignorable="d">
                     Title="Frame pitch/roll (deg)"
                     PresentationState="{Binding PitchRollGraphState}">
                         <controls:TelemetryPlotRow.PlotContent>
-                            <plots:FramePitchRollPlotDesktopView
+                            <plots:FramePitchRollPlotView
                             Name="PitchRoll"
                             AnalysisRange="{Binding AnalysisRange}"
                             GraphWorkspace="{Binding}"
@@ -135,7 +135,7 @@ mc:Ignorable="d">
             Title="GPS speed (km/h)"
             PresentationState="{Binding SpeedGraphState}">
                 <controls:TelemetryPlotRow.PlotContent>
-                    <plots:TrackSignalPlotDesktopView
+                    <plots:TrackSignalPlotView
                     Name="Speed"
                     AnalysisRange="{Binding AnalysisRange}"
                     GraphWorkspace="{Binding}"
@@ -162,7 +162,7 @@ mc:Ignorable="d">
                     Title="Elevation (m)"
                     PresentationState="{Binding ElevationGraphState}">
                         <controls:TelemetryPlotRow.PlotContent>
-                            <plots:TrackSignalPlotDesktopView
+                            <plots:TrackSignalPlotView
                             Name="Elevation"
                             AnalysisRange="{Binding AnalysisRange}"
                             GraphWorkspace="{Binding}"

@@ -1,8 +1,8 @@
 using Sufni.App.Plots;
 
-namespace Sufni.App.DesktopViews.Plots;
+namespace Sufni.App.Views.Plots;
 
-public class FramePitchRollPlotDesktopView : SufniTelemetryPlotView
+public class FramePitchRollPlotView : SufniTelemetryPlotView
 {
     protected override void CreatePlot()
     {

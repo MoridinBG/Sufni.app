@@ -1,6 +1,6 @@
 using Avalonia.Headless.XUnit;
 using ScottPlot.Plottables;
-using Sufni.App.DesktopViews.Plots;
+using Sufni.App.Views.Plots;
 using Sufni.App.Models;
 using Sufni.App.Plots;
 using Sufni.App.Tests.Infrastructure;
@@ -10,10 +10,10 @@ using Sufni.App.ExtensionHost.Models;
 
 namespace Sufni.App.Tests.Views.Plots;
 
-public class TrackSignalPlotDesktopViewTests
+public class TrackSignalPlotViewTests
 {
     [AvaloniaFact]
-    public async Task TrackSignalPlotDesktopView_ShowsRightAxisByDefault()
+    public async Task TrackSignalPlotView_ShowsRightAxisByDefault()
     {
         var view = CreateTrackSignalView();
 
@@ -26,7 +26,7 @@ public class TrackSignalPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task TrackSignalPlotDesktopView_HidesRightAxis_WhenRequested()
+    public async Task TrackSignalPlotView_HidesRightAxis_WhenRequested()
     {
         var view = CreateTrackSignalView();
         view.HideRightAxis = true;
@@ -38,7 +38,7 @@ public class TrackSignalPlotDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task TrackSignalPlotDesktopView_ReloadsTelemetryMarkersWhileHidden()
+    public async Task TrackSignalPlotView_ReloadsTelemetryMarkersWhileHidden()
     {
         var view = CreateTrackSignalView();
         var oldTelemetry = CreateMinimal();
@@ -61,7 +61,7 @@ public class TrackSignalPlotDesktopViewTests
         Assert.Equal(3, plot.Plot.PlottableList.OfType<VerticalLine>().Count());
     }
 
-    private static TrackSignalPlotDesktopView CreateTrackSignalView() => new()
+    private static TrackSignalPlotView CreateTrackSignalView() => new()
     {
         SignalKind = TrackSignalKind.Speed,
         TrackPoints =

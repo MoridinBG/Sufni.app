@@ -1,7 +1,7 @@
 using System;
 using Sufni.Telemetry;
 
-namespace Sufni.App.DesktopViews.Plots;
+namespace Sufni.App.Views.Plots;
 
 internal static class RecordedTimeSeriesMarkerHitTester
 {

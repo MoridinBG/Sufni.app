@@ -2,14 +2,14 @@ using System.Diagnostics;
 using Sufni.App.Plots;
 using Sufni.App.Services.LiveStreaming;
 
-namespace Sufni.App.DesktopViews.Plots;
+namespace Sufni.App.Views.Plots;
 
-public sealed class LiveImuPlotDesktopView : LiveGraphPlotDesktopViewBase
+public sealed class LiveTravelPlotView : LiveGraphPlotViewBase
 {
     protected override void CreatePlot()
     {
         Debug.Assert(HasPlotControl);
-        Plot = new LiveImuPlot(PlotControl.Plot, MaximumY ?? 5, HideRightAxis, CurrentTheme, SourceVisibility);
+        Plot = new LiveTravelPlot(PlotControl.Plot, MaximumY ?? 1, HideRightAxis, CurrentTheme, SourceVisibility);
         ApplySmoothingLevel();
         ApplyConfiguredVerticalLimits();
         InitializeInteractions();
@@ -17,6 +17,6 @@ public sealed class LiveImuPlotDesktopView : LiveGraphPlotDesktopViewBase
 
     protected override void ApplyGraphBatch(LiveGraphBatch batch)
     {
-        ((LiveImuPlot)Plot!).Append(batch);
+        ((LiveTravelPlot)Plot!).Append(batch);
     }
 }

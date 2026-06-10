@@ -9,7 +9,7 @@ using Avalonia.VisualTree;
 using ScottPlot.Avalonia;
 using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Items;
-using Sufni.App.DesktopViews.Plots;
+using Sufni.App.Views.Plots;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Services.LiveStreaming;
@@ -21,7 +21,7 @@ using Sufni.App.ExtensionHost.Presentation;
 
 namespace Sufni.App.Tests.Views;
 
-public class LiveGraphPlotDesktopViewTests
+public class LiveGraphPlotViewTests
 {
     [AvaloniaFact]
     public async Task LiveSessionGraphDesktopView_WiresLivePlotViews_AndAppendsGraphBatches()
@@ -44,10 +44,10 @@ public class LiveGraphPlotDesktopViewTests
         host.Show();
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var travelView = GetNamedVisual<LiveTravelPlotDesktopView>(view, "TravelPlot");
-        var velocityView = GetNamedVisual<LiveVelocityPlotDesktopView>(view, "VelocityPlot");
-        var imuView = GetNamedVisual<LiveImuPlotDesktopView>(view, "ImuPlot");
-        var pitchRollView = GetNamedVisual<LiveFramePitchRollPlotDesktopView>(view, "PitchRollPlot");
+        var travelView = GetNamedVisual<LiveTravelPlotView>(view, "TravelPlot");
+        var velocityView = GetNamedVisual<LiveVelocityPlotView>(view, "VelocityPlot");
+        var imuView = GetNamedVisual<LiveImuPlotView>(view, "ImuPlot");
+        var pitchRollView = GetNamedVisual<LiveFramePitchRollPlotView>(view, "PitchRollPlot");
 
         Assert.NotNull(travelView);
         Assert.NotNull(velocityView);
@@ -92,7 +92,7 @@ public class LiveGraphPlotDesktopViewTests
         host.Show();
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var travelView = GetNamedVisual<LiveTravelPlotDesktopView>(view, "TravelPlot");
+        var travelView = GetNamedVisual<LiveTravelPlotView>(view, "TravelPlot");
         Assert.NotNull(travelView);
 
         batches.OnNext(CreateBatch(revision: 1));
@@ -137,7 +137,7 @@ public class LiveGraphPlotDesktopViewTests
         host.Show();
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var travelView = GetNamedVisual<LiveTravelPlotDesktopView>(view, "TravelPlot");
+        var travelView = GetNamedVisual<LiveTravelPlotView>(view, "TravelPlot");
         Assert.NotNull(travelView);
 
         for (var revision = 1; revision <= 6; revision++)
@@ -268,7 +268,7 @@ public class LiveGraphPlotDesktopViewTests
                 .ToArray());
     }
 
-    private static async Task FlushGraphBatchesAsync(params LiveGraphPlotDesktopViewBase[] views)
+    private static async Task FlushGraphBatchesAsync(params LiveGraphPlotViewBase[] views)
     {
         foreach (var view in views)
         {

@@ -16,7 +16,7 @@ using ScottPlotPixel = ScottPlot.Pixel;
 using Sufni.App.ExtensionHost.Plots;
 using Sufni.App.ExtensionHost.ViewModels.Editors;
 
-namespace Sufni.App.DesktopViews.Plots;
+namespace Sufni.App.Views.Plots;
 
 public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 {

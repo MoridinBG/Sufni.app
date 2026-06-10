@@ -3,7 +3,7 @@ using Sufni.App.Models;
 using Sufni.App.Plots;
 using Sufni.Telemetry;
 
-namespace Sufni.App.DesktopViews.Plots;
+namespace Sufni.App.Views.Plots;
 
 public abstract class SufniTelemetryPlotView : SufniTimeSeriesPlotView
 {

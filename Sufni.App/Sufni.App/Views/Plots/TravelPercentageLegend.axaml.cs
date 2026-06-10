@@ -1,7 +1,7 @@
 using Avalonia.Controls;
 using Sufni.App.Theming;
 
-namespace Sufni.App.DesktopViews.Plots;
+namespace Sufni.App.Views.Plots;
 
 public partial class TravelPercentageLegend : UserControl
 {

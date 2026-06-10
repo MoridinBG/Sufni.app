@@ -5,7 +5,7 @@ using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.Plots;
 using Sufni.App.Views.Plots;
 
-namespace Sufni.App.DesktopViews.Plots;
+namespace Sufni.App.Views.Plots;
 
 public abstract class SufniTimelinePlotView : SufniPlotView
 {
