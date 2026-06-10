@@ -304,42 +304,4 @@ public class SessionListViewTests
         Assert.Equal(text, textBlock!.Text);
     }
 
-    private sealed class TestRecordedSessionListExtensionService : IRecordedSessionListExtensionService
-    {
-        public event EventHandler? ContributionsChanged
-        {
-            add { }
-            remove { }
-        }
-
-        public IReadOnlyList<RecordedSessionListIndicatorContribution> CreateIndicators(RecordedSessionSummary summary)
-        {
-            return
-            [
-                new RecordedSessionListIndicatorContribution(
-                    "extension",
-                    "indicator",
-                    Order: 0,
-                    new TestContributionViewModel
-                    {
-                        Content = new TextBlock { Name = "SessionListIndicator", Text = "Indicator" },
-                    }),
-            ];
-        }
-
-        public IReadOnlyList<RecordedSessionListActionContribution> CreateActions(RecordedSessionSummary summary)
-        {
-            return
-            [
-                new RecordedSessionListActionContribution(
-                    "extension",
-                    "action",
-                    Order: 0,
-                    new TestContributionViewModel
-                    {
-                        Content = new TextBlock { Name = "SessionListAction", Text = "Action" },
-                    }),
-            ];
-        }
-    }
 }
