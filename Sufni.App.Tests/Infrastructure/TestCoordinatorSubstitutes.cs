@@ -102,6 +102,10 @@ internal static class TestCoordinatorSubstitutes
         var coordinator = Substitute.For<SessionCoordinator>(
             Substitute.For<ISessionStoreWriter>(),
             Substitute.For<IDatabaseService>(),
+            Substitute.For<ISynchronizableRepository<Setup>>(),
+            Substitute.For<ISynchronizableRepository<Bike>>(),
+            Substitute.For<ISynchronizableRepository<Track>>(),
+            Substitute.For<ISynchronizableRepository<Session>>(),
             Substitute.For<ISessionCacheStore>(),
             Substitute.For<IHttpApiService>(),
             Substitute.For<IBackgroundTaskRunner>(),

@@ -172,6 +172,10 @@ public partial class App : Application
         ServiceCollection.AddSingleton<SessionCoordinator>(sp => new SessionCoordinator(
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<IDatabaseService>(),
+            sp.GetRequiredService<ISynchronizableRepository<Setup>>(),
+            sp.GetRequiredService<ISynchronizableRepository<Bike>>(),
+            sp.GetRequiredService<ISynchronizableRepository<Track>>(),
+            sp.GetRequiredService<ISynchronizableRepository<Session>>(),
             sp.GetRequiredService<ISessionCacheStore>(),
             sp.GetRequiredService<IHttpApiService>(),
             sp.GetRequiredService<IBackgroundTaskRunner>(),

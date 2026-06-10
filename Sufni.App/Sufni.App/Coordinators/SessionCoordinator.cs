@@ -35,6 +35,10 @@ public class SessionCoordinator
 
     private readonly ISessionStoreWriter sessionStore;
     private readonly IDatabaseService databaseService;
+    private readonly ISynchronizableRepository<Setup> setupRepository;
+    private readonly ISynchronizableRepository<Bike> bikeRepository;
+    private readonly ISynchronizableRepository<Track> trackEntityRepository;
+    private readonly ISynchronizableRepository<Session> sessionEntityRepository;
     private readonly ISessionCacheStore sessionCacheStore;
     private readonly IHttpApiService httpApiService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
@@ -59,6 +63,10 @@ public class SessionCoordinator
     public SessionCoordinator(
         ISessionStoreWriter sessionStore,
         IDatabaseService databaseService,
+        ISynchronizableRepository<Setup> setupRepository,
+        ISynchronizableRepository<Bike> bikeRepository,
+        ISynchronizableRepository<Track> trackEntityRepository,
+        ISynchronizableRepository<Session> sessionEntityRepository,
         ISessionCacheStore sessionCacheStore,
         IHttpApiService httpApiService,
         IBackgroundTaskRunner backgroundTaskRunner,
@@ -83,6 +91,10 @@ public class SessionCoordinator
     {
         this.sessionStore = sessionStore;
         this.databaseService = databaseService;
+        this.setupRepository = setupRepository;
+        this.bikeRepository = bikeRepository;
+        this.trackEntityRepository = trackEntityRepository;
+        this.sessionEntityRepository = sessionEntityRepository;
         this.sessionCacheStore = sessionCacheStore;
         this.httpApiService = httpApiService;
         this.backgroundTaskRunner = backgroundTaskRunner;
@@ -382,9 +394,9 @@ public class SessionCoordinator
         {
             var processingOptions = preferences.Processing.ToTelemetryProcessingOptions();
             var source = RecordedSessionSourceFactory.CreateLiveCapture(session.Id, capture.TelemetryCapture);
-            var setup = await databaseService.GetAsync<Setup>(capture.Context.SetupId)
+            var setup = await setupRepository.GetAsync(capture.Context.SetupId)
                         ?? throw new InvalidOperationException("Setup is missing.");
-            var bike = await databaseService.GetAsync<Bike>(setup.BikeId)
+            var bike = await bikeRepository.GetAsync(setup.BikeId)
                        ?? throw new InvalidOperationException("Bike is missing.");
             var setupSnapshot = SetupSnapshot.From(setup, boardId: null);
             var bikeSnapshot = BikeSnapshot.From(bike);
@@ -514,7 +526,7 @@ public class SessionCoordinator
 
             var previousFullTrackId = persisted.FullTrack;
             var previousFullTrack = previousFullTrackId.HasValue
-                ? await databaseService.GetAsync<Track>(previousFullTrackId.Value)
+                ? await trackEntityRepository.GetAsync(previousFullTrackId.Value)
                 : null;
             Track? newFullTrack = null;
 
@@ -584,11 +596,11 @@ public class SessionCoordinator
 
             if (trackId.HasValue)
             {
-                var sessions = await databaseService.GetAllAsync<Session>();
+                var sessions = await sessionEntityRepository.GetAllAsync();
                 shouldDeleteTrack = !sessions.Any(existing => existing.Id != sessionId && existing.FullTrack == trackId);
             }
 
-            await databaseService.DeleteAsync<Session>(sessionId);
+            await sessionEntityRepository.DeleteAsync(sessionId);
             if (extensionCascadeService is not null)
             {
                 await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, sessionId);
@@ -599,7 +611,7 @@ public class SessionCoordinator
             {
                 try
                 {
-                    await databaseService.DeleteAsync<Track>(trackId.Value);
+                    await trackEntityRepository.DeleteAsync(trackId.Value);
                     if (extensionCascadeService is not null)
                     {
                         await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, trackId.Value);
@@ -639,7 +651,7 @@ public class SessionCoordinator
             return;
         }
 
-        var sessions = await databaseService.GetAllAsync<Session>();
+        var sessions = await sessionEntityRepository.GetAllAsync();
         var stillReferenced = sessions.Any(existing =>
             existing.Id != sessionId &&
             existing.Deleted is null &&
@@ -651,7 +663,7 @@ public class SessionCoordinator
 
         try
         {
-            await databaseService.DeleteAsync<Track>(previousFullTrackId.Value);
+            await trackEntityRepository.DeleteAsync(previousFullTrackId.Value);
             if (extensionCascadeService is not null)
             {
                 await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, previousFullTrackId.Value);

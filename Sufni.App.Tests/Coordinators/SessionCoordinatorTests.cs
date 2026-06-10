@@ -28,6 +28,10 @@ public class SessionCoordinatorTests
 {
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
+    private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
+    private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
+    private readonly ISynchronizableRepository<Track> trackEntityRepository = Substitute.For<ISynchronizableRepository<Track>>();
+    private readonly ISynchronizableRepository<Session> sessionEntityRepository = Substitute.For<ISynchronizableRepository<Session>>();
     private readonly ISessionCacheStore sessionCacheStore = Substitute.For<ISessionCacheStore>();
     private readonly IHttpApiService http = Substitute.For<IHttpApiService>();
     private readonly TrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
@@ -61,6 +65,10 @@ public class SessionCoordinatorTests
         new(
             sessionStore,
             database,
+            setupRepository,
+            bikeRepository,
+            trackEntityRepository,
+            sessionEntityRepository,
             sessionCacheStore,
             http,
             backgroundTaskRunner,
@@ -573,7 +581,7 @@ public class SessionCoordinatorTests
         reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, generatedTrack, fingerprint));
         database.GetSessionAsync(context.Session.Id).Returns(persisted);
-        database.GetAsync<Track>(previousTrackId).Returns(existingTrack);
+        trackEntityRepository.GetAsync(previousTrackId).Returns(Task.FromResult<Track?>(existingTrack));
         database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), null, null, 5).Returns(fresh);
 
         var result = await CreateCoordinator().RecomputeAsync(context.Session.Id, baselineUpdated: 5);
@@ -610,9 +618,9 @@ public class SessionCoordinatorTests
         reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, generatedTrack, fingerprint));
         database.GetSessionAsync(context.Session.Id).Returns(persisted);
-        database.GetAsync<Track>(previousTrackId).Returns(existingTrack);
+        trackEntityRepository.GetAsync(previousTrackId).Returns(Task.FromResult<Track?>(existingTrack));
         database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), generatedTrack, null, 5).Returns(fresh);
-        database.GetAllAsync<Session>().Returns(Task.FromResult(new List<Session> { fresh }));
+        sessionEntityRepository.GetAllAsync().Returns(Task.FromResult(new List<Session> { fresh }));
 
         var result = await CreateCoordinator().RecomputeAsync(context.Session.Id, baselineUpdated: 5);
 
@@ -624,7 +632,7 @@ public class SessionCoordinatorTests
             generatedTrack,
             null,
             5);
-        await database.Received(1).DeleteAsync<Track>(previousTrackId);
+        await trackEntityRepository.Received(1).DeleteAsync(previousTrackId);
         await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, previousTrackId);
     }
 
@@ -649,9 +657,9 @@ public class SessionCoordinatorTests
         reprocessor.ReprocessAsync(context.Domain, context.Source, Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult(telemetry, generatedTrack, fingerprint));
         database.GetSessionAsync(context.Session.Id).Returns(persisted);
-        database.GetAsync<Track>(previousTrackId).Returns(existingTrack);
+        trackEntityRepository.GetAsync(previousTrackId).Returns(Task.FromResult<Track?>(existingTrack));
         database.PutProcessedSessionIfUnchangedAsync(Arg.Any<Session>(), generatedTrack, null, 5).Returns(fresh);
-        database.GetAllAsync<Session>().Returns(Task.FromResult(new List<Session> { fresh }));
+        sessionEntityRepository.GetAllAsync().Returns(Task.FromResult(new List<Session> { fresh }));
 
         var result = await CreateCoordinator().RecomputeAsync(context.Session.Id, baselineUpdated: 5);
 
@@ -663,7 +671,7 @@ public class SessionCoordinatorTests
             generatedTrack,
             null,
             5);
-        await database.Received(1).DeleteAsync<Track>(previousTrackId);
+        await trackEntityRepository.Received(1).DeleteAsync(previousTrackId);
         await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, previousTrackId);
     }
 
@@ -675,7 +683,7 @@ public class SessionCoordinatorTests
         var id = Guid.NewGuid();
         var trackId = Guid.NewGuid();
         database.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
-        database.GetAllAsync<Session>().Returns(Task.FromResult(new List<Session>
+        sessionEntityRepository.GetAllAsync().Returns(Task.FromResult(new List<Session>
         {
             new(id, "name", "desc", null) { FullTrack = trackId }
         }));
@@ -683,10 +691,10 @@ public class SessionCoordinatorTests
         var result = await CreateCoordinator().DeleteAsync(id);
 
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
-        await database.Received(1).DeleteAsync<Session>(id);
+        await sessionEntityRepository.Received(1).DeleteAsync(id);
         await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, id);
         await sourceStore.Received(1).RemoveAsync(id, Arg.Any<CancellationToken>());
-        await database.Received(1).DeleteAsync<Track>(trackId);
+        await trackEntityRepository.Received(1).DeleteAsync(trackId);
         await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, trackId);
         await sessionPreferences.Received(1).RemoveRecordedAsync(id);
         shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>(), forgetRestoreHistory: true);
@@ -700,7 +708,7 @@ public class SessionCoordinatorTests
         var otherSessionId = Guid.NewGuid();
         var trackId = Guid.NewGuid();
         database.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
-        database.GetAllAsync<Session>().Returns(Task.FromResult(new List<Session>
+        sessionEntityRepository.GetAllAsync().Returns(Task.FromResult(new List<Session>
         {
             new(id, "name", "desc", null) { FullTrack = trackId },
             new(otherSessionId, "other", "desc", null) { FullTrack = trackId }
@@ -709,10 +717,10 @@ public class SessionCoordinatorTests
         var result = await CreateCoordinator().DeleteAsync(id);
 
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
-        await database.Received(1).DeleteAsync<Session>(id);
+        await sessionEntityRepository.Received(1).DeleteAsync(id);
         await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, id);
         await sourceStore.Received(1).RemoveAsync(id, Arg.Any<CancellationToken>());
-        await database.DidNotReceive().DeleteAsync<Track>(Arg.Any<Guid>());
+        await trackEntityRepository.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
         await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, Arg.Any<Guid>());
         shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>(), forgetRestoreHistory: true);
         sessionStore.Received(1).Remove(id);
@@ -724,19 +732,19 @@ public class SessionCoordinatorTests
         var id = Guid.NewGuid();
         var trackId = Guid.NewGuid();
         database.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
-        database.GetAllAsync<Session>().Returns(Task.FromResult(new List<Session>
+        sessionEntityRepository.GetAllAsync().Returns(Task.FromResult(new List<Session>
         {
             new(id, "name", "desc", null) { FullTrack = trackId }
         }));
-        database.DeleteAsync<Track>(trackId).ThrowsAsync(new InvalidOperationException("track locked"));
+        trackEntityRepository.DeleteAsync(trackId).ThrowsAsync(new InvalidOperationException("track locked"));
 
         var result = await CreateCoordinator().DeleteAsync(id);
 
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
-        await database.Received(1).DeleteAsync<Session>(id);
+        await sessionEntityRepository.Received(1).DeleteAsync(id);
         await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, id);
         await sourceStore.Received(1).RemoveAsync(id, Arg.Any<CancellationToken>());
-        await database.Received(1).DeleteAsync<Track>(trackId);
+        await trackEntityRepository.Received(1).DeleteAsync(trackId);
         await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, trackId);
         shell.Received(1).CloseIfOpen(Arg.Any<Func<SessionDetailViewModel, bool>>(), forgetRestoreHistory: true);
         sessionStore.Received(1).Remove(id);
@@ -746,7 +754,7 @@ public class SessionCoordinatorTests
     public async Task DeleteAsync_ReturnsFailed_WhenDatabaseDeleteThrows()
     {
         var id = Guid.NewGuid();
-        database.DeleteAsync<Session>(id).ThrowsAsync(new InvalidOperationException("locked"));
+        sessionEntityRepository.DeleteAsync(id).ThrowsAsync(new InvalidOperationException("locked"));
 
         var result = await CreateCoordinator().DeleteAsync(id);
 
@@ -1399,8 +1407,8 @@ public class SessionCoordinatorTests
             ShockStroke = capture.Context.BikeData.RearMaxTravel
         };
 
-        database.GetAsync<Setup>(capture.Context.SetupId).Returns(Task.FromResult(setup));
-        database.GetAsync<Bike>(capture.Context.BikeId).Returns(Task.FromResult(bike));
+        setupRepository.GetAsync(capture.Context.SetupId).Returns(Task.FromResult<Setup?>(setup));
+        bikeRepository.GetAsync(capture.Context.BikeId).Returns(Task.FromResult<Bike?>(bike));
         reprocessor
             .ReprocessAsync(
                 Arg.Any<RecordedSessionDomainSnapshot>(),
