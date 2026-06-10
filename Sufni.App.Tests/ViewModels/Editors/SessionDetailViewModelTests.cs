@@ -155,6 +155,10 @@ public class SessionDetailViewModelTests
         Assert.Same(editor.SessionContext.ExtensionSlots, editor.GraphWorkspace.ExtensionSlots);
         Assert.Same(editor.Timeline, editor.MediaWorkspace.Timeline);
         Assert.Same(editor.SessionContext.ExtensionSlots, editor.MediaWorkspace.ExtensionSlots);
+        Assert.Same(editor.NotesPage, editor.SidebarWorkspace.NotesPage);
+        Assert.Same(editor.PreferencesPage, editor.SidebarWorkspace.PreferencesPage);
+        Assert.Same(editor.SaveCommand, editor.SidebarWorkspace.SaveCommand);
+        Assert.Same(editor.ResetCommand, editor.SidebarWorkspace.ResetCommand);
         var graphPage = Assert.IsType<RecordedGraphPageViewModel>(editor.Pages[0]);
         Assert.Same(editor.GraphWorkspace, graphPage.Workspace);
         Assert.Equal(snapshot, editor.SessionContext.SessionSnapshot);
@@ -237,6 +241,22 @@ public class SessionDetailViewModelTests
         Assert.True(editor.GraphWorkspace.HasStatisticsSelection);
         Assert.Equal(graphPreferences, editor.GraphPreferences);
         Assert.Equal(graphPreferences, editor.GraphWorkspace.GraphPreferences);
+    }
+
+    [AvaloniaFact]
+    public void SidebarWorkspace_DelegatesEditableFieldsToShellAndNotesPage()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(name: "Before", description: "old notes"));
+
+        editor.SidebarWorkspace.Name = "After";
+        editor.SidebarWorkspace.DescriptionText = "new notes";
+
+        Assert.Equal("After", editor.Name);
+        Assert.Equal("After", editor.SidebarWorkspace.Name);
+        Assert.Equal("new notes", editor.NotesPage.Description);
+        Assert.Equal("new notes", editor.SidebarWorkspace.DescriptionText);
+        Assert.Same(editor.NotesPage.ForkSettings, editor.SidebarWorkspace.ForkSettings);
+        Assert.Same(editor.NotesPage.ShockSettings, editor.SidebarWorkspace.ShockSettings);
     }
 
     [AvaloniaFact]

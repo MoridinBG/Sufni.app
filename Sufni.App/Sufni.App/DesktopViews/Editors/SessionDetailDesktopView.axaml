@@ -72,7 +72,7 @@ mc:Ignorable="d">
             </editors:SessionShellDesktopView.StatisticsContent>
 
             <editors:SessionShellDesktopView.SidebarContent>
-                <items:SessionSidebarDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext)}" />
+                <items:SessionSidebarDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).SidebarWorkspace}" />
             </editors:SessionShellDesktopView.SidebarContent>
         </editors:SessionShellDesktopView>
 

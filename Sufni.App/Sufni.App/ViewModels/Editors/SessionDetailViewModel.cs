@@ -61,6 +61,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     public ISessionShellMobileWorkspace MobileWorkspace { get; }
     public IRecordedSessionGraphWorkspace GraphWorkspace { get; }
     public ISessionMediaWorkspace MediaWorkspace { get; }
+    public ISessionSidebarWorkspace SidebarWorkspace { get; }
     public SessionTimelineLinkViewModel Timeline => SessionContext.Timeline;
 
     #region Private fields
@@ -1597,6 +1598,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             ClearAnalysisRange,
             SetAnalysisRangeBoundary);
         MediaWorkspace = new SessionMediaWorkspaceViewModel(SessionContext);
+        SidebarWorkspace = new SessionSidebarWorkspaceViewModel(
+            this,
+            () => Name,
+            value => Name = value,
+            NotesPage,
+            PreferencesPage,
+            SaveCommand,
+            ResetCommand);
         IsComplete = snapshot.HasProcessedData;
         lastObservedHasProcessedData = snapshot.HasProcessedData;
         if (extensionDatabase is not null && recordedSessionDataReader is not null && backgroundTaskRunner is not null)
