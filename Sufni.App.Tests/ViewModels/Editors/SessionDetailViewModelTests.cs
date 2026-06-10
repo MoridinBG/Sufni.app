@@ -151,8 +151,12 @@ public class SessionDetailViewModelTests
         Assert.Same(editor.Pages, editor.SessionContext.Pages);
         Assert.Same(editor.Timeline, editor.SessionContext.Timeline);
         Assert.Same(editor.Pages, editor.MobileWorkspace.Pages);
+        Assert.Same(editor.Timeline, editor.GraphWorkspace.Timeline);
+        Assert.Same(editor.SessionContext.ExtensionSlots, editor.GraphWorkspace.ExtensionSlots);
         Assert.Same(editor.Timeline, editor.MediaWorkspace.Timeline);
         Assert.Same(editor.SessionContext.ExtensionSlots, editor.MediaWorkspace.ExtensionSlots);
+        var graphPage = Assert.IsType<RecordedGraphPageViewModel>(editor.Pages[0]);
+        Assert.Same(editor.GraphWorkspace, graphPage.Workspace);
         Assert.Equal(snapshot, editor.SessionContext.SessionSnapshot);
         Assert.Equal(editor.ScreenState, editor.MobileWorkspace.ScreenState);
         Assert.Equal(editor.SessionOperationState, editor.MobileWorkspace.SessionOperationState);
@@ -204,6 +208,35 @@ public class SessionDetailViewModelTests
         Assert.Equal(editor.MapVideoWidth, editor.MediaWorkspace.MapVideoWidth);
         Assert.Equal(editor.VideoUrl, editor.MediaWorkspace.VideoUrl);
         Assert.True(editor.MediaWorkspace.HasMediaContent);
+    }
+
+    [AvaloniaFact]
+    public void GraphWorkspace_TracksContextGraphStateAndCommands()
+    {
+        var editor = CreateEditor(TestSnapshots.Session());
+        var graphPreferences = SessionGraphPreferences.Default with
+        {
+            Rows = [new SessionGraphRowPreferences(TelemetryGraphRowIds.Velocity, true, [])],
+        };
+
+        editor.TelemetryData = TestTelemetryData.CreateProcessed();
+        editor.TravelGraphState = SurfacePresentationState.Ready;
+        editor.ShowVelocityAirtime = true;
+        editor.StatisticsSelectionHighlightRanges =
+        [
+            new TelemetryHighlightRange(0.2, 0.4, SuspensionType.Front),
+        ];
+        editor.GraphWorkspace.SetAnalysisRange(1, 2);
+        editor.GraphWorkspace.GraphPreferences = graphPreferences;
+
+        Assert.Same(editor.TelemetryData, editor.GraphWorkspace.TelemetryData);
+        Assert.Equal(editor.AnalysisRange, editor.GraphWorkspace.AnalysisRange);
+        Assert.Equal(editor.TravelGraphState, editor.GraphWorkspace.TravelGraphState);
+        Assert.Equal(editor.ShowVelocityAirtime, editor.GraphWorkspace.ShowVelocityAirtime);
+        Assert.Equal(editor.StatisticsSelectionHighlightRanges, editor.GraphWorkspace.StatisticsSelectionHighlightRanges);
+        Assert.True(editor.GraphWorkspace.HasStatisticsSelection);
+        Assert.Equal(graphPreferences, editor.GraphPreferences);
+        Assert.Equal(graphPreferences, editor.GraphWorkspace.GraphPreferences);
     }
 
     [AvaloniaFact]

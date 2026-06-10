@@ -59,6 +59,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     public SuspensionSettings ShockSettings => NotesPage.ShockSettings;
     public RecordedSessionContext SessionContext { get; } = new();
     public ISessionShellMobileWorkspace MobileWorkspace { get; }
+    public IRecordedSessionGraphWorkspace GraphWorkspace { get; }
     public ISessionMediaWorkspace MediaWorkspace { get; }
     public SessionTimelineLinkViewModel Timeline => SessionContext.Timeline;
 
@@ -139,7 +140,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     public SessionPlotPreferences PlotPreferences
     {
         get => plotPreferences;
-        private set => SetProperty(ref plotPreferences, value);
+        private set
+        {
+            if (SetProperty(ref plotPreferences, value))
+            {
+                SessionContext.PlotPreferences = value;
+            }
+        }
     }
 
     public SessionGraphPreferences GraphPreferences
@@ -153,10 +160,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             }
 
             recordedPreferences = recordedPreferences with { Graph = value };
+            SessionContext.GraphPreferences = value;
             PersistRecordedPreferenceChangeIfEnabled(current => current with { Graph = value });
         }
     }
-    public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
+    public TelemetrySourceVisibilityStore SourceVisibility => SessionContext.SourceVisibility;
     public PreferencesPageViewModel PreferencesPage { get; } = new();
     public MapViewModel? MapViewModel => SessionContext.MapViewModel;
     public IReadOnlyList<TelemetryPlotRowAction> TravelHeaderActions { get; }
@@ -257,6 +265,36 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     partial void OnSessionOperationStateChanged(SessionOperationPresentationState value)
     {
         SessionContext.SessionOperationState = value;
+    }
+
+    partial void OnTravelGraphStateChanged(SurfacePresentationState value)
+    {
+        SessionContext.TravelGraphState = value;
+    }
+
+    partial void OnVelocityGraphStateChanged(SurfacePresentationState value)
+    {
+        SessionContext.VelocityGraphState = value;
+    }
+
+    partial void OnImuGraphStateChanged(SurfacePresentationState value)
+    {
+        SessionContext.ImuGraphState = value;
+    }
+
+    partial void OnPitchRollGraphStateChanged(SurfacePresentationState value)
+    {
+        SessionContext.PitchRollGraphState = value;
+    }
+
+    partial void OnSpeedGraphStateChanged(SurfacePresentationState value)
+    {
+        SessionContext.SpeedGraphState = value;
+    }
+
+    partial void OnElevationGraphStateChanged(SurfacePresentationState value)
+    {
+        SessionContext.ElevationGraphState = value;
     }
 
     partial void OnTelemetryDataChanged(TelemetryData? value)
@@ -380,18 +418,39 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     partial void OnShowAirtimeChanged(bool value)
     {
+        SessionContext.ShowAirtime = value;
         UpdateAirtimeAction(showAirtimeAction, value);
     }
 
-    partial void OnShowVelocityAirtimeChanged(bool value) => UpdateAirtimeAction(showVelocityAirtimeAction, value);
+    partial void OnShowVelocityAirtimeChanged(bool value)
+    {
+        SessionContext.ShowVelocityAirtime = value;
+        UpdateAirtimeAction(showVelocityAirtimeAction, value);
+    }
 
-    partial void OnShowImuAirtimeChanged(bool value) => UpdateAirtimeAction(showImuAirtimeAction, value);
+    partial void OnShowImuAirtimeChanged(bool value)
+    {
+        SessionContext.ShowImuAirtime = value;
+        UpdateAirtimeAction(showImuAirtimeAction, value);
+    }
 
-    partial void OnShowPitchRollAirtimeChanged(bool value) => UpdateAirtimeAction(showPitchRollAirtimeAction, value);
+    partial void OnShowPitchRollAirtimeChanged(bool value)
+    {
+        SessionContext.ShowPitchRollAirtime = value;
+        UpdateAirtimeAction(showPitchRollAirtimeAction, value);
+    }
 
-    partial void OnShowSpeedAirtimeChanged(bool value) => UpdateAirtimeAction(showSpeedAirtimeAction, value);
+    partial void OnShowSpeedAirtimeChanged(bool value)
+    {
+        SessionContext.ShowSpeedAirtime = value;
+        UpdateAirtimeAction(showSpeedAirtimeAction, value);
+    }
 
-    partial void OnShowElevationAirtimeChanged(bool value) => UpdateAirtimeAction(showElevationAirtimeAction, value);
+    partial void OnShowElevationAirtimeChanged(bool value)
+    {
+        SessionContext.ShowElevationAirtime = value;
+        UpdateAirtimeAction(showElevationAirtimeAction, value);
+    }
 
     partial void OnVideoUrlChanged(string? value)
     {
@@ -416,23 +475,46 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         SessionContext.VideoState = value;
     }
 
-    partial void OnShowStatisticsSelectionChanged(bool value) =>
+    partial void OnStatisticsSelectionHighlightRangesChanged(IReadOnlyList<TelemetryHighlightRange> value)
+    {
+        SessionContext.StatisticsSelectionHighlightRanges = value;
+    }
+
+    partial void OnShowStatisticsSelectionChanged(bool value)
+    {
+        SessionContext.ShowStatisticsSelection = value;
         UpdateStatisticsSelectionAction(showStatisticsSelectionAction, value, HasStatisticsSelection);
+    }
 
-    partial void OnShowVelocityStatisticsSelectionChanged(bool value) =>
+    partial void OnShowVelocityStatisticsSelectionChanged(bool value)
+    {
+        SessionContext.ShowVelocityStatisticsSelection = value;
         UpdateStatisticsSelectionAction(showVelocityStatisticsSelectionAction, value, HasStatisticsSelection);
+    }
 
-    partial void OnShowImuStatisticsSelectionChanged(bool value) =>
+    partial void OnShowImuStatisticsSelectionChanged(bool value)
+    {
+        SessionContext.ShowImuStatisticsSelection = value;
         UpdateStatisticsSelectionAction(showImuStatisticsSelectionAction, value, HasStatisticsSelection);
+    }
 
-    partial void OnShowPitchRollStatisticsSelectionChanged(bool value) =>
+    partial void OnShowPitchRollStatisticsSelectionChanged(bool value)
+    {
+        SessionContext.ShowPitchRollStatisticsSelection = value;
         UpdateStatisticsSelectionAction(showPitchRollStatisticsSelectionAction, value, HasStatisticsSelection);
+    }
 
-    partial void OnShowSpeedStatisticsSelectionChanged(bool value) =>
+    partial void OnShowSpeedStatisticsSelectionChanged(bool value)
+    {
+        SessionContext.ShowSpeedStatisticsSelection = value;
         UpdateStatisticsSelectionAction(showSpeedStatisticsSelectionAction, value, HasStatisticsSelection);
+    }
 
-    partial void OnShowElevationStatisticsSelectionChanged(bool value) =>
+    partial void OnShowElevationStatisticsSelectionChanged(bool value)
+    {
+        SessionContext.ShowElevationStatisticsSelection = value;
         UpdateStatisticsSelectionAction(showElevationStatisticsSelectionAction, value, HasStatisticsSelection);
+    }
 
     #region Private methods
 
@@ -1496,11 +1578,24 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         SpeedHeaderActions = [showSpeedAirtimeAction, showSpeedStatisticsSelectionAction];
         ElevationHeaderActions = [showElevationAirtimeAction, showElevationStatisticsSelectionAction];
         PlotContextMenuActionsByRowId = CreatePlotContextMenuActionsByRowId(autozoomPlotCommand);
+        SessionContext.TravelHeaderActions = TravelHeaderActions;
+        SessionContext.VelocityHeaderActions = VelocityHeaderActions;
+        SessionContext.ImuHeaderActions = ImuHeaderActions;
+        SessionContext.PitchRollHeaderActions = PitchRollHeaderActions;
+        SessionContext.SpeedHeaderActions = SpeedHeaderActions;
+        SessionContext.ElevationHeaderActions = ElevationHeaderActions;
+        SessionContext.PlotContextMenuActionsByRowId = PlotContextMenuActionsByRowId;
         session = SessionFromSnapshot(snapshot);
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
         SessionContext.SessionSnapshot = snapshot;
         MobileWorkspace = new SessionShellMobileWorkspaceViewModel(SessionContext);
+        GraphWorkspace = new RecordedSessionGraphWorkspaceViewModel(
+            SessionContext,
+            value => GraphPreferences = value,
+            SetAnalysisRange,
+            ClearAnalysisRange,
+            SetAnalysisRangeBoundary);
         MediaWorkspace = new SessionMediaWorkspaceViewModel(SessionContext);
         IsComplete = snapshot.HasProcessedData;
         lastObservedHasProcessedData = snapshot.HasProcessedData;
@@ -1527,7 +1622,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         }
         SessionContext.ExtensionSlots = ExtensionSlots;
 
-        GraphPage = new RecordedGraphPageViewModel(this, MediaWorkspace);
+        GraphPage = new RecordedGraphPageViewModel(GraphWorkspace, MediaWorkspace);
         SpringPage = new SpringPageViewModel(this);
         StrokesPage = new StrokesPageViewModel(this);
         DamperPage = new DamperPageViewModel(this);

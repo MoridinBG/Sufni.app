@@ -60,7 +60,7 @@ mc:Ignorable="d">
         <editors:SessionShellDesktopView HasMediaContent="{Binding HasMediaContent}" IsVisible="{Binding ScreenState.IsReady}">
 
             <editors:SessionShellDesktopView.GraphContent>
-                <items:RecordedSessionGraphDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext)}" />
+                <items:RecordedSessionGraphDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).GraphWorkspace}" />
             </editors:SessionShellDesktopView.GraphContent>
 
             <editors:SessionShellDesktopView.MediaContent>

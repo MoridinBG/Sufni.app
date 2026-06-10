@@ -47,7 +47,7 @@ public class SessionDetailDesktopViewTests
         Assert.Null(controlHost!.Content);
         Assert.Same(sidebarView, sidebarHost!.Content);
 
-        Assert.Same(mounted.Editor, graphView.DataContext);
+        Assert.Same(mounted.Editor.GraphWorkspace, graphView.DataContext);
         Assert.Same(mounted.Editor.MediaWorkspace, mediaView.DataContext);
         Assert.Same(mounted.Editor, statisticsView.DataContext);
         Assert.Same(mounted.Editor, sidebarView.DataContext);
