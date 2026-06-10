@@ -1,27 +1,14 @@
 using Avalonia;
 using Avalonia.Controls;
 using Sufni.App.ExtensionHost.RecordedSessions;
-using Sufni.App.Presentation;
 using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Presentation;
 using Sufni.App.ExtensionHost.SessionDetails;
 
 namespace Sufni.App.Views.Controls;
 
-public partial class BalanceStatisticsHost : UserControl
+public partial class BalanceStatisticsHost : StatisticsHostBase
 {
-    public static readonly StyledProperty<SurfacePresentationState> PresentationStateProperty =
-        AvaloniaProperty.Register<BalanceStatisticsHost, SurfacePresentationState>(
-            nameof(PresentationState),
-            SurfacePresentationState.Hidden);
-
-    public static readonly StyledProperty<TelemetryTimeRange?> AnalysisRangeProperty =
-        AvaloniaProperty.Register<BalanceStatisticsHost, TelemetryTimeRange?>(nameof(AnalysisRange));
-
-    public static readonly StyledProperty<TelemetryData?> TelemetryProperty =
-        AvaloniaProperty.Register<BalanceStatisticsHost, TelemetryData?>(nameof(Telemetry));
-
     public static readonly StyledProperty<BalanceType> BalanceTypeProperty =
         AvaloniaProperty.Register<BalanceStatisticsHost, BalanceType>(nameof(BalanceType));
 
@@ -53,12 +40,6 @@ public partial class BalanceStatisticsHost : UserControl
     public static readonly StyledProperty<string?> PlotNameProperty =
         AvaloniaProperty.Register<BalanceStatisticsHost, string?>(nameof(PlotName));
 
-    public static readonly StyledProperty<string> TitleProperty =
-        AvaloniaProperty.Register<BalanceStatisticsHost, string>(nameof(Title), string.Empty);
-
-    public static readonly StyledProperty<double> MinCardHeightProperty =
-        AvaloniaProperty.Register<BalanceStatisticsHost, double>(nameof(MinCardHeight));
-
     public static readonly StyledProperty<double> PlotHeightProperty =
         AvaloniaProperty.Register<BalanceStatisticsHost, double>(nameof(PlotHeight), double.NaN);
 
@@ -71,24 +52,6 @@ public partial class BalanceStatisticsHost : UserControl
     public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
         AvaloniaProperty.Register<BalanceStatisticsHost, RecordedSessionExtensionSlots?>(
             nameof(ExtensionSlots));
-
-    public SurfacePresentationState PresentationState
-    {
-        get => GetValue(PresentationStateProperty);
-        set => SetValue(PresentationStateProperty, value);
-    }
-
-    public TelemetryTimeRange? AnalysisRange
-    {
-        get => GetValue(AnalysisRangeProperty);
-        set => SetValue(AnalysisRangeProperty, value);
-    }
-
-    public TelemetryData? Telemetry
-    {
-        get => GetValue(TelemetryProperty);
-        set => SetValue(TelemetryProperty, value);
-    }
 
     public BalanceType BalanceType
     {
@@ -142,18 +105,6 @@ public partial class BalanceStatisticsHost : UserControl
     {
         get => GetValue(PlotNameProperty);
         set => SetValue(PlotNameProperty, value);
-    }
-
-    public string Title
-    {
-        get => GetValue(TitleProperty);
-        set => SetValue(TitleProperty, value);
-    }
-
-    public double MinCardHeight
-    {
-        get => GetValue(MinCardHeightProperty);
-        set => SetValue(MinCardHeightProperty, value);
     }
 
     public double PlotHeight

@@ -5,7 +5,6 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Sufni.App.ExtensionHost.RecordedSessions;
-using Sufni.App.Presentation;
 using Sufni.App.SessionDetails;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
@@ -17,20 +16,6 @@ namespace Sufni.App.Views.Controls;
 public partial class VelocityStatisticsHost : StatisticsHostBase
 {
     private RecordedSessionExtensionSlots? subscribedSlots;
-
-    public static readonly StyledProperty<SurfacePresentationState> PresentationStateProperty =
-        AvaloniaProperty.Register<VelocityStatisticsHost, SurfacePresentationState>(
-            nameof(PresentationState),
-            SurfacePresentationState.Hidden);
-
-    public static readonly StyledProperty<TelemetryTimeRange?> AnalysisRangeProperty =
-        AvaloniaProperty.Register<VelocityStatisticsHost, TelemetryTimeRange?>(nameof(AnalysisRange));
-
-    public static readonly StyledProperty<TelemetryData?> TelemetryProperty =
-        AvaloniaProperty.Register<VelocityStatisticsHost, TelemetryData?>(nameof(Telemetry));
-
-    public static readonly StyledProperty<SuspensionType> SuspensionTypeProperty =
-        AvaloniaProperty.Register<VelocityStatisticsHost, SuspensionType>(nameof(SuspensionType));
 
     public static readonly StyledProperty<VelocityAverageMode> VelocityAverageModeProperty =
         AvaloniaProperty.Register<VelocityStatisticsHost, VelocityAverageMode>(nameof(VelocityAverageMode));
@@ -70,12 +55,6 @@ public partial class VelocityStatisticsHost : StatisticsHostBase
     public static readonly StyledProperty<double?> LsrPercentageProperty =
         AvaloniaProperty.Register<VelocityStatisticsHost, double?>(nameof(LsrPercentage));
 
-    public static readonly StyledProperty<string> TitleProperty =
-        AvaloniaProperty.Register<VelocityStatisticsHost, string>(nameof(Title), string.Empty);
-
-    public static readonly StyledProperty<double> MinCardHeightProperty =
-        AvaloniaProperty.Register<VelocityStatisticsHost, double>(nameof(MinCardHeight));
-
     public static readonly StyledProperty<double> PlotHeightProperty =
         AvaloniaProperty.Register<VelocityStatisticsHost, double>(nameof(PlotHeight), double.NaN);
 
@@ -105,30 +84,6 @@ public partial class VelocityStatisticsHost : StatisticsHostBase
         AvaloniaProperty.Register<VelocityStatisticsHost, IReadOnlyList<RecordedSessionStatisticsMetricContribution>>(
             nameof(HscMetricAnnotations),
             Array.Empty<RecordedSessionStatisticsMetricContribution>());
-
-    public SurfacePresentationState PresentationState
-    {
-        get => GetValue(PresentationStateProperty);
-        set => SetValue(PresentationStateProperty, value);
-    }
-
-    public TelemetryTimeRange? AnalysisRange
-    {
-        get => GetValue(AnalysisRangeProperty);
-        set => SetValue(AnalysisRangeProperty, value);
-    }
-
-    public TelemetryData? Telemetry
-    {
-        get => GetValue(TelemetryProperty);
-        set => SetValue(TelemetryProperty, value);
-    }
-
-    public SuspensionType SuspensionType
-    {
-        get => GetValue(SuspensionTypeProperty);
-        set => SetValue(SuspensionTypeProperty, value);
-    }
 
     public VelocityAverageMode VelocityAverageMode
     {
@@ -196,18 +151,6 @@ public partial class VelocityStatisticsHost : StatisticsHostBase
         set => SetValue(LsrPercentageProperty, value);
     }
 
-    public string Title
-    {
-        get => GetValue(TitleProperty);
-        set => SetValue(TitleProperty, value);
-    }
-
-    public double MinCardHeight
-    {
-        get => GetValue(MinCardHeightProperty);
-        set => SetValue(MinCardHeightProperty, value);
-    }
-
     public double PlotHeight
     {
         get => GetValue(PlotHeightProperty);
@@ -257,7 +200,6 @@ public partial class VelocityStatisticsHost : StatisticsHostBase
         {
             if (e.Property.Name is nameof(SuspensionType))
             {
-                SetSelectedRangeSelectionSuspensionType(SuspensionType);
                 RefreshMetricAnnotations();
             }
 
@@ -267,7 +209,6 @@ public partial class VelocityStatisticsHost : StatisticsHostBase
                 RefreshMetricAnnotations();
             }
         };
-        SetSelectedRangeSelectionSuspensionType(SuspensionType);
         RefreshMetricAnnotations();
     }
 

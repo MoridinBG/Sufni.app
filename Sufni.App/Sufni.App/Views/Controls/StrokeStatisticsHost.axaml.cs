@@ -1,34 +1,12 @@
 using Avalonia;
 using Avalonia.Controls;
 using Sufni.App.ExtensionHost.RecordedSessions;
-using Sufni.App.Presentation;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Presentation;
 
 namespace Sufni.App.Views.Controls;
 
 public partial class StrokeStatisticsHost : StatisticsHostBase
 {
-    public static readonly StyledProperty<SurfacePresentationState> PresentationStateProperty =
-        AvaloniaProperty.Register<StrokeStatisticsHost, SurfacePresentationState>(
-            nameof(PresentationState),
-            SurfacePresentationState.Hidden);
-
-    public static readonly StyledProperty<TelemetryTimeRange?> AnalysisRangeProperty =
-        AvaloniaProperty.Register<StrokeStatisticsHost, TelemetryTimeRange?>(nameof(AnalysisRange));
-
-    public static readonly StyledProperty<TelemetryData?> TelemetryProperty =
-        AvaloniaProperty.Register<StrokeStatisticsHost, TelemetryData?>(nameof(Telemetry));
-
-    public static readonly StyledProperty<SuspensionType> SuspensionTypeProperty =
-        AvaloniaProperty.Register<StrokeStatisticsHost, SuspensionType>(nameof(SuspensionType));
-
-    public static readonly StyledProperty<string> TitleProperty =
-        AvaloniaProperty.Register<StrokeStatisticsHost, string>(nameof(Title), string.Empty);
-
-    public static readonly StyledProperty<double> MinCardHeightProperty =
-        AvaloniaProperty.Register<StrokeStatisticsHost, double>(nameof(MinCardHeight));
-
     public static readonly StyledProperty<GridLength> CompressionLengthRowHeightProperty =
         AvaloniaProperty.Register<StrokeStatisticsHost, GridLength>(
             nameof(CompressionLengthRowHeight),
@@ -57,42 +35,6 @@ public partial class StrokeStatisticsHost : StatisticsHostBase
     public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
         AvaloniaProperty.Register<StrokeStatisticsHost, RecordedSessionExtensionSlots?>(
             nameof(ExtensionSlots));
-
-    public SurfacePresentationState PresentationState
-    {
-        get => GetValue(PresentationStateProperty);
-        set => SetValue(PresentationStateProperty, value);
-    }
-
-    public TelemetryTimeRange? AnalysisRange
-    {
-        get => GetValue(AnalysisRangeProperty);
-        set => SetValue(AnalysisRangeProperty, value);
-    }
-
-    public TelemetryData? Telemetry
-    {
-        get => GetValue(TelemetryProperty);
-        set => SetValue(TelemetryProperty, value);
-    }
-
-    public SuspensionType SuspensionType
-    {
-        get => GetValue(SuspensionTypeProperty);
-        set => SetValue(SuspensionTypeProperty, value);
-    }
-
-    public string Title
-    {
-        get => GetValue(TitleProperty);
-        set => SetValue(TitleProperty, value);
-    }
-
-    public double MinCardHeight
-    {
-        get => GetValue(MinCardHeightProperty);
-        set => SetValue(MinCardHeightProperty, value);
-    }
 
     public GridLength CompressionLengthRowHeight
     {
@@ -133,13 +75,5 @@ public partial class StrokeStatisticsHost : StatisticsHostBase
     public StrokeStatisticsHost()
     {
         InitializeComponent();
-        PropertyChanged += (_, e) =>
-        {
-            if (e.Property.Name is nameof(SuspensionType))
-            {
-                SetSelectedRangeSelectionSuspensionType(SuspensionType);
-            }
-        };
-        SetSelectedRangeSelectionSuspensionType(SuspensionType);
     }
 }
