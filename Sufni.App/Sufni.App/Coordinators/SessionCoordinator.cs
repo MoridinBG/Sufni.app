@@ -36,14 +36,12 @@ public class SessionCoordinator : ISessionCoordinator
     private readonly ISessionStoreWriter sessionStore;
     private readonly SessionLoader sessionLoader;
     private readonly SessionSaver sessionSaver;
+    private readonly LiveCaptureSaver liveCaptureSaver;
     private readonly ISessionRepository sessionRepository;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
-    private readonly ISynchronizableRepository<Setup> setupRepository;
-    private readonly ISynchronizableRepository<Bike> bikeRepository;
     private readonly ISynchronizableRepository<Track> trackEntityRepository;
     private readonly ISynchronizableRepository<Session> sessionEntityRepository;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
-    private readonly ISessionAnalysisService sessionAnalysisService;
     private readonly ISessionPreferences sessionPreferences;
     private readonly IShellCoordinator shell;
     private readonly Func<IEditorFactory> editorFactory;
@@ -56,14 +54,12 @@ public class SessionCoordinator : ISessionCoordinator
         ISessionStoreWriter sessionStore,
         SessionLoader sessionLoader,
         SessionSaver sessionSaver,
+        LiveCaptureSaver liveCaptureSaver,
         ISessionRepository sessionRepository,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
-        ISynchronizableRepository<Setup> setupRepository,
-        ISynchronizableRepository<Bike> bikeRepository,
         ISynchronizableRepository<Track> trackEntityRepository,
         ISynchronizableRepository<Session> sessionEntityRepository,
         IBackgroundTaskRunner backgroundTaskRunner,
-        ISessionAnalysisService sessionAnalysisService,
         ISessionPreferences sessionPreferences,
         IShellCoordinator shell,
         Func<IEditorFactory> editorFactory,
@@ -76,14 +72,12 @@ public class SessionCoordinator : ISessionCoordinator
         this.sessionStore = sessionStore;
         this.sessionLoader = sessionLoader;
         this.sessionSaver = sessionSaver;
+        this.liveCaptureSaver = liveCaptureSaver;
         this.sessionRepository = sessionRepository;
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
-        this.setupRepository = setupRepository;
-        this.bikeRepository = bikeRepository;
         this.trackEntityRepository = trackEntityRepository;
         this.sessionEntityRepository = sessionEntityRepository;
         this.backgroundTaskRunner = backgroundTaskRunner;
-        this.sessionAnalysisService = sessionAnalysisService;
         this.sessionPreferences = sessionPreferences;
         this.shell = shell;
         this.editorFactory = editorFactory;
@@ -125,68 +119,12 @@ public class SessionCoordinator : ISessionCoordinator
     public virtual Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated) =>
         sessionSaver.SaveAsync(session, baselineUpdated);
 
-    public virtual async Task<LiveSessionSaveResult> SaveLiveCaptureAsync(
+    public virtual Task<LiveSessionSaveResult> SaveLiveCaptureAsync(
         Session session,
         LiveSessionCapturePackage capture,
         SessionPreferences preferences,
         CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(preferences);
-
-        logger.Information("Starting live session save for {SessionId}", session.Id);
-
-        try
-        {
-            var processingOptions = preferences.Processing.ToTelemetryProcessingOptions();
-            var source = RecordedSessionSourceFactory.CreateLiveCapture(session.Id, capture.TelemetryCapture);
-            var setup = await setupRepository.GetAsync(capture.Context.SetupId)
-                        ?? throw new InvalidOperationException("Setup is missing.");
-            var bike = await bikeRepository.GetAsync(setup.BikeId)
-                       ?? throw new InvalidOperationException("Bike is missing.");
-            var setupSnapshot = SetupSnapshot.From(setup, boardId: null);
-            var bikeSnapshot = BikeSnapshot.From(bike);
-            var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
-            var sessionSnapshot = SessionSnapshot.From(session);
-            var domain = new RecordedSessionDomainSnapshot(
-                sessionSnapshot,
-                setupSnapshot,
-                bikeSnapshot,
-                CurrentFingerprint: null,
-                PersistedFingerprint: null,
-                sourceSnapshot,
-                new SessionStaleness.UnknownLegacyFingerprint(),
-                DerivedChangeKind.None);
-
-            var reprocessResult = await backgroundTaskRunner.RunAsync(
-                () => recordedSessionReprocessor.ReprocessAsync(domain, source, processingOptions, cancellationToken),
-                cancellationToken);
-
-            cancellationToken.ThrowIfCancellationRequested();
-
-            session.ProcessedData = reprocessResult.TelemetryData.BinaryForm;
-            session.ProcessingFingerprintJson = AppJson.Serialize(reprocessResult.Fingerprint);
-
-            var fresh = await sessionRepository.PutProcessedSessionAsync(session, reprocessResult.GeneratedFullTrack, source);
-
-            var snapshot = SessionSnapshot.From(fresh);
-            await sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences);
-
-            sessionStore.Upsert(snapshot);
-            sourceStore.Upsert(sourceSnapshot);
-
-            logger.Information("Live session save completed for {SessionId}", session.Id);
-            return new LiveSessionSaveResult.Saved(snapshot.Id, snapshot.Updated);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception e)
-        {
-            logger.Error(e, "Live session save failed for {SessionId}", session.Id);
-            return new LiveSessionSaveResult.Failed(e.Message);
-        }
-    }
+        => liveCaptureSaver.SaveLiveCaptureAsync(session, capture, preferences, cancellationToken);
 
     public virtual async Task<SessionRecomputeResult> RecomputeAsync(
         Guid sessionId,

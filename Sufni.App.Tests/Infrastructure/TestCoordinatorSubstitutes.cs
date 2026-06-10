@@ -103,6 +103,9 @@ internal static class TestCoordinatorSubstitutes
         var sessionPresentationService = Substitute.For<ISessionPresentationService>();
         var domainQuery = Substitute.For<IRecordedSessionDomainQuery>();
         var shell = Substitute.For<IShellCoordinator>();
+        var sessionPreferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
+        var sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
+        var reprocessor = Substitute.For<IRecordedSessionReprocessor>();
         var sessionLoader = new SessionLoader(
             sessionStore,
             sessionRepository,
@@ -116,25 +119,32 @@ internal static class TestCoordinatorSubstitutes
             sessionStore,
             sessionRepository,
             shell);
+        var liveCaptureSaver = new LiveCaptureSaver(
+            sessionStore,
+            Substitute.For<ISynchronizableRepository<Setup>>(),
+            Substitute.For<ISynchronizableRepository<Bike>>(),
+            sessionRepository,
+            backgroundTaskRunner,
+            sessionPreferences,
+            sourceStore,
+            reprocessor);
 
         var coordinator = Substitute.For<SessionCoordinator>(
             sessionStore,
             sessionLoader,
             sessionSaver,
+            liveCaptureSaver,
             sessionRepository,
             Substitute.For<IRecordedSessionSourceRepository>(),
-            Substitute.For<ISynchronizableRepository<Setup>>(),
-            Substitute.For<ISynchronizableRepository<Bike>>(),
             Substitute.For<ISynchronizableRepository<Track>>(),
             Substitute.For<ISynchronizableRepository<Session>>(),
             backgroundTaskRunner,
-            Substitute.For<ISessionAnalysisService>(),
-            Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded(),
+            sessionPreferences,
             shell,
             new Func<IEditorFactory>(() => Substitute.For<IEditorFactory>()),
-            Substitute.For<IRecordedSessionSourceStoreWriter>(),
+            sourceStore,
             domainQuery,
-            Substitute.For<IRecordedSessionReprocessor>(),
+            reprocessor,
             null,
             Substitute.For<IExtensionCascadeService>());
 

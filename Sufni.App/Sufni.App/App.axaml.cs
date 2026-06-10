@@ -175,18 +175,17 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ITrackCoordinator>(sp => sp.GetRequiredService<TrackCoordinator>());
         ServiceCollection.AddSingleton<SessionLoader>();
         ServiceCollection.AddSingleton<SessionSaver>();
+        ServiceCollection.AddSingleton<LiveCaptureSaver>();
         ServiceCollection.AddSingleton<SessionCoordinator>(sp => new SessionCoordinator(
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<SessionLoader>(),
             sp.GetRequiredService<SessionSaver>(),
+            sp.GetRequiredService<LiveCaptureSaver>(),
             sp.GetRequiredService<ISessionRepository>(),
             sp.GetRequiredService<IRecordedSessionSourceRepository>(),
-            sp.GetRequiredService<ISynchronizableRepository<Setup>>(),
-            sp.GetRequiredService<ISynchronizableRepository<Bike>>(),
             sp.GetRequiredService<ISynchronizableRepository<Track>>(),
             sp.GetRequiredService<ISynchronizableRepository<Session>>(),
             sp.GetRequiredService<IBackgroundTaskRunner>(),
-            sp.GetRequiredService<ISessionAnalysisService>(),
             sp.GetRequiredService<ISessionPreferences>(),
             sp.GetRequiredService<IShellCoordinator>(),
             sp.GetRequiredService<Func<IEditorFactory>>(),

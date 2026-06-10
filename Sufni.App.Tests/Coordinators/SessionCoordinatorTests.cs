@@ -37,7 +37,6 @@ public class SessionCoordinatorTests
     private readonly IHttpApiService http = Substitute.For<IHttpApiService>();
     private readonly TrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
-    private readonly ISessionAnalysisService sessionAnalysisService = Substitute.For<ISessionAnalysisService>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
     private readonly ISessionPreferences sessionPreferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
@@ -80,19 +79,28 @@ public class SessionCoordinatorTests
             sessionRepository,
             shell);
 
+    private LiveCaptureSaver CreateLiveCaptureSaver() =>
+        new(
+            sessionStore,
+            setupRepository,
+            bikeRepository,
+            sessionRepository,
+            backgroundTaskRunner,
+            sessionPreferences,
+            sourceStore,
+            reprocessor);
+
     private SessionCoordinator CreateCoordinator(ISynchronizationServerService? sync = null) =>
         new(
             sessionStore,
             CreateLoader(),
             CreateSaver(),
+            CreateLiveCaptureSaver(),
             sessionRepository,
             recordedSessionSourceRepository,
-            setupRepository,
-            bikeRepository,
             trackEntityRepository,
             sessionEntityRepository,
             backgroundTaskRunner,
-            sessionAnalysisService,
             sessionPreferences,
             shell,
             () => editorFactory,
