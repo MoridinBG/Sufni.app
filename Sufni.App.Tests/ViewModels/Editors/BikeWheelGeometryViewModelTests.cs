@@ -47,6 +47,17 @@ public class BikeWheelGeometryViewModelTests
         Assert.Equal(EtrtoRimSize.Inch29, viewModel.FrontWheelRimSize);
         Assert.Equal(2.4, viewModel.FrontWheelTireWidth);
         Assert.Equal(TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4), viewModel.FrontWheelDiameter);
+        Assert.Equal($"29\" (622mm) / {2.4:0.00}\"", viewModel.FrontWheelDisplayText);
+    }
+
+    [AvaloniaFact]
+    public void RimSizeOptions_UseBikeEditorDisplayNames()
+    {
+        var viewModel = new BikeWheelGeometryViewModel();
+
+        Assert.Contains(viewModel.RimSizeOptions, option =>
+            option.Value == EtrtoRimSize.Inch275 &&
+            option.DisplayName == "27.5\" (584mm)");
     }
 
     [AvaloniaFact]
