@@ -14,6 +14,7 @@ public sealed class LeverageRatio
     };
 
     private readonly IReadOnlyList<LeverageRatioPoint> points;
+    private readonly CoordinateList travelCurve;
 
     [JsonConstructor]
     public LeverageRatio(IReadOnlyList<LeverageRatioPoint> points)
@@ -27,14 +28,17 @@ public sealed class LeverageRatio
         }
 
         this.points = [.. points];
+        travelCurve = new CoordinateList(
+            this.points.Select(point => point.ShockTravelMm).ToList(),
+            this.points.Select(point => point.WheelTravelMm).ToList());
     }
 
     [JsonPropertyName("points")]
     public IReadOnlyList<LeverageRatioPoint> Points => points;
 
-    public double MaxShockStroke => points[^1].ShockTravelMm;
+    public double MaxShockStroke => travelCurve.X[^1];
 
-    public double MaxWheelTravel => points[^1].WheelTravelMm;
+    public double MaxWheelTravel => travelCurve.Y[^1];
 
     public static LeverageRatio FromPoints(IReadOnlyList<LeverageRatioPoint> points)
     {
@@ -60,33 +64,7 @@ public sealed class LeverageRatio
 
     public string ToJson() => JsonSerializer.Serialize(new LeverageRatioJsonModel([.. points]), JsonOptions);
 
-    public double WheelTravelAt(double shockStroke)
-    {
-        if (shockStroke <= points[0].ShockTravelMm)
-        {
-            return points[0].WheelTravelMm;
-        }
-
-        if (shockStroke >= MaxShockStroke)
-        {
-            return MaxWheelTravel;
-        }
-
-        for (var index = 1; index < points.Count; index++)
-        {
-            var previous = points[index - 1];
-            var current = points[index];
-            if (shockStroke > current.ShockTravelMm)
-            {
-                continue;
-            }
-
-            var segmentProgress = (shockStroke - previous.ShockTravelMm) / (current.ShockTravelMm - previous.ShockTravelMm);
-            return previous.WheelTravelMm + (current.WheelTravelMm - previous.WheelTravelMm) * segmentProgress;
-        }
-
-        return MaxWheelTravel;
-    }
+    public double WheelTravelAt(double shockStroke) => TravelInterpolation.WheelTravelAt(travelCurve, shockStroke);
 
     public IReadOnlyList<LeverageRatioSample> DeriveLeverageRatioSamples()
     {

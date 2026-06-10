@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using MathNet.Numerics;
 using Sufni.App.Models;
@@ -177,33 +176,7 @@ internal static class RearTravelCalibrationBuilder
         var dataset = new BikeCharacteristics(solution).ShockStrokeToWheelTravelDataset();
         return new RearTravelCalibration(
             dataset.Y[^1],
-            measurement => Interpolate(dataset.X, dataset.Y, Math.Min(maxShockStroke, measurementToShockStroke(measurement))),
+            measurement => TravelInterpolation.WheelTravelAt(dataset, Math.Min(maxShockStroke, measurementToShockStroke(measurement))),
             measurementWraps);
-    }
-
-    private static double Interpolate(IReadOnlyList<double> x, IReadOnlyList<double> y, double value)
-    {
-        if (value <= x[0])
-        {
-            return y[0];
-        }
-
-        if (value >= x[^1])
-        {
-            return y[^1];
-        }
-
-        for (var index = 1; index < x.Count; index++)
-        {
-            if (value > x[index])
-            {
-                continue;
-            }
-
-            var progress = (value - x[index - 1]) / (x[index] - x[index - 1]);
-            return y[index - 1] + (y[index] - y[index - 1]) * progress;
-        }
-
-        return y[^1];
     }
 }
