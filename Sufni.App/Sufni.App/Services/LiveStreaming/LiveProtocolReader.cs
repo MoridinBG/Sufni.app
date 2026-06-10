@@ -10,21 +10,23 @@ namespace Sufni.App.Services.LiveStreaming;
 // bytes stay buffered until a full header and payload are available.
 public sealed class LiveProtocolReader
 {
-    private readonly UnreadByteBuffer unreadBytes = new();
+    private readonly FramedMessageReader frameReader = new(
+        LiveProtocolConstants.FrameHeaderSize,
+        static headerBytes => ParseHeader(headerBytes).TotalFrameLength);
 
     // Number of unread bytes currently buffered.
-    public int BufferedByteCount => unreadBytes.BufferedByteCount;
+    public int BufferedByteCount => frameReader.BufferedByteCount;
 
     // Appends newly read socket bytes to the unread portion of the buffer.
     public void Append(ReadOnlySpan<byte> bytes)
     {
-        unreadBytes.Append(bytes);
+        frameReader.Append(bytes);
     }
 
     // Clears all unread buffered bytes.
     public void Reset()
     {
-        unreadBytes.Reset();
+        frameReader.Reset();
     }
 
     // Tries to parse and consume exactly one complete frame. Returns false when more
@@ -32,32 +34,13 @@ public sealed class LiveProtocolReader
     // consumed and skipped so a newer-firmware frame never tears down the connection.
     public bool TryReadFrame(out LiveProtocolFrame? frame)
     {
-        while (true)
-        {
-            frame = null;
-            if (unreadBytes.BufferedByteCount < LiveProtocolConstants.FrameHeaderSize)
-            {
-                return false;
-            }
+        return frameReader.TryReadFrame(ParseKnownFrame, out frame);
+    }
 
-            var pendingSpan = unreadBytes.UnreadBytes;
-            var header = ParseHeader(pendingSpan[..LiveProtocolConstants.FrameHeaderSize]);
-            var totalLength = header.TotalFrameLength;
-            if (unreadBytes.BufferedByteCount < totalLength)
-            {
-                return false;
-            }
-
-            if (!IsKnownFrameType(header.FrameType))
-            {
-                unreadBytes.Consume(totalLength);
-                continue;
-            }
-
-            frame = ParseFrame(pendingSpan[..totalLength]);
-            unreadBytes.Consume(totalLength);
-            return true;
-        }
+    private static LiveProtocolFrame? ParseKnownFrame(ReadOnlySpan<byte> frameBytes)
+    {
+        var header = ParseHeader(frameBytes[..LiveProtocolConstants.FrameHeaderSize]);
+        return IsKnownFrameType(header.FrameType) ? ParseFrame(frameBytes) : null;
     }
 
     private static bool IsKnownFrameType(LiveFrameType frameType) => frameType switch

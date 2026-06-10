@@ -7,39 +7,25 @@ namespace Sufni.App.Services.Management;
 
 internal sealed class ManagementProtocolReader
 {
-    private readonly UnreadByteBuffer unreadBytes = new();
+    private readonly FramedMessageReader frameReader = new(
+        ManagementProtocolConstants.FrameHeaderSize,
+        static headerBytes => ParseHeader(headerBytes).TotalFrameLength);
 
-    public int BufferedByteCount => unreadBytes.BufferedByteCount;
+    public int BufferedByteCount => frameReader.BufferedByteCount;
 
     public void Append(ReadOnlySpan<byte> bytes)
     {
-        unreadBytes.Append(bytes);
+        frameReader.Append(bytes);
     }
 
     public void Reset()
     {
-        unreadBytes.Reset();
+        frameReader.Reset();
     }
 
     public bool TryReadFrame(out ManagementProtocolFrame? frame)
     {
-        frame = null;
-        if (unreadBytes.BufferedByteCount < ManagementProtocolConstants.FrameHeaderSize)
-        {
-            return false;
-        }
-
-        var pendingSpan = unreadBytes.UnreadBytes;
-        var header = ParseHeader(pendingSpan[..ManagementProtocolConstants.FrameHeaderSize]);
-        if (unreadBytes.BufferedByteCount < header.TotalFrameLength)
-        {
-            return false;
-        }
-
-        frame = ParseFrame(pendingSpan[..header.TotalFrameLength]);
-        unreadBytes.Consume(header.TotalFrameLength);
-
-        return true;
+        return frameReader.TryReadFrame(static frameBytes => ParseFrame(frameBytes), out frame);
     }
 
     public static byte[] CreateListDirectoryRequest(uint requestId, DaqDirectoryId directoryId)
