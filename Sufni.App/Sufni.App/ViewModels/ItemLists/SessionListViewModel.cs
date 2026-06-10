@@ -52,8 +52,9 @@ public partial class SessionListViewModel : ItemListViewModelBase
         IRecordedSessionGraph recordedSessionGraph,
         SessionCoordinator sessionCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
-        IRecordedSessionListExtensionService? listExtensionService = null)
-        : base(uiThreadDispatcher)
+        IRecordedSessionListExtensionService? listExtensionService = null,
+        IBackgroundTaskRunner? backgroundTaskRunner = null)
+        : base(uiThreadDispatcher, backgroundTaskRunner)
     {
         this.sessionCoordinator = sessionCoordinator;
         this.listExtensionService = listExtensionService;

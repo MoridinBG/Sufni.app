@@ -41,11 +41,16 @@ public partial class ItemListViewModelBase : ViewModelBase
 
     public ObservableCollection<PendingDeleteEntryViewModel> PendingDeletes { get; } = [];
 
+    private readonly IBackgroundTaskRunner backgroundTaskRunner;
+
     #endregion Observable properties
 
-    public ItemListViewModelBase(IUiThreadDispatcher uiThreadDispatcher)
+    public ItemListViewModelBase(
+        IUiThreadDispatcher uiThreadDispatcher,
+        IBackgroundTaskRunner? backgroundTaskRunner = null)
         : base(uiThreadDispatcher)
     {
+        this.backgroundTaskRunner = backgroundTaskRunner ?? new BackgroundTaskRunner();
     }
 
     #region Property change handlers
@@ -111,7 +116,9 @@ public partial class ItemListViewModelBase : ViewModelBase
                 }
             },
             onUndone: onUndone,
-            remove: e => PendingDeletes.Remove(e));
+            remove: e => PendingDeletes.Remove(e),
+            UiThreadDispatcher,
+            backgroundTaskRunner);
 
         PendingDeletes.Add(entry);
         entry.StartTimer(PendingDeleteWindowMs);

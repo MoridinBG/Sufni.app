@@ -43,8 +43,9 @@ public partial class BikeListViewModel : ItemListViewModelBase
         IBikeStore bikeStore,
         BikeCoordinator bikeCoordinator,
         IBikeDependencyQuery dependencyQuery,
-        IUiThreadDispatcher uiThreadDispatcher)
-        : base(uiThreadDispatcher)
+        IUiThreadDispatcher uiThreadDispatcher,
+        IBackgroundTaskRunner? backgroundTaskRunner = null)
+        : base(uiThreadDispatcher, backgroundTaskRunner)
     {
         this.bikeStore = bikeStore;
         this.bikeCoordinator = bikeCoordinator;

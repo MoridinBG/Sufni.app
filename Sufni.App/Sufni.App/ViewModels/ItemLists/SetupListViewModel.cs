@@ -40,8 +40,9 @@ public partial class SetupListViewModel : ItemListViewModelBase
     public SetupListViewModel(
         ISetupStore setupStore,
         SetupCoordinator setupCoordinator,
-        IUiThreadDispatcher uiThreadDispatcher)
-        : base(uiThreadDispatcher)
+        IUiThreadDispatcher uiThreadDispatcher,
+        IBackgroundTaskRunner? backgroundTaskRunner = null)
+        : base(uiThreadDispatcher, backgroundTaskRunner)
     {
         this.setupStore = setupStore;
         this.setupCoordinator = setupCoordinator;

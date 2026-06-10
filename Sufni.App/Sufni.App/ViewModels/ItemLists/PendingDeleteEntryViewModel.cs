@@ -1,9 +1,10 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sufni.App.Services;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.ViewModels.ItemLists;
 
@@ -18,6 +19,8 @@ public partial class PendingDeleteEntryViewModel : ObservableObject
     private readonly Func<Task> finalize;
     private readonly Action onUndone;
     private readonly Action<PendingDeleteEntryViewModel> remove;
+    private readonly IUiThreadDispatcher uiThreadDispatcher;
+    private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private CancellationTokenSource? cts;
 
     public string Name { get; }
@@ -26,12 +29,16 @@ public partial class PendingDeleteEntryViewModel : ObservableObject
         string name,
         Func<Task> finalize,
         Action onUndone,
-        Action<PendingDeleteEntryViewModel> remove)
+        Action<PendingDeleteEntryViewModel> remove,
+        IUiThreadDispatcher uiThreadDispatcher,
+        IBackgroundTaskRunner? backgroundTaskRunner = null)
     {
         Name = name;
         this.finalize = finalize;
         this.onUndone = onUndone;
         this.remove = remove;
+        this.uiThreadDispatcher = uiThreadDispatcher;
+        this.backgroundTaskRunner = backgroundTaskRunner ?? new BackgroundTaskRunner();
     }
 
     public void StartTimer(int delayMs)
@@ -39,7 +46,7 @@ public partial class PendingDeleteEntryViewModel : ObservableObject
         cts = new CancellationTokenSource();
         var token = cts.Token;
 
-        _ = Task.Run(async () =>
+        _ = backgroundTaskRunner.RunAsync(async () =>
         {
             try
             {
@@ -50,12 +57,12 @@ public partial class PendingDeleteEntryViewModel : ObservableObject
                 return;
             }
 
-            await Dispatcher.UIThread.InvokeAsync(async () =>
+            await uiThreadDispatcher.InvokeAsync(async () =>
             {
                 if (token.IsCancellationRequested) return;
                 await CompleteAsync();
             });
-        });
+        }, token);
     }
 
     [RelayCommand]

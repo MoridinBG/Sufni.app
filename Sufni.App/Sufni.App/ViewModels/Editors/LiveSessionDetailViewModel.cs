@@ -688,42 +688,48 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         var cts = new CancellationTokenSource();
         bakeCts = cts;
         var service = sessionPresentationService;
-        var runner = backgroundTaskRunner;
         var cutoffs = DampingSpeedCutoffs;
 
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                var data = await runner.RunAsync(
-                    () => service.BuildCachePresentation(telemetryData, dimensions, cts.Token, cutoffs),
-                    cts.Token);
+        _ = BakeCachePresentationAsync(service, telemetryData, dimensions, cts, cutoffs);
+    }
 
+    private async Task BakeCachePresentationAsync(
+        ISessionPresentationService service,
+        TelemetryData telemetryData,
+        SessionPresentationDimensions dimensions,
+        CancellationTokenSource cts,
+        DampingSpeedCutoffs cutoffs)
+    {
+        try
+        {
+            var data = await backgroundTaskRunner.RunAsync(
+                () => service.BuildCachePresentation(telemetryData, dimensions, cts.Token, cutoffs),
+                cts.Token);
+
+            if (cts.IsCancellationRequested)
+            {
+                return;
+            }
+
+            Dispatcher.UIThread.Post(() =>
+            {
                 if (cts.IsCancellationRequested)
                 {
                     return;
                 }
 
-                Dispatcher.UIThread.Post(() =>
-                {
-                    if (cts.IsCancellationRequested)
-                    {
-                        return;
-                    }
-
-                    ApplyCachePresentation(data);
-                }, DispatcherPriority.Background);
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception e)
-            {
-                Dispatcher.UIThread.Post(() =>
-                    ErrorMessages.Add($"Live statistics render failed: {e.Message}"),
-                    DispatcherPriority.Background);
-            }
-        });
+                ApplyCachePresentation(data);
+            }, DispatcherPriority.Background);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception e)
+        {
+            Dispatcher.UIThread.Post(() =>
+                ErrorMessages.Add($"Live statistics render failed: {e.Message}"),
+                DispatcherPriority.Background);
+        }
     }
 
     private static TrackTimeRange? CreateLiveTrackTimelineContext(LiveSessionControlState controls)
