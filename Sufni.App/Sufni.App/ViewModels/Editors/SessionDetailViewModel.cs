@@ -75,6 +75,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     private readonly RecordedSessionExtensionSlots emptyExtensionSlots = new();
     private readonly RecordedSessionExtensionManager? recordedSessionExtensions;
     private readonly SessionStalenessReconciler stalenessReconciler;
+    private readonly StatisticsSelectionController statisticsSelectionController = new();
     private readonly Dictionary<string, PageViewModelBase> recordedSessionExtensionPages = [];
     private Session session;
     private RecordedGraphPageViewModel GraphPage { get; }
@@ -109,8 +110,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     private readonly TelemetryPlotRowAction showSpeedStatisticsSelectionAction;
     private readonly TelemetryPlotRowAction showElevationStatisticsSelectionAction;
     private readonly PlotAutozoomController plotAutozoomController;
-    private TelemetryRangeSelection? frontTelemetryRangeSelection;
-    private TelemetryRangeSelection? rearTelemetryRangeSelection;
     private SurfacePresentationState recordedTravelGraphBaseState = SurfacePresentationState.Hidden;
     private SurfacePresentationState recordedVelocityGraphBaseState = SurfacePresentationState.Hidden;
     private SurfacePresentationState recordedImuGraphBaseState = SurfacePresentationState.Hidden;
@@ -168,8 +167,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     public IReadOnlyList<TelemetryPlotRowAction> SpeedHeaderActions { get; }
     public IReadOnlyList<TelemetryPlotRowAction> ElevationHeaderActions { get; }
     public bool HasStatisticsSelection => StatisticsSelectionHighlightRanges.Count > 0;
-    public TelemetryRangeSelection? SelectedFrontRangeSelection => frontTelemetryRangeSelection;
-    public TelemetryRangeSelection? SelectedRearRangeSelection => rearTelemetryRangeSelection;
+    public TelemetryRangeSelection? SelectedFrontRangeSelection => statisticsSelectionController.SelectedFrontRangeSelection;
+    public TelemetryRangeSelection? SelectedRearRangeSelection => statisticsSelectionController.SelectedRearRangeSelection;
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> PlotContextMenuActionsByRowId { get; }
     public bool CanEditDampingSpeedCutoffs => dampingSpeedCutoffOwner is not null;
     public RecordedSessionExtensionSlots ExtensionSlots => recordedSessionExtensions?.ExtensionSlots ?? emptyExtensionSlots;
@@ -1612,34 +1611,20 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
 
     private void ClearStatisticsSelections()
     {
-        SetSelectedFrontRangeSelection(null);
-        SetSelectedRearRangeSelection(null);
-        StatisticsSelectionHighlightRanges = [];
+        statisticsSelectionController.Clear();
+        SyncStatisticsSelectionController();
         ClearStatisticsSelectionToggles();
         RefreshStatisticsSelectionActionStates();
     }
 
     private void ClearDampingRangeSelections()
     {
-        var changed = false;
-        if (frontTelemetryRangeSelection is DampingRangeSelection)
-        {
-            SetSelectedFrontRangeSelection(null);
-            changed = true;
-        }
-
-        if (rearTelemetryRangeSelection is DampingRangeSelection)
-        {
-            SetSelectedRearRangeSelection(null);
-            changed = true;
-        }
-
-        if (!changed)
+        if (!statisticsSelectionController.ClearDampingRangeSelections(TelemetryData, AnalysisRange))
         {
             return;
         }
 
-        RecomputeStatisticsSelectionHighlightRanges();
+        SyncStatisticsSelectionController();
         if (!HasStatisticsSelection)
         {
             ClearStatisticsSelectionToggles();
@@ -1648,95 +1633,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         RefreshStatisticsSelectionActionStates();
     }
 
-    private void ClearSelectionsFromOtherStatistics(TelemetryRangeSelection selection)
+    private void SyncStatisticsSelectionController()
     {
-        var clearDampingSelections = IsStrokeStatisticsSelection(selection);
-        var clearStrokeSelections = selection is DampingRangeSelection;
-        if (!clearDampingSelections && !clearStrokeSelections)
-        {
-            return;
-        }
-
-        if (ShouldClearStatisticsSelection(frontTelemetryRangeSelection, clearDampingSelections, clearStrokeSelections))
-        {
-            SetSelectedFrontRangeSelection(null);
-        }
-
-        if (ShouldClearStatisticsSelection(rearTelemetryRangeSelection, clearDampingSelections, clearStrokeSelections))
-        {
-            SetSelectedRearRangeSelection(null);
-        }
-    }
-
-    private void SetSelectedFrontRangeSelection(TelemetryRangeSelection? selection)
-    {
-        if (frontTelemetryRangeSelection == selection)
-        {
-            return;
-        }
-
-        frontTelemetryRangeSelection = selection;
-        SessionContext.SelectedFrontRangeSelection = selection;
+        SessionContext.SelectedFrontRangeSelection = statisticsSelectionController.SelectedFrontRangeSelection;
+        SessionContext.SelectedRearRangeSelection = statisticsSelectionController.SelectedRearRangeSelection;
         OnPropertyChanged(nameof(SelectedFrontRangeSelection));
-    }
-
-    private void SetSelectedRearRangeSelection(TelemetryRangeSelection? selection)
-    {
-        if (rearTelemetryRangeSelection == selection)
-        {
-            return;
-        }
-
-        rearTelemetryRangeSelection = selection;
-        SessionContext.SelectedRearRangeSelection = selection;
         OnPropertyChanged(nameof(SelectedRearRangeSelection));
-    }
-
-    private static bool ShouldClearStatisticsSelection(
-        TelemetryRangeSelection? selection,
-        bool clearDampingSelections,
-        bool clearStrokeSelections)
-    {
-        return (clearDampingSelections && selection is DampingRangeSelection) ||
-               (clearStrokeSelections && IsStrokeStatisticsSelection(selection));
-    }
-
-    private static bool IsStrokeStatisticsSelection(TelemetryRangeSelection? selection)
-    {
-        return selection is StrokeLengthRangeSelection or StrokeSpeedRangeSelection or DeepTravelRangeSelection;
-    }
-
-    private void RecomputeStatisticsSelectionHighlightRanges()
-    {
-        if (TelemetryData is not { } telemetryData)
-        {
-            StatisticsSelectionHighlightRanges = [];
-            RefreshStatisticsSelectionActionStates();
-            return;
-        }
-
-        var ranges = new List<TelemetryHighlightRange>();
-        if (frontTelemetryRangeSelection is { } frontSelection)
-        {
-            ranges.AddRange(CreateStatisticsHighlightRanges(telemetryData, frontSelection, AnalysisRange));
-        }
-
-        if (rearTelemetryRangeSelection is { } rearSelection)
-        {
-            ranges.AddRange(CreateStatisticsHighlightRanges(telemetryData, rearSelection, AnalysisRange));
-        }
-
-        StatisticsSelectionHighlightRanges = TelemetryStatistics.MergeHighlightRanges(ranges);
-        RefreshStatisticsSelectionActionStates();
-    }
-
-    private static IEnumerable<TelemetryHighlightRange> CreateStatisticsHighlightRanges(
-        TelemetryData telemetryData,
-        TelemetryRangeSelection selection,
-        TelemetryTimeRange? analysisRange)
-    {
-        var ranges = TelemetryStatistics.CalculateHighlightRanges(telemetryData, selection, analysisRange);
-        return ranges.Select(range => range with { SuspensionType = selection.SuspensionType });
+        StatisticsSelectionHighlightRanges = statisticsSelectionController.HighlightRanges;
     }
 
     private void RefreshStatisticsSelectionActionStates()
@@ -2151,30 +2054,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     [RelayCommand]
     private void SelectTelemetryRangeSelection(TelemetryRangeSelection? selection)
     {
-        if (selection is null || TelemetryData is null)
-        {
-            return;
-        }
+        if (!statisticsSelectionController.Select(selection, TelemetryData, AnalysisRange)) return;
 
-        var isClearingSelection = selection.SuspensionType == SuspensionType.Front
-            ? frontTelemetryRangeSelection == selection
-            : rearTelemetryRangeSelection == selection;
-
-        if (selection.SuspensionType == SuspensionType.Front)
-        {
-            SetSelectedFrontRangeSelection(isClearingSelection ? null : selection);
-        }
-        else
-        {
-            SetSelectedRearRangeSelection(isClearingSelection ? null : selection);
-        }
-
-        if (!isClearingSelection)
-        {
-            ClearSelectionsFromOtherStatistics(selection);
-        }
-
-        RecomputeStatisticsSelectionHighlightRanges();
+        SyncStatisticsSelectionController();
         ClearStatisticsSelectionToggles();
         if (HasStatisticsSelection)
         {
