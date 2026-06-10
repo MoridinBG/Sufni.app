@@ -25,7 +25,7 @@ public class LiveDaqCoordinator
     private readonly ILiveDaqCatalogService liveDaqCatalogService;
     private readonly ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry;
     private readonly ILiveSessionServiceFactory liveSessionServiceFactory;
-    private readonly SessionCoordinator sessionCoordinator;
+    private readonly ISessionCoordinator sessionCoordinator;
     private readonly IBikeCoordinator? bikeCoordinator;
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
@@ -47,7 +47,7 @@ public class LiveDaqCoordinator
         ILiveDaqCatalogService liveDaqCatalogService,
         ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry,
         ILiveSessionServiceFactory liveSessionServiceFactory,
-        SessionCoordinator sessionCoordinator,
+        ISessionCoordinator sessionCoordinator,
         ISessionPresentationService sessionPresentationService,
         IBackgroundTaskRunner backgroundTaskRunner,
         ITileLayerService tileLayerService,

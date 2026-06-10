@@ -20,7 +20,7 @@ namespace Sufni.App.ViewModels.Rows;
 /// </summary>
 public sealed class SessionRowViewModel : ListItemRowViewModelBase
 {
-    private readonly SessionCoordinator sessionCoordinator;
+    private readonly ISessionCoordinator sessionCoordinator;
     private readonly Action<SessionRowViewModel> requestDelete;
     private readonly Func<SessionRowViewModel, Task> requestRecalculate;
     private readonly IRecordedSessionListExtensionService? listExtensionService;
@@ -110,7 +110,7 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
 
     public SessionRowViewModel(
         RecordedSessionSummary summary,
-        SessionCoordinator sessionCoordinator,
+        ISessionCoordinator sessionCoordinator,
         Action<SessionRowViewModel> requestDelete,
         Func<SessionRowViewModel, Task> requestRecalculate,
         IRecordedSessionListExtensionService? listExtensionService = null)

@@ -199,6 +199,7 @@ public partial class App : Application
             sp.GetRequiredService<IExtensionCascadeService>(),
             sp.GetServices<IRecordedSessionExtensionFactory>(),
             sp.GetRequiredService<IExtensionDatabaseConnection>()));
+        ServiceCollection.AddSingleton<ISessionCoordinator>(sp => sp.GetRequiredService<SessionCoordinator>());
         ServiceCollection.AddSingleton<LiveDaqStore>();
         ServiceCollection.AddSingleton<ILiveDaqStore>(sp => sp.GetRequiredService<LiveDaqStore>());
         ServiceCollection.AddSingleton<ILiveDaqStoreWriter>(sp => sp.GetRequiredService<LiveDaqStore>());

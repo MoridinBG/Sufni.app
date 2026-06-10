@@ -38,7 +38,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private readonly LiveSessionGraphWorkspaceViewModel graphWorkspace;
     private readonly LiveSessionMediaWorkspaceViewModel mediaWorkspace;
     private readonly ILiveSessionService liveSessionService;
-    private readonly SessionCoordinator sessionCoordinator;
+    private readonly ISessionCoordinator sessionCoordinator;
     private readonly IBikeCoordinator? bikeCoordinator;
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
@@ -206,7 +206,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public LiveSessionDetailViewModel(
         LiveDaqSessionContext context,
         ILiveSessionService liveSessionService,
-        SessionCoordinator sessionCoordinator,
+        ISessionCoordinator sessionCoordinator,
         ISessionPresentationService sessionPresentationService,
         IBackgroundTaskRunner backgroundTaskRunner,
         ITileLayerService tileLayerService,

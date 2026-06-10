@@ -29,7 +29,7 @@ namespace Sufni.App.Coordinators;
 /// metadata and live captures, recomputes derived data, deletes sessions, and
 /// applies inbound session changes.
 /// </summary>
-public class SessionCoordinator
+public class SessionCoordinator : ISessionCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SessionCoordinator>();
 

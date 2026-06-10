@@ -29,7 +29,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
 {
     #region Private fields
 
-    private readonly SessionCoordinator sessionCoordinator;
+    private readonly ISessionCoordinator sessionCoordinator;
     private readonly IRecordedSessionListExtensionService? listExtensionService;
     private readonly ReadOnlyObservableCollection<SessionRowViewModel> sessionRows;
     private readonly BehaviorSubject<Func<RecordedSessionSummary, bool>> filterSubject = new(_ => true);
@@ -50,7 +50,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     public SessionListViewModel(
         IRecordedSessionGraph recordedSessionGraph,
-        SessionCoordinator sessionCoordinator,
+        ISessionCoordinator sessionCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
         IRecordedSessionListExtensionService? listExtensionService = null,
         IBackgroundTaskRunner? backgroundTaskRunner = null)

@@ -62,7 +62,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     #region Private fields
 
-    private readonly SessionCoordinator sessionCoordinator;
+    private readonly ISessionCoordinator sessionCoordinator;
     private readonly IBikeCoordinator? bikeCoordinator;
     private readonly ISessionStore sessionStore;
     private readonly IRecordedSessionGraph recordedSessionGraph;
@@ -1407,7 +1407,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     internal SessionDetailViewModel(
         SessionSnapshot snapshot,
-        SessionCoordinator sessionCoordinator,
+        ISessionCoordinator sessionCoordinator,
         ISessionStore sessionStore,
         IRecordedSessionGraph recordedSessionGraph,
         ISessionPresentationService sessionPresentationService,
