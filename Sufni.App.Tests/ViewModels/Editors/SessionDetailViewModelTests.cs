@@ -1,6 +1,7 @@
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Globalization;
+using System.ComponentModel;
 using Avalonia;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
@@ -138,6 +139,52 @@ public class SessionDetailViewModelTests
         Assert.True(editor.RearFrameVibrationState.IsHidden);
         Assert.Equal(SurfaceStateKind.Loading, editor.MapState.Kind);
         Assert.True(editor.ScreenState.IsReady);
+    }
+
+    [AvaloniaFact]
+    public void Construction_ExposesContextBackedMobileWorkspace()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+
+        var editor = CreateEditor(snapshot);
+
+        Assert.Same(editor.Pages, editor.SessionContext.Pages);
+        Assert.Same(editor.Timeline, editor.SessionContext.Timeline);
+        Assert.Same(editor.Pages, editor.MobileWorkspace.Pages);
+        Assert.Equal(snapshot, editor.SessionContext.SessionSnapshot);
+        Assert.Equal(editor.ScreenState, editor.MobileWorkspace.ScreenState);
+        Assert.Equal(editor.SessionOperationState, editor.MobileWorkspace.SessionOperationState);
+    }
+
+    [AvaloniaFact]
+    public void MobileWorkspace_TracksContextPresentationState()
+    {
+        var editor = CreateEditor(TestSnapshots.Session());
+        var observed = new List<string?>();
+        ((INotifyPropertyChanged)editor.MobileWorkspace).PropertyChanged += (_, args) =>
+            observed.Add(args.PropertyName);
+
+        editor.ScreenState = SessionScreenPresentationState.Loading("loading");
+        editor.SessionOperationState = SessionOperationPresentationState.Progress("working", 25);
+
+        Assert.Equal(editor.ScreenState, editor.MobileWorkspace.ScreenState);
+        Assert.Equal(editor.SessionOperationState, editor.MobileWorkspace.SessionOperationState);
+        Assert.Contains(nameof(ISessionShellMobileWorkspace.ScreenState), observed);
+        Assert.Contains(nameof(ISessionShellMobileWorkspace.SessionOperationState), observed);
+    }
+
+    [AvaloniaFact]
+    public void SharedSessionState_UpdatesRecordedSessionContext()
+    {
+        var editor = CreateEditor(TestSnapshots.Session());
+        var telemetry = TestTelemetryData.CreateProcessed();
+
+        editor.TelemetryData = telemetry;
+        editor.SetAnalysisRange(1, 2);
+
+        Assert.Same(telemetry, editor.SessionContext.TelemetryData);
+        Assert.Equal(editor.AnalysisRange, editor.SessionContext.AnalysisRange);
+        Assert.Equal(editor.TrackTimelineContext, editor.SessionContext.TrackTimelineContext);
     }
 
     [AvaloniaFact]

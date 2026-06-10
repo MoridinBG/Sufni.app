@@ -57,7 +57,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     }
     public SuspensionSettings ForkSettings => NotesPage.ForkSettings;
     public SuspensionSettings ShockSettings => NotesPage.ShockSettings;
-    public SessionTimelineLinkViewModel Timeline { get; } = new();
+    public RecordedSessionContext SessionContext { get; } = new();
+    public ISessionShellMobileWorkspace MobileWorkspace { get; }
+    public SessionTimelineLinkViewModel Timeline => SessionContext.Timeline;
 
     #region Private fields
 
@@ -241,13 +243,24 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         SelectedVelocityAverageMode,
         SelectedBalanceDisplacementMode,
         SelectedBalanceSpeedMode);
-    public ObservableCollection<PageViewModelBase> Pages { get; }
+    public ObservableCollection<PageViewModelBase> Pages => SessionContext.Pages;
     IReadOnlyList<TrackPoint>? IRecordedSessionGraphWorkspace.TrackPoints => TrackPoints;
 
     #endregion Observable properties
 
+    partial void OnScreenStateChanged(SessionScreenPresentationState value)
+    {
+        SessionContext.ScreenState = value;
+    }
+
+    partial void OnSessionOperationStateChanged(SessionOperationPresentationState value)
+    {
+        SessionContext.SessionOperationState = value;
+    }
+
     partial void OnTelemetryDataChanged(TelemetryData? value)
     {
+        SessionContext.TelemetryData = value;
         IsComplete = value != null;
         NotesPage.SetTemperatureAverages(value?.TemperatureAverages ?? []);
         pendingAnalysisRangeBoundary = null;
@@ -273,6 +286,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     partial void OnAnalysisRangeChanged(TelemetryTimeRange? value)
     {
+        SessionContext.AnalysisRange = value;
         OnPropertyChanged(nameof(SessionAnalysisRangeText));
         ClearStatisticsSelections();
         RefreshAnalysisRangeStates();
@@ -328,6 +342,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     partial void OnFullTrackPointsChanged(List<TrackPoint>? value)
     {
+        SessionContext.FullTrackPoints = value;
         if (MapViewModel is null)
         {
             return;
@@ -338,6 +353,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     partial void OnTrackPointsChanged(List<TrackPoint>? value)
     {
+        SessionContext.TrackPoints = value;
         if (MapViewModel is not null)
         {
             MapViewModel.SessionTrackPoints = value;
@@ -352,6 +368,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
 
     partial void OnTrackTimelineContextChanged(TrackTimeRange? value)
     {
+        SessionContext.TrackTimelineContext = value;
         if (MapViewModel is not null)
         {
             MapViewModel.TimelineContext = value;
@@ -1045,6 +1062,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
     private async Task ApplyPersistedSnapshotAsync(SessionSnapshot snapshot)
     {
         session = SessionFromSnapshot(snapshot);
+        SessionContext.SessionSnapshot = snapshot;
         BaselineUpdated = snapshot.Updated;
         IsComplete = snapshot.HasProcessedData;
         lastObservedHasProcessedData = snapshot.HasProcessedData;
@@ -1464,6 +1482,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         session = SessionFromSnapshot(snapshot);
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
+        SessionContext.SessionSnapshot = snapshot;
+        MobileWorkspace = new SessionShellMobileWorkspaceViewModel(SessionContext);
         IsComplete = snapshot.HasProcessedData;
         lastObservedHasProcessedData = snapshot.HasProcessedData;
         if (extensionDatabase is not null && recordedSessionDataReader is not null && backgroundTaskRunner is not null)
@@ -1487,6 +1507,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
             recordedSessionExtensions.ExtensionSlots.Pages.CollectionChanged += OnRecordedSessionExtensionPagesChanged;
             recordedSessionExtensions.ExtensionSlots.MediaPanes.CollectionChanged += OnRecordedSessionExtensionMediaPanesChanged;
         }
+        SessionContext.ExtensionSlots = ExtensionSlots;
 
         GraphPage = new RecordedGraphPageViewModel(this, this);
         SpringPage = new SpringPageViewModel(this);
@@ -1495,7 +1516,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
         BalancePage = new BalancePageViewModel(this);
         VibrationPage = new VibrationPageViewModel(this);
         AnalysisPage = new SessionAnalysisPageViewModel(this);
-        Pages = [GraphPage, SpringPage, StrokesPage, DamperPage, BalancePage, VibrationPage, AnalysisPage, NotesPage, PreferencesPage];
+        Pages.Add(GraphPage);
+        Pages.Add(SpringPage);
+        Pages.Add(StrokesPage);
+        Pages.Add(DamperPage);
+        Pages.Add(BalancePage);
+        Pages.Add(VibrationPage);
+        Pages.Add(AnalysisPage);
+        Pages.Add(NotesPage);
+        Pages.Add(PreferencesPage);
         MapViewModel = new MapViewModel(tileLayerService, dialogService, uiThreadDispatcher);
         _ = MapViewModel.InitializeAsync();
         if (snapshot.HasProcessedData)
@@ -2112,6 +2141,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase,
                 if (reload)
                 {
                     session = SessionFromSnapshot(conflict.CurrentSnapshot);
+                    SessionContext.SessionSnapshot = conflict.CurrentSnapshot;
                     BaselineUpdated = conflict.CurrentSnapshot.Updated;
                     IsComplete = conflict.CurrentSnapshot.HasProcessedData;
                     lastObservedHasProcessedData = conflict.CurrentSnapshot.HasProcessedData;
