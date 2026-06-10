@@ -25,7 +25,7 @@ using Sufni.App.ExtensionHost.Services;
 namespace Sufni.App.ViewModels.Editors;
 
 /// <summary>
-/// Editor view model for a setup. Created by <c>SetupCoordinator</c>
+/// Editor view model for a setup. Created by <c>ISetupCoordinator</c>
 /// from a <see cref="SetupSnapshot"/>; the snapshot's <c>Updated</c>
 /// value is kept as <see cref="BaselineUpdated"/> for optimistic
 /// conflict detection at save time. The bike combobox is populated
@@ -39,7 +39,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
     #region Private fields
 
-    private readonly SetupCoordinator setupCoordinator;
+    private readonly ISetupCoordinator setupCoordinator;
     private readonly IBikeCoordinator bikeCoordinator;
     private readonly IBikeStore bikeStore;
     private readonly ObservableCollectionExtended<BikeSnapshot> bikesSource = new();
@@ -141,7 +141,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         bool isNew,
         IBikeStore bikeStore,
         IBikeCoordinator bikeCoordinator,
-        SetupCoordinator setupCoordinator,
+        ISetupCoordinator setupCoordinator,
         IShellCoordinator shell,
         IDialogService dialogService,
         IUiThreadDispatcher uiThreadDispatcher)

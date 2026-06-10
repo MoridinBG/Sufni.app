@@ -22,7 +22,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
     #region Private fields
 
     private readonly ISetupStore setupStore;
-    private readonly SetupCoordinator setupCoordinator;
+    private readonly ISetupCoordinator setupCoordinator;
     private readonly ReadOnlyObservableCollection<SetupRowViewModel> setupRows;
     private readonly BehaviorSubject<Func<SetupSnapshot, bool>> filterSubject = new(_ => true);
     private readonly HashSet<Guid> pendingDeleteIds = [];
@@ -39,7 +39,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     public SetupListViewModel(
         ISetupStore setupStore,
-        SetupCoordinator setupCoordinator,
+        ISetupCoordinator setupCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
         IBackgroundTaskRunner? backgroundTaskRunner = null)
         : base(uiThreadDispatcher, backgroundTaskRunner)

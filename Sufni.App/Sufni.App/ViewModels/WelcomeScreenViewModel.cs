@@ -9,7 +9,7 @@ namespace Sufni.App.ViewModels;
 public partial class WelcomeScreenViewModel : TabPageViewModelBase
 {
     private readonly IBikeCoordinator bikeCoordinator;
-    private readonly SetupCoordinator setupCoordinator;
+    private readonly ISetupCoordinator setupCoordinator;
     private readonly ImportSessionsCoordinator importSessionsCoordinator;
     private readonly IFilesService filesService;
 
@@ -21,7 +21,7 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
         IShellCoordinator shell,
         IDialogService dialogService,
         IBikeCoordinator bikeCoordinator,
-        SetupCoordinator setupCoordinator,
+        ISetupCoordinator setupCoordinator,
         ImportSessionsCoordinator importSessionsCoordinator,
         IFilesService filesService,
         IUiThreadDispatcher uiThreadDispatcher)

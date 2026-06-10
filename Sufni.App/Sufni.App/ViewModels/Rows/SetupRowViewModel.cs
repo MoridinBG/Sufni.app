@@ -10,14 +10,14 @@ namespace Sufni.App.ViewModels.Rows;
 /// inside a list. Row view models are cheap, non-editable and refresh
 /// themselves via <see cref="Update"/> when the underlying snapshot
 /// changes. <see cref="OpenPage"/> routes through
-/// <see cref="SetupCoordinator"/>; <see cref="UndoableDelete"/> hands
+/// <see cref="ISetupCoordinator"/>; <see cref="UndoableDelete"/> hands
 /// the row back to the owning list view model via the
 /// <c>requestDelete</c> callback so the list can run its pending-delete
 /// undo window before finalizing.
 /// </summary>
 public sealed class SetupRowViewModel : ListItemRowViewModelBase
 {
-    private readonly SetupCoordinator setupCoordinator;
+    private readonly ISetupCoordinator setupCoordinator;
     private readonly Action<SetupRowViewModel> requestDelete;
     private Guid? boardId;
 
@@ -31,7 +31,7 @@ public sealed class SetupRowViewModel : ListItemRowViewModelBase
 
     public SetupRowViewModel(
         SetupSnapshot snapshot,
-        SetupCoordinator setupCoordinator,
+        ISetupCoordinator setupCoordinator,
         Action<SetupRowViewModel> requestDelete)
     {
         this.setupCoordinator = setupCoordinator;

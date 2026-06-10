@@ -29,6 +29,7 @@ public class SetupCoordinator(
     IDialogService dialogService,
     IUiThreadDispatcher uiThreadDispatcher,
     IExtensionCascadeService? extensionCascadeService = null)
+    : ISetupCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SetupCoordinator>();
 
