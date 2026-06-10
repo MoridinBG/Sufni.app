@@ -53,7 +53,6 @@ public class LiveSessionDetailViewTests
 
     private static LiveSessionDetailViewModel CreateEditor()
     {
-        var liveSessionService = Substitute.For<ILiveSessionService>();
         var sessionCoordinator = TestCoordinatorSubstitutes.Session();
         var sessionPresentationService = Substitute.For<ISessionPresentationService>();
         var backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
@@ -82,13 +81,10 @@ public class LiveSessionDetailViewTests
                 CanSave: false),
             CaptureRevision: 1);
 
+        var liveSessionService = StubLiveSessionService.WithDefaultLiveStream(snapshot, graphBatches);
+
         tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
         tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
-        liveSessionService.Current.Returns(snapshot);
-        liveSessionService.Snapshots.Returns(new BehaviorSubject<LiveSessionPresentationSnapshot>(snapshot));
-        liveSessionService.GraphBatches.Returns(graphBatches);
-        liveSessionService.EnsureAttachedAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-        liveSessionService.DisposeAsync().Returns(ValueTask.CompletedTask);
 
         return new LiveSessionDetailViewModel(
             CreateSessionContext(),

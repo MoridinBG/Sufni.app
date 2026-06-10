@@ -25,7 +25,7 @@ public class LiveDaqCoordinatorTests
     private readonly ILiveDaqSharedStreamRegistry sharedStreamRegistry = Substitute.For<ILiveDaqSharedStreamRegistry>();
     private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
     private readonly ILiveSessionServiceFactory liveSessionServiceFactory = Substitute.For<ILiveSessionServiceFactory>();
-    private readonly ILiveSessionService liveSessionService = Substitute.For<ILiveSessionService>();
+    private readonly StubLiveSessionService liveSessionService = StubLiveSessionService.WithDefaultLiveStream();
     private readonly ISessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
@@ -38,7 +38,6 @@ public class LiveDaqCoordinatorTests
     private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> knownBoardsChanges = new([]);
     private readonly BehaviorSubject<IReadOnlyList<LiveDaqCatalogEntry>> catalogEntries = new([]);
-    private readonly BehaviorSubject<LiveSessionPresentationSnapshot> liveSessionSnapshots = new(LiveSessionPresentationSnapshot.Empty);
     private readonly IDisposable browseLease = Substitute.For<IDisposable>();
 
     public LiveDaqCoordinatorTests()
@@ -50,10 +49,6 @@ public class LiveDaqCoordinatorTests
         sharedStream.RequestedConfiguration.Returns(LiveDaqStreamConfiguration.Default);
         sharedStream.CurrentState.Returns(LiveDaqSharedStreamState.Empty);
         sharedStreamRegistry.GetOrCreate(Arg.Any<LiveDaqSnapshot>()).Returns(sharedStream);
-        liveSessionService.Snapshots.Returns(liveSessionSnapshots);
-        liveSessionService.GraphBatches.Returns(Observable.Empty<LiveGraphBatch>());
-        liveSessionService.Current.Returns(LiveSessionPresentationSnapshot.Empty);
-        liveSessionService.DisposeAsync().Returns(ValueTask.CompletedTask);
         liveSessionServiceFactory.Create(Arg.Any<LiveDaqSessionContext>(), Arg.Any<ILiveDaqSharedStream>())
             .Returns(liveSessionService);
     }
