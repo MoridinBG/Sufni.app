@@ -25,7 +25,7 @@ graph LR
     Coord --> Runner["IBackgroundTaskRunner"]
     Coord --> SourceFactory["RecordedSessionSourceFactory"]
     Coord --> Reprocessor["RecordedSessionReprocessor"]
-    Coord --> DB["IDatabaseService<br/>PutProcessedSessionAsync"]
+    Coord --> Repo["ISessionRepository<br/>PutProcessedSessionAsync"]
     Coord --> SessionStore["ISessionStoreWriter"]
     Coord --> SourceStore["IRecordedSessionSourceStoreWriter"]
     Coord --> TelemetryFile["ITelemetryFile"]
@@ -51,7 +51,7 @@ graph LR
 The import-sessions feature is the canonical worked example of the current boundary rules:
 
 - `ImportSessionsViewModel` owns only screen-scoped state: available datastores/files, selected datastore/setup, notifications, and errors.
-- It resolves the current board's setup through `ISetupStore.FindByBoardId(Guid)` and never reads `IDatabaseService` directly.
+- It resolves the current board's setup through `ISetupStore.FindByBoardId(Guid)` and never reads persistence repositories directly.
 - It starts and stops browse in `Loaded` / `Unloaded`, asks `ITelemetryDataStoreService` to load files or register a picked folder, and uses `ImportSessionsCommand.IsRunning` as its busy-state source of truth.
 - `ITelemetryDataStoreService` owns the live `DataStores` collection, mass-storage/network browse lifetime, storage-provider datastore construction, duplicate detection, and one-shot board detection for the welcome-screen create-setup flow.
 - `ImportSessionsCoordinator` owns the full per-file import / trash workflow, source capture through `RecordedSessionSourceFactory`, processed telemetry derivation through `IRecordedSessionReprocessor`, atomic session/source/track persistence, session/source-store upserts, background execution, and per-file progress reporting.

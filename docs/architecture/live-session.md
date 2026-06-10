@@ -39,7 +39,7 @@ graph LR
     DetailVM --> Coord["SessionCoordinator<br/>SaveLiveCaptureAsync"]
     Coord --> Source["RecordedSessionSourceFactory<br/>live_capture"]
     Coord --> Reprocessor["RecordedSessionReprocessor<br/>telemetry + track + fingerprint"]
-    Coord --> DB["IDatabaseService<br/>PutProcessedSessionAsync"]
+    Coord --> Repo["ISessionRepository<br/>PutProcessedSessionAsync"]
     Coord --> Prefs["ISessionPreferences<br/>UpdateRecordedAsync"]
     Coord --> Store["SessionStore<br/>Upsert"]
     Coord --> SourceStore["RecordedSessionSourceStore<br/>Upsert"]

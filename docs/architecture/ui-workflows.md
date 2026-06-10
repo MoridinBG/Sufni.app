@@ -69,7 +69,8 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   tested against substitutes.
 - **Services**: `IHttpApiService`, `IBackgroundTaskRunner`,
   `IUiThreadDispatcher`, `IDaqManagementService`, `ITelemetryDataStoreService`,
-  `IDatabaseService`, `IFilesService`, `IFilePickerService`,
+  SQLite repository interfaces, `ISyncDataStore`, `IExtensionDatabaseConnection`,
+  `IFilesService`, `IFilePickerService`,
   `IDialogService`, plus `IAppPreferences` and the two facets
   it exposes — `IMapPreferences` and `ISessionPreferences` —
   registered as singletons via factory delegates that resolve the

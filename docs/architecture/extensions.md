@@ -55,7 +55,7 @@ This keeps public `ViewLocator` dictionaries free of extension view-model types 
 
 ## Database Hooks
 
-`SqLiteDatabaseService` is registered as the concrete singleton behind both `IDatabaseService` and `IExtensionDatabaseConnection`. Extensions call `OpenSessionAsync()` to wait for normal initialization and receive an `IExtensionDatabaseSession` scoped to declared extension table types. The session supports table queries plus find/insert/insert-or-replace/update/delete operations and rejects table types that are not owned by a registered extension migrator.
+`ExtensionDatabaseConnection` is registered as the concrete singleton behind `IExtensionDatabaseConnection`. Extensions call `OpenSessionAsync()` to wait for normal SQLite initialization and receive an `IExtensionDatabaseSession` scoped to declared extension table types. The session supports table queries plus find/insert/insert-or-replace/update/delete operations and rejects table types that are not owned by a registered extension migrator.
 
 Extension schema state lives in `extension_schema_version`:
 

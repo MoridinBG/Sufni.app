@@ -27,8 +27,8 @@ Each persisted store exposes:
 - `Connect()` — DynamicData change stream consumed by list view models.
 - `Get(key)` — synchronous lookup that returns the current snapshot or
   `null`.
-- `RefreshAsync()` — load (or reload) all rows from the database via
-  `IDatabaseService` and replace the cache contents. Called once at
+- `RefreshAsync()` — load (or reload) all rows from the database via the
+  store's repository interface and replace the cache contents. Called once at
   startup by `MainPagesViewModel.LoadDatabaseContent()` and again after
   every successful `SyncCoordinator.SyncAllAsync()`.
 - `Upsert(snapshot)` / `Remove(key)` (writer interface only) — invoked
@@ -145,7 +145,7 @@ going through view models. They are stateless singletons in
 `Sufni.App/Sufni.App/Queries/`.
 
 `IBikeDependencyQuery.IsBikeInUseAsync(Guid)` (backed by
-`BikeDependencyQuery` over `IDatabaseService`) reports whether any
+`BikeDependencyQuery` over `ISynchronizableRepository<Setup>`) reports whether any
 setup currently references a bike. `BikeCoordinator.DeleteAsync` uses
 it to short-circuit deletes with `BikeDeleteOutcome.InUse`. The
 answer is sourced from the database, not from any list view model, so

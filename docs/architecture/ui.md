@@ -54,7 +54,7 @@ graph TB
     end
 
     subgraph Services["Services"]
-        DBSvc["IDatabaseService"]
+        DBSvc["SQLite repositories"]
         HttpSvc["IHttpApiService"]
         SyncSvc["ISynchronization*Service"]
         DSSSvc["ITelemetryDataStoreService"]

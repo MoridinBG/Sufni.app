@@ -112,8 +112,8 @@ locations inside `Sufni.App/Sufni.App/`:
 - `Queries/` — cross-entity reads (`IBikeDependencyQuery`,
   `ILiveDaqKnownBoardsQuery`). Backed by services and read-only
   stores, never by view models.
-- `Services/` — infrastructure: `IDatabaseService` /
-  `SQLiteDatabaseService`, `ITelemetryDataStoreService`,
+- `Services/` — infrastructure: SQLite persistence context/repositories,
+  `ITelemetryDataStoreService`,
   `IHttpApiService`, `ISynchronizationServerService` /
   `ISynchronizationClientService`, `IDialogService`, `IFilesService`.
   `Services/LiveStreaming/` contains the live preview transport layer:
@@ -216,11 +216,12 @@ geometry lives under [§ Suspension Kinematics](docs/architecture/processing.md#
 
 # Persistence
 
-SQLite via `sqlite-net-pcl`, async, WAL enabled. The implementation is in
-`Sufni.App/Sufni.App/Services/SQLiteDatabaseService.cs`; the interface lists
-all available operations. The database file location is platform-specific
-app data (`%LOCALAPPDATA%`, `~/Library/Application Support`,
-`~/.local/share`, etc.).
+SQLite via `sqlite-net-pcl`, async, WAL enabled. `SqliteConnectionContext`
+owns the shared connection and initialization gate; `DatabaseMigrationRunner`
+owns startup schema work and cleanup; aggregate repositories expose the
+persistence operations. The database file location is platform-specific app
+data (`%LOCALAPPDATA%`, `~/Library/Application Support`, `~/.local/share`,
+etc.).
 
 Sync-enabled entities inherit from `Models/Synchronizable.cs`, which adds
 `Updated` / `ClientUpdated` / `Deleted` timestamps used for soft delete and

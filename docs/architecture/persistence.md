@@ -144,22 +144,22 @@ erDiagram
     }
 ```
 
-## Database Service
+## SQLite Persistence Services
 
-`SqLiteDatabaseService` (`Sufni.App/Sufni.App/Services/SQLiteDatabaseService.cs`) implements `IDatabaseService` using the sqlite-net API (`sqlite-net-e` package) with WAL mode. The database path uses `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db`.
+`SqliteConnectionContext` (`Sufni.App/Sufni.App/Services/SqliteConnectionContext.cs`) owns the single `SQLiteAsyncConnection`, the extension table catalog, and the initialization gate. It constructs the database at `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db` and starts `DatabaseMigrationRunner`, which enables WAL mode, creates core tables, applies compatibility migrations/backfills, runs extension migrations, performs startup cleanup, repairs duplicate track ranges, and runs extension orphan repair.
 
 Bike rows include presentation-owned damping speed cutoffs for front/rear compression and rebound. These values default to 200 mm/s, are synchronized and exported with the bike, and are backfilled on startup for legacy schemas. They are not session preferences and do not affect telemetry processing fingerprints.
 
-Repeated session SQL inside `SQLiteDatabaseService` is kept behind private projection and bind-value helpers. There is no repository or public query-builder layer: `IDatabaseService` remains the persistence boundary, and the helper extraction does not change transaction boundaries or merge behavior.
+Persistence consumers inject narrow repository interfaces instead of a facade. `ISynchronizableRepository<T>` owns generic soft-delete CRUD for `Synchronizable` entities; `ISessionRepository`, `IRecordedSessionSourceRepository`, `ITrackRepository`, `ISessionCacheStore`, and `IPairedDeviceRepository` own aggregate-specific operations; `ISyncDataStore` / `SynchronizationMergeEngine` owns sync timestamps, delta projection, remote apply, and merge conflict resolution.
 
-Generic operations on any `Synchronizable` subclass:
+`ISynchronizableRepository<T>` operations on any `Synchronizable` subclass:
 
 - `GetAllAsync<T>()` — returns all records where `Deleted == null`
 - `GetChangedAsync<T>(long since)` — returns records where `Updated > since` OR (`Deleted != null` AND `Deleted > since`)
 - `PutAsync<T>(item)` — upsert. Stamps `Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds()` and clears `Deleted` (resurrecting any tombstoned row with the same id).
 - `DeleteAsync<T>(id)` — sets `Deleted` timestamp (soft delete); idempotent — leaves the existing tombstone in place if the row is already deleted.
 
-Session-specific operations split metadata, processed data, and recording source handling. `session.data` is the authoritative local processed-telemetry cache; `session.has_data` remains in the row for schema compatibility and snapshot projection, but session reads derive the availability flag from `data IS NOT NULL` so the flag cannot drift away from the blob. Nullable summary columns (`duration_seconds`, `distance_meters`, `ascent_meters`, `descent_meters`) are derived list-summary cache values, not user-authored session metadata.
+`ISessionRepository` operations split metadata, processed data, and recording source handling. `session.data` is the authoritative local processed-telemetry cache; `session.has_data` remains in the row for schema compatibility and snapshot projection, but session reads derive the availability flag from `data IS NOT NULL` so the flag cannot drift away from the blob. Nullable summary columns (`duration_seconds`, `distance_meters`, `ascent_meters`, `descent_meters`) are derived list-summary cache values, not user-authored session metadata.
 
 - `PutSessionAsync()` — updates user-authored session metadata columns, the processing fingerprint, and stamps `Updated`/`Deleted` like `PutAsync`. Existing derived summary metrics are preserved on metadata updates; the `data` blob and cached `track` are only filled via `COALESCE(?, existing)` for compatibility with older callers and soft-deleted-row reuse, while normal metadata-only saves pass them as null.
 - `PutProcessedSessionAsync(session, newFullTrack, source)` — persists a processed session in one explicit transaction. It writes a new full `Track` when supplied, stamps `session.full_track_id`, writes all session metadata plus `data` and `session_processing_fingerprint`, derives `duration_seconds` from `TelemetryData.Metadata.Duration`, derives GPS distance/ascent/descent from the generated or session-window `TrackPoint` list when available, and optionally inserts/replaces the matching `RecordedSessionSource`. When no new full track is supplied and the session has no existing `full_track_id`, it links the session to an active track whose `[start_time, end_time]` window contains the session timestamp. If any write fails, the session, generated track, and source write roll back together.
@@ -175,7 +175,7 @@ Session-specific operations split metadata, processed data, and recording source
 
 ## Extension Schema
 
-`SqLiteDatabaseService` is also the concrete singleton behind
+`ExtensionDatabaseConnection` is the concrete singleton behind
 `IExtensionDatabaseConnection`. `OpenSessionAsync()` awaits normal startup
 initialization before returning an `IExtensionDatabaseSession` scoped to
 declared extension table types. Extension services can query and mutate their
@@ -190,7 +190,7 @@ Each migrator declares:
 - `TableTypes` owned by that extension
 - ordered `ExtensionDatabaseMigrationStep` entries
 
-During `SqLiteDatabaseService.Init()`, extension work runs after core
+During `DatabaseMigrationRunner.RunAsync()`, extension work runs after core
 tables/compatibility columns are created and before cleanup completes:
 
 1. Create `extension_schema_version`.
@@ -204,7 +204,7 @@ The public schema tracks only extension ids and versions. Extension
 table columns and payload fields remain owned by the declaring module.
 Migrator validation rejects blank or duplicate extension ids, invalid target
 versions, duplicate migration step versions, reserved core table names, and
-duplicate extension table ownership during database service construction.
+duplicate extension table ownership during connection-context construction.
 
 ## Soft Delete
 
