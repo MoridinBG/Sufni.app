@@ -41,6 +41,10 @@ public partial class App : Application
     public IServiceProvider? Services { get; private set; }
     public bool IsDesktop { get; private set; }
 
+#if DEBUG
+    protected virtual bool ShouldAttachDeveloperTools => !OperatingSystem.IsIOS() && !OperatingSystem.IsAndroid();
+#endif
+
     internal void SetIsDesktopForTests(bool isDesktop)
     {
         IsDesktop = isDesktop;
@@ -57,7 +61,7 @@ public partial class App : Application
         AvaloniaXamlLoader.Load(this);
 
 #if DEBUG
-        if (!OperatingSystem.IsIOS() && !OperatingSystem.IsAndroid())
+        if (ShouldAttachDeveloperTools)
         {
             this.AttachDeveloperTools();
         }

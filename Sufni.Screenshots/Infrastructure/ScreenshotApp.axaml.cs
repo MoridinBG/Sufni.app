@@ -1,13 +1,17 @@
-using Avalonia;
-using Avalonia.Markup.Xaml;
+using Avalonia.Styling;
 
 namespace Sufni.Screenshots.Infrastructure;
 
-public class ScreenshotApp : Application
+public class ScreenshotApp : Sufni.App.App
 {
+#if DEBUG
+    protected override bool ShouldAttachDeveloperTools => false;
+#endif
+
     public override void Initialize()
     {
-        AvaloniaXamlLoader.Load(this);
+        base.Initialize();
+        RequestedThemeVariant = ThemeVariant.Dark;
     }
 
     public override void OnFrameworkInitializationCompleted()

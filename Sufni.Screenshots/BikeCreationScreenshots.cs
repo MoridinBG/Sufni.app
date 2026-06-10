@@ -16,6 +16,7 @@ using NSubstitute;
 using Sufni.App.BikeEditing;
 using Sufni.App.Coordinators;
 using Sufni.App.DesktopViews.Items;
+using Sufni.App.ExtensionHost.SessionDetails;
 using Sufni.App.ExtensionHosting.Database;
 using Sufni.App.ExtensionHost.Services;
 using Sufni.App.Models;
@@ -48,6 +49,10 @@ public class BikeCreationScreenshots
             ForkStroke: null,
             ShockStroke: null,
             RearSuspensionKind: RearSuspensionKind.None,
+            FrontCompressionDampingCutoffMmPerSecond: DampingSpeedCutoffs.DefaultMmPerSecond,
+            FrontReboundDampingCutoffMmPerSecond: DampingSpeedCutoffs.DefaultMmPerSecond,
+            RearCompressionDampingCutoffMmPerSecond: DampingSpeedCutoffs.DefaultMmPerSecond,
+            RearReboundDampingCutoffMmPerSecond: DampingSpeedCutoffs.DefaultMmPerSecond,
             Chainstay: null,
             PixelsToMillimeters: 0,
             FrontWheelDiameterMm: null,
@@ -76,6 +81,10 @@ public class BikeCreationScreenshots
             ForkStroke: 170,
             ShockStroke: null,
             RearSuspensionKind: RearSuspensionKind.None,
+            FrontCompressionDampingCutoffMmPerSecond: DampingSpeedCutoffs.DefaultMmPerSecond,
+            FrontReboundDampingCutoffMmPerSecond: DampingSpeedCutoffs.DefaultMmPerSecond,
+            RearCompressionDampingCutoffMmPerSecond: DampingSpeedCutoffs.DefaultMmPerSecond,
+            RearReboundDampingCutoffMmPerSecond: DampingSpeedCutoffs.DefaultMmPerSecond,
             Chainstay: null,
             PixelsToMillimeters: 0,
             FrontWheelDiameterMm: null,
@@ -104,6 +113,10 @@ public class BikeCreationScreenshots
             ForkStroke: 170,
             ShockStroke: 57.5,
             RearSuspensionKind: RearSuspensionKind.None,
+            FrontCompressionDampingCutoffMmPerSecond: DampingSpeedCutoffs.DefaultMmPerSecond,
+            FrontReboundDampingCutoffMmPerSecond: DampingSpeedCutoffs.DefaultMmPerSecond,
+            RearCompressionDampingCutoffMmPerSecond: DampingSpeedCutoffs.DefaultMmPerSecond,
+            RearReboundDampingCutoffMmPerSecond: DampingSpeedCutoffs.DefaultMmPerSecond,
             Chainstay: 440,
             PixelsToMillimeters: 0,
             FrontWheelDiameterMm: null,
@@ -132,6 +145,10 @@ public class BikeCreationScreenshots
             ForkStroke: 170,
             ShockStroke: 57.5,
             RearSuspensionKind: RearSuspensionKind.None,
+            FrontCompressionDampingCutoffMmPerSecond: DampingSpeedCutoffs.DefaultMmPerSecond,
+            FrontReboundDampingCutoffMmPerSecond: DampingSpeedCutoffs.DefaultMmPerSecond,
+            RearCompressionDampingCutoffMmPerSecond: DampingSpeedCutoffs.DefaultMmPerSecond,
+            RearReboundDampingCutoffMmPerSecond: DampingSpeedCutoffs.DefaultMmPerSecond,
             Chainstay: 440,
             PixelsToMillimeters: 0,
             FrontWheelDiameterMm: WheelDiameter(EtrtoRimSize.Inch29, 2.4),
@@ -195,17 +212,9 @@ public class BikeCreationScreenshots
             Substitute.For<IUiThreadDispatcher>());
     }
 
-    private static BikeCoordinator CreateBikeCoordinator()
+    private static IBikeCoordinator CreateBikeCoordinator()
     {
-        var bikeCoordinator = Substitute.For<BikeCoordinator>(
-            Substitute.For<IBikeStoreWriter>(),
-            Substitute.For<ISynchronizableRepository<Bike>>(),
-            Substitute.For<IBikeDependencyQuery>(),
-            Substitute.For<IShellCoordinator>(),
-            Substitute.For<IBikeEditorService>(),
-            Substitute.For<IDialogService>(),
-            Substitute.For<IUiThreadDispatcher>(),
-            Substitute.For<IExtensionCascadeService>());
+        var bikeCoordinator = Substitute.For<IBikeCoordinator>();
 
         bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Unavailable()));
@@ -213,6 +222,8 @@ public class BikeCreationScreenshots
             .Returns(Task.FromResult<BikeImageLoadResult>(new BikeImageLoadResult.Canceled()));
         bikeCoordinator.ImportBikeAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeImportResult>(new BikeImportResult.Canceled()));
+        bikeCoordinator.ImportLeverageRatioAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<LeverageRatioImportResult>(new LeverageRatioImportResult.Canceled()));
         bikeCoordinator.ExportBikeAsync(Arg.Any<Bike>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeExportResult>(new BikeExportResult.Canceled()));
 
