@@ -65,7 +65,8 @@ public class LiveDaqDetailViewModelTests
                 callInfo.ArgAt<Stream>(4).Write(bytes);
                 return Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Downloaded("CONFIG", (ulong)bytes.Length));
             });
-        dialogService.ShowLiveDaqConfigEditorDialogAsync(Arg.Any<LiveDaqConfigEditorViewModel>()).Returns(Task.CompletedTask);
+        dialogService.ShowContentDialogAsync(Arg.Any<object>(), Arg.Any<DialogOptions>())
+            .Returns(Task.FromResult(PromptResult.Ok));
         filesService.OpenDeviceConfigFileAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<SelectedDeviceConfigFile?>(null));
         sharedStream.Frames.Returns(frames);
@@ -470,8 +471,13 @@ public class LiveDaqDetailViewModelTests
     public async Task EditConfigCommand_DownloadsConfigAndOpensEditor()
     {
         LiveDaqConfigEditorViewModel? shownEditor = null;
-        dialogService.ShowLiveDaqConfigEditorDialogAsync(Arg.Do<LiveDaqConfigEditorViewModel>(editor => shownEditor = editor))
-            .Returns(Task.CompletedTask);
+        dialogService.ShowContentDialogAsync(
+                Arg.Do<object>(content =>
+                {
+                    shownEditor = Assert.IsType<LiveDaqConfigEditorViewModel>(content);
+                }),
+                Arg.Any<DialogOptions>())
+            .Returns(Task.FromResult(PromptResult.Ok));
         var editor = CreateEditor();
 
         await editor.EditConfigCommand.ExecuteAsync(null);
@@ -483,7 +489,17 @@ public class LiveDaqDetailViewModelTests
             0,
             Arg.Any<Stream>(),
             Arg.Any<CancellationToken>());
-        await dialogService.Received(1).ShowLiveDaqConfigEditorDialogAsync(Arg.Any<LiveDaqConfigEditorViewModel>());
+        await dialogService.Received(1).ShowContentDialogAsync(
+            Arg.Is<object>(content => content is LiveDaqConfigEditorViewModel),
+            Arg.Is<DialogOptions>(options =>
+                options.Title == "Edit CONFIG" &&
+                options.Width == 640 &&
+                options.Height == 720 &&
+                options.MinWidth == 420 &&
+                options.MinHeight == 520 &&
+                options.CanResize &&
+                options.OverlayMaxWidth == 680 &&
+                options.OverlayMaxHeight == 760));
         Assert.NotNull(shownEditor);
         Assert.Equal("trail", shownEditor.Fields.Single(row => row.Key == "STA_SSID").Value);
         Assert.False(editor.IsManagementBusy);
@@ -506,15 +522,20 @@ public class LiveDaqDetailViewModelTests
         await editor.EditConfigCommand.ExecuteAsync(null);
 
         Assert.Contains(downloadErrorMessage, editor.ErrorMessages);
-        await dialogService.DidNotReceive().ShowLiveDaqConfigEditorDialogAsync(Arg.Any<LiveDaqConfigEditorViewModel>());
+        await dialogService.DidNotReceive().ShowContentDialogAsync(Arg.Any<object>(), Arg.Any<DialogOptions>());
     }
 
     [AvaloniaFact]
     public async Task EditConfigEditorSave_UploadsConfigAndAddsNotification()
     {
         LiveDaqConfigEditorViewModel? shownEditor = null;
-        dialogService.ShowLiveDaqConfigEditorDialogAsync(Arg.Do<LiveDaqConfigEditorViewModel>(editor => shownEditor = editor))
-            .Returns(Task.CompletedTask);
+        dialogService.ShowContentDialogAsync(
+                Arg.Do<object>(content =>
+                {
+                    shownEditor = Assert.IsType<LiveDaqConfigEditorViewModel>(content);
+                }),
+                Arg.Any<DialogOptions>())
+            .Returns(Task.FromResult(PromptResult.Ok));
         var editor = CreateEditor();
 
         await editor.EditConfigCommand.ExecuteAsync(null);
@@ -556,7 +577,7 @@ public class LiveDaqDetailViewModelTests
         serviceResult.TrySetResult(Encoding.UTF8.GetBytes("STA_SSID=late\n"));
         await editTask;
 
-        await dialogService.DidNotReceive().ShowLiveDaqConfigEditorDialogAsync(Arg.Any<LiveDaqConfigEditorViewModel>());
+        await dialogService.DidNotReceive().ShowContentDialogAsync(Arg.Any<object>(), Arg.Any<DialogOptions>());
         Assert.Empty(editor.Notifications);
         Assert.Empty(editor.ErrorMessages);
         Assert.False(editor.IsManagementBusy);

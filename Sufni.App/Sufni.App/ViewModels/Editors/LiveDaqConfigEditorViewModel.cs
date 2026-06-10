@@ -6,11 +6,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sufni.App.Services;
 using Sufni.App.Services.Management;
 
 namespace Sufni.App.ViewModels.Editors;
 
-public sealed partial class LiveDaqConfigEditorViewModel : ObservableObject
+public sealed partial class LiveDaqConfigEditorViewModel : ObservableObject, IContentDialogCompletionSource
 {
     private readonly DaqConfigDocument document;
     private readonly Func<byte[], CancellationToken, Task<DaqManagementResult>> uploadAsync;

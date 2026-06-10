@@ -13,6 +13,105 @@ namespace Sufni.App.Tests.Services;
 public class DialogServiceTests
 {
     [AvaloniaFact]
+    public async Task ShowContentDialogAsync_DesktopMode_UsesOwnedWindowAndReturnsOkOnCompletion()
+    {
+        TestApp.SetIsDesktop(true);
+
+        var service = new DialogService();
+        var owner = new Window();
+        var viewModel = new TestContentDialogCompletionSource();
+        owner.Show();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        service.SetOwner(owner);
+
+        try
+        {
+            var resultTask = service.ShowContentDialogAsync(
+                viewModel,
+                new DialogOptions(
+                    Title: "Content Dialog",
+                    Width: 320,
+                    Height: 240,
+                    MinWidth: 200,
+                    MinHeight: 160,
+                    CanResize: false));
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            var dialog = Assert.Single(owner.OwnedWindows);
+            Assert.Equal("Content Dialog", dialog.Title);
+            Assert.Equal(320, dialog.Width);
+            Assert.Equal(240, dialog.Height);
+            Assert.Equal(200, dialog.MinWidth);
+            Assert.Equal(160, dialog.MinHeight);
+            Assert.False(dialog.CanResize);
+            Assert.Same(viewModel, Assert.IsAssignableFrom<Control>(dialog.Content).DataContext);
+
+            viewModel.Complete();
+
+            var result = await resultTask;
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.Equal(PromptResult.Ok, result);
+            Assert.Empty(owner.OwnedWindows);
+        }
+        finally
+        {
+            CloseOwnedWindows(owner);
+            owner.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ShowContentDialogAsync_MobileMode_UsesOverlayAndReturnsOkOnCompletion()
+    {
+        TestApp.SetIsDesktop(false);
+
+        var service = new DialogService();
+        var overlayHost = new Grid();
+        var owner = ViewTestHelpers.ShowView(overlayHost);
+        var viewModel = new TestContentDialogCompletionSource();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        service.SetOwner(owner);
+        service.SetOverlayHost(overlayHost);
+
+        try
+        {
+            var resultTask = service.ShowContentDialogAsync(
+                viewModel,
+                new DialogOptions(
+                    Title: "Content Dialog",
+                    Width: 320,
+                    Height: 240,
+                    MinWidth: 200,
+                    MinHeight: 160,
+                    CanResize: false,
+                    OverlayMaxWidth: 340,
+                    OverlayMaxHeight: 260));
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.Empty(owner.OwnedWindows);
+            Assert.NotNull(FindContentDialogContent(overlayHost, viewModel));
+
+            viewModel.Complete();
+
+            var result = await resultTask;
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.Equal(PromptResult.Ok, result);
+            Assert.Null(FindContentDialogContent(overlayHost, viewModel));
+            Assert.Empty(owner.OwnedWindows);
+        }
+        finally
+        {
+            owner.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task ShowDialogAsync_DesktopMode_UsesOwnedWindowAndReturnsCompletionResult()
     {
         TestApp.SetIsDesktop(true);
@@ -365,6 +464,25 @@ public class DialogServiceTests
         return root.GetVisualDescendants()
             .OfType<ContentControl>()
             .SingleOrDefault(control => ReferenceEquals(control.Content, viewModel));
+    }
+
+    private static Control? FindContentDialogContent(
+        Control root,
+        TestContentDialogCompletionSource viewModel)
+    {
+        return root.GetVisualDescendants()
+            .OfType<Control>()
+            .SingleOrDefault(control => ReferenceEquals(control.DataContext, viewModel));
+    }
+
+    private sealed class TestContentDialogCompletionSource : IContentDialogCompletionSource
+    {
+        public event EventHandler? Completed;
+
+        public void Complete()
+        {
+            Completed?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private sealed class TestExtensionDialogResultSource<TResult> : IExtensionDialogResultSource<TResult>

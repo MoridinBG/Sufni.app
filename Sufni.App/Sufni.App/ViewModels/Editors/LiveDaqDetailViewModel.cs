@@ -420,7 +420,17 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         var editor = new LiveDaqConfigEditorViewModel(
             document,
             (bytes, uploadToken) => UploadEditedConfigAsync(host, port, bytes, uploadToken));
-        await dialogService.ShowLiveDaqConfigEditorDialogAsync(editor);
+        await dialogService.ShowContentDialogAsync(
+            editor,
+            new DialogOptions(
+                Title: "Edit CONFIG",
+                Width: 640,
+                Height: 720,
+                MinWidth: 420,
+                MinHeight: 520,
+                CanResize: true,
+                OverlayMaxWidth: 680,
+                OverlayMaxHeight: 760));
     }
 
     private async Task<DaqManagementResult> UploadEditedConfigAsync(

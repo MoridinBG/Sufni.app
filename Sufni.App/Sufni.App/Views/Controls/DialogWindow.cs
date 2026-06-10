@@ -1,10 +1,9 @@
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Sufni.App.Services;
 
 namespace Sufni.App.Views.Controls;
-
-public enum PromptResult { Yes, No, Ok, Cancel }
 
 public partial class DialogWindow : Window
 {

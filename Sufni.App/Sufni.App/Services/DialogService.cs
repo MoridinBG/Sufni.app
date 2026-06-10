@@ -9,9 +9,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Sufni.App.Models;
 using Sufni.App.Theming;
-using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views;
-using Sufni.App.Views.Editors;
 using Sufni.App.Views.Controls;
 using Sufni.App.ExtensionHost.Services;
 
@@ -19,8 +17,19 @@ namespace Sufni.App.Services;
 
 public class DialogService : IDialogService, IExtensionDialogService
 {
+    private readonly ViewLocator viewLocator;
     private Window? owner;
     private Control? overlayHost;
+
+    public DialogService()
+        : this(new ViewLocator())
+    {
+    }
+
+    public DialogService(ViewLocator viewLocator)
+    {
+        this.viewLocator = viewLocator;
+    }
 
     public void SetOwner(Window owner)
     {
@@ -56,11 +65,14 @@ public class DialogService : IDialogService, IExtensionDialogService
             : ShowAddTileLayerOverlayAsync();
     }
 
-    public Task ShowLiveDaqConfigEditorDialogAsync(LiveDaqConfigEditorViewModel editor)
+    public Task<PromptResult> ShowContentDialogAsync(object contentViewModel, DialogOptions options)
     {
+        ArgumentNullException.ThrowIfNull(contentViewModel);
+        ArgumentNullException.ThrowIfNull(options);
+
         return App.Current?.IsDesktop == true
-            ? ShowLiveDaqConfigEditorWindowAsync(editor)
-            : ShowLiveDaqConfigEditorOverlayAsync(editor);
+            ? ShowContentDialogWindowAsync(contentViewModel, options)
+            : ShowContentDialogOverlayAsync(contentViewModel, options);
     }
 
     public Task<TResult?> ShowDialogAsync<TResult>(ExtensionDialogRequest<TResult> request)
@@ -132,44 +144,56 @@ public class DialogService : IDialogService, IExtensionDialogService
         return tcs.Task;
     }
 
-    private Task ShowLiveDaqConfigEditorWindowAsync(LiveDaqConfigEditorViewModel editor)
+    private Task<PromptResult> ShowContentDialogWindowAsync(object contentViewModel, DialogOptions options)
     {
         Debug.Assert(owner != null, nameof(owner) + " != null");
 
         var dialogOwner = owner ?? throw new InvalidOperationException("Dialog owner has not been set.");
-        var tcs = new TaskCompletionSource<object?>();
+        var tcs = new TaskCompletionSource<PromptResult>();
         var window = new Window
         {
-            Title = "Edit CONFIG",
-            Width = 640,
-            Height = 720,
-            MinWidth = 420,
-            MinHeight = 520,
+            Title = options.Title,
+            Width = options.Width,
+            Height = options.Height,
+            MinWidth = options.MinWidth,
+            MinHeight = options.MinHeight,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            CanResize = true
+            CanResize = options.CanResize
         };
 
-        window.Content = CreateLiveDaqConfigEditorContent(editor);
+        window.Content = CreateContentDialogContent(contentViewModel);
 
-        editor.Completed += EditorCompleted;
+        if (contentViewModel is IContentDialogCompletionSource completionSource)
+        {
+            completionSource.Completed += ContentCompleted;
+        }
+
         window.Closed += (_, _) =>
         {
-            editor.Completed -= EditorCompleted;
-            tcs.TrySetResult(null);
+            if (contentViewModel is IContentDialogCompletionSource completionSource)
+            {
+                completionSource.Completed -= ContentCompleted;
+            }
+
+            tcs.TrySetResult(PromptResult.Cancel);
         };
 
         window.ShowDialog(dialogOwner);
         return tcs.Task;
 
-        void EditorCompleted(object? sender, EventArgs args)
+        void ContentCompleted(object? sender, EventArgs args)
         {
-            editor.Completed -= EditorCompleted;
-            tcs.TrySetResult(null);
+            if (contentViewModel is IContentDialogCompletionSource completionSource)
+            {
+                completionSource.Completed -= ContentCompleted;
+            }
+
+            tcs.TrySetResult(PromptResult.Ok);
             window.Close();
         }
     }
 
-    private Task ShowLiveDaqConfigEditorOverlayAsync(LiveDaqConfigEditorViewModel editor)
+    private Task<PromptResult> ShowContentDialogOverlayAsync(object contentViewModel, DialogOptions options)
     {
         var host = overlayHost ?? TryGetSingleViewOverlayHost();
         Debug.Assert(host != null, nameof(overlayHost) + " != null");
@@ -185,18 +209,50 @@ public class DialogService : IDialogService, IExtensionDialogService
             throw new InvalidOperationException("Dialog overlay host does not expose a panel surface.");
         }
 
-        var tcs = new TaskCompletionSource<object?>();
-        var overlay = CreateLiveDaqConfigEditorOverlay(CreateLiveDaqConfigEditorContent(editor));
+        var tcs = new TaskCompletionSource<PromptResult>();
+        Control? overlay = null;
+        overlay = CreateContentDialogOverlay(CreateContentDialogContent(contentViewModel), options);
 
-        editor.Completed += EditorCompleted;
+        if (contentViewModel is IContentDialogCompletionSource completionSource)
+        {
+            completionSource.Completed += ContentCompleted;
+        }
+
+        overlay.DetachedFromVisualTree += OverlayDetached;
         panel.Children.Add(overlay);
         return tcs.Task;
 
-        void EditorCompleted(object? sender, EventArgs args)
+        void ContentCompleted(object? sender, EventArgs args)
         {
-            editor.Completed -= EditorCompleted;
-            panel.Children.Remove(overlay);
-            tcs.TrySetResult(null);
+            Complete(PromptResult.Ok);
+        }
+
+        void OverlayDetached(object? sender, VisualTreeAttachmentEventArgs args)
+        {
+            overlay = null;
+            if (contentViewModel is IContentDialogCompletionSource completionSource)
+            {
+                completionSource.Completed -= ContentCompleted;
+            }
+
+            tcs.TrySetResult(PromptResult.Cancel);
+        }
+
+        void Complete(PromptResult result)
+        {
+            if (contentViewModel is IContentDialogCompletionSource completionSource)
+            {
+                completionSource.Completed -= ContentCompleted;
+            }
+
+            if (overlay is { } currentOverlay)
+            {
+                currentOverlay.DetachedFromVisualTree -= OverlayDetached;
+                panel.Children.Remove(currentOverlay);
+                overlay = null;
+            }
+
+            tcs.TrySetResult(result);
         }
     }
 
@@ -336,15 +392,17 @@ public class DialogService : IDialogService, IExtensionDialogService
         };
     }
 
-    private static Control CreateLiveDaqConfigEditorContent(LiveDaqConfigEditorViewModel editor)
+    private Control CreateContentDialogContent(object contentViewModel)
     {
-        return new LiveDaqConfigEditorView
+        var content = viewLocator.Build(contentViewModel) ?? new TextBlock
         {
-            DataContext = editor
+            Text = contentViewModel.GetType().FullName
         };
+        content.DataContext = contentViewModel;
+        return content;
     }
 
-    private static Control CreateLiveDaqConfigEditorOverlay(Control content)
+    private static Control CreateContentDialogOverlay(Control content, DialogOptions options)
     {
         return new Grid
         {
@@ -361,8 +419,8 @@ public class DialogService : IDialogService, IExtensionDialogService
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
                     Margin = new Thickness(12),
-                    MaxWidth = 680,
-                    MaxHeight = 760,
+                    MaxWidth = options.OverlayMaxWidth ?? options.Width,
+                    MaxHeight = options.OverlayMaxHeight ?? options.Height,
                     Background = SufniBrushes.DialogSurface(),
                     CornerRadius = new CornerRadius(6),
                     Child = content
