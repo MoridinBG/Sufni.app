@@ -18,19 +18,25 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<InboundSyncCoordinator>();
 
-    private readonly IDatabaseService databaseService;
+    private readonly ISynchronizableRepository<Board> boardRepository;
+    private readonly ISynchronizableRepository<Bike> bikeRepository;
+    private readonly ISynchronizableRepository<Setup> setupRepository;
     private readonly IBikeStoreWriter bikeStoreWriter;
     private readonly ISetupStoreWriter setupStoreWriter;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
 
     public InboundSyncCoordinator(
-        IDatabaseService databaseService,
+        ISynchronizableRepository<Board> boardRepository,
+        ISynchronizableRepository<Bike> bikeRepository,
+        ISynchronizableRepository<Setup> setupRepository,
         IBikeStoreWriter bikeStoreWriter,
         ISetupStoreWriter setupStoreWriter,
         ISynchronizationServerService synchronizationServer,
         IUiThreadDispatcher? uiThreadDispatcher = null)
     {
-        this.databaseService = databaseService;
+        this.boardRepository = boardRepository;
+        this.bikeRepository = bikeRepository;
+        this.setupRepository = setupRepository;
         this.bikeStoreWriter = bikeStoreWriter;
         this.setupStoreWriter = setupStoreWriter;
         this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
@@ -44,12 +50,12 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
         {
             try
             {
-                var boards = await databaseService.GetAllAsync<Board>();
+                var boards = await boardRepository.GetAllAsync();
                 var removedBikeCount = 0;
                 var upsertedBikeCount = 0;
                 foreach (var bike in e.Data.Bikes)
                 {
-                    var freshBike = await databaseService.GetAsync<Bike>(bike.Id);
+                    var freshBike = await bikeRepository.GetAsync(bike.Id);
                     if (freshBike is null)
                     {
                         bikeStoreWriter.Remove(bike.Id);
@@ -66,7 +72,7 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
                 var upsertedSetupCount = 0;
                 foreach (var setup in e.Data.Setups)
                 {
-                    var freshSetup = await databaseService.GetAsync<Setup>(setup.Id);
+                    var freshSetup = await setupRepository.GetAsync(setup.Id);
                     if (freshSetup is null)
                     {
                         setupStoreWriter.Remove(setup.Id);

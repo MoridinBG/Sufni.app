@@ -10,7 +10,9 @@ namespace Sufni.App.Tests.Coordinators;
 
 public class InboundSyncCoordinatorTests
 {
-    private readonly IDatabaseService database = Substitute.For<IDatabaseService>();
+    private readonly ISynchronizableRepository<Board> boardRepository = Substitute.For<ISynchronizableRepository<Board>>();
+    private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
+    private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
     private readonly IBikeStoreWriter bikeStore = Substitute.For<IBikeStoreWriter>();
     private readonly ISetupStoreWriter setupStore = Substitute.For<ISetupStoreWriter>();
     private readonly ISynchronizationServerService server = Substitute.For<ISynchronizationServerService>();
@@ -19,8 +21,8 @@ public class InboundSyncCoordinatorTests
     {
         // Bike/setup handlers reload authoritative state on every arrival,
         // so always seed board lookups to avoid null task results.
-        database.GetAllAsync<Board>().Returns(Task.FromResult(boards ?? new List<Board>()));
-        return new InboundSyncCoordinator(database, bikeStore, setupStore, server);
+        boardRepository.GetAllAsync().Returns(Task.FromResult(boards ?? new List<Board>()));
+        return new InboundSyncCoordinator(boardRepository, bikeRepository, setupRepository, bikeStore, setupStore, server);
     }
 
     private static async Task DrainDispatcherAsync() =>
@@ -33,7 +35,7 @@ public class InboundSyncCoordinatorTests
     {
         var coordinator = CreateCoordinator();
         var bikeId = Guid.NewGuid();
-        database.GetAsync<Bike>(bikeId).Returns(Task.FromResult(new Bike(bikeId, "fresh bike") { HeadAngle = 65, ForkStroke = 160, Updated = 7 }));
+        bikeRepository.GetAsync(bikeId).Returns(Task.FromResult<Bike?>(new Bike(bikeId, "fresh bike") { HeadAngle = 65, ForkStroke = 160, Updated = 7 }));
         var data = new SynchronizationData
         {
             Bikes = { new Bike(bikeId, "test bike") { HeadAngle = 65, ForkStroke = 160, Updated = 4 } },
@@ -51,7 +53,7 @@ public class InboundSyncCoordinatorTests
     {
         var coordinator = CreateCoordinator();
         var bikeId = Guid.NewGuid();
-        database.GetAsync<Bike>(bikeId).Returns(Task.FromResult<Bike>(null!));
+        bikeRepository.GetAsync(bikeId).Returns(Task.FromResult<Bike?>(null));
         var data = new SynchronizationData
         {
             Bikes = { new Bike(bikeId, "gone") { Updated = 5, Deleted = 5 } },
@@ -69,7 +71,7 @@ public class InboundSyncCoordinatorTests
     {
         var coordinator = CreateCoordinator();
         var bikeId = Guid.NewGuid();
-        database.GetAsync<Bike>(bikeId).Returns(Task.FromResult(new Bike(bikeId, "kept bike") { Updated = 9 }));
+        bikeRepository.GetAsync(bikeId).Returns(Task.FromResult<Bike?>(new Bike(bikeId, "kept bike") { Updated = 9 }));
         var data = new SynchronizationData
         {
             Bikes = { new Bike(bikeId, "gone") { Updated = 5, Deleted = 5 } },
@@ -89,7 +91,7 @@ public class InboundSyncCoordinatorTests
     {
         var setupId = Guid.NewGuid();
         var boardId = Guid.NewGuid();
-        database.GetAsync<Setup>(setupId).Returns(Task.FromResult(new Setup(setupId, "fresh tuned") { BikeId = Guid.NewGuid(), Updated = 8 }));
+        setupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(new Setup(setupId, "fresh tuned") { BikeId = Guid.NewGuid(), Updated = 8 }));
         var coordinator = CreateCoordinator(boards: new List<Board>
         {
             new(boardId, setupId),
@@ -111,7 +113,7 @@ public class InboundSyncCoordinatorTests
     public async Task SynchronizationDataArrived_UpsertsSetup_WithNullBoardId_WhenNoMatchingBoard()
     {
         var setupId = Guid.NewGuid();
-        database.GetAsync<Setup>(setupId).Returns(Task.FromResult(new Setup(setupId, "untuned") { BikeId = Guid.NewGuid(), Updated = 3 }));
+        setupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(new Setup(setupId, "untuned") { BikeId = Guid.NewGuid(), Updated = 3 }));
         var coordinator = CreateCoordinator(boards: new List<Board>
         {
             new(Guid.NewGuid(), Guid.NewGuid()),
@@ -134,7 +136,7 @@ public class InboundSyncCoordinatorTests
     {
         var coordinator = CreateCoordinator();
         var setupId = Guid.NewGuid();
-        database.GetAsync<Setup>(setupId).Returns(Task.FromResult<Setup>(null!));
+        setupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(null));
         var data = new SynchronizationData
         {
             Setups = { new Setup(setupId, "gone") { Updated = 9, Deleted = 9 } },
@@ -155,8 +157,8 @@ public class InboundSyncCoordinatorTests
         var coordinator = CreateCoordinator();
         var bikeId = Guid.NewGuid();
         var setupId = Guid.NewGuid();
-        database.GetAsync<Bike>(bikeId).Returns(Task.FromResult(new Bike(bikeId, "authoritative bike") { Updated = 2 }));
-        database.GetAsync<Setup>(setupId).Returns(Task.FromResult(new Setup(setupId, "authoritative setup") { BikeId = bikeId, Updated = 2 }));
+        bikeRepository.GetAsync(bikeId).Returns(Task.FromResult<Bike?>(new Bike(bikeId, "authoritative bike") { Updated = 2 }));
+        setupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(new Setup(setupId, "authoritative setup") { BikeId = bikeId, Updated = 2 }));
         var data = new SynchronizationData
         {
             Bikes = { new Bike(bikeId, "test bike") { Updated = 1 } },
