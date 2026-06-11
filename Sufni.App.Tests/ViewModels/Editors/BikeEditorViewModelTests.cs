@@ -354,6 +354,39 @@ public class BikeEditorViewModelTests
         Assert.Equal(baselineEditor.HeadAngle, affectedEditor.HeadAngle);
     }
 
+    [AvaloniaTheory]
+    [InlineData(0.0)]
+    [InlineData(-10.0)]
+    [InlineData(double.NaN)]
+    public void InvalidChainstay_ClearsDerivedScale_AndDerivedHeadAngle(double invalidChainstay)
+    {
+        var snapshot = FullSuspensionSnapshot(
+            includeHeadTubeJoints: true,
+            frontWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            rearWheelDiameter: TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5));
+        var editor = CreateEditor(snapshot);
+        Assert.True(editor.PixelsToMillimeters.HasValue);
+        Assert.True(editor.HeadAngle.HasValue);
+
+        editor.Chainstay = invalidChainstay;
+
+        Assert.Null(editor.PixelsToMillimeters);
+        Assert.Null(editor.HeadAngle);
+    }
+
+    [AvaloniaFact]
+    public void InvalidChainstay_DoesNotTouchManualHeadAngle_WithoutPhotoJoints()
+    {
+        var snapshot = TestSnapshots.Bike(name: "manual head angle");
+        var editor = CreateEditor(snapshot);
+        var manualHeadAngle = editor.HeadAngle;
+        Assert.NotNull(manualHeadAngle);
+
+        editor.Chainstay = 0;
+
+        Assert.Equal(manualHeadAngle, editor.HeadAngle);
+    }
+
     [AvaloniaFact]
     public void MovingFrontWheel_RefreshesWheelProjection_WithoutChangingPixelsToMillimeters()
     {

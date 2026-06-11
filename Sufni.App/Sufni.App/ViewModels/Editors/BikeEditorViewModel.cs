@@ -485,26 +485,30 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         var rw = LinkageEditor.JointViewModels.FirstOrDefault(p => p.Type == JointType.RearWheel);
         if (bb is null || rw is null) return;
 
-        var pixelsToMillimeters = GeometryUtils.CalculatePixelsToMillimetersFromChainstay(Chainstay, rw, bb);
-        if (pixelsToMillimeters.HasValue)
-        {
-            PixelsToMillimeters = pixelsToMillimeters.Value;
-        }
+        // Invalid chainstay input clears the derived scale instead of keeping
+        // a stale value, so the editor visibly reflects the degenerate input.
+        PixelsToMillimeters = GeometryUtils.CalculatePixelsToMillimetersFromChainstay(Chainstay, rw, bb);
     }
 
     private void RecalculateHeadAngle()
     {
-        if (PixelsToMillimeters is null || !WheelGeometry.FrontWheelDiameter.HasValue || !WheelGeometry.RearWheelDiameter.HasValue) return;
-
         var mapping = new JointNameMapping();
         var headTube1 = LinkageEditor.JointViewModels.FirstOrDefault(joint => joint.Name == mapping.HeadTube1);
         var headTube2 = LinkageEditor.JointViewModels.FirstOrDefault(joint => joint.Name == mapping.HeadTube2);
         var frontWheel = GetFrontWheelJoint();
         var rearWheel = GetRearWheelJoint();
 
+        // No head-tube/wheel joints means the angle is not photo-derived here;
+        // leave any manually entered value alone.
         if (headTube1 is null || headTube2 is null || frontWheel is null || rearWheel is null) return;
 
-        var headAngle = GeometryUtils.CalculateHeadAngle(
+        if (PixelsToMillimeters is null || !WheelGeometry.FrontWheelDiameter.HasValue || !WheelGeometry.RearWheelDiameter.HasValue)
+        {
+            HeadAngle = null;
+            return;
+        }
+
+        HeadAngle = GeometryUtils.CalculateHeadAngle(
             headTube1,
             headTube2,
             frontWheel,
@@ -512,10 +516,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
             WheelGeometry.FrontWheelDiameter.Value,
             WheelGeometry.RearWheelDiameter.Value,
             PixelsToMillimeters.Value);
-        if (headAngle.HasValue)
-        {
-            HeadAngle = headAngle.Value;
-        }
     }
 
     private void QueuePlotRefresh(bool showPlotBusyOverlay = true) => _ = RefreshAnalysisAsync(showPlotBusyOverlay);
