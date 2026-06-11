@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
@@ -17,6 +18,7 @@ using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views.Controls;
 using Sufni.App.Views.Editors;
+using Sufni.App.Views.Shared;
 
 namespace Sufni.App.Tests.Views.Editors;
 
@@ -47,6 +49,17 @@ public class LiveDaqDetailViewTests
 
         Assert.NotSame(scrollViewer, errorBar.Parent);
         Assert.Equal(1, Grid.GetRow(errorBar));
+    }
+
+    [AvaloniaFact]
+    public async Task LiveDaqDetailView_DeviceManagementCard_UsesMobilePadding()
+    {
+        var editor = CreateEditor();
+        await using var mounted = await MountAsync(editor);
+
+        var card = mounted.View.FindControl<LiveDaqDeviceManagementCard>("DeviceManagementCard")!;
+
+        Assert.Equal(new Thickness(14), card.CardPadding);
     }
 
     private static LiveDaqDetailViewModel CreateEditor()

@@ -1,6 +1,7 @@
 using System;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
@@ -55,6 +56,17 @@ public class LiveDaqDetailDesktopViewTests
         Assert.NotNull(text);
         Assert.True(text!.IsVisible);
         Assert.Equal("Staged: CONFIG", text.Text);
+    }
+
+    [AvaloniaFact]
+    public async Task LiveDaqDetailDesktopView_DeviceManagementCard_KeepsDefaultPadding()
+    {
+        var editor = CreateEditor();
+        await using var mounted = await MountAsync(editor);
+
+        var card = mounted.View.FindControl<LiveDaqDeviceManagementCard>("DeviceManagementCard")!;
+
+        Assert.Equal(new Thickness(12), card.CardPadding);
     }
 
     private static LiveDaqDetailViewModel CreateEditor()

@@ -262,7 +262,7 @@ mc:Ignorable="d">
                 </StackPanel>
 
                 <!--  6. Device Management  -->
-                <shared:LiveDaqDeviceManagementCard Name="DeviceManagementCard" />
+                <shared:LiveDaqDeviceManagementCard Name="DeviceManagementCard" CardPadding="14" />
 
                 <!--  9. Notifications  -->
                 <controls:NotificationsBar Name="ManagementNotificationsBar" />

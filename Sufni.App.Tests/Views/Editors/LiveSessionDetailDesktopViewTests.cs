@@ -18,6 +18,7 @@ using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.Tests.Services.LiveStreaming;
 using Sufni.App.ViewModels.Editors;
+using Sufni.App.Views.Shared;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Models;
 using Sufni.App.ExtensionHost.Services;
@@ -41,6 +42,18 @@ public class LiveSessionDetailDesktopViewTests
         Assert.IsType<SessionStatisticsDesktopView>(shellView.StatisticsContent);
         Assert.IsType<LiveSessionControlsDesktopView>(shellView.ControlContent);
         Assert.IsType<SessionSidebarDesktopView>(shellView.SidebarContent);
+    }
+
+    [AvaloniaFact]
+    public async Task LiveSessionDetailDesktopView_HeaderFields_UseDefaultFontSize()
+    {
+        var editor = CreateEditor();
+
+        await using var mounted = await MountAsync(editor);
+
+        var headerFields = mounted.View.GetVisualDescendants().OfType<LiveSessionHeaderFields>().Single();
+
+        Assert.Equal(12, headerFields.FieldFontSize);
     }
 
     private static LiveSessionDetailViewModel CreateEditor()
