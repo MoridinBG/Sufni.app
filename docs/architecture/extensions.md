@@ -33,6 +33,8 @@ parameterless extension view registrations.
 
 Public project files do not reference extension projects, implementation folders, platform hooks, views, or assets directly. Non-public builds add concrete references and linked partials only through the external import files under `SufniPrivateExtensionsRoot`.
 
+`Sufni.App.ExtensionHost.TestSupport/` is the shared test-support project next to the SDK. It references `Sufni.App` so its `TestExtensionHostHarness` and `TestExtensionCapabilityRegistry` exercise the real host machinery (migration runner, table-catalog-validated database sessions, cascade service, capability/view registries) instead of re-implementations, and it carries the fixtures both repos' test projects reuse (`TempDatabase`, `TempDirectory`, inline dispatcher/runner fakes, the recorded-session host-context builder, `TestRecordedSessionTimeline`). Extension repos reference it through an overridable msbuild property defaulted in their own build props.
+
 Desktop platform heads expose a neutral `Program.RegisterPlatformExtensions(IServiceCollection)` partial hook. Each head calls it after its built-in platform services and desktop sync registration, before returning the configured Avalonia builder. Private build imports can compile platform-specific partial implementations into the head assemblies without adding extension references to public project files.
 
 ## View Resolution

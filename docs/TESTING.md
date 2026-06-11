@@ -84,7 +84,7 @@ Do not bombard the SUT with random junk just to create more cases. Prefer inputs
 
 ## Shared Helpers
 
-- Check `Sufni.App.Tests/Infrastructure/` before creating a new local helper.
+- Check `Sufni.App.Tests/Infrastructure/` and `Sufni.App.ExtensionHost.TestSupport/` before creating a new local helper. TestSupport carries the fixtures shared with extension test projects (`TempDatabase`, `TempDirectory`, `InlineUiThreadDispatcher`, `InlineBackgroundTaskRunner`, `TestRecordedSessionTimeline`, the recorded-session host-context builder, and the real-machinery `TestExtensionHostHarness` / `TestExtensionCapabilityRegistry`); `Infrastructure/` carries app-test-only helpers.
 - Reuse shared builders, snapshot factories, app/test-environment helpers, and synchronization helpers when they fit the test.
 - If the same helper pattern starts appearing in multiple test classes, move it into shared test infrastructure.
 - Keep shared helpers small and mechanical. They should reduce repetition, not hide the behavior the test is asserting.
