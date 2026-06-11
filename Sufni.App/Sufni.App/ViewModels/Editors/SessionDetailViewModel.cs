@@ -186,10 +186,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     [ObservableProperty] private BalanceSpeedMode selectedBalanceSpeedMode = BalanceSpeedMode.Both;
     [ObservableProperty] private VelocityAverageMode selectedVelocityAverageMode = VelocityAverageMode.SampleAveraged;
     [ObservableProperty] private SessionAnalysisTargetProfile selectedSessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Trail;
-    [ObservableProperty] private SessionDamperPercentages damperPercentages = SessionDamperPercentages.Empty;
     [ObservableProperty] private DampingSpeedCutoffs dampingSpeedCutoffs = DampingSpeedCutoffs.Default;
-    [ObservableProperty] private DampingSpeedCutoffs plotDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
-    [ObservableProperty] private SessionAnalysisResult sessionAnalysis = SessionAnalysisResult.Hidden;
     public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } = SessionAnalysisPresentation.TravelHistogramModeOptions;
     public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } = SessionAnalysisPresentation.BalanceDisplacementModeOptions;
     public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } = SessionAnalysisPresentation.BalanceSpeedModeOptions;
@@ -217,7 +214,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         RefreshTrackTimelineContext();
         if (value is null)
         {
-            SessionAnalysis = SessionAnalysisResult.Hidden;
+            SessionContext.SessionAnalysis = SessionAnalysisResult.Hidden;
             UpdateRecordedSessionExtensionHostState();
             return;
         }
@@ -295,21 +292,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         UpdateRecordedSessionExtensionHostState();
     }
 
-    partial void OnDamperPercentagesChanged(SessionDamperPercentages value)
-    {
-        SessionContext.DamperPercentages = value;
-    }
-
-    partial void OnPlotDampingSpeedCutoffsChanged(DampingSpeedCutoffs value)
-    {
-        SessionContext.PlotDampingSpeedCutoffs = value;
-    }
-
-    partial void OnSessionAnalysisChanged(SessionAnalysisResult value)
-    {
-        SessionContext.SessionAnalysis = value;
-    }
-
     partial void OnFullTrackPointsChanged(List<TrackPoint>? value)
     {
         SessionContext.FullTrackPoints = value;
@@ -361,7 +343,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
 
     internal void ApplyDamperPercentages(SessionDamperPercentages percentages)
     {
-        DamperPercentages = percentages;
+        SessionContext.DamperPercentages = percentages;
         DamperPage.ApplyDamperPercentages(percentages);
         UpdateRecordedSessionExtensionHostState();
     }
@@ -375,7 +357,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         dampingSpeedCutoffOwner = owner;
         SessionContext.CanEditDampingSpeedCutoffs = dampingSpeedCutoffOwner is not null;
         OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
-        PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
+        SessionContext.PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
         DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
     }
 
@@ -423,7 +405,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
             circuit,
             DampingCutoffInteraction.RoundDragValue(cutoffMmPerSecond));
         DampingSpeedCutoffs = committedCutoffs;
-        PlotDampingSpeedCutoffs = committedCutoffs;
+        SessionContext.PlotDampingSpeedCutoffs = committedCutoffs;
 
         var result = await bikeCoordinator.UpdateDampingSpeedCutoffAsync(
             owner.BikeId,
@@ -449,7 +431,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
 
             case BikeDampingSpeedCutoffUpdateResult.Failed failed:
                 DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
-                PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
+                SessionContext.PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
                 ErrorMessages.Add($"Could not save damping cutoff: {failed.ErrorMessage}");
                 break;
         }
@@ -504,14 +486,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
 
     internal void RecomputeSessionAnalysis()
     {
-        SessionAnalysis = sessionAnalysisService.Analyze(new SessionAnalysisRequest(
+        SessionContext.SessionAnalysis = sessionAnalysisService.Analyze(new SessionAnalysisRequest(
             TelemetryData,
             AnalysisRange,
             SelectedTravelHistogramMode,
             SelectedVelocityAverageMode,
             SelectedBalanceDisplacementMode,
             SelectedBalanceSpeedMode,
-            DamperPercentages,
+            SessionContext.DamperPercentages,
             SelectedSessionAnalysisTargetProfile)
         {
             DampingSpeedCutoffs = this.DampingSpeedCutoffs,
@@ -632,7 +614,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
                 timelineDurationSeconds,
                 Timeline),
             new RecordedSessionStatisticsState(
-                DamperPercentages,
+                SessionContext.DamperPercentages,
                 DampingSpeedCutoffs,
                 SelectedVelocityAverageMode,
                 SelectedTravelHistogramMode));

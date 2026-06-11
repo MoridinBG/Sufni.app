@@ -974,8 +974,8 @@ public class SessionDetailViewModelTests
         editor.PreviewDampingSpeedCutoff(SuspensionType.Front, DampingSpeedCircuit.Compression, 257);
 
         Assert.Equal(previewCutoffs, editor.DampingSpeedCutoffs);
-        Assert.Equal(initialCutoffs, editor.PlotDampingSpeedCutoffs);
-        Assert.Equal(previewPercentages, editor.DamperPercentages);
+        Assert.Equal(initialCutoffs, editor.SessionContext.PlotDampingSpeedCutoffs);
+        Assert.Equal(previewPercentages, editor.SessionContext.DamperPercentages);
         Assert.Equal(11, editor.DamperPage.FrontHscPercentage);
         Assert.False(editor.IsDirty);
         sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionAnalysisRequest>(request =>
@@ -1023,7 +1023,7 @@ public class SessionDetailViewModelTests
             DampingSpeedCircuit.Rebound,
             270);
         Assert.Equal(savedCutoffs, editor.DampingSpeedCutoffs);
-        Assert.Equal(savedCutoffs, editor.PlotDampingSpeedCutoffs);
+        Assert.Equal(savedCutoffs, editor.SessionContext.PlotDampingSpeedCutoffs);
         Assert.True(editor.CanEditDampingSpeedCutoffs);
         Assert.False(editor.IsDirty);
         Assert.Empty(editor.ErrorMessages);
@@ -1056,7 +1056,7 @@ public class SessionDetailViewModelTests
         await editor.CommitDampingSpeedCutoffAsync(SuspensionType.Rear, DampingSpeedCircuit.Compression, 500);
 
         Assert.Equal(initialCutoffs, editor.DampingSpeedCutoffs);
-        Assert.Equal(initialCutoffs, editor.PlotDampingSpeedCutoffs);
+        Assert.Equal(initialCutoffs, editor.SessionContext.PlotDampingSpeedCutoffs);
         Assert.False(editor.IsDirty);
         Assert.Contains(editor.ErrorMessages, message => message.Contains("disk full", StringComparison.Ordinal));
     }
@@ -1404,7 +1404,7 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(snapshot);
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        Assert.Same(analysis, editor.SessionAnalysis);
+        Assert.Same(analysis, editor.SessionContext.SessionAnalysis);
         sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionAnalysisRequest>(request =>
             ReferenceEquals(request.TelemetryData, telemetry) &&
             request.DamperPercentages == damperPercentages));
@@ -1539,7 +1539,7 @@ public class SessionDetailViewModelTests
         editor.TelemetryData = TestTelemetryData.CreateProcessed();
         sessionAnalysisService.ClearReceivedCalls();
 
-        editor.DamperPercentages = new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8);
+        editor.SessionContext.DamperPercentages = new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8);
 
         sessionAnalysisService.DidNotReceive().Analyze(Arg.Any<SessionAnalysisRequest>());
     }
@@ -1764,7 +1764,7 @@ public class SessionDetailViewModelTests
         Assert.True(damperPage.FrontHistogramState.IsReady);
         Assert.True(editor.SessionContext.FrontStatisticsState.IsHidden);
         Assert.True(editor.SessionContext.RearStatisticsState.IsHidden);
-        Assert.True(editor.SessionAnalysis.State.IsHidden);
+        Assert.True(editor.SessionContext.SessionAnalysis.State.IsHidden);
     }
 
     [AvaloniaFact]
