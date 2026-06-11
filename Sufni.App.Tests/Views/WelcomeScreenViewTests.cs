@@ -13,10 +13,17 @@ namespace Sufni.App.Tests.Views;
 public class WelcomeScreenViewTests
 {
     [AvaloniaFact]
-    public async Task WelcomeScreenView_ShowsLogsButton()
+    public async Task WelcomeScreenView_ShowsLogsButton_WhenCapabilityAvailable()
     {
-        await using var mounted = await MountAsync(CreateViewModel());
+        await using var mounted = await MountAsync(CreateViewModel(canOpenLogsFolder: true));
         Assert.True(mounted.View.FindControl<Button>("OpenLogsFolderButton")!.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task WelcomeScreenView_HidesLogsButton_WhenCapabilityMissing()
+    {
+        await using var mounted = await MountAsync(CreateViewModel(canOpenLogsFolder: false));
+        Assert.False(mounted.View.FindControl<Button>("OpenLogsFolderButton")!.IsVisible);
     }
 
     [AvaloniaFact]
@@ -29,6 +36,7 @@ public class WelcomeScreenViewTests
         var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
         var filesService = Substitute.For<IFilesService>();
 
+        filesService.CanOpenLogsFolder.Returns(true);
         filesService.OpenLogsFolderAsync().Returns(Task.CompletedTask);
 
         var viewModel = new WelcomeScreenViewModel(shell, dialogService, bikeCoordinator, setupCoordinator, importSessionsCoordinator, filesService, new InlineUiThreadDispatcher());
@@ -57,7 +65,7 @@ public class WelcomeScreenViewTests
         await filesService.Received(1).OpenLogsFolderAsync();
     }
 
-    private static WelcomeScreenViewModel CreateViewModel()
+    private static WelcomeScreenViewModel CreateViewModel(bool canOpenLogsFolder = true)
     {
         var shell = Substitute.For<IShellCoordinator>();
         var dialogService = Substitute.For<IDialogService>();
@@ -65,6 +73,7 @@ public class WelcomeScreenViewTests
         var setupCoordinator = TestCoordinatorSubstitutes.Setup();
         var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
         var filesService = Substitute.For<IFilesService>();
+        filesService.CanOpenLogsFolder.Returns(canOpenLogsFolder);
         filesService.OpenLogsFolderAsync().Returns(Task.CompletedTask);
         return new WelcomeScreenViewModel(shell, dialogService, bikeCoordinator, setupCoordinator, importSessionsCoordinator, filesService, new InlineUiThreadDispatcher());
     }

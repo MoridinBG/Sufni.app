@@ -46,7 +46,8 @@ mc:Ignorable="d">
         Classes="embedded hyperlink"
         Command="{Binding OpenLogsFolderCommand}"
         Content="Open logs folder ..."
-        FontSize="18" />
+        FontSize="18"
+        IsVisible="{Binding CanOpenLogsFolder}" />
     </StackPanel>
 
 </UserControl>

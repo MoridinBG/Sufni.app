@@ -10,6 +10,7 @@ namespace Sufni.App.Services;
 public interface IFilesService
 {
     public void SetTarget(TopLevel? target);
+    public bool CanOpenLogsFolder { get; }
     public Task OpenLogsFolderAsync();
     public Task<IStorageFolder?> OpenDataStoreFolderAsync();
     public Task<IStorageFile?> OpenBikeImageFileAsync();

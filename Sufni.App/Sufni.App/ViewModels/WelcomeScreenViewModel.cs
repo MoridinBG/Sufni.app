@@ -34,6 +34,8 @@ public partial class WelcomeScreenViewModel : TabPageViewModelBase
 
     #endregion Constructors
 
+    public bool CanOpenLogsFolder => filesService.CanOpenLogsFolder;
+
     #region Commands
 
     [RelayCommand]
