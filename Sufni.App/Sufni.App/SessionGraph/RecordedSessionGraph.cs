@@ -538,7 +538,13 @@ internal interface IRecordedSessionGraphScheduler
     void Post(Action action);
 }
 
+/// <summary>
+/// Dispatcher-backed scheduler for deferred recorded-session graph recomputes.
+/// The fixed scheduler keeps graph flush timing independent from the ambient
+/// synchronization context of the thread that queued a change; background
+/// priority keeps recompute flushes from competing with input and render work.
+/// </summary>
 internal sealed class UiThreadRecordedSessionGraphScheduler(IUiThreadDispatcher uiThreadDispatcher) : IRecordedSessionGraphScheduler
 {
-    public void Post(Action action) => uiThreadDispatcher.Post(action);
+    public void Post(Action action) => uiThreadDispatcher.Post(action, UiDispatchPriority.Background);
 }

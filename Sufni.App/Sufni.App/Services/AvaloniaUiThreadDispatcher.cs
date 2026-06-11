@@ -11,6 +11,11 @@ public sealed class AvaloniaUiThreadDispatcher : IUiThreadDispatcher
 
     public void Post(Action action) => Dispatcher.UIThread.Post(action);
 
+    public void Post(Action action, UiDispatchPriority priority) =>
+        Dispatcher.UIThread.Post(action, priority == UiDispatchPriority.Background
+            ? DispatcherPriority.Background
+            : DispatcherPriority.Default);
+
     public Task InvokeAsync(Action action) => Dispatcher.UIThread.InvokeAsync(action).GetTask();
 
     public Task InvokeAsync(Func<Task> action)

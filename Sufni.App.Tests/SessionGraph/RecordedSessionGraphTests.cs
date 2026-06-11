@@ -6,6 +6,7 @@ using Sufni.App.SessionGraph;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ExtensionHost.SessionGraph;
+using Sufni.App.ExtensionHost.Services;
 
 namespace Sufni.App.Tests.SessionGraph;
 
@@ -403,5 +404,43 @@ public class RecordedSessionGraphTests
                 callbacks.Dequeue()();
             }
         }
+    }
+
+    [Fact]
+    public void UiThreadScheduler_PostsAtBackgroundPriority()
+    {
+        var dispatcher = new PriorityRecordingDispatcher();
+        var scheduler = new UiThreadRecordedSessionGraphScheduler(dispatcher);
+        var executed = false;
+
+        scheduler.Post(() => executed = true);
+
+        Assert.True(executed);
+        Assert.Equal([UiDispatchPriority.Background], dispatcher.Priorities);
+    }
+
+    private sealed class PriorityRecordingDispatcher : IUiThreadDispatcher
+    {
+        public List<UiDispatchPriority> Priorities { get; } = [];
+
+        public bool CheckAccess() => true;
+
+        public void Post(Action action) => action();
+
+        public void Post(Action action, UiDispatchPriority priority)
+        {
+            Priorities.Add(priority);
+            action();
+        }
+
+        public Task InvokeAsync(Action action)
+        {
+            action();
+            return Task.CompletedTask;
+        }
+
+        public Task InvokeAsync(Func<Task> action) => action();
+
+        public Task<T> InvokeAsync<T>(Func<T> action) => Task.FromResult(action());
     }
 }
