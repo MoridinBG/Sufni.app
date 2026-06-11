@@ -190,14 +190,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     [ObservableProperty] private string? mediaUrl;
     [ObservableProperty] private double? mediaColumnWidth;
     [ObservableProperty] private bool isComplete;
-    [ObservableProperty] private SurfacePresentationState frontStatisticsState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SurfacePresentationState rearStatisticsState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SurfacePresentationState compressionBalanceState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SurfacePresentationState reboundBalanceState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SurfacePresentationState frontForkVibrationState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SurfacePresentationState frontFrameVibrationState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SurfacePresentationState rearForkVibrationState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SurfacePresentationState rearFrameVibrationState = SurfacePresentationState.Hidden;
     [ObservableProperty] private bool showAirtime = true;
     [ObservableProperty] private bool showVelocityAirtime;
     [ObservableProperty] private bool showImuAirtime;
@@ -254,46 +246,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     partial void OnSessionOperationStateChanged(SessionOperationPresentationState value)
     {
         SessionContext.SessionOperationState = value;
-    }
-
-    partial void OnFrontStatisticsStateChanged(SurfacePresentationState value)
-    {
-        SessionContext.FrontStatisticsState = value;
-    }
-
-    partial void OnRearStatisticsStateChanged(SurfacePresentationState value)
-    {
-        SessionContext.RearStatisticsState = value;
-    }
-
-    partial void OnCompressionBalanceStateChanged(SurfacePresentationState value)
-    {
-        SessionContext.CompressionBalanceState = value;
-    }
-
-    partial void OnReboundBalanceStateChanged(SurfacePresentationState value)
-    {
-        SessionContext.ReboundBalanceState = value;
-    }
-
-    partial void OnFrontForkVibrationStateChanged(SurfacePresentationState value)
-    {
-        SessionContext.FrontForkVibrationState = value;
-    }
-
-    partial void OnFrontFrameVibrationStateChanged(SurfacePresentationState value)
-    {
-        SessionContext.FrontFrameVibrationState = value;
-    }
-
-    partial void OnRearForkVibrationStateChanged(SurfacePresentationState value)
-    {
-        SessionContext.RearForkVibrationState = value;
-    }
-
-    partial void OnRearFrameVibrationStateChanged(SurfacePresentationState value)
-    {
-        SessionContext.RearFrameVibrationState = value;
     }
 
     partial void OnTelemetryDataChanged(TelemetryData? value)

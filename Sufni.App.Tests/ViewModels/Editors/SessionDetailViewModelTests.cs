@@ -129,14 +129,14 @@ public class SessionDetailViewModelTests
         Assert.Equal(SurfaceStateKind.Loading, editor.SessionContext.TravelGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Loading, editor.SessionContext.VelocityGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Loading, editor.SessionContext.ImuGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.Loading, editor.FrontStatisticsState.Kind);
-        Assert.Equal(SurfaceStateKind.Loading, editor.RearStatisticsState.Kind);
-        Assert.Equal(SurfaceStateKind.Loading, editor.CompressionBalanceState.Kind);
-        Assert.Equal(SurfaceStateKind.Loading, editor.ReboundBalanceState.Kind);
-        Assert.True(editor.FrontForkVibrationState.IsHidden);
-        Assert.True(editor.FrontFrameVibrationState.IsHidden);
-        Assert.True(editor.RearForkVibrationState.IsHidden);
-        Assert.True(editor.RearFrameVibrationState.IsHidden);
+        Assert.Equal(SurfaceStateKind.Loading, editor.SessionContext.FrontStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, editor.SessionContext.RearStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, editor.SessionContext.CompressionBalanceState.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, editor.SessionContext.ReboundBalanceState.Kind);
+        Assert.True(editor.SessionContext.FrontForkVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.FrontFrameVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.RearForkVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.RearFrameVibrationState.IsHidden);
         Assert.Equal(SurfaceStateKind.Loading, editor.MapState.Kind);
         Assert.True(editor.ScreenState.IsReady);
     }
@@ -261,7 +261,7 @@ public class SessionDetailViewModelTests
 
         editor.TelemetryData = telemetry;
         editor.SetAnalysisRange(0.02, 0.16);
-        editor.FrontStatisticsState = SurfacePresentationState.Ready;
+        editor.SessionContext.FrontStatisticsState = SurfacePresentationState.Ready;
         editor.StatisticsWorkspace.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
         var selection = CreateFrontDampingSelection(telemetry, editor.SelectedVelocityAverageMode);
 
@@ -270,7 +270,7 @@ public class SessionDetailViewModelTests
         Assert.Same(telemetry, editor.StatisticsWorkspace.TelemetryData);
         Assert.Equal(editor.AnalysisRange, editor.StatisticsWorkspace.AnalysisRange);
         Assert.Equal("Selected range 0.0-0.2s", editor.StatisticsWorkspace.SessionAnalysisRangeText);
-        Assert.Equal(editor.FrontStatisticsState, editor.StatisticsWorkspace.FrontStatisticsState);
+        Assert.Equal(editor.SessionContext.FrontStatisticsState, editor.StatisticsWorkspace.FrontStatisticsState);
         Assert.Equal(VelocityAverageMode.StrokePeakAveraged, editor.SelectedVelocityAverageMode);
         Assert.Equal(VelocityAverageMode.StrokePeakAveraged, editor.StatisticsWorkspace.SelectedVelocityAverageMode);
         Assert.Equal(editor.SessionAnalysisModesText, editor.StatisticsWorkspace.SessionAnalysisModesText);
@@ -734,10 +734,10 @@ public class SessionDetailViewModelTests
         Assert.Equal(SurfaceStateKind.Ready, editor.SessionContext.VelocityGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, editor.SessionContext.ImuGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Ready, editor.MapState.Kind);
-        Assert.True(editor.FrontForkVibrationState.IsHidden);
-        Assert.True(editor.FrontFrameVibrationState.IsHidden);
-        Assert.True(editor.RearForkVibrationState.IsHidden);
-        Assert.True(editor.RearFrameVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.FrontForkVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.FrontFrameVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.RearForkVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.RearFrameVibrationState.IsHidden);
         Assert.True(editor.HasMediaContent);
         Assert.True(editor.ScreenState.IsReady);
     }
@@ -1422,14 +1422,14 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(snapshot);
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        Assert.True(editor.FrontForkVibrationState.IsReady);
-        Assert.True(editor.FrontFrameVibrationState.IsReady);
-        Assert.True(editor.RearForkVibrationState.IsReady);
-        Assert.True(editor.RearFrameVibrationState.IsReady);
-        Assert.Equal(SurfaceStateKind.Ready, editor.FrontStatisticsState.Kind);
-        Assert.Equal(SurfaceStateKind.Ready, editor.RearStatisticsState.Kind);
-        Assert.Equal(SurfaceStateKind.Ready, editor.CompressionBalanceState.Kind);
-        Assert.Equal(SurfaceStateKind.Ready, editor.ReboundBalanceState.Kind);
+        Assert.True(editor.SessionContext.FrontForkVibrationState.IsReady);
+        Assert.True(editor.SessionContext.FrontFrameVibrationState.IsReady);
+        Assert.True(editor.SessionContext.RearForkVibrationState.IsReady);
+        Assert.True(editor.SessionContext.RearFrameVibrationState.IsReady);
+        Assert.Equal(SurfaceStateKind.Ready, editor.SessionContext.FrontStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.SessionContext.RearStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.SessionContext.CompressionBalanceState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.SessionContext.ReboundBalanceState.Kind);
     }
 
     [AvaloniaFact]
@@ -1586,10 +1586,10 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(snapshot);
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        Assert.True(editor.FrontForkVibrationState.IsReady);
-        Assert.True(editor.RearForkVibrationState.IsReady);
-        Assert.True(editor.FrontFrameVibrationState.IsHidden);
-        Assert.True(editor.RearFrameVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.FrontForkVibrationState.IsReady);
+        Assert.True(editor.SessionContext.RearForkVibrationState.IsReady);
+        Assert.True(editor.SessionContext.FrontFrameVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.RearFrameVibrationState.IsHidden);
     }
 
     [AvaloniaFact]
@@ -1604,10 +1604,10 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(snapshot);
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        Assert.True(editor.FrontForkVibrationState.IsHidden);
-        Assert.True(editor.FrontFrameVibrationState.IsHidden);
-        Assert.True(editor.RearForkVibrationState.IsHidden);
-        Assert.True(editor.RearFrameVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.FrontForkVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.FrontFrameVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.RearForkVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.RearFrameVibrationState.IsHidden);
     }
 
     [AvaloniaFact]
@@ -1622,14 +1622,14 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(snapshot);
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        Assert.Equal(SurfaceStateKind.NoData, editor.FrontStatisticsState.Kind);
-        Assert.Equal(SurfaceStateKind.NoData, editor.RearStatisticsState.Kind);
-        Assert.Equal(SurfaceIndicatorKind.None, editor.FrontStatisticsState.Indicator);
-        Assert.Equal("Not enough travel movement to calculate statistics.", editor.FrontStatisticsState.Message);
-        Assert.Equal(SurfaceStateKind.NoData, editor.FrontForkVibrationState.Kind);
-        Assert.Equal(SurfaceStateKind.NoData, editor.FrontFrameVibrationState.Kind);
-        Assert.Equal(SurfaceStateKind.NoData, editor.RearForkVibrationState.Kind);
-        Assert.Equal(SurfaceStateKind.NoData, editor.RearFrameVibrationState.Kind);
+        Assert.Equal(SurfaceStateKind.NoData, editor.SessionContext.FrontStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.NoData, editor.SessionContext.RearStatisticsState.Kind);
+        Assert.Equal(SurfaceIndicatorKind.None, editor.SessionContext.FrontStatisticsState.Indicator);
+        Assert.Equal("Not enough travel movement to calculate statistics.", editor.SessionContext.FrontStatisticsState.Message);
+        Assert.Equal(SurfaceStateKind.NoData, editor.SessionContext.FrontForkVibrationState.Kind);
+        Assert.Equal(SurfaceStateKind.NoData, editor.SessionContext.FrontFrameVibrationState.Kind);
+        Assert.Equal(SurfaceStateKind.NoData, editor.SessionContext.RearForkVibrationState.Kind);
+        Assert.Equal(SurfaceStateKind.NoData, editor.SessionContext.RearFrameVibrationState.Kind);
     }
 
     [AvaloniaFact]
@@ -1646,14 +1646,14 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(snapshot);
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        Assert.True(editor.FrontForkVibrationState.IsReady);
+        Assert.True(editor.SessionContext.FrontForkVibrationState.IsReady);
 
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        Assert.True(editor.FrontForkVibrationState.IsHidden);
-        Assert.True(editor.FrontFrameVibrationState.IsHidden);
-        Assert.True(editor.RearForkVibrationState.IsHidden);
-        Assert.True(editor.RearFrameVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.FrontForkVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.FrontFrameVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.RearForkVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.RearFrameVibrationState.IsHidden);
     }
 
     [AvaloniaFact]
@@ -1689,14 +1689,14 @@ public class SessionDetailViewModelTests
         Assert.Equal(SurfaceStateKind.Hidden, editor.SessionContext.ImuGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Ready, springPage.FrontHistogramState.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, springPage.RearHistogramState.Kind);
-        Assert.Equal(SurfaceStateKind.Ready, editor.FrontStatisticsState.Kind);
-        Assert.Equal(SurfaceStateKind.Hidden, editor.RearStatisticsState.Kind);
-        Assert.Equal(SurfaceStateKind.Hidden, editor.CompressionBalanceState.Kind);
-        Assert.Equal(SurfaceStateKind.Hidden, editor.ReboundBalanceState.Kind);
-        Assert.True(editor.FrontForkVibrationState.IsHidden);
-        Assert.True(editor.FrontFrameVibrationState.IsHidden);
-        Assert.True(editor.RearForkVibrationState.IsHidden);
-        Assert.True(editor.RearFrameVibrationState.IsHidden);
+        Assert.Equal(SurfaceStateKind.Ready, editor.SessionContext.FrontStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.SessionContext.RearStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.SessionContext.CompressionBalanceState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.SessionContext.ReboundBalanceState.Kind);
+        Assert.True(editor.SessionContext.FrontForkVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.FrontFrameVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.RearForkVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.RearFrameVibrationState.IsHidden);
         Assert.False(editor.HasMediaContent);
         Assert.DoesNotContain(editor.Pages, page => page.DisplayName == "Balance");
     }
@@ -1729,10 +1729,10 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(snapshot);
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
 
-        Assert.Equal(SurfaceStateKind.NoData, editor.FrontStatisticsState.Kind);
-        Assert.Equal(SurfaceStateKind.NoData, editor.RearStatisticsState.Kind);
-        Assert.Equal(SurfaceIndicatorKind.None, editor.FrontStatisticsState.Indicator);
-        Assert.Equal("Not enough travel movement to calculate statistics.", editor.FrontStatisticsState.Message);
+        Assert.Equal(SurfaceStateKind.NoData, editor.SessionContext.FrontStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.NoData, editor.SessionContext.RearStatisticsState.Kind);
+        Assert.Equal(SurfaceIndicatorKind.None, editor.SessionContext.FrontStatisticsState.Indicator);
+        Assert.Equal("Not enough travel movement to calculate statistics.", editor.SessionContext.FrontStatisticsState.Message);
     }
 
     [AvaloniaFact]
@@ -1762,8 +1762,8 @@ public class SessionDetailViewModelTests
 
         Assert.True(springPage.FrontHistogramState.IsReady);
         Assert.True(damperPage.FrontHistogramState.IsReady);
-        Assert.True(editor.FrontStatisticsState.IsHidden);
-        Assert.True(editor.RearStatisticsState.IsHidden);
+        Assert.True(editor.SessionContext.FrontStatisticsState.IsHidden);
+        Assert.True(editor.SessionContext.RearStatisticsState.IsHidden);
         Assert.True(editor.SessionAnalysis.State.IsHidden);
     }
 
@@ -1824,12 +1824,12 @@ public class SessionDetailViewModelTests
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.SessionContext.TravelGraphState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.SessionContext.VelocityGraphState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.SessionContext.ImuGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontStatisticsState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.RearStatisticsState.Kind);
-        Assert.True(editor.FrontForkVibrationState.IsHidden);
-        Assert.True(editor.FrontFrameVibrationState.IsHidden);
-        Assert.True(editor.RearForkVibrationState.IsHidden);
-        Assert.True(editor.RearFrameVibrationState.IsHidden);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SessionContext.FrontStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SessionContext.RearStatisticsState.Kind);
+        Assert.True(editor.SessionContext.FrontForkVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.FrontFrameVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.RearForkVibrationState.IsHidden);
+        Assert.True(editor.SessionContext.RearFrameVibrationState.IsHidden);
         Assert.Equal(SurfaceStateKind.Hidden, editor.MapState.Kind);
         Assert.Empty(editor.ErrorMessages);
     }

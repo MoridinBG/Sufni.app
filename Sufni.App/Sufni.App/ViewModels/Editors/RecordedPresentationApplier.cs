@@ -86,10 +86,10 @@ internal sealed class RecordedPresentationApplier
             SurfacePresentationState.Loading("Loading pitch/roll graph."),
             mapExpected ? SurfacePresentationState.Loading("Loading speed graph.") : SurfacePresentationState.Hidden,
             mapExpected ? SurfacePresentationState.Loading("Loading elevation graph.") : SurfacePresentationState.Hidden);
-        owner.FrontStatisticsState = SurfacePresentationState.Loading("Loading statistics.");
-        owner.RearStatisticsState = SurfacePresentationState.Loading("Loading statistics.");
-        owner.CompressionBalanceState = SurfacePresentationState.Loading("Loading balance data.");
-        owner.ReboundBalanceState = SurfacePresentationState.Loading("Loading balance data.");
+        context.FrontStatisticsState = SurfacePresentationState.Loading("Loading statistics.");
+        context.RearStatisticsState = SurfacePresentationState.Loading("Loading statistics.");
+        context.CompressionBalanceState = SurfacePresentationState.Loading("Loading balance data.");
+        context.ReboundBalanceState = SurfacePresentationState.Loading("Loading balance data.");
         HideVibrationStates();
         owner.MapState = mapExpected
             ? SurfacePresentationState.Loading("Loading map data.")
@@ -113,10 +113,10 @@ internal sealed class RecordedPresentationApplier
             SurfacePresentationState.WaitingForData("Waiting for pitch/roll data."),
             mapExpected ? SurfacePresentationState.WaitingForData("Waiting for speed data.") : SurfacePresentationState.Hidden,
             mapExpected ? SurfacePresentationState.WaitingForData("Waiting for elevation data.") : SurfacePresentationState.Hidden);
-        owner.FrontStatisticsState = SurfacePresentationState.WaitingForData("Waiting for statistics.");
-        owner.RearStatisticsState = SurfacePresentationState.WaitingForData("Waiting for statistics.");
-        owner.CompressionBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance data.");
-        owner.ReboundBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance data.");
+        context.FrontStatisticsState = SurfacePresentationState.WaitingForData("Waiting for statistics.");
+        context.RearStatisticsState = SurfacePresentationState.WaitingForData("Waiting for statistics.");
+        context.CompressionBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance data.");
+        context.ReboundBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance data.");
         HideVibrationStates();
         owner.MapState = mapExpected
             ? SurfacePresentationState.WaitingForData("Waiting for map data.")
@@ -262,10 +262,10 @@ internal sealed class RecordedPresentationApplier
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
 
-        owner.FrontStatisticsState = springPage.FrontHistogramState.ReservesLayout || damperPage.FrontHistogramState.ReservesLayout
+        context.FrontStatisticsState = springPage.FrontHistogramState.ReservesLayout || damperPage.FrontHistogramState.ReservesLayout
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
-        owner.RearStatisticsState = springPage.RearHistogramState.ReservesLayout || damperPage.RearHistogramState.ReservesLayout
+        context.RearStatisticsState = springPage.RearHistogramState.ReservesLayout || damperPage.RearHistogramState.ReservesLayout
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
 
@@ -278,8 +278,8 @@ internal sealed class RecordedPresentationApplier
         balancePage.ReboundBalanceState = hasReboundBalance
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
-        owner.CompressionBalanceState = balancePage.CompressionBalanceState;
-        owner.ReboundBalanceState = balancePage.ReboundBalanceState;
+        context.CompressionBalanceState = balancePage.CompressionBalanceState;
+        context.ReboundBalanceState = balancePage.ReboundBalanceState;
         HideVibrationStates();
         EnsureBalancePage(data.BalanceAvailable);
     }
@@ -311,22 +311,22 @@ internal sealed class RecordedPresentationApplier
 
     private void ApplyAnalysisRangeStates(TelemetryData telemetry)
     {
-        owner.FrontStatisticsState = SessionStatisticsSurfaceState.ForSuspension(telemetry, SuspensionType.Front, owner.AnalysisRange);
-        owner.RearStatisticsState = SessionStatisticsSurfaceState.ForSuspension(telemetry, SuspensionType.Rear, owner.AnalysisRange);
-        owner.CompressionBalanceState = SessionStatisticsSurfaceState.ForBalance(telemetry, BalanceType.Compression, owner.AnalysisRange);
-        owner.ReboundBalanceState = SessionStatisticsSurfaceState.ForBalance(telemetry, BalanceType.Rebound, owner.AnalysisRange);
-        owner.FrontForkVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Fork, owner.AnalysisRange);
-        owner.FrontFrameVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Frame, owner.AnalysisRange);
-        owner.RearForkVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Fork, owner.AnalysisRange);
-        owner.RearFrameVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Frame, owner.AnalysisRange);
+        context.FrontStatisticsState = SessionStatisticsSurfaceState.ForSuspension(telemetry, SuspensionType.Front, owner.AnalysisRange);
+        context.RearStatisticsState = SessionStatisticsSurfaceState.ForSuspension(telemetry, SuspensionType.Rear, owner.AnalysisRange);
+        context.CompressionBalanceState = SessionStatisticsSurfaceState.ForBalance(telemetry, BalanceType.Compression, owner.AnalysisRange);
+        context.ReboundBalanceState = SessionStatisticsSurfaceState.ForBalance(telemetry, BalanceType.Rebound, owner.AnalysisRange);
+        context.FrontForkVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Fork, owner.AnalysisRange);
+        context.FrontFrameVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Frame, owner.AnalysisRange);
+        context.RearForkVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Fork, owner.AnalysisRange);
+        context.RearFrameVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Frame, owner.AnalysisRange);
     }
 
     private void HideVibrationStates()
     {
-        owner.FrontForkVibrationState = SurfacePresentationState.Hidden;
-        owner.FrontFrameVibrationState = SurfacePresentationState.Hidden;
-        owner.RearForkVibrationState = SurfacePresentationState.Hidden;
-        owner.RearFrameVibrationState = SurfacePresentationState.Hidden;
+        context.FrontForkVibrationState = SurfacePresentationState.Hidden;
+        context.FrontFrameVibrationState = SurfacePresentationState.Hidden;
+        context.RearForkVibrationState = SurfacePresentationState.Hidden;
+        context.RearFrameVibrationState = SurfacePresentationState.Hidden;
     }
 
     private static SurfacePresentationState CreateMapState(IReadOnlyCollection<TrackPoint>? trackPoints, bool mapExpected)
@@ -352,10 +352,10 @@ internal sealed class RecordedPresentationApplier
         }
         else
         {
-            owner.FrontStatisticsState = SurfacePresentationState.Hidden;
-            owner.RearStatisticsState = SurfacePresentationState.Hidden;
-            owner.CompressionBalanceState = SurfacePresentationState.Hidden;
-            owner.ReboundBalanceState = SurfacePresentationState.Hidden;
+            context.FrontStatisticsState = SurfacePresentationState.Hidden;
+            context.RearStatisticsState = SurfacePresentationState.Hidden;
+            context.CompressionBalanceState = SurfacePresentationState.Hidden;
+            context.ReboundBalanceState = SurfacePresentationState.Hidden;
             HideVibrationStates();
         }
 
@@ -382,33 +382,33 @@ internal sealed class RecordedPresentationApplier
     {
         if (telemetry is null)
         {
-            owner.FrontStatisticsState = SurfacePresentationState.Hidden;
-            owner.RearStatisticsState = SurfacePresentationState.Hidden;
-            owner.CompressionBalanceState = SurfacePresentationState.Hidden;
-            owner.ReboundBalanceState = SurfacePresentationState.Hidden;
+            context.FrontStatisticsState = SurfacePresentationState.Hidden;
+            context.RearStatisticsState = SurfacePresentationState.Hidden;
+            context.CompressionBalanceState = SurfacePresentationState.Hidden;
+            context.ReboundBalanceState = SurfacePresentationState.Hidden;
             HideVibrationStates();
             return;
         }
 
         ApplyAnalysisRangeStates(telemetry);
-        if (!frontStatisticsAvailable && owner.FrontStatisticsState.Kind != SurfaceStateKind.NoData)
+        if (!frontStatisticsAvailable && context.FrontStatisticsState.Kind != SurfaceStateKind.NoData)
         {
-            owner.FrontStatisticsState = SurfacePresentationState.Hidden;
-            owner.FrontForkVibrationState = SurfacePresentationState.Hidden;
-            owner.FrontFrameVibrationState = SurfacePresentationState.Hidden;
+            context.FrontStatisticsState = SurfacePresentationState.Hidden;
+            context.FrontForkVibrationState = SurfacePresentationState.Hidden;
+            context.FrontFrameVibrationState = SurfacePresentationState.Hidden;
         }
 
-        if (!rearStatisticsAvailable && owner.RearStatisticsState.Kind != SurfaceStateKind.NoData)
+        if (!rearStatisticsAvailable && context.RearStatisticsState.Kind != SurfaceStateKind.NoData)
         {
-            owner.RearStatisticsState = SurfacePresentationState.Hidden;
-            owner.RearForkVibrationState = SurfacePresentationState.Hidden;
-            owner.RearFrameVibrationState = SurfacePresentationState.Hidden;
+            context.RearStatisticsState = SurfacePresentationState.Hidden;
+            context.RearForkVibrationState = SurfacePresentationState.Hidden;
+            context.RearFrameVibrationState = SurfacePresentationState.Hidden;
         }
 
         if (!balanceAvailable)
         {
-            owner.CompressionBalanceState = SurfacePresentationState.Hidden;
-            owner.ReboundBalanceState = SurfacePresentationState.Hidden;
+            context.CompressionBalanceState = SurfacePresentationState.Hidden;
+            context.ReboundBalanceState = SurfacePresentationState.Hidden;
         }
     }
 
