@@ -20,19 +20,23 @@ coordinators and the composition root. The implementation lives in
 | `PairedDeviceStore`          | `IPairedDeviceStore`            | `IPairedDeviceStoreWriter`          | `PairedDeviceSnapshot`            | `string` |
 | `LiveDaqStore`               | `ILiveDaqStore`                 | `ILiveDaqStoreWriter`               | `LiveDaqSnapshot`                 | `string` |
 
-Persisted stores share the internal `SourceCacheStoreBase<TSnapshot, TKey>` for the repeated DynamicData mechanics. The base owns the cache lifetime, `Connect()`, `Get(key)`, writer `Upsert`/`Remove`, and load-and-replace refresh flow; concrete stores keep their public read/write interfaces and any domain-specific lookups. `LiveDaqStore` remains separate because it is runtime-only and publishes `Clear()` / `ReplaceAll(...)` rather than database refresh.
+Persisted stores share the internal `SourceCacheStoreBase<TSnapshot, TKey>` for the repeated DynamicData mechanics. The base owns the cache lifetime, `Connect()`, `Get(key)`, writer `Upsert`/`Remove`, and load-and-replace refresh flow; concrete stores keep their public read/write interfaces and any domain-specific lookups. Startup refresh is coordinated by `IAppDataRefresher`, which resolves writer interfaces and refreshes stores in dependency order. `LiveDaqStore` remains separate because it is runtime-only and publishes `Clear()` / `ReplaceAll(...)` rather than database refresh.
 
-Each persisted store exposes:
+Each persisted store read interface exposes:
 
 - `Connect()` — DynamicData change stream consumed by list view models.
 - `Get(key)` — synchronous lookup that returns the current snapshot or
   `null`.
+
+Each writer interface additionally exposes:
+
 - `RefreshAsync()` — load (or reload) all rows from the database via the
-  store's repository interface and replace the cache contents. Called once at
-  startup by `MainPagesViewModel.LoadDatabaseContent()` and again after
-  every successful `SyncCoordinator.SyncAllAsync()`.
-- `Upsert(snapshot)` / `Remove(key)` (writer interface only) — invoked
-  by coordinators after a save / delete / sync arrival.
+  store's repository interface and replace the cache contents. Called at
+  startup through `IAppDataRefresher` from
+  `MainPagesViewModel.LoadDatabaseContent()`, and after successful sync from
+  `SyncCoordinator`.
+- `Upsert(snapshot)` / `Remove(key)` — cache updates invoked by coordinators
+  after a save / delete / sync arrival, after persistence has already changed.
 
 Snapshots are immutable records, not view models. Snapshots for
 editor-backed persisted entities such as bikes, setups, and sessions
@@ -58,10 +62,11 @@ staleness state.
 `session_recording_source`: source kind, source name, schema version,
 and source hash. The full payload is not kept in the store; callers
 use `LoadAsync(sessionId)` to load a `RecordedSessionSource` from
-SQLite when recompute needs the bytes. The writer surface persists
-or removes source rows and then updates the cache, while sync-server
-source arrivals are applied through `SessionCoordinator` so this
-store still has one application-layer writer.
+SQLite when recompute needs the bytes. The writer surface refreshes,
+upserts, or removes cache snapshots after coordinators and repositories
+have already changed persistence; it does not write source rows itself.
+Sync-server source arrivals are applied through `SessionCoordinator` so
+this store still has one application-layer writer.
 
 `SetupStore` exposes `FindByBoardId(Guid)` so the import flow can
 look up the existing setup for the currently selected DAQ board
