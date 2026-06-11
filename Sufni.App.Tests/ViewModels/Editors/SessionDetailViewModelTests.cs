@@ -138,7 +138,7 @@ public class SessionDetailViewModelTests
         Assert.True(editor.SessionContext.RearForkVibrationState.IsHidden);
         Assert.True(editor.SessionContext.RearFrameVibrationState.IsHidden);
         Assert.Equal(SurfaceStateKind.Loading, editor.MapState.Kind);
-        Assert.True(editor.ScreenState.IsReady);
+        Assert.True(editor.SessionContext.ScreenState.IsReady);
     }
 
     [AvaloniaFact]
@@ -169,8 +169,8 @@ public class SessionDetailViewModelTests
         Assert.Same(editor.StatisticsWorkspace, editor.Pages.OfType<VibrationPageViewModel>().Single().Workspace);
         Assert.Same(editor.StatisticsWorkspace, editor.Pages.OfType<SessionAnalysisPageViewModel>().Single().Workspace);
         Assert.Equal(snapshot, editor.SessionContext.SessionSnapshot);
-        Assert.Equal(editor.ScreenState, editor.MobileWorkspace.ScreenState);
-        Assert.Equal(editor.SessionOperationState, editor.MobileWorkspace.SessionOperationState);
+        Assert.Equal(editor.SessionContext.ScreenState, editor.MobileWorkspace.ScreenState);
+        Assert.Equal(editor.SessionContext.SessionOperationState, editor.MobileWorkspace.SessionOperationState);
     }
 
     [AvaloniaFact]
@@ -181,11 +181,11 @@ public class SessionDetailViewModelTests
         ((INotifyPropertyChanged)editor.MobileWorkspace).PropertyChanged += (_, args) =>
             observed.Add(args.PropertyName);
 
-        editor.ScreenState = SessionScreenPresentationState.Loading("loading");
-        editor.SessionOperationState = SessionOperationPresentationState.Progress("working", 25);
+        editor.SessionContext.ScreenState = SessionScreenPresentationState.Loading("loading");
+        editor.SessionContext.SessionOperationState = SessionOperationPresentationState.Progress("working", 25);
 
-        Assert.Equal(editor.ScreenState, editor.MobileWorkspace.ScreenState);
-        Assert.Equal(editor.SessionOperationState, editor.MobileWorkspace.SessionOperationState);
+        Assert.Equal(editor.SessionContext.ScreenState, editor.MobileWorkspace.ScreenState);
+        Assert.Equal(editor.SessionContext.SessionOperationState, editor.MobileWorkspace.SessionOperationState);
         Assert.Contains(nameof(ISessionShellMobileWorkspace.ScreenState), observed);
         Assert.Contains(nameof(ISessionShellMobileWorkspace.SessionOperationState), observed);
     }
@@ -739,7 +739,7 @@ public class SessionDetailViewModelTests
         Assert.True(editor.SessionContext.RearForkVibrationState.IsHidden);
         Assert.True(editor.SessionContext.RearFrameVibrationState.IsHidden);
         Assert.True(editor.HasMediaContent);
-        Assert.True(editor.ScreenState.IsReady);
+        Assert.True(editor.SessionContext.ScreenState.IsReady);
     }
 
     [AvaloniaFact]
@@ -829,15 +829,15 @@ public class SessionDetailViewModelTests
         Assert.Equal(0.8, editor.Timeline.VisibleRangeEnd, 6);
         Assert.Contains("extension error", editor.ErrorMessages);
         Assert.Contains("extension notification", editor.Notifications);
-        Assert.True(editor.ScreenState.IsReady);
-        Assert.True(editor.SessionOperationState.IsVisible);
-        Assert.Equal("Extension still working", editor.SessionOperationState.Message);
-        Assert.Equal(50, editor.SessionOperationState.Percent);
+        Assert.True(editor.SessionContext.ScreenState.IsReady);
+        Assert.True(editor.SessionContext.SessionOperationState.IsVisible);
+        Assert.Equal("Extension still working", editor.SessionContext.SessionOperationState.Message);
+        Assert.Equal(50, editor.SessionContext.SessionOperationState.Percent);
 
         lease.Complete();
 
-        Assert.True(editor.ScreenState.IsReady);
-        Assert.False(editor.SessionOperationState.IsVisible);
+        Assert.True(editor.SessionContext.ScreenState.IsReady);
+        Assert.False(editor.SessionContext.SessionOperationState.IsVisible);
     }
 
     [AvaloniaFact]
@@ -1820,7 +1820,7 @@ public class SessionDetailViewModelTests
         await editor.LoadedCommand.ExecuteAsync(null);
 
         Assert.False(editor.IsComplete);
-        Assert.True(editor.ScreenState.IsReady);
+        Assert.True(editor.SessionContext.ScreenState.IsReady);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.SessionContext.TravelGraphState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.SessionContext.VelocityGraphState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.SessionContext.ImuGraphState.Kind);
@@ -1845,8 +1845,8 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(snapshot);
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        Assert.True(editor.ScreenState.IsError);
-        Assert.Contains("boom", editor.ScreenState.Message);
+        Assert.True(editor.SessionContext.ScreenState.IsError);
+        Assert.Contains("boom", editor.SessionContext.ScreenState.Message);
         Assert.Empty(editor.ErrorMessages);
     }
 

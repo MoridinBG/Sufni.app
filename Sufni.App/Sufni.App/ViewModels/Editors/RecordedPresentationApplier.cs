@@ -77,7 +77,7 @@ internal sealed class RecordedPresentationApplier
 
     public void ApplyRecordedLoadingStates(bool mapExpected)
     {
-        owner.ScreenState = SessionScreenPresentationState.Ready;
+        context.ScreenState = SessionScreenPresentationState.Ready;
         ApplyRecordedPlotAvailability(null);
         SetRecordedGraphBaseStates(
             SurfacePresentationState.Loading("Loading travel graphs."),
@@ -104,7 +104,7 @@ internal sealed class RecordedPresentationApplier
 
     public void ApplyRecordedWaitingStates(bool mapExpected)
     {
-        owner.ScreenState = SessionScreenPresentationState.Ready;
+        context.ScreenState = SessionScreenPresentationState.Ready;
         ApplyRecordedPlotAvailability(null);
         SetRecordedGraphBaseStates(
             SurfacePresentationState.WaitingForData("Waiting for travel data."),
@@ -154,7 +154,7 @@ internal sealed class RecordedPresentationApplier
 
             case SessionDesktopLoadResult.Failed failed:
                 ClearRecordedPresentation();
-                owner.ScreenState = SessionScreenPresentationState.Error($"Could not load session data: {failed.ErrorMessage}");
+                context.ScreenState = SessionScreenPresentationState.Error($"Could not load session data: {failed.ErrorMessage}");
                 break;
         }
     }
@@ -173,7 +173,7 @@ internal sealed class RecordedPresentationApplier
                     loadedFromCache.Data.BalanceAvailable);
                 ApplyRecordedReadyGraphStates(owner.TelemetryData);
                 ApplyMobileTrackPresentation(loadedFromCache.TrackData);
-                owner.ScreenState = SessionScreenPresentationState.Ready;
+                context.ScreenState = SessionScreenPresentationState.Ready;
                 owner.IsComplete = true;
                 owner.RecomputeSessionAnalysis();
                 break;
@@ -188,7 +188,7 @@ internal sealed class RecordedPresentationApplier
                     builtCache.Data.BalanceAvailable);
                 ApplyRecordedReadyGraphStates(owner.TelemetryData);
                 ApplyMobileTrackPresentation(builtCache.TrackData);
-                owner.ScreenState = SessionScreenPresentationState.Ready;
+                context.ScreenState = SessionScreenPresentationState.Ready;
                 owner.IsComplete = true;
                 owner.RecomputeSessionAnalysis();
                 break;
@@ -198,7 +198,7 @@ internal sealed class RecordedPresentationApplier
                 break;
 
             case SessionMobileLoadResult.Failed failed:
-                owner.ScreenState = SessionScreenPresentationState.Error($"Could not load session data: {failed.ErrorMessage}");
+                context.ScreenState = SessionScreenPresentationState.Error($"Could not load session data: {failed.ErrorMessage}");
                 break;
         }
     }
@@ -343,7 +343,7 @@ internal sealed class RecordedPresentationApplier
 
     private void ApplyRecordedLoadedStates(SessionTelemetryPresentationData data)
     {
-        owner.ScreenState = SessionScreenPresentationState.Ready;
+        context.ScreenState = SessionScreenPresentationState.Ready;
         ApplyRecordedReadyGraphStates(data.TelemetryData);
 
         if (data.TelemetryData is { } telemetry)

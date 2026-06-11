@@ -180,8 +180,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
 
     #region Observable properties
 
-    [ObservableProperty] private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
-    [ObservableProperty] private SessionOperationPresentationState sessionOperationState = SessionOperationPresentationState.Hidden;
     [ObservableProperty] private TelemetryData? telemetryData;
     [ObservableProperty] private TelemetryTimeRange? analysisRange;
     [ObservableProperty] private TrackTimeRange? trackTimelineContext;
@@ -237,16 +235,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     public ObservableCollection<PageViewModelBase> Pages => SessionContext.Pages;
 
     #endregion Observable properties
-
-    partial void OnScreenStateChanged(SessionScreenPresentationState value)
-    {
-        SessionContext.ScreenState = value;
-    }
-
-    partial void OnSessionOperationStateChanged(SessionOperationPresentationState value)
-    {
-        SessionContext.SessionOperationState = value;
-    }
 
     partial void OnTelemetryDataChanged(TelemetryData? value)
     {
@@ -712,7 +700,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         }
         else
         {
-            ScreenState = SessionScreenPresentationState.Ready;
+            SessionContext.ScreenState = SessionScreenPresentationState.Ready;
         }
 
         try
@@ -808,12 +796,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
 
     private void ReportRecordedSessionExtensionOperation(string message, double percent)
     {
-        SessionOperationState = SessionOperationPresentationState.Progress(message, percent);
+        SessionContext.SessionOperationState = SessionOperationPresentationState.Progress(message, percent);
     }
 
     private void CompleteRecordedSessionExtensionOperation()
     {
-        SessionOperationState = SessionOperationPresentationState.Hidden;
+        SessionContext.SessionOperationState = SessionOperationPresentationState.Hidden;
     }
 
     private void SetRecordedSessionExtensionTimelineVisibleRange(
