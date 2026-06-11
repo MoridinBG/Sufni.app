@@ -87,9 +87,9 @@ locations inside `Sufni.App/Sufni.App/`:
     single shared `x:DataType`.
   - `Editors/` — `BikeEditorViewModel`, `SetupEditorViewModel`,
     `SessionDetailViewModel`, `LiveDaqDetailViewModel`. Constructed by
-    the entity coordinator from a snapshot, never by another view
-    model. Persisted-entity editors implement `IEditorActions` for the
-    shared `CommonButtonLine`.
+    `IEditorFactory` from snapshots or live-session contexts, never by
+    another view model. Persisted-entity editors implement
+    `IEditorActions` for the shared `CommonButtonLine`.
   - The shell view models (`MainViewModel`, `MainWindowViewModel`,
     `MainPagesViewModel`, `WelcomeScreenViewModel`) live at the top
     level. Base classes are `ViewModelBase`, `ItemListViewModelBase`,
@@ -153,8 +153,9 @@ behind `ITelemetryDataStore` / `ITelemetryFile`:
   the root for `*.SST` files, and moves files into `uploaded/` or `trash/`
   subdirectories after import/delete.
 - **Network** — mDNS discovery (`_gosst._tcp`) locates a WiFi-connected DAQ,
-  then a binary TCP protocol negotiates file listings and transfers. See
-  `SstTcpClient.cs` for the wire protocol.
+  then the management protocol negotiates file listings and transfers. See
+  `docs/architecture/daq-management.md` and
+  `Services/Management/ManagementClient.cs` for the wire protocol.
 
 `TelemetryDataStoreService` aggregates every available source and polls for
 drive changes.

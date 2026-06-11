@@ -132,8 +132,11 @@ There are five kinds of view model in the presentation layer:
 
 - **Editor view models** (`ViewModels/Editors/`) — `BikeEditorViewModel`,
   `SetupEditorViewModel`, `SessionDetailViewModel`,
-  `LiveDaqDetailViewModel`, `LiveSessionDetailViewModel`. Constructed by the entity coordinator from
-  a snapshot, never by another view model and never stored in a list.
+  `LiveDaqDetailViewModel`, `LiveSessionDetailViewModel`. Constructed
+  by `IEditorFactory` from a snapshot or live-session context, never by
+  another view model and never stored in a list. Entity coordinators
+  route open/focus/close requests through the factory instead of
+  referencing concrete editor view-model types.
   Persisted-entity editors keep the snapshot's `Updated` value as
   `BaselineUpdated` for optimistic conflict detection at save time,
   derive editable state from the snapshot in `ResetImplementation`,
@@ -157,9 +160,10 @@ There are five kinds of view model in the presentation layer:
   persists through `SessionCoordinator.SaveLiveCaptureAsync(...)`.
 
   `SessionDetailViewModel` and `LiveSessionDetailViewModel` both
-  compose session sub-pages from `ViewModels/SessionPages/` instead of
-  putting graph/spring/damper/balance/notes/preferences state directly
-  on the editor — see [Session Sub-Pages](#session-sub-pages) below.
+  compose session sub-pages from `ViewModels/SessionPages/` and expose
+  workspace contracts for graph, media, statistics, sidebar, and mobile
+  shell surfaces instead of putting every binding directly on the
+  editor — see [Session Sub-Pages](#session-sub-pages) below.
   The recorded editor subscribes to `IRecordedSessionGraph.WatchSession`
   in `Loaded` and disposes that subscription in `Unloaded`. Initial or
   runtime domain snapshots that are recomputable prompt the user to
