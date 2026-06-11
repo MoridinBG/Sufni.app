@@ -61,6 +61,20 @@ internal sealed class SessionStalenessReconciler
 
     public async Task HandleDomainChangedAsync(RecordedSessionDomainSnapshot domain)
     {
+        // Callers subscribe fire-and-forget; an unguarded throw here would
+        // surface only as an unobserved task exception.
+        try
+        {
+            await HandleDomainChangedCoreAsync(domain);
+        }
+        catch (Exception exception)
+        {
+            reportError($"Failed to handle a session change: {exception.Message}");
+        }
+    }
+
+    private async Task HandleDomainChangedCoreAsync(RecordedSessionDomainSnapshot domain)
+    {
         if (!isViewLoaded())
         {
             return;

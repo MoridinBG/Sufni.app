@@ -101,6 +101,23 @@ public class SessionStalenessReconcilerTests
             harness.Errors);
     }
 
+    [Fact]
+    public async Task HandleDomainChangedAsync_ReportsError_WhenDialogServiceThrows()
+    {
+        var harness = new ReconcilerHarness();
+        harness.DialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>())
+            .Returns<bool>(_ => throw new InvalidOperationException("dialog unavailable"));
+
+        var task = harness.Reconciler.HandleDomainChangedAsync(Domain(
+            TestSnapshots.Session(updated: 5),
+            DerivedChangeKind.Initial,
+            new SessionStaleness.DependencyHashChanged()));
+
+        await task;
+        Assert.Single(harness.Errors);
+        Assert.Empty(harness.AppliedSnapshots);
+    }
+
     private static RecordedSessionDomainSnapshot Domain(
         SessionSnapshot session,
         DerivedChangeKind changeKind,
