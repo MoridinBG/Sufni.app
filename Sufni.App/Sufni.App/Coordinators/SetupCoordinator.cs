@@ -30,7 +30,7 @@ public class SetupCoordinator(
 {
     private static readonly ILogger logger = Log.ForContext<SetupCoordinator>();
 
-    public virtual Task OpenCreateAsync(Guid? suggestedBoardId = null)
+    public Task OpenCreateAsync(Guid? suggestedBoardId = null)
     {
         // Honour the suggested board ID only if no other setup claims it.
         Guid? actualBoardId = null;
@@ -45,7 +45,7 @@ public class SetupCoordinator(
         return Task.CompletedTask;
     }
 
-    public virtual async Task OpenCreateForDetectedBoardAsync()
+    public async Task OpenCreateForDetectedBoardAsync()
     {
         logger.Information("Starting setup create for detected board");
         var detected = await telemetryDataStoreService.DetectConnectedBoardIdAsync();
@@ -53,7 +53,7 @@ public class SetupCoordinator(
         await OpenCreateAsync(detected);
     }
 
-    public virtual Task OpenEditAsync(Guid setupId)
+    public Task OpenEditAsync(Guid setupId)
     {
         var snapshot = setupStore.Get(setupId);
         if (snapshot is null) return Task.CompletedTask;
@@ -62,7 +62,7 @@ public class SetupCoordinator(
         return Task.CompletedTask;
     }
 
-    public virtual async Task<SetupSaveResult> SaveAsync(Setup setup, Guid? boardId, long baselineUpdated)
+    public async Task<SetupSaveResult> SaveAsync(Setup setup, Guid? boardId, long baselineUpdated)
     {
         logger.Information("Starting setup save for {SetupId}", setup.Id);
 
@@ -102,7 +102,7 @@ public class SetupCoordinator(
         }
     }
 
-    public virtual async Task<SetupDeleteResult> DeleteAsync(Guid setupId)
+    public async Task<SetupDeleteResult> DeleteAsync(Guid setupId)
     {
         logger.Information("Starting setup delete for {SetupId}", setupId);
 
@@ -133,7 +133,7 @@ public class SetupCoordinator(
         return new SetupDeleteResult(SetupDeleteOutcome.Deleted);
     }
 
-    public virtual async Task<SetupImportResult> ImportSetupAsync(CancellationToken cancellationToken = default)
+    public async Task<SetupImportResult> ImportSetupAsync(CancellationToken cancellationToken = default)
     {
         logger.Information("Starting setup import");
 
@@ -200,7 +200,7 @@ public class SetupCoordinator(
         }
     }
 
-    public virtual async Task<SetupExportResult> ExportSetupAsync(
+    public async Task<SetupExportResult> ExportSetupAsync(
         Setup setup,
         Bike bike,
         Guid? boardId,

@@ -47,7 +47,7 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
         this.editorFactory = editorFactory;
     }
 
-    public virtual void Activate()
+    public void Activate()
     {
         if (activeSubscriptions is not null)
         {
@@ -80,7 +80,7 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
         }));
     }
 
-    public virtual void Deactivate()
+    public void Deactivate()
     {
         var wasActive = activeSubscriptions is not null;
         activeSubscriptions?.Dispose();
@@ -98,7 +98,7 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
         }
     }
 
-    public virtual Task SelectAsync(string identityKey)
+    public Task SelectAsync(string identityKey)
     {
         var snapshot = liveDaqStore.Get(identityKey);
         if (snapshot is null)
@@ -122,7 +122,7 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
         return Task.CompletedTask;
     }
 
-    public virtual Task OpenSessionAsync(string identityKey)
+    public Task OpenSessionAsync(string identityKey)
     {
         var snapshot = liveDaqStore.Get(identityKey);
         if (snapshot is null)

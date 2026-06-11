@@ -204,6 +204,9 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
 
+        // Service edge case documented in ui.md: services may own a
+        // DispatcherTimer for cadence; PeriodicUiTimer is not used here because
+        // the drive scan deliberately ticks at Background priority.
         massStorageScanTimer = new DispatcherTimer(DispatcherPriority.Background);
         massStorageScanTimer.Interval = TimeSpan.FromSeconds(1);
         massStorageScanTimer.Tick += async (_, _) => await RefreshMassStorageDataStoresAsync();

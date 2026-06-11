@@ -28,7 +28,7 @@ public class BikeCoordinator(
 {
     private static readonly ILogger logger = Log.ForContext<BikeCoordinator>();
 
-    public virtual Task OpenCreateAsync()
+    public Task OpenCreateAsync()
     {
         var seed = new Bike(Guid.NewGuid(), "new bike");
         var snapshot = BikeSnapshot.From(seed);
@@ -36,7 +36,7 @@ public class BikeCoordinator(
         return Task.CompletedTask;
     }
 
-    public virtual Task OpenEditAsync(Guid bikeId)
+    public Task OpenEditAsync(Guid bikeId)
     {
         var snapshot = bikeStore.Get(bikeId);
         if (snapshot is null) return Task.CompletedTask;
@@ -45,15 +45,15 @@ public class BikeCoordinator(
         return Task.CompletedTask;
     }
 
-    public virtual Task<BikeEditorAnalysisResult> LoadAnalysisAsync(
+    public Task<BikeEditorAnalysisResult> LoadAnalysisAsync(
         RearSuspension? rearSuspension,
         CancellationToken cancellationToken = default) =>
         bikeEditorService.LoadAnalysisAsync(rearSuspension, cancellationToken);
 
-    public virtual Task<BikeImageLoadResult> LoadImageAsync(CancellationToken cancellationToken = default) =>
+    public Task<BikeImageLoadResult> LoadImageAsync(CancellationToken cancellationToken = default) =>
         bikeEditorService.LoadImageAsync(cancellationToken);
 
-    public virtual async Task<BikeImportResult> ImportBikeAsync(CancellationToken cancellationToken = default)
+    public async Task<BikeImportResult> ImportBikeAsync(CancellationToken cancellationToken = default)
     {
         logger.Information("Starting bike import");
 
@@ -84,10 +84,10 @@ public class BikeCoordinator(
         }
     }
 
-    public virtual Task<LeverageRatioImportResult> ImportLeverageRatioAsync(CancellationToken cancellationToken = default) =>
+    public Task<LeverageRatioImportResult> ImportLeverageRatioAsync(CancellationToken cancellationToken = default) =>
         bikeEditorService.ImportLeverageRatioAsync(cancellationToken);
 
-    public virtual async Task<BikeExportResult> ExportBikeAsync(Bike bike, CancellationToken cancellationToken = default)
+    public async Task<BikeExportResult> ExportBikeAsync(Bike bike, CancellationToken cancellationToken = default)
     {
         logger.Information("Starting bike export for {BikeId}", bike.Id);
 
@@ -114,7 +114,7 @@ public class BikeCoordinator(
         return result;
     }
 
-    public virtual async Task<BikeSaveResult> SaveAsync(Bike bike, long baselineUpdated)
+    public async Task<BikeSaveResult> SaveAsync(Bike bike, long baselineUpdated)
     {
         logger.Information("Starting bike save for {BikeId}", bike.Id);
 
@@ -207,7 +207,7 @@ public class BikeCoordinator(
         }
     }
 
-    public virtual async Task<BikeDampingSpeedCutoffUpdateResult> UpdateDampingSpeedCutoffAsync(
+    public async Task<BikeDampingSpeedCutoffUpdateResult> UpdateDampingSpeedCutoffAsync(
         Guid bikeId,
         long baselineUpdated,
         SuspensionType side,
@@ -260,7 +260,7 @@ public class BikeCoordinator(
         }
     }
 
-    public virtual async Task<BikeDeleteResult> DeleteAsync(Guid bikeId)
+    public async Task<BikeDeleteResult> DeleteAsync(Guid bikeId)
     {
         logger.Information("Starting bike delete for {BikeId}", bikeId);
 

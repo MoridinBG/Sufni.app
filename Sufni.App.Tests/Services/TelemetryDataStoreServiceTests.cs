@@ -4,6 +4,7 @@ using Sufni.App.ExtensionHost.Services;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Tests.Infrastructure;
+using static Sufni.App.Tests.Infrastructure.TestStorageItems;
 
 namespace Sufni.App.Tests.Services;
 
@@ -39,7 +40,7 @@ public class TelemetryDataStoreServiceTests
         var files = await service.LoadFilesAsync(dataStore);
 
         Assert.Same(file, Assert.Single(files));
-        Assert.Equal(1, backgroundTaskRunner.AsyncValueRunCount);
+        Assert.Equal(1, backgroundTaskRunner.InvocationCount);
         await dataStore.Received(1).GetFiles();
     }
 
@@ -124,28 +125,4 @@ public class TelemetryDataStoreServiceTests
         return folder;
     }
 
-    private static async IAsyncEnumerable<IStorageItem> EnumerateStorageItems(params IStorageItem[] items)
-    {
-        foreach (var item in items)
-        {
-            await Task.Yield();
-            yield return item;
-        }
-    }
-
-    private sealed class RecordingBackgroundTaskRunner : IBackgroundTaskRunner
-    {
-        public int AsyncValueRunCount { get; private set; }
-
-        public Task RunAsync(Func<Task> work, CancellationToken cancellationToken = default) => work();
-
-        public Task<T> RunAsync<T>(Func<T> work, CancellationToken cancellationToken = default) =>
-            Task.FromResult(work());
-
-        public async Task<T> RunAsync<T>(Func<Task<T>> work, CancellationToken cancellationToken = default)
-        {
-            AsyncValueRunCount++;
-            return await work();
-        }
-    }
 }

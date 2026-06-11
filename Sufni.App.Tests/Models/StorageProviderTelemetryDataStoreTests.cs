@@ -4,6 +4,7 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Models;
 using Sufni.App.Tests.Infrastructure;
+using static Sufni.App.Tests.Infrastructure.TestStorageItems;
 
 namespace Sufni.App.Tests.Models;
 
@@ -99,14 +100,5 @@ public class StorageProviderTelemetryDataStoreTests
         file.Path.Returns(new Uri($"file:///tmp/{Guid.NewGuid():N}/{name}"));
         file.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(bytes)));
         return file;
-    }
-
-    private static async IAsyncEnumerable<IStorageItem> EnumerateStorageItems(params IStorageItem[] items)
-    {
-        foreach (var item in items)
-        {
-            await Task.Yield();
-            yield return item;
-        }
     }
 }

@@ -2,6 +2,7 @@ using Avalonia.Platform.Storage;
 using NSubstitute;
 using Sufni.App.Models;
 using Sufni.App.Tests.Infrastructure;
+using static Sufni.App.Tests.Infrastructure.TestStorageItems;
 
 namespace Sufni.App.Tests.Models;
 
@@ -165,12 +166,4 @@ public class TelemetryFileInspectionMappingTests
         await storageFile.DidNotReceive().MoveAsync(Arg.Any<IStorageFolder>());
     }
 
-    private static async IAsyncEnumerable<IStorageItem> EnumerateStorageItems(params IStorageItem[] items)
-    {
-        foreach (var item in items)
-        {
-            await Task.Yield();
-            yield return item;
-        }
-    }
 }

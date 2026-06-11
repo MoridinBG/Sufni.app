@@ -108,7 +108,7 @@ public class SyncCoordinator : ISyncCoordinator
         }
     }
 
-    public virtual async Task SyncAllAsync()
+    public async Task SyncAllAsync()
     {
         if (!CanSync)
         {

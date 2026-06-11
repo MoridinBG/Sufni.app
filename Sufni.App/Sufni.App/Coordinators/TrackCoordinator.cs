@@ -20,7 +20,7 @@ public class TrackCoordinator(
 {
     private const double DefaultMapVideoWidth = 400.0;
 
-    public virtual async Task<GpxImportResult> ImportGpxAsync(CancellationToken cancellationToken = default)
+    public async Task<GpxImportResult> ImportGpxAsync(CancellationToken cancellationToken = default)
     {
         var files = await filesService.OpenGpxFilesAsync();
         if (files.Count == 0)
@@ -33,7 +33,7 @@ public class TrackCoordinator(
             cancellationToken);
     }
 
-    public virtual Task<SessionTrackPresentationData> LoadSessionTrackAsync(
+    public Task<SessionTrackPresentationData> LoadSessionTrackAsync(
         Guid sessionId,
         Guid? fullTrackId,
         TelemetryData telemetryData,

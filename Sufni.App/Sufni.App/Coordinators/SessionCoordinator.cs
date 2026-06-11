@@ -44,7 +44,7 @@ public class SessionCoordinator : ISessionCoordinator
         this.editorFactory = editorFactory;
     }
 
-    public virtual Task OpenEditAsync(Guid sessionId)
+    public Task OpenEditAsync(Guid sessionId)
     {
         var snapshot = sessionStore.Get(sessionId);
         if (snapshot is null) return Task.CompletedTask;
@@ -53,34 +53,34 @@ public class SessionCoordinator : ISessionCoordinator
         return Task.CompletedTask;
     }
 
-    public virtual Task<SessionDesktopLoadResult> LoadDesktopDetailAsync(
+    public Task<SessionDesktopLoadResult> LoadDesktopDetailAsync(
         Guid sessionId,
         CancellationToken cancellationToken = default)
         => sessionLoader.LoadDesktopDetailAsync(sessionId, cancellationToken);
 
-    public virtual Task<SessionMobileLoadResult> LoadMobileDetailAsync(
+    public Task<SessionMobileLoadResult> LoadMobileDetailAsync(
         Guid sessionId,
         SessionPresentationDimensions dimensions,
         CancellationToken cancellationToken = default)
         => sessionLoader.LoadMobileDetailAsync(sessionId, dimensions, cancellationToken);
 
-    public virtual Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated) =>
+    public Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated) =>
         sessionSaver.SaveAsync(session, baselineUpdated);
 
-    public virtual Task<LiveSessionSaveResult> SaveLiveCaptureAsync(
+    public Task<LiveSessionSaveResult> SaveLiveCaptureAsync(
         Session session,
         LiveSessionCapturePackage capture,
         SessionPreferences preferences,
         CancellationToken cancellationToken = default)
         => liveCaptureSaver.SaveLiveCaptureAsync(session, capture, preferences, cancellationToken);
 
-    public virtual Task<SessionRecomputeResult> RecomputeAsync(
+    public Task<SessionRecomputeResult> RecomputeAsync(
         Guid sessionId,
         long baselineUpdated,
         CancellationToken cancellationToken = default)
         => sessionRecomputer.RecomputeAsync(sessionId, baselineUpdated, cancellationToken);
 
-    public virtual Task<SessionDeleteResult> DeleteAsync(Guid sessionId) =>
+    public Task<SessionDeleteResult> DeleteAsync(Guid sessionId) =>
         sessionDeleter.DeleteAsync(sessionId);
 }
 

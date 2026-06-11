@@ -36,7 +36,7 @@ public class ImportSessionsCoordinator(
 {
     private static readonly ILogger logger = Log.ForContext<ImportSessionsCoordinator>();
 
-    public virtual Task OpenAsync()
+    public Task OpenAsync()
     {
         shell.OpenOrFocus<ImportSessionsViewModel>(
             _ => true,
@@ -44,7 +44,7 @@ public class ImportSessionsCoordinator(
         return Task.CompletedTask;
     }
 
-    public virtual async Task<SessionImportResult> ImportAsync(
+    public async Task<SessionImportResult> ImportAsync(
         IReadOnlyList<ITelemetryFile> files,
         Guid setupId,
         IProgress<SessionImportEvent>? progress = null)
