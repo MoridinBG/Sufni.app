@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Sufni.App.Models;
 using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Stores;
@@ -18,7 +19,19 @@ namespace Sufni.App.SessionGraph;
 /// </summary>
 public static class ProcessingDependencyHash
 {
+    private static readonly JsonSerializerOptions LegacySnakeCaseJsonOptions = CreateLegacySnakeCaseJsonOptions();
+
     public static string Compute(SetupSnapshot setup, BikeSnapshot bike)
+    {
+        return Compute(setup, bike, AppJson.Options);
+    }
+
+    internal static string ComputeLegacySnakeCaseJson(SetupSnapshot setup, BikeSnapshot bike)
+    {
+        return Compute(setup, bike, LegacySnakeCaseJsonOptions);
+    }
+
+    private static string Compute(SetupSnapshot setup, BikeSnapshot bike, JsonSerializerOptions jsonOptions)
     {
         var payload = new DependencyPayload(
             Setup: new SetupPayload(
@@ -36,8 +49,20 @@ public static class ProcessingDependencyHash
                 LeverageRatioPayload.FromLeverageRatio(bike.LeverageRatio)));
 
         using var stream = new MemoryStream();
-        JsonSerializer.Serialize(stream, payload, AppJson.Options);
+        JsonSerializer.Serialize(stream, payload, jsonOptions);
         return Convert.ToHexString(SHA256.HashData(stream.GetBuffer().AsSpan(0, checked((int)stream.Length)))).ToLowerInvariant();
+    }
+
+    private static JsonSerializerOptions CreateLegacySnakeCaseJsonOptions()
+    {
+        JsonSerializerOptions options = new()
+        {
+            DefaultIgnoreCondition = JsonIgnoreCondition.Never,
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+            WriteIndented = false
+        };
+        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
+        return options;
     }
 
     private sealed record DependencyPayload(SetupPayload Setup, BikePayload Bike);

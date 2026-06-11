@@ -4,9 +4,13 @@ using System.Linq;
 using System.Threading.Tasks;
 using SQLite;
 using Serilog;
+using Sufni.App.ExtensionHost.SessionGraph;
 using Sufni.App.ExtensionHost.SessionDetails;
 using Sufni.App.ExtensionHosting.Database;
 using Sufni.App.Models;
+using Sufni.App.SessionGraph;
+using Sufni.App.Stores;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Services;
 
@@ -16,6 +20,8 @@ internal sealed class DatabaseMigrationRunner(
     ExtensionDatabaseMigratorRunner extensionMigratorRunner,
     ExtensionCascadeService extensionCascadeService)
 {
+    private const int SessionFingerprintBackfillProcessingVersion = 2;
+    private const string SessionFingerprintBackfillMigrationId = "session_processing_fingerprint_backfill_v2_202606";
     private static readonly ILogger logger = Log.ForContext<DatabaseMigrationRunner>();
 
     internal async Task RunAsync()
@@ -29,6 +35,8 @@ internal sealed class DatabaseMigrationRunner(
             await EnsureBikeDampingSpeedCutoffColumnsAsync();
             await EnsureSessionCacheDampingSpeedCutoffColumnsAsync();
             await BackfillRearSuspensionKindAsync();
+            await EnsureCoreMigrationTableAsync();
+            await BackfillLegacySessionProcessingFingerprintsAsync();
             await extensionMigratorRunner.RunAsync(connection);
 
             var cleanupSummary = await Cleanup();
@@ -132,6 +140,201 @@ internal sealed class DatabaseMigrationRunner(
     private Task<int> BackfillRearSuspensionKindAsync() => connection.ExecuteAsync(
         "UPDATE bike SET rear_suspension_kind = ? WHERE linkage IS NOT NULL AND (rear_suspension_kind IS NULL OR rear_suspension_kind = ?)",
         [(int)RearSuspensionKind.Linkage, (int)RearSuspensionKind.None]);
+
+    private Task<int> EnsureCoreMigrationTableAsync() => connection.ExecuteAsync(
+        "CREATE TABLE IF NOT EXISTS core_migration (id TEXT PRIMARY KEY)");
+
+    private async Task BackfillLegacySessionProcessingFingerprintsAsync()
+    {
+        if (!IsSessionFingerprintBackfillProcessingVersion())
+        {
+            return;
+        }
+
+        var allowOneTimeDependencyHashBackfill =
+            !await IsCoreMigrationAppliedAsync(SessionFingerprintBackfillMigrationId);
+        var rows = await connection.QueryAsync<SessionFingerprintBackfillRow>(
+            """
+            SELECT
+                id,
+                setup_id,
+                session_processing_fingerprint
+            FROM session
+            WHERE deleted IS NULL
+              AND data IS NOT NULL
+              AND setup_id IS NOT NULL
+            """);
+        if (rows.Count == 0)
+        {
+            if (allowOneTimeDependencyHashBackfill)
+            {
+                await MarkCoreMigrationAppliedAsync(SessionFingerprintBackfillMigrationId);
+            }
+
+            return;
+        }
+
+        var fingerprintService = new ProcessingFingerprintService();
+
+        foreach (var row in rows)
+        {
+            if (!row.SetupId.HasValue)
+            {
+                continue;
+            }
+
+            var setup = await connection.FindAsync<Setup>(row.SetupId.Value);
+            if (setup is null || setup.Deleted is not null)
+            {
+                continue;
+            }
+
+            var bike = await connection.FindAsync<Bike>(setup.BikeId);
+            if (bike is null || bike.Deleted is not null)
+            {
+                continue;
+            }
+
+            var source = await connection.FindAsync<RecordedSessionSource>(row.Id);
+            if (source is null)
+            {
+                continue;
+            }
+
+            var session = new SessionSnapshot(
+                row.Id,
+                Name: string.Empty,
+                Description: string.Empty,
+                row.SetupId,
+                Timestamp: null,
+                FullTrackId: null,
+                HasProcessedData: true,
+                row.ProcessingFingerprintJson,
+                FrontSpringRate: null,
+                FrontHighSpeedCompression: null,
+                FrontLowSpeedCompression: null,
+                FrontLowSpeedRebound: null,
+                FrontHighSpeedRebound: null,
+                RearSpringRate: null,
+                RearHighSpeedCompression: null,
+                RearLowSpeedCompression: null,
+                RearLowSpeedRebound: null,
+                RearHighSpeedRebound: null,
+                Updated: 0);
+            var setupSnapshot = SetupSnapshot.From(setup, boardId: null);
+            var bikeSnapshot = BikeSnapshot.From(bike);
+            var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
+            var evaluation = fingerprintService.EvaluateState(
+                session,
+                setupSnapshot,
+                bikeSnapshot,
+                sourceSnapshot);
+
+            if (evaluation.Current is not null &&
+                ShouldBackfillLegacySessionProcessingFingerprint(
+                    evaluation,
+                    setupSnapshot,
+                    bikeSnapshot,
+                    sourceSnapshot,
+                    allowOneTimeDependencyHashBackfill))
+            {
+                await connection.ExecuteAsync(
+                    "UPDATE session SET session_processing_fingerprint = ? WHERE id = ?",
+                    AppJson.Serialize(evaluation.Current),
+                    row.Id);
+            }
+        }
+
+        if (allowOneTimeDependencyHashBackfill)
+        {
+            await MarkCoreMigrationAppliedAsync(SessionFingerprintBackfillMigrationId);
+        }
+    }
+
+    private static bool ShouldBackfillLegacySessionProcessingFingerprint(
+        ProcessingFingerprintEvaluation evaluation,
+        SetupSnapshot setup,
+        BikeSnapshot bike,
+        RecordedSessionSourceSnapshot source,
+        bool allowOneTimeDependencyHashBackfill)
+    {
+        if (evaluation.Staleness is SessionStaleness.UnknownLegacyFingerprint
+            || evaluation.Staleness is SessionStaleness.ProcessingVersionChanged
+            {
+                Persisted: SessionFingerprintBackfillProcessingVersion - 1,
+                CurrentVersion: SessionFingerprintBackfillProcessingVersion
+            })
+        {
+            return true;
+        }
+
+        if (evaluation.Staleness is not SessionStaleness.DependencyHashChanged)
+        {
+            return false;
+        }
+
+        return IsLegacyDependencyHashFingerprint(evaluation, setup, bike, source)
+               || allowOneTimeDependencyHashBackfill && HasSameFingerprintInputsExceptDependencyHash(evaluation);
+    }
+
+    private static bool IsLegacyDependencyHashFingerprint(
+        ProcessingFingerprintEvaluation evaluation,
+        SetupSnapshot setup,
+        BikeSnapshot bike,
+        RecordedSessionSourceSnapshot source)
+    {
+        if (evaluation.Current is null || evaluation.Persisted is null)
+        {
+            return false;
+        }
+
+        var legacyDependencyHashes = new List<string>
+        {
+            ProcessingDependencyHash.ComputeLegacySnakeCaseJson(setup, bike)
+        };
+
+        if (bike.RearSuspensionKind == RearSuspensionKind.Linkage && bike.Linkage is not null)
+        {
+            var legacyBike = bike with { RearSuspensionKind = RearSuspensionKind.None };
+            legacyDependencyHashes.Add(ProcessingDependencyHash.Compute(setup, legacyBike));
+            legacyDependencyHashes.Add(ProcessingDependencyHash.ComputeLegacySnakeCaseJson(setup, legacyBike));
+        }
+
+        return legacyDependencyHashes.Any(hash =>
+        {
+            var legacyFingerprint = evaluation.Current with
+            {
+                DependencyHash = hash,
+                SourceHash = source.SourceHash
+            };
+            return evaluation.Persisted == legacyFingerprint;
+        });
+    }
+
+    private static bool HasSameFingerprintInputsExceptDependencyHash(ProcessingFingerprintEvaluation evaluation) =>
+        evaluation.Current is not null &&
+        evaluation.Persisted is not null &&
+        evaluation.Persisted.SchemaVersion == evaluation.Current.SchemaVersion &&
+        evaluation.Persisted.ProcessingVersion == evaluation.Current.ProcessingVersion &&
+        evaluation.Persisted.SetupId == evaluation.Current.SetupId &&
+        evaluation.Persisted.BikeId == evaluation.Current.BikeId &&
+        evaluation.Persisted.TrackProjectionVersion == evaluation.Current.TrackProjectionVersion &&
+        string.Equals(evaluation.Persisted.SourceHash, evaluation.Current.SourceHash, StringComparison.Ordinal);
+
+    private static bool IsSessionFingerprintBackfillProcessingVersion() =>
+        TelemetryProcessingVersion.Current == SessionFingerprintBackfillProcessingVersion;
+
+    private async Task<bool> IsCoreMigrationAppliedAsync(string migrationId)
+    {
+        var rows = await connection.QueryAsync<CoreMigrationRow>(
+            "SELECT id FROM core_migration WHERE id = ?",
+            migrationId);
+        return rows.Count > 0;
+    }
+
+    private Task<int> MarkCoreMigrationAppliedAsync(string migrationId) => connection.ExecuteAsync(
+        "INSERT OR IGNORE INTO core_migration (id) VALUES (?)",
+        migrationId);
 
     private async Task<CleanupSummary> Cleanup()
     {
@@ -287,6 +490,24 @@ internal sealed class DatabaseMigrationRunner(
 
         [Column("full_track_id")]
         public Guid? FullTrackId { get; set; }
+    }
+
+    private sealed class SessionFingerprintBackfillRow
+    {
+        [Column("id")]
+        public Guid Id { get; set; }
+
+        [Column("setup_id")]
+        public Guid? SetupId { get; set; }
+
+        [Column("session_processing_fingerprint")]
+        public string? ProcessingFingerprintJson { get; set; }
+    }
+
+    private sealed class CoreMigrationRow
+    {
+        [Column("id")]
+        public string Id { get; set; } = string.Empty;
     }
 
     private sealed record CleanupSummary(

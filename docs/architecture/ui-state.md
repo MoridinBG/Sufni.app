@@ -136,6 +136,8 @@ setup, bike, and source snapshots, and classifies staleness as:
   whether the processed BLOB/fingerprint is known to be stale even
   though the app cannot repair it until the source is restored.
 
+Legacy processed sessions can enter the store already repaired because `DatabaseMigrationRunner` runs a one-time source-backed fingerprint backfill during SQLite startup, then records it in `core_migration`. That pass fills existing processed rows without recomputing their telemetry, while later startups only repair explicitly known legacy fingerprint shapes. The graph still reports stale for new source/dependency mismatches after the one-time marker exists.
+
 `IRecordedSessionDomainQuery` is the command-side companion. It reads
 the current session/setup/bike/source snapshots synchronously from
 stores and returns one `RecordedSessionDomainSnapshot` for workflows

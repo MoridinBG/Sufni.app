@@ -142,6 +142,10 @@ erDiagram
         text extension_id PK
         int version
     }
+
+    core_migration {
+        text id PK
+    }
 ```
 
 ## SQLite Persistence Repositories
@@ -149,6 +153,8 @@ erDiagram
 `SqliteConnectionContext` (`Sufni.App/Sufni.App/Services/SqliteConnectionContext.cs`) owns the single `SQLiteAsyncConnection`, the extension table catalog, and the initialization gate. It constructs the database at `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db` and starts `DatabaseMigrationRunner`, which enables WAL mode, creates core tables, applies compatibility migrations/backfills, runs extension migrations, performs startup cleanup, repairs duplicate track ranges, and runs extension orphan repair.
 
 Bike rows include presentation-owned damping speed cutoffs for front/rear compression and rebound. These values default to 200 mm/s, are synchronized and exported with the bike, and are backfilled on startup for legacy schemas. They are not session preferences and do not affect telemetry processing fingerprints.
+
+Startup migration also backfills `session_processing_fingerprint` for legacy processed sessions when the session has a processed BLOB, an undeleted setup and bike, and recorded-source metadata. The backfill writes only the fingerprint column and does not update the processed BLOB, summary metrics, or `updated` timestamp. The `core_migration` marker table records the one-time `session_processing_fingerprint_backfill_v2_202606` migration: during that first run, existing source-backed processed rows whose fingerprint already references the same setup, bike, track-projection version, and source hash are currentized even if their dependency hash came from a previous compatibility shape or from pre-refactor dependency state. After the marker exists, startup only repairs explicitly known legacy shapes such as missing/legacy fingerprints, the version-1 to version-2 processing-fingerprint compatibility case, the old snake_case dependency-hash serialization, and the legacy linkage-bike `rear_suspension_kind = None` value being normalized to `Linkage`; new source or dependency hash mismatches remain stale so recompute can still surface real derived-data changes.
 
 Persistence consumers inject narrow repository interfaces instead of a single database facade. `ISynchronizableRepository<T>` owns generic soft-delete CRUD for `Synchronizable` entities; `ISessionRepository`, `IRecordedSessionSourceRepository`, `ITrackRepository`, `ISessionCacheStore`, and `IPairedDeviceRepository` own aggregate-specific operations; `ISyncDataStore` / `SynchronizationMergeEngine` owns sync timestamps, delta projection, remote apply, and merge conflict resolution. `DatabaseMigrationRunner` is the only schema initializer/migrator, and repositories assume `SqliteConnectionContext` has run initialization before handing out the shared connection.
 
