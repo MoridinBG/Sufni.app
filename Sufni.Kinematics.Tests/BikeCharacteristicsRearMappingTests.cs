@@ -53,6 +53,25 @@ public class BikeCharacteristicsRearMappingTests
         }
     }
 
+    [Fact]
+    public void LeverageRatioData_PinsMidpointXConvention_AtCurveEndpoints()
+    {
+        var characteristics = CreateCharacteristics();
+
+        var strokeDataset = characteristics.ShockStrokeToWheelTravelDataset();
+        var leverageRatioData = characteristics.LeverageRatioData;
+
+        var firstSegmentMidpoint = (strokeDataset.Y[0] + strokeDataset.Y[1]) / 2.0;
+        var lastSegmentMidpoint = (strokeDataset.Y[^2] + strokeDataset.Y[^1]) / 2.0;
+        Assert.Equal(firstSegmentMidpoint, leverageRatioData.X[0], 6);
+        Assert.Equal(lastSegmentMidpoint, leverageRatioData.X[^1], 6);
+        // Deliberate convention: a finite-difference ratio is plotted at the
+        // segment midpoint, so the curve stops half a segment short of zero
+        // and of max wheel travel.
+        Assert.True(leverageRatioData.X[0] > strokeDataset.Y[0]);
+        Assert.True(leverageRatioData.X[^1] < strokeDataset.Y[^1]);
+    }
+
     private static BikeCharacteristics CreateCharacteristics()
     {
         var solution = new KinematicSolver(TestLinkages.FullSuspensionLinkage(includeHeadTubeJoints: true))
