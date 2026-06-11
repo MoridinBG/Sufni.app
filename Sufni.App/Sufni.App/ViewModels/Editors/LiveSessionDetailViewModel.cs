@@ -1,30 +1,31 @@
-using System;
+using Avalonia;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Sufni.App.Coordinators;
+using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.Models;
+using Sufni.App.Plots;
+using Sufni.App.Presentation;
+using Sufni.App.Queries;
+using Sufni.App.Services.LiveStreaming;
+using Sufni.App.Services;
+using Sufni.App.SessionDetails;
+using Sufni.App.ViewModels.SessionPages;
+using Sufni.App.ViewModels;
+using Sufni.App.Views.Plots;
+using Sufni.Telemetry;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
-using Avalonia;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using Sufni.App.Models;
-using Sufni.App.Coordinators;
-using Sufni.App.ExtensionHost.RecordedSessions;
-using Sufni.App.Presentation;
-using Sufni.App.Queries;
-using Sufni.App.Plots;
-using Sufni.App.SessionDetails;
-using Sufni.App.Services;
-using Sufni.App.Services.LiveStreaming;
-using Sufni.App.ViewModels;
-using Sufni.App.ViewModels.SessionPages;
-using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Models;
-using Sufni.App.ExtensionHost.Presentation;
-using Sufni.App.ExtensionHost.Services;
-using Sufni.App.ExtensionHost.SessionDetails;
+using System.Threading;
+using System;
 
 namespace Sufni.App.ViewModels.Editors;
 
@@ -831,7 +832,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         DampingSpeedCutoffs = DampingSpeedCutoffs.With(
             side,
             circuit,
-            DampingSpeedCutoffs.RoundDragValue(cutoffMmPerSecond));
+            DampingCutoffInteraction.RoundDragValue(cutoffMmPerSecond));
     }
 
     public void CancelDampingSpeedCutoffPreview()
@@ -859,7 +860,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         var committedCutoffs = DampingSpeedCutoffs.With(
             side,
             circuit,
-            DampingSpeedCutoffs.RoundDragValue(cutoffMmPerSecond));
+            DampingCutoffInteraction.RoundDragValue(cutoffMmPerSecond));
         DampingSpeedCutoffs = committedCutoffs;
         PlotDampingSpeedCutoffs = committedCutoffs;
 

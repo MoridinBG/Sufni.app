@@ -50,10 +50,6 @@ public sealed record DampingSpeedCutoffs(
     public const double DefaultMmPerSecond = 200.0;
     public const double MinimumMmPerSecond = 0.0;
     public const double MaximumMmPerSecond = 2000.0;
-    public const double DragStepMmPerSecond = 10.0;
-    public const int MobileLongPressDelayMilliseconds = 250;
-
-    public static TimeSpan MobileLongPressDelay { get; } = TimeSpan.FromMilliseconds(MobileLongPressDelayMilliseconds);
 
     public static DampingSpeedCutoffs Default { get; } = new(
         DampingSpeedCutoffSide.Default,
@@ -103,11 +99,5 @@ public sealed record DampingSpeedCutoffs(
     public static double Clamp(double value)
     {
         return Math.Clamp(value, MinimumMmPerSecond, MaximumMmPerSecond);
-    }
-
-    public static double RoundDragValue(double value)
-    {
-        var clamped = Clamp(value);
-        return Clamp(Math.Round(clamped / DragStepMmPerSecond, MidpointRounding.AwayFromZero) * DragStepMmPerSecond);
     }
 }

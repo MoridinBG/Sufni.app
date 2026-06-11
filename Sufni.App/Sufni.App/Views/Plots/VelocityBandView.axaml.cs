@@ -454,7 +454,7 @@ public class VelocityBandView : TemplatedControl
         pendingMobilePointer = pointer;
         pendingMobileCircuit = circuit;
         pendingMobileLongPress = PeriodicUiTimer.ScheduleOnce(
-            DampingSpeedCutoffs.MobileLongPressDelay,
+            DampingCutoffInteraction.MobileLongPressDelay,
             CompleteMobileLongPress);
     }
 
@@ -498,7 +498,7 @@ public class VelocityBandView : TemplatedControl
 
     private void PreviewCutoff(DampingSpeedCircuit circuit, double cutoff)
     {
-        activeGuideCutoff = DampingSpeedCutoffs.RoundDragValue(cutoff);
+        activeGuideCutoff = DampingCutoffInteraction.RoundDragValue(cutoff);
         StatisticsWorkspace?.PreviewDampingSpeedCutoff(SuspensionType, circuit, cutoff);
         RefreshGuide();
     }

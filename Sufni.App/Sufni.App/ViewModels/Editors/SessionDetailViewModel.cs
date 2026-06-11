@@ -1,38 +1,39 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Collections.Specialized;
-using System.Diagnostics;
-using System.Globalization;
-using System.Linq;
-using System.Reactive.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Avalonia;
 using Avalonia.Media;
+using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Database;
-using Sufni.App.ExtensionHost.RecordedSessions;
-using Sufni.App.Models;
-using Sufni.App.Presentation;
-using Sufni.App.SessionGraph;
-using Sufni.App.SessionDetails;
-using Sufni.App.Services;
-using Sufni.App.Stores;
-using Sufni.App.ViewModels;
-using Sufni.App.ViewModels.SessionPages;
-using Sufni.App.Views.Controls;
-using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Models;
 using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.RecordedSessions;
 using Sufni.App.ExtensionHost.Services;
 using Sufni.App.ExtensionHost.SessionDetails;
 using Sufni.App.ExtensionHost.ViewModels.Editors;
 using Sufni.App.ExtensionHost.Views.Controls;
 using Sufni.App.ExtensionHosting.RecordedSessions;
+using Sufni.App.Models;
+using Sufni.App.Presentation;
+using Sufni.App.Services;
+using Sufni.App.SessionDetails;
+using Sufni.App.SessionGraph;
+using Sufni.App.Stores;
+using Sufni.App.ViewModels.SessionPages;
+using Sufni.App.ViewModels;
+using Sufni.App.Views.Controls;
+using Sufni.App.Views.Plots;
+using Sufni.Telemetry;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Globalization;
+using System.Linq;
+using System.Reactive.Linq;
+using System.Threading.Tasks;
+using System.Threading;
+using System;
 
 namespace Sufni.App.ViewModels.Editors;
 
@@ -616,7 +617,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         DampingSpeedCutoffs = DampingSpeedCutoffs.With(
             side,
             circuit,
-            DampingSpeedCutoffs.RoundDragValue(cutoffMmPerSecond));
+            DampingCutoffInteraction.RoundDragValue(cutoffMmPerSecond));
     }
 
     public void CancelDampingSpeedCutoffPreview()
@@ -644,7 +645,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         var committedCutoffs = DampingSpeedCutoffs.With(
             side,
             circuit,
-            DampingSpeedCutoffs.RoundDragValue(cutoffMmPerSecond));
+            DampingCutoffInteraction.RoundDragValue(cutoffMmPerSecond));
         DampingSpeedCutoffs = committedCutoffs;
         PlotDampingSpeedCutoffs = committedCutoffs;
 

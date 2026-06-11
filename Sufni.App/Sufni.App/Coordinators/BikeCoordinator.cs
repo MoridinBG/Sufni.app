@@ -1,18 +1,19 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
+using Serilog;
 using Sufni.App.BikeEditing;
 using Sufni.App.ExtensionHost.Database;
-using Sufni.App.Models;
-using Sufni.App.Queries;
-using Sufni.App.SessionDetails;
-using Sufni.App.Services;
-using Sufni.App.Stores;
-using Sufni.Telemetry;
-using Serilog;
 using Sufni.App.ExtensionHost.Services;
 using Sufni.App.ExtensionHost.SessionDetails;
 using Sufni.App.ExtensionHosting.Database;
+using Sufni.App.Models;
+using Sufni.App.Queries;
+using Sufni.App.Services;
+using Sufni.App.SessionDetails;
+using Sufni.App.Stores;
+using Sufni.App.Views.Plots;
+using Sufni.Telemetry;
+using System.Threading.Tasks;
+using System.Threading;
+using System;
 
 namespace Sufni.App.Coordinators;
 
@@ -233,7 +234,7 @@ public class BikeCoordinator(
             return new BikeDampingSpeedCutoffUpdateResult.Conflict(current);
         }
 
-        var roundedCutoff = DampingSpeedCutoffs.RoundDragValue(cutoffMmPerSecond);
+        var roundedCutoff = DampingCutoffInteraction.RoundDragValue(cutoffMmPerSecond);
         var updatedCutoffs = current.DampingSpeedCutoffs.With(side, circuit, roundedCutoff);
         var updatedSnapshot = current with
         {
