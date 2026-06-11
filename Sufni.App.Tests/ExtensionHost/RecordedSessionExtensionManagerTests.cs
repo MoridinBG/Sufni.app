@@ -289,6 +289,7 @@ public class RecordedSessionExtensionManagerTests
         Action<string>? requestPageSelection = null,
         IUiThreadDispatcher? uiThreadDispatcher = null)
     {
+        var coordinator = operationCoordinator ?? new RecordedSessionOperationCoordinator((_, _) => { }, () => { });
         return new RecordedSessionExtensionManager(
             Guid.NewGuid(),
             factories,
@@ -296,13 +297,15 @@ public class RecordedSessionExtensionManagerTests
             Substitute.For<IRecordedSessionDataReader>(),
             new InlineBackgroundTaskRunner(),
             uiThreadDispatcher ?? new InlineUiThreadDispatcher(),
-            operationCoordinator ?? new RecordedSessionOperationCoordinator((_, _) => { }, () => { }),
-            setAnalysisRange ?? ((_, _) => { }),
-            clearAnalysisRange ?? (() => { }),
-            setTimelineVisibleRange ?? ((_, _, _) => { }),
-            addError ?? (_ => { }),
-            addNotification ?? (_ => { }),
-            requestPageSelection ?? (_ => { }));
+            coordinator,
+            new DelegatingRecordedSessionHostOperations(
+                setAnalysisRange,
+                clearAnalysisRange,
+                setTimelineVisibleRange,
+                addError,
+                addNotification,
+                coordinator.StartOperation,
+                requestPageSelection));
     }
 
     private static RecordedSessionHostState CreateState(

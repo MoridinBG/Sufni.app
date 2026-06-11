@@ -29,12 +29,7 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
     private readonly RecordedSessionOperationCoordinator operationCoordinator;
-    private readonly Action<double, double> setAnalysisRange;
-    private readonly Action clearAnalysisRange;
-    private readonly Action<double, double, object> setTimelineVisibleRange;
-    private readonly Action<string> addError;
-    private readonly Action<string> addNotification;
-    private readonly Action<string> requestPageSelection;
+    private readonly IRecordedSessionHostOperations operations;
     private readonly BehaviorSubject<RecordedSessionHostState> stateChanged;
     private readonly RecordedSessionExtensionSlotPublisher extensionSlotPublisher;
     private readonly List<RecordedSessionExtensionScopeRegistration> scopes = [];
@@ -50,12 +45,7 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
         IBackgroundTaskRunner backgroundTaskRunner,
         IUiThreadDispatcher uiThreadDispatcher,
         RecordedSessionOperationCoordinator operationCoordinator,
-        Action<double, double> setAnalysisRange,
-        Action clearAnalysisRange,
-        Action<double, double, object> setTimelineVisibleRange,
-        Action<string> addError,
-        Action<string> addNotification,
-        Action<string> requestPageSelection)
+        IRecordedSessionHostOperations operations)
     {
         ArgumentNullException.ThrowIfNull(factories);
         ArgumentNullException.ThrowIfNull(database);
@@ -63,12 +53,7 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(backgroundTaskRunner);
         ArgumentNullException.ThrowIfNull(uiThreadDispatcher);
         ArgumentNullException.ThrowIfNull(operationCoordinator);
-        ArgumentNullException.ThrowIfNull(setAnalysisRange);
-        ArgumentNullException.ThrowIfNull(clearAnalysisRange);
-        ArgumentNullException.ThrowIfNull(setTimelineVisibleRange);
-        ArgumentNullException.ThrowIfNull(addError);
-        ArgumentNullException.ThrowIfNull(addNotification);
-        ArgumentNullException.ThrowIfNull(requestPageSelection);
+        ArgumentNullException.ThrowIfNull(operations);
 
         this.sessionId = sessionId;
         this.factories = factories.ToArray();
@@ -78,12 +63,7 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.uiThreadDispatcher = uiThreadDispatcher;
         this.operationCoordinator = operationCoordinator;
-        this.setAnalysisRange = setAnalysisRange;
-        this.clearAnalysisRange = clearAnalysisRange;
-        this.setTimelineVisibleRange = setTimelineVisibleRange;
-        this.addError = addError;
-        this.addNotification = addNotification;
-        this.requestPageSelection = requestPageSelection;
+        this.operations = operations;
         extensionSlotPublisher = new RecordedSessionExtensionSlotPublisher(ExtensionSlots, uiThreadDispatcher);
         CurrentState = new RecordedSessionHostState(
             new RecordedSessionIdentityState(sessionId, null, null, null, IsLoaded: false, IsActive: false),
@@ -185,14 +165,7 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
                 dataReader,
                 backgroundTaskRunner,
                 uiThreadDispatcher),
-            new RecordedSessionHostOperations(
-                setAnalysisRange,
-                clearAnalysisRange,
-                setTimelineVisibleRange,
-                addError,
-                addNotification,
-                operationCoordinator.StartOperation,
-                requestPageSelection));
+            operations);
     }
 
     private void AttachScopeSlots(RecordedSessionExtensionSlots slots)

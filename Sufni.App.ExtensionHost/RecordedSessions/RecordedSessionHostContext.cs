@@ -33,41 +33,20 @@ public sealed record RecordedSessionHostServices
     public IUiThreadDispatcher UiThreadDispatcher { get; }
 }
 
-public sealed record RecordedSessionHostOperations
+/// <summary>
+/// Operations a recorded-session extension scope may invoke on its host.
+/// The analysis range is expressed in seconds; the timeline viewport is
+/// expressed in normalized fractions of the session duration.
+/// </summary>
+public interface IRecordedSessionHostOperations
 {
-    public RecordedSessionHostOperations(
-        Action<double, double> setAnalysisRange,
-        Action clearAnalysisRange,
-        Action<double, double, object> setTimelineVisibleRange,
-        Action<string> addError,
-        Action<string> addNotification,
-        Func<string, IRecordedSessionOperationLease> startOperation,
-        Action<string> requestPageSelection)
-    {
-        ArgumentNullException.ThrowIfNull(setAnalysisRange);
-        ArgumentNullException.ThrowIfNull(clearAnalysisRange);
-        ArgumentNullException.ThrowIfNull(setTimelineVisibleRange);
-        ArgumentNullException.ThrowIfNull(addError);
-        ArgumentNullException.ThrowIfNull(addNotification);
-        ArgumentNullException.ThrowIfNull(startOperation);
-        ArgumentNullException.ThrowIfNull(requestPageSelection);
-
-        SetAnalysisRange = setAnalysisRange;
-        ClearAnalysisRange = clearAnalysisRange;
-        SetTimelineVisibleRange = setTimelineVisibleRange;
-        AddError = addError;
-        AddNotification = addNotification;
-        StartOperation = startOperation;
-        RequestPageSelection = requestPageSelection;
-    }
-
-    public Action<double, double> SetAnalysisRange { get; }
-    public Action ClearAnalysisRange { get; }
-    public Action<double, double, object> SetTimelineVisibleRange { get; }
-    public Action<string> AddError { get; }
-    public Action<string> AddNotification { get; }
-    public Func<string, IRecordedSessionOperationLease> StartOperation { get; }
-    public Action<string> RequestPageSelection { get; }
+    void SetAnalysisRange(double startSeconds, double endSeconds);
+    void ClearAnalysisRange();
+    void SetTimelineVisibleRange(double startNormalized, double endNormalized, object source);
+    void AddError(string message);
+    void AddNotification(string message);
+    IRecordedSessionOperationLease StartOperation(string description);
+    void RequestPageSelection(string contributionId);
 }
 
 public sealed class RecordedSessionHostContext
@@ -75,7 +54,7 @@ public sealed class RecordedSessionHostContext
     public RecordedSessionHostContext(
         Guid sessionId,
         RecordedSessionHostServices services,
-        RecordedSessionHostOperations operations)
+        IRecordedSessionHostOperations operations)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(operations);
@@ -87,7 +66,7 @@ public sealed class RecordedSessionHostContext
 
     public Guid SessionId { get; }
     public RecordedSessionHostServices Services { get; }
-    public RecordedSessionHostOperations Operations { get; }
+    public IRecordedSessionHostOperations Operations { get; }
     public IObservable<RecordedSessionHostState> StateChanged => Services.StateChanged;
     public IExtensionDatabaseConnection Database => Services.Database;
     public IRecordedSessionDataReader DataReader => Services.DataReader;

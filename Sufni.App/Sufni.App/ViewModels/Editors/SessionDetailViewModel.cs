@@ -42,7 +42,7 @@ namespace Sufni.App.ViewModels.Editors;
 /// editable notes/settings state, and reactive stale-data prompts for the
 /// opened session.
 /// </summary>
-public sealed partial class SessionDetailViewModel : TabPageViewModelBase
+public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IRecordedSessionHostOperations
 {
     private enum PresentationMode
     {
@@ -80,6 +80,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     private readonly ISessionAnalysisService sessionAnalysisService;
     private readonly RecordedSessionExtensionSlots emptyExtensionSlots = new();
     private readonly RecordedSessionExtensionManager? recordedSessionExtensions;
+    private readonly RecordedSessionOperationCoordinator? recordedSessionOperationCoordinator;
     private readonly SessionStalenessReconciler stalenessReconciler;
     private readonly StatisticsSelectionController statisticsSelectionController = new();
     private readonly RecordedPresentationApplier presentationApplier;
@@ -905,6 +906,24 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         Timeline.SetVisibleRange(startNormalized, endNormalized, source);
     }
 
+    void IRecordedSessionHostOperations.SetTimelineVisibleRange(
+        double startNormalized,
+        double endNormalized,
+        object source) =>
+        SetRecordedSessionExtensionTimelineVisibleRange(startNormalized, endNormalized, source);
+
+    void IRecordedSessionHostOperations.AddError(string message) => ErrorMessages.Add(message);
+
+    void IRecordedSessionHostOperations.AddNotification(string message) => Notifications.Add(message);
+
+    IRecordedSessionOperationLease IRecordedSessionHostOperations.StartOperation(string description) =>
+        (recordedSessionOperationCoordinator
+            ?? throw new InvalidOperationException("Recorded-session extension hosting is not configured."))
+        .StartOperation(description);
+
+    void IRecordedSessionHostOperations.RequestPageSelection(string contributionId) =>
+        RequestRecordedSessionExtensionPageSelection(contributionId);
+
     private void RequestRecordedSessionExtensionPageSelection(string contributionId)
     {
         if (recordedSessionExtensions is null)
@@ -1107,6 +1126,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
             ErrorMessages.Add);
         if (extensionDatabase is not null && recordedSessionDataReader is not null && backgroundTaskRunner is not null)
         {
+            recordedSessionOperationCoordinator = new RecordedSessionOperationCoordinator(
+                ReportRecordedSessionExtensionOperation,
+                CompleteRecordedSessionExtensionOperation);
             recordedSessionExtensions = new RecordedSessionExtensionManager(
                 Id,
                 extensionFactories,
@@ -1114,15 +1136,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
                 recordedSessionDataReader,
                 backgroundTaskRunner,
                 uiThreadDispatcher,
-                new RecordedSessionOperationCoordinator(
-                    ReportRecordedSessionExtensionOperation,
-                    CompleteRecordedSessionExtensionOperation),
-                SetAnalysisRange,
-                ClearAnalysisRange,
-                SetRecordedSessionExtensionTimelineVisibleRange,
-                ErrorMessages.Add,
-                Notifications.Add,
-                RequestRecordedSessionExtensionPageSelection);
+                recordedSessionOperationCoordinator,
+                this);
             recordedSessionExtensions.ExtensionSlots.Pages.CollectionChanged += OnRecordedSessionExtensionPagesChanged;
             recordedSessionExtensions.ExtensionSlots.MediaPanes.CollectionChanged += OnRecordedSessionExtensionMediaPanesChanged;
         }

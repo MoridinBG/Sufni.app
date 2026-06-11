@@ -27,14 +27,12 @@ public static class TestRecordedSessionHostContexts
             dataReader ?? Substitute.For<IRecordedSessionDataReader>(),
             backgroundTaskRunner ?? Substitute.For<IBackgroundTaskRunner>(),
             uiThreadDispatcher ?? Substitute.For<IUiThreadDispatcher>()),
-        new RecordedSessionHostOperations(
-            setAnalysisRange ?? ((_, _) => { }),
-            () => { },
-            setTimelineVisibleRange ?? ((_, _, _) => { }),
-            addError ?? (_ => { }),
-            addNotification ?? (_ => { }),
-            startOperation ?? (_ => Substitute.For<IRecordedSessionOperationLease>()),
-            _ => { }));
+        new DelegatingRecordedSessionHostOperations(
+            setAnalysisRange,
+            setTimelineVisibleRange: setTimelineVisibleRange,
+            addError: addError,
+            addNotification: addNotification,
+            startOperation: startOperation));
 
     private sealed class EmptyObservable<T> : IObservable<T>
     {
