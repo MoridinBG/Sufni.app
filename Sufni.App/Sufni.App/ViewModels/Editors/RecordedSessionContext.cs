@@ -33,10 +33,10 @@ public sealed partial class RecordedSessionContext : ObservableObject
     [ObservableProperty] private List<TrackPoint>? trackPoints;
     [ObservableProperty] private TrackTimeRange? trackTimelineContext;
     [ObservableProperty] private MapViewModel? mapViewModel;
-    [ObservableProperty] private string? videoUrl;
-    [ObservableProperty] private double? mapVideoWidth;
+    [ObservableProperty] private string? mediaUrl;
+    [ObservableProperty] private double? mediaColumnWidth;
     [ObservableProperty] private SurfacePresentationState mapState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SurfacePresentationState videoState = SurfacePresentationState.Hidden;
+    [ObservableProperty] private SurfacePresentationState mediaPaneState = SurfacePresentationState.Hidden;
     [ObservableProperty] private RecordedSessionExtensionSlots extensionSlots = new();
     [ObservableProperty] private SurfacePresentationState travelGraphState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState velocityGraphState = SurfacePresentationState.Hidden;

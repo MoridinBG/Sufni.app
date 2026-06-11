@@ -138,11 +138,11 @@ public class LiveGraphPageViewTests
         public SurfacePresentationState MapState => mapViewModel.SessionTrackPoints?.Count > 0
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
-        public SurfacePresentationState VideoState => SurfacePresentationState.Hidden;
+        public SurfacePresentationState MediaPaneState => SurfacePresentationState.Hidden;
         public SessionTimelineLinkViewModel Timeline { get; } = new();
         public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
-        public double? MapVideoWidth => 400;
-        public string? VideoUrl => null;
+        public double? MediaColumnWidth => 400;
+        public string? MediaUrl => null;
     }
 }
 

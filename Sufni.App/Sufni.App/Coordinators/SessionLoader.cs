@@ -99,7 +99,7 @@ public sealed class SessionLoader
                     trackData.FullTrackId,
                     trackData.FullTrackPoints,
                     trackData.TrackPoints,
-                    trackData.MapVideoWidth,
+                    trackData.MediaColumnWidth,
                     damperPercentages,
                     dampingSpeedCutoffContext.Cutoffs,
                     dampingSpeedCutoffContext.Owner));

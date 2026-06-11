@@ -839,7 +839,7 @@ public class SessionCoordinatorTests
         var loaded = Assert.IsType<SessionDesktopLoadResult.Loaded>(result);
         Assert.Same(telemetry, loaded.Data.TelemetryData);
         Assert.Same(trackData.TrackPoints, loaded.Data.TrackPoints);
-        Assert.Equal(400.0, loaded.Data.MapVideoWidth);
+        Assert.Equal(400.0, loaded.Data.MediaColumnWidth);
         Assert.Equal(percentages, loaded.Data.DamperPercentages);
     }
 

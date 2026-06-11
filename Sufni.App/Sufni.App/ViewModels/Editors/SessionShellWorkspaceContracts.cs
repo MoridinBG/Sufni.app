@@ -79,11 +79,11 @@ public interface ISessionMediaWorkspace
     bool HasMediaContent { get; }
     MapViewModel? MapViewModel { get; }
     SurfacePresentationState MapState { get; }
-    SurfacePresentationState VideoState { get; }
+    SurfacePresentationState MediaPaneState { get; }
     SessionTimelineLinkViewModel Timeline { get; }
     RecordedSessionExtensionSlots ExtensionSlots { get; }
-    double? MapVideoWidth { get; }
-    string? VideoUrl { get; }
+    double? MediaColumnWidth { get; }
+    string? MediaUrl { get; }
 }
 
 public interface ISessionStatisticsWorkspace

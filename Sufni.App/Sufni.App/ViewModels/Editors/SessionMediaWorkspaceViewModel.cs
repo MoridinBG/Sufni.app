@@ -21,22 +21,22 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
 
     public bool HasMediaContent =>
         MapState.ReservesLayout ||
-        VideoState.ReservesLayout ||
+        MediaPaneState.ReservesLayout ||
         ExtensionSlots.MediaPanes.Count > 0;
 
     public MapViewModel? MapViewModel => context.MapViewModel;
 
     public SurfacePresentationState MapState => context.MapState;
 
-    public SurfacePresentationState VideoState => context.VideoState;
+    public SurfacePresentationState MediaPaneState => context.MediaPaneState;
 
     public SessionTimelineLinkViewModel Timeline => context.Timeline;
 
     public RecordedSessionExtensionSlots ExtensionSlots => context.ExtensionSlots;
 
-    public double? MapVideoWidth => context.MapVideoWidth;
+    public double? MediaColumnWidth => context.MediaColumnWidth;
 
-    public string? VideoUrl => context.VideoUrl;
+    public string? MediaUrl => context.MediaUrl;
 
     private void OnContextPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
@@ -49,15 +49,15 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
                 OnPropertyChanged(nameof(MapState));
                 OnPropertyChanged(nameof(HasMediaContent));
                 break;
-            case nameof(RecordedSessionContext.VideoState):
-                OnPropertyChanged(nameof(VideoState));
+            case nameof(RecordedSessionContext.MediaPaneState):
+                OnPropertyChanged(nameof(MediaPaneState));
                 OnPropertyChanged(nameof(HasMediaContent));
                 break;
-            case nameof(RecordedSessionContext.MapVideoWidth):
-                OnPropertyChanged(nameof(MapVideoWidth));
+            case nameof(RecordedSessionContext.MediaColumnWidth):
+                OnPropertyChanged(nameof(MediaColumnWidth));
                 break;
-            case nameof(RecordedSessionContext.VideoUrl):
-                OnPropertyChanged(nameof(VideoUrl));
+            case nameof(RecordedSessionContext.MediaUrl):
+                OnPropertyChanged(nameof(MediaUrl));
                 break;
             case nameof(RecordedSessionContext.ExtensionSlots):
                 SubscribeToMediaPanes(context.ExtensionSlots);

@@ -18,7 +18,7 @@ public class TrackCoordinator(
     IFilesService filesService,
     IBackgroundTaskRunner backgroundTaskRunner) : ITrackCoordinator
 {
-    private const double DefaultMapVideoWidth = 400.0;
+    private const double DefaultMediaColumnWidth = 400.0;
 
     public async Task<GpxImportResult> ImportGpxAsync(CancellationToken cancellationToken = default)
     {
@@ -109,7 +109,7 @@ public class TrackCoordinator(
             resolvedFullTrackId,
             fullTrack.Points,
             trackPoints,
-            DefaultMapVideoWidth);
+            DefaultMediaColumnWidth);
     }
 }
 

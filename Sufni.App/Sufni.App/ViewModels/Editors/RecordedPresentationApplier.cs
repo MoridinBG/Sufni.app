@@ -59,7 +59,7 @@ internal sealed class RecordedPresentationApplier
         owner.TelemetryData = null;
         owner.FullTrackPoints = null;
         owner.TrackPoints = null;
-        owner.MapVideoWidth = null;
+        owner.MediaColumnWidth = null;
         owner.ApplyDamperPercentages(SessionDamperPercentages.Empty);
         HideVibrationStates();
         ApplyRecordedPlotAvailability(null);
@@ -138,7 +138,7 @@ internal sealed class RecordedPresentationApplier
                 owner.SetSessionFullTrack(loaded.Data.FullTrackId);
                 owner.FullTrackPoints = loaded.Data.FullTrackPoints;
                 owner.TrackPoints = loaded.Data.TrackPoints;
-                owner.MapVideoWidth = loaded.Data.MapVideoWidth;
+                owner.MediaColumnWidth = loaded.Data.MediaColumnWidth;
                 owner.ApplyModeAwareDamperPercentages(loaded.Data.DamperPercentages);
                 ApplyRecordedLoadedStates(loaded.Data);
                 owner.RecomputeSessionAnalysis();
@@ -414,7 +414,7 @@ internal sealed class RecordedPresentationApplier
         owner.SetSessionFullTrack(trackData?.FullTrackId);
         owner.FullTrackPoints = trackData?.FullTrackPoints;
         owner.TrackPoints = trackData?.TrackPoints;
-        owner.MapVideoWidth = trackData?.MapVideoWidth;
+        owner.MediaColumnWidth = trackData?.MediaColumnWidth;
         owner.MapState = CreateMapState(trackData?.TrackPoints, trackData?.FullTrackId is not null);
     }
 

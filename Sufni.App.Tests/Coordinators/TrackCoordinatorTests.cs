@@ -104,7 +104,7 @@ public class TrackCoordinatorTests
         Assert.Equal(fullTrackId, result.FullTrackId);
         Assert.Same(fullTrack.Points, result.FullTrackPoints);
         Assert.Same(existingTrack, result.TrackPoints);
-        Assert.Equal(400.0, result.MapVideoWidth);
+        Assert.Equal(400.0, result.MediaColumnWidth);
         await sessionRepository.DidNotReceive().PatchSessionTrackAsync(Arg.Any<Guid>(), Arg.Any<List<TrackPoint>>());
     }
 

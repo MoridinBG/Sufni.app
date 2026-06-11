@@ -85,7 +85,7 @@ internal sealed class SessionDetailViewTestContext
             FullTrackId: null,
             FullTrackPoints: null,
             TrackPoints: null,
-            MapVideoWidth: null,
+            MediaColumnWidth: null,
             DamperPercentages: new SessionDamperPercentages(10, 20, 30, 40, 50, 60, 70, 80),
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             DampingSpeedCutoffOwner: null));

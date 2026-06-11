@@ -210,14 +210,14 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(TestSnapshots.Session());
 
         editor.MapState = SurfacePresentationState.Ready;
-        editor.MapVideoWidth = 480;
-        editor.VideoUrl = "session-video.mp4";
+        editor.MediaColumnWidth = 480;
+        editor.MediaUrl = "session-media.mp4";
 
         Assert.Same(editor.MapViewModel, editor.MediaWorkspace.MapViewModel);
         Assert.Equal(editor.MapState, editor.MediaWorkspace.MapState);
-        Assert.Equal(editor.VideoState, editor.MediaWorkspace.VideoState);
-        Assert.Equal(editor.MapVideoWidth, editor.MediaWorkspace.MapVideoWidth);
-        Assert.Equal(editor.VideoUrl, editor.MediaWorkspace.VideoUrl);
+        Assert.Equal(editor.MediaPaneState, editor.MediaWorkspace.MediaPaneState);
+        Assert.Equal(editor.MediaColumnWidth, editor.MediaWorkspace.MediaColumnWidth);
+        Assert.Equal(editor.MediaUrl, editor.MediaWorkspace.MediaUrl);
         Assert.True(editor.MediaWorkspace.HasMediaContent);
     }
 
@@ -727,7 +727,7 @@ public class SessionDetailViewModelTests
         Assert.Same(telemetry, editor.TelemetryData);
         Assert.Same(trackPoints, editor.TrackPoints);
         Assert.Same(fullTrackPoints, editor.FullTrackPoints);
-        Assert.Equal(400.0, editor.MapVideoWidth);
+        Assert.Equal(400.0, editor.MediaColumnWidth);
         Assert.Equal(1, editor.DamperPage.FrontHscPercentage);
         Assert.True(editor.IsComplete);
         Assert.Equal(SurfaceStateKind.Ready, editor.TravelGraphState.Kind);
@@ -1392,7 +1392,7 @@ public class SessionDetailViewModelTests
             FullTrackId: null,
             FullTrackPoints: null,
             TrackPoints: null,
-            MapVideoWidth: null,
+            MediaColumnWidth: null,
             DamperPercentages: damperPercentages,
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             DampingSpeedCutoffOwner: null));
@@ -1802,7 +1802,7 @@ public class SessionDetailViewModelTests
 
         Assert.Same(trackPoints, editor.TrackPoints);
         Assert.Same(fullTrackPoints, editor.FullTrackPoints);
-        Assert.Equal(400, editor.MapVideoWidth);
+        Assert.Equal(400, editor.MediaColumnWidth);
         Assert.Equal(SurfaceStateKind.Ready, editor.MapState.Kind);
         Assert.True(editor.HasMediaContent);
         Assert.Same(trackPoints, editor.MapViewModel!.SessionTrackPoints);

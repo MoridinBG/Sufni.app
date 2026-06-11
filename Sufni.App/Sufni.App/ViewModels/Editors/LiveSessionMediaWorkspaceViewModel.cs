@@ -19,18 +19,18 @@ public sealed class LiveSessionMediaWorkspaceViewModel : ObservableObject, ISess
     private bool isInitialized;
     private bool mapExpected;
 
-    public bool HasMediaContent => MapState.ReservesLayout || VideoState.ReservesLayout;
+    public bool HasMediaContent => MapState.ReservesLayout || MediaPaneState.ReservesLayout;
     public MapViewModel? MapViewModel { get; }
     public SurfacePresentationState MapState => !mapExpected
         ? SurfacePresentationState.Hidden
         : MapViewModel?.SessionTrackPoints?.Count > 0
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.WaitingForData("Waiting for map data.");
-    public SurfacePresentationState VideoState => SurfacePresentationState.Hidden;
+    public SurfacePresentationState MediaPaneState => SurfacePresentationState.Hidden;
     public SessionTimelineLinkViewModel Timeline { get; }
     public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
-    public double? MapVideoWidth { get; } = 400;
-    public string? VideoUrl => null;
+    public double? MediaColumnWidth { get; } = 400;
+    public string? MediaUrl => null;
 
     public LiveSessionMediaWorkspaceViewModel()
     {

@@ -14,7 +14,7 @@ public sealed record SessionTelemetryPresentationData(
     Guid? FullTrackId,
     List<TrackPoint>? FullTrackPoints,
     List<TrackPoint>? TrackPoints,
-    double? MapVideoWidth,
+    double? MediaColumnWidth,
     SessionDamperPercentages DamperPercentages,
     DampingSpeedCutoffs DampingSpeedCutoffs,
     DampingSpeedCutoffOwner? DampingSpeedCutoffOwner)
@@ -24,14 +24,14 @@ public sealed record SessionTelemetryPresentationData(
         Guid? FullTrackId,
         List<TrackPoint>? FullTrackPoints,
         List<TrackPoint>? TrackPoints,
-        double? MapVideoWidth,
+        double? MediaColumnWidth,
         SessionDamperPercentages DamperPercentages)
         : this(
             TelemetryData,
             FullTrackId,
             FullTrackPoints,
             TrackPoints,
-            MapVideoWidth,
+            MediaColumnWidth,
             DamperPercentages,
             DampingSpeedCutoffs.Default,
             null)
@@ -43,7 +43,7 @@ public sealed record SessionTrackPresentationData(
     Guid? FullTrackId,
     List<TrackPoint>? FullTrackPoints,
     List<TrackPoint>? TrackPoints,
-    double? MapVideoWidth);
+    double? MediaColumnWidth);
 
 public sealed record SessionCachePresentationData(
     string? FrontTravelHistogram,

@@ -17,25 +17,25 @@ mc:Ignorable="d">
 
     <Grid
     x:Name="MediaContentRoot"
-    MinWidth="{Binding MapVideoWidth, TargetNullValue=400}"
+    MinWidth="{Binding MediaColumnWidth, TargetNullValue=400}"
     IsVisible="{Binding HasMediaContent}">
         <Grid.Resources>
             <converters:SurfaceStateToGridLengthConverter x:Key="SurfaceStateToGridLengthConverter" />
         </Grid.Resources>
         <Grid.RowDefinitions>
-            <RowDefinition Height="{Binding VideoState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=Auto}" />
+            <RowDefinition Height="{Binding MediaPaneState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=Auto}" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="{Binding MapState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
             <RowDefinition Height="0" />
             <RowDefinition Height="0" />
         </Grid.RowDefinitions>
 
-        <controls:PlaceholderOverlayContainer x:Name="VideoHost" Grid.Row="0" PresentationState="{Binding VideoState}">
+        <controls:PlaceholderOverlayContainer x:Name="MediaHost" Grid.Row="0" PresentationState="{Binding MediaPaneState}">
             <controls:PlaceholderOverlayContainer.ReadyContent>
                 <Border Background="DarkSlateBlue" />
             </controls:PlaceholderOverlayContainer.ReadyContent>
             <controls:PlaceholderOverlayContainer.PlaceholderContent>
-                <controls:SurfacePlaceholderCard Title="Video" PreviewBrush="DarkSlateBlue" />
+                <controls:SurfacePlaceholderCard Title="Media" PreviewBrush="DarkSlateBlue" />
             </controls:PlaceholderOverlayContainer.PlaceholderContent>
         </controls:PlaceholderOverlayContainer>
 
@@ -43,7 +43,7 @@ mc:Ignorable="d">
             <GridSplitter.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
                     <Binding Path="MapState.ReservesLayout" />
-                    <Binding Path="VideoState.ReservesLayout" />
+                    <Binding Path="MediaPaneState.ReservesLayout" />
                 </MultiBinding>
             </GridSplitter.IsVisible>
         </GridSplitter>

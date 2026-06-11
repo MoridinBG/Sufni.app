@@ -140,24 +140,24 @@ public class SessionMediaDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task SessionMediaDesktopView_CollapsesMapRow_WhenOnlyVideoIsPresent()
+    public async Task SessionMediaDesktopView_CollapsesMapRow_WhenOnlyMediaIsPresent()
     {
-        var workspace = CreateWorkspace([], videoUrl: "video.mp4");
+        var workspace = CreateWorkspace([], mediaUrl: "media.mp4");
 
         await using var mounted = await MountAsync(workspace);
 
         var mediaRoot = mounted.View.FindControl<Grid>("MediaContentRoot");
-        var videoHost = mounted.View.FindControl<PlaceholderOverlayContainer>("VideoHost");
+        var mediaHost = mounted.View.FindControl<PlaceholderOverlayContainer>("MediaHost");
         var mapHost = mounted.View.FindControl<PlaceholderOverlayContainer>("MapHost");
         var mediaSplitter = mounted.View.FindControl<GridSplitter>("MediaSplitter");
         var mapView = mounted.View.GetVisualDescendants().OfType<MapView>().SingleOrDefault();
 
         Assert.NotNull(mediaRoot);
-        Assert.NotNull(videoHost);
+        Assert.NotNull(mediaHost);
         Assert.NotNull(mapHost);
         Assert.NotNull(mediaSplitter);
         Assert.True(mediaRoot!.IsVisible);
-        Assert.True(videoHost!.IsVisible);
+        Assert.True(mediaHost!.IsVisible);
         Assert.False(mapHost!.IsVisible);
         Assert.False(mediaSplitter!.IsVisible);
         Assert.Null(mapView);
@@ -191,7 +191,7 @@ public class SessionMediaDesktopViewTests
         Assert.Equal(text, textBlock!.Text);
     }
 
-    private static SessionMediaWorkspaceStub CreateWorkspace(IReadOnlyList<TrackPoint> trackPoints, string? videoUrl = null)
+    private static SessionMediaWorkspaceStub CreateWorkspace(IReadOnlyList<TrackPoint> trackPoints, string? mediaUrl = null)
     {
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
         tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
@@ -203,35 +203,35 @@ public class SessionMediaDesktopViewTests
             FullTrackPoints = [],
         };
 
-        return new SessionMediaWorkspaceStub(mapViewModel, videoUrl);
+        return new SessionMediaWorkspaceStub(mapViewModel, mediaUrl);
     }
 
     private sealed class SessionMediaWorkspaceStub : ISessionMediaWorkspace
     {
         private readonly MapViewModel mapViewModel;
-        private readonly string? videoUrl;
+        private readonly string? mediaUrl;
 
-        public SessionMediaWorkspaceStub(MapViewModel mapViewModel, string? videoUrl)
+        public SessionMediaWorkspaceStub(MapViewModel mapViewModel, string? mediaUrl)
         {
             this.mapViewModel = mapViewModel;
-            this.videoUrl = videoUrl;
+            this.mediaUrl = mediaUrl;
         }
 
         public bool HasMediaContent =>
             MapState.ReservesLayout ||
-            VideoState.ReservesLayout ||
+            MediaPaneState.ReservesLayout ||
             ExtensionSlots.MediaPanes.Count > 0;
         public MapViewModel? MapViewModel => mapViewModel;
         public SurfacePresentationState MapState => mapViewModel.SessionTrackPoints?.Count > 0
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
-        public SurfacePresentationState VideoState => !string.IsNullOrWhiteSpace(VideoUrl)
+        public SurfacePresentationState MediaPaneState => !string.IsNullOrWhiteSpace(MediaUrl)
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
         public SessionTimelineLinkViewModel Timeline { get; } = new();
         public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
-        public double? MapVideoWidth => 400;
-        public string? VideoUrl => videoUrl;
+        public double? MediaColumnWidth => 400;
+        public string? MediaUrl => mediaUrl;
     }
 }
 

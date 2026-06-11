@@ -127,7 +127,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     public DamperPageViewModel DamperPage { get; }
     public bool HasMediaContent =>
         MapState.ReservesLayout ||
-        VideoState.ReservesLayout ||
+        MediaPaneState.ReservesLayout ||
         ExtensionSlots.MediaPanes.Count > 0;
     public NotesPageViewModel NotesPage { get; } = new();
     public SessionPlotPreferences PlotPreferences
@@ -184,8 +184,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     [ObservableProperty] private TrackTimeRange? trackTimelineContext;
     [ObservableProperty] private List<TrackPoint>? fullTrackPoints;
     [ObservableProperty] private List<TrackPoint>? trackPoints;
-    [ObservableProperty] private string? videoUrl;
-    [ObservableProperty] private double? mapVideoWidth;
+    [ObservableProperty] private string? mediaUrl;
+    [ObservableProperty] private double? mediaColumnWidth;
     [ObservableProperty] private bool isComplete;
     [ObservableProperty] private SurfacePresentationState travelGraphState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState velocityGraphState = SurfacePresentationState.Hidden;
@@ -227,7 +227,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasMediaContent))]
-    private SurfacePresentationState videoState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState mediaPaneState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SessionDamperPercentages damperPercentages = SessionDamperPercentages.Empty;
     [ObservableProperty] private DampingSpeedCutoffs dampingSpeedCutoffs = DampingSpeedCutoffs.Default;
     [ObservableProperty] private DampingSpeedCutoffs plotDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
@@ -505,17 +505,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         UpdateAirtimeAction(showElevationAirtimeAction, value);
     }
 
-    partial void OnVideoUrlChanged(string? value)
+    partial void OnMediaUrlChanged(string? value)
     {
-        SessionContext.VideoUrl = value;
-        VideoState = string.IsNullOrWhiteSpace(value)
+        SessionContext.MediaUrl = value;
+        MediaPaneState = string.IsNullOrWhiteSpace(value)
             ? SurfacePresentationState.Hidden
             : SurfacePresentationState.Ready;
     }
 
-    partial void OnMapVideoWidthChanged(double? value)
+    partial void OnMediaColumnWidthChanged(double? value)
     {
-        SessionContext.MapVideoWidth = value;
+        SessionContext.MediaColumnWidth = value;
     }
 
     partial void OnMapStateChanged(SurfacePresentationState value)
@@ -523,9 +523,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         SessionContext.MapState = value;
     }
 
-    partial void OnVideoStateChanged(SurfacePresentationState value)
+    partial void OnMediaPaneStateChanged(SurfacePresentationState value)
     {
-        SessionContext.VideoState = value;
+        SessionContext.MediaPaneState = value;
     }
 
     partial void OnStatisticsSelectionHighlightRangesChanged(IReadOnlyList<TelemetryHighlightRange> value)
