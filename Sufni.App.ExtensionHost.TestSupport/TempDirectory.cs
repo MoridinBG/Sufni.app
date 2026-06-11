@@ -1,9 +1,6 @@
-using System;
-using System.IO;
+namespace Sufni.App.ExtensionHost.TestSupport;
 
-namespace Sufni.App.Tests.Infrastructure;
-
-internal sealed class TempDirectory : IDisposable
+public sealed class TempDirectory : IDisposable
 {
     public string Path { get; }
 

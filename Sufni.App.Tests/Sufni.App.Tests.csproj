@@ -20,11 +20,13 @@
   <ItemGroup>
     <ProjectReference Include="..\Sufni.App\Sufni.App\Sufni.App.csproj" />
     <ProjectReference Include="..\Sufni.App\Sufni.App.Desktop\Sufni.App.Desktop.csproj" />
+    <ProjectReference Include="..\Sufni.App.ExtensionHost.TestSupport\Sufni.App.ExtensionHost.TestSupport.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="Sufni.App.Tests.ExtensionHost" />
+    <Using Include="Sufni.App.ExtensionHost.TestSupport" />
   </ItemGroup>
 
 </Project>

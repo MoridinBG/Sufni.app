@@ -1,7 +1,6 @@
-using Sufni.App.Services;
 using Sufni.App.ExtensionHost.Services;
 
-namespace Sufni.App.Tests.Infrastructure;
+namespace Sufni.App.ExtensionHost.TestSupport;
 
 public sealed class InlineBackgroundTaskRunner : IBackgroundTaskRunner
 {

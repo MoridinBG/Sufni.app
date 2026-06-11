@@ -25,6 +25,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.Telemetry.Tests", "Su
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.ExtensionHost", "Sufni.App.ExtensionHost\Sufni.App.ExtensionHost.csproj", "{8E36B3AE-4B28-4287-83BE-0A191D86D44B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.ExtensionHost.TestSupport", "Sufni.App.ExtensionHost.TestSupport\Sufni.App.ExtensionHost.TestSupport.csproj", "{F8C67251-FBBB-4547-8664-571601B2F1CC}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sufni.App", "Sufni.App", "{EBD68505-5B9D-A395-6909-71C4D7611850}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -155,6 +159,18 @@ Global
 		{8E36B3AE-4B28-4287-83BE-0A191D86D44B}.Release|x64.Build.0 = Release|Any CPU
 		{8E36B3AE-4B28-4287-83BE-0A191D86D44B}.Release|x86.ActiveCfg = Release|Any CPU
 		{8E36B3AE-4B28-4287-83BE-0A191D86D44B}.Release|x86.Build.0 = Release|Any CPU
+		{F8C67251-FBBB-4547-8664-571601B2F1CC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F8C67251-FBBB-4547-8664-571601B2F1CC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F8C67251-FBBB-4547-8664-571601B2F1CC}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F8C67251-FBBB-4547-8664-571601B2F1CC}.Debug|x64.Build.0 = Debug|Any CPU
+		{F8C67251-FBBB-4547-8664-571601B2F1CC}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F8C67251-FBBB-4547-8664-571601B2F1CC}.Debug|x86.Build.0 = Debug|Any CPU
+		{F8C67251-FBBB-4547-8664-571601B2F1CC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F8C67251-FBBB-4547-8664-571601B2F1CC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F8C67251-FBBB-4547-8664-571601B2F1CC}.Release|x64.ActiveCfg = Release|Any CPU
+		{F8C67251-FBBB-4547-8664-571601B2F1CC}.Release|x64.Build.0 = Release|Any CPU
+		{F8C67251-FBBB-4547-8664-571601B2F1CC}.Release|x86.ActiveCfg = Release|Any CPU
+		{F8C67251-FBBB-4547-8664-571601B2F1CC}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

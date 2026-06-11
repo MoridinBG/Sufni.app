@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Sufni.App.Tests" />
+    <InternalsVisibleTo Include="Sufni.App.ExtensionHost.TestSupport" />
     <InternalsVisibleTo Include="Sufni.App.Android" />
     <InternalsVisibleTo Include="Sufni.App.Desktop" />
     <InternalsVisibleTo Include="Sufni.App.Linux" />
