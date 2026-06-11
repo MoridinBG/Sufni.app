@@ -126,9 +126,9 @@ public class SessionDetailViewModelTests
 
         var editor = CreateEditor(snapshot);
 
-        Assert.Equal(SurfaceStateKind.Loading, editor.TravelGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.Loading, editor.VelocityGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.Loading, editor.ImuGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, editor.SessionContext.TravelGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, editor.SessionContext.VelocityGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, editor.SessionContext.ImuGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Loading, editor.FrontStatisticsState.Kind);
         Assert.Equal(SurfaceStateKind.Loading, editor.RearStatisticsState.Kind);
         Assert.Equal(SurfaceStateKind.Loading, editor.CompressionBalanceState.Kind);
@@ -231,7 +231,7 @@ public class SessionDetailViewModelTests
         };
 
         editor.TelemetryData = TestTelemetryData.CreateProcessed();
-        editor.TravelGraphState = SurfacePresentationState.Ready;
+        editor.SessionContext.TravelGraphState = SurfacePresentationState.Ready;
         editor.ShowVelocityAirtime = true;
         editor.StatisticsSelectionHighlightRanges =
         [
@@ -242,7 +242,7 @@ public class SessionDetailViewModelTests
 
         Assert.Same(editor.TelemetryData, editor.GraphWorkspace.TelemetryData);
         Assert.Equal(editor.AnalysisRange, editor.GraphWorkspace.AnalysisRange);
-        Assert.Equal(editor.TravelGraphState, editor.GraphWorkspace.TravelGraphState);
+        Assert.Equal(editor.SessionContext.TravelGraphState, editor.GraphWorkspace.TravelGraphState);
         Assert.Equal(editor.ShowVelocityAirtime, editor.GraphWorkspace.ShowVelocityAirtime);
         Assert.Equal(editor.StatisticsSelectionHighlightRanges, editor.GraphWorkspace.StatisticsSelectionHighlightRanges);
         Assert.True(editor.GraphWorkspace.HasStatisticsSelection);
@@ -730,9 +730,9 @@ public class SessionDetailViewModelTests
         Assert.Equal(400.0, editor.MediaColumnWidth);
         Assert.Equal(1, editor.DamperPage.FrontHscPercentage);
         Assert.True(editor.IsComplete);
-        Assert.Equal(SurfaceStateKind.Ready, editor.TravelGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.Ready, editor.VelocityGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.Hidden, editor.ImuGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.SessionContext.TravelGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.SessionContext.VelocityGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.SessionContext.ImuGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Ready, editor.MapState.Kind);
         Assert.True(editor.FrontForkVibrationState.IsHidden);
         Assert.True(editor.FrontFrameVibrationState.IsHidden);
@@ -1086,9 +1086,9 @@ public class SessionDetailViewModelTests
         Assert.True(editor.PreferencesPage.TravelPlot.Available);
         Assert.True(editor.PreferencesPage.VelocityPlot.Available);
         Assert.True(editor.PreferencesPage.ImuPlot.Available);
-        Assert.True(editor.TravelGraphState.IsReady);
-        Assert.True(editor.VelocityGraphState.IsHidden);
-        Assert.True(editor.ImuGraphState.IsReady);
+        Assert.True(editor.SessionContext.TravelGraphState.IsReady);
+        Assert.True(editor.SessionContext.VelocityGraphState.IsHidden);
+        Assert.True(editor.SessionContext.ImuGraphState.IsReady);
         await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
     }
 
@@ -1108,9 +1108,9 @@ public class SessionDetailViewModelTests
         Assert.True(editor.PreferencesPage.TravelPlot.Available);
         Assert.True(editor.PreferencesPage.VelocityPlot.Available);
         Assert.False(editor.PreferencesPage.ImuPlot.Available);
-        Assert.True(editor.TravelGraphState.IsReady);
-        Assert.True(editor.VelocityGraphState.IsReady);
-        Assert.True(editor.ImuGraphState.IsHidden);
+        Assert.True(editor.SessionContext.TravelGraphState.IsReady);
+        Assert.True(editor.SessionContext.VelocityGraphState.IsReady);
+        Assert.True(editor.SessionContext.ImuGraphState.IsHidden);
     }
 
     [AvaloniaFact]
@@ -1135,9 +1135,9 @@ public class SessionDetailViewModelTests
         editor.PreferencesPage.VelocityPlot.Selected = false;
 
         Assert.False(editor.IsDirty);
-        Assert.True(editor.TravelGraphState.IsReady);
-        Assert.True(editor.VelocityGraphState.IsHidden);
-        Assert.True(editor.ImuGraphState.IsReady);
+        Assert.True(editor.SessionContext.TravelGraphState.IsReady);
+        Assert.True(editor.SessionContext.VelocityGraphState.IsHidden);
+        Assert.True(editor.SessionContext.ImuGraphState.IsReady);
         await preferences.Received(1).UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
         Assert.NotNull(update);
         Assert.False(update!(SessionPreferences.Default).Plots.Velocity);
@@ -1684,9 +1684,9 @@ public class SessionDetailViewModelTests
         Assert.Equal("front-travel", springPage.FrontTravelHistogram);
         Assert.Equal("front-velocity", editor.DamperPage.FrontVelocityHistogram);
         Assert.True(editor.IsComplete);
-        Assert.Equal(SurfaceStateKind.Ready, editor.TravelGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.Ready, editor.VelocityGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.Hidden, editor.ImuGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.SessionContext.TravelGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.SessionContext.VelocityGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.SessionContext.ImuGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Ready, springPage.FrontHistogramState.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, springPage.RearHistogramState.Kind);
         Assert.Equal(SurfaceStateKind.Ready, editor.FrontStatisticsState.Kind);
@@ -1821,9 +1821,9 @@ public class SessionDetailViewModelTests
 
         Assert.False(editor.IsComplete);
         Assert.True(editor.ScreenState.IsReady);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.TravelGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.VelocityGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.ImuGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SessionContext.TravelGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SessionContext.VelocityGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SessionContext.ImuGraphState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontStatisticsState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.RearStatisticsState.Kind);
         Assert.True(editor.FrontForkVibrationState.IsHidden);

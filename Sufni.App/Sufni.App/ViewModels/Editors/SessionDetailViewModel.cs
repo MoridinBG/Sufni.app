@@ -190,12 +190,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     [ObservableProperty] private string? mediaUrl;
     [ObservableProperty] private double? mediaColumnWidth;
     [ObservableProperty] private bool isComplete;
-    [ObservableProperty] private SurfacePresentationState travelGraphState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SurfacePresentationState velocityGraphState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SurfacePresentationState imuGraphState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SurfacePresentationState pitchRollGraphState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SurfacePresentationState speedGraphState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SurfacePresentationState elevationGraphState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState frontStatisticsState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState rearStatisticsState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SurfacePresentationState compressionBalanceState = SurfacePresentationState.Hidden;
@@ -260,36 +254,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     partial void OnSessionOperationStateChanged(SessionOperationPresentationState value)
     {
         SessionContext.SessionOperationState = value;
-    }
-
-    partial void OnTravelGraphStateChanged(SurfacePresentationState value)
-    {
-        SessionContext.TravelGraphState = value;
-    }
-
-    partial void OnVelocityGraphStateChanged(SurfacePresentationState value)
-    {
-        SessionContext.VelocityGraphState = value;
-    }
-
-    partial void OnImuGraphStateChanged(SurfacePresentationState value)
-    {
-        SessionContext.ImuGraphState = value;
-    }
-
-    partial void OnPitchRollGraphStateChanged(SurfacePresentationState value)
-    {
-        SessionContext.PitchRollGraphState = value;
-    }
-
-    partial void OnSpeedGraphStateChanged(SurfacePresentationState value)
-    {
-        SessionContext.SpeedGraphState = value;
-    }
-
-    partial void OnElevationGraphStateChanged(SurfacePresentationState value)
-    {
-        SessionContext.ElevationGraphState = value;
     }
 
     partial void OnFrontStatisticsStateChanged(SurfacePresentationState value)
@@ -1154,6 +1118,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         AnalysisPage = new SessionAnalysisPageViewModel(StatisticsWorkspace);
         presentationApplier = new RecordedPresentationApplier(
             this,
+            SessionContext,
             Pages,
             SpringPage,
             DamperPage,

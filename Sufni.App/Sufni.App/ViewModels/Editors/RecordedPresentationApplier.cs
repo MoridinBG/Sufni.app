@@ -17,6 +17,7 @@ namespace Sufni.App.ViewModels.Editors;
 internal sealed class RecordedPresentationApplier
 {
     private readonly SessionDetailViewModel owner;
+    private readonly RecordedSessionContext context;
     private readonly ObservableCollection<PageViewModelBase> pages;
     private readonly SpringPageViewModel springPage;
     private readonly DamperPageViewModel damperPage;
@@ -34,6 +35,7 @@ internal sealed class RecordedPresentationApplier
 
     public RecordedPresentationApplier(
         SessionDetailViewModel owner,
+        RecordedSessionContext context,
         ObservableCollection<PageViewModelBase> pages,
         SpringPageViewModel springPage,
         DamperPageViewModel damperPage,
@@ -44,6 +46,7 @@ internal sealed class RecordedPresentationApplier
         PreferencesPageViewModel preferencesPage)
     {
         this.owner = owner;
+        this.context = context;
         this.pages = pages;
         this.springPage = springPage;
         this.damperPage = damperPage;
@@ -222,12 +225,12 @@ internal sealed class RecordedPresentationApplier
 
     public void RefreshRecordedGraphStates(SessionPlotPreferences preferences)
     {
-        owner.TravelGraphState = recordedTravelGraphBaseState.ApplyPlotSelection(preferences.Travel);
-        owner.VelocityGraphState = recordedVelocityGraphBaseState.ApplyPlotSelection(preferences.Velocity);
-        owner.ImuGraphState = recordedImuGraphBaseState.ApplyPlotSelection(preferences.Imu);
-        owner.PitchRollGraphState = recordedPitchRollGraphBaseState.ApplyPlotSelection(preferences.PitchRoll);
-        owner.SpeedGraphState = recordedSpeedGraphBaseState.ApplyPlotSelection(preferences.Speed);
-        owner.ElevationGraphState = recordedElevationGraphBaseState.ApplyPlotSelection(preferences.Elevation);
+        context.TravelGraphState = recordedTravelGraphBaseState.ApplyPlotSelection(preferences.Travel);
+        context.VelocityGraphState = recordedVelocityGraphBaseState.ApplyPlotSelection(preferences.Velocity);
+        context.ImuGraphState = recordedImuGraphBaseState.ApplyPlotSelection(preferences.Imu);
+        context.PitchRollGraphState = recordedPitchRollGraphBaseState.ApplyPlotSelection(preferences.PitchRoll);
+        context.SpeedGraphState = recordedSpeedGraphBaseState.ApplyPlotSelection(preferences.Speed);
+        context.ElevationGraphState = recordedElevationGraphBaseState.ApplyPlotSelection(preferences.Elevation);
     }
 
     private void ApplyCachePresentation(SessionCachePresentationData data)
