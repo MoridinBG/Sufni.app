@@ -10,7 +10,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Services;
 
 namespace Sufni.App.Services;
 

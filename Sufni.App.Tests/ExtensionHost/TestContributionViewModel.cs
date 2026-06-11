@@ -1,6 +1,6 @@
 using Avalonia.Controls;
-using Sufni.App.ExtensionHost;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
 namespace Sufni.App.Tests.ExtensionHost;
 

@@ -3,7 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.Services;
 using Sufni.App.ExtensionHosting.Sync;
-using Sufni.App.ExtensionHost.Sync;
+using Sufni.App.ExtensionHost.Contracts.Sync;
 
 namespace Sufni.App.ExtensionHosting.Sync;
 

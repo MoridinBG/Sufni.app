@@ -5,7 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using SQLite;
-using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.Models;
 using Sufni.Telemetry;
 

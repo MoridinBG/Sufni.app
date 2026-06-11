@@ -7,7 +7,7 @@ using NSubstitute;
 using Sufni.App.BikeEditing;
 using Sufni.App.Coordinators;
 using Sufni.App.Models;
-using Sufni.App.ExtensionHost.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 using Sufni.App.SessionGraph;
 using Sufni.App.Services;
 using Sufni.App.Services.LiveStreaming;

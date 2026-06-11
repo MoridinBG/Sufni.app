@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using SQLite;
 using Sufni.App.Services;
 using Sufni.App.ExtensionHosting.Database;
-using Sufni.App.ExtensionHost.Database;
+using Sufni.App.ExtensionHost.Contracts.Database;
 
 namespace Sufni.App.ExtensionHosting.Database;
 

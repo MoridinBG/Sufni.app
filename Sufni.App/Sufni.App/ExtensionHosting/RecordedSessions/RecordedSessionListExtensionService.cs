@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Sufni.App.ExtensionHost;
+using Sufni.App.ExtensionHost.Contracts;
 using Sufni.App.SessionGraph;
-using Sufni.App.ExtensionHost.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 using Sufni.App.ExtensionHosting;
 using Sufni.App.ExtensionHosting.RecordedSessions;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
 namespace Sufni.App.ExtensionHosting.RecordedSessions;
 

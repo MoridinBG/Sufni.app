@@ -7,7 +7,7 @@ using Serilog;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using SecureStorageDictionary = System.Collections.Concurrent.ConcurrentDictionary<string, byte[]>;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Services;
 
 namespace Sufni.App.Windows;
 

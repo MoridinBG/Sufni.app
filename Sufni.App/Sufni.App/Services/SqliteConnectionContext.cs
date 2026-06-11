@@ -5,7 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SQLite;
-using Sufni.App.ExtensionHost.Database;
+using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHosting.Database;
 
 namespace Sufni.App.Services;

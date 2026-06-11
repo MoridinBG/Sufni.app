@@ -2,10 +2,10 @@ using System.Globalization;
 using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.SessionGraph;
 using Sufni.App.ViewModels.ItemLists;
-using Sufni.App.ExtensionHost.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 
 namespace Sufni.App.Tests.ViewModels.ItemLists;
 

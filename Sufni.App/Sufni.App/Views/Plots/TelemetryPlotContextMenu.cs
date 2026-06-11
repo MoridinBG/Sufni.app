@@ -4,7 +4,7 @@ using System.Linq;
 using ScottPlot;
 using ScottPlot.Avalonia;
 using Sufni.App.ViewModels.Editors;
-using Sufni.App.ExtensionHost.ViewModels.Editors;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
 
 namespace Sufni.App.Views.Plots;
 

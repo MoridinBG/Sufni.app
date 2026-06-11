@@ -4,11 +4,12 @@ using System.Linq;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Input;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.Plots;
 using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 namespace Sufni.App.Views.Plots;
 

@@ -5,7 +5,7 @@ using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Theming;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Plots;
+using Sufni.App.ExtensionHost.Contracts.Plots;
 
 namespace Sufni.App.Plots;
 

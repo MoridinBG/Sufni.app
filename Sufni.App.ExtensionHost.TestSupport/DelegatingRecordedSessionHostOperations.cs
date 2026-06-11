@@ -1,5 +1,5 @@
 using NSubstitute;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
 namespace Sufni.App.ExtensionHost.TestSupport;
 

@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHosting.RecordedSessions;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
 namespace Sufni.App.ExtensionHosting.RecordedSessions;
 

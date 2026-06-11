@@ -1,8 +1,8 @@
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.ExtensionHost.Database;
-using Sufni.App.ExtensionHost.RecordedSessions;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Database;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.Services.Management;

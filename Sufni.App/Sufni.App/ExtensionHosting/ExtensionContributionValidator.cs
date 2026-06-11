@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.ExtensionHosting;
-using Sufni.App.ExtensionHost;
+using Sufni.App.ExtensionHost.Contracts;
 
 namespace Sufni.App.ExtensionHosting;
 

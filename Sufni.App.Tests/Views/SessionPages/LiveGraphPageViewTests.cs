@@ -8,7 +8,8 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using NSubstitute;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Services;
@@ -20,8 +21,8 @@ using Sufni.App.ViewModels.SessionPages;
 using Sufni.App.Views;
 using Sufni.App.Views.Controls;
 using Sufni.App.Views.SessionPages;
-using Sufni.App.ExtensionHost.Models;
-using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
 
 namespace Sufni.App.Tests.Views.SessionPages;
 

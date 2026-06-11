@@ -10,12 +10,12 @@ using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using DynamicData.Binding;
 using Sufni.App.Coordinators;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.SessionGraph;
 using Sufni.App.Services;
 using Sufni.App.ViewModels.Rows;
-using Sufni.App.ExtensionHost.Services;
-using Sufni.App.ExtensionHost.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 
 namespace Sufni.App.ViewModels.ItemLists;
 

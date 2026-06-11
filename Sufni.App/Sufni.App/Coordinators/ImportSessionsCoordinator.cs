@@ -11,8 +11,8 @@ using Sufni.App.Stores;
 using Sufni.App.ViewModels;
 using Sufni.Telemetry;
 using Serilog;
-using Sufni.App.ExtensionHost.Services;
-using Sufni.App.ExtensionHost.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 
 namespace Sufni.App.Coordinators;
 

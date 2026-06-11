@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 namespace Sufni.App.Queries;
 

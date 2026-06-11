@@ -3,9 +3,9 @@ using System.Linq;
 using Sufni.App.Presentation;
 using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Models;
-using Sufni.App.ExtensionHost.Presentation;
-using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 namespace Sufni.App.Models;
 

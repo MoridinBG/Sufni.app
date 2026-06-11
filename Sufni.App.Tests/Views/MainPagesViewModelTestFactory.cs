@@ -4,8 +4,8 @@ using System.Threading.Tasks;
 using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.ExtensionHost;
-using Sufni.App.ExtensionHost.Database;
+using Sufni.App.ExtensionHost.Contracts;
+using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.SessionGraph;
@@ -15,8 +15,8 @@ using Sufni.App.Tests.Views.ItemLists;
 using Sufni.App.Theming;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.ItemLists;
-using Sufni.App.ExtensionHost.Services;
-using Sufni.App.ExtensionHost.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 
 namespace Sufni.App.Tests.Views;
 

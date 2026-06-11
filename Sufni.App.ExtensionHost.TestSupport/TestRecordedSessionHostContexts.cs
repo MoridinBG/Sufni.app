@@ -1,7 +1,7 @@
 using NSubstitute;
-using Sufni.App.ExtensionHost.Database;
-using Sufni.App.ExtensionHost.RecordedSessions;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Database;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.Services;
 
 namespace Sufni.App.ExtensionHost.TestSupport;
 

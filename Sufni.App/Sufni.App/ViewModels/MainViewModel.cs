@@ -1,4 +1,4 @@
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Services;
 ﻿using System.Collections.Generic;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;

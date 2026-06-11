@@ -3,7 +3,7 @@ using ScottPlot.Plottables;
 using Sufni.App.Models;
 using Sufni.App.Plots;
 using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
-using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Contracts.Models;
 
 namespace Sufni.App.Tests.Plots;
 

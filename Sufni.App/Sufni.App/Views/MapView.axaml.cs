@@ -19,11 +19,12 @@ using Mapsui.UI.Avalonia;
 using Mapsui.Widgets;
 using Mapsui.Widgets.InfoWidgets;
 using NetTopologySuite.Geometries;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
-using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Contracts.Models;
 
 namespace Sufni.App.Views;
 

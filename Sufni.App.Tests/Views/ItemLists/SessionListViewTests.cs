@@ -9,13 +9,13 @@ using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.DesktopViews.Controls;
 using Sufni.App.DesktopViews.ItemLists;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.SessionGraph;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.Views.Controls;
 using Sufni.App.Views.ItemLists;
-using Sufni.App.ExtensionHost.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 
 namespace Sufni.App.Tests.Views.ItemLists;
 

@@ -5,7 +5,7 @@ using ScottPlot.TickGenerators;
 using Sufni.App.SessionDetails;
 using Sufni.App.Theming;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Formatting;
 
 namespace Sufni.App.Plots;

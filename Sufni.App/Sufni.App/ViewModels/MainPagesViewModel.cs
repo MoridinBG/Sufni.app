@@ -5,13 +5,13 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Coordinators;
-using Sufni.App.ExtensionHost;
-using Sufni.App.ExtensionHost.Database;
+using Sufni.App.ExtensionHost.Contracts;
+using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Theming;
 using Sufni.App.ViewModels.ItemLists;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHosting;
 
 namespace Sufni.App.ViewModels;

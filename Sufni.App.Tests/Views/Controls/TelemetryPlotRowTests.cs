@@ -12,8 +12,8 @@ using Sufni.App.Tests.Infrastructure;
 using Sufni.App.Theming;
 using Sufni.App.Views.Controls;
 using Sufni.App.Views.Plots;
-using Sufni.App.ExtensionHost.Presentation;
-using Sufni.App.ExtensionHost.Views.Controls;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 namespace Sufni.App.Tests.Views.Controls;
 

@@ -1,7 +1,7 @@
 using System;
 using Sufni.App.Services;
 using Sufni.App.ViewModels.ItemLists;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHosting;
 
 namespace Sufni.App.ExtensionHosting;

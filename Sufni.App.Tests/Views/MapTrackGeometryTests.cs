@@ -1,5 +1,5 @@
-using Sufni.App.ExtensionHost.Models;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.Views;
 
 namespace Sufni.App.Tests.Views;

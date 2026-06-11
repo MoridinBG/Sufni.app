@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Sufni.App.ExtensionHost;
+using Sufni.App.ExtensionHost.Contracts;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ExtensionHosting;
 

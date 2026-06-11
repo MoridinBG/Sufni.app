@@ -17,7 +17,7 @@ using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.App.Views.Controls;
 using Sufni.App.Views.Editors;
-using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
 
 namespace Sufni.App.Tests.Views.Editors;
 

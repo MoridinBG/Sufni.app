@@ -3,7 +3,7 @@ using System.Collections.Specialized;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
-using Sufni.App.ExtensionHost;
+using Sufni.App.ExtensionHost.Contracts;
 
 namespace Sufni.App.Views.Controls;
 

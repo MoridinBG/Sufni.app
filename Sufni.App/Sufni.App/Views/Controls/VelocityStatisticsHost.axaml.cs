@@ -4,12 +4,13 @@ using System.Collections.Specialized;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.SessionDetails;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Presentation;
-using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 namespace Sufni.App.Views.Controls;
 

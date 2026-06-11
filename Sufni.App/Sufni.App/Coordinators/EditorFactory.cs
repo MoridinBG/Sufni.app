@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using Sufni.App.ExtensionHost.Database;
-using Sufni.App.ExtensionHost.RecordedSessions;
-using Sufni.App.ExtensionHost.SessionDetails;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Database;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.Services;

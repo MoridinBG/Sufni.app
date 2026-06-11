@@ -12,7 +12,7 @@ using Sufni.App.Services.Management;
 using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Serilog;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Services;
 
 namespace Sufni.App.ViewModels.Editors;
 

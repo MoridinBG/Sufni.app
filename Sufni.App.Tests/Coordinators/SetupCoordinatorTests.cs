@@ -1,12 +1,12 @@
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Coordinators;
-using Sufni.App.ExtensionHost.Database;
+using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHosting.Database;
 
 namespace Sufni.App.Tests.Coordinators;

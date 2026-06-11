@@ -1,7 +1,7 @@
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
-using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Views.Controls;

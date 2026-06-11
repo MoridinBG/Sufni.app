@@ -1,6 +1,6 @@
 using Avalonia.Platform.Storage;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Tests.Infrastructure;

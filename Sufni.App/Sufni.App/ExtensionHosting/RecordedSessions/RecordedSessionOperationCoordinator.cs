@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.ExtensionHosting.RecordedSessions;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
 namespace Sufni.App.ExtensionHosting.RecordedSessions;
 

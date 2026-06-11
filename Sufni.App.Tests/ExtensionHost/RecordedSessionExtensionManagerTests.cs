@@ -1,7 +1,7 @@
 using System.Reactive.Linq;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Database;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.Database;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.SessionDetails;
@@ -9,10 +9,10 @@ using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Models;
-using Sufni.App.ExtensionHost.Presentation;
-using Sufni.App.ExtensionHost.Services;
-using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHosting.RecordedSessions;
 
 namespace Sufni.App.Tests.ExtensionHost;

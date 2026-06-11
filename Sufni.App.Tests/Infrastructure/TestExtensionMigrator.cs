@@ -1,4 +1,4 @@
-using Sufni.App.ExtensionHost.Database;
+using Sufni.App.ExtensionHost.Contracts.Database;
 
 namespace Sufni.App.Tests.Infrastructure;
 

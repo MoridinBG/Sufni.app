@@ -1,4 +1,4 @@
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHosting.RecordedSessions;
 
 namespace Sufni.App.Tests.ExtensionHost;

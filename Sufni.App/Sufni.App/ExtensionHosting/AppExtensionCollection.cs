@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.ExtensionHosting;
-using Sufni.App.ExtensionHost;
+using Sufni.App.ExtensionHost.Contracts;
 
 namespace Sufni.App.ExtensionHosting;
 

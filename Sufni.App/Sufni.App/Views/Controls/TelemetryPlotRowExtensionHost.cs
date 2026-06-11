@@ -5,10 +5,11 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Sufni.App.Views.Plots;
-using Sufni.App.ExtensionHost;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.Models;
-using Sufni.App.ExtensionHost.Views.Controls;
+using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 namespace Sufni.App.Views.Controls;
 

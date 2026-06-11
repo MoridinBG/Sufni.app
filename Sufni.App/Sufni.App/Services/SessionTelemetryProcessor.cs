@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.Models;
 using Sufni.Telemetry;
 

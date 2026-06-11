@@ -4,7 +4,7 @@ using Avalonia;
 using Avalonia.Platform;
 using Avalonia.Styling;
 using Sufni.App.Services;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Services;
 
 namespace Sufni.App.Theming;
 

@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Serilog;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Services;
 
 namespace Sufni.App.Coordinators;
 

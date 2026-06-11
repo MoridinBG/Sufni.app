@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Mapsui.Projections;
-using Sufni.App.ExtensionHost.Models;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
 namespace Sufni.App.Views;
 

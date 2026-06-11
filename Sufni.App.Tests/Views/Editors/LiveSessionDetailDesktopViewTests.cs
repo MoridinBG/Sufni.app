@@ -20,9 +20,9 @@ using Sufni.App.Tests.Services.LiveStreaming;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views.Shared;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Models;
-using Sufni.App.ExtensionHost.Services;
-using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 namespace Sufni.App.Tests.Views.Editors;
 

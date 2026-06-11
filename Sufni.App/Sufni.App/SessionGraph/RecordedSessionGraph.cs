@@ -6,8 +6,8 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using DynamicData;
 using Sufni.App.Stores;
-using Sufni.App.ExtensionHost.SessionGraph;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.Services;
 
 namespace Sufni.App.SessionGraph;
 

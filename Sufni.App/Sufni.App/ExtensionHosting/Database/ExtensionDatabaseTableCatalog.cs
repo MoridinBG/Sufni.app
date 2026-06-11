@@ -5,7 +5,7 @@ using System.Reflection;
 using SQLite;
 using Sufni.App.Models;
 using Sufni.App.ExtensionHosting.Database;
-using Sufni.App.ExtensionHost.Database;
+using Sufni.App.ExtensionHost.Contracts.Database;
 
 namespace Sufni.App.ExtensionHosting.Database;
 

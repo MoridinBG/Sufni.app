@@ -4,7 +4,7 @@ using Sufni.App.SessionGraph;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 
 namespace Sufni.App.Tests.SessionGraph;
 

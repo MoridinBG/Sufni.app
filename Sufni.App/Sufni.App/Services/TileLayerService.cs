@@ -7,7 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 using Sufni.App.Models;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Services;
 
 namespace Sufni.App.Services;
 

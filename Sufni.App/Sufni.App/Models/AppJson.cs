@@ -6,7 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.SessionGraph;
 using Sufni.Kinematics;

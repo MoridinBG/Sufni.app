@@ -1,7 +1,7 @@
 using System;
 using System.ComponentModel;
 using Avalonia;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.Plots;
 using Sufni.App.Views.Plots;
 

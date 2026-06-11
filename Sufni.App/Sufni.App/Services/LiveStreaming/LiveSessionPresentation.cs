@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Contracts.Models;
 
 namespace Sufni.App.Services.LiveStreaming;
 

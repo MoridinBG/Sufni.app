@@ -1,14 +1,15 @@
 using CommunityToolkit.Mvvm.Input;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.Plots;
 using Sufni.App.Presentation;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views.Controls;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Plots;
-using Sufni.App.ExtensionHost.Presentation;
-using Sufni.App.ExtensionHost.ViewModels.Editors;
-using Sufni.App.ExtensionHost.Views.Controls;
+using Sufni.App.ExtensionHost.Contracts.Plots;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.App.Tests.Infrastructure;
 
 namespace Sufni.App.Tests.ExtensionHost;

@@ -3,7 +3,7 @@ using Avalonia;
 using Sufni.App.Models;
 using Sufni.App.Plots;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Contracts.Models;
 
 namespace Sufni.App.Views.Plots;
 

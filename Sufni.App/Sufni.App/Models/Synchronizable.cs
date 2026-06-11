@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using MessagePack;
 using SQLite;
-using Sufni.App.ExtensionHost.Sync;
+using Sufni.App.ExtensionHost.Contracts.Sync;
 
 namespace Sufni.App.Models;
 

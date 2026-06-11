@@ -9,7 +9,7 @@ using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using DynamicData.Kernel;
 using Sufni.App.Services.Management;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Services;
 
 namespace Sufni.App.Services;
 

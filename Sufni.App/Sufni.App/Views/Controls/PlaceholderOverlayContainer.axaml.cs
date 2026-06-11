@@ -1,7 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Sufni.App.Presentation;
-using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
 
 namespace Sufni.App.Views.Controls;
 

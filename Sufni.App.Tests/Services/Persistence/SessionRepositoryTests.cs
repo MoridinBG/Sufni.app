@@ -1,7 +1,7 @@
 using SQLite;
-using Sufni.App.ExtensionHost.Database;
-using Sufni.App.ExtensionHost.Models;
-using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.Contracts.Database;
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHosting.Database;
 using Sufni.App.Models;
 using Sufni.App.Services;

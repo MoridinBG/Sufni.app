@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Serilog;
-using Sufni.App.ExtensionHost.Database;
+using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHosting.Database;
 using Sufni.App.Models;
 using Sufni.App.Services;

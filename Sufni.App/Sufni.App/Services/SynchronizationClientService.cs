@@ -2,7 +2,7 @@ using Sufni.App.ExtensionHosting.Sync;
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Sufni.App.ExtensionHost.Sync;
+using Sufni.App.ExtensionHost.Contracts.Sync;
 using Sufni.App.Models;
 using Serilog;
 

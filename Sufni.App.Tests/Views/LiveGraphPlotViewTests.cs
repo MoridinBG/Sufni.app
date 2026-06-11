@@ -16,8 +16,8 @@ using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.Views.Controls;
 using Sufni.App.ViewModels.Editors;
-using Sufni.App.ExtensionHost.Models;
-using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
 
 namespace Sufni.App.Tests.Views;
 

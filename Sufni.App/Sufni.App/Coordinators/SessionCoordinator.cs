@@ -1,4 +1,4 @@
-using Sufni.App.ExtensionHost.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 
 using System;
 using System.Threading;

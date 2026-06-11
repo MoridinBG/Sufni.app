@@ -3,13 +3,13 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Sufni.App.ExtensionHost.Database;
+using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.SetupEditing;
 using Sufni.App.Stores;
 using Serilog;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHosting.Database;
 
 namespace Sufni.App.Coordinators;

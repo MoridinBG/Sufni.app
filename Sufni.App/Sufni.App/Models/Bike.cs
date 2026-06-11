@@ -11,8 +11,8 @@ using Sufni.App.SessionGraph;
 using Sufni.App.Stores;
 using Sufni.Kinematics;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Models;
-using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 namespace Sufni.App.Models;
 

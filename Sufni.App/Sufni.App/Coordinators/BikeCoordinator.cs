@@ -1,8 +1,8 @@
 using Serilog;
 using Sufni.App.BikeEditing;
-using Sufni.App.ExtensionHost.Database;
-using Sufni.App.ExtensionHost.Services;
-using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.Contracts.Database;
+using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHosting.Database;
 using Sufni.App.Models;
 using Sufni.App.Queries;

@@ -8,7 +8,8 @@ using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.DesktopViews.Items;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.SessionDetails;
@@ -18,9 +19,9 @@ using Sufni.App.Views.Controls;
 using Sufni.App.Views.Items;
 using Sufni.App.Views.Plots;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Models;
-using Sufni.App.ExtensionHost.Presentation;
-using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 namespace Sufni.App.Tests.Views.Items;
 

@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.BikeEditing;
-using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Models;
 using Sufni.App.SessionDetails;
 using Sufni.Telemetry;

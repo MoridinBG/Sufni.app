@@ -11,7 +11,7 @@ using Sufni.App.Models;
 using Sufni.App.Theming;
 using Sufni.App.Views;
 using Sufni.App.Views.Controls;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Services;
 
 namespace Sufni.App.Services;
 

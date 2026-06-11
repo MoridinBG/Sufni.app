@@ -1,6 +1,6 @@
 using Mapsui.Projections;
 using Sufni.App.Models;
-using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Contracts.Models;
 
 namespace Sufni.App.Tests.Models;
 

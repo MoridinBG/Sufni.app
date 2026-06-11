@@ -5,7 +5,7 @@ using Avalonia.VisualTree;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.DesktopViews;
-using Sufni.App.ExtensionHost;
+using Sufni.App.ExtensionHost.Contracts;
 using Sufni.App.Services;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;

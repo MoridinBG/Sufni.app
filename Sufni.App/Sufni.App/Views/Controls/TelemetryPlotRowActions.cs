@@ -10,7 +10,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Sufni.App.Theming;
-using Sufni.App.ExtensionHost.Views.Controls;
+using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 namespace Sufni.App.Views.Controls;
 

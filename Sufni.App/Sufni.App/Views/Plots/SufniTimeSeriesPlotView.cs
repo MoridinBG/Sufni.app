@@ -13,8 +13,8 @@ using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views.Plots;
 using Sufni.Telemetry;
 using ScottPlotPixel = ScottPlot.Pixel;
-using Sufni.App.ExtensionHost.Plots;
-using Sufni.App.ExtensionHost.ViewModels.Editors;
+using Sufni.App.ExtensionHost.Contracts.Plots;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
 
 namespace Sufni.App.Views.Plots;
 

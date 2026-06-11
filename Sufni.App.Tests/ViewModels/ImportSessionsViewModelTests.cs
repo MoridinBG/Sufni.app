@@ -10,7 +10,7 @@ using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
 using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
 using static Sufni.App.Tests.Infrastructure.TestTelemetrySources;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Services;
 
 namespace Sufni.App.Tests.ViewModels;
 

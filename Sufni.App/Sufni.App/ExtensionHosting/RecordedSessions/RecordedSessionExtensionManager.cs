@@ -5,18 +5,19 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
-using Sufni.App.ExtensionHost;
-using Sufni.App.ExtensionHost.Database;
+using Sufni.App.ExtensionHost.Contracts;
+using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Models;
-using Sufni.App.ExtensionHost.Services;
-using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHosting;
 using Sufni.App.ExtensionHosting.RecordedSessions;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
 namespace Sufni.App.ExtensionHosting.RecordedSessions;
 

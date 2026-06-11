@@ -22,7 +22,7 @@ using BikeImageCanvasViewModel = Sufni.App.ViewModels.Editors.Bike.BikeImageCanv
 using BikeRearSuspensionEditorState = Sufni.App.ViewModels.Editors.Bike.BikeRearSuspensionEditorState;
 using BikeWheelGeometryViewModel = Sufni.App.ViewModels.Editors.Bike.BikeWheelGeometryViewModel;
 using LeverageRatioBikeEditorViewModel = Sufni.App.ViewModels.Editors.Bike.LeverageRatioEditorViewModel;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Services;
 
 namespace Sufni.App.ViewModels.Editors;
 

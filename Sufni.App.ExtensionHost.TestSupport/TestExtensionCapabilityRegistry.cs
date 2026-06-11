@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Sufni.App.ExtensionHost.Contracts;
 using Sufni.App.ExtensionHosting;
 
 namespace Sufni.App.ExtensionHost.TestSupport;

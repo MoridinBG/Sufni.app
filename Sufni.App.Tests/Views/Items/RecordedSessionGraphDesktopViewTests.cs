@@ -15,7 +15,8 @@ using ScottPlot.Avalonia;
 using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Items;
 using Sufni.App.Views.Plots;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Tests.Infrastructure;
@@ -23,11 +24,11 @@ using Sufni.App.Views.Controls;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
 using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
-using Sufni.App.ExtensionHost.Models;
-using Sufni.App.ExtensionHost.Plots;
-using Sufni.App.ExtensionHost.Presentation;
-using Sufni.App.ExtensionHost.ViewModels.Editors;
-using Sufni.App.ExtensionHost.Views.Controls;
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.Plots;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 namespace Sufni.App.Tests.Views.Items;
 

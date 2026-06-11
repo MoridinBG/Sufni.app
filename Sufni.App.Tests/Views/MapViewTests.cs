@@ -7,14 +7,15 @@ using CommunityToolkit.Mvvm.Input;
 using Mapsui.Layers;
 using Mapsui.UI.Avalonia;
 using NSubstitute;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views;
-using Sufni.App.ExtensionHost.Models;
+using Sufni.App.ExtensionHost.Contracts.Models;
 
 namespace Sufni.App.Tests.Views;
 

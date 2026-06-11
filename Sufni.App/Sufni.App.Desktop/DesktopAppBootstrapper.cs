@@ -2,10 +2,10 @@ using Avalonia;
 using Avalonia.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Coordinators;
-using Sufni.App.ExtensionHost.Sync;
+using Sufni.App.ExtensionHost.Contracts.Sync;
 using Sufni.App.Services;
 using Sufni.App.ViewModels;
-using Sufni.App.ExtensionHost.Services;
+using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHosting.Sync;
 
 namespace Sufni.App.Desktop;

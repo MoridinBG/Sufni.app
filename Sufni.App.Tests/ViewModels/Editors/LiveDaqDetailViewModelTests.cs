@@ -13,7 +13,7 @@ using Sufni.App.Stores;
 using Sufni.App.Tests.Services.LiveStreaming;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
 

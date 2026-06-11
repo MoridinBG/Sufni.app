@@ -1,4 +1,4 @@
-using Sufni.App.ExtensionHost.Sync;
+using Sufni.App.ExtensionHost.Contracts.Sync;
 using Sufni.App.Services;
 using Sufni.App.ExtensionHosting.Sync;
 

@@ -1,4 +1,4 @@
-using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.SessionDetails;
 using Sufni.App.Views.Plots;
 using Sufni.Telemetry;

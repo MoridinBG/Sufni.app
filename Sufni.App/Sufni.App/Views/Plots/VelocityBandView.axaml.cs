@@ -7,12 +7,12 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Sufni.App.Behaviors;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.Formatting;
 using Sufni.App.SessionDetails;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.SessionDetails;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 namespace Sufni.App.Views.Plots;
 

@@ -10,7 +10,8 @@ using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Behaviors;
 using Sufni.App.Views.Plots;
-using Sufni.App.ExtensionHost.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Plots;
@@ -21,10 +22,10 @@ using Sufni.Telemetry;
 using AvaloniaColor = Avalonia.Media.Color;
 using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
 using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
-using Sufni.App.ExtensionHost.Models;
-using Sufni.App.ExtensionHost.Presentation;
-using Sufni.App.ExtensionHost.ViewModels.Editors;
-using Sufni.App.ExtensionHost.Views.Controls;
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 namespace Sufni.App.Tests.Views.Plots;
 

@@ -1,4 +1,4 @@
-using Sufni.App.ExtensionHost.Presentation;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
 ﻿using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Presentation;
