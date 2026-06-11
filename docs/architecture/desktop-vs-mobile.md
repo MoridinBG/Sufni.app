@@ -50,8 +50,9 @@ The `ViewLocator` (`Sufni.App/Sufni.App/ViewLocator.cs`) holds two dictionaries 
 Direct reads of the flag are deliberately limited to the view composition edge:
 
 - `ViewLocator` — picks `DesktopViewFactories` first when the flag is set.
-- Plot view gesture handling under `Views/Plots/` — keeps touch long-press
-  behavior mobile-only where views cannot receive platform services through DI.
+- Plot view gesture handling under `Views/Plots/` — keeps mobile long-press
+  velocity cutoff editing and recorded analysis/context-menu gestures out of
+  desktop pointer paths where views cannot receive platform services through DI.
 
 Other desktop/mobile differences are carried by composition or view contracts
 rather than by reading `App.IsDesktop` from services or view models. For
@@ -156,4 +157,4 @@ The places where the same workflow takes a meaningfully different desktop vs mob
 - **Welcome screen and logs link**. The welcome screen is desktop-only, so the
   `Open logs folder` link is part of that desktop surface.
 
-Anything else (entity editing, save / conflict semantics, sensor calibration, plot rendering) goes through the same coordinators, services, and stores on both shells.
+Anything else (entity editing, save / conflict semantics, sensor calibration, and plot model rendering) goes through the same coordinators, services, and stores on both shells.

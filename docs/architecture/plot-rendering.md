@@ -1,6 +1,6 @@
 # Plot Rendering
 
-> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the ScottPlot-backed plot classes under `Sufni.App/Sufni.App/Plots/` and the display-time pipeline that prepares samples before they reach a plot. The data side that produces those samples lives in [signal processing](processing.md); the workspace view models that compose plots into pages live in [UI View Models](ui-view-models.md) and [live streaming](live-streaming.md).
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the ScottPlot-backed plot model classes under `Sufni.App/Sufni.App/Plots/`, their Avalonia hosts under `Sufni.App/Sufni.App/Views/Plots/`, and the display-time pipeline that prepares samples before they reach a plot. The data side that produces those samples lives in [signal processing](processing.md); the workspace view models that compose plots into pages live in [UI View Models](ui-view-models.md) and [live streaming](live-streaming.md).
 
 ## Table of Contents
 
@@ -19,7 +19,7 @@ For most recorded telemetry rows the host view passes a `TelemetryData` and call
 
 ## Desktop vs Mobile Hosting
 
-Desktop builds use extended views in `Sufni.App/Sufni.App/DesktopViews/` that provide richer layouts, side-by-side panels, and additional controls. Mobile uses the standard `Views/` with a simpler stacked layout. Plot views wrap ScottPlot's Avalonia control; map views use Mapsui's Avalonia control and are covered by [Maps & GPS Tracks](maps-and-tracks.md).
+Plot views are shared controls under `Sufni.App/Sufni.App/Views/Plots/`. Desktop and mobile session pages host the same plot controls inside different surrounding layouts: desktop pages provide side-by-side panels and richer chrome, while mobile pages use stacked graph rows and touch-oriented controls. `App.IsDesktop` is read only inside those shared plot views for gesture decisions that cannot be expressed through DI, currently mobile long-press activation for velocity cutoff editing and recorded analysis/context-menu gestures. Plot model classes under `Sufni.App/Sufni.App/Plots/` stay platform-neutral.
 
 ## Class Hierarchy
 
