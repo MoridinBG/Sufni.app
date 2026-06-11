@@ -103,7 +103,9 @@ locations inside `Sufni.App/Sufni.App/`:
   `IInboundSyncCoordinator` / `IPairingServerCoordinator` and the
   mobile-only `IPairingClientCoordinator`). Coordinators are the only
   writers to stores and the only owners of post-save navigation. They
-  never depend on view models.
+  construct editor view models only through `IEditorFactory`; the one
+  documented carve-out is `ImportSessionsCoordinator`, which takes a
+  `Func<ImportSessionsViewModel>` factory.
 - `Stores/` — shared read state, one per entity family. Each store has
   an `IXxxStore` (read-only) interface for VMs/queries and an
   `IXxxStoreWriter` (read+write) interface reserved for coordinators
@@ -283,14 +285,19 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
   per-identity shared stream that tabs attach to through leases. See
   [docs/architecture/live-streaming.md](docs/architecture/live-streaming.md).
 - **Dependency injection** with
-  `Microsoft.Extensions.DependencyInjection`. Coordinators with
+  `Microsoft.Extensions.DependencyInjection`. Services with
   constructor-time event subscriptions
-  (`SessionCoordinator`, `PairedDeviceCoordinator`, `SyncCoordinator`,
+  (`SessionSyncApplier`, `PairedDeviceCoordinator`, `SyncCoordinator`,
   the desktop-only `IInboundSyncCoordinator` /
   `IPairingServerCoordinator` and the mobile-only
   `IPairingClientCoordinator`) are eagerly resolved in
   `App.OnFrameworkInitializationCompleted` so the subscriptions wire
   up before any sync, pairing, or telemetry arrival happens.
+  `SessionCoordinator` itself is a thin facade over the six session
+  use-case classes (`SessionLoader`, `SessionSaver`,
+  `SessionRecomputer`, `SessionDeleter`, `LiveCaptureSaver`,
+  `SessionSyncApplier`) — see
+  [ui-workflows.md](docs/architecture/ui-workflows.md#coordinators).
 
 Full details: [docs/architecture/ui.md](docs/architecture/ui.md),
 starting from [Layered Architecture](docs/architecture/ui.md#layered-architecture)
@@ -320,7 +327,7 @@ When adding or changing view tests, `docs/VIEW-TESTING.md` is required reading b
 - Test one unit through its public interface.
 - Aim for high coverage of meaningful behavior; trivial assignments, constants, and other obvious no-logic code do not need direct tests.
 - Reuse helpers from `Sufni.App.Tests/Infrastructure/` before adding local duplicates.
-- Cover desktop/mobile branches with `TestApp.SetIsDesktop(true/false)` when behavior differs, and cover `BaselineUpdated` versus `Updated` optimistic-concurrency flows where relevant.
+- Cover desktop/mobile branches when behavior differs; use `TestApp.SetIsDesktop(true/false)` only for `ViewLocator` or plot-gesture branches (see `docs/TESTING.md`) — other shell-specific behavior is driven by explicit service configuration. Cover `BaselineUpdated` versus `Updated` optimistic-concurrency flows where relevant.
 - Prefer deterministic async control such as `TaskCompletionSource<T>` and `TestSynchronizationContextScope` over timing-based waits.
 
 # Key Dependencies

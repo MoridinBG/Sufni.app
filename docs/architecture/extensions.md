@@ -6,7 +6,7 @@
 
 `Sufni.App.ExtensionHost/` is the public SDK project that contains the contracts that let a build add extension modules without hard-coding feature-specific dependencies in the shared app. `Sufni.App/Sufni.App/ExtensionHosting/` contains the in-app host implementations for those contracts: capability registration, view lookup, extension database sessions, cascades, sync routing, recorded-session managers, and notification/dialog bridges. The public app owns only neutral host surfaces. Extension modules own their own services, view models, views, database tables, sync payloads, and user-facing workflow semantics.
 
-There is no assembly scanning. Modules are added explicitly by build-time code through `App.RegisterBuildTimeExtensions(App.Extensions)`. Public builds have no implementation of that partial method, so the call is removed by the compiler and `App.Extensions.Modules` remains empty.
+There is no assembly scanning. Modules are added explicitly by build-time code through the two-argument partial method `App.RegisterBuildTimeExtensions(App.Extensions, isDesktop)`. Public builds have no implementation of that partial method, so the call is removed by the compiler and `App.Extensions.Modules` remains empty.
 
 ## Module Startup
 
@@ -18,7 +18,7 @@ There is no assembly scanning. Modules are added explicitly by build-time code t
 
 `AppExtensionCollection` owns the ordered module list and rejects duplicate ids with ordinal comparison. `AppExtensionCapabilityRegistry` records capabilities that the app consumes after service registration, including eager extension service types and app toolbar action contributions. After `BuildServiceProvider()`, `App.OnFrameworkInitializationCompleted` resolves the existing eager coordinators and then resolves each registered eager extension service type so constructor-time subscriptions can attach before runtime work starts.
 
-Desktop/mobile mode is computed before module service registration. The registration context exposes that mode plus the service collection so modules can keep platform-specific registrations outside the shared app source.
+Desktop/mobile mode is computed before module service registration. The registration context (`AppExtensionServiceRegistrationContext`) exposes only `IsDesktop`; the service collection is passed to `RegisterServices` as its own parameter. Together they let modules keep platform-specific registrations outside the shared app source.
 
 Modules that expose one concrete singleton through one or more neutral service
 interfaces use `AddExtensionSingletonAlias<TService, TImplementation>()` so
