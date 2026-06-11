@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NSubstitute;
@@ -180,6 +181,47 @@ public class SessionWorkspaceViewModelTests
         Assert.Equal("External notes", workspace.DescriptionText);
         Assert.Contains(nameof(SessionSidebarWorkspaceViewModel.Name), changes);
         Assert.Contains(nameof(SessionSidebarWorkspaceViewModel.DescriptionText), changes);
+    }
+
+    [Fact]
+    public void GraphWorkspace_ForwardedPropertiesAreDeclaredPublicProperties() =>
+        AssertForwardedPropertiesAreDeclared(
+            typeof(RecordedSessionGraphWorkspaceViewModel),
+            RecordedSessionGraphWorkspaceViewModel.ForwardedProperties);
+
+    [Fact]
+    public void StatisticsWorkspace_ForwardedPropertiesAreDeclaredPublicProperties() =>
+        AssertForwardedPropertiesAreDeclared(
+            typeof(SessionStatisticsWorkspaceViewModel),
+            SessionStatisticsWorkspaceViewModel.ForwardedProperties);
+
+    [Fact]
+    public void GraphWorkspace_DoesNotRebroadcastUndeclaredContextProperties()
+    {
+        var context = new RecordedSessionContext();
+        var workspace = new RecordedSessionGraphWorkspaceViewModel(
+            context,
+            _ => { },
+            (_, _) => { },
+            () => { },
+            _ => { });
+        var changes = TrackPropertyChanges(workspace);
+
+        context.ScreenState = SessionScreenPresentationState.Loading("Loading session.");
+
+        Assert.Empty(changes);
+    }
+
+    private static void AssertForwardedPropertiesAreDeclared(
+        Type adapterType,
+        IReadOnlySet<string> forwardedProperties)
+    {
+        var declared = adapterType
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Select(property => property.Name)
+            .ToHashSet();
+
+        Assert.All(forwardedProperties, name => Assert.Contains(name, declared));
     }
 
     private static List<string> TrackPropertyChanges(INotifyPropertyChanged source)

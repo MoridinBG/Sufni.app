@@ -169,21 +169,48 @@ internal sealed class SessionStatisticsWorkspaceViewModel : ObservableObject, IS
         return commitDampingSpeedCutoffAsync(side, circuit, cutoffMmPerSecond);
     }
 
+    internal static readonly HashSet<string> ForwardedProperties =
+    [
+        nameof(TelemetryData),
+        nameof(AnalysisRange),
+        nameof(SelectedTravelHistogramMode),
+        nameof(SelectedBalanceDisplacementMode),
+        nameof(SelectedBalanceSpeedMode),
+        nameof(SelectedVelocityAverageMode),
+        nameof(SelectedSessionAnalysisTargetProfile),
+        nameof(ExtensionSlots),
+        nameof(FrontStatisticsState),
+        nameof(RearStatisticsState),
+        nameof(CompressionBalanceState),
+        nameof(ReboundBalanceState),
+        nameof(FrontForkVibrationState),
+        nameof(FrontFrameVibrationState),
+        nameof(RearForkVibrationState),
+        nameof(RearFrameVibrationState),
+        nameof(DamperPercentages),
+        nameof(DampingSpeedCutoffs),
+        nameof(PlotDampingSpeedCutoffs),
+        nameof(CanEditDampingSpeedCutoffs),
+        nameof(SessionAnalysis),
+        nameof(SelectedFrontRangeSelection),
+        nameof(SelectedRearRangeSelection),
+    ];
+
     private void OnContextPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName is null)
+        if (args.PropertyName is not { } propertyName || !ForwardedProperties.Contains(propertyName))
         {
             return;
         }
 
-        OnPropertyChanged(args.PropertyName);
-        if (args.PropertyName is nameof(RecordedSessionContext.AnalysisRange))
+        OnPropertyChanged(propertyName);
+        if (propertyName is nameof(RecordedSessionContext.AnalysisRange))
         {
             OnPropertyChanged(nameof(SessionAnalysisRangeText));
             return;
         }
 
-        if (args.PropertyName is nameof(RecordedSessionContext.SelectedTravelHistogramMode)
+        if (propertyName is nameof(RecordedSessionContext.SelectedTravelHistogramMode)
             or nameof(RecordedSessionContext.SelectedVelocityAverageMode)
             or nameof(RecordedSessionContext.SelectedBalanceDisplacementMode)
             or nameof(RecordedSessionContext.SelectedBalanceSpeedMode))

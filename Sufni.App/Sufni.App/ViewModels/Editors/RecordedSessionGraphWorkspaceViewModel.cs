@@ -130,11 +130,51 @@ internal sealed class RecordedSessionGraphWorkspaceViewModel : ObservableObject,
         setAnalysisRangeBoundary(boundarySeconds);
     }
 
+    internal static readonly HashSet<string> ForwardedProperties =
+    [
+        nameof(TelemetryData),
+        nameof(AnalysisRange),
+        nameof(TrackPoints),
+        nameof(TrackTimelineContext),
+        nameof(TravelGraphState),
+        nameof(VelocityGraphState),
+        nameof(ImuGraphState),
+        nameof(PitchRollGraphState),
+        nameof(SpeedGraphState),
+        nameof(ElevationGraphState),
+        nameof(PlotPreferences),
+        nameof(GraphPreferences),
+        nameof(SourceVisibility),
+        nameof(Timeline),
+        nameof(ExtensionSlots),
+        nameof(PlotContextMenuActionsByRowId),
+        nameof(ShowAirtime),
+        nameof(ShowVelocityAirtime),
+        nameof(ShowImuAirtime),
+        nameof(ShowPitchRollAirtime),
+        nameof(ShowSpeedAirtime),
+        nameof(ShowElevationAirtime),
+        nameof(StatisticsSelectionHighlightRanges),
+        nameof(HasStatisticsSelection),
+        nameof(ShowStatisticsSelection),
+        nameof(ShowVelocityStatisticsSelection),
+        nameof(ShowImuStatisticsSelection),
+        nameof(ShowPitchRollStatisticsSelection),
+        nameof(ShowSpeedStatisticsSelection),
+        nameof(ShowElevationStatisticsSelection),
+        nameof(TravelHeaderActions),
+        nameof(VelocityHeaderActions),
+        nameof(ImuHeaderActions),
+        nameof(PitchRollHeaderActions),
+        nameof(SpeedHeaderActions),
+        nameof(ElevationHeaderActions),
+    ];
+
     private void OnContextPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName is not null)
+        if (args.PropertyName is { } propertyName && ForwardedProperties.Contains(propertyName))
         {
-            OnPropertyChanged(args.PropertyName);
+            OnPropertyChanged(propertyName);
         }
     }
 }
