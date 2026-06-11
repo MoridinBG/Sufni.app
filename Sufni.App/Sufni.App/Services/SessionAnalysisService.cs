@@ -8,7 +8,7 @@ using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Models;
 using Sufni.App.ExtensionHost.Presentation;
 using Sufni.App.ExtensionHost.SessionDetails;
-using static Sufni.App.Formatting.UnitsFormatter;
+using Sufni.App.Formatting;
 
 namespace Sufni.App.Services;
 
@@ -1372,6 +1372,18 @@ public sealed class SessionAnalysisService : ISessionAnalysisService
     private static string FormatBand(SpeedBand band)
     {
         return $"{FormatSpeed(band.Low)}-{FormatSpeed(band.High)}";
+    }
+
+    // Analysis evidence has always been formatted invariantly; keep it that
+    // way while display surfaces use the formatter's current-culture default.
+    private static string FormatSpeed(double value)
+    {
+        return UnitsFormatter.FormatSpeed(value, CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatNumber(double value, int decimals)
+    {
+        return UnitsFormatter.FormatNumber(value, decimals, CultureInfo.InvariantCulture);
     }
 
     private static string FormatPercent(double value)
