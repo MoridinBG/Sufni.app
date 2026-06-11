@@ -62,7 +62,7 @@ internal sealed class RecordedPresentationApplier
         owner.TelemetryData = null;
         owner.FullTrackPoints = null;
         owner.TrackPoints = null;
-        owner.MediaColumnWidth = null;
+        context.MediaColumnWidth = null;
         owner.ApplyDamperPercentages(SessionDamperPercentages.Empty);
         HideVibrationStates();
         ApplyRecordedPlotAvailability(null);
@@ -91,7 +91,7 @@ internal sealed class RecordedPresentationApplier
         context.CompressionBalanceState = SurfacePresentationState.Loading("Loading balance data.");
         context.ReboundBalanceState = SurfacePresentationState.Loading("Loading balance data.");
         HideVibrationStates();
-        owner.MapState = mapExpected
+        context.MapState = mapExpected
             ? SurfacePresentationState.Loading("Loading map data.")
             : SurfacePresentationState.Hidden;
         springPage.FrontHistogramState = SurfacePresentationState.Loading("Loading spring chart.");
@@ -118,7 +118,7 @@ internal sealed class RecordedPresentationApplier
         context.CompressionBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance data.");
         context.ReboundBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance data.");
         HideVibrationStates();
-        owner.MapState = mapExpected
+        context.MapState = mapExpected
             ? SurfacePresentationState.WaitingForData("Waiting for map data.")
             : SurfacePresentationState.Hidden;
         springPage.FrontHistogramState = SurfacePresentationState.WaitingForData("Waiting for spring chart.");
@@ -141,7 +141,7 @@ internal sealed class RecordedPresentationApplier
                 owner.SetSessionFullTrack(loaded.Data.FullTrackId);
                 owner.FullTrackPoints = loaded.Data.FullTrackPoints;
                 owner.TrackPoints = loaded.Data.TrackPoints;
-                owner.MediaColumnWidth = loaded.Data.MediaColumnWidth;
+                context.MediaColumnWidth = loaded.Data.MediaColumnWidth;
                 owner.ApplyModeAwareDamperPercentages(loaded.Data.DamperPercentages);
                 ApplyRecordedLoadedStates(loaded.Data);
                 owner.RecomputeSessionAnalysis();
@@ -359,7 +359,7 @@ internal sealed class RecordedPresentationApplier
             HideVibrationStates();
         }
 
-        owner.MapState = CreateMapState(data.TrackPoints, data.FullTrackId is not null);
+        context.MapState = CreateMapState(data.TrackPoints, data.FullTrackId is not null);
     }
 
     private static bool HasFrontCacheStatistics(SessionCachePresentationData data)
@@ -417,8 +417,8 @@ internal sealed class RecordedPresentationApplier
         owner.SetSessionFullTrack(trackData?.FullTrackId);
         owner.FullTrackPoints = trackData?.FullTrackPoints;
         owner.TrackPoints = trackData?.TrackPoints;
-        owner.MediaColumnWidth = trackData?.MediaColumnWidth;
-        owner.MapState = CreateMapState(trackData?.TrackPoints, trackData?.FullTrackId is not null);
+        context.MediaColumnWidth = trackData?.MediaColumnWidth;
+        context.MapState = CreateMapState(trackData?.TrackPoints, trackData?.FullTrackId is not null);
     }
 
     private void ApplyRecordedPlotAvailability(TelemetryData? telemetry)

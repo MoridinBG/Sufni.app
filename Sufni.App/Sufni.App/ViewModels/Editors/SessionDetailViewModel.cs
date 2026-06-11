@@ -128,10 +128,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     #region Public fields
 
     public DamperPageViewModel DamperPage { get; }
-    public bool HasMediaContent =>
-        MapState.ReservesLayout ||
-        MediaPaneState.ReservesLayout ||
-        ExtensionSlots.MediaPanes.Count > 0;
     public NotesPageViewModel NotesPage { get; } = new();
     public SessionPlotPreferences PlotPreferences
     {
@@ -185,8 +181,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     [ObservableProperty] private TrackTimeRange? trackTimelineContext;
     [ObservableProperty] private List<TrackPoint>? fullTrackPoints;
     [ObservableProperty] private List<TrackPoint>? trackPoints;
-    [ObservableProperty] private string? mediaUrl;
-    [ObservableProperty] private double? mediaColumnWidth;
     [ObservableProperty] private bool isComplete;
     [ObservableProperty] private bool showAirtime = true;
     [ObservableProperty] private bool showVelocityAirtime;
@@ -208,13 +202,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     [ObservableProperty] private BalanceSpeedMode selectedBalanceSpeedMode = BalanceSpeedMode.Both;
     [ObservableProperty] private VelocityAverageMode selectedVelocityAverageMode = VelocityAverageMode.SampleAveraged;
     [ObservableProperty] private SessionAnalysisTargetProfile selectedSessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Trail;
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasMediaContent))]
-    private SurfacePresentationState mapState = SurfacePresentationState.Hidden;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasMediaContent))]
-    private SurfacePresentationState mediaPaneState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SessionDamperPercentages damperPercentages = SessionDamperPercentages.Empty;
     [ObservableProperty] private DampingSpeedCutoffs dampingSpeedCutoffs = DampingSpeedCutoffs.Default;
     [ObservableProperty] private DampingSpeedCutoffs plotDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
@@ -410,29 +397,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     {
         SessionContext.ShowElevationAirtime = value;
         UpdateAirtimeAction(showElevationAirtimeAction, value);
-    }
-
-    partial void OnMediaUrlChanged(string? value)
-    {
-        SessionContext.MediaUrl = value;
-        MediaPaneState = string.IsNullOrWhiteSpace(value)
-            ? SurfacePresentationState.Hidden
-            : SurfacePresentationState.Ready;
-    }
-
-    partial void OnMediaColumnWidthChanged(double? value)
-    {
-        SessionContext.MediaColumnWidth = value;
-    }
-
-    partial void OnMapStateChanged(SurfacePresentationState value)
-    {
-        SessionContext.MapState = value;
-    }
-
-    partial void OnMediaPaneStateChanged(SurfacePresentationState value)
-    {
-        SessionContext.MediaPaneState = value;
     }
 
     partial void OnStatisticsSelectionHighlightRangesChanged(IReadOnlyList<TelemetryHighlightRange> value)
@@ -861,11 +825,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         ApplyRecordedSessionExtensionPages();
     }
 
-    private void OnRecordedSessionExtensionMediaPanesChanged(object? sender, NotifyCollectionChangedEventArgs args)
-    {
-        OnPropertyChanged(nameof(HasMediaContent));
-    }
-
     private void ApplyRecordedSessionExtensionPages()
     {
         if (recordedSessionExtensions is null)
@@ -1045,7 +1004,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
                 recordedSessionOperationCoordinator,
                 this);
             recordedSessionExtensions.ExtensionSlots.Pages.CollectionChanged += OnRecordedSessionExtensionPagesChanged;
-            recordedSessionExtensions.ExtensionSlots.MediaPanes.CollectionChanged += OnRecordedSessionExtensionMediaPanesChanged;
         }
         SessionContext.ExtensionSlots = ExtensionSlots;
 

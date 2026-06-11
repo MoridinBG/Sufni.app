@@ -57,7 +57,7 @@ mc:Ignorable="d">
     </UserControl.Styles>
 
     <Grid>
-        <editors:SessionShellDesktopView HasMediaContent="{Binding HasMediaContent}" IsVisible="{Binding SessionContext.ScreenState.IsReady}">
+        <editors:SessionShellDesktopView HasMediaContent="{Binding MediaWorkspace.HasMediaContent}" IsVisible="{Binding SessionContext.ScreenState.IsReady}">
 
             <editors:SessionShellDesktopView.GraphContent>
                 <items:RecordedSessionGraphDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).GraphWorkspace}" />

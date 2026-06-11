@@ -94,4 +94,11 @@ public sealed partial class RecordedSessionContext : ObservableObject
     [ObservableProperty] private SessionOperationPresentationState sessionOperationState = SessionOperationPresentationState.Hidden;
 
     public bool HasStatisticsSelection => StatisticsSelectionHighlightRanges.Count > 0;
+
+    partial void OnMediaUrlChanged(string? value)
+    {
+        MediaPaneState = string.IsNullOrWhiteSpace(value)
+            ? SurfacePresentationState.Hidden
+            : SurfacePresentationState.Ready;
+    }
 }

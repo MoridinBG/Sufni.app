@@ -137,7 +137,7 @@ public class SessionDetailViewModelTests
         Assert.True(editor.SessionContext.FrontFrameVibrationState.IsHidden);
         Assert.True(editor.SessionContext.RearForkVibrationState.IsHidden);
         Assert.True(editor.SessionContext.RearFrameVibrationState.IsHidden);
-        Assert.Equal(SurfaceStateKind.Loading, editor.MapState.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, editor.SessionContext.MapState.Kind);
         Assert.True(editor.SessionContext.ScreenState.IsReady);
     }
 
@@ -209,15 +209,15 @@ public class SessionDetailViewModelTests
     {
         var editor = CreateEditor(TestSnapshots.Session());
 
-        editor.MapState = SurfacePresentationState.Ready;
-        editor.MediaColumnWidth = 480;
-        editor.MediaUrl = "session-media.mp4";
+        editor.SessionContext.MapState = SurfacePresentationState.Ready;
+        editor.SessionContext.MediaColumnWidth = 480;
+        editor.SessionContext.MediaUrl = "session-media.mp4";
 
         Assert.Same(editor.MapViewModel, editor.MediaWorkspace.MapViewModel);
-        Assert.Equal(editor.MapState, editor.MediaWorkspace.MapState);
-        Assert.Equal(editor.MediaPaneState, editor.MediaWorkspace.MediaPaneState);
-        Assert.Equal(editor.MediaColumnWidth, editor.MediaWorkspace.MediaColumnWidth);
-        Assert.Equal(editor.MediaUrl, editor.MediaWorkspace.MediaUrl);
+        Assert.Equal(editor.SessionContext.MapState, editor.MediaWorkspace.MapState);
+        Assert.Equal(editor.SessionContext.MediaPaneState, editor.MediaWorkspace.MediaPaneState);
+        Assert.Equal(editor.SessionContext.MediaColumnWidth, editor.MediaWorkspace.MediaColumnWidth);
+        Assert.Equal(editor.SessionContext.MediaUrl, editor.MediaWorkspace.MediaUrl);
         Assert.True(editor.MediaWorkspace.HasMediaContent);
     }
 
@@ -727,18 +727,18 @@ public class SessionDetailViewModelTests
         Assert.Same(telemetry, editor.TelemetryData);
         Assert.Same(trackPoints, editor.TrackPoints);
         Assert.Same(fullTrackPoints, editor.FullTrackPoints);
-        Assert.Equal(400.0, editor.MediaColumnWidth);
+        Assert.Equal(400.0, editor.SessionContext.MediaColumnWidth);
         Assert.Equal(1, editor.DamperPage.FrontHscPercentage);
         Assert.True(editor.IsComplete);
         Assert.Equal(SurfaceStateKind.Ready, editor.SessionContext.TravelGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Ready, editor.SessionContext.VelocityGraphState.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, editor.SessionContext.ImuGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.Ready, editor.MapState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.SessionContext.MapState.Kind);
         Assert.True(editor.SessionContext.FrontForkVibrationState.IsHidden);
         Assert.True(editor.SessionContext.FrontFrameVibrationState.IsHidden);
         Assert.True(editor.SessionContext.RearForkVibrationState.IsHidden);
         Assert.True(editor.SessionContext.RearFrameVibrationState.IsHidden);
-        Assert.True(editor.HasMediaContent);
+        Assert.True(editor.MediaWorkspace.HasMediaContent);
         Assert.True(editor.SessionContext.ScreenState.IsReady);
     }
 
@@ -889,10 +889,10 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(
             snapshot,
             recordedSessionExtensionFactories: [factory]);
-        editor.PropertyChanged += (_, args) => observedProperties.Add(args.PropertyName);
+        ((INotifyPropertyChanged)editor.MediaWorkspace).PropertyChanged += (_, args) => observedProperties.Add(args.PropertyName);
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        Assert.False(editor.HasMediaContent);
+        Assert.False(editor.MediaWorkspace.HasMediaContent);
 
         factory.Scope!.Slots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
             "test",
@@ -900,14 +900,14 @@ public class SessionDetailViewModelTests
             Order: 0,
             new TestContributionViewModel()));
 
-        Assert.True(editor.HasMediaContent);
-        Assert.Contains(nameof(SessionDetailViewModel.HasMediaContent), observedProperties);
+        Assert.True(editor.MediaWorkspace.HasMediaContent);
+        Assert.Contains(nameof(ISessionMediaWorkspace.HasMediaContent), observedProperties);
 
         observedProperties.Clear();
         await editor.UnloadedCommand.ExecuteAsync(null);
 
-        Assert.False(editor.HasMediaContent);
-        Assert.Contains(nameof(SessionDetailViewModel.HasMediaContent), observedProperties);
+        Assert.False(editor.MediaWorkspace.HasMediaContent);
+        Assert.Contains(nameof(ISessionMediaWorkspace.HasMediaContent), observedProperties);
     }
 
     [AvaloniaFact]
@@ -932,18 +932,18 @@ public class SessionDetailViewModelTests
         await editor.LoadedCommand.ExecuteAsync(null);
         var firstScope = factory.Scope;
         Assert.NotNull(firstScope);
-        Assert.True(editor.HasMediaContent);
+        Assert.True(editor.MediaWorkspace.HasMediaContent);
 
         await editor.CloseCommand.ExecuteAsync(null);
         Assert.True(firstScope!.Disposed);
-        Assert.False(editor.HasMediaContent);
+        Assert.False(editor.MediaWorkspace.HasMediaContent);
 
         await editor.LoadedCommand.ExecuteAsync(null);
 
         Assert.Equal(2, factory.Scopes.Count);
         Assert.NotSame(firstScope, factory.Scope);
         Assert.True(factory.Scope!.Initialized);
-        Assert.True(editor.HasMediaContent);
+        Assert.True(editor.MediaWorkspace.HasMediaContent);
     }
 
     [AvaloniaFact]
@@ -1697,7 +1697,7 @@ public class SessionDetailViewModelTests
         Assert.True(editor.SessionContext.FrontFrameVibrationState.IsHidden);
         Assert.True(editor.SessionContext.RearForkVibrationState.IsHidden);
         Assert.True(editor.SessionContext.RearFrameVibrationState.IsHidden);
-        Assert.False(editor.HasMediaContent);
+        Assert.False(editor.MediaWorkspace.HasMediaContent);
         Assert.DoesNotContain(editor.Pages, page => page.DisplayName == "Balance");
     }
 
@@ -1802,9 +1802,9 @@ public class SessionDetailViewModelTests
 
         Assert.Same(trackPoints, editor.TrackPoints);
         Assert.Same(fullTrackPoints, editor.FullTrackPoints);
-        Assert.Equal(400, editor.MediaColumnWidth);
-        Assert.Equal(SurfaceStateKind.Ready, editor.MapState.Kind);
-        Assert.True(editor.HasMediaContent);
+        Assert.Equal(400, editor.SessionContext.MediaColumnWidth);
+        Assert.Equal(SurfaceStateKind.Ready, editor.SessionContext.MapState.Kind);
+        Assert.True(editor.MediaWorkspace.HasMediaContent);
         Assert.Same(trackPoints, editor.MapViewModel!.SessionTrackPoints);
     }
 
@@ -1830,7 +1830,7 @@ public class SessionDetailViewModelTests
         Assert.True(editor.SessionContext.FrontFrameVibrationState.IsHidden);
         Assert.True(editor.SessionContext.RearForkVibrationState.IsHidden);
         Assert.True(editor.SessionContext.RearFrameVibrationState.IsHidden);
-        Assert.Equal(SurfaceStateKind.Hidden, editor.MapState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.SessionContext.MapState.Kind);
         Assert.Empty(editor.ErrorMessages);
     }
 
