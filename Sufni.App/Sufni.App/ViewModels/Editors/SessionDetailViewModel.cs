@@ -177,9 +177,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
 
     [ObservableProperty] private TelemetryData? telemetryData;
     [ObservableProperty] private TelemetryTimeRange? analysisRange;
-    [ObservableProperty] private TrackTimeRange? trackTimelineContext;
-    [ObservableProperty] private List<TrackPoint>? fullTrackPoints;
-    [ObservableProperty] private List<TrackPoint>? trackPoints;
     [ObservableProperty] private bool isComplete;
     [ObservableProperty] private TravelHistogramMode selectedTravelHistogramMode = TravelHistogramMode.ActiveSuspension;
     [ObservableProperty] private BalanceDisplacementMode selectedBalanceDisplacementMode = BalanceDisplacementMode.Zenith;
@@ -289,43 +286,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         SessionContext.DampingSpeedCutoffs = value;
         RecomputeDamperPercentagesForAnalysisRange();
         RecomputeSessionAnalysisIfAllowed();
-        UpdateRecordedSessionExtensionHostState();
-    }
-
-    partial void OnFullTrackPointsChanged(List<TrackPoint>? value)
-    {
-        SessionContext.FullTrackPoints = value;
-        if (MapViewModel is null)
-        {
-            return;
-        }
-
-        MapViewModel.FullTrackPoints = value;
-    }
-
-    partial void OnTrackPointsChanged(List<TrackPoint>? value)
-    {
-        SessionContext.TrackPoints = value;
-        if (MapViewModel is not null)
-        {
-            MapViewModel.SessionTrackPoints = value;
-        }
-
-        RefreshTrackTimelineContext();
-        if (TelemetryData is not null)
-        {
-            presentationApplier.ApplyRecordedTrackGraphStates();
-        }
-    }
-
-    partial void OnTrackTimelineContextChanged(TrackTimeRange? value)
-    {
-        SessionContext.TrackTimelineContext = value;
-        if (MapViewModel is not null)
-        {
-            MapViewModel.TimelineContext = value;
-        }
-
         UpdateRecordedSessionExtensionHostState();
     }
 
@@ -524,9 +484,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
 
     private void RefreshTrackTimelineContext()
     {
-        TrackTimelineContext = TelemetryData is { } telemetry
+        SessionContext.TrackTimelineContext = TelemetryData is { } telemetry
             ? TrackPointSeries.BuildTimelineContext(
-                TrackPoints,
+                SessionContext.TrackPoints,
                 telemetry.Metadata.Timestamp,
                 telemetry.Metadata.Duration)
             : null;
@@ -610,7 +570,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
                 IsTabActive),
             new RecordedSessionSelectionState(AnalysisRange),
             new RecordedSessionTimelineState(
-                TrackTimelineContext,
+                SessionContext.TrackTimelineContext,
                 timelineDurationSeconds,
                 Timeline),
             new RecordedSessionStatisticsState(
@@ -1063,6 +1023,34 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     {
         switch (args.PropertyName)
         {
+            case nameof(RecordedSessionContext.FullTrackPoints):
+                if (MapViewModel is not null)
+                {
+                    MapViewModel.FullTrackPoints = SessionContext.FullTrackPoints;
+                }
+
+                break;
+            case nameof(RecordedSessionContext.TrackPoints):
+                if (MapViewModel is not null)
+                {
+                    MapViewModel.SessionTrackPoints = SessionContext.TrackPoints;
+                }
+
+                RefreshTrackTimelineContext();
+                if (TelemetryData is not null)
+                {
+                    presentationApplier.ApplyRecordedTrackGraphStates();
+                }
+
+                break;
+            case nameof(RecordedSessionContext.TrackTimelineContext):
+                if (MapViewModel is not null)
+                {
+                    MapViewModel.TimelineContext = SessionContext.TrackTimelineContext;
+                }
+
+                UpdateRecordedSessionExtensionHostState();
+                break;
             case nameof(RecordedSessionContext.ShowAirtime):
                 UpdateAirtimeAction(showAirtimeAction, SessionContext.ShowAirtime);
                 break;

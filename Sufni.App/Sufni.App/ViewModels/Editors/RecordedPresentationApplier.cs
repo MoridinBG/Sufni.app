@@ -60,8 +60,8 @@ internal sealed class RecordedPresentationApplier
     public void ClearRecordedPresentation()
     {
         owner.TelemetryData = null;
-        owner.FullTrackPoints = null;
-        owner.TrackPoints = null;
+        context.FullTrackPoints = null;
+        context.TrackPoints = null;
         context.MediaColumnWidth = null;
         owner.ApplyDamperPercentages(SessionDamperPercentages.Empty);
         HideVibrationStates();
@@ -139,8 +139,8 @@ internal sealed class RecordedPresentationApplier
                     loaded.Data.DampingSpeedCutoffOwner);
                 owner.ApplyTelemetryDataWithoutAnalysisRecompute(loaded.Data.TelemetryData);
                 owner.SetSessionFullTrack(loaded.Data.FullTrackId);
-                owner.FullTrackPoints = loaded.Data.FullTrackPoints;
-                owner.TrackPoints = loaded.Data.TrackPoints;
+                context.FullTrackPoints = loaded.Data.FullTrackPoints;
+                context.TrackPoints = loaded.Data.TrackPoints;
                 context.MediaColumnWidth = loaded.Data.MediaColumnWidth;
                 owner.ApplyModeAwareDamperPercentages(loaded.Data.DamperPercentages);
                 ApplyRecordedLoadedStates(loaded.Data);
@@ -214,10 +214,10 @@ internal sealed class RecordedPresentationApplier
     public void ApplyRecordedTrackGraphStates()
     {
         ApplyRecordedPlotAvailability(owner.TelemetryData);
-        recordedSpeedGraphBaseState = TrackPointSeries.HasSpeedSeries(owner.TrackPoints)
+        recordedSpeedGraphBaseState = TrackPointSeries.HasSpeedSeries(context.TrackPoints)
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
-        recordedElevationGraphBaseState = TrackPointSeries.HasElevationSeries(owner.TrackPoints)
+        recordedElevationGraphBaseState = TrackPointSeries.HasElevationSeries(context.TrackPoints)
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
         RefreshRecordedGraphStates(owner.RecordedPlotPreferences);
@@ -415,8 +415,8 @@ internal sealed class RecordedPresentationApplier
     private void ApplyMobileTrackPresentation(SessionTrackPresentationData? trackData)
     {
         owner.SetSessionFullTrack(trackData?.FullTrackId);
-        owner.FullTrackPoints = trackData?.FullTrackPoints;
-        owner.TrackPoints = trackData?.TrackPoints;
+        context.FullTrackPoints = trackData?.FullTrackPoints;
+        context.TrackPoints = trackData?.TrackPoints;
         context.MediaColumnWidth = trackData?.MediaColumnWidth;
         context.MapState = CreateMapState(trackData?.TrackPoints, trackData?.FullTrackId is not null);
     }
@@ -426,8 +426,8 @@ internal sealed class RecordedPresentationApplier
         var hasTravelTelemetry = HasTravelTelemetry(telemetry);
         var hasImuTelemetry = HasImuTelemetry(telemetry);
         var hasFramePitchRollTelemetry = HasFramePitchRollTelemetry(telemetry);
-        var hasSpeedSeries = TrackPointSeries.HasSpeedSeries(owner.TrackPoints);
-        var hasElevationSeries = TrackPointSeries.HasElevationSeries(owner.TrackPoints);
+        var hasSpeedSeries = TrackPointSeries.HasSpeedSeries(context.TrackPoints);
+        var hasElevationSeries = TrackPointSeries.HasElevationSeries(context.TrackPoints);
         preferencesPage.ApplyPlotAvailability(
             hasTravelTelemetry,
             hasTravelTelemetry,
@@ -442,8 +442,8 @@ internal sealed class RecordedPresentationApplier
         var hasTravelTelemetry = HasTravelTelemetry(telemetry);
         var hasImuTelemetry = HasImuTelemetry(telemetry);
         var hasFramePitchRollTelemetry = HasFramePitchRollTelemetry(telemetry);
-        var hasSpeedSeries = TrackPointSeries.HasSpeedSeries(owner.TrackPoints);
-        var hasElevationSeries = TrackPointSeries.HasElevationSeries(owner.TrackPoints);
+        var hasSpeedSeries = TrackPointSeries.HasSpeedSeries(context.TrackPoints);
+        var hasElevationSeries = TrackPointSeries.HasElevationSeries(context.TrackPoints);
 
         preferencesPage.ApplyPlotAvailability(
             hasTravelTelemetry,

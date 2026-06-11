@@ -201,7 +201,7 @@ public class SessionDetailViewModelTests
 
         Assert.Same(telemetry, editor.SessionContext.TelemetryData);
         Assert.Equal(editor.AnalysisRange, editor.SessionContext.AnalysisRange);
-        Assert.Equal(editor.TrackTimelineContext, editor.SessionContext.TrackTimelineContext);
+        Assert.Equal(editor.SessionContext.TrackTimelineContext, editor.SessionContext.TrackTimelineContext);
     }
 
     [AvaloniaFact]
@@ -725,8 +725,8 @@ public class SessionDetailViewModelTests
         await editor.LoadedCommand.ExecuteAsync(null);
 
         Assert.Same(telemetry, editor.TelemetryData);
-        Assert.Same(trackPoints, editor.TrackPoints);
-        Assert.Same(fullTrackPoints, editor.FullTrackPoints);
+        Assert.Same(trackPoints, editor.SessionContext.TrackPoints);
+        Assert.Same(fullTrackPoints, editor.SessionContext.FullTrackPoints);
         Assert.Equal(400.0, editor.SessionContext.MediaColumnWidth);
         Assert.Equal(1, editor.DamperPage.FrontHscPercentage);
         Assert.True(editor.IsComplete);
@@ -1800,8 +1800,8 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(snapshot);
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
 
-        Assert.Same(trackPoints, editor.TrackPoints);
-        Assert.Same(fullTrackPoints, editor.FullTrackPoints);
+        Assert.Same(trackPoints, editor.SessionContext.TrackPoints);
+        Assert.Same(fullTrackPoints, editor.SessionContext.FullTrackPoints);
         Assert.Equal(400, editor.SessionContext.MediaColumnWidth);
         Assert.Equal(SurfaceStateKind.Ready, editor.SessionContext.MapState.Kind);
         Assert.True(editor.MediaWorkspace.HasMediaContent);
