@@ -165,7 +165,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     public IReadOnlyList<TelemetryPlotRowAction> PitchRollHeaderActions { get; }
     public IReadOnlyList<TelemetryPlotRowAction> SpeedHeaderActions { get; }
     public IReadOnlyList<TelemetryPlotRowAction> ElevationHeaderActions { get; }
-    public bool HasStatisticsSelection => StatisticsSelectionHighlightRanges.Count > 0;
     public TelemetryRangeSelection? SelectedFrontRangeSelection => statisticsSelectionController.SelectedFrontRangeSelection;
     public TelemetryRangeSelection? SelectedRearRangeSelection => statisticsSelectionController.SelectedRearRangeSelection;
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> PlotContextMenuActionsByRowId { get; }
@@ -182,21 +181,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     [ObservableProperty] private List<TrackPoint>? fullTrackPoints;
     [ObservableProperty] private List<TrackPoint>? trackPoints;
     [ObservableProperty] private bool isComplete;
-    [ObservableProperty] private bool showAirtime = true;
-    [ObservableProperty] private bool showVelocityAirtime;
-    [ObservableProperty] private bool showImuAirtime;
-    [ObservableProperty] private bool showPitchRollAirtime;
-    [ObservableProperty] private bool showSpeedAirtime;
-    [ObservableProperty] private bool showElevationAirtime;
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasStatisticsSelection))]
-    private IReadOnlyList<TelemetryHighlightRange> statisticsSelectionHighlightRanges = [];
-    [ObservableProperty] private bool showStatisticsSelection;
-    [ObservableProperty] private bool showVelocityStatisticsSelection;
-    [ObservableProperty] private bool showImuStatisticsSelection;
-    [ObservableProperty] private bool showPitchRollStatisticsSelection;
-    [ObservableProperty] private bool showSpeedStatisticsSelection;
-    [ObservableProperty] private bool showElevationStatisticsSelection;
     [ObservableProperty] private TravelHistogramMode selectedTravelHistogramMode = TravelHistogramMode.ActiveSuspension;
     [ObservableProperty] private BalanceDisplacementMode selectedBalanceDisplacementMode = BalanceDisplacementMode.Zenith;
     [ObservableProperty] private BalanceSpeedMode selectedBalanceSpeedMode = BalanceSpeedMode.Both;
@@ -361,83 +345,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         }
 
         UpdateRecordedSessionExtensionHostState();
-    }
-
-    partial void OnShowAirtimeChanged(bool value)
-    {
-        SessionContext.ShowAirtime = value;
-        UpdateAirtimeAction(showAirtimeAction, value);
-    }
-
-    partial void OnShowVelocityAirtimeChanged(bool value)
-    {
-        SessionContext.ShowVelocityAirtime = value;
-        UpdateAirtimeAction(showVelocityAirtimeAction, value);
-    }
-
-    partial void OnShowImuAirtimeChanged(bool value)
-    {
-        SessionContext.ShowImuAirtime = value;
-        UpdateAirtimeAction(showImuAirtimeAction, value);
-    }
-
-    partial void OnShowPitchRollAirtimeChanged(bool value)
-    {
-        SessionContext.ShowPitchRollAirtime = value;
-        UpdateAirtimeAction(showPitchRollAirtimeAction, value);
-    }
-
-    partial void OnShowSpeedAirtimeChanged(bool value)
-    {
-        SessionContext.ShowSpeedAirtime = value;
-        UpdateAirtimeAction(showSpeedAirtimeAction, value);
-    }
-
-    partial void OnShowElevationAirtimeChanged(bool value)
-    {
-        SessionContext.ShowElevationAirtime = value;
-        UpdateAirtimeAction(showElevationAirtimeAction, value);
-    }
-
-    partial void OnStatisticsSelectionHighlightRangesChanged(IReadOnlyList<TelemetryHighlightRange> value)
-    {
-        SessionContext.StatisticsSelectionHighlightRanges = value;
-    }
-
-    partial void OnShowStatisticsSelectionChanged(bool value)
-    {
-        SessionContext.ShowStatisticsSelection = value;
-        UpdateStatisticsSelectionAction(showStatisticsSelectionAction, value, HasStatisticsSelection);
-    }
-
-    partial void OnShowVelocityStatisticsSelectionChanged(bool value)
-    {
-        SessionContext.ShowVelocityStatisticsSelection = value;
-        UpdateStatisticsSelectionAction(showVelocityStatisticsSelectionAction, value, HasStatisticsSelection);
-    }
-
-    partial void OnShowImuStatisticsSelectionChanged(bool value)
-    {
-        SessionContext.ShowImuStatisticsSelection = value;
-        UpdateStatisticsSelectionAction(showImuStatisticsSelectionAction, value, HasStatisticsSelection);
-    }
-
-    partial void OnShowPitchRollStatisticsSelectionChanged(bool value)
-    {
-        SessionContext.ShowPitchRollStatisticsSelection = value;
-        UpdateStatisticsSelectionAction(showPitchRollStatisticsSelectionAction, value, HasStatisticsSelection);
-    }
-
-    partial void OnShowSpeedStatisticsSelectionChanged(bool value)
-    {
-        SessionContext.ShowSpeedStatisticsSelection = value;
-        UpdateStatisticsSelectionAction(showSpeedStatisticsSelectionAction, value, HasStatisticsSelection);
-    }
-
-    partial void OnShowElevationStatisticsSelectionChanged(bool value)
-    {
-        SessionContext.ShowElevationStatisticsSelection = value;
-        UpdateStatisticsSelectionAction(showElevationStatisticsSelectionAction, value, HasStatisticsSelection);
     }
 
     #region Private methods
@@ -916,18 +823,18 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
             sessionPreferences,
             () => Id,
             ErrorMessages.Add);
-        showAirtimeAction = CreateAirtimeAction("travel_airtime", ShowAirtime, () => ShowAirtime = !ShowAirtime);
-        showVelocityAirtimeAction = CreateAirtimeAction("velocity_airtime", ShowVelocityAirtime, () => ShowVelocityAirtime = !ShowVelocityAirtime);
-        showImuAirtimeAction = CreateAirtimeAction("imu_airtime", ShowImuAirtime, () => ShowImuAirtime = !ShowImuAirtime);
-        showPitchRollAirtimeAction = CreateAirtimeAction("pitch_roll_airtime", ShowPitchRollAirtime, () => ShowPitchRollAirtime = !ShowPitchRollAirtime);
-        showSpeedAirtimeAction = CreateAirtimeAction("speed_airtime", ShowSpeedAirtime, () => ShowSpeedAirtime = !ShowSpeedAirtime);
-        showElevationAirtimeAction = CreateAirtimeAction("elevation_airtime", ShowElevationAirtime, () => ShowElevationAirtime = !ShowElevationAirtime);
-        showStatisticsSelectionAction = CreateStatisticsSelectionAction("travel_statistics_selection", ShowStatisticsSelection, () => ShowStatisticsSelection = !ShowStatisticsSelection);
-        showVelocityStatisticsSelectionAction = CreateStatisticsSelectionAction("velocity_statistics_selection", ShowVelocityStatisticsSelection, () => ShowVelocityStatisticsSelection = !ShowVelocityStatisticsSelection);
-        showImuStatisticsSelectionAction = CreateStatisticsSelectionAction("imu_statistics_selection", ShowImuStatisticsSelection, () => ShowImuStatisticsSelection = !ShowImuStatisticsSelection);
-        showPitchRollStatisticsSelectionAction = CreateStatisticsSelectionAction("pitch_roll_statistics_selection", ShowPitchRollStatisticsSelection, () => ShowPitchRollStatisticsSelection = !ShowPitchRollStatisticsSelection);
-        showSpeedStatisticsSelectionAction = CreateStatisticsSelectionAction("speed_statistics_selection", ShowSpeedStatisticsSelection, () => ShowSpeedStatisticsSelection = !ShowSpeedStatisticsSelection);
-        showElevationStatisticsSelectionAction = CreateStatisticsSelectionAction("elevation_statistics_selection", ShowElevationStatisticsSelection, () => ShowElevationStatisticsSelection = !ShowElevationStatisticsSelection);
+        showAirtimeAction = CreateAirtimeAction("travel_airtime", SessionContext.ShowAirtime, () => SessionContext.ShowAirtime = !SessionContext.ShowAirtime);
+        showVelocityAirtimeAction = CreateAirtimeAction("velocity_airtime", SessionContext.ShowVelocityAirtime, () => SessionContext.ShowVelocityAirtime = !SessionContext.ShowVelocityAirtime);
+        showImuAirtimeAction = CreateAirtimeAction("imu_airtime", SessionContext.ShowImuAirtime, () => SessionContext.ShowImuAirtime = !SessionContext.ShowImuAirtime);
+        showPitchRollAirtimeAction = CreateAirtimeAction("pitch_roll_airtime", SessionContext.ShowPitchRollAirtime, () => SessionContext.ShowPitchRollAirtime = !SessionContext.ShowPitchRollAirtime);
+        showSpeedAirtimeAction = CreateAirtimeAction("speed_airtime", SessionContext.ShowSpeedAirtime, () => SessionContext.ShowSpeedAirtime = !SessionContext.ShowSpeedAirtime);
+        showElevationAirtimeAction = CreateAirtimeAction("elevation_airtime", SessionContext.ShowElevationAirtime, () => SessionContext.ShowElevationAirtime = !SessionContext.ShowElevationAirtime);
+        showStatisticsSelectionAction = CreateStatisticsSelectionAction("travel_statistics_selection", SessionContext.ShowStatisticsSelection, () => SessionContext.ShowStatisticsSelection = !SessionContext.ShowStatisticsSelection);
+        showVelocityStatisticsSelectionAction = CreateStatisticsSelectionAction("velocity_statistics_selection", SessionContext.ShowVelocityStatisticsSelection, () => SessionContext.ShowVelocityStatisticsSelection = !SessionContext.ShowVelocityStatisticsSelection);
+        showImuStatisticsSelectionAction = CreateStatisticsSelectionAction("imu_statistics_selection", SessionContext.ShowImuStatisticsSelection, () => SessionContext.ShowImuStatisticsSelection = !SessionContext.ShowImuStatisticsSelection);
+        showPitchRollStatisticsSelectionAction = CreateStatisticsSelectionAction("pitch_roll_statistics_selection", SessionContext.ShowPitchRollStatisticsSelection, () => SessionContext.ShowPitchRollStatisticsSelection = !SessionContext.ShowPitchRollStatisticsSelection);
+        showSpeedStatisticsSelectionAction = CreateStatisticsSelectionAction("speed_statistics_selection", SessionContext.ShowSpeedStatisticsSelection, () => SessionContext.ShowSpeedStatisticsSelection = !SessionContext.ShowSpeedStatisticsSelection);
+        showElevationStatisticsSelectionAction = CreateStatisticsSelectionAction("elevation_statistics_selection", SessionContext.ShowElevationStatisticsSelection, () => SessionContext.ShowElevationStatisticsSelection = !SessionContext.ShowElevationStatisticsSelection);
         TravelHeaderActions = [showAirtimeAction, showStatisticsSelectionAction];
         VelocityHeaderActions = [showVelocityAirtimeAction, showVelocityStatisticsSelectionAction];
         ImuHeaderActions = [showImuAirtimeAction, showImuStatisticsSelectionAction];
@@ -1006,6 +913,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
             recordedSessionExtensions.ExtensionSlots.Pages.CollectionChanged += OnRecordedSessionExtensionPagesChanged;
         }
         SessionContext.ExtensionSlots = ExtensionSlots;
+        SessionContext.PropertyChanged += OnSessionContextPropertyChanged;
 
         GraphPage = new RecordedGraphPageViewModel(GraphWorkspace, MediaWorkspace);
         SpringPage = new SpringPageViewModel(StatisticsWorkspace);
@@ -1105,7 +1013,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
             Command = new RelayCommand(toggle),
             Tone = TelemetryPlotRowActionTone.Default,
         };
-        UpdateStatisticsSelectionAction(action, isChecked, HasStatisticsSelection);
+        UpdateStatisticsSelectionAction(action, isChecked, SessionContext.HasStatisticsSelection);
         return action;
     }
 
@@ -1140,7 +1048,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         }
 
         SyncStatisticsSelectionController();
-        if (!HasStatisticsSelection)
+        if (!SessionContext.HasStatisticsSelection)
         {
             ClearStatisticsSelectionToggles();
         }
@@ -1154,28 +1062,72 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         SessionContext.SelectedRearRangeSelection = statisticsSelectionController.SelectedRearRangeSelection;
         OnPropertyChanged(nameof(SelectedFrontRangeSelection));
         OnPropertyChanged(nameof(SelectedRearRangeSelection));
-        StatisticsSelectionHighlightRanges = statisticsSelectionController.HighlightRanges;
+        SessionContext.StatisticsSelectionHighlightRanges = statisticsSelectionController.HighlightRanges;
     }
 
     private void RefreshStatisticsSelectionActionStates()
     {
-        var hasSelection = HasStatisticsSelection;
-        UpdateStatisticsSelectionAction(showStatisticsSelectionAction, ShowStatisticsSelection, hasSelection);
-        UpdateStatisticsSelectionAction(showVelocityStatisticsSelectionAction, ShowVelocityStatisticsSelection, hasSelection);
-        UpdateStatisticsSelectionAction(showImuStatisticsSelectionAction, ShowImuStatisticsSelection, hasSelection);
-        UpdateStatisticsSelectionAction(showPitchRollStatisticsSelectionAction, ShowPitchRollStatisticsSelection, hasSelection);
-        UpdateStatisticsSelectionAction(showSpeedStatisticsSelectionAction, ShowSpeedStatisticsSelection, hasSelection);
-        UpdateStatisticsSelectionAction(showElevationStatisticsSelectionAction, ShowElevationStatisticsSelection, hasSelection);
+        var hasSelection = SessionContext.HasStatisticsSelection;
+        UpdateStatisticsSelectionAction(showStatisticsSelectionAction, SessionContext.ShowStatisticsSelection, hasSelection);
+        UpdateStatisticsSelectionAction(showVelocityStatisticsSelectionAction, SessionContext.ShowVelocityStatisticsSelection, hasSelection);
+        UpdateStatisticsSelectionAction(showImuStatisticsSelectionAction, SessionContext.ShowImuStatisticsSelection, hasSelection);
+        UpdateStatisticsSelectionAction(showPitchRollStatisticsSelectionAction, SessionContext.ShowPitchRollStatisticsSelection, hasSelection);
+        UpdateStatisticsSelectionAction(showSpeedStatisticsSelectionAction, SessionContext.ShowSpeedStatisticsSelection, hasSelection);
+        UpdateStatisticsSelectionAction(showElevationStatisticsSelectionAction, SessionContext.ShowElevationStatisticsSelection, hasSelection);
+    }
+
+
+    private void OnSessionContextPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        switch (args.PropertyName)
+        {
+            case nameof(RecordedSessionContext.ShowAirtime):
+                UpdateAirtimeAction(showAirtimeAction, SessionContext.ShowAirtime);
+                break;
+            case nameof(RecordedSessionContext.ShowVelocityAirtime):
+                UpdateAirtimeAction(showVelocityAirtimeAction, SessionContext.ShowVelocityAirtime);
+                break;
+            case nameof(RecordedSessionContext.ShowImuAirtime):
+                UpdateAirtimeAction(showImuAirtimeAction, SessionContext.ShowImuAirtime);
+                break;
+            case nameof(RecordedSessionContext.ShowPitchRollAirtime):
+                UpdateAirtimeAction(showPitchRollAirtimeAction, SessionContext.ShowPitchRollAirtime);
+                break;
+            case nameof(RecordedSessionContext.ShowSpeedAirtime):
+                UpdateAirtimeAction(showSpeedAirtimeAction, SessionContext.ShowSpeedAirtime);
+                break;
+            case nameof(RecordedSessionContext.ShowElevationAirtime):
+                UpdateAirtimeAction(showElevationAirtimeAction, SessionContext.ShowElevationAirtime);
+                break;
+            case nameof(RecordedSessionContext.ShowStatisticsSelection):
+                UpdateStatisticsSelectionAction(showStatisticsSelectionAction, SessionContext.ShowStatisticsSelection, SessionContext.HasStatisticsSelection);
+                break;
+            case nameof(RecordedSessionContext.ShowVelocityStatisticsSelection):
+                UpdateStatisticsSelectionAction(showVelocityStatisticsSelectionAction, SessionContext.ShowVelocityStatisticsSelection, SessionContext.HasStatisticsSelection);
+                break;
+            case nameof(RecordedSessionContext.ShowImuStatisticsSelection):
+                UpdateStatisticsSelectionAction(showImuStatisticsSelectionAction, SessionContext.ShowImuStatisticsSelection, SessionContext.HasStatisticsSelection);
+                break;
+            case nameof(RecordedSessionContext.ShowPitchRollStatisticsSelection):
+                UpdateStatisticsSelectionAction(showPitchRollStatisticsSelectionAction, SessionContext.ShowPitchRollStatisticsSelection, SessionContext.HasStatisticsSelection);
+                break;
+            case nameof(RecordedSessionContext.ShowSpeedStatisticsSelection):
+                UpdateStatisticsSelectionAction(showSpeedStatisticsSelectionAction, SessionContext.ShowSpeedStatisticsSelection, SessionContext.HasStatisticsSelection);
+                break;
+            case nameof(RecordedSessionContext.ShowElevationStatisticsSelection):
+                UpdateStatisticsSelectionAction(showElevationStatisticsSelectionAction, SessionContext.ShowElevationStatisticsSelection, SessionContext.HasStatisticsSelection);
+                break;
+        }
     }
 
     private void ClearStatisticsSelectionToggles()
     {
-        ShowStatisticsSelection = false;
-        ShowVelocityStatisticsSelection = false;
-        ShowImuStatisticsSelection = false;
-        ShowPitchRollStatisticsSelection = false;
-        ShowSpeedStatisticsSelection = false;
-        ShowElevationStatisticsSelection = false;
+        SessionContext.ShowStatisticsSelection = false;
+        SessionContext.ShowVelocityStatisticsSelection = false;
+        SessionContext.ShowImuStatisticsSelection = false;
+        SessionContext.ShowPitchRollStatisticsSelection = false;
+        SessionContext.ShowSpeedStatisticsSelection = false;
+        SessionContext.ShowElevationStatisticsSelection = false;
     }
 
     private void EvaluateDirtinessFromPageChange()
@@ -1442,9 +1394,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
 
         SyncStatisticsSelectionController();
         ClearStatisticsSelectionToggles();
-        if (HasStatisticsSelection)
+        if (SessionContext.HasStatisticsSelection)
         {
-            ShowStatisticsSelection = true;
+            SessionContext.ShowStatisticsSelection = true;
         }
 
         RefreshStatisticsSelectionActionStates();
