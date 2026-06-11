@@ -1,6 +1,6 @@
 # Persistence & Serialization
 
-> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the SQLite schema, the database service, soft deletes, and conflict resolution semantics shared with [cross-device synchronization](sync.md).
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the SQLite schema, the connection context, per-aggregate repositories, soft deletes, and conflict resolution semantics shared with [cross-device synchronization](sync.md).
 
 ## Schema
 
@@ -144,13 +144,13 @@ erDiagram
     }
 ```
 
-## SQLite Persistence Services
+## SQLite Persistence Repositories
 
 `SqliteConnectionContext` (`Sufni.App/Sufni.App/Services/SqliteConnectionContext.cs`) owns the single `SQLiteAsyncConnection`, the extension table catalog, and the initialization gate. It constructs the database at `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db` and starts `DatabaseMigrationRunner`, which enables WAL mode, creates core tables, applies compatibility migrations/backfills, runs extension migrations, performs startup cleanup, repairs duplicate track ranges, and runs extension orphan repair.
 
 Bike rows include presentation-owned damping speed cutoffs for front/rear compression and rebound. These values default to 200 mm/s, are synchronized and exported with the bike, and are backfilled on startup for legacy schemas. They are not session preferences and do not affect telemetry processing fingerprints.
 
-Persistence consumers inject narrow repository interfaces instead of a facade. `ISynchronizableRepository<T>` owns generic soft-delete CRUD for `Synchronizable` entities; `ISessionRepository`, `IRecordedSessionSourceRepository`, `ITrackRepository`, `ISessionCacheStore`, and `IPairedDeviceRepository` own aggregate-specific operations; `ISyncDataStore` / `SynchronizationMergeEngine` owns sync timestamps, delta projection, remote apply, and merge conflict resolution.
+Persistence consumers inject narrow repository interfaces instead of a single database facade. `ISynchronizableRepository<T>` owns generic soft-delete CRUD for `Synchronizable` entities; `ISessionRepository`, `IRecordedSessionSourceRepository`, `ITrackRepository`, `ISessionCacheStore`, and `IPairedDeviceRepository` own aggregate-specific operations; `ISyncDataStore` / `SynchronizationMergeEngine` owns sync timestamps, delta projection, remote apply, and merge conflict resolution. `DatabaseMigrationRunner` is the only schema initializer/migrator, and repositories assume `SqliteConnectionContext` has run initialization before handing out the shared connection.
 
 `ISynchronizableRepository<T>` operations on any `Synchronizable` subclass:
 
