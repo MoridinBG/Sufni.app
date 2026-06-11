@@ -11,48 +11,34 @@ public class TelemetryFileInspectionMappingTests
     [Fact]
     public void MassStorageTelemetryFile_ValidV4WithUnknownChunk_SetsHasUnknownWithoutMalformed()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.SST");
+        using var tempDirectory = new TempDirectory("sufni-inspection-test");
+        var path = Path.Combine(tempDirectory.Path, "sample.SST");
+        File.WriteAllBytes(path, TestSstFiles.CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000));
 
-        try
-        {
-            File.WriteAllBytes(path, TestSstFiles.CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000));
+        var file = new MassStorageTelemetryFile(new FileInfo(path));
 
-            var file = new MassStorageTelemetryFile(new FileInfo(path));
-
-            Assert.Equal((byte)4, file.Version);
-            Assert.True(file.HasUnknown);
-            Assert.Null(file.MalformedMessage);
-            Assert.True(file.CanImport);
-            Assert.False(file.ShouldBeImported);
-            Assert.Equal("00:00:05", file.Duration);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
+        Assert.Equal((byte)4, file.Version);
+        Assert.True(file.HasUnknown);
+        Assert.Null(file.MalformedMessage);
+        Assert.True(file.CanImport);
+        Assert.False(file.ShouldBeImported);
+        Assert.Equal("00:00:05", file.Duration);
     }
 
     [Fact]
     public void MassStorageTelemetryFile_MalformedV4_IsNotImportable()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.SST");
+        using var tempDirectory = new TempDirectory("sufni-inspection-test");
+        var path = Path.Combine(tempDirectory.Path, "broken.SST");
+        File.WriteAllBytes(path, TestSstFiles.CreateMalformedV4WithInvalidTelemetryLength());
 
-        try
-        {
-            File.WriteAllBytes(path, TestSstFiles.CreateMalformedV4WithInvalidTelemetryLength());
+        var file = new MassStorageTelemetryFile(new FileInfo(path));
 
-            var file = new MassStorageTelemetryFile(new FileInfo(path));
-
-            Assert.Equal((byte)4, file.Version);
-            Assert.False(file.HasUnknown);
-            Assert.False(file.CanImport);
-            Assert.False(file.ShouldBeImported);
-            Assert.False(string.IsNullOrWhiteSpace(file.MalformedMessage));
-        }
-        finally
-        {
-            File.Delete(path);
-        }
+        Assert.Equal((byte)4, file.Version);
+        Assert.False(file.HasUnknown);
+        Assert.False(file.CanImport);
+        Assert.False(file.ShouldBeImported);
+        Assert.False(string.IsNullOrWhiteSpace(file.MalformedMessage));
     }
 
     [Fact]
@@ -91,23 +77,16 @@ public class TelemetryFileInspectionMappingTests
     [Fact]
     public void MassStorageTelemetryFile_TrimmedV4_IsImportableWithMalformedMessage()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.SST");
+        using var tempDirectory = new TempDirectory("sufni-inspection-test");
+        var path = Path.Combine(tempDirectory.Path, "trimmed.SST");
+        File.WriteAllBytes(path, TestSstFiles.CreateV4WithTelemetryChunkExtendingPastEnd(telemetrySampleCount: 5000));
 
-        try
-        {
-            File.WriteAllBytes(path, TestSstFiles.CreateV4WithTelemetryChunkExtendingPastEnd(telemetrySampleCount: 5000));
+        var file = new MassStorageTelemetryFile(new FileInfo(path));
 
-            var file = new MassStorageTelemetryFile(new FileInfo(path));
-
-            Assert.True(file.CanImport);
-            Assert.False(file.ShouldBeImported);
-            Assert.False(string.IsNullOrWhiteSpace(file.MalformedMessage));
-            Assert.Equal("00:00:05", file.Duration);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
+        Assert.True(file.CanImport);
+        Assert.False(file.ShouldBeImported);
+        Assert.False(string.IsNullOrWhiteSpace(file.MalformedMessage));
+        Assert.Equal("00:00:05", file.Duration);
     }
 
     [Fact]

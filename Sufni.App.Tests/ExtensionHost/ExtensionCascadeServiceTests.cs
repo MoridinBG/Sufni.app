@@ -11,9 +11,8 @@ public class ExtensionCascadeServiceTests
     [Fact]
     public async Task ApplyForDeletedCoreEntityAsync_SoftDeletesRowsAndRefreshesParticipants()
     {
-        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-cascade-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDirectory);
-        var databasePath = Path.Combine(tempDirectory, "soft-cascade.db");
+        using var tempDirectory = new TempDirectory("sufni-cascade-test");
+        var databasePath = Path.Combine(tempDirectory.Path, "soft-cascade.db");
         var sessionId = Guid.NewGuid();
         var migrator = CreateMigrator([typeof(SoftCascadeRow)]);
         var provider = CreateProvider(new ExtensionCascadeRule(
@@ -24,39 +23,28 @@ public class ExtensionCascadeServiceTests
             ExtensionCascadeAction.SoftDelete));
         var refresh = new RecordingRefreshParticipant();
 
-        try
+        var context = CreateConnectionContext(databasePath, [migrator]);
+        var connection = await context.GetInitializedConnectionAsync();
+        await connection.InsertAsync(new SoftCascadeRow
         {
-            var context = CreateConnectionContext(databasePath, [migrator]);
-            var connection = await context.GetInitializedConnectionAsync();
-            await connection.InsertAsync(new SoftCascadeRow
-            {
-                Id = "soft",
-                SessionId = sessionId,
-            });
-            var service = new ExtensionCascadeService(context, [migrator], [provider], [refresh]);
+            Id = "soft",
+            SessionId = sessionId,
+        });
+        var service = new ExtensionCascadeService(context, [migrator], [provider], [refresh]);
 
-            await service.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, sessionId);
+        await service.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, sessionId);
 
-            var row = await connection.GetAsync<SoftCascadeRow>("soft");
-            Assert.NotNull(row.Deleted);
-            Assert.Equal(row.Deleted, row.Updated);
-            Assert.Equal(1, refresh.RefreshCount);
-        }
-        finally
-        {
-            if (Directory.Exists(tempDirectory))
-            {
-                Directory.Delete(tempDirectory, recursive: true);
-            }
-        }
+        var row = await connection.GetAsync<SoftCascadeRow>("soft");
+        Assert.NotNull(row.Deleted);
+        Assert.Equal(row.Deleted, row.Updated);
+        Assert.Equal(1, refresh.RefreshCount);
     }
 
     [Fact]
     public async Task ApplyForDeletedCoreEntityAsync_HardDeletesRows()
     {
-        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-cascade-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDirectory);
-        var databasePath = Path.Combine(tempDirectory, "hard-cascade.db");
+        using var tempDirectory = new TempDirectory("sufni-cascade-test");
+        var databasePath = Path.Combine(tempDirectory.Path, "hard-cascade.db");
         var trackId = Guid.NewGuid();
         var migrator = CreateMigrator([typeof(HardCascadeRow)]);
         var provider = CreateProvider(new ExtensionCascadeRule(
@@ -66,36 +54,25 @@ public class ExtensionCascadeServiceTests
             "track_id",
             ExtensionCascadeAction.HardDelete));
 
-        try
+        var context = CreateConnectionContext(databasePath, [migrator]);
+        var connection = await context.GetInitializedConnectionAsync();
+        await connection.InsertAsync(new HardCascadeRow
         {
-            var context = CreateConnectionContext(databasePath, [migrator]);
-            var connection = await context.GetInitializedConnectionAsync();
-            await connection.InsertAsync(new HardCascadeRow
-            {
-                Id = "hard",
-                TrackId = trackId,
-            });
-            var service = new ExtensionCascadeService(context, [migrator], [provider], []);
+            Id = "hard",
+            TrackId = trackId,
+        });
+        var service = new ExtensionCascadeService(context, [migrator], [provider], []);
 
-            await service.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, trackId);
+        await service.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, trackId);
 
-            Assert.Empty(await connection.Table<HardCascadeRow>().ToListAsync());
-        }
-        finally
-        {
-            if (Directory.Exists(tempDirectory))
-            {
-                Directory.Delete(tempDirectory, recursive: true);
-            }
-        }
+        Assert.Empty(await connection.Table<HardCascadeRow>().ToListAsync());
     }
 
     [Fact]
     public async Task Initialization_RepairsExtensionOrphansAfterStartupCleanupWithoutRefreshingParticipants()
     {
-        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-cascade-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDirectory);
-        var databasePath = Path.Combine(tempDirectory, "orphan-repair.db");
+        using var tempDirectory = new TempDirectory("sufni-cascade-test");
+        var databasePath = Path.Combine(tempDirectory.Path, "orphan-repair.db");
         var missingSessionId = Guid.NewGuid();
         var refreshProviderWasResolved = false;
         var migrator = CreateMigrator(
@@ -118,39 +95,28 @@ public class ExtensionCascadeServiceTests
             "session_id",
             ExtensionCascadeAction.SoftDelete));
 
-        try
-        {
-            var context = CreateConnectionContext(
-                databasePath,
-                [migrator],
-                [provider],
-                () =>
-                {
-                    refreshProviderWasResolved = true;
-                    return [new RecordingRefreshParticipant()];
-                });
-            var connection = await context.GetInitializedConnectionAsync();
-
-            var row = Assert.Single(await connection.Table<SoftCascadeRow>().ToListAsync());
-            Assert.NotNull(row.Deleted);
-            Assert.Equal(row.Deleted, row.Updated);
-            Assert.False(refreshProviderWasResolved);
-        }
-        finally
-        {
-            if (Directory.Exists(tempDirectory))
+        var context = CreateConnectionContext(
+            databasePath,
+            [migrator],
+            [provider],
+            () =>
             {
-                Directory.Delete(tempDirectory, recursive: true);
-            }
-        }
+                refreshProviderWasResolved = true;
+                return [new RecordingRefreshParticipant()];
+            });
+        var connection = await context.GetInitializedConnectionAsync();
+
+        var row = Assert.Single(await connection.Table<SoftCascadeRow>().ToListAsync());
+        Assert.NotNull(row.Deleted);
+        Assert.Equal(row.Deleted, row.Updated);
+        Assert.False(refreshProviderWasResolved);
     }
 
     [Fact]
     public async Task ApplyForDeletedCoreEntityAsync_RejectsRulesForUndeclaredTables()
     {
-        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-cascade-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDirectory);
-        var databasePath = Path.Combine(tempDirectory, "invalid-cascade.db");
+        using var tempDirectory = new TempDirectory("sufni-cascade-test");
+        var databasePath = Path.Combine(tempDirectory.Path, "invalid-cascade.db");
         var migrator = CreateMigrator([typeof(SoftCascadeRow)]);
         var provider = CreateProvider(new ExtensionCascadeRule(
             "test",
@@ -159,31 +125,20 @@ public class ExtensionCascadeServiceTests
             "session_id",
             ExtensionCascadeAction.SoftDelete));
 
-        try
-        {
-            var context = CreateConnectionContext(databasePath, [migrator]);
-            _ = await context.GetInitializedConnectionAsync();
+        var context = CreateConnectionContext(databasePath, [migrator]);
+        _ = await context.GetInitializedConnectionAsync();
 
-            var exception = Assert.Throws<InvalidOperationException>(() =>
-                new ExtensionCascadeService(context, [migrator], [provider], []));
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            new ExtensionCascadeService(context, [migrator], [provider], []));
 
-            Assert.Contains("not_owned", exception.Message);
-        }
-        finally
-        {
-            if (Directory.Exists(tempDirectory))
-            {
-                Directory.Delete(tempDirectory, recursive: true);
-            }
-        }
+        Assert.Contains("not_owned", exception.Message);
     }
 
     [Fact]
     public async Task Constructor_RejectsRulesForTablesOwnedByAnotherExtension()
     {
-        var tempDirectory = Path.Combine(Path.GetTempPath(), $"sufni-cascade-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDirectory);
-        var databasePath = Path.Combine(tempDirectory, "wrong-owner-cascade.db");
+        using var tempDirectory = new TempDirectory("sufni-cascade-test");
+        var databasePath = Path.Combine(tempDirectory.Path, "wrong-owner-cascade.db");
         var migrator = new TestExtensionMigrator(
             "owner",
             targetVersion: 0,
@@ -196,24 +151,14 @@ public class ExtensionCascadeServiceTests
             "session_id",
             ExtensionCascadeAction.SoftDelete));
 
-        try
-        {
-            var context = CreateConnectionContext(databasePath, [migrator]);
-            _ = await context.GetInitializedConnectionAsync();
+        var context = CreateConnectionContext(databasePath, [migrator]);
+        _ = await context.GetInitializedConnectionAsync();
 
-            var exception = Assert.Throws<InvalidOperationException>(() =>
-                new ExtensionCascadeService(context, [migrator], [provider], []));
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            new ExtensionCascadeService(context, [migrator], [provider], []));
 
-            Assert.Contains("other", exception.Message);
-            Assert.Contains("owner", exception.Message);
-        }
-        finally
-        {
-            if (Directory.Exists(tempDirectory))
-            {
-                Directory.Delete(tempDirectory, recursive: true);
-            }
-        }
+        Assert.Contains("other", exception.Message);
+        Assert.Contains("owner", exception.Message);
     }
 
     private static TestExtensionMigrator CreateMigrator(
