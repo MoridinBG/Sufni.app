@@ -185,3 +185,5 @@ plot layer converts those descriptors to ScottPlot primitives at render time.
 ## Neutrality Rules
 
 Public code may name the host, app toolbar actions, slots, descriptors, migrations, cascades, sync envelopes, and operation leases. Public code must not name extension-specific entities, database columns, payload fields, platform services, view models, views, assets, or workflows.
+
+`PublicNeutralityTests` (`Sufni.App.Tests/ExtensionHost/`) enforces this: it scans the repository's source, markup, project, and documentation files for known private capability vocabulary. The deny list in that file is the single allowed location for those tokens and must be refreshed when private modules add new vocabulary.
