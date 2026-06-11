@@ -75,7 +75,7 @@ public class RecordedSessionGraphDesktopViewTests
         {
             Id = "ExtensionVelocityAction",
             Kind = TelemetryPlotRowActionKind.Execute,
-            IconGeometry = Geometry.Parse("M0 0L12 0L12 12L0 12Z"),
+            IconPathData = "M0 0L12 0L12 12L0 12Z",
             ToolTip = "Extension action",
         };
         var contextAction = new TelemetryPlotContextMenuAction(

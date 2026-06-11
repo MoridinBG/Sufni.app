@@ -219,7 +219,7 @@ internal sealed class TelemetryPlotRowActionsPresenter : UserControl
         {
             Width = ButtonIconSize,
             Height = ButtonIconSize,
-            Data = action.IconGeometry,
+            Data = action.IconPathData is { } pathData ? Geometry.Parse(pathData) : null,
         };
     }
 

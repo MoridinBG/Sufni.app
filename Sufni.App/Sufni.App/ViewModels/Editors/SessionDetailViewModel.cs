@@ -1222,8 +1222,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         {
             Id = id,
             Kind = TelemetryPlotRowActionKind.Toggle,
-            IconGeometry = Geometry.Parse(
-                "M12 4C7 4 3 7 1 12C3 17 7 20 12 20C17 20 21 17 23 12C21 7 17 4 12 4ZM12 16C9.8 16 8 14.2 8 12C8 9.8 9.8 8 12 8C14.2 8 16 9.8 16 12C16 14.2 14.2 16 12 16Z"),
+            IconPathData =
+                "M12 4C7 4 3 7 1 12C3 17 7 20 12 20C17 20 21 17 23 12C21 7 17 4 12 4ZM12 16C9.8 16 8 14.2 8 12C8 9.8 9.8 8 12 8C14.2 8 16 9.8 16 12C16 14.2 14.2 16 12 16Z",
             ToolTip = isChecked ? "Hide airtime" : "Show airtime",
             Command = new RelayCommand(toggle),
             IsChecked = isChecked,
@@ -1237,7 +1237,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         {
             Id = id,
             Kind = TelemetryPlotRowActionKind.Toggle,
-            IconGeometry = Geometry.Parse("M4 6H20V8H4V6ZM4 11H17V13H4V11ZM4 16H13V18H4V16Z"),
+            IconPathData = "M4 6H20V8H4V6ZM4 11H17V13H4V11ZM4 16H13V18H4V16Z",
             Command = new RelayCommand(toggle),
             Tone = TelemetryPlotRowActionTone.Default,
         };

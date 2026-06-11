@@ -1,5 +1,4 @@
 using System.Windows.Input;
-using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Sufni.App.ExtensionHost.Views.Controls;
@@ -21,7 +20,7 @@ public sealed partial class TelemetryPlotRowAction : ObservableObject
 {
     [ObservableProperty] private string id = string.Empty;
     [ObservableProperty] private TelemetryPlotRowActionKind kind;
-    [ObservableProperty] private Geometry? iconGeometry;
+    [ObservableProperty] private string? iconPathData;
     [ObservableProperty] private object? toolTip;
     [ObservableProperty] private ICommand? command;
     [ObservableProperty] private bool isVisible = true;
