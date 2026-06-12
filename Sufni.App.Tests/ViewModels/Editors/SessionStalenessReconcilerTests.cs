@@ -136,43 +136,48 @@ public class SessionStalenessReconcilerTests
         public ISessionCoordinator SessionCoordinator { get; } = Substitute.For<ISessionCoordinator>();
         public ISessionStore SessionStore { get; } = Substitute.For<ISessionStore>();
         public IDialogService DialogService { get; } = Substitute.For<IDialogService>();
-        public List<SessionSnapshot> AppliedSnapshots { get; } = [];
-        public List<string> Errors { get; } = [];
-        public int LoadRequestCount { get; private set; }
-        public int HostUpdateCount { get; private set; }
-        public long BaselineUpdated { get; set; }
-        public bool IsDirty { get; set; }
-        public bool IsViewLoaded { get; set; } = true;
-        public bool ShouldDeferDomainHandling { get; set; }
+        public TestSessionOperationGateway Gateway { get; } = new();
+        public List<SessionSnapshot> AppliedSnapshots => Gateway.AppliedSnapshots;
+        public List<string> Errors => Gateway.Errors;
+        public int LoadRequestCount => Gateway.LoadRequestCount;
+        public int HostUpdateCount => Gateway.HostUpdateCount;
+
+        public long BaselineUpdated
+        {
+            get => Gateway.BaselineUpdated;
+            set => Gateway.BaselineUpdated = value;
+        }
+
+        public bool IsDirty
+        {
+            get => Gateway.IsDirty;
+            set => Gateway.IsDirty = value;
+        }
+
+        public bool IsViewLoaded
+        {
+            get => Gateway.IsViewLoaded;
+            set => Gateway.IsViewLoaded = value;
+        }
+
+        public bool ShouldDeferDomainHandling
+        {
+            get => Gateway.DeferDomainHandling;
+            set => Gateway.DeferDomainHandling = value;
+        }
+
         public SessionStalenessReconciler Reconciler { get; }
 
         public ReconcilerHarness(Guid? sessionId = null, long baselineUpdated = 1)
         {
-            var id = sessionId ?? Guid.NewGuid();
-            BaselineUpdated = baselineUpdated;
+            Gateway.SessionId = sessionId ?? Guid.NewGuid();
+            Gateway.BaselineUpdated = baselineUpdated;
 
             Reconciler = new SessionStalenessReconciler(
                 SessionCoordinator,
                 SessionStore,
                 DialogService,
-                () => id,
-                () => BaselineUpdated,
-                value => BaselineUpdated = value,
-                () => IsDirty,
-                () => IsViewLoaded,
-                () => ShouldDeferDomainHandling,
-                snapshot =>
-                {
-                    AppliedSnapshots.Add(snapshot);
-                    return Task.CompletedTask;
-                },
-                () =>
-                {
-                    LoadRequestCount++;
-                    return Task.CompletedTask;
-                },
-                () => HostUpdateCount++,
-                Errors.Add);
+                Gateway);
         }
     }
 }

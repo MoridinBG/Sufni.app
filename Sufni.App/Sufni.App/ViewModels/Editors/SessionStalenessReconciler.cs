@@ -13,16 +13,7 @@ internal sealed class SessionStalenessReconciler
     private readonly ISessionCoordinator sessionCoordinator;
     private readonly ISessionStore sessionStore;
     private readonly IDialogService dialogService;
-    private readonly Func<Guid> getSessionId;
-    private readonly Func<long> getBaselineUpdated;
-    private readonly Action<long> setBaselineUpdated;
-    private readonly Func<bool> isDirty;
-    private readonly Func<bool> isViewLoaded;
-    private readonly Func<bool> shouldDeferDomainHandling;
-    private readonly Func<SessionSnapshot, Task> applyPersistedSnapshotAsync;
-    private readonly Func<Task> requestLoadAsync;
-    private readonly Action updateHostState;
-    private readonly Action<string> reportError;
+    private readonly ISessionOperationGateway gateway;
     private bool observedInitialDomain;
     private bool recomputePromptRunning;
     private string? promptedRecomputeSignature;
@@ -33,30 +24,12 @@ internal sealed class SessionStalenessReconciler
         ISessionCoordinator sessionCoordinator,
         ISessionStore sessionStore,
         IDialogService dialogService,
-        Func<Guid> getSessionId,
-        Func<long> getBaselineUpdated,
-        Action<long> setBaselineUpdated,
-        Func<bool> isDirty,
-        Func<bool> isViewLoaded,
-        Func<bool> shouldDeferDomainHandling,
-        Func<SessionSnapshot, Task> applyPersistedSnapshotAsync,
-        Func<Task> requestLoadAsync,
-        Action updateHostState,
-        Action<string> reportError)
+        ISessionOperationGateway gateway)
     {
         this.sessionCoordinator = sessionCoordinator;
         this.sessionStore = sessionStore;
         this.dialogService = dialogService;
-        this.getSessionId = getSessionId;
-        this.getBaselineUpdated = getBaselineUpdated;
-        this.setBaselineUpdated = setBaselineUpdated;
-        this.isDirty = isDirty;
-        this.isViewLoaded = isViewLoaded;
-        this.shouldDeferDomainHandling = shouldDeferDomainHandling;
-        this.applyPersistedSnapshotAsync = applyPersistedSnapshotAsync;
-        this.requestLoadAsync = requestLoadAsync;
-        this.updateHostState = updateHostState;
-        this.reportError = reportError;
+        this.gateway = gateway;
     }
 
     public async Task HandleDomainChangedAsync(RecordedSessionDomainSnapshot domain)
@@ -69,20 +42,20 @@ internal sealed class SessionStalenessReconciler
         }
         catch (Exception exception)
         {
-            reportError($"Failed to handle a session change: {exception.Message}");
+            gateway.AddError($"Failed to handle a session change: {exception.Message}");
         }
     }
 
     private async Task HandleDomainChangedCoreAsync(RecordedSessionDomainSnapshot domain)
     {
-        if (!isViewLoaded())
+        if (!gateway.IsViewLoaded)
         {
             return;
         }
 
-        updateHostState();
+        gateway.UpdateExtensionHostState();
 
-        if (shouldDeferDomainHandling())
+        if (gateway.ShouldDeferDomainHandling())
         {
             deferredDomainWhileInactive = domain;
             return;
@@ -110,7 +83,7 @@ internal sealed class SessionStalenessReconciler
             return;
         }
 
-        if (domain.Session.Updated > getBaselineUpdated() && !domain.Staleness.IsStale)
+        if (domain.Session.Updated > gateway.BaselineUpdated && !domain.Staleness.IsStale)
         {
             await ReloadFreshExternalUpdateAsync(domain);
             return;
@@ -120,13 +93,13 @@ internal sealed class SessionStalenessReconciler
             domain.Session.HasProcessedData &&
             !domain.Staleness.IsStale)
         {
-            _ = requestLoadAsync();
+            _ = gateway.RequestLoadAsync();
         }
     }
 
     public Task HandleDeferredDomainAsync()
     {
-        if (!isViewLoaded() || deferredDomainWhileInactive is not { } domain)
+        if (!gateway.IsViewLoaded || deferredDomainWhileInactive is not { } domain)
         {
             return Task.CompletedTask;
         }
@@ -147,13 +120,13 @@ internal sealed class SessionStalenessReconciler
         switch (result)
         {
             case SessionRecomputeResult.Recomputed recomputed:
-                setBaselineUpdated(recomputed.NewBaselineUpdated);
-                if (sessionStore.Get(getSessionId()) is { } current)
+                gateway.BaselineUpdated = recomputed.NewBaselineUpdated;
+                if (sessionStore.Get(gateway.SessionId) is { } current)
                 {
-                    await applyPersistedSnapshotAsync(current);
+                    await gateway.ApplyPersistedSnapshotAsync(current);
                 }
 
-                await requestLoadAsync();
+                await gateway.RequestLoadAsync();
                 break;
 
             case SessionRecomputeResult.Conflict conflict:
@@ -162,8 +135,8 @@ internal sealed class SessionStalenessReconciler
                     "This session has been updated from another source. Discard your changes and reload?");
                 if (reload)
                 {
-                    await applyPersistedSnapshotAsync(conflict.CurrentSnapshot);
-                    await requestLoadAsync();
+                    await gateway.ApplyPersistedSnapshotAsync(conflict.CurrentSnapshot);
+                    await gateway.RequestLoadAsync();
                 }
                 break;
 
@@ -172,7 +145,7 @@ internal sealed class SessionStalenessReconciler
                 break;
 
             case SessionRecomputeResult.Failed failed:
-                reportError($"Session could not be recomputed: {failed.ErrorMessage}");
+                gateway.AddError($"Session could not be recomputed: {failed.ErrorMessage}");
                 break;
         }
     }
@@ -201,7 +174,7 @@ internal sealed class SessionStalenessReconciler
 
     private async Task ReloadFreshExternalUpdateAsync(RecordedSessionDomainSnapshot domain)
     {
-        if (isDirty())
+        if (gateway.IsDirty)
         {
             var reload = await dialogService.ShowConfirmationAsync(
                 "Session changed elsewhere",
@@ -212,8 +185,8 @@ internal sealed class SessionStalenessReconciler
             }
         }
 
-        await applyPersistedSnapshotAsync(domain.Session);
-        await requestLoadAsync();
+        await gateway.ApplyPersistedSnapshotAsync(domain.Session);
+        await gateway.RequestLoadAsync();
     }
 
     private void ReportNotRecomputableStale()
@@ -224,7 +197,7 @@ internal sealed class SessionStalenessReconciler
         }
 
         reportedNotRecomputableStale = true;
-        reportError("Session is stale and cannot be recomputed until the source recording is restored.");
+        gateway.AddError("Session is stale and cannot be recomputed until the source recording is restored.");
     }
 
     private async Task PromptForRecomputeAsync(RecordedSessionDomainSnapshot domain)
@@ -246,16 +219,16 @@ internal sealed class SessionStalenessReconciler
         {
             var confirmed = await dialogService.ShowConfirmationAsync(
                 RecomputePromptTitle(domain),
-                RecomputePromptMessage(isDirty()));
-            if (!confirmed || !isViewLoaded())
+                RecomputePromptMessage(gateway.IsDirty));
+            if (!confirmed || !gateway.IsViewLoaded)
             {
                 return;
             }
 
-            await applyPersistedSnapshotAsync(domain.Session);
+            await gateway.ApplyPersistedSnapshotAsync(domain.Session);
             var result = await sessionCoordinator.RecomputeAsync(
-                getSessionId(),
-                getBaselineUpdated(),
+                gateway.SessionId,
+                gateway.BaselineUpdated,
                 CancellationToken.None);
             await ApplyRecomputeResultAsync(result);
         }

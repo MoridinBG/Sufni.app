@@ -18,23 +18,14 @@ namespace Sufni.App.ViewModels.Editors;
 internal sealed class RecordedSessionGraphWorkspaceViewModel : ObservableObject, IRecordedSessionGraphWorkspace
 {
     private readonly RecordedSessionContext context;
-    private readonly Action<SessionGraphPreferences> setGraphPreferences;
-    private readonly Action<double, double> setAnalysisRange;
-    private readonly Action clearAnalysisRange;
-    private readonly Action<double> setAnalysisRangeBoundary;
+    private readonly ISessionOperationGateway gateway;
 
     public RecordedSessionGraphWorkspaceViewModel(
         RecordedSessionContext context,
-        Action<SessionGraphPreferences> setGraphPreferences,
-        Action<double, double> setAnalysisRange,
-        Action clearAnalysisRange,
-        Action<double> setAnalysisRangeBoundary)
+        ISessionOperationGateway gateway)
     {
         this.context = context;
-        this.setGraphPreferences = setGraphPreferences;
-        this.setAnalysisRange = setAnalysisRange;
-        this.clearAnalysisRange = clearAnalysisRange;
-        this.setAnalysisRangeBoundary = setAnalysisRangeBoundary;
+        this.gateway = gateway;
         context.PropertyChanged += OnContextPropertyChanged;
     }
 
@@ -63,7 +54,7 @@ internal sealed class RecordedSessionGraphWorkspaceViewModel : ObservableObject,
     public SessionGraphPreferences GraphPreferences
     {
         get => context.GraphPreferences;
-        set => setGraphPreferences(value);
+        set => gateway.SetGraphPreferences(value);
     }
 
     public TelemetrySourceVisibilityStore SourceVisibility => context.SourceVisibility;
@@ -118,17 +109,17 @@ internal sealed class RecordedSessionGraphWorkspaceViewModel : ObservableObject,
 
     public void SetAnalysisRange(double startSeconds, double endSeconds)
     {
-        setAnalysisRange(startSeconds, endSeconds);
+        gateway.SetAnalysisRange(startSeconds, endSeconds);
     }
 
     public void ClearAnalysisRange()
     {
-        clearAnalysisRange();
+        gateway.ClearAnalysisRange();
     }
 
     public void SetAnalysisRangeBoundary(double boundarySeconds)
     {
-        setAnalysisRangeBoundary(boundarySeconds);
+        gateway.SetAnalysisRangeBoundary(boundarySeconds);
     }
 
     internal static readonly HashSet<string> ForwardedProperties =

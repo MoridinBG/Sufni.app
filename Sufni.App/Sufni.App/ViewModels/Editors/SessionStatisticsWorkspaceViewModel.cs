@@ -22,37 +22,16 @@ namespace Sufni.App.ViewModels.Editors;
 internal sealed class SessionStatisticsWorkspaceViewModel : ObservableObject, ISessionStatisticsWorkspace
 {
     private readonly RecordedSessionContext context;
-    private readonly Action<TravelHistogramMode> setTravelHistogramMode;
-    private readonly Action<BalanceDisplacementMode> setBalanceDisplacementMode;
-    private readonly Action<BalanceSpeedMode> setBalanceSpeedMode;
-    private readonly Action<VelocityAverageMode> setVelocityAverageMode;
-    private readonly Action<SessionAnalysisTargetProfile> setSessionAnalysisTargetProfile;
-    private readonly Action<SuspensionType, DampingSpeedCircuit, double> previewDampingSpeedCutoff;
-    private readonly Action cancelDampingSpeedCutoffPreview;
-    private readonly Func<SuspensionType, DampingSpeedCircuit, double, Task> commitDampingSpeedCutoffAsync;
+    private readonly ISessionOperationGateway gateway;
 
     public SessionStatisticsWorkspaceViewModel(
         RecordedSessionContext context,
-        Action<TravelHistogramMode> setTravelHistogramMode,
-        Action<BalanceDisplacementMode> setBalanceDisplacementMode,
-        Action<BalanceSpeedMode> setBalanceSpeedMode,
-        Action<VelocityAverageMode> setVelocityAverageMode,
-        Action<SessionAnalysisTargetProfile> setSessionAnalysisTargetProfile,
-        IRelayCommand<TelemetryRangeSelection?> selectTelemetryRangeSelectionCommand,
-        Action<SuspensionType, DampingSpeedCircuit, double> previewDampingSpeedCutoff,
-        Action cancelDampingSpeedCutoffPreview,
-        Func<SuspensionType, DampingSpeedCircuit, double, Task> commitDampingSpeedCutoffAsync)
+        ISessionOperationGateway gateway,
+        IRelayCommand<TelemetryRangeSelection?> selectTelemetryRangeSelectionCommand)
     {
         this.context = context;
-        this.setTravelHistogramMode = setTravelHistogramMode;
-        this.setBalanceDisplacementMode = setBalanceDisplacementMode;
-        this.setBalanceSpeedMode = setBalanceSpeedMode;
-        this.setVelocityAverageMode = setVelocityAverageMode;
-        this.setSessionAnalysisTargetProfile = setSessionAnalysisTargetProfile;
+        this.gateway = gateway;
         SelectTelemetryRangeSelectionCommand = selectTelemetryRangeSelectionCommand;
-        this.previewDampingSpeedCutoff = previewDampingSpeedCutoff;
-        this.cancelDampingSpeedCutoffPreview = cancelDampingSpeedCutoffPreview;
-        this.commitDampingSpeedCutoffAsync = commitDampingSpeedCutoffAsync;
         context.PropertyChanged += OnContextPropertyChanged;
     }
 
@@ -63,31 +42,31 @@ internal sealed class SessionStatisticsWorkspaceViewModel : ObservableObject, IS
     public TravelHistogramMode SelectedTravelHistogramMode
     {
         get => context.SelectedTravelHistogramMode;
-        set => setTravelHistogramMode(value);
+        set => context.SelectedTravelHistogramMode = value;
     }
 
     public BalanceDisplacementMode SelectedBalanceDisplacementMode
     {
         get => context.SelectedBalanceDisplacementMode;
-        set => setBalanceDisplacementMode(value);
+        set => context.SelectedBalanceDisplacementMode = value;
     }
 
     public BalanceSpeedMode SelectedBalanceSpeedMode
     {
         get => context.SelectedBalanceSpeedMode;
-        set => setBalanceSpeedMode(value);
+        set => context.SelectedBalanceSpeedMode = value;
     }
 
     public VelocityAverageMode SelectedVelocityAverageMode
     {
         get => context.SelectedVelocityAverageMode;
-        set => setVelocityAverageMode(value);
+        set => context.SelectedVelocityAverageMode = value;
     }
 
     public SessionAnalysisTargetProfile SelectedSessionAnalysisTargetProfile
     {
         get => context.SelectedSessionAnalysisTargetProfile;
-        set => setSessionAnalysisTargetProfile(value);
+        set => context.SelectedSessionAnalysisTargetProfile = value;
     }
 
     public RecordedSessionExtensionSlots ExtensionSlots => context.ExtensionSlots;
@@ -154,12 +133,12 @@ internal sealed class SessionStatisticsWorkspaceViewModel : ObservableObject, IS
         DampingSpeedCircuit circuit,
         double cutoffMmPerSecond)
     {
-        previewDampingSpeedCutoff(side, circuit, cutoffMmPerSecond);
+        gateway.PreviewDampingSpeedCutoff(side, circuit, cutoffMmPerSecond);
     }
 
     public void CancelDampingSpeedCutoffPreview()
     {
-        cancelDampingSpeedCutoffPreview();
+        gateway.CancelDampingSpeedCutoffPreview();
     }
 
     public Task CommitDampingSpeedCutoffAsync(
@@ -167,7 +146,7 @@ internal sealed class SessionStatisticsWorkspaceViewModel : ObservableObject, IS
         DampingSpeedCircuit circuit,
         double cutoffMmPerSecond)
     {
-        return commitDampingSpeedCutoffAsync(side, circuit, cutoffMmPerSecond);
+        return gateway.CommitDampingSpeedCutoffAsync(side, circuit, cutoffMmPerSecond);
     }
 
     internal static readonly HashSet<string> ForwardedProperties =

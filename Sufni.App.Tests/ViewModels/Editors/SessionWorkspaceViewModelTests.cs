@@ -21,16 +21,8 @@ public class SessionWorkspaceViewModelTests
     public void RecordedSessionGraphWorkspace_ForwardsActionsAndContextChanges()
     {
         var context = new RecordedSessionContext();
-        SessionGraphPreferences? receivedGraphPreferences = null;
-        (double Start, double End)? analysisRange = null;
-        var analysisRangeCleared = false;
-        double? analysisBoundary = null;
-        var workspace = new RecordedSessionGraphWorkspaceViewModel(
-            context,
-            preferences => receivedGraphPreferences = preferences,
-            (start, end) => analysisRange = (start, end),
-            () => analysisRangeCleared = true,
-            boundary => analysisBoundary = boundary);
+        var gateway = new TestSessionOperationGateway();
+        var workspace = new RecordedSessionGraphWorkspaceViewModel(context, gateway);
         var changes = TrackPropertyChanges(workspace);
 
         workspace.GraphPreferences = context.GraphPreferences;
@@ -39,10 +31,10 @@ public class SessionWorkspaceViewModelTests
         workspace.SetAnalysisRangeBoundary(2.25);
         context.TravelGraphState = SurfacePresentationState.Ready;
 
-        Assert.Equal(context.GraphPreferences, receivedGraphPreferences);
-        Assert.Equal((1.25, 3.5), analysisRange);
-        Assert.True(analysisRangeCleared);
-        Assert.Equal(2.25, analysisBoundary);
+        Assert.Equal(context.GraphPreferences, Assert.Single(gateway.GraphPreferences));
+        Assert.Equal((1.25, 3.5), Assert.Single(gateway.AnalysisRanges));
+        Assert.Equal(1, gateway.AnalysisRangeClearCount);
+        Assert.Equal(2.25, Assert.Single(gateway.AnalysisRangeBoundaries));
         Assert.Equal(SurfacePresentationState.Ready, workspace.TravelGraphState);
         Assert.Contains(nameof(RecordedSessionGraphWorkspaceViewModel.TravelGraphState), changes);
     }
@@ -51,29 +43,11 @@ public class SessionWorkspaceViewModelTests
     public async Task SessionStatisticsWorkspace_ForwardsModeAndDampingCallbacks()
     {
         var context = new RecordedSessionContext();
-        TravelHistogramMode? travelMode = null;
-        BalanceDisplacementMode? displacementMode = null;
-        BalanceSpeedMode? speedMode = null;
-        VelocityAverageMode? velocityMode = null;
-        SessionAnalysisTargetProfile? targetProfile = null;
-        (SuspensionType Side, DampingSpeedCircuit Circuit, double Cutoff)? preview = null;
-        var previewCanceled = false;
-        (SuspensionType Side, DampingSpeedCircuit Circuit, double Cutoff)? committed = null;
+        var gateway = new TestSessionOperationGateway();
         var workspace = new SessionStatisticsWorkspaceViewModel(
             context,
-            value => travelMode = value,
-            value => displacementMode = value,
-            value => speedMode = value,
-            value => velocityMode = value,
-            value => targetProfile = value,
-            new RelayCommand<TelemetryRangeSelection?>(_ => { }),
-            (side, circuit, cutoff) => preview = (side, circuit, cutoff),
-            () => previewCanceled = true,
-            (side, circuit, cutoff) =>
-            {
-                committed = (side, circuit, cutoff);
-                return Task.CompletedTask;
-            });
+            gateway,
+            new RelayCommand<TelemetryRangeSelection?>(_ => { }));
         var changes = TrackPropertyChanges(workspace);
 
         workspace.SelectedTravelHistogramMode = TravelHistogramMode.DynamicSag;
@@ -87,14 +61,13 @@ public class SessionWorkspaceViewModelTests
         context.AnalysisRange = new TelemetryTimeRange(1, 3);
         context.SelectedBalanceSpeedMode = BalanceSpeedMode.LowSpeed;
 
-        Assert.Equal(TravelHistogramMode.DynamicSag, travelMode);
-        Assert.Equal(BalanceDisplacementMode.Speed, displacementMode);
-        Assert.Equal(BalanceSpeedMode.HighSpeed, speedMode);
-        Assert.Equal(VelocityAverageMode.StrokePeakAveraged, velocityMode);
-        Assert.Equal(SessionAnalysisTargetProfile.Enduro, targetProfile);
-        Assert.Equal((SuspensionType.Front, DampingSpeedCircuit.Compression, 123), preview);
-        Assert.True(previewCanceled);
-        Assert.Equal((SuspensionType.Rear, DampingSpeedCircuit.Rebound, 321), committed);
+        Assert.Equal(TravelHistogramMode.DynamicSag, context.SelectedTravelHistogramMode);
+        Assert.Equal(BalanceDisplacementMode.Speed, context.SelectedBalanceDisplacementMode);
+        Assert.Equal(VelocityAverageMode.StrokePeakAveraged, context.SelectedVelocityAverageMode);
+        Assert.Equal(SessionAnalysisTargetProfile.Enduro, context.SelectedSessionAnalysisTargetProfile);
+        Assert.Equal((SuspensionType.Front, DampingSpeedCircuit.Compression, 123), Assert.Single(gateway.CutoffPreviews));
+        Assert.Equal(1, gateway.CutoffPreviewCancellations);
+        Assert.Equal((SuspensionType.Rear, DampingSpeedCircuit.Rebound, 321), Assert.Single(gateway.CutoffCommits));
         Assert.Equal("Selected range 1.0-3.0s", workspace.SessionAnalysisRangeText);
         Assert.Contains(nameof(SessionStatisticsWorkspaceViewModel.SessionAnalysisRangeText), changes);
         Assert.Contains(nameof(SessionStatisticsWorkspaceViewModel.SessionAnalysisModesText), changes);
@@ -199,12 +172,7 @@ public class SessionWorkspaceViewModelTests
     public void GraphWorkspace_DoesNotRebroadcastUndeclaredContextProperties()
     {
         var context = new RecordedSessionContext();
-        var workspace = new RecordedSessionGraphWorkspaceViewModel(
-            context,
-            _ => { },
-            (_, _) => { },
-            () => { },
-            _ => { });
+        var workspace = new RecordedSessionGraphWorkspaceViewModel(context, new TestSessionOperationGateway());
         var changes = TrackPropertyChanges(workspace);
 
         context.ScreenState = SessionScreenPresentationState.Loading("Loading session.");

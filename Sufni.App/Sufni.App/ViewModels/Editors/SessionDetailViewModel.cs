@@ -44,7 +44,7 @@ namespace Sufni.App.ViewModels.Editors;
 /// editable notes/settings state, and reactive stale-data prompts for the
 /// opened session.
 /// </summary>
-public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IRecordedSessionHostOperations
+public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISessionOperationGateway
 {
     private enum PresentationMode
     {
@@ -547,6 +547,30 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     void IRecordedSessionHostOperations.RequestPageSelection(string contributionId) =>
         RequestRecordedSessionExtensionPageSelection(contributionId);
 
+    Guid ISessionOperationGateway.SessionId => Id;
+
+    long ISessionOperationGateway.BaselineUpdated
+    {
+        get => BaselineUpdated;
+        set => BaselineUpdated = value;
+    }
+
+    bool ISessionOperationGateway.IsDirty => IsDirty;
+
+    bool ISessionOperationGateway.IsViewLoaded => viewLoaded;
+
+    bool ISessionOperationGateway.ShouldDeferDomainHandling() => ShouldDeferDomainHandling();
+
+    Task ISessionOperationGateway.ApplyPersistedSnapshotAsync(SessionSnapshot snapshot) =>
+        ApplyPersistedSnapshotAsync(snapshot);
+
+    Task ISessionOperationGateway.RequestLoadAsync() => RequestLoadAsync();
+
+    void ISessionOperationGateway.UpdateExtensionHostState() => UpdateRecordedSessionExtensionHostState();
+
+    void ISessionOperationGateway.SetGraphPreferences(SessionGraphPreferences preferences) =>
+        GraphPreferences = preferences;
+
     private void RequestRecordedSessionExtensionPageSelection(string contributionId)
     {
         if (recordedSessionExtensions is null)
@@ -703,22 +727,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         MobileWorkspace = new SessionShellMobileWorkspaceViewModel(SessionContext);
         GraphWorkspace = new RecordedSessionGraphWorkspaceViewModel(
             SessionContext,
-            value => GraphPreferences = value,
-            SetAnalysisRange,
-            ClearAnalysisRange,
-            SetAnalysisRangeBoundary);
+            this);
         MediaWorkspace = new SessionMediaWorkspaceViewModel(SessionContext);
         StatisticsWorkspace = new SessionStatisticsWorkspaceViewModel(
             SessionContext,
-            value => SessionContext.SelectedTravelHistogramMode = value,
-            value => SessionContext.SelectedBalanceDisplacementMode = value,
-            value => SessionContext.SelectedBalanceSpeedMode = value,
-            value => SessionContext.SelectedVelocityAverageMode = value,
-            value => SessionContext.SelectedSessionAnalysisTargetProfile = value,
-            SelectTelemetryRangeSelectionCommand,
-            PreviewDampingSpeedCutoff,
-            CancelDampingSpeedCutoffPreview,
-            CommitDampingSpeedCutoffAsync);
+            this,
+            SelectTelemetryRangeSelectionCommand);
         SidebarWorkspace = new SessionSidebarWorkspaceViewModel(
             this,
             () => Name,
@@ -732,16 +746,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
             sessionCoordinator,
             sessionStore,
             dialogService,
-            () => Id,
-            () => BaselineUpdated,
-            value => BaselineUpdated = value,
-            () => IsDirty,
-            () => viewLoaded,
-            ShouldDeferDomainHandling,
-            ApplyPersistedSnapshotAsync,
-            RequestLoadAsync,
-            UpdateRecordedSessionExtensionHostState,
-            ErrorMessages.Add);
+            this);
         if (extensionDatabase is not null && recordedSessionDataReader is not null && backgroundTaskRunner is not null)
         {
             recordedSessionOperationCoordinator = new RecordedSessionOperationCoordinator(
