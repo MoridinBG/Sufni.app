@@ -1,4 +1,5 @@
 using Avalonia.Platform.Storage;
+using System.Net;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Models;
@@ -80,9 +81,94 @@ public class TelemetryDataStoreServiceTests
         duplicateFolder.DidNotReceive().GetItemsAsync();
     }
 
+    [Fact]
+    public void ServiceAdded_AddsDiscoveredNetworkDataStore()
+    {
+        var serviceDiscovery = Substitute.For<IServiceDiscovery>();
+        var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
+        var boardId = Guid.NewGuid();
+        boardIdInspector.InspectAsync(IPAddress.Loopback, 5555).Returns(Task.FromResult<Guid?>(boardId));
+        var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
+        service.StartBrowse();
+
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Loopback, 5555)));
+
+        var store = Assert.Single(service.DataStores);
+        Assert.Equal("gosst://127.0.0.1:5555", store.Name);
+        Assert.Equal(boardId, store.BoardId);
+    }
+
+    [Fact]
+    public void ServiceAdded_DoesNotDuplicateExistingStore()
+    {
+        var serviceDiscovery = Substitute.For<IServiceDiscovery>();
+        var service = CreateService(serviceDiscovery: serviceDiscovery);
+        service.StartBrowse();
+        var announcement = new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Loopback, 5555));
+
+        serviceDiscovery.ServiceAdded += Raise.EventWith(announcement);
+        serviceDiscovery.ServiceAdded += Raise.EventWith(announcement);
+
+        Assert.Single(service.DataStores);
+    }
+
+    [Fact]
+    public void ServiceAdded_ReportsError_WhenDiscoveryInitializationFails()
+    {
+        var serviceDiscovery = Substitute.For<IServiceDiscovery>();
+        var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
+        boardIdInspector.InspectAsync(Arg.Any<IPAddress>(), Arg.Any<int>())
+            .Returns<Task<Guid?>>(_ => throw new IOException("unreachable"));
+        var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
+        var errors = new List<string>();
+        service.ErrorOccurred += (_, message) => errors.Add(message);
+        service.StartBrowse();
+
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Loopback, 5555)));
+
+        Assert.Empty(service.DataStores);
+        Assert.Single(errors);
+    }
+
+    [Fact]
+    public void ServiceRemoved_RemovesTheMatchingStoreOnly()
+    {
+        var serviceDiscovery = Substitute.For<IServiceDiscovery>();
+        var service = CreateService(serviceDiscovery: serviceDiscovery);
+        service.StartBrowse();
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Loopback, 5555)));
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Loopback, 6666)));
+
+        serviceDiscovery.ServiceRemoved += Raise.EventWith(
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Loopback, 5555)));
+
+        var remaining = Assert.Single(service.DataStores);
+        Assert.Equal("gosst://127.0.0.1:6666", remaining.Name);
+    }
+
+    [Fact]
+    public void ServiceAnnouncements_AreIgnoredAfterStopBrowse()
+    {
+        var serviceDiscovery = Substitute.For<IServiceDiscovery>();
+        var service = CreateService(serviceDiscovery: serviceDiscovery);
+        service.StartBrowse();
+        service.StopBrowse();
+
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Loopback, 5555)));
+
+        Assert.Empty(service.DataStores);
+    }
+
     private static TelemetryDataStoreService CreateService(
         IDaqBrowseOwner? browseOwner = null,
-        IBackgroundTaskRunner? backgroundTaskRunner = null)
+        IBackgroundTaskRunner? backgroundTaskRunner = null,
+        IServiceDiscovery? serviceDiscovery = null,
+        ILiveDaqBoardIdInspector? boardIdInspector = null)
     {
         if (browseOwner is null)
         {
@@ -91,10 +177,10 @@ public class TelemetryDataStoreServiceTests
         }
 
         return new TelemetryDataStoreService(
-            Substitute.For<IServiceDiscovery>(),
+            serviceDiscovery ?? Substitute.For<IServiceDiscovery>(),
             browseOwner,
             Substitute.For<IDaqManagementService>(),
-            Substitute.For<ILiveDaqBoardIdInspector>(),
+            boardIdInspector ?? Substitute.For<ILiveDaqBoardIdInspector>(),
             backgroundTaskRunner ?? new InlineBackgroundTaskRunner(),
             new InlineUiThreadDispatcher());
     }
