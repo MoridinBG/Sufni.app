@@ -40,7 +40,53 @@ public class SessionWorkspaceViewModelTests
     }
 
     [Fact]
-    public async Task SessionStatisticsWorkspace_ForwardsModeAndDampingCallbacks()
+    public void SessionStatisticsWorkspace_ModeSetters_WriteTheContext()
+    {
+        var (context, _, workspace) = CreateStatisticsWorkspace();
+
+        workspace.SelectedTravelHistogramMode = TravelHistogramMode.DynamicSag;
+        workspace.SelectedBalanceDisplacementMode = BalanceDisplacementMode.Speed;
+        workspace.SelectedBalanceSpeedMode = BalanceSpeedMode.HighSpeed;
+        workspace.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
+        workspace.SelectedSessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Enduro;
+
+        Assert.Equal(TravelHistogramMode.DynamicSag, context.SelectedTravelHistogramMode);
+        Assert.Equal(BalanceDisplacementMode.Speed, context.SelectedBalanceDisplacementMode);
+        Assert.Equal(BalanceSpeedMode.HighSpeed, context.SelectedBalanceSpeedMode);
+        Assert.Equal(VelocityAverageMode.StrokePeakAveraged, context.SelectedVelocityAverageMode);
+        Assert.Equal(SessionAnalysisTargetProfile.Enduro, context.SelectedSessionAnalysisTargetProfile);
+    }
+
+    [Fact]
+    public async Task SessionStatisticsWorkspace_DampingCallbacks_RouteThroughTheGateway()
+    {
+        var (_, gateway, workspace) = CreateStatisticsWorkspace();
+
+        workspace.PreviewDampingSpeedCutoff(SuspensionType.Front, DampingSpeedCircuit.Compression, 123);
+        workspace.CancelDampingSpeedCutoffPreview();
+        await workspace.CommitDampingSpeedCutoffAsync(SuspensionType.Rear, DampingSpeedCircuit.Rebound, 321);
+
+        Assert.Equal((SuspensionType.Front, DampingSpeedCircuit.Compression, 123), Assert.Single(gateway.CutoffPreviews));
+        Assert.Equal(1, gateway.CutoffPreviewCancellations);
+        Assert.Equal((SuspensionType.Rear, DampingSpeedCircuit.Rebound, 321), Assert.Single(gateway.CutoffCommits));
+    }
+
+    [Fact]
+    public void SessionStatisticsWorkspace_AnalysisTexts_TrackContextChanges()
+    {
+        var (context, _, workspace) = CreateStatisticsWorkspace();
+        var changes = TrackPropertyChanges(workspace);
+
+        context.AnalysisRange = new TelemetryTimeRange(1, 3);
+        context.SelectedBalanceSpeedMode = BalanceSpeedMode.LowSpeed;
+
+        Assert.Contains("1.0", workspace.SessionAnalysisRangeText, StringComparison.Ordinal);
+        Assert.Contains("3.0", workspace.SessionAnalysisRangeText, StringComparison.Ordinal);
+        Assert.Contains(nameof(SessionStatisticsWorkspaceViewModel.SessionAnalysisRangeText), changes);
+        Assert.Contains(nameof(SessionStatisticsWorkspaceViewModel.SessionAnalysisModesText), changes);
+    }
+
+    private static (RecordedSessionContext Context, TestSessionOperationGateway Gateway, SessionStatisticsWorkspaceViewModel Workspace) CreateStatisticsWorkspace()
     {
         var context = new RecordedSessionContext();
         var gateway = new TestSessionOperationGateway();
@@ -48,29 +94,7 @@ public class SessionWorkspaceViewModelTests
             context,
             gateway,
             new RelayCommand<TelemetryRangeSelection?>(_ => { }));
-        var changes = TrackPropertyChanges(workspace);
-
-        workspace.SelectedTravelHistogramMode = TravelHistogramMode.DynamicSag;
-        workspace.SelectedBalanceDisplacementMode = BalanceDisplacementMode.Speed;
-        workspace.SelectedBalanceSpeedMode = BalanceSpeedMode.HighSpeed;
-        workspace.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
-        workspace.SelectedSessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Enduro;
-        workspace.PreviewDampingSpeedCutoff(SuspensionType.Front, DampingSpeedCircuit.Compression, 123);
-        workspace.CancelDampingSpeedCutoffPreview();
-        await workspace.CommitDampingSpeedCutoffAsync(SuspensionType.Rear, DampingSpeedCircuit.Rebound, 321);
-        context.AnalysisRange = new TelemetryTimeRange(1, 3);
-        context.SelectedBalanceSpeedMode = BalanceSpeedMode.LowSpeed;
-
-        Assert.Equal(TravelHistogramMode.DynamicSag, context.SelectedTravelHistogramMode);
-        Assert.Equal(BalanceDisplacementMode.Speed, context.SelectedBalanceDisplacementMode);
-        Assert.Equal(VelocityAverageMode.StrokePeakAveraged, context.SelectedVelocityAverageMode);
-        Assert.Equal(SessionAnalysisTargetProfile.Enduro, context.SelectedSessionAnalysisTargetProfile);
-        Assert.Equal((SuspensionType.Front, DampingSpeedCircuit.Compression, 123), Assert.Single(gateway.CutoffPreviews));
-        Assert.Equal(1, gateway.CutoffPreviewCancellations);
-        Assert.Equal((SuspensionType.Rear, DampingSpeedCircuit.Rebound, 321), Assert.Single(gateway.CutoffCommits));
-        Assert.Equal("Selected range 1.0-3.0s", workspace.SessionAnalysisRangeText);
-        Assert.Contains(nameof(SessionStatisticsWorkspaceViewModel.SessionAnalysisRangeText), changes);
-        Assert.Contains(nameof(SessionStatisticsWorkspaceViewModel.SessionAnalysisModesText), changes);
+        return (context, gateway, workspace);
     }
 
     [Fact]

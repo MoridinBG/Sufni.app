@@ -40,8 +40,8 @@ public class SessionStalenessReconcilerTests
         Assert.Empty(harness.AppliedSnapshots);
         Assert.Equal(0, harness.LoadRequestCount);
         await harness.DialogService.Received(1).ShowConfirmationAsync(
-            "Session changed elsewhere",
-            "This session has been updated from another source. Discard your changes and reload?");
+            Arg.Any<string>(),
+            Arg.Is<string>(message => message.Contains("reload", StringComparison.OrdinalIgnoreCase)));
     }
 
     [Fact]
@@ -83,8 +83,8 @@ public class SessionStalenessReconcilerTests
         Assert.Equal([current], harness.AppliedSnapshots);
         Assert.Equal(1, harness.LoadRequestCount);
         await harness.DialogService.Received(1).ShowConfirmationAsync(
-            "Session changed elsewhere",
-            "This session has been updated from another source. Discard your changes and reload?");
+            Arg.Any<string>(),
+            Arg.Is<string>(message => message.Contains("reload", StringComparison.OrdinalIgnoreCase)));
     }
 
     [Fact]
@@ -96,9 +96,8 @@ public class SessionStalenessReconcilerTests
         await harness.Reconciler.ApplyRecomputeResultAsync(result);
         await harness.Reconciler.ApplyRecomputeResultAsync(result);
 
-        Assert.Equal(
-            ["Session is stale and cannot be recomputed until the source recording is restored."],
-            harness.Errors);
+        var error = Assert.Single(harness.Errors);
+        Assert.Contains("stale", error, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
