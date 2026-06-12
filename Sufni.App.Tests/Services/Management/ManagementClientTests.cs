@@ -2,6 +2,12 @@ using Sufni.App.Services.Management;
 
 namespace Sufni.App.Tests.Services.Management;
 
+// Loopback TCP tests with real timeouts: serialized so parallel CPU/socket
+// contention does not turn the timing budgets into flakes.
+[CollectionDefinition("ManagementLoopback", DisableParallelization = true)]
+public class ManagementLoopbackCollectionDefinition;
+
+[Collection("ManagementLoopback")]
 public class ManagementClientTests
 {
     [Fact]
