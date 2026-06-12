@@ -33,10 +33,6 @@ public partial class StrokeStatisticsHost : StatisticsHostBase
             nameof(DeepTravelRowHeight),
             new GridLength(180));
 
-    public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
-        AvaloniaProperty.Register<StrokeStatisticsHost, RecordedSessionExtensionSlots?>(
-            nameof(ExtensionSlots));
-
     public GridLength CompressionLengthRowHeight
     {
         get => GetValue(CompressionLengthRowHeightProperty);
@@ -65,12 +61,6 @@ public partial class StrokeStatisticsHost : StatisticsHostBase
     {
         get => GetValue(DeepTravelRowHeightProperty);
         set => SetValue(DeepTravelRowHeightProperty, value);
-    }
-
-    public RecordedSessionExtensionSlots? ExtensionSlots
-    {
-        get => GetValue(ExtensionSlotsProperty);
-        set => SetValue(ExtensionSlotsProperty, value);
     }
 
     public StrokeStatisticsHost()

@@ -19,10 +19,6 @@ public partial class VibrationStatisticsHost : StatisticsHostBase
             nameof(PlotRowHeight),
             new GridLength(1, GridUnitType.Star));
 
-    public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
-        AvaloniaProperty.Register<VibrationStatisticsHost, RecordedSessionExtensionSlots?>(
-            nameof(ExtensionSlots));
-
     public string? HostName
     {
         get => GetValue(HostNameProperty);
@@ -39,12 +35,6 @@ public partial class VibrationStatisticsHost : StatisticsHostBase
     {
         get => GetValue(PlotRowHeightProperty);
         set => SetValue(PlotRowHeightProperty, value);
-    }
-
-    public RecordedSessionExtensionSlots? ExtensionSlots
-    {
-        get => GetValue(ExtensionSlotsProperty);
-        set => SetValue(ExtensionSlotsProperty, value);
     }
 
     public VibrationStatisticsHost()

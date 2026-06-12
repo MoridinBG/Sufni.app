@@ -19,40 +19,11 @@ public partial class BalanceStatisticsHost : StatisticsHostBase
     public static readonly StyledProperty<BalanceSpeedMode> BalanceSpeedModeProperty =
         AvaloniaProperty.Register<BalanceStatisticsHost, BalanceSpeedMode>(nameof(BalanceSpeedMode));
 
-    public static readonly StyledProperty<DampingSpeedCutoffs> DampingSpeedCutoffsProperty =
-        AvaloniaProperty.Register<BalanceStatisticsHost, DampingSpeedCutoffs>(
-            nameof(DampingSpeedCutoffs),
-            DampingSpeedCutoffs.Default);
-
-    public static readonly StyledProperty<DampingSpeedCutoffs> PlotDampingSpeedCutoffsProperty =
-        AvaloniaProperty.Register<BalanceStatisticsHost, DampingSpeedCutoffs>(
-            nameof(PlotDampingSpeedCutoffs),
-            DampingSpeedCutoffs.Default);
-
-    public static readonly StyledProperty<bool> HasDynamicStatisticsProperty =
-        AvaloniaProperty.Register<BalanceStatisticsHost, bool>(nameof(HasDynamicStatistics), true);
-
-    public static readonly StyledProperty<string?> StaticSourceProperty =
-        AvaloniaProperty.Register<BalanceStatisticsHost, string?>(nameof(StaticSource));
-
     public static readonly StyledProperty<string?> StaticSourceNameProperty =
         AvaloniaProperty.Register<BalanceStatisticsHost, string?>(nameof(StaticSourceName));
 
     public static readonly StyledProperty<string?> PlotNameProperty =
         AvaloniaProperty.Register<BalanceStatisticsHost, string?>(nameof(PlotName));
-
-    public static readonly StyledProperty<double> PlotHeightProperty =
-        AvaloniaProperty.Register<BalanceStatisticsHost, double>(nameof(PlotHeight), double.NaN);
-
-    public static readonly StyledProperty<Thickness> PlaceholderMarginProperty =
-        AvaloniaProperty.Register<BalanceStatisticsHost, Thickness>(nameof(PlaceholderMargin));
-
-    public static readonly StyledProperty<object?> HeaderContentProperty =
-        AvaloniaProperty.Register<BalanceStatisticsHost, object?>(nameof(HeaderContent));
-
-    public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
-        AvaloniaProperty.Register<BalanceStatisticsHost, RecordedSessionExtensionSlots?>(
-            nameof(ExtensionSlots));
 
     public BalanceType BalanceType
     {
@@ -72,30 +43,6 @@ public partial class BalanceStatisticsHost : StatisticsHostBase
         set => SetValue(BalanceSpeedModeProperty, value);
     }
 
-    public DampingSpeedCutoffs DampingSpeedCutoffs
-    {
-        get => GetValue(DampingSpeedCutoffsProperty);
-        set => SetValue(DampingSpeedCutoffsProperty, value);
-    }
-
-    public DampingSpeedCutoffs PlotDampingSpeedCutoffs
-    {
-        get => GetValue(PlotDampingSpeedCutoffsProperty);
-        set => SetValue(PlotDampingSpeedCutoffsProperty, value);
-    }
-
-    public bool HasDynamicStatistics
-    {
-        get => GetValue(HasDynamicStatisticsProperty);
-        set => SetValue(HasDynamicStatisticsProperty, value);
-    }
-
-    public string? StaticSource
-    {
-        get => GetValue(StaticSourceProperty);
-        set => SetValue(StaticSourceProperty, value);
-    }
-
     public string? StaticSourceName
     {
         get => GetValue(StaticSourceNameProperty);
@@ -106,30 +53,6 @@ public partial class BalanceStatisticsHost : StatisticsHostBase
     {
         get => GetValue(PlotNameProperty);
         set => SetValue(PlotNameProperty, value);
-    }
-
-    public double PlotHeight
-    {
-        get => GetValue(PlotHeightProperty);
-        set => SetValue(PlotHeightProperty, value);
-    }
-
-    public Thickness PlaceholderMargin
-    {
-        get => GetValue(PlaceholderMarginProperty);
-        set => SetValue(PlaceholderMarginProperty, value);
-    }
-
-    public object? HeaderContent
-    {
-        get => GetValue(HeaderContentProperty);
-        set => SetValue(HeaderContentProperty, value);
-    }
-
-    public RecordedSessionExtensionSlots? ExtensionSlots
-    {
-        get => GetValue(ExtensionSlotsProperty);
-        set => SetValue(ExtensionSlotsProperty, value);
     }
 
     public BalanceStatisticsHost()

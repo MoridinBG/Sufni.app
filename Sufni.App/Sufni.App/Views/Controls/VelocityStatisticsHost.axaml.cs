@@ -21,28 +21,12 @@ public partial class VelocityStatisticsHost : StatisticsHostBase
     public static readonly StyledProperty<VelocityAverageMode> VelocityAverageModeProperty =
         AvaloniaProperty.Register<VelocityStatisticsHost, VelocityAverageMode>(nameof(VelocityAverageMode));
 
-    public static readonly StyledProperty<DampingSpeedCutoffs> DampingSpeedCutoffsProperty =
-        AvaloniaProperty.Register<VelocityStatisticsHost, DampingSpeedCutoffs>(
-            nameof(DampingSpeedCutoffs),
-            DampingSpeedCutoffs.Default);
-
-    public static readonly StyledProperty<DampingSpeedCutoffs> PlotDampingSpeedCutoffsProperty =
-        AvaloniaProperty.Register<VelocityStatisticsHost, DampingSpeedCutoffs>(
-            nameof(PlotDampingSpeedCutoffs),
-            DampingSpeedCutoffs.Default);
-
     public static readonly StyledProperty<ISessionStatisticsWorkspace?> StatisticsWorkspaceProperty =
         AvaloniaProperty.Register<VelocityStatisticsHost, ISessionStatisticsWorkspace?>(
             nameof(StatisticsWorkspace));
 
-    public static readonly StyledProperty<bool> HasDynamicStatisticsProperty =
-        AvaloniaProperty.Register<VelocityStatisticsHost, bool>(nameof(HasDynamicStatistics), true);
-
     public static readonly StyledProperty<bool> ShowTravelLegendProperty =
         AvaloniaProperty.Register<VelocityStatisticsHost, bool>(nameof(ShowTravelLegend));
-
-    public static readonly StyledProperty<string?> StaticSourceProperty =
-        AvaloniaProperty.Register<VelocityStatisticsHost, string?>(nameof(StaticSource));
 
     public static readonly StyledProperty<double?> HscPercentageProperty =
         AvaloniaProperty.Register<VelocityStatisticsHost, double?>(nameof(HscPercentage));
@@ -55,16 +39,6 @@ public partial class VelocityStatisticsHost : StatisticsHostBase
 
     public static readonly StyledProperty<double?> LsrPercentageProperty =
         AvaloniaProperty.Register<VelocityStatisticsHost, double?>(nameof(LsrPercentage));
-
-    public static readonly StyledProperty<double> PlotHeightProperty =
-        AvaloniaProperty.Register<VelocityStatisticsHost, double>(nameof(PlotHeight), double.NaN);
-
-    public static readonly StyledProperty<Thickness> PlaceholderMarginProperty =
-        AvaloniaProperty.Register<VelocityStatisticsHost, Thickness>(nameof(PlaceholderMargin));
-
-    public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
-        AvaloniaProperty.Register<VelocityStatisticsHost, RecordedSessionExtensionSlots?>(
-            nameof(ExtensionSlots));
 
     public static readonly StyledProperty<IReadOnlyList<RecordedSessionStatisticsMetricContribution>> HsrMetricAnnotationsProperty =
         AvaloniaProperty.Register<VelocityStatisticsHost, IReadOnlyList<RecordedSessionStatisticsMetricContribution>>(
@@ -92,40 +66,16 @@ public partial class VelocityStatisticsHost : StatisticsHostBase
         set => SetValue(VelocityAverageModeProperty, value);
     }
 
-    public DampingSpeedCutoffs DampingSpeedCutoffs
-    {
-        get => GetValue(DampingSpeedCutoffsProperty);
-        set => SetValue(DampingSpeedCutoffsProperty, value);
-    }
-
-    public DampingSpeedCutoffs PlotDampingSpeedCutoffs
-    {
-        get => GetValue(PlotDampingSpeedCutoffsProperty);
-        set => SetValue(PlotDampingSpeedCutoffsProperty, value);
-    }
-
     public ISessionStatisticsWorkspace? StatisticsWorkspace
     {
         get => GetValue(StatisticsWorkspaceProperty);
         set => SetValue(StatisticsWorkspaceProperty, value);
     }
 
-    public bool HasDynamicStatistics
-    {
-        get => GetValue(HasDynamicStatisticsProperty);
-        set => SetValue(HasDynamicStatisticsProperty, value);
-    }
-
     public bool ShowTravelLegend
     {
         get => GetValue(ShowTravelLegendProperty);
         set => SetValue(ShowTravelLegendProperty, value);
-    }
-
-    public string? StaticSource
-    {
-        get => GetValue(StaticSourceProperty);
-        set => SetValue(StaticSourceProperty, value);
     }
 
     public double? HscPercentage
@@ -150,24 +100,6 @@ public partial class VelocityStatisticsHost : StatisticsHostBase
     {
         get => GetValue(LsrPercentageProperty);
         set => SetValue(LsrPercentageProperty, value);
-    }
-
-    public double PlotHeight
-    {
-        get => GetValue(PlotHeightProperty);
-        set => SetValue(PlotHeightProperty, value);
-    }
-
-    public Thickness PlaceholderMargin
-    {
-        get => GetValue(PlaceholderMarginProperty);
-        set => SetValue(PlaceholderMarginProperty, value);
-    }
-
-    public RecordedSessionExtensionSlots? ExtensionSlots
-    {
-        get => GetValue(ExtensionSlotsProperty);
-        set => SetValue(ExtensionSlotsProperty, value);
     }
 
     public IReadOnlyList<RecordedSessionStatisticsMetricContribution> HsrMetricAnnotations

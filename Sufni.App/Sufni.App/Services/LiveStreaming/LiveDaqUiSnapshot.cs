@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Sufni.App.Formatting;
 
 namespace Sufni.App.Services.LiveStreaming;
 
@@ -150,7 +151,7 @@ public sealed record LiveDaqUiSnapshot(
 
     public string SessionLengthText =>
         LastFrameReceivedUtc is { } lastFrame && Session.SessionStartUtc is { } start
-            ? $"Session length: {lastFrame - start:hh\\:mm\\:ss}"
+            ? $"Session length: {UnitsFormatter.FormatDuration(lastFrame - start)}"
             : "";
 
     public static string ToConnectionStateText(LiveConnectionState state) => state switch

@@ -13,7 +13,7 @@
 
     <Grid>
         <Panel
-            Background="#0d0d0d"
+            Background="{DynamicResource SufniOverlayScrimBrush}"
             IsHitTestVisible="True"
             Opacity="0.4" />
 
