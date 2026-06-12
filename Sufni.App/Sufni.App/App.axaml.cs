@@ -159,6 +159,8 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IBikeStoreWriter>(sp => sp.GetRequiredService<BikeStore>());
         ServiceCollection.AddSingleton<IBikeDependencyQuery, BikeDependencyQuery>();
         ServiceCollection.AddSingleton<ILiveDaqKnownBoardsQuery, LiveDaqKnownBoardsQuery>();
+        ServiceCollection.AddSingleton<Func<ImportSessionsViewModel>>(sp =>
+            () => sp.GetRequiredService<ImportSessionsViewModel>());
         ServiceCollection.AddSingleton<IEditorFactory, EditorFactory>();
         ServiceCollection.AddSingleton<Func<IEditorFactory>>(sp => () => sp.GetRequiredService<IEditorFactory>());
         ServiceCollection.AddSingleton<BikeCoordinator>();
@@ -244,7 +246,7 @@ public partial class App : Application
                 sp.GetRequiredService<IUiThreadDispatcher>(),
                 sp.GetRequiredService<IDaqManagementService>(),
                 sp.GetRequiredService<IRecordedSessionReprocessor>(),
-                () => sp.GetRequiredService<ImportSessionsViewModel>()));
+                sp.GetRequiredService<IEditorFactory>()));
         ServiceCollection.AddSingleton<IImportSessionsCoordinator>(sp =>
             sp.GetRequiredService<ImportSessionsCoordinator>());
         ServiceCollection.AddSingleton<BikeListViewModel>();

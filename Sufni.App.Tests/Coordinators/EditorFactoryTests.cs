@@ -3,13 +3,18 @@ using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Models;
 using Sufni.App.Queries;
 using Sufni.App.Services;
+using Sufni.App.Services.LiveStreaming;
+using Sufni.App.SessionDetails;
 using Sufni.App.Services.Management;
 using Sufni.App.SessionGraph;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Coordinators;
 
@@ -117,6 +122,126 @@ public class EditorFactoryTests
         Assert.False(match(factory.CreateSetupEditor(TestSnapshots.Setup(), isNew: false)));
     }
 
+    [Fact]
+    public void OpenImportSessions_OpensSingletonThroughShell()
+    {
+        var shell = new CapturingShellCoordinator();
+        var factory = CreateFactory(shell);
+
+        factory.OpenImportSessions();
+
+        Assert.Equal(typeof(ImportSessionsViewModel), shell.OpenOrFocusType);
+        var match = Assert.IsType<Func<ImportSessionsViewModel, bool>>(shell.OpenOrFocusMatch);
+        Assert.True(match(null!));
+    }
+
+    [Fact]
+    public void OpenSessionDetail_UsesSnapshotIdForDeduplication()
+    {
+        var shell = new CapturingShellCoordinator();
+        var snapshot = TestSnapshots.Session();
+        var otherSnapshot = TestSnapshots.Session();
+        var factory = CreateFactory(shell);
+
+        factory.OpenSessionDetail(snapshot);
+
+        Assert.Equal(typeof(SessionDetailViewModel), shell.OpenOrFocusType);
+        var match = Assert.IsType<Func<SessionDetailViewModel, bool>>(shell.OpenOrFocusMatch);
+        var create = Assert.IsType<Func<SessionDetailViewModel>>(shell.OpenOrFocusCreate);
+
+        Assert.True(match(factory.CreateSessionDetail(snapshot)));
+        Assert.False(match(factory.CreateSessionDetail(otherSnapshot)));
+        var created = create();
+        Assert.Equal(snapshot.Id, created.Id);
+    }
+
+    [Fact]
+    public void CloseSessionDetail_ClosesMatchingEditorAndForgetsRestoreHistory()
+    {
+        var shell = new CapturingShellCoordinator();
+        var snapshot = TestSnapshots.Session();
+        var factory = CreateFactory(shell);
+
+        factory.CloseSessionDetail(snapshot.Id);
+
+        Assert.Equal(typeof(SessionDetailViewModel), shell.CloseIfOpenType);
+        Assert.True(shell.CloseIfOpenForgetRestoreHistory);
+        var match = Assert.IsType<Func<SessionDetailViewModel, bool>>(shell.CloseIfOpenMatch);
+        Assert.True(match(factory.CreateSessionDetail(snapshot)));
+        Assert.False(match(factory.CreateSessionDetail(TestSnapshots.Session())));
+    }
+
+    [Fact]
+    public void OpenLiveDaqDetail_UsesIdentityKeyForDeduplication()
+    {
+        var shell = new CapturingShellCoordinator();
+        var snapshot = CreateLiveDaqSnapshot("board-a");
+        var otherSnapshot = CreateLiveDaqSnapshot("board-b");
+        var sharedStream = Substitute.For<ILiveDaqSharedStream>();
+        sharedStream.RequestedConfiguration.Returns(LiveDaqStreamConfiguration.Default);
+        sharedStream.CurrentState.Returns(LiveDaqSharedStreamState.Empty);
+        var factory = CreateFactory(shell);
+
+        factory.OpenLiveDaqDetail(snapshot, sharedStream);
+
+        Assert.Equal(typeof(LiveDaqDetailViewModel), shell.OpenOrFocusType);
+        var match = Assert.IsType<Func<LiveDaqDetailViewModel, bool>>(shell.OpenOrFocusMatch);
+        var create = Assert.IsType<Func<LiveDaqDetailViewModel>>(shell.OpenOrFocusCreate);
+
+        Assert.True(match(factory.CreateLiveDaqDetail(snapshot, sharedStream)));
+        Assert.False(match(factory.CreateLiveDaqDetail(otherSnapshot, sharedStream)));
+        Assert.Equal(snapshot.IdentityKey, create().IdentityKey);
+    }
+
+    [Fact]
+    public void OpenLiveSessionDetail_UsesIdentityKeyForDeduplication()
+    {
+        var shell = new CapturingShellCoordinator();
+        var context = CreateLiveSessionContext("board-a");
+        var liveSessionService = Substitute.For<ILiveSessionService>();
+        liveSessionService.Current.Returns(LiveSessionPresentationSnapshot.Empty);
+        var factory = CreateFactory(shell);
+
+        factory.OpenLiveSessionDetail(context.IdentityKey, context, liveSessionService);
+
+        Assert.Equal(typeof(LiveSessionDetailViewModel), shell.OpenOrFocusType);
+        var match = Assert.IsType<Func<LiveSessionDetailViewModel, bool>>(shell.OpenOrFocusMatch);
+        var create = Assert.IsType<Func<LiveSessionDetailViewModel>>(shell.OpenOrFocusCreate);
+
+        Assert.True(match(factory.CreateLiveSessionDetail(context, liveSessionService)));
+        Assert.False(match(factory.CreateLiveSessionDetail(
+            CreateLiveSessionContext("board-b"),
+            liveSessionService)));
+        Assert.Equal(context.IdentityKey, create().IdentityKey);
+    }
+
+    private static LiveDaqSnapshot CreateLiveDaqSnapshot(string identityKey) => new(
+        identityKey,
+        "Board",
+        BoardId: null,
+        Host: null,
+        Port: null,
+        IsOnline: true,
+        SetupName: null,
+        BikeName: null);
+
+    private static LiveDaqSessionContext CreateLiveSessionContext(string identityKey)
+    {
+        var bikeId = Guid.NewGuid();
+        return new LiveDaqSessionContext(
+            identityKey,
+            BoardId: Guid.NewGuid(),
+            DisplayName: "Board",
+            SetupId: Guid.NewGuid(),
+            SetupName: "race",
+            BikeId: bikeId,
+            BikeName: "demo",
+            BikeData: new BikeData(180, 170, measurement => measurement, measurement => measurement),
+            TravelCalibration: new LiveDaqTravelCalibration(null, null),
+            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
+            DampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(bikeId, 0));
+    }
+
     private static EditorFactory CreateFactory(CapturingShellCoordinator shell) =>
         new(
             TestCoordinatorSubstitutes.Bike(),
@@ -142,7 +267,8 @@ public class EditorFactoryTests
             Array.Empty<IRecordedSessionExtensionFactory>(),
             Substitute.For<IExtensionDatabaseConnection>(),
             Substitute.For<IRecordedSessionDataReader>(),
-            new InlineBackgroundTaskRunner());
+            new InlineBackgroundTaskRunner(),
+            () => throw new InvalidOperationException("The import-sessions resolver should not run in these tests."));
 
     private sealed class CapturingShellCoordinator : IShellCoordinator
     {

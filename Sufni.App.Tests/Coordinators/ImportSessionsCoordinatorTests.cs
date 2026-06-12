@@ -32,15 +32,7 @@ public class ImportSessionsCoordinatorTests
     private readonly IDaqManagementService daqManagementService = Substitute.For<IDaqManagementService>();
     private readonly IRecordedSessionReprocessor reprocessor = Substitute.For<IRecordedSessionReprocessor>();
 
-    /// <summary>
-    /// Resolver for `ImportSessionsViewModel` is a `Func<T>` — the tests
-    /// never actually want a real view model, so the default throws if
-    /// invoked. Individual tests assert on the substituted shell's
-    /// recorded forwarding of this resolver.
-    /// </summary>
-    private Func<ImportSessionsViewModel> importSessionsResolver =
-        () => throw new InvalidOperationException(
-            "The resolver should not be invoked directly from tests.");
+    private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
 
     public ImportSessionsCoordinatorTests()
     {
@@ -93,20 +85,18 @@ public class ImportSessionsCoordinatorTests
         uiThreadDispatcher,
         daqManagementService,
         reprocessor,
-        importSessionsResolver);
+        editorFactory);
 
     // ----- OpenAsync -----
 
     [Fact]
-    public async Task OpenAsync_ForwardsResolverToShellOpenOrFocus()
+    public async Task OpenAsync_OpensImportSessionsThroughTheEditorFactory()
     {
         var coordinator = CreateCoordinator();
 
         await coordinator.OpenAsync();
 
-        shell.Received(1).OpenOrFocus(
-            Arg.Any<Func<ImportSessionsViewModel, bool>>(),
-            importSessionsResolver);
+        editorFactory.Received(1).OpenImportSessions();
     }
 
     // ----- ImportAsync argument-loading failures -----

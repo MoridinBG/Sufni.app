@@ -32,15 +32,13 @@ public class ImportSessionsCoordinator(
     IUiThreadDispatcher uiThreadDispatcher,
     IDaqManagementService daqManagementService,
     IRecordedSessionReprocessor reprocessor,
-    Func<ImportSessionsViewModel> importSessionsResolver) : IImportSessionsCoordinator
+    IEditorFactory editorFactory) : IImportSessionsCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<ImportSessionsCoordinator>();
 
     public Task OpenAsync()
     {
-        shell.OpenOrFocus<ImportSessionsViewModel>(
-            _ => true,
-            importSessionsResolver);
+        editorFactory.OpenImportSessions();
         return Task.CompletedTask;
     }
 

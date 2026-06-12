@@ -13,6 +13,7 @@ using Sufni.App.Services.Management;
 using Sufni.App.SessionGraph;
 using Sufni.App.SessionDetails;
 using Sufni.App.Stores;
+using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
 
 namespace Sufni.App.Coordinators;
@@ -41,7 +42,8 @@ internal sealed class EditorFactory(
     IEnumerable<IRecordedSessionExtensionFactory> recordedSessionExtensionFactories,
     IExtensionDatabaseConnection extensionDatabase,
     IRecordedSessionDataReader recordedSessionDataReader,
-    IBackgroundTaskRunner backgroundTaskRunner) : IEditorFactory
+    IBackgroundTaskRunner backgroundTaskRunner,
+    Func<ImportSessionsViewModel> importSessionsResolver) : IEditorFactory
 {
     public void OpenNewBikeEditor(BikeSnapshot snapshot)
     {
@@ -101,6 +103,13 @@ internal sealed class EditorFactory(
             shell,
             dialogService,
             uiThreadDispatcher);
+
+    public void OpenImportSessions()
+    {
+        shell.OpenOrFocus<ImportSessionsViewModel>(
+            _ => true,
+            importSessionsResolver);
+    }
 
     public void OpenSessionDetail(SessionSnapshot snapshot)
     {

@@ -103,9 +103,10 @@ locations inside `Sufni.App/Sufni.App/`:
   `IInboundSyncCoordinator` / `IPairingServerCoordinator` and the
   mobile-only `IPairingClientCoordinator`). Coordinators are the only
   writers to stores and the only owners of post-save navigation. They
-  construct editor view models only through `IEditorFactory`; the one
-  documented carve-out is `ImportSessionsCoordinator`, which takes a
-  `Func<ImportSessionsViewModel>` factory.
+  construct and open editor view models only through `IEditorFactory` —
+  despite the name it is the editor *gateway* (create, open-or-focus, and
+  close live behind one interface); no coordinator holds a view-model
+  factory of its own.
 - `Stores/` — shared read state, one per entity family. Each store has
   an `IXxxStore` (read-only) interface for VMs/queries and an
   `IXxxStoreWriter` (read+write) interface reserved for coordinators

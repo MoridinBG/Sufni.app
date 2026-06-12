@@ -27,6 +27,8 @@ public interface IEditorFactory
 
     void OpenSessionDetail(SessionSnapshot snapshot);
 
+    void OpenImportSessions();
+
     void CloseSessionDetail(Guid sessionId);
 
     SessionDetailViewModel CreateSessionDetail(SessionSnapshot snapshot);

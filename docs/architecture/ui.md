@@ -81,7 +81,7 @@ graph TB
 Rules enforced by convention:
 
 - A view model may depend on coordinators, **read-only** stores, read graphs, queries, services, and other shell composition view models. It may not depend on another feature view model or on a store writer. Any remaining direct feature-VM dependency outside shell composition is technical debt, not a pattern to copy.
-- A coordinator may depend on services, **read/write** stores, other coordinators, queries, `IEditorFactory`, the shell coordinator, and dialogs. It may not depend on concrete view models; editor construction stays behind `IEditorFactory`.
+- A coordinator may depend on services, **read/write** stores, other coordinators, queries, `IEditorFactory`, the shell coordinator, and dialogs. It may not depend on concrete view models; editor construction stays behind `IEditorFactory`. Despite the name, `IEditorFactory` is the editor *gateway*: it owns `Create*`, `Open*` (open-or-focus dedup), and `Close*` for every editor shell, including the import-sessions tab.
 - A service or factory may depend on platform or infrastructure APIs and may create concrete datastores, own file-picker lifetime, and own background execution. View models ask services and factories to do this work; they do not `new` concrete infrastructure types.
 - A store may depend only on services. A read graph may depend on read-only stores and pure derivation services. A query may depend on services or read-only stores.
 - Controls in `Views/Controls/` and `DesktopViews/Controls/` resolve nothing from the DI container — parent views supply everything via bindings or attached behaviours.
