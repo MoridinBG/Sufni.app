@@ -24,6 +24,7 @@ internal sealed class EditorFactory(
     IBikeStore bikeStore,
     ISetupCoordinator setupCoordinator,
     ISessionCoordinator sessionCoordinator,
+    ITrackCoordinator trackCoordinator,
     ISessionStore sessionStore,
     IRecordedSessionGraph recordedSessionGraph,
     ISessionPresentationService sessionPresentationService,
@@ -127,6 +128,7 @@ internal sealed class EditorFactory(
         new(
             snapshot,
             sessionCoordinator,
+            trackCoordinator,
             sessionStore,
             recordedSessionGraph,
             sessionPresentationService,

@@ -35,7 +35,8 @@ public sealed record SessionSnapshot(
     double? DurationSeconds = null,
     double? DistanceMeters = null,
     double? AscentMeters = null,
-    double? DescentMeters = null)
+    double? DescentMeters = null,
+    double GpsOffsetSeconds = 0)
 {
     public static SessionSnapshot From(Session session) => new(
         session.Id,
@@ -60,5 +61,6 @@ public sealed record SessionSnapshot(
         session.DurationSeconds,
         session.DistanceMeters,
         session.AscentMeters,
-        session.DescentMeters);
+        session.DescentMeters,
+        session.GpsOffsetSeconds);
 }

@@ -35,6 +35,7 @@ internal sealed class TestSessionTelemetryProcessor : ISessionTelemetryProcessor
     public List<TrackPoint>? GenerateSessionTrackFromFullTrack(
         Track fullTrack,
         long? timestamp,
-        double? durationSeconds) =>
-        real.GenerateSessionTrackFromFullTrack(fullTrack, timestamp, durationSeconds);
+        double? durationSeconds,
+        double gpsOffsetSeconds = 0) =>
+        real.GenerateSessionTrackFromFullTrack(fullTrack, timestamp, durationSeconds, gpsOffsetSeconds);
 }

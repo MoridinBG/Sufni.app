@@ -18,7 +18,8 @@ internal interface ISessionTelemetryProcessor
     List<TrackPoint>? GenerateSessionTrackFromFullTrack(
         Track fullTrack,
         long? timestamp,
-        double? durationSeconds);
+        double? durationSeconds,
+        double gpsOffsetSeconds = 0);
 }
 
 internal sealed class SessionTelemetryProcessor : ISessionTelemetryProcessor
@@ -65,7 +66,8 @@ internal sealed class SessionTelemetryProcessor : ISessionTelemetryProcessor
     public List<TrackPoint>? GenerateSessionTrackFromFullTrack(
         Track fullTrack,
         long? timestamp,
-        double? durationSeconds)
+        double? durationSeconds,
+        double gpsOffsetSeconds = 0)
     {
         if (!timestamp.HasValue ||
             durationSeconds is not { } duration ||
@@ -76,9 +78,10 @@ internal sealed class SessionTelemetryProcessor : ISessionTelemetryProcessor
             return null;
         }
 
-        var start = timestamp.Value;
+        var normalizedOffset = double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;
+        var start = timestamp.Value + normalizedOffset;
         var end = start + (int)Math.Ceiling(duration);
-        if (fullTrack.StartTime > start || fullTrack.EndTime < end)
+        if (fullTrack.Points[0].Time > start || fullTrack.Points[^1].Time < end)
         {
             return null;
         }

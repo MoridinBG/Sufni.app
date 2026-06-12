@@ -279,7 +279,8 @@ public class SessionTelemetryWriterTests
         [
             new TrackPoint(100, 1, 1, 0),
             new TrackPoint(101, 2, 2, 0)
-        ]);
+        ],
+        gpsOffsetSeconds: 2.5);
 
         var after = await database.GetSessionAsync(sessionId);
         var track = await database.GetSessionTrackAsync(sessionId);
@@ -292,6 +293,7 @@ public class SessionTelemetryWriterTests
         Assert.InRange(after.DistanceMeters!.Value, 1.41, 1.42);
         Assert.Equal(0, after.AscentMeters);
         Assert.Equal(0, after.DescentMeters);
+        Assert.Equal(2.5, after.GpsOffsetSeconds);
         Assert.True(after!.Updated > before!.Updated);
 
     }

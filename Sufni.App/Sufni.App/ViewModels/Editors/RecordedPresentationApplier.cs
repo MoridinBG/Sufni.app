@@ -222,6 +222,15 @@ internal sealed class RecordedPresentationApplier
         RefreshRecordedGraphStates(owner.RecordedPlotPreferences);
     }
 
+    public void ApplyRecordedTrackPresentationData(SessionTrackPresentationData trackData)
+    {
+        owner.SetSessionFullTrack(trackData.FullTrackId);
+        context.FullTrackPoints = trackData.FullTrackPoints;
+        context.TrackPoints = trackData.TrackPoints;
+        context.MediaColumnWidth = trackData.MediaColumnWidth;
+        context.MapState = CreateMapState(trackData.TrackPoints, trackData.FullTrackId is not null);
+    }
+
     public void RefreshRecordedGraphStates(SessionPlotPreferences preferences)
     {
         context.TravelGraphState = recordedTravelGraphBaseState.ApplyPlotSelection(preferences.Travel);

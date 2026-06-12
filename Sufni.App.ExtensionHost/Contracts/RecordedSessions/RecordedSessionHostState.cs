@@ -22,10 +22,25 @@ public sealed record RecordedSessionIdentityState(
 public sealed record RecordedSessionSelectionState(
     TelemetryTimeRange? AnalysisRange);
 
-public sealed record RecordedSessionTimelineState(
-    TrackTimeRange? TrackTimelineContext,
-    double? TelemetryDurationSeconds,
-    IRecordedSessionTimeline? Timeline);
+public sealed record RecordedSessionTimelineState
+{
+    public RecordedSessionTimelineState(
+        TrackTimeRange? trackTimelineContext,
+        double? telemetryDurationSeconds,
+        IRecordedSessionTimeline? timeline,
+        RecordedSessionTimelineAlignmentState? alignment = null)
+    {
+        TrackTimelineContext = trackTimelineContext;
+        TelemetryDurationSeconds = telemetryDurationSeconds;
+        Timeline = timeline;
+        Alignment = alignment ?? RecordedSessionTimelineAlignmentState.Empty;
+    }
+
+    public TrackTimeRange? TrackTimelineContext { get; init; }
+    public double? TelemetryDurationSeconds { get; init; }
+    public IRecordedSessionTimeline? Timeline { get; init; }
+    public RecordedSessionTimelineAlignmentState Alignment { get; init; }
+}
 
 public sealed record RecordedSessionStatisticsState(
     SessionDamperPercentages DamperPercentages,

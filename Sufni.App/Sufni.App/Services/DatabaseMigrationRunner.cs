@@ -32,6 +32,7 @@ internal sealed class DatabaseMigrationRunner(
             await CreateTablesAsync();
             await EnsureSessionProcessingFingerprintColumnAsync();
             await EnsureSessionSummaryMetricColumnsAsync();
+            await EnsureSessionGpsOffsetColumnAsync();
             await EnsureBikeDampingSpeedCutoffColumnsAsync();
             await EnsureSessionCacheDampingSpeedCutoffColumnsAsync();
             await BackfillRearSuspensionKindAsync();
@@ -99,6 +100,19 @@ internal sealed class DatabaseMigrationRunner(
                 await connection.ExecuteAsync($"ALTER TABLE session ADD COLUMN {columnName} REAL");
             }
         }
+    }
+
+    private async Task EnsureSessionGpsOffsetColumnAsync()
+    {
+        var columns = await connection.QueryAsync<TableColumnInfo>("PRAGMA table_info(session)");
+        var columnNames = columns.Select(column => column.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (!columnNames.Contains("gps_offset_seconds"))
+        {
+            await connection.ExecuteAsync("ALTER TABLE session ADD COLUMN gps_offset_seconds REAL");
+        }
+
+        await connection.ExecuteAsync("UPDATE session SET gps_offset_seconds = 0 WHERE gps_offset_seconds IS NULL");
     }
 
     private async Task EnsureBikeDampingSpeedCutoffColumnsAsync()

@@ -4,6 +4,7 @@ using System.Globalization;
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Headless.XUnit;
+using CommunityToolkit.Mvvm.Input;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.Database;
@@ -32,6 +33,7 @@ namespace Sufni.App.Tests.ViewModels.Editors;
 public class SessionDetailViewModelTests
 {
     private readonly ISessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
+    private readonly ITrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
     private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
     private readonly IRecordedSessionGraph recordedSessionGraph = Substitute.For<IRecordedSessionGraph>();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
@@ -74,6 +76,7 @@ public class SessionDetailViewModelTests
         return new SessionDetailViewModel(
             snapshot,
             sessionCoordinator,
+            trackCoordinator,
             sessionStore,
             recordedSessionGraph,
             sessionPresentationService,
@@ -402,11 +405,97 @@ public class SessionDetailViewModelTests
         Assert.Equal(expectedRowIds.OrderBy(id => id), editor.PlotContextMenuActionsByRowId.Keys.OrderBy(id => id));
         foreach (var rowId in expectedRowIds)
         {
-            var action = Assert.Single(editor.PlotContextMenuActionsByRowId[rowId]);
-            Assert.Equal("autozoom", action.Id);
-            Assert.Equal("Autozoom", action.Label);
-            Assert.NotNull(action.Command);
+            var actions = editor.PlotContextMenuActionsByRowId[rowId];
+            Assert.Contains(actions, action => action.Id == "autozoom" && action.Label == "Autozoom");
+            Assert.Contains(actions, action => action.Id == "gps-mark-gps-event");
+            Assert.Contains(actions, action => action.Id == "gps-mark-telemetry-event");
+
+            Assert.All(actions, action => Assert.NotNull(action.Command));
         }
+    }
+
+    [AvaloniaFact]
+    public async Task GpsContextMenuAlignment_PersistsOffsetAndRefreshesTimelineContext()
+    {
+        var fullTrackId = Guid.NewGuid();
+        var snapshot = TestSnapshots.Session(hasProcessedData: true, updated: 5) with
+        {
+            FullTrackId = fullTrackId,
+            GpsOffsetSeconds = 1.0,
+        };
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var initialTrackPoints = new List<TrackPoint>
+        {
+            new(telemetry.Metadata.Timestamp + 1, 1, 1, 0, 10),
+            new(telemetry.Metadata.Timestamp + 2, 2, 2, 0, 20),
+        };
+        var updatedTrackPoints = new List<TrackPoint>
+        {
+            new(telemetry.Metadata.Timestamp + 4, 4, 4, 0, 40),
+            new(telemetry.Metadata.Timestamp + 5, 5, 5, 0, 50),
+        };
+        var updatedFullTrackPoints = new List<TrackPoint>
+        {
+            new(telemetry.Metadata.Timestamp, 0, 0, 0),
+            new(telemetry.Metadata.Timestamp + 6, 6, 6, 0),
+        };
+        var updatedSnapshot = snapshot with
+        {
+            GpsOffsetSeconds = 4.0,
+            Updated = 9,
+        };
+        trackCoordinator.UpdateSessionGpsOffsetAsync(
+                snapshot.Id,
+                fullTrackId,
+                telemetry,
+                4.0,
+                Arg.Any<CancellationToken>())
+            .Returns(new SessionGpsOffsetUpdateResult(
+                updatedSnapshot,
+                new SessionTrackPresentationData(
+                    fullTrackId,
+                    updatedFullTrackPoints,
+                    updatedTrackPoints,
+                    400.0)));
+        var editor = CreateEditor(snapshot);
+        editor.SessionContext.TelemetryData = telemetry;
+        editor.SessionContext.TrackPoints = initialTrackPoints;
+        var gpsEventContext = new TelemetryPlotContextMenuContext(
+            TelemetryGraphRowIds.Travel,
+            ClickSeconds: 8.0,
+            DurationSeconds: 20.0,
+            AnalysisRange: null);
+        var telemetryEventContext = new TelemetryPlotContextMenuContext(
+            TelemetryGraphRowIds.Travel,
+            ClickSeconds: 5.0,
+            DurationSeconds: 20.0,
+            AnalysisRange: null);
+        var gpsAction = editor.PlotContextMenuActionsByRowId[TelemetryGraphRowIds.Travel]
+            .Single(action => action.Id == "gps-mark-gps-event");
+        var telemetryAction = editor.PlotContextMenuActionsByRowId[TelemetryGraphRowIds.Travel]
+            .Single(action => action.Id == "gps-mark-telemetry-event");
+        var telemetryCommand = Assert.IsAssignableFrom<IAsyncRelayCommand<TelemetryPlotContextMenuContext?>>(telemetryAction.Command);
+
+        Assert.True(gpsAction.Command.CanExecute(gpsEventContext));
+        gpsAction.Command.Execute(gpsEventContext);
+
+        Assert.False(gpsAction.Command.CanExecute(gpsEventContext));
+        Assert.True(telemetryAction.Command.CanExecute(telemetryEventContext));
+
+        await telemetryCommand.ExecuteAsync(telemetryEventContext);
+
+        await trackCoordinator.Received(1).UpdateSessionGpsOffsetAsync(
+            snapshot.Id,
+            fullTrackId,
+            telemetry,
+            4.0,
+            Arg.Any<CancellationToken>());
+        Assert.Equal(9, editor.BaselineUpdated);
+        Assert.Equal(4.0, editor.SessionContext.SessionSnapshot?.GpsOffsetSeconds);
+        Assert.Same(updatedTrackPoints, editor.SessionContext.TrackPoints);
+        Assert.Same(updatedFullTrackPoints, editor.SessionContext.FullTrackPoints);
+        Assert.Equal(telemetry.Metadata.Timestamp + 4.0, editor.SessionContext.TrackTimelineContext?.OriginSeconds);
+        Assert.False(editor.IsDirty);
     }
 
     [AvaloniaFact]
@@ -826,6 +915,19 @@ public class SessionDetailViewModelTests
         context.AddNotification("extension notification");
         var lease = context.StartOperation("Extension work");
         lease.Report("Extension still working", 50);
+        var beganExternalAlignment = context.TryBeginTimelineAlignment(
+            RecordedSessionTimelineAlignmentTarget.ExternalMedia,
+            12.0,
+            subjectId: "media-a");
+        var beganGpsAlignment = context.TryBeginTimelineAlignment(
+            RecordedSessionTimelineAlignmentTarget.GpsTrack,
+            4.0);
+        var pendingAlignment = factory.Scope!.UpdatedStates.Last().Timeline.Alignment.PendingMark;
+        var resolvedExternalAlignment = context.TryResolveTimelineAlignment(
+            RecordedSessionTimelineAlignmentTarget.ExternalMedia,
+            7.0,
+            out var alignmentResolution,
+            subjectId: "media-a");
 
         Assert.Equal(selectedRange, editor.SessionContext.AnalysisRange);
         Assert.Equal(0.2, editor.Timeline.VisibleRangeStart, 6);
@@ -836,6 +938,15 @@ public class SessionDetailViewModelTests
         Assert.True(editor.SessionContext.SessionOperationState.IsVisible);
         Assert.Equal("Extension still working", editor.SessionContext.SessionOperationState.Message);
         Assert.Equal(50, editor.SessionContext.SessionOperationState.Percent);
+        Assert.True(beganExternalAlignment);
+        Assert.False(beganGpsAlignment);
+        Assert.NotNull(pendingAlignment);
+        Assert.Equal(RecordedSessionTimelineAlignmentTarget.ExternalMedia, pendingAlignment.Target);
+        Assert.Equal("media-a", pendingAlignment.SubjectId);
+        Assert.True(resolvedExternalAlignment);
+        Assert.NotNull(alignmentResolution);
+        Assert.Equal(5.0, alignmentResolution.OffsetDeltaSeconds);
+        Assert.Null(factory.Scope.UpdatedStates.Last().Timeline.Alignment.PendingMark);
 
         lease.Complete();
 
@@ -2328,7 +2439,9 @@ public class SessionDetailViewModelTests
 
     private static TelemetryPlotContextMenuAction GetAutozoomAction(SessionDetailViewModel editor)
     {
-        return Assert.Single(editor.PlotContextMenuActionsByRowId[TelemetryGraphRowIds.Travel]);
+        return Assert.Single(
+            editor.PlotContextMenuActionsByRowId[TelemetryGraphRowIds.Travel],
+            action => action.Id == "autozoom");
     }
 
     private static async Task WaitForAsync(Func<bool> condition)

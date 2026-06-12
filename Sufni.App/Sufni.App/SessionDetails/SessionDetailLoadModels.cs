@@ -4,6 +4,7 @@ using Sufni.App.Models;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Stores;
 
 namespace Sufni.App.SessionDetails;
 
@@ -44,6 +45,10 @@ public sealed record SessionTrackPresentationData(
     List<TrackPoint>? FullTrackPoints,
     List<TrackPoint>? TrackPoints,
     double? MediaColumnWidth);
+
+public sealed record SessionGpsOffsetUpdateResult(
+    SessionSnapshot Session,
+    SessionTrackPresentationData TrackData);
 
 public sealed record SessionCachePresentationData(
     string? FrontTravelHistogram,

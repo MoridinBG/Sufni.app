@@ -84,8 +84,8 @@ public class TrackCoordinatorTests
         var telemetry = TestTelemetryData.CreateProcessed();
         var existingTrack = new List<TrackPoint>
         {
-            new(1, 1, 1, 0),
-            new(2, 2, 2, 0),
+            new(telemetry.Metadata.Timestamp, 1, 1, 0),
+            new(telemetry.Metadata.Timestamp + 1, 2, 2, 0),
         };
         var fullTrack = new Track
         {
@@ -147,6 +147,61 @@ public class TrackCoordinatorTests
         Assert.NotEmpty(result.TrackPoints!);
         Assert.All(result.TrackPoints!, point => Assert.True(point.Elevation > 0));
         Assert.All(result.TrackPoints!, point => Assert.True(point.Speed > 0));
+    }
+
+    [Fact]
+    public async Task UpdateSessionGpsOffsetAsync_RegeneratesSessionTrackAndPersistsOffset()
+    {
+        var sessionId = Guid.NewGuid();
+        var fullTrackId = Guid.NewGuid();
+        var telemetry = TestTelemetryData.CreateProcessed();
+        telemetry.Metadata.Duration = 3.0;
+        var offsetSeconds = 2.5;
+        var updatedSession = new Session(
+            sessionId,
+            "session",
+            "",
+            setup: null,
+            timestamp: telemetry.Metadata.Timestamp)
+        {
+            FullTrack = fullTrackId,
+            HasProcessedData = true,
+            GpsOffsetSeconds = offsetSeconds,
+            Updated = 9,
+        };
+        var fullTrack = new Track
+        {
+            Id = fullTrackId,
+            Points =
+            [
+                new TrackPoint(telemetry.Metadata.Timestamp + 2, 1, 1, 100, 10),
+                new TrackPoint(telemetry.Metadata.Timestamp + 3, 2, 2, 110, 20),
+                new TrackPoint(telemetry.Metadata.Timestamp + 4, 3, 3, 120, 30),
+                new TrackPoint(telemetry.Metadata.Timestamp + 5, 4, 4, 130, 40),
+                new TrackPoint(telemetry.Metadata.Timestamp + 6, 5, 5, 140, 50),
+            ]
+        };
+        trackEntityRepository.GetAsync(fullTrackId).Returns(fullTrack);
+        sessionRepository.GetSessionAsync(sessionId).Returns(updatedSession);
+
+        var result = await CreateCoordinator().UpdateSessionGpsOffsetAsync(
+            sessionId,
+            fullTrackId,
+            telemetry,
+            offsetSeconds);
+
+        Assert.NotNull(result);
+        await sessionTelemetryWriter.Received(1).PatchSessionTrackAsync(
+            sessionId,
+            Arg.Is<List<TrackPoint>>(points =>
+                points.Count > 0 &&
+                Math.Abs(points[0].Time - (telemetry.Metadata.Timestamp + offsetSeconds)) < 0.000001),
+            Arg.Is<double?>(value => value == offsetSeconds));
+        Assert.Equal(offsetSeconds, result.Session.GpsOffsetSeconds);
+        Assert.Equal(fullTrackId, result.TrackData.FullTrackId);
+        Assert.Same(fullTrack.Points, result.TrackData.FullTrackPoints);
+        Assert.NotNull(result.TrackData.TrackPoints);
+        Assert.NotEmpty(result.TrackData.TrackPoints!);
     }
 
     private static string ValidGpx()

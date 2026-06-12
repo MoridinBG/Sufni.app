@@ -15,4 +15,11 @@ public interface ITrackCoordinator
         Guid? fullTrackId,
         TelemetryData telemetryData,
         CancellationToken cancellationToken = default);
+
+    Task<SessionGpsOffsetUpdateResult?> UpdateSessionGpsOffsetAsync(
+        Guid sessionId,
+        Guid? fullTrackId,
+        TelemetryData telemetryData,
+        double gpsOffsetSeconds,
+        CancellationToken cancellationToken = default);
 }

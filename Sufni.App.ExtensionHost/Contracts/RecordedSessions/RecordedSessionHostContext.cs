@@ -43,6 +43,18 @@ public interface IRecordedSessionHostOperations
     void SetAnalysisRange(double startSeconds, double endSeconds);
     void ClearAnalysisRange();
     void SetTimelineVisibleRange(double startNormalized, double endNormalized, object source);
+    bool TryBeginTimelineAlignment(
+        RecordedSessionTimelineAlignmentTarget target,
+        double seconds,
+        string? subjectId = null);
+    bool TryResolveTimelineAlignment(
+        RecordedSessionTimelineAlignmentTarget target,
+        double seconds,
+        string? subjectId,
+        out RecordedSessionTimelineAlignmentResolution? resolution);
+    bool TryCancelTimelineAlignment(
+        RecordedSessionTimelineAlignmentTarget target,
+        string? subjectId = null);
     void AddError(string message);
     void AddNotification(string message);
     IRecordedSessionOperationLease StartOperation(string description);
@@ -87,6 +99,30 @@ public sealed class RecordedSessionHostContext
     {
         ArgumentNullException.ThrowIfNull(source);
         Operations.SetTimelineVisibleRange(startNormalized, endNormalized, source);
+    }
+
+    public bool TryBeginTimelineAlignment(
+        RecordedSessionTimelineAlignmentTarget target,
+        double seconds,
+        string? subjectId = null)
+    {
+        return Operations.TryBeginTimelineAlignment(target, seconds, subjectId);
+    }
+
+    public bool TryResolveTimelineAlignment(
+        RecordedSessionTimelineAlignmentTarget target,
+        double seconds,
+        out RecordedSessionTimelineAlignmentResolution? resolution,
+        string? subjectId = null)
+    {
+        return Operations.TryResolveTimelineAlignment(target, seconds, subjectId, out resolution);
+    }
+
+    public bool TryCancelTimelineAlignment(
+        RecordedSessionTimelineAlignmentTarget target,
+        string? subjectId = null)
+    {
+        return Operations.TryCancelTimelineAlignment(target, subjectId);
     }
 
     public void AddError(string message)

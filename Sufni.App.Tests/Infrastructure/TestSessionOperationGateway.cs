@@ -20,6 +20,7 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
     public List<string> Notifications { get; } = [];
     public int LoadRequestCount { get; private set; }
     public int HostUpdateCount { get; private set; }
+    public RecordedSessionTimelineAlignmentMark? PendingTimelineAlignmentMark { get; private set; }
     public List<(SuspensionType Side, DampingSpeedCircuit Circuit, double Cutoff)> CutoffPreviews { get; } = [];
     public int CutoffPreviewCancellations { get; private set; }
     public List<(SuspensionType Side, DampingSpeedCircuit Circuit, double Cutoff)> CutoffCommits { get; } = [];
@@ -67,6 +68,65 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
 
     public void SetTimelineVisibleRange(double startNormalized, double endNormalized, object source)
     {
+    }
+
+    public bool TryBeginTimelineAlignment(
+        RecordedSessionTimelineAlignmentTarget target,
+        double seconds,
+        string? subjectId = null)
+    {
+        if (target == RecordedSessionTimelineAlignmentTarget.None ||
+            !double.IsFinite(seconds) ||
+            seconds < 0 ||
+            PendingTimelineAlignmentMark is not null)
+        {
+            return false;
+        }
+
+        PendingTimelineAlignmentMark = new RecordedSessionTimelineAlignmentMark(target, subjectId, seconds);
+        return true;
+    }
+
+    public bool TryResolveTimelineAlignment(
+        RecordedSessionTimelineAlignmentTarget target,
+        double seconds,
+        string? subjectId,
+        out RecordedSessionTimelineAlignmentResolution? resolution)
+    {
+        resolution = null;
+        if (target == RecordedSessionTimelineAlignmentTarget.None ||
+            !double.IsFinite(seconds) ||
+            seconds < 0 ||
+            PendingTimelineAlignmentMark is not { } mark ||
+            mark.Target != target ||
+            !string.Equals(mark.SubjectId, subjectId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        resolution = new RecordedSessionTimelineAlignmentResolution(
+            target,
+            mark.SubjectId,
+            mark.Seconds,
+            seconds,
+            mark.Seconds - seconds);
+        PendingTimelineAlignmentMark = null;
+        return true;
+    }
+
+    public bool TryCancelTimelineAlignment(
+        RecordedSessionTimelineAlignmentTarget target,
+        string? subjectId = null)
+    {
+        if (PendingTimelineAlignmentMark is not { } mark ||
+            mark.Target != target ||
+            !string.Equals(mark.SubjectId, subjectId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        PendingTimelineAlignmentMark = null;
+        return true;
     }
 
     public void AddError(string message) => Errors.Add(message);

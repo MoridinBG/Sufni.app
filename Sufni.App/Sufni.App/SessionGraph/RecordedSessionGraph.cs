@@ -509,6 +509,7 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
         previous.SetupId != current.SetupId ||
         previous.Timestamp != current.Timestamp ||
         previous.FullTrackId != current.FullTrackId ||
+        previous.GpsOffsetSeconds != current.GpsOffsetSeconds ||
         previous.FrontSpringRate != current.FrontSpringRate ||
         previous.FrontHighSpeedCompression != current.FrontHighSpeedCompression ||
         previous.FrontLowSpeedCompression != current.FrontLowSpeedCompression ||

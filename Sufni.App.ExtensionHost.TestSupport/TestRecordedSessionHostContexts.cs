@@ -19,7 +19,10 @@ public static class TestRecordedSessionHostContexts
         IBackgroundTaskRunner? backgroundTaskRunner = null,
         IUiThreadDispatcher? uiThreadDispatcher = null,
         Action<double, double, object>? setTimelineVisibleRange = null,
-        Func<string, IRecordedSessionOperationLease>? startOperation = null) => new(
+        Func<string, IRecordedSessionOperationLease>? startOperation = null,
+        Func<RecordedSessionTimelineAlignmentTarget, double, string?, bool>? tryBeginTimelineAlignment = null,
+        TryResolveTimelineAlignmentHandler? tryResolveTimelineAlignment = null,
+        Func<RecordedSessionTimelineAlignmentTarget, string?, bool>? tryCancelTimelineAlignment = null) => new(
         sessionId,
         new RecordedSessionHostServices(
             new EmptyObservable<RecordedSessionHostState>(),
@@ -32,7 +35,10 @@ public static class TestRecordedSessionHostContexts
             setTimelineVisibleRange: setTimelineVisibleRange,
             addError: addError,
             addNotification: addNotification,
-            startOperation: startOperation));
+            startOperation: startOperation,
+            tryBeginTimelineAlignment: tryBeginTimelineAlignment,
+            tryResolveTimelineAlignment: tryResolveTimelineAlignment,
+            tryCancelTimelineAlignment: tryCancelTimelineAlignment));
 
     private sealed class EmptyObservable<T> : IObservable<T>
     {

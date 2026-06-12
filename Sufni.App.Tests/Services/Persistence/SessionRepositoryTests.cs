@@ -407,6 +407,41 @@ public class SessionRepositoryTests
     }
 
     [Fact]
+    public async Task UpdateSessionTrackAsync_PreservesGpsOffset_WhenOffsetIsNotProvided()
+    {
+        using var tempDatabase = new TempDatabase("session-track-preserve-gps-offset.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+
+        var database = new TestPersistenceHarness(databasePath);
+        _ = await database.GetSessionsAsync();
+
+        using (var connection = new SQLiteConnection(databasePath))
+        {
+            connection.Insert(new Session(sessionId, "session", "desc", null, 100)
+            {
+                DurationSeconds = 65,
+                GpsOffsetSeconds = 3.25,
+                Updated = 1,
+                ClientUpdated = 1
+            });
+        }
+
+        await database.SessionRepository.UpdateSessionTrackAsync(
+            sessionId,
+            [
+                new TrackPoint(100, 1, 1, 0),
+                new TrackPoint(101, 2, 2, 0)
+            ],
+            new SessionSummaryMetrics(65, 1.5, 0, 0));
+
+        var after = await database.GetSessionAsync(sessionId);
+
+        Assert.NotNull(after);
+        Assert.Equal(3.25, after!.GpsOffsetSeconds);
+    }
+
+    [Fact]
     public async Task UpdateSessionTrackAsync_Throws_WhenSessionDoesNotExist()
     {
         using var tempDatabase = new TempDatabase("session-track-update-missing.db");

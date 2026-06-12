@@ -250,6 +250,7 @@ public class EditorFactoryTests
             Substitute.For<IBikeStore>(),
             TestCoordinatorSubstitutes.Setup(),
             TestCoordinatorSubstitutes.Session(),
+            TestCoordinatorSubstitutes.Track(),
             Substitute.For<ISessionStore>(),
             Substitute.For<IRecordedSessionGraph>(),
             Substitute.For<ISessionPresentationService>(),

@@ -123,8 +123,8 @@ internal sealed class TestPersistenceHarness
     public Task PatchSessionPsstAsync(Guid id, byte[] data) =>
         sessionTelemetryWriter.PatchSessionPsstAsync(id, data);
 
-    public Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points) =>
-        sessionTelemetryWriter.PatchSessionTrackAsync(id, points);
+    public Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points, double? gpsOffsetSeconds = null) =>
+        sessionTelemetryWriter.PatchSessionTrackAsync(id, points, gpsOffsetSeconds);
 
     public Task<List<RecordedSessionSource>> GetRecordedSessionSourcesAsync() =>
         recordedSessionSourceRepository.GetRecordedSessionSourcesAsync();

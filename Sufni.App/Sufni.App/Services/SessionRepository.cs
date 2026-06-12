@@ -36,7 +36,11 @@ public interface ISessionRepository
 
     Task UpdateSessionPsstAsync(Guid id, byte[] data, SessionSummaryMetrics metrics);
 
-    Task UpdateSessionTrackAsync(Guid id, List<TrackPoint> points, SessionSummaryMetrics metrics);
+    Task UpdateSessionTrackAsync(
+        Guid id,
+        List<TrackPoint> points,
+        SessionSummaryMetrics metrics,
+        double? gpsOffsetSeconds = null);
 }
 
 internal sealed class SessionRepository(
@@ -50,10 +54,11 @@ internal sealed class SessionRepository(
                                                                      timestamp,
                                                                      duration_seconds,
                                                                      distance_meters,
-                                                                     ascent_meters,
-                                                                     descent_meters,
-                                                                     full_track_id,
-                                                                     {SessionSqlProjection.ProcessingFingerprintColumn},
+                                                                      ascent_meters,
+                                                                      descent_meters,
+                                                                      full_track_id,
+                                                                      gps_offset_seconds,
+                                                                      {SessionSqlProjection.ProcessingFingerprintColumn},
                                                                      front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
                                                                      rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
                                                                      updated,
@@ -70,6 +75,7 @@ internal sealed class SessionRepository(
                                                              ascent_meters=?,
                                                              descent_meters=?,
                                                              full_track_id=?,
+                                                             gps_offset_seconds=?,
                                                              session_processing_fingerprint=?,
                                                              track=?,
                                                              data=?,
@@ -85,6 +91,7 @@ internal sealed class SessionRepository(
                                                                 description=?,
                                                                 timestamp=?,
                                                                 full_track_id=?,
+                                                                gps_offset_seconds=?,
                                                                 session_processing_fingerprint=?,
                                                                 track=COALESCE(?, track),
                                                                 data=COALESCE(?, data),
@@ -238,7 +245,11 @@ internal sealed class SessionRepository(
         }
     }
 
-    public async Task UpdateSessionTrackAsync(Guid id, List<TrackPoint> points, SessionSummaryMetrics metrics)
+    public async Task UpdateSessionTrackAsync(
+        Guid id,
+        List<TrackPoint> points,
+        SessionSummaryMetrics metrics,
+        double? gpsOffsetSeconds = null)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
 
@@ -253,6 +264,7 @@ internal sealed class SessionRepository(
                 distance_meters=?,
                 ascent_meters=?,
                 descent_meters=?,
+                gps_offset_seconds=COALESCE(?, gps_offset_seconds),
                 updated=?
             WHERE id=? AND deleted IS NULL
             """,
@@ -261,6 +273,7 @@ internal sealed class SessionRepository(
             metrics.DistanceMeters,
             metrics.AscentMeters,
             metrics.DescentMeters,
+            gpsOffsetSeconds,
             now,
             id);
         if (updatedRows == 0)
@@ -382,6 +395,7 @@ internal sealed class SessionRepository(
         session.AscentMeters,
         session.DescentMeters,
         session.FullTrack,
+        NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
         session.ProcessingFingerprintJson,
         SerializeTrack(session),
         session.ProcessedData,
@@ -418,6 +432,7 @@ internal sealed class SessionRepository(
         session.Description,
         session.Timestamp,
         session.FullTrack,
+        NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
         session.ProcessingFingerprintJson,
         SerializeTrack(session),
         session.ProcessedData,
@@ -434,5 +449,8 @@ internal sealed class SessionRepository(
         session.Updated,
         session.Id
     ];
+
+    private static double NormalizeGpsOffsetSeconds(double gpsOffsetSeconds) =>
+        double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;
 
 }

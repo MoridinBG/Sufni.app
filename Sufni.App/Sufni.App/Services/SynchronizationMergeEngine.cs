@@ -36,10 +36,11 @@ internal sealed class SynchronizationMergeEngine(
                                                                       timestamp,
                                                                       duration_seconds,
                                                                       distance_meters,
-                                                                      ascent_meters,
-                                                                      descent_meters,
-                                                                      full_track_id,
-                                                                      {SessionSqlProjection.ProcessingFingerprintColumn},
+                                                                       ascent_meters,
+                                                                       descent_meters,
+                                                                       full_track_id,
+                                                                       gps_offset_seconds,
+                                                                       {SessionSqlProjection.ProcessingFingerprintColumn},
                                                                       track,
                                                                       front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
                                                                       rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
@@ -56,10 +57,11 @@ internal sealed class SynchronizationMergeEngine(
                                                                   timestamp=?,
                                                                   duration_seconds=?,
                                                                   distance_meters=?,
-                                                                  ascent_meters=?,
-                                                                  descent_meters=?,
-                                                                  full_track_id=?,
-                                                                  session_processing_fingerprint=?,
+                                                                   ascent_meters=?,
+                                                                   descent_meters=?,
+                                                                   full_track_id=?,
+                                                                   gps_offset_seconds=?,
+                                                                   session_processing_fingerprint=?,
                                                                   track=?,
                                                                   front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
                                                                   rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
@@ -387,6 +389,7 @@ internal sealed class SynchronizationMergeEngine(
         session.AscentMeters,
         session.DescentMeters,
         session.FullTrack,
+        NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
         session.ProcessingFingerprintJson,
         SerializeTrack(session),
         session.FrontSpringRate,
@@ -404,6 +407,9 @@ internal sealed class SynchronizationMergeEngine(
         session.Deleted,
         session.Id
     ];
+
+    private static double NormalizeGpsOffsetSeconds(double gpsOffsetSeconds) =>
+        double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;
 
     private static async Task<T?> FindAsync<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
