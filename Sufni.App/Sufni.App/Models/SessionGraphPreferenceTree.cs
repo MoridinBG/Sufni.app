@@ -7,6 +7,7 @@ namespace Sufni.App.Models;
 internal sealed record SessionGraphPreferenceRowState(
     string RowId,
     bool IsExpanded,
+    double? HeightRatio,
     IReadOnlyList<SessionGraphPreferenceRowState> Children);
 
 // Pure preference-tree helper for recorded graph row ordering. It keeps invalid
@@ -34,7 +35,7 @@ internal static class SessionGraphPreferenceTree
         {
             if (used.Add(rowId))
             {
-                rootRows.Add(new RowNode(rowId, isExpanded: true, []));
+                rootRows.Add(new RowNode(rowId, isExpanded: true, heightRatio: null, children: []));
             }
         }
 
@@ -149,7 +150,7 @@ internal static class SessionGraphPreferenceTree
                 continue;
             }
 
-            var node = new RowNode(preference.RowId, preference.IsExpanded, []);
+            var node = new RowNode(preference.RowId, preference.IsExpanded, preference.HeightRatio, []);
             nodesById.Add(preference.RowId, node);
             node.Children.AddRange(MaterializeRows(preference.Children, available, used, nodesById));
             yield return node;
@@ -174,7 +175,7 @@ internal static class SessionGraphPreferenceTree
 
             if (!nodesById.TryGetValue(preference.RowId, out var node))
             {
-                node = new RowNode(preference.RowId, preference.IsExpanded, []);
+                node = new RowNode(preference.RowId, preference.IsExpanded, preference.HeightRatio, []);
                 nodesById.Add(preference.RowId, node);
                 used.Add(preference.RowId);
                 if (parent is null)
@@ -205,7 +206,8 @@ internal static class SessionGraphPreferenceTree
             yield return new SessionGraphRowPreferences(
                 row.RowId,
                 row.IsExpanded,
-                CaptureRows(row.Children, used).ToArray());
+                CaptureRows(row.Children, used).ToArray(),
+                row.HeightRatio);
         }
     }
 
@@ -226,7 +228,7 @@ internal static class SessionGraphPreferenceTree
                 continue;
             }
 
-            yield return new RowNode(row.RowId, row.IsExpanded, CloneRows(row.Children, used).ToList());
+            yield return new RowNode(row.RowId, row.IsExpanded, row.HeightRatio, CloneRows(row.Children, used).ToList());
         }
     }
 
@@ -285,12 +287,13 @@ internal static class SessionGraphPreferenceTree
             Contains(child, rowId));
 
     private static SessionGraphRowPreferences ToPreferences(RowNode node) =>
-        new(node.RowId, node.IsExpanded, node.Children.Select(ToPreferences).ToArray());
+        new(node.RowId, node.IsExpanded, node.Children.Select(ToPreferences).ToArray(), node.HeightRatio);
 
-    private sealed class RowNode(string rowId, bool isExpanded, List<RowNode> children)
+    private sealed class RowNode(string rowId, bool isExpanded, double? heightRatio, List<RowNode> children)
     {
         public string RowId { get; } = rowId;
         public bool IsExpanded { get; set; } = isExpanded;
+        public double? HeightRatio { get; } = heightRatio;
         public List<RowNode> Children { get; } = children;
     }
 }

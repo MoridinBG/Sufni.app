@@ -97,6 +97,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private bool hasBeenActivated;
     private SessionPlotPreferences plotPreferences = SessionPreferences.Default.Plots;
     private SessionGraphPreferences graphPreferences = SessionPreferences.Default.Graph;
+    private SessionLayoutPreferences layoutPreferences = SessionPreferences.Default.Layout;
     private readonly SessionPlotRowActionsController plotRowActions;
     private readonly PlotAutozoomController plotAutozoomController;
     private readonly IRelayCommand<TelemetryPlotContextMenuContext?> markGpsEventCommand;
@@ -137,6 +138,30 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             recordedPreferenceStore.PersistChangeIfEnabled(current => current with { Graph = value });
         }
     }
+
+    public SessionLayoutPreferences LayoutPreferences
+    {
+        get => layoutPreferences;
+        set
+        {
+            if (!SetProperty(ref layoutPreferences, value))
+            {
+                return;
+            }
+
+            recordedPreferenceStore.UpdateCurrent(current => current with { Layout = value });
+            SessionContext.LayoutPreferences = value;
+            OnPropertyChanged(nameof(MediaLayoutPreferences));
+            recordedPreferenceStore.PersistChangeIfEnabled(current => current with { Layout = value });
+        }
+    }
+
+    public SessionPaneGroupPreferences? MediaLayoutPreferences
+    {
+        get => LayoutPreferences.DesktopMediaRows;
+        set => LayoutPreferences = LayoutPreferences with { DesktopMediaRows = value };
+    }
+
     public TelemetrySourceVisibilityStore SourceVisibility => SessionContext.SourceVisibility;
     public PreferencesPageViewModel PreferencesPage { get; } = new();
     public MapViewModel? MapViewModel => SessionContext.MapViewModel;
@@ -1014,6 +1039,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         PlotPreferences = preferences.Plots;
         GraphPreferences = preferences.Graph;
+        LayoutPreferences = preferences.Layout;
         PreferencesPage.ApplyPlotPreferences(preferences.Plots);
         PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
         ApplyRecordedStatisticsPreferences(preferences.Statistics);

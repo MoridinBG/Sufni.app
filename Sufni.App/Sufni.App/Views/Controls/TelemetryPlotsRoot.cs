@@ -311,6 +311,7 @@ public sealed class TelemetryPlotsRoot : UserControl
 
         source.RemoveAt(sourceIndex);
         row.ManualGroupHeight = null;
+        row.ManualGroupHeightRatio = null;
         row.ApplyRootRowDefaults();
         Rows.Insert(Math.Clamp(targetIndex, 0, Rows.Count), row);
         InvalidateMeasure();
@@ -349,6 +350,7 @@ public sealed class TelemetryPlotsRoot : UserControl
 
         source.RemoveAt(sourceIndex);
         row.ManualGroupHeight = null;
+        row.ManualGroupHeightRatio = null;
         row.ApplyHostedRowDefaults();
         targetParent.ChildRows.Add(row);
         targetParent.IsExpanded = true;
@@ -394,6 +396,7 @@ public sealed class TelemetryPlotsRoot : UserControl
         return new SessionGraphPreferenceRowState(
             row.RowId ?? "",
             row.IsExpanded,
+            row.IsExpanded ? row.ManualGroupHeightRatio : null,
             row.ChildRows
                 .Where(childRow => !TelemetryPlotRowExtensionHost.GetIsHostedGraphRow(childRow))
                 .Select(CreateRowState)
@@ -450,6 +453,8 @@ public sealed class TelemetryPlotsRoot : UserControl
             {
                 Rows.Add(row);
             }
+
+            ResetIncompleteRowHeightPreferences();
         }
         finally
         {
@@ -474,12 +479,39 @@ public sealed class TelemetryPlotsRoot : UserControl
             }
 
             row.IsExpanded = preference.IsExpanded;
+            row.ManualGroupHeight = null;
+            row.ManualGroupHeightRatio = preference.HeightRatio;
             foreach (var childRow in MaterializeRows(preference.Children, rowsById, usedIds))
             {
                 row.ChildRows.Add(childRow);
             }
 
             yield return row;
+        }
+    }
+
+    internal void CommitManualRowSizePreferences()
+    {
+        rowsPanel.CommitVisibleRowHeightRatios();
+        PublishGraphPreferences();
+    }
+
+    private void ResetIncompleteRowHeightPreferences()
+    {
+        var resizableRootRows = Rows
+            .Where(row => row.ReservesLayout && row.IsExpanded && row.GetVisiblePlotSlotCount() > 0)
+            .ToArray();
+        if (resizableRootRows.Length == 0)
+        {
+            return;
+        }
+
+        if (resizableRootRows.Any(row =>
+                row.ManualGroupHeightRatio is not { } ratio ||
+                !double.IsFinite(ratio) ||
+                ratio <= 0))
+        {
+            rowsPanel.ClearManualRowSizing();
         }
     }
 

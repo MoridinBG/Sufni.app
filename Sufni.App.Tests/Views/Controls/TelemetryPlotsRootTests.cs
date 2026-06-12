@@ -307,6 +307,64 @@ public class TelemetryPlotsRootTests
     }
 
     [AvaloniaFact]
+    public async Task TelemetryPlotsRoot_GraphPreferences_AppliesStoredHeightRatios()
+    {
+        var travel = CreateRow("Travel", TelemetryGraphRowIds.Travel);
+        var imu = CreateRow("IMU", TelemetryGraphRowIds.Imu);
+        var root = CreateRoot(travel, imu);
+        root.GraphPreferences = new SessionGraphPreferences(
+        [
+            new SessionGraphRowPreferences(TelemetryGraphRowIds.Travel, heightRatio: 0.25),
+            new SessionGraphRowPreferences(TelemetryGraphRowIds.Imu, heightRatio: 0.75),
+        ]);
+
+        await using var mounted = await MountAsync(root);
+        Measure(root, 400, 800);
+
+        Assert.Equal(200, travel.AllocatedGroupHeight);
+        Assert.Equal(600, imu.AllocatedGroupHeight);
+    }
+
+    [AvaloniaFact]
+    public async Task TelemetryPlotsRoot_GraphPreferences_UsesDefaults_WhenAnyVisibleRootRowHasNoHeightRatio()
+    {
+        var travel = CreateRow("Travel", TelemetryGraphRowIds.Travel);
+        var imu = CreateRow("IMU", TelemetryGraphRowIds.Imu);
+        var root = CreateRoot(travel, imu);
+        root.GraphPreferences = new SessionGraphPreferences(
+        [
+            new SessionGraphRowPreferences(TelemetryGraphRowIds.Travel, heightRatio: 0.25),
+            new SessionGraphRowPreferences(TelemetryGraphRowIds.Imu),
+        ]);
+
+        await using var mounted = await MountAsync(root);
+        Measure(root, 400, 800);
+
+        Assert.Equal(400, travel.AllocatedGroupHeight);
+        Assert.Equal(400, imu.AllocatedGroupHeight);
+        Assert.Null(travel.ManualGroupHeightRatio);
+        Assert.Null(imu.ManualGroupHeightRatio);
+    }
+
+    [AvaloniaFact]
+    public async Task TelemetryPlotsRoot_CommitManualRowSizePreferences_PublishesHeightRatios()
+    {
+        var travel = CreateRow("Travel", TelemetryGraphRowIds.Travel);
+        var imu = CreateRow("IMU", TelemetryGraphRowIds.Imu);
+        var root = CreateRoot(travel, imu);
+
+        await using var mounted = await MountAsync(root);
+        Measure(root, 400, 800);
+
+        travel.ManualGroupHeight = 300;
+        imu.ManualGroupHeight = 500;
+        root.CommitManualRowSizePreferences();
+
+        Assert.Equal(0.375, root.GraphPreferences.Rows[0].HeightRatio);
+        Assert.Equal(0.625, root.GraphPreferences.Rows[1].HeightRatio);
+    }
+
+    [AvaloniaFact]
     public async Task TelemetryPlotsRoot_GraphPreferences_UpdatesWhenRowsMoveOrCollapse()
     {
         var travel = CreateRow("Travel", TelemetryGraphRowIds.Travel);

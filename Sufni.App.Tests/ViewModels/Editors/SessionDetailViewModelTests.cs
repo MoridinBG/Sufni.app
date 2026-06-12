@@ -1297,6 +1297,69 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Loaded_OnDesktop_AppliesPersistedLayoutPreferencesWithoutSavingDuringHydration()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
+        var layout = new SessionLayoutPreferences(
+            desktopShellRows: new SessionPaneGroupPreferences(
+            [
+                new SessionPaneSizePreference(SessionLayoutPaneIds.GraphMediaArea, 0.6),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.StatisticsSidebarArea, 0.4),
+            ]),
+            desktopMediaRows: new SessionPaneGroupPreferences(
+            [
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Map, 0.7),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.ExtensionMedia, 0.3),
+            ]));
+        ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default with { Layout = layout });
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(CreateVibrationTelemetry()));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot, sessionPreferences: preferences);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.Equal(layout, editor.LayoutPreferences);
+        Assert.Equal(layout, editor.SessionContext.LayoutPreferences);
+        Assert.Equal(layout.DesktopMediaRows, editor.MediaLayoutPreferences);
+        await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
+    }
+
+    [AvaloniaFact]
+    public async Task LayoutPreferenceChange_PersistsWithoutDirtyingSession()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
+        ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
+        Func<SessionPreferences, SessionPreferences>? update = null;
+        preferences.UpdateRecordedAsync(
+                snapshot.Id,
+                Arg.Do<Func<SessionPreferences, SessionPreferences>>(value => update = value))
+            .Returns(Task.CompletedTask);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(CreateVibrationTelemetry()));
+        SetDesktop(true);
+        var layout = new SessionLayoutPreferences(
+            desktopStatisticsSidebarColumns: new SessionPaneGroupPreferences(
+            [
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Statistics, 0.7),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Sidebar, 0.3),
+            ]));
+
+        var editor = CreateEditor(snapshot, sessionPreferences: preferences);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        preferences.ClearReceivedCalls();
+
+        editor.LayoutPreferences = layout;
+
+        Assert.False(editor.IsDirty);
+        await preferences.Received(1).UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
+        Assert.NotNull(update);
+        Assert.Equal(layout, update!(SessionPreferences.Default).Layout);
+    }
+
+    [AvaloniaFact]
     public async Task ProcessingPreferenceCommit_PersistsPreferenceAndRecomputesSession()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true, updated: 5);

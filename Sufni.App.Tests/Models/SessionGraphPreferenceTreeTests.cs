@@ -173,5 +173,5 @@ public class SessionGraphPreferenceTreeTests
         string rowId,
         bool isExpanded = true,
         params SessionGraphPreferenceRowState[] children) =>
-        new(rowId, isExpanded, children);
+        new(rowId, isExpanded, HeightRatio: null, Children: children);
 }

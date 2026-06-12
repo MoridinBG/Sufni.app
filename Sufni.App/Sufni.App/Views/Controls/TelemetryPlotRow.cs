@@ -228,6 +228,7 @@ public sealed class TelemetryPlotRow : UserControl
     internal double AllocatedGroupHeight { get; private set; }
     internal double AllocatedPlotHeight { get; private set; }
     internal double? ManualGroupHeight { get; set; }
+    internal double? ManualGroupHeightRatio { get; set; }
     internal bool ReservesLayout => PresentationState.ReservesLayout || ChildRows.Any(row => row.ReservesLayout);
     internal bool IsDragFeedbackVisible => isDragFeedbackVisible;
     internal bool IsDropTargetFeedbackVisible => isDropTargetFeedbackVisible;

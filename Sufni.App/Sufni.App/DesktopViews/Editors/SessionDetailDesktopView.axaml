@@ -57,14 +57,19 @@ mc:Ignorable="d">
     </UserControl.Styles>
 
     <Grid>
-        <editors:SessionShellDesktopView HasMediaContent="{Binding MediaWorkspace.HasMediaContent}" IsVisible="{Binding SessionContext.ScreenState.IsReady}">
+        <editors:SessionShellDesktopView
+            HasMediaContent="{Binding MediaWorkspace.HasMediaContent}"
+            IsVisible="{Binding SessionContext.ScreenState.IsReady}"
+            LayoutPreferences="{Binding LayoutPreferences, Mode=TwoWay}">
 
             <editors:SessionShellDesktopView.GraphContent>
                 <items:RecordedSessionGraphDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).GraphWorkspace}" />
             </editors:SessionShellDesktopView.GraphContent>
 
             <editors:SessionShellDesktopView.MediaContent>
-                <items:SessionMediaDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).MediaWorkspace}" />
+                <items:SessionMediaDesktopView
+                    DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).MediaWorkspace}"
+                    LayoutPreferences="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).MediaLayoutPreferences, Mode=TwoWay}" />
             </editors:SessionShellDesktopView.MediaContent>
 
             <editors:SessionShellDesktopView.StatisticsContent>

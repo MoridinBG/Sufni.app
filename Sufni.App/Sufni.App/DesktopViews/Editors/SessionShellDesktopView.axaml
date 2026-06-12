@@ -2,7 +2,6 @@
 x:Class="Sufni.App.DesktopViews.Editors.SessionShellDesktopView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-xmlns:converters="clr-namespace:Sufni.App.Views.Converters"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:editors="clr-namespace:Sufni.App.DesktopViews.Editors"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -16,14 +15,10 @@ mc:Ignorable="d">
     <Grid x:Name="RootLayoutGrid" RowDefinitions="* auto *">
 
         <Grid x:Name="TopLayoutGrid" Grid.Row="0">
-            <Grid.Resources>
-                <converters:BooleanToGridLengthConverter x:Key="BooleanToGridLengthConverter" />
-            </Grid.Resources>
-
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="{Binding #Root.HasMediaContent, Converter={StaticResource BooleanToGridLengthConverter}, ConverterParameter=Auto}" />
+                <ColumnDefinition Width="0" />
             </Grid.ColumnDefinitions>
 
             <ContentControl Name="GraphHost" Grid.Column="0" Content="{Binding #Root.GraphContent}" />

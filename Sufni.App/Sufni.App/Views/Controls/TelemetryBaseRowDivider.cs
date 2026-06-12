@@ -97,6 +97,7 @@ internal sealed class TelemetryBaseRowDivider : Control
 
         var deltaY = e.GetPosition(this).Y - dragStartY;
         TargetRow.ManualGroupHeight = double.Max(TargetRow.GetMinimumGroupHeight(), dragStartHeight + deltaY);
+        TargetRow.ManualGroupHeightRatio = null;
         InvalidateOwnerMeasure();
         e.Handled = true;
     }
@@ -112,12 +113,14 @@ internal sealed class TelemetryBaseRowDivider : Control
     {
         base.OnPointerCaptureLost(e);
         isDragging = false;
+        this.FindAncestorOfType<TelemetryPlotsRoot>()?.CommitManualRowSizePreferences();
     }
 
     private void EndDrag(IPointer pointer)
     {
         isDragging = false;
         pointer.Capture(null);
+        this.FindAncestorOfType<TelemetryPlotsRoot>()?.CommitManualRowSizePreferences();
     }
 
     private void InvalidateOwnerMeasure()
@@ -133,6 +136,7 @@ internal sealed class TelemetryBaseRowDivider : Control
         }
 
         TargetRow.ManualGroupHeight = TargetRow.GetPreferredGroupHeight();
+        TargetRow.ManualGroupHeightRatio = null;
         InvalidateOwnerMeasure();
     }
 }

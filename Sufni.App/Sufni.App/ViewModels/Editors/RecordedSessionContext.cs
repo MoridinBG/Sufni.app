@@ -53,6 +53,7 @@ public sealed partial class RecordedSessionContext : ObservableObject
     [ObservableProperty] private SurfacePresentationState rearFrameVibrationState = SurfacePresentationState.Hidden;
     [ObservableProperty] private SessionPlotPreferences plotPreferences = SessionPreferences.Default.Plots;
     [ObservableProperty] private SessionGraphPreferences graphPreferences = SessionPreferences.Default.Graph;
+    [ObservableProperty] private SessionLayoutPreferences layoutPreferences = SessionPreferences.Default.Layout;
     [ObservableProperty] private TravelHistogramMode selectedTravelHistogramMode = TravelHistogramMode.ActiveSuspension;
     [ObservableProperty] private BalanceDisplacementMode selectedBalanceDisplacementMode = BalanceDisplacementMode.Zenith;
     [ObservableProperty] private BalanceSpeedMode selectedBalanceSpeedMode = BalanceSpeedMode.Both;

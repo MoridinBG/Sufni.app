@@ -142,6 +142,70 @@ public class SessionMediaDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task SessionMediaDesktopView_AppliesStoredMediaRowRatios()
+    {
+        var workspace = CreateWorkspace(
+        [
+            new TrackPoint(1, 2, 3, 4),
+        ]);
+        workspace.ExtensionSlots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
+            "extension",
+            "media-pane",
+            Order: 0,
+            new TestContributionViewModel
+            {
+                Content = new TextBlock { Name = "DesktopMediaPane", Text = "Media pane" },
+            }));
+
+        await using var mounted = await MountAsync(
+            workspace,
+            new SessionPaneGroupPreferences(
+            [
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Map, 0.25),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.ExtensionMedia, 0.75),
+            ]));
+
+        var mediaRoot = mounted.View.FindControl<Grid>("MediaContentRoot")!;
+
+        Assert.Equal(0.25, mediaRoot.RowDefinitions[2].Height.Value);
+        Assert.Equal(GridUnitType.Star, mediaRoot.RowDefinitions[2].Height.GridUnitType);
+        Assert.Equal(0.75, mediaRoot.RowDefinitions[4].Height.Value);
+        Assert.Equal(GridUnitType.Star, mediaRoot.RowDefinitions[4].Height.GridUnitType);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionMediaDesktopView_UsesDefaults_WhenStoredMediaPaneSetDoesNotMatch()
+    {
+        var workspace = CreateWorkspace(
+        [
+            new TrackPoint(1, 2, 3, 4),
+        ]);
+        workspace.ExtensionSlots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
+            "extension",
+            "media-pane",
+            Order: 0,
+            new TestContributionViewModel
+            {
+                Content = new TextBlock { Name = "DesktopMediaPane", Text = "Media pane" },
+            }));
+
+        await using var mounted = await MountAsync(
+            workspace,
+            new SessionPaneGroupPreferences(
+            [
+                new SessionPaneSizePreference("unknown", 0.25),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.ExtensionMedia, 0.75),
+            ]));
+
+        var mediaRoot = mounted.View.FindControl<Grid>("MediaContentRoot")!;
+
+        Assert.Equal(1, mediaRoot.RowDefinitions[2].Height.Value);
+        Assert.Equal(GridUnitType.Star, mediaRoot.RowDefinitions[2].Height.GridUnitType);
+        Assert.Equal(1, mediaRoot.RowDefinitions[4].Height.Value);
+        Assert.Equal(GridUnitType.Star, mediaRoot.RowDefinitions[4].Height.GridUnitType);
+    }
+
+    [AvaloniaFact]
     public async Task SessionMediaDesktopView_CollapsesMapRow_WhenOnlyMediaIsPresent()
     {
         var workspace = CreateWorkspace([], mediaUrl: "media.mp4");
@@ -167,7 +231,9 @@ public class SessionMediaDesktopViewTests
         Assert.Equal(GridUnitType.Pixel, mediaRoot.RowDefinitions[2].Height.GridUnitType);
     }
 
-    private static async Task<MountedSessionMediaDesktopView> MountAsync(SessionMediaWorkspaceStub workspace)
+    private static async Task<MountedSessionMediaDesktopView> MountAsync(
+        SessionMediaWorkspaceStub workspace,
+        SessionPaneGroupPreferences? layoutPreferences = null)
     {
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
@@ -175,6 +241,7 @@ public class SessionMediaDesktopViewTests
         var view = new SessionMediaDesktopView
         {
             DataContext = workspace,
+            LayoutPreferences = layoutPreferences,
         };
 
         var host = await ViewTestHelpers.ShowViewAsync(view);

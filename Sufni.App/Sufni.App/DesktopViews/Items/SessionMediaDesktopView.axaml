@@ -2,7 +2,6 @@
 x:Class="Sufni.App.DesktopViews.Items.SessionMediaDesktopView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-xmlns:converters="clr-namespace:Sufni.App.Views.Converters"
 xmlns:controls="clr-namespace:Sufni.App.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:items="clr-namespace:Sufni.App.DesktopViews.Items"
@@ -19,13 +18,10 @@ mc:Ignorable="d">
     x:Name="MediaContentRoot"
     MinWidth="{Binding MediaColumnWidth, TargetNullValue=400}"
     IsVisible="{Binding HasMediaContent}">
-        <Grid.Resources>
-            <converters:SurfaceStateToGridLengthConverter x:Key="SurfaceStateToGridLengthConverter" />
-        </Grid.Resources>
         <Grid.RowDefinitions>
-            <RowDefinition Height="{Binding MediaPaneState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=Auto}" />
+            <RowDefinition Height="0" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="{Binding MapState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+            <RowDefinition Height="0" />
             <RowDefinition Height="0" />
             <RowDefinition Height="0" />
         </Grid.RowDefinitions>

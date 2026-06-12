@@ -322,6 +322,76 @@ public class AppPreferencesTests
     }
 
     [Fact]
+    public async Task SessionPreferences_UpdateRecorded_PersistsLayoutAndGraphPaneRatios()
+    {
+        using var tempDirectory = new TempDirectory("sufni-preferences-test");
+        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
+        var sessionId = Guid.NewGuid();
+        var graph = new SessionGraphPreferences(
+        [
+            new SessionGraphRowPreferences(
+                TelemetryGraphRowIds.Travel,
+                heightRatio: 0.25),
+            new SessionGraphRowPreferences(
+                TelemetryGraphRowIds.Imu,
+                heightRatio: 0.75),
+        ]);
+        var layout = new SessionLayoutPreferences(
+            desktopShellRows: new SessionPaneGroupPreferences(
+            [
+                new SessionPaneSizePreference(SessionLayoutPaneIds.GraphMediaArea, 0.6),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.StatisticsSidebarArea, 0.4),
+            ]),
+            desktopGraphMediaColumns: new SessionPaneGroupPreferences(
+            [
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Graph, 0.7),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.3),
+            ]),
+            desktopStatisticsSidebarColumns: new SessionPaneGroupPreferences(
+            [
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Statistics, 0.65),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Sidebar, 0.35),
+            ]),
+            desktopMediaRows: new SessionPaneGroupPreferences(
+            [
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Map, 0.45),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.ExtensionMedia, 0.55),
+            ]));
+
+        var preferences = new AppPreferences(preferencesPath);
+
+        await preferences.Session.UpdateRecordedAsync(sessionId, current => current with
+        {
+            Graph = graph,
+            Layout = layout,
+        });
+
+        var reloaded = new AppPreferences(preferencesPath);
+        var stored = await reloaded.Session.GetRecordedAsync(sessionId);
+
+        Assert.Equal(graph, stored.Graph);
+        Assert.Equal(layout, stored.Layout);
+
+        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+        var session = json.RootElement
+            .GetProperty("session")
+            .GetProperty("sessions")
+            .GetProperty(sessionId.ToString("D"));
+
+        Assert.Equal(0.25, session.GetProperty("graph").GetProperty("rows")[0].GetProperty("heightRatio").GetDouble());
+        var layoutJson = session.GetProperty("layout");
+        Assert.Equal(
+            SessionLayoutPaneIds.Graph,
+            layoutJson.GetProperty("desktopGraphMediaColumns").GetProperty("panes")[0].GetProperty("paneId").GetString());
+        Assert.Equal(
+            0.3,
+            layoutJson.GetProperty("desktopGraphMediaColumns").GetProperty("panes")[1].GetProperty("ratio").GetDouble());
+        Assert.Equal(
+            SessionLayoutPaneIds.ExtensionMedia,
+            layoutJson.GetProperty("desktopMediaRows").GetProperty("panes")[1].GetProperty("paneId").GetString());
+    }
+
+    [Fact]
     public async Task SessionPreferences_UpdateRecorded_SerializesConcurrentUpdates()
     {
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
@@ -793,6 +863,10 @@ public class AppPreferencesTests
         Assert.Equal([TelemetryGraphRowIds.PitchRoll], preferences.Graph.Rows[1].Children.Select(row => row.RowId).ToArray());
         Assert.Equal([TelemetryGraphRowIds.Elevation], preferences.Graph.Rows[2].Children.Select(row => row.RowId).ToArray());
         Assert.All(preferences.Graph.Rows, row => Assert.True(row.IsExpanded));
+        Assert.Null(preferences.Layout.DesktopShellRows);
+        Assert.Null(preferences.Layout.DesktopGraphMediaColumns);
+        Assert.Null(preferences.Layout.DesktopStatisticsSidebarColumns);
+        Assert.Null(preferences.Layout.DesktopMediaRows);
     }
 
 }

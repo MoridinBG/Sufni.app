@@ -45,13 +45,29 @@ internal sealed class TelemetryPlotRowsPanel : Panel
     protected override Size MeasureOverride(Size availableSize)
     {
         var visibleRows = GetVisibleBaseRows();
+        var ratioRows = GetRatioSizedRows(visibleRows);
+        var useRatios = ratioRows.Count > 0;
         var preferredRowsHeight = 0.0;
         var autoGrowRows = new List<TelemetryPlotRow>();
+        var ratioAvailableHeight = 0.0;
+
+        if (useRatios)
+        {
+            var fixedRowsHeight = visibleRows
+                .Where(row => !ratioRows.Contains(row))
+                .Sum(row => row.ManualGroupHeight ?? row.GetPreferredGroupHeight());
+            ratioAvailableHeight = viewportHeightOverride is { } finiteHeight
+                ? Math.Max(0, finiteHeight - fixedRowsHeight)
+                : ratioRows.Sum(row => row.GetPreferredGroupHeight());
+        }
 
         foreach (var row in visibleRows)
         {
-            preferredRowsHeight += row.ManualGroupHeight ?? row.GetPreferredGroupHeight();
-            if (row.ManualGroupHeight is null && row.IsExpanded && row.GetVisiblePlotSlotCount() > 0)
+            var targetHeight = GetTargetHeight(row, ratioRows, ratioAvailableHeight);
+            preferredRowsHeight += useRatios
+                ? Math.Max(row.GetMinimumGroupHeight(), targetHeight)
+                : targetHeight;
+            if (!useRatios && row.ManualGroupHeight is null && row.IsExpanded && row.GetVisiblePlotSlotCount() > 0)
             {
                 autoGrowRows.Add(row);
             }
@@ -59,8 +75,8 @@ internal sealed class TelemetryPlotRowsPanel : Panel
 
         var preferredTotal = preferredRowsHeight;
         var viewportHeight = ViewportHeightOverride;
-        var extra = viewportHeight is { } finiteHeight
-            ? Math.Max(0, finiteHeight - preferredTotal)
+        var extra = viewportHeight is { } finiteViewportHeight
+            ? Math.Max(0, finiteViewportHeight - preferredTotal)
             : 0;
         var extraPerAutoRow = autoGrowRows.Count > 0 ? extra / autoGrowRows.Count : 0;
         var width = double.IsInfinity(availableSize.Width) ? 0 : availableSize.Width;
@@ -77,7 +93,7 @@ internal sealed class TelemetryPlotRowsPanel : Panel
                 continue;
             }
 
-            var targetHeight = row.ManualGroupHeight ?? row.GetPreferredGroupHeight();
+            var targetHeight = GetTargetHeight(row, ratioRows, ratioAvailableHeight);
             if (autoGrowRows.Contains(row))
             {
                 targetHeight += extraPerAutoRow;
@@ -152,6 +168,83 @@ internal sealed class TelemetryPlotRowsPanel : Panel
 
     private IReadOnlyList<TelemetryPlotRow> GetVisibleBaseRows()
         => GetBaseRows().Where(row => row.ReservesLayout).ToArray();
+
+    internal void CommitVisibleRowHeightRatios()
+    {
+        var ratioRows = GetVisibleBaseRows()
+            .Where(IsRatioSizedRow)
+            .ToArray();
+        var total = ratioRows
+            .Select(row => row.ManualGroupHeight ?? row.AllocatedGroupHeight)
+            .Where(static height => double.IsFinite(height) && height > 0)
+            .Sum();
+        if (ratioRows.Length == 0 || total <= 0)
+        {
+            ClearManualRowSizing();
+            return;
+        }
+
+        foreach (var row in GetBaseRows())
+        {
+            if (!ratioRows.Contains(row))
+            {
+                row.ManualGroupHeight = null;
+                row.ManualGroupHeightRatio = null;
+                continue;
+            }
+
+            var height = row.ManualGroupHeight ?? row.AllocatedGroupHeight;
+            row.ManualGroupHeight = null;
+            row.ManualGroupHeightRatio = height / total;
+        }
+
+        InvalidateMeasure();
+    }
+
+    internal void ClearManualRowSizing()
+    {
+        foreach (var row in GetBaseRows())
+        {
+            row.ManualGroupHeight = null;
+            row.ManualGroupHeightRatio = null;
+        }
+
+        InvalidateMeasure();
+    }
+
+    private static IReadOnlyList<TelemetryPlotRow> GetRatioSizedRows(IReadOnlyList<TelemetryPlotRow> visibleRows)
+    {
+        var resizableRows = visibleRows
+            .Where(IsRatioSizedRow)
+            .ToArray();
+        if (resizableRows.Length == 0)
+        {
+            return [];
+        }
+
+        return resizableRows.All(row => row.ManualGroupHeightRatio is { } ratio && double.IsFinite(ratio) && ratio > 0)
+            ? resizableRows
+            : [];
+    }
+
+    private static bool IsRatioSizedRow(TelemetryPlotRow row)
+        => row is { IsExpanded: true } && row.GetVisiblePlotSlotCount() > 0;
+
+    private static double GetTargetHeight(
+        TelemetryPlotRow row,
+        IReadOnlyList<TelemetryPlotRow> ratioRows,
+        double ratioAvailableHeight)
+    {
+        if (!ratioRows.Contains(row))
+        {
+            return row.ManualGroupHeight ?? row.GetPreferredGroupHeight();
+        }
+
+        var ratioTotal = ratioRows.Sum(candidate => candidate.ManualGroupHeightRatio ?? 0);
+        return ratioTotal > 0
+            ? ratioAvailableHeight * (row.ManualGroupHeightRatio ?? 0) / ratioTotal
+            : row.GetPreferredGroupHeight();
+    }
 
     private static bool IsBoundaryDivider(TelemetryBaseRowDivider divider, IReadOnlyList<TelemetryPlotRow> visibleRows)
     {

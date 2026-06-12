@@ -268,8 +268,10 @@ Two pages diverge from that pattern:
   glyph text itself, and do not enter plot chrome or shift plot
   content, so graph data remains vertically aligned across parent and
   hosted rows.
-  The row hierarchy and each row's expanded/collapsed state are stored
-  in `SessionPreferences.Graph` as stable row IDs. For recorded
+  The row hierarchy, each row's expanded/collapsed state, and manually
+  resized root-row height ratios are stored in
+  `SessionPreferences.Graph` as stable row IDs plus normalized ratios.
+  For recorded
   sessions, `SessionDetailViewModel.GraphPreferences` loads and writes
   that graph preference through `ISessionPreferences`; live captures
   carry the current live graph preference into
@@ -279,7 +281,10 @@ Two pages diverge from that pattern:
   capture, root moves, child moves, duplicate removal, unknown-row
   skipping, missing-default appends, and cycle prevention; the Avalonia
   `TelemetryPlotsRoot` still owns materialization, drag/drop hit
-  testing, brushes, and visual rebuilding. Hidden rows are not
+  testing, brushes, manual row-size capture, and visual rebuilding. If
+  any visible resizable root row has no stored height ratio, the graph
+  falls back to default sizing so new or unknown panes do not inherit a
+  partial old layout. Hidden rows are not
   duplicated in the graph hierarchy preference: plot visibility remains
   the existing `SessionPlotPreferences` contract, so hidden rows keep
   their saved hierarchy position and reappear there when re-enabled.
@@ -319,7 +324,12 @@ Two pages diverge from that pattern:
   (loaded on `Loaded`, written via `UpdateRecordedAsync`) and folds
   the statistics preferences (travel-histogram mode,
   velocity-average mode, balance-displacement mode, target profile)
-  and processing preferences through the same persistence path; the
+  processing preferences, and desktop session-detail layout ratios
+  through the same persistence path. Desktop shell/media splitters write
+  normalized pane ratios into `SessionPreferences.Layout`; restoring
+  uses star sizing so a reopened session keeps the same shape when the
+  window size changes, while missing pane ratios reset the affected
+  group to defaults. The
   live editor seeds those preferences for the new session through
   `SessionCoordinator.SaveLiveCaptureAsync(...)` because there is no
   persisted entity to write back to until the capture is saved.

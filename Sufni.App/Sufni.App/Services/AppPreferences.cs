@@ -386,6 +386,7 @@ public sealed class AppPreferences : IAppPreferences
         public SessionStatisticsPreferencesDocument? Statistics { get; set; }
         public SessionProcessingPreferencesDocument? Processing { get; set; }
         public SessionGraphPreferencesDocument? Graph { get; set; }
+        public SessionLayoutPreferencesDocument? Layout { get; set; }
 
         public SessionPreferences ToModel()
         {
@@ -393,7 +394,8 @@ public sealed class AppPreferences : IAppPreferences
                 Plots?.ToModel() ?? new SessionPlotPreferences(),
                 Statistics?.ToModel() ?? new SessionStatisticsPreferences(),
                 Processing?.ToModel() ?? new SessionProcessingPreferences(),
-                Graph?.ToModel() ?? SessionGraphPreferences.Default);
+                Graph?.ToModel() ?? SessionGraphPreferences.Default,
+                Layout?.ToModel() ?? SessionLayoutPreferences.Default);
         }
 
         public static SessionPreferencesDocument FromModel(SessionPreferences preferences)
@@ -404,6 +406,7 @@ public sealed class AppPreferences : IAppPreferences
                 Statistics = SessionStatisticsPreferencesDocument.FromModel(preferences.Statistics),
                 Processing = SessionProcessingPreferencesDocument.FromModel(preferences.Processing),
                 Graph = SessionGraphPreferencesDocument.FromModel(preferences.Graph),
+                Layout = SessionLayoutPreferencesDocument.FromModel(preferences.Layout),
             };
         }
     }
@@ -559,6 +562,7 @@ public sealed class AppPreferences : IAppPreferences
     {
         public string? RowId { get; set; }
         public bool? IsExpanded { get; set; }
+        public double? HeightRatio { get; set; }
         public List<SessionGraphRowPreferencesDocument?>? Children { get; set; }
 
         public SessionGraphRowPreferences ToModel()
@@ -570,7 +574,8 @@ public sealed class AppPreferences : IAppPreferences
                     .Where(child => child is not null)
                     .Select(child => child!.ToModel())
                     .Where(child => !string.IsNullOrWhiteSpace(child.RowId))
-                    .ToArray());
+                    .ToArray(),
+                HeightRatio);
         }
 
         public static SessionGraphRowPreferencesDocument FromModel(SessionGraphRowPreferences preferences)
@@ -579,9 +584,87 @@ public sealed class AppPreferences : IAppPreferences
             {
                 RowId = preferences.RowId,
                 IsExpanded = preferences.IsExpanded,
+                HeightRatio = preferences.HeightRatio,
                 Children = preferences.Children
                     .Select(child => (SessionGraphRowPreferencesDocument?)FromModel(child))
                     .ToList(),
+            };
+        }
+    }
+
+    private sealed class SessionLayoutPreferencesDocument
+    {
+        public SessionPaneGroupPreferencesDocument? DesktopShellRows { get; set; }
+        public SessionPaneGroupPreferencesDocument? DesktopGraphMediaColumns { get; set; }
+        public SessionPaneGroupPreferencesDocument? DesktopStatisticsSidebarColumns { get; set; }
+        public SessionPaneGroupPreferencesDocument? DesktopMediaRows { get; set; }
+
+        public SessionLayoutPreferences ToModel()
+        {
+            return new SessionLayoutPreferences(
+                DesktopShellRows?.ToModel(),
+                DesktopGraphMediaColumns?.ToModel(),
+                DesktopStatisticsSidebarColumns?.ToModel(),
+                DesktopMediaRows?.ToModel());
+        }
+
+        public static SessionLayoutPreferencesDocument FromModel(SessionLayoutPreferences preferences)
+        {
+            return new SessionLayoutPreferencesDocument
+            {
+                DesktopShellRows = SessionPaneGroupPreferencesDocument.FromModel(preferences.DesktopShellRows),
+                DesktopGraphMediaColumns = SessionPaneGroupPreferencesDocument.FromModel(preferences.DesktopGraphMediaColumns),
+                DesktopStatisticsSidebarColumns = SessionPaneGroupPreferencesDocument.FromModel(preferences.DesktopStatisticsSidebarColumns),
+                DesktopMediaRows = SessionPaneGroupPreferencesDocument.FromModel(preferences.DesktopMediaRows),
+            };
+        }
+    }
+
+    private sealed class SessionPaneGroupPreferencesDocument
+    {
+        public List<SessionPaneSizePreferenceDocument?>? Panes { get; set; }
+
+        public SessionPaneGroupPreferences ToModel()
+        {
+            return new SessionPaneGroupPreferences(Panes?
+                .Where(pane => pane is not null)
+                .Select(pane => pane!.ToModel())
+                .Where(pane => !string.IsNullOrWhiteSpace(pane.PaneId))
+                .ToArray());
+        }
+
+        public static SessionPaneGroupPreferencesDocument? FromModel(SessionPaneGroupPreferences? preferences)
+        {
+            if (preferences is null)
+            {
+                return null;
+            }
+
+            return new SessionPaneGroupPreferencesDocument
+            {
+                Panes = preferences.Panes
+                    .Select(pane => (SessionPaneSizePreferenceDocument?)SessionPaneSizePreferenceDocument.FromModel(pane))
+                    .ToList(),
+            };
+        }
+    }
+
+    private sealed class SessionPaneSizePreferenceDocument
+    {
+        public string? PaneId { get; set; }
+        public double? Ratio { get; set; }
+
+        public SessionPaneSizePreference ToModel()
+        {
+            return new SessionPaneSizePreference(PaneId ?? "", Ratio ?? 0);
+        }
+
+        public static SessionPaneSizePreferenceDocument FromModel(SessionPaneSizePreference preferences)
+        {
+            return new SessionPaneSizePreferenceDocument
+            {
+                PaneId = preferences.PaneId,
+                Ratio = preferences.Ratio,
             };
         }
     }

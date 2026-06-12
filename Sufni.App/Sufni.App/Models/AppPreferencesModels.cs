@@ -23,12 +23,14 @@ public sealed record SessionPreferences
         SessionPlotPreferences? plots = null,
         SessionStatisticsPreferences? statistics = null,
         SessionProcessingPreferences? processing = null,
-        SessionGraphPreferences? graph = null)
+        SessionGraphPreferences? graph = null,
+        SessionLayoutPreferences? layout = null)
     {
         Plots = plots ?? new SessionPlotPreferences();
         Statistics = statistics ?? new SessionStatisticsPreferences();
         Processing = processing ?? new SessionProcessingPreferences();
         Graph = graph ?? SessionGraphPreferences.Default;
+        Layout = layout ?? SessionLayoutPreferences.Default;
     }
 
     [JsonPropertyName("plots")]
@@ -42,6 +44,9 @@ public sealed record SessionPreferences
 
     [JsonPropertyName("graph")]
     public SessionGraphPreferences Graph { get; init; } = SessionGraphPreferences.Default;
+
+    [JsonPropertyName("layout")]
+    public SessionLayoutPreferences Layout { get; init; } = SessionLayoutPreferences.Default;
 
     public static SessionPreferences Default => new();
 }
@@ -144,11 +149,13 @@ public sealed record SessionGraphRowPreferences
     public SessionGraphRowPreferences(
         string rowId,
         bool isExpanded = true,
-        IReadOnlyList<SessionGraphRowPreferences>? children = null)
+        IReadOnlyList<SessionGraphRowPreferences>? children = null,
+        double? heightRatio = null)
     {
         RowId = rowId;
         IsExpanded = isExpanded;
         Children = children?.ToArray() ?? [];
+        HeightRatio = IsValidRatio(heightRatio) ? heightRatio : null;
     }
 
     [JsonPropertyName("row_id")]
@@ -160,11 +167,15 @@ public sealed record SessionGraphRowPreferences
     [JsonPropertyName("children")]
     public IReadOnlyList<SessionGraphRowPreferences> Children { get; init; } = [];
 
+    [JsonPropertyName("height_ratio")]
+    public double? HeightRatio { get; init; }
+
     public bool Equals(SessionGraphRowPreferences? other)
     {
         return other is not null &&
                RowId == other.RowId &&
                IsExpanded == other.IsExpanded &&
+               HeightRatio == other.HeightRatio &&
                Children.SequenceEqual(other.Children);
     }
 
@@ -173,6 +184,7 @@ public sealed record SessionGraphRowPreferences
         var hash = new HashCode();
         hash.Add(RowId);
         hash.Add(IsExpanded);
+        hash.Add(HeightRatio);
         foreach (var child in Children)
         {
             hash.Add(child);
@@ -180,6 +192,124 @@ public sealed record SessionGraphRowPreferences
 
         return hash.ToHashCode();
     }
+
+    private static bool IsValidRatio(double? ratio) =>
+        ratio is { } value && double.IsFinite(value) && value > 0;
+}
+
+public sealed record SessionLayoutPreferences
+{
+    public SessionLayoutPreferences()
+    {
+    }
+
+    public SessionLayoutPreferences(
+        SessionPaneGroupPreferences? desktopShellRows = null,
+        SessionPaneGroupPreferences? desktopGraphMediaColumns = null,
+        SessionPaneGroupPreferences? desktopStatisticsSidebarColumns = null,
+        SessionPaneGroupPreferences? desktopMediaRows = null)
+    {
+        DesktopShellRows = desktopShellRows;
+        DesktopGraphMediaColumns = desktopGraphMediaColumns;
+        DesktopStatisticsSidebarColumns = desktopStatisticsSidebarColumns;
+        DesktopMediaRows = desktopMediaRows;
+    }
+
+    [JsonPropertyName("desktop_shell_rows")]
+    public SessionPaneGroupPreferences? DesktopShellRows { get; init; }
+
+    [JsonPropertyName("desktop_graph_media_columns")]
+    public SessionPaneGroupPreferences? DesktopGraphMediaColumns { get; init; }
+
+    [JsonPropertyName("desktop_statistics_sidebar_columns")]
+    public SessionPaneGroupPreferences? DesktopStatisticsSidebarColumns { get; init; }
+
+    [JsonPropertyName("desktop_media_rows")]
+    public SessionPaneGroupPreferences? DesktopMediaRows { get; init; }
+
+    public static SessionLayoutPreferences Default => new();
+}
+
+public sealed record SessionPaneGroupPreferences
+{
+    public SessionPaneGroupPreferences()
+    {
+    }
+
+    public SessionPaneGroupPreferences(IReadOnlyList<SessionPaneSizePreference>? panes)
+    {
+        Panes = panes?.ToArray() ?? [];
+    }
+
+    [JsonPropertyName("panes")]
+    public IReadOnlyList<SessionPaneSizePreference> Panes { get; init; } = [];
+
+    public bool TryGetRatios(IReadOnlyList<string> paneIds, out IReadOnlyList<double> ratios)
+    {
+        ratios = [];
+        if (paneIds.Count == 0 || Panes.Count != paneIds.Count)
+        {
+            return false;
+        }
+
+        var ratiosById = new Dictionary<string, double>(StringComparer.Ordinal);
+        foreach (var pane in Panes)
+        {
+            if (string.IsNullOrWhiteSpace(pane.PaneId) ||
+                !double.IsFinite(pane.Ratio) ||
+                pane.Ratio <= 0 ||
+                !ratiosById.TryAdd(pane.PaneId, pane.Ratio))
+            {
+                return false;
+            }
+        }
+
+        var values = new double[paneIds.Count];
+        for (var i = 0; i < paneIds.Count; i++)
+        {
+            if (!ratiosById.TryGetValue(paneIds[i], out var ratio))
+            {
+                return false;
+            }
+
+            values[i] = ratio;
+        }
+
+        ratios = values;
+        return true;
+    }
+
+    public bool Equals(SessionPaneGroupPreferences? other)
+    {
+        return other is not null && Panes.SequenceEqual(other.Panes);
+    }
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        foreach (var pane in Panes)
+        {
+            hash.Add(pane);
+        }
+
+        return hash.ToHashCode();
+    }
+}
+
+public sealed record SessionPaneSizePreference(
+    [property: JsonPropertyName("pane_id")] string PaneId,
+    [property: JsonPropertyName("ratio")] double Ratio);
+
+public static class SessionLayoutPaneIds
+{
+    public const string Graph = "graph";
+    public const string Media = "media";
+    public const string Map = "map";
+    public const string ExtensionMedia = "extension_media";
+    public const string GraphMediaArea = "graph_media_area";
+    public const string StatisticsSidebarArea = "statistics_sidebar_area";
+    public const string Statistics = "statistics";
+    public const string Sidebar = "sidebar";
 }
 
 public static class TelemetryGraphRowIds
