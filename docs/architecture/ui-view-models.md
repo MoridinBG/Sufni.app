@@ -169,7 +169,18 @@ There are five kinds of view model in the presentation layer:
   damper cutoff workflow, extension plumbing) write the context, the
   workspaces project it, and the editor reacts through one context
   `PropertyChanged` dispatcher — the editor declares no duplicate
-  observable state of its own. Shell-shaped behavior (load pipeline,
+  observable state of its own. Three further internal collaborators in
+  `ViewModels/Editors/` keep flows off the editor itself:
+  `SessionPlotRowActionsController` builds the built-in plot-row header
+  actions (airtime and statistics-selection toggles) and keeps their
+  checked/enabled state in sync with the context;
+  `RecordedSessionExtensionPagesController` mirrors contributed
+  extension pages into the editor's `Pages` collection and resolves
+  contributed-page selection requests; and
+  `ProcessingPreferenceWorkflow` owns the
+  confirm-recompute-persist flow that runs when a processing
+  preference change is committed. The editor constructs them and
+  delegates; it no longer owns those flows. Shell-shaped behavior (load pipeline,
   inactive-tab deferral) is an injected `ISessionLayoutStrategy` selected
   by `EditorFactory`; collaborators reach the editor through the
   `ISessionOperationGateway` contract rather than delegate bundles.
@@ -294,9 +305,11 @@ Two pages diverge from that pattern:
   `SessionPlotPreferences` without reaching into individual
   `PlotPreferenceItemViewModel` instances. It also owns the
   processing preference `VelocityFilterWindowMilliseconds` and emits a
-  commit event when the user finishes changing that slider, allowing
-  the recorded editor to recompute and persist processed telemetry
-  with the new `TelemetryProcessingOptions`. Both editors subscribe to
+  commit event when the user finishes changing that slider; the
+  recorded editor forwards that commit to its
+  `ProcessingPreferenceWorkflow` collaborator, which confirms with the
+  user, recomputes, and persists processed telemetry with the new
+  `TelemetryProcessingOptions`. Both editors subscribe to
   `PropertyChanged` on the plot rows in their constructor and react to
   toggle/smoothing changes by re-applying preferences to the graph
   workspace — the recorded editor re-applies plot selection over its

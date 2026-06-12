@@ -117,10 +117,10 @@ The contribution carries an extension id, contribution id, order, and an `IAppTo
 
 `RecordedSessionHostState` is faceted so extensions receive only the host facts needed by each workflow. `Identity` carries the session id, display name, timestamp, duration, and loaded/active flags. `Selection` carries the current analysis range. `Timeline` carries the track timeline context, telemetry duration, and an `IRecordedSessionTimeline` cursor/range interface. That interface also carries neutral timeline playback requests: the host raises `PlaybackToggleRequested` when Space is pressed while the pointer is over a recorded time-series plot with a published cursor, and `PlaybackStopRequested` on a primary click inside a plot. Extensions that own a playback source may respond by driving `SetCursorPosition`; with no subscriber the requests are no-ops. An extension that starts driving the cursor must mark the timeline through `SetPlaybackActive(true)` and clear it when playback ends — while `IsPlaybackActive` is set, host plot views suppress pointer-driven cursor updates so the mouse does not fight the playback source, and the host timeline pans the visible range (keeping the zoom span) whenever a driven cursor lands outside it, so the cursor stays visible on every linked surface. `Statistics` carries current damper percentages, damping speed cutoffs, velocity averaging mode, and travel histogram mode. The state does not expose the app's session snapshot, recorded-session domain snapshot, database internals, or concrete editor timeline view model.
 
-`RecordedSessionHostContext` is constructed from grouped
-`RecordedSessionHostServices` and `RecordedSessionHostOperations` records so
-service access and host callbacks stay explicit without a long positional
-constructor. It exposes constrained host operations:
+`RecordedSessionHostContext` is constructed from the grouped
+`RecordedSessionHostServices` record and an `IRecordedSessionHostOperations`
+interface implementation so service access and host callbacks stay explicit
+without a long positional constructor. It exposes constrained host operations:
 
 - set or clear the analysis range
 - set timeline visible range

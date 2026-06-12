@@ -104,9 +104,10 @@ locations inside `Sufni.App/Sufni.App/`:
   mobile-only `IPairingClientCoordinator`). Coordinators are the only
   writers to stores and the only owners of post-save navigation. They
   construct and open editor view models only through `IEditorFactory` —
-  despite the name it is the editor *gateway* (create, open-or-focus, and
-  close live behind one interface); no coordinator holds a view-model
-  factory of its own.
+  despite the name it is the editor *gateway*: the interface exposes only
+  open-or-focus (`Open*`) and close (`Close*`) operations, and view-model
+  creation is an implementation detail of the concrete `EditorFactory`.
+  No coordinator holds a view-model factory of its own.
 - `Stores/` — shared read state, one per entity family. Each store has
   an `IXxxStore` (read-only) interface for VMs/queries and an
   `IXxxStoreWriter` (read+write) interface reserved for coordinators
@@ -116,9 +117,12 @@ locations inside `Sufni.App/Sufni.App/`:
   `ILiveDaqKnownBoardsQuery`). Backed by services and read-only
   stores, never by view models.
 - `Services/` — infrastructure: SQLite persistence context/repositories,
-  `ITelemetryDataStoreService`,
+  `ISessionTelemetryWriter` (pre-persistence telemetry validation and
+  summary-metric/session-window derivation), `ITelemetryDataStoreService`,
   `IHttpApiService`, `ISynchronizationServerService` /
-  `ISynchronizationClientService`, `IDialogService`, `IFilesService`.
+  `ISynchronizationClientService`, `IDialogService` (view models'
+  prompt contract; its `IDialogHost` wiring facet is used only by
+  `App`), `IFilesService`.
   `Services/LiveStreaming/` contains the live preview transport layer:
   `LiveDaqClient`, `LiveProtocolReader`, `LiveDaqSessionState`,
   `LiveDaqUiSnapshot`, and protocol models.
@@ -223,7 +227,11 @@ geometry lives under [§ Suspension Kinematics](docs/architecture/processing.md#
 SQLite via `sqlite-net-pcl`, async, WAL enabled. `SqliteConnectionContext`
 owns the shared connection and initialization gate; `DatabaseMigrationRunner`
 owns startup schema work and cleanup; aggregate repositories expose the
-persistence operations. The database file location is platform-specific app
+persistence operations and store the values they are given.
+`SessionTelemetryWriter` sits in front of `ISessionRepository` for
+processed-data writes and owns the domain computation that precedes them:
+telemetry validation, summary-metric derivation, and session-window track
+association/generation. The database file location is platform-specific app
 data (`%LOCALAPPDATA%`, `~/Library/Application Support`, `~/.local/share`,
 etc.).
 

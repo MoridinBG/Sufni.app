@@ -56,7 +56,8 @@ Direct reads of the flag are deliberately limited to the view composition edge:
 
 Other desktop/mobile differences are carried by composition or view contracts
 rather than by reading `App.IsDesktop` from services or view models. For
-example, `App` configures `DialogService` with window or overlay presentation,
+example, `App` configures `DialogService` through its `IDialogHost` interface
+with window or overlay presentation,
 desktop-only views expose desktop-only controls directly, and the session detail
 views select desktop versus mobile loading through the command parameter they
 pass on load.

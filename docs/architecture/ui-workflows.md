@@ -83,11 +83,16 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
 - **Services**: `IHttpApiService`, `IBackgroundTaskRunner`,
   `IUiThreadDispatcher`, `IDaqManagementService`, `ITelemetryDataStoreService`,
   SQLite repository interfaces, `ISyncDataStore`, `IExtensionDatabaseConnection`,
-  `IFilesService`, `IFilePickerService`,
-  `IDialogService`, plus `IAppPreferences` and the two facets
+  `IFilesService`, `IFilePickerService`, `ITileLayerService`,
+  `IMapViewModelFactory`, plus `IAppPreferences` and the two facets
   it exposes — `IMapPreferences` and `ISessionPreferences` —
   registered as singletons via factory delegates that resolve the
-  same `IAppPreferences` instance. Recorded-session derivation
+  same `IAppPreferences` instance. The concrete `DialogService`
+  singleton is re-registered behind `IDialogService` (the `Show*`
+  prompt contract for view models and coordinators), `IDialogHost`
+  (the owner-window/overlay-host/presentation-mode wiring contract
+  used only by `App`), and `IExtensionDialogService` via factory
+  delegates that resolve the same instance. Recorded-session derivation
   services (`IProcessingFingerprintService`,
   `IRecordedSessionReprocessor`) are also singleton services. The
   recorded-source factory is static and stays in `SessionGraph/`
@@ -142,7 +147,14 @@ direct reads stay at the view composition edge (`ViewLocator` and plot gesture
 handling), while services receive any shell-specific presentation choice from
 composition.
 
-After `BuildServiceProvider()`, `App` eagerly resolves
+After `BuildServiceProvider()`, the lifetime wiring resolves
+`IDialogHost` and configures dialog presentation for the shell:
+desktop sets `MainWindow` as both owner and overlay host with
+`DialogPresentationMode.Window`; mobile/single-view sets `MainView`
+as overlay host with `DialogPresentationMode.Overlay`. View models
+never see this contract — they consume `IDialogService` only.
+
+`App` also eagerly resolves
 `SessionSyncApplier`, `PairedDeviceCoordinator`,
 `SyncCoordinator`, plus the desktop-only
 `IPairingServerCoordinator` and `IInboundSyncCoordinator` (or the
