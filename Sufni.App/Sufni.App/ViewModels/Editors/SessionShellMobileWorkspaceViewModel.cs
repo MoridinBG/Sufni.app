@@ -11,11 +11,14 @@ internal sealed class SessionShellMobileWorkspaceViewModel : ObservableObject, I
 {
     private readonly RecordedSessionContext context;
 
-    public SessionShellMobileWorkspaceViewModel(RecordedSessionContext context)
+    public SessionShellMobileWorkspaceViewModel(TabPageViewModelBase editor, RecordedSessionContext context)
     {
+        Editor = editor;
         this.context = context;
         context.PropertyChanged += OnContextPropertyChanged;
     }
+
+    public TabPageViewModelBase Editor { get; }
 
     public ObservableCollection<PageViewModelBase> Pages => context.Pages;
 

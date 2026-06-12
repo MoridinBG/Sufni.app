@@ -627,7 +627,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
         SessionContext.SessionSnapshot = snapshot;
-        MobileWorkspace = new SessionShellMobileWorkspaceViewModel(SessionContext);
+        MobileWorkspace = new SessionShellMobileWorkspaceViewModel(this, SessionContext);
         GraphWorkspace = new RecordedSessionGraphWorkspaceViewModel(
             SessionContext,
             this);

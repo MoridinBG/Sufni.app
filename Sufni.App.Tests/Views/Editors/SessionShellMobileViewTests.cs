@@ -11,6 +11,7 @@ using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Presentation;
+using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
@@ -282,7 +283,12 @@ internal sealed partial class FakeShellHostViewModel : ViewModelBase, ISessionSh
     {
     }
 
+    public TabPageViewModelBase Editor { get; } = new FakeTabPageViewModel(new InlineUiThreadDispatcher());
+
     public ObservableCollection<PageViewModelBase> Pages { get; init; } = [];
+
+    private sealed class FakeTabPageViewModel(IUiThreadDispatcher uiThreadDispatcher)
+        : TabPageViewModelBase(uiThreadDispatcher);
 
     [ObservableProperty]
     private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;

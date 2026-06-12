@@ -12,6 +12,8 @@ using Sufni.App.Presentation;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.ViewModels;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
 
@@ -128,7 +130,9 @@ public class SessionWorkspaceViewModelTests
     public void SessionShellMobileWorkspace_ForwardsPresentationStateChanges()
     {
         var context = new RecordedSessionContext();
-        var workspace = new SessionShellMobileWorkspaceViewModel(context);
+        var workspace = new SessionShellMobileWorkspaceViewModel(
+            new TestTabPageViewModel(new InlineUiThreadDispatcher()),
+            context);
         var changes = TrackPropertyChanges(workspace);
 
         context.ScreenState = SessionScreenPresentationState.Loading("Loading session.");
@@ -233,4 +237,7 @@ public class SessionWorkspaceViewModelTests
     {
         public void RaiseNameChanged() => OnPropertyChanged("Name");
     }
+
+    private sealed class TestTabPageViewModel(IUiThreadDispatcher uiThreadDispatcher)
+        : TabPageViewModelBase(uiThreadDispatcher);
 }

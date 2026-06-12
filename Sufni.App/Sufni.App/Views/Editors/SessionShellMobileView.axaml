@@ -35,7 +35,8 @@
             <v:EditableTitle
                 Grid.Row="0"
                 Margin="0,0,0,10"
-                HorizontalAlignment="Stretch" />
+                HorizontalAlignment="Stretch"
+                DataContext="{Binding Editor}" />
 
             <!--  Tab headers  -->
             <ScrollViewer
@@ -138,7 +139,7 @@
             </ScrollViewer>
 
             <!--  Error messages for Session instance  -->
-            <v:ErrorMessagesBar Grid.Row="3" Margin="4,4,4,0" />
+            <v:ErrorMessagesBar Grid.Row="3" Margin="4,4,4,0" DataContext="{Binding Editor}" />
 
             <!--  Optional live-only control content slot (sticky band)  -->
             <ContentControl
@@ -149,7 +150,7 @@
                 IsVisible="{Binding $parent[vme:SessionShellMobileView].ControlContent, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
             <!--  Back, Save, Reset and Delete buttons  -->
-            <v:CommonButtonLine Grid.Row="5" Margin="0,4,0,0" />
+            <v:CommonButtonLine Grid.Row="5" Margin="0,4,0,0" DataContext="{Binding Editor}" />
         </Grid>
 
         <v:BusyOverlay

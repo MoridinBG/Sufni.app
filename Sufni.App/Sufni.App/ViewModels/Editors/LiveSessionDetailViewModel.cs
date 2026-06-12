@@ -62,6 +62,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private DampingSpeedCutoffs? dampingSpeedCutoffPreviewOrigin;
 
     public string IdentityKey { get; }
+
+    public TabPageViewModelBase Editor => this;
     public Guid SetupId { get; }
     public string? SetupName { get; }
     public Guid BikeId { get; }

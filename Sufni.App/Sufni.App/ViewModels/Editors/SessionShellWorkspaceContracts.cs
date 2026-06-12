@@ -27,6 +27,13 @@ public sealed record VelocityAverageModeOption(VelocityAverageMode Value, string
 
 public interface ISessionShellMobileWorkspace
 {
+    /// <summary>
+    /// The owning editor. The mobile shell's chrome (title, error bar,
+    /// back/save/reset/delete line) binds editor-level members through this,
+    /// while the rest of the shell binds the workspace surface.
+    /// </summary>
+    TabPageViewModelBase Editor { get; }
+
     ObservableCollection<PageViewModelBase> Pages { get; }
     SessionScreenPresentationState ScreenState { get; }
     SessionOperationPresentationState SessionOperationState { get; }
