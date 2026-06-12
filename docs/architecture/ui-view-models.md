@@ -164,6 +164,15 @@ There are five kinds of view model in the presentation layer:
   workspace contracts for graph, media, statistics, sidebar, and mobile
   shell surfaces instead of putting every binding directly on the
   editor — see [Session Sub-Pages](#session-sub-pages) below.
+  For recorded sessions, `RecordedSessionContext` is the single owner of
+  presentation state: collaborators (`RecordedPresentationApplier`, the
+  damper cutoff workflow, extension plumbing) write the context, the
+  workspaces project it, and the editor reacts through one context
+  `PropertyChanged` dispatcher — the editor declares no duplicate
+  observable state of its own. Shell-shaped behavior (load pipeline,
+  inactive-tab deferral) is an injected `ISessionLayoutStrategy` selected
+  by `EditorFactory`; collaborators reach the editor through the
+  `ISessionOperationGateway` contract rather than delegate bundles.
   The recorded editor subscribes to `IRecordedSessionGraph.WatchSession`
   in `Loaded` and disposes that subscription in `Unloaded`. Initial or
   runtime domain snapshots that are recomputable prompt the user to
@@ -238,8 +247,8 @@ Two pages diverge from that pattern:
   by `TravelGraphState` / `VelocityGraphState` / `ImuGraphState` /
   `PitchRollGraphState` / `SpeedGraphState` / `ElevationGraphState`
   on the workspace
-  (recorded: on the editor itself, projected onto the workspace; live:
-  directly on `LiveSessionGraphWorkspaceViewModel`). Hosted row titles
+  (recorded: on `RecordedSessionContext`, projected onto the workspace;
+  live: directly on `LiveSessionGraphWorkspaceViewModel`). Hosted row titles
   are progressively inset by hierarchy depth. Expanded parent rows draw
   short connector branches in the child-row band, starting at each
   direct child row's top edge and stopping before that child row's
