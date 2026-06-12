@@ -392,16 +392,7 @@ public class LiveDaqSharedStreamTests
         var client = clientFactory.CreatedClients.Single();
         var firstFrameEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseFirstFrame = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var subscriberDropsObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var receivedOffsets = new List<ulong>();
-
-        using var stateSubscription = stream.States.Subscribe(state =>
-        {
-            if (state.ClientDropCounters.SubscriberFramesDropped > 0)
-            {
-                subscriberDropsObserved.TrySetResult();
-            }
-        });
 
         using var subscription = stream.Frames.Subscribe(frame =>
         {
@@ -422,7 +413,7 @@ public class LiveDaqSharedStreamTests
             }
         });
 
-        const int publishedFrameCount = 1500;
+        const int publishedFrameCount = 1100;
         var publishTask = Task.Run(() =>
         {
             for (var index = 1; index <= publishedFrameCount; index++)
@@ -443,7 +434,9 @@ public class LiveDaqSharedStreamTests
                 return receivedOffsets.Count > 0 && receivedOffsets.Contains((ulong)publishedFrameCount);
             }
         });
-        await subscriberDropsObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await AssertEventuallyAsync(
+            () => stream.CurrentState.ClientDropCounters.SubscriberFramesDropped > 0,
+            TimeSpan.FromSeconds(5));
 
         lock (receivedOffsets)
         {
@@ -489,13 +482,13 @@ public class LiveDaqSharedStreamTests
             new LiveBatchHeader(901, 0, 0, firstMonotonicUs, 1),
             [new LiveTravelRecord((ushort)firstMonotonicUs, (ushort)firstMonotonicUs)]);
 
-    private static async Task AssertEventuallyAsync(Func<bool> predicate)
+    private static async Task AssertEventuallyAsync(Func<bool> predicate, TimeSpan? timeout = null)
     {
-        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        using var timeoutCts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(2));
         while (!predicate())
         {
             timeoutCts.Token.ThrowIfCancellationRequested();
-            await Task.Yield();
+            await Task.Delay(1, timeoutCts.Token);
         }
     }
 

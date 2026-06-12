@@ -671,8 +671,20 @@ public class AppPreferencesTests
         var preferences = new AppPreferences(preferencesPath);
 
         var emissions = 0;
+        var firstEmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var duplicateEmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var subscription = preferences.Session.ObserveRecorded(sessionId)
-            .Subscribe(_ => Interlocked.Increment(ref emissions));
+            .Subscribe(_ =>
+            {
+                if (Interlocked.Increment(ref emissions) == 1)
+                {
+                    firstEmission.TrySetResult();
+                }
+                else
+                {
+                    duplicateEmission.TrySetResult();
+                }
+            });
 
         var stored = SessionPreferences.Default with
         {
@@ -689,6 +701,8 @@ public class AppPreferencesTests
                 Sessions = { [sessionId] = stored },
             },
         });
+        await firstEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
         await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
         {
             Updated = 101,
@@ -698,7 +712,14 @@ public class AppPreferencesTests
             },
         });
 
+        await AssertDoesNotCompleteAsync(duplicateEmission.Task, TimeSpan.FromMilliseconds(100));
         Assert.Equal(1, emissions);
+    }
+
+    private static async Task AssertDoesNotCompleteAsync(Task task, TimeSpan timeout)
+    {
+        var completed = await Task.WhenAny(task, Task.Delay(timeout));
+        Assert.NotSame(task, completed);
     }
 
     [Fact]
