@@ -9,6 +9,8 @@ using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.Models;
 using Sufni.Telemetry;
 
+using static Sufni.App.Services.PersistenceGuards;
+
 namespace Sufni.App.Services;
 
 public interface ISessionRepository
@@ -45,14 +47,6 @@ internal sealed class SessionRepository(
     ISessionTelemetryProcessor sessionTelemetryProcessor,
     ITrackRepository trackRepository) : ISessionRepository
 {
-    private const string SessionProcessingFingerprintColumn = "session_processing_fingerprint";
-    private const string SessionHasDataProjection = """
-                                                    CASE
-                                                       WHEN data IS NOT NULL THEN 1
-                                                       ELSE 0
-                                                    END AS has_data
-                                                    """;
-
     private static readonly string ActiveSessionMetadataProjection = $"""
                                                                      id,
                                                                      name,
@@ -64,11 +58,11 @@ internal sealed class SessionRepository(
                                                                      ascent_meters,
                                                                      descent_meters,
                                                                      full_track_id,
-                                                                     {SessionProcessingFingerprintColumn},
+                                                                     {SessionSqlProjection.ProcessingFingerprintColumn},
                                                                      front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
                                                                      rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
                                                                      updated,
-                                                                     {SessionHasDataProjection}
+                                                                     {SessionSqlProjection.HasDataProjection}
                                                                      """;
 
     private const string ProcessedSessionUpdateAssignments = """
@@ -547,46 +541,4 @@ internal sealed class SessionRepository(
         session.Id
     ];
 
-    private static string GetTableName<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>() where T : new()
-    {
-        return typeof(T).GetCustomAttribute<TableAttribute>()?.Name
-               ?? throw new InvalidOperationException($"Type {typeof(T).Name} is missing a SQLite table attribute.");
-    }
-
-    private static async Task<bool> EntityExistsAsync<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        SQLiteAsyncConnection connection,
-        Guid id) where T : Synchronizable, new()
-    {
-        var tableName = GetTableName<T>();
-        return await connection.ExecuteScalarAsync<int>($"SELECT COUNT(1) FROM {tableName} WHERE id = ?", id) > 0;
-    }
-
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "T is annotated to preserve SQLite-mapped members.")]
-    private static Task<int> InsertEntityAsync<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        SQLiteAsyncConnection connection,
-        T entity) where T : new()
-    {
-        ValidateEntityForPersistence(entity);
-        return connection.InsertAsync(entity);
-    }
-
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "T is annotated to preserve SQLite-mapped members.")]
-    private static Task<int> UpdateEntityAsync<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        SQLiteAsyncConnection connection,
-        T entity) where T : new()
-    {
-        ValidateEntityForPersistence(entity);
-        return connection.UpdateAsync(entity);
-    }
-
-    private static void ValidateEntityForPersistence<T>(T entity) where T : new()
-    {
-        if (entity is Track { HasPoints: false } track && track.Deleted is null)
-        {
-            throw new InvalidOperationException("Track must contain at least one point.");
-        }
-    }
 }

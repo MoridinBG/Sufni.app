@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using SQLite;
 using Sufni.App.Models;
 
+using static Sufni.App.Services.PersistenceGuards;
+
 namespace Sufni.App.Services;
 
 public interface ISynchronizableRepository<
@@ -58,7 +60,7 @@ internal sealed class SynchronizableRepository<
     public async Task<Guid> PutAsync(T item)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
-        var existing = await EntityExistsAsync(connection, item.Id);
+        var existing = await EntityExistsAsync<T>(connection, item.Id);
         item.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         item.Deleted = null;
         if (existing)
@@ -99,35 +101,4 @@ internal sealed class SynchronizableRepository<
         }
     }
 
-    private static string GetTableName() =>
-        typeof(T).GetCustomAttribute<TableAttribute>()?.Name
-        ?? throw new InvalidOperationException($"Type {typeof(T).Name} is missing a SQLite table attribute.");
-
-    private static async Task<bool> EntityExistsAsync(SQLiteAsyncConnection connection, Guid id)
-    {
-        var tableName = GetTableName();
-        return await connection.ExecuteScalarAsync<int>($"SELECT COUNT(1) FROM {tableName} WHERE id = ?", id) > 0;
-    }
-
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "T is annotated to preserve SQLite-mapped members.")]
-    private static Task<int> InsertEntityAsync(SQLiteAsyncConnection connection, T entity)
-    {
-        ValidateEntityForPersistence(entity);
-        return connection.InsertAsync(entity);
-    }
-
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "T is annotated to preserve SQLite-mapped members.")]
-    private static Task<int> UpdateEntityAsync(SQLiteAsyncConnection connection, T entity)
-    {
-        ValidateEntityForPersistence(entity);
-        return connection.UpdateAsync(entity);
-    }
-
-    private static void ValidateEntityForPersistence(T entity)
-    {
-        if (entity is Track { HasPoints: false } track && track.Deleted is null)
-        {
-            throw new InvalidOperationException("Track must contain at least one point.");
-        }
-    }
 }

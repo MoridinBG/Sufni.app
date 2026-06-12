@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using SQLite;
 using Sufni.App.Models;
 
+using static Sufni.App.Services.PersistenceGuards;
+
 namespace Sufni.App.Services;
 
 public interface ISyncDataStore
@@ -26,14 +28,6 @@ internal sealed class SynchronizationMergeEngine(
     SqliteConnectionContext connectionContext,
     ITrackRepository trackRepository) : ISyncDataStore
 {
-    private const string SessionProcessingFingerprintColumn = "session_processing_fingerprint";
-    private const string SessionHasDataProjection = """
-                                                    CASE
-                                                       WHEN data IS NOT NULL THEN 1
-                                                       ELSE 0
-                                                    END AS has_data
-                                                    """;
-
     private static readonly string SessionSynchronizationProjection = $"""
                                                                       id,
                                                                       name,
@@ -45,14 +39,14 @@ internal sealed class SynchronizationMergeEngine(
                                                                       ascent_meters,
                                                                       descent_meters,
                                                                       full_track_id,
-                                                                      {SessionProcessingFingerprintColumn},
+                                                                      {SessionSqlProjection.ProcessingFingerprintColumn},
                                                                       track,
                                                                       front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
                                                                       rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
                                                                       updated,
                                                                       client_updated,
                                                                       deleted,
-                                                                      {SessionHasDataProjection}
+                                                                      {SessionSqlProjection.HasDataProjection}
                                                                       """;
 
     private const string RemoteSessionMetadataUpdateAssignments = """
@@ -419,31 +413,4 @@ internal sealed class SynchronizationMergeEngine(
         return await connection.FindAsync<T>(primaryKey);
     }
 
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "T is annotated to preserve SQLite-mapped members.")]
-    private static Task<int> InsertEntityAsync<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        SQLiteAsyncConnection connection,
-        T entity) where T : new()
-    {
-        ValidateEntityForPersistence(entity);
-        return connection.InsertAsync(entity);
-    }
-
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "T is annotated to preserve SQLite-mapped members.")]
-    private static Task<int> UpdateEntityAsync<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        SQLiteAsyncConnection connection,
-        T entity) where T : new()
-    {
-        ValidateEntityForPersistence(entity);
-        return connection.UpdateAsync(entity);
-    }
-
-    private static void ValidateEntityForPersistence<T>(T entity) where T : new()
-    {
-        if (entity is Track { HasPoints: false } track && track.Deleted is null)
-        {
-            throw new InvalidOperationException("Track must contain at least one point.");
-        }
-    }
 }
