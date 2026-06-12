@@ -119,9 +119,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly TelemetryPlotRowAction showSpeedStatisticsSelectionAction;
     private readonly TelemetryPlotRowAction showElevationStatisticsSelectionAction;
     private readonly PlotAutozoomController plotAutozoomController;
-    private DampingSpeedCutoffOwner? dampingSpeedCutoffOwner;
-    private DampingSpeedCutoffs persistedDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
-    private DampingSpeedCutoffs? dampingSpeedCutoffPreviewOrigin;
+    private readonly DamperCutoffWorkflow damperCutoffWorkflow;
 
     #endregion Private fields
 
@@ -168,7 +166,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public TelemetryRangeSelection? SelectedFrontRangeSelection => statisticsSelectionController.SelectedFrontRangeSelection;
     public TelemetryRangeSelection? SelectedRearRangeSelection => statisticsSelectionController.SelectedRearRangeSelection;
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> PlotContextMenuActionsByRowId { get; }
-    public bool CanEditDampingSpeedCutoffs => dampingSpeedCutoffOwner is not null;
+    public bool CanEditDampingSpeedCutoffs => damperCutoffWorkflow.CanEdit;
     public RecordedSessionExtensionSlots ExtensionSlots => recordedSessionExtensions?.ExtensionSlots ?? emptyExtensionSlots;
 
     #endregion Public fields
@@ -216,90 +214,23 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         DampingSpeedCutoffs cutoffs,
         DampingSpeedCutoffOwner? owner)
     {
-        persistedDampingSpeedCutoffs = cutoffs.ClampValues();
-        dampingSpeedCutoffPreviewOrigin = null;
-        dampingSpeedCutoffOwner = owner;
-        SessionContext.CanEditDampingSpeedCutoffs = dampingSpeedCutoffOwner is not null;
+        damperCutoffWorkflow.ApplyContext(cutoffs, owner);
         OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
-        SessionContext.PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
-        SessionContext.DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
     }
 
     public void PreviewDampingSpeedCutoff(
         SuspensionType side,
         DampingSpeedCircuit circuit,
-        double cutoffMmPerSecond)
-    {
-        if (dampingSpeedCutoffOwner is null)
-        {
-            return;
-        }
+        double cutoffMmPerSecond) =>
+        damperCutoffWorkflow.Preview(side, circuit, cutoffMmPerSecond);
 
-        dampingSpeedCutoffPreviewOrigin ??= SessionContext.DampingSpeedCutoffs;
-        SessionContext.DampingSpeedCutoffs = SessionContext.DampingSpeedCutoffs.With(
-            side,
-            circuit,
-            DampingCutoffInteraction.RoundDragValue(cutoffMmPerSecond));
-    }
+    public void CancelDampingSpeedCutoffPreview() => damperCutoffWorkflow.CancelPreview();
 
-    public void CancelDampingSpeedCutoffPreview()
-    {
-        if (dampingSpeedCutoffPreviewOrigin is not { } origin)
-        {
-            return;
-        }
-
-        dampingSpeedCutoffPreviewOrigin = null;
-        SessionContext.DampingSpeedCutoffs = origin;
-    }
-
-    public async Task CommitDampingSpeedCutoffAsync(
+    public Task CommitDampingSpeedCutoffAsync(
         SuspensionType side,
         DampingSpeedCircuit circuit,
-        double cutoffMmPerSecond)
-    {
-        if (dampingSpeedCutoffOwner is not { } owner || bikeCoordinator is null)
-        {
-            return;
-        }
-
-        dampingSpeedCutoffPreviewOrigin = null;
-        var committedCutoffs = SessionContext.DampingSpeedCutoffs.With(
-            side,
-            circuit,
-            DampingCutoffInteraction.RoundDragValue(cutoffMmPerSecond));
-        SessionContext.DampingSpeedCutoffs = committedCutoffs;
-        SessionContext.PlotDampingSpeedCutoffs = committedCutoffs;
-
-        var result = await bikeCoordinator.UpdateDampingSpeedCutoffAsync(
-            owner.BikeId,
-            owner.BaselineUpdated,
-            side,
-            circuit,
-            committedCutoffs.Get(side, circuit));
-
-        switch (result)
-        {
-            case BikeDampingSpeedCutoffUpdateResult.Saved saved:
-                ApplyDampingSpeedCutoffContext(
-                    saved.Snapshot.DampingSpeedCutoffs,
-                    new DampingSpeedCutoffOwner(saved.Snapshot.Id, saved.Snapshot.Updated));
-                break;
-
-            case BikeDampingSpeedCutoffUpdateResult.Conflict conflict:
-                ApplyDampingSpeedCutoffContext(
-                    conflict.CurrentSnapshot.DampingSpeedCutoffs,
-                    new DampingSpeedCutoffOwner(conflict.CurrentSnapshot.Id, conflict.CurrentSnapshot.Updated));
-                ErrorMessages.Add("Bike damping cutoff changed elsewhere. Reloaded the latest cutoff.");
-                break;
-
-            case BikeDampingSpeedCutoffUpdateResult.Failed failed:
-                SessionContext.DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
-                SessionContext.PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
-                ErrorMessages.Add($"Could not save damping cutoff: {failed.ErrorMessage}");
-                break;
-        }
-    }
+        double cutoffMmPerSecond) =>
+        damperCutoffWorkflow.CommitAsync(side, circuit, cutoffMmPerSecond);
 
     private void ClearDamperPercentages()
     {
@@ -742,6 +673,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             SaveCommand,
             ResetCommand);
         IsComplete = snapshot.HasProcessedData;
+        damperCutoffWorkflow = new DamperCutoffWorkflow(
+            SessionContext,
+            bikeCoordinator,
+            ErrorMessages.Add);
         stalenessReconciler = new SessionStalenessReconciler(
             sessionCoordinator,
             sessionStore,
