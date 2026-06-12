@@ -10,6 +10,7 @@ using Sufni.App.Views.Shared;
 
 namespace Sufni.App.Tests.Views.Editors;
 
+[Collection("Ui")]
 public class SetupEditorViewTests
 {
     [AvaloniaFact]

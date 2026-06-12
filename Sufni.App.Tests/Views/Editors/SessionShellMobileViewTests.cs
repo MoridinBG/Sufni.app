@@ -21,6 +21,7 @@ using Sufni.App.ExtensionHost.Contracts.Presentation;
 
 namespace Sufni.App.Tests.Views.Editors;
 
+[Collection("Ui")]
 public class SessionShellMobileViewTests
 {
     [AvaloniaFact]

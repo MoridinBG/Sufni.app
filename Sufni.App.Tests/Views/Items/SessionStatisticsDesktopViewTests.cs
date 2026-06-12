@@ -25,6 +25,7 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 namespace Sufni.App.Tests.Views.Items;
 
+[Collection("Ui")]
 public class SessionStatisticsDesktopViewTests
 {
     [AvaloniaFact]

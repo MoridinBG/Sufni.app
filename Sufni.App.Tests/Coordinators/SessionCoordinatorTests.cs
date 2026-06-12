@@ -24,6 +24,7 @@ using Sufni.App.ExtensionHosting.Database;
 
 namespace Sufni.App.Tests.Coordinators;
 
+[Collection("Ui")]
 public class SessionCoordinatorTests
 {
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();

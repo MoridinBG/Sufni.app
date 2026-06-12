@@ -11,6 +11,7 @@ using Sufni.Kinematics;
 
 namespace Sufni.App.Tests.Views.SensorConfigurations;
 
+[Collection("Ui")]
 public class RotationalShockSensorConfigurationViewTests
 {
     [AvaloniaFact]

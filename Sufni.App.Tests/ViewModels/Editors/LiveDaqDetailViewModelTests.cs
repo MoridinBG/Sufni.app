@@ -17,6 +17,7 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
 
+[Collection("Ui")]
 public class LiveDaqDetailViewModelTests
 {
     private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();

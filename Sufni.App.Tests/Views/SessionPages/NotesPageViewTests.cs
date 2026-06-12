@@ -8,6 +8,7 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Views.SessionPages;
 
+[Collection("Ui")]
 public class NotesPageViewTests
 {
     [AvaloniaFact]

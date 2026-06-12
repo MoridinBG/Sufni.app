@@ -28,6 +28,7 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
 
+[Collection("Ui")]
 public class LiveSessionDetailViewModelTests
 {
     private readonly ILiveSessionService liveSessionService = Substitute.For<ILiveSessionService>();

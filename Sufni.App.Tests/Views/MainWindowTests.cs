@@ -10,6 +10,7 @@ using Sufni.App.ViewModels;
 
 namespace Sufni.App.Tests.Views;
 
+[Collection("Ui")]
 public class MainWindowTests
 {
     [AvaloniaFact]

@@ -23,6 +23,7 @@ using Sufni.Kinematics;
 
 namespace Sufni.App.Tests.Views.Editors;
 
+[Collection("Ui")]
 public class BikeEditorViewSmokeTests
 {
     [AvaloniaFact]

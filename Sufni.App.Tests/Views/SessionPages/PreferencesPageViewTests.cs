@@ -7,6 +7,7 @@ using Sufni.App.Views.SessionPages;
 
 namespace Sufni.App.Tests.Views.SessionPages;
 
+[Collection("Ui")]
 public class PreferencesPageViewTests
 {
     [AvaloniaFact]

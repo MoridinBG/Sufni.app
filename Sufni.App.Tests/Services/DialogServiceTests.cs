@@ -10,6 +10,7 @@ using Sufni.App.ExtensionHost.Contracts.Services;
 
 namespace Sufni.App.Tests.Services;
 
+[Collection("Ui")]
 public class DialogServiceTests
 {
     [AvaloniaFact]

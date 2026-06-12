@@ -19,6 +19,7 @@ using Sufni.App.ExtensionHost.Contracts.Models;
 
 namespace Sufni.App.Tests.Views;
 
+[Collection("Ui")]
 public class MapViewTests
 {
     [AvaloniaFact]

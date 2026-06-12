@@ -7,6 +7,7 @@ using Sufni.Kinematics;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
 
+[Collection("Ui")]
 public class BikeWheelGeometryViewModelTests
 {
     private static BikeSnapshot SnapshotWithWheels() => TestSnapshots.Bike() with

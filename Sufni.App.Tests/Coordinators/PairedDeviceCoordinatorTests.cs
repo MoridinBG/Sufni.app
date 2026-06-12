@@ -9,6 +9,7 @@ using Sufni.App.Stores;
 
 namespace Sufni.App.Tests.Coordinators;
 
+[Collection("Ui")]
 public class PairedDeviceCoordinatorTests
 {
     private readonly IPairedDeviceStoreWriter pairedDeviceStore = Substitute.For<IPairedDeviceStoreWriter>();

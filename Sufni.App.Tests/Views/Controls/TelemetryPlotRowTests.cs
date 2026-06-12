@@ -17,6 +17,7 @@ using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 namespace Sufni.App.Tests.Views.Controls;
 
+[Collection("Ui")]
 public class TelemetryPlotRowTests
 {
     [AvaloniaFact]

@@ -17,6 +17,7 @@ using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
 
 namespace Sufni.App.Tests.Views.Plots;
 
+[Collection("Ui")]
 public class SessionStatisticsPlotViewTests
 {
     [AvaloniaFact]

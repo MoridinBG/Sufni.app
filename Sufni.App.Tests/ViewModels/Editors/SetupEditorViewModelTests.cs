@@ -14,6 +14,7 @@ using Sufni.App.ExtensionHost.Contracts.Services;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
 
+[Collection("Ui")]
 public class SetupEditorViewModelTests
 {
     private readonly ISetupCoordinator setupCoordinator = TestCoordinatorSubstitutes.Setup();

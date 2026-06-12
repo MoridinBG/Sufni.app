@@ -32,6 +32,7 @@ using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 namespace Sufni.App.Tests.Views.Items;
 
+[Collection("Ui")]
 public class RecordedSessionGraphDesktopViewTests
 {
     [AvaloniaFact]

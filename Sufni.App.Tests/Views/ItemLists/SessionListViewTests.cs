@@ -19,6 +19,7 @@ using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 
 namespace Sufni.App.Tests.Views.ItemLists;
 
+[Collection("Ui")]
 public class SessionListViewTests
 {
     [AvaloniaFact]

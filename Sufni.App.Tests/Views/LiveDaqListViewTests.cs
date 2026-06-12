@@ -12,6 +12,7 @@ using Sufni.App.Views.ItemLists;
 
 namespace Sufni.App.Tests.Views;
 
+[Collection("Ui")]
 public class LiveDaqListViewTests
 {
     [AvaloniaFact]

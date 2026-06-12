@@ -96,6 +96,13 @@ Do not bombard the SUT with random junk just to create more cases. Prefer inputs
 - Prefer explicit control over async completion to timing-based waits or delays.
 - When the SUT exposes a safe override seam and the test needs lightweight observability, a small tracking subclass is preferable to reflection.
 
+## Parallelization Tiers
+
+- The suite runs xunit's default parallel collections; the assembly-level serialization is gone.
+- The **UI tier** is the one named collection: `[Collection("Ui")]` (defined in `Infrastructure/UiCollection.cs`, `DisableParallelization = true`). It serializes tests that share process-global state: anything touching `TestApp` (including `SetIsDesktop`), `Application.Current` resources, `ViewTestHelpers`, `[AvaloniaFact]`/`[AvaloniaTheory]` bodies on the headless dispatcher, or `PeriodicUiTimer`.
+- **A new test that touches any of those must carry `[Collection("Ui")]`.** Persistence-tier tests (isolated per test by `TempDatabase`/`TempDirectory`) and pure unit tests stay in the default parallel collections — do not add them to the Ui collection.
+- Audited process-global state: `App.ServiceCollection` is only written during startup composition (no test mutates it); `PeriodicUiTimer` is UI-tier only; dispatcher fakes are per-test instances.
+
 ## Desktop And Mobile Branches
 
 - When behavior branches on desktop versus mobile mode, cover both relevant branches.

@@ -3,6 +3,7 @@ using Sufni.App.Views.Shared;
 
 namespace Sufni.App.Tests.Views.Shared;
 
+[Collection("Ui")]
 public class ItemListStatusOverlayTests
 {
     [AvaloniaFact]

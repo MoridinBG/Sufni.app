@@ -8,6 +8,7 @@ using Sufni.App.Views.Controls;
 
 namespace Sufni.App.Tests.Views.Controls;
 
+[Collection("Ui")]
 public class EditableTitleTests
 {
     [AvaloniaFact]

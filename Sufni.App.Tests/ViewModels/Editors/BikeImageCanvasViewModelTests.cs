@@ -6,6 +6,7 @@ using Sufni.Kinematics;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
 
+[Collection("Ui")]
 public class BikeImageCanvasViewModelTests
 {
     [AvaloniaFact]

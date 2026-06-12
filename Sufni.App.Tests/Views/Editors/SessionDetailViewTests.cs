@@ -7,6 +7,7 @@ using Sufni.App.ViewModels.SessionPages;
 
 namespace Sufni.App.Tests.Views.Editors;
 
+[Collection("Ui")]
 public class SessionDetailViewTests
 {
     [AvaloniaFact]

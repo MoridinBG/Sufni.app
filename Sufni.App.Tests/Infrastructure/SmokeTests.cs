@@ -3,6 +3,7 @@ using Sufni.App.Tests.Infrastructure;
 
 namespace Sufni.App.Tests.Infrastructure;
 
+[Collection("Ui")]
 public class SmokeTests
 {
     [AvaloniaFact]

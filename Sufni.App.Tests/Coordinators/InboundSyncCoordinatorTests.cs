@@ -8,6 +8,7 @@ using Sufni.App.Stores;
 
 namespace Sufni.App.Tests.Coordinators;
 
+[Collection("Ui")]
 public class InboundSyncCoordinatorTests
 {
     private readonly ISynchronizableRepository<Board> boardRepository = Substitute.For<ISynchronizableRepository<Board>>();

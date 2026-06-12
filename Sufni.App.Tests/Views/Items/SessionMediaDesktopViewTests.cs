@@ -22,6 +22,7 @@ using Sufni.App.ExtensionHost.Contracts.Presentation;
 
 namespace Sufni.App.Tests.Views.Items;
 
+[Collection("Ui")]
 public class SessionMediaDesktopViewTests
 {
     [AvaloniaFact]

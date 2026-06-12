@@ -29,6 +29,7 @@ using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
 
+[Collection("Ui")]
 public class SessionDetailViewModelTests
 {
     private readonly ISessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();

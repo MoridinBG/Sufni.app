@@ -18,6 +18,7 @@ using Sufni.App.ExtensionHost.Contracts.Services;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
 
+[Collection("Ui")]
 public class BikeEditorViewModelTests
 {
     private readonly IBikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();

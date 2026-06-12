@@ -28,6 +28,7 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 namespace Sufni.App.Tests.Views.Plots;
 
+[Collection("Ui")]
 public class VelocityBandViewTests
 {
     [Fact]

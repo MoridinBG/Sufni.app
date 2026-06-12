@@ -13,6 +13,7 @@ using Sufni.App.ViewModels.ItemLists;
 
 namespace Sufni.App.Tests.Views.ItemLists;
 
+[Collection("Ui")]
 public class PairedDeviceListDesktopViewTests
 {
     [AvaloniaFact]

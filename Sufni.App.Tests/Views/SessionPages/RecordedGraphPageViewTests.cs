@@ -28,6 +28,7 @@ using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 namespace Sufni.App.Tests.Views.SessionPages;
 
+[Collection("Ui")]
 public class RecordedGraphPageViewTests
 {
     [AvaloniaFact]

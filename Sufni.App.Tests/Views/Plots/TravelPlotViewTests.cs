@@ -29,6 +29,7 @@ using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 namespace Sufni.App.Tests.Views.Plots;
 
+[Collection("Ui")]
 public class TravelPlotViewTests
 {
     [AvaloniaFact]

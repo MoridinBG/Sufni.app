@@ -6,6 +6,7 @@ using Sufni.App.ExtensionHosting;
 
 namespace Sufni.App.Tests.ExtensionHost;
 
+[Collection("Ui")]
 public class ExtensionViewRegistryTests
 {
     [Fact]

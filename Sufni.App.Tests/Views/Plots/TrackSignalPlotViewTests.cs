@@ -10,6 +10,7 @@ using Sufni.App.ExtensionHost.Contracts.Models;
 
 namespace Sufni.App.Tests.Views.Plots;
 
+[Collection("Ui")]
 public class TrackSignalPlotViewTests
 {
     [AvaloniaFact]

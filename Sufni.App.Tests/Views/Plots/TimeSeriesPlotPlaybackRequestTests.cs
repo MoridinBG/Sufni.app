@@ -10,6 +10,7 @@ using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
 
 namespace Sufni.App.Tests.Views.Plots;
 
+[Collection("Ui")]
 public class TimeSeriesPlotPlaybackRequestTests
 {
     [AvaloniaFact]

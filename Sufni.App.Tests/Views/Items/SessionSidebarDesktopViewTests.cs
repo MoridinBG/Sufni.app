@@ -15,6 +15,7 @@ using Sufni.App.Views.SessionPages;
 
 namespace Sufni.App.Tests.Views.Items;
 
+[Collection("Ui")]
 public class SessionSidebarDesktopViewTests
 {
     [AvaloniaFact]

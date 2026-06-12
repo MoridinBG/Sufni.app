@@ -13,6 +13,7 @@ using Sufni.App.Views.Controls;
 
 namespace Sufni.App.Tests.Views;
 
+[Collection("Ui")]
 public class MainViewTests
 {
     [AvaloniaFact]

@@ -5,6 +5,7 @@ using Sufni.App.Tests.Infrastructure;
 
 namespace Sufni.App.Tests.Views.Editors;
 
+[Collection("Ui")]
 public class SessionDetailDesktopShellTests
 {
     [AvaloniaFact]

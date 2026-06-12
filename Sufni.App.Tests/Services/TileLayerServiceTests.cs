@@ -8,6 +8,7 @@ using Sufni.App.Tests.Infrastructure;
 
 namespace Sufni.App.Tests.Services;
 
+[Collection("Ui")]
 public class TileLayerServiceTests
 {
     [Fact]

@@ -9,6 +9,7 @@ using Sufni.App.Tests.Infrastructure;
 
 namespace Sufni.App.Tests.Coordinators;
 
+[Collection("Ui")]
 public class SyncCoordinatorTests
 {
     private readonly IBikeStoreWriter bikeStore = Substitute.For<IBikeStoreWriter>();

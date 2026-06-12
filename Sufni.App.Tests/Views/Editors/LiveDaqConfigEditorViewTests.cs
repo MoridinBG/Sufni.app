@@ -11,6 +11,7 @@ using Sufni.App.Views.Editors;
 
 namespace Sufni.App.Tests.Views.Editors;
 
+[Collection("Ui")]
 public class LiveDaqConfigEditorViewTests
 {
     [AvaloniaFact]

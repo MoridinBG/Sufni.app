@@ -24,6 +24,7 @@ using static Sufni.App.Tests.Infrastructure.TestTelemetrySources;
 
 namespace Sufni.App.Tests.Views;
 
+[Collection("Ui")]
 public class ImportSessionsViewTests
 {
     [AvaloniaFact]

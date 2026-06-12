@@ -14,6 +14,7 @@ using Sufni.App.ViewModels.ItemLists;
 
 namespace Sufni.App.Tests.ViewModels;
 
+[Collection("Ui")]
 public class MainPagesViewModelTests
 {
     private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();

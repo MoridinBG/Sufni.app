@@ -11,6 +11,7 @@ using Sufni.App.Views.Controls;
 
 namespace Sufni.App.Tests.Views.Editors;
 
+[Collection("Ui")]
 public class SessionDetailDesktopViewTests
 {
     [AvaloniaFact]

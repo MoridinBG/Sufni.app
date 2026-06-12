@@ -10,6 +10,7 @@ using Sufni.App.Views.ItemLists;
 
 namespace Sufni.App.Tests.Views.ItemLists;
 
+[Collection("Ui")]
 public class SetupListViewTests
 {
     [AvaloniaFact]

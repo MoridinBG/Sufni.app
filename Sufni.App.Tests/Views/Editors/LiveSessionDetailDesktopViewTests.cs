@@ -26,6 +26,7 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 namespace Sufni.App.Tests.Views.Editors;
 
+[Collection("Ui")]
 public class LiveSessionDetailDesktopViewTests
 {
     [AvaloniaFact]

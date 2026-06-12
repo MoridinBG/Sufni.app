@@ -1,10 +1,8 @@
 using Avalonia;
 using Avalonia.Headless;
 using Sufni.App.Tests.Infrastructure;
-using Xunit;
 
 [assembly: AvaloniaTestApplication(typeof(TestAppBuilder))]
-[assembly: CollectionBehavior(DisableTestParallelization = true)]
 
 namespace Sufni.App.Tests.Infrastructure;
 

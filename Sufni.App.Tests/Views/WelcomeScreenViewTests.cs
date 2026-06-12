@@ -10,6 +10,7 @@ using Sufni.App.Views;
 
 namespace Sufni.App.Tests.Views;
 
+[Collection("Ui")]
 public class WelcomeScreenViewTests
 {
     [AvaloniaFact]
