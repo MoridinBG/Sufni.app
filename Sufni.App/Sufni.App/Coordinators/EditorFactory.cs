@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
@@ -128,10 +129,11 @@ internal sealed class EditorFactory(
             uiThreadDispatcher,
             sessionLayoutStrategy,
             bikeCoordinator,
-            recordedSessionExtensionFactories,
-            extensionDatabase,
-            recordedSessionDataReader,
-            backgroundTaskRunner);
+            new ExtensionHostDependencies(
+                recordedSessionExtensionFactories.ToArray(),
+                extensionDatabase,
+                recordedSessionDataReader,
+                backgroundTaskRunner));
 
     public void OpenLiveDaqDetail(LiveDaqSnapshot snapshot, ILiveDaqSharedStream sharedStream)
     {

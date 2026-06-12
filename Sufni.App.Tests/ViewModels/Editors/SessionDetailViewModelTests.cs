@@ -85,10 +85,11 @@ public class SessionDetailViewModelTests
             uiThreadDispatcher ?? new InlineUiThreadDispatcher(),
             layoutStrategy ?? new DesktopSessionLayoutStrategy(),
             bikeCoordinator,
-            recordedSessionExtensionFactories,
-            Substitute.For<IExtensionDatabaseConnection>(),
-            Substitute.For<IRecordedSessionDataReader>(),
-            new InlineBackgroundTaskRunner());
+            new ExtensionHostDependencies(
+                recordedSessionExtensionFactories ?? [],
+                Substitute.For<IExtensionDatabaseConnection>(),
+                Substitute.For<IRecordedSessionDataReader>(),
+                new InlineBackgroundTaskRunner()));
     }
 
     private void SetDesktop(bool isDesktop)

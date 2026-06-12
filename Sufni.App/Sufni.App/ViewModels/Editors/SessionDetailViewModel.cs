@@ -580,21 +580,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         IUiThreadDispatcher uiThreadDispatcher,
         ISessionLayoutStrategy layoutStrategy,
         IBikeCoordinator? bikeCoordinator = null,
-        IEnumerable<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories = null,
-        IExtensionDatabaseConnection? extensionDatabase = null,
-        IRecordedSessionDataReader? recordedSessionDataReader = null,
-        IBackgroundTaskRunner? backgroundTaskRunner = null)
+        ExtensionHostDependencies? extensionHost = null)
         : base(shell, dialogService, uiThreadDispatcher)
     {
         ArgumentNullException.ThrowIfNull(sessionPreferences);
         this.layoutStrategy = layoutStrategy;
-
-        var extensionFactories = recordedSessionExtensionFactories?.ToArray() ?? [];
-        if (extensionFactories.Length > 0 &&
-            (extensionDatabase is null || recordedSessionDataReader is null || backgroundTaskRunner is null))
-        {
-            throw new ArgumentException("Recorded-session extension factories require extension host services.");
-        }
 
         this.sessionCoordinator = sessionCoordinator;
         this.bikeCoordinator = bikeCoordinator;
@@ -664,17 +654,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             sessionStore,
             dialogService,
             this);
-        if (extensionDatabase is not null && recordedSessionDataReader is not null && backgroundTaskRunner is not null)
+        if (extensionHost is not null)
         {
             recordedSessionOperationCoordinator = new RecordedSessionOperationCoordinator(
                 ReportRecordedSessionExtensionOperation,
                 CompleteRecordedSessionExtensionOperation);
             recordedSessionExtensions = new RecordedSessionExtensionManager(
                 Id,
-                extensionFactories,
-                extensionDatabase,
-                recordedSessionDataReader,
-                backgroundTaskRunner,
+                extensionHost.RecordedSessionExtensionFactories,
+                extensionHost.ExtensionDatabase,
+                extensionHost.RecordedSessionDataReader,
+                extensionHost.BackgroundTaskRunner,
                 uiThreadDispatcher,
                 recordedSessionOperationCoordinator,
                 this);
