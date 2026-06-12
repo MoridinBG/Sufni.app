@@ -178,12 +178,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     [ObservableProperty] private TelemetryData? telemetryData;
     [ObservableProperty] private TelemetryTimeRange? analysisRange;
     [ObservableProperty] private bool isComplete;
-    [ObservableProperty] private TravelHistogramMode selectedTravelHistogramMode = TravelHistogramMode.ActiveSuspension;
-    [ObservableProperty] private BalanceDisplacementMode selectedBalanceDisplacementMode = BalanceDisplacementMode.Zenith;
-    [ObservableProperty] private BalanceSpeedMode selectedBalanceSpeedMode = BalanceSpeedMode.Both;
-    [ObservableProperty] private VelocityAverageMode selectedVelocityAverageMode = VelocityAverageMode.SampleAveraged;
-    [ObservableProperty] private SessionAnalysisTargetProfile selectedSessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Trail;
-    [ObservableProperty] private DampingSpeedCutoffs dampingSpeedCutoffs = DampingSpeedCutoffs.Default;
     public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } = SessionAnalysisPresentation.TravelHistogramModeOptions;
     public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } = SessionAnalysisPresentation.BalanceDisplacementModeOptions;
     public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } = SessionAnalysisPresentation.BalanceSpeedModeOptions;
@@ -193,10 +187,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         ? $"Selected range {FormatSeconds(range.StartSeconds)}-{FormatSeconds(range.EndSeconds)}s"
         : "Full session";
     public string SessionAnalysisModesText => SessionAnalysisPresentation.DescribeModes(
-        SelectedTravelHistogramMode,
-        SelectedVelocityAverageMode,
-        SelectedBalanceDisplacementMode,
-        SelectedBalanceSpeedMode);
+        SessionContext.SelectedTravelHistogramMode,
+        SessionContext.SelectedVelocityAverageMode,
+        SessionContext.SelectedBalanceDisplacementMode,
+        SessionContext.SelectedBalanceSpeedMode);
     public ObservableCollection<PageViewModelBase> Pages => SessionContext.Pages;
 
     #endregion Observable properties
@@ -238,57 +232,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         UpdateRecordedSessionExtensionHostState();
     }
 
-    partial void OnSelectedTravelHistogramModeChanged(TravelHistogramMode value)
-    {
-        SessionContext.SelectedTravelHistogramMode = value;
-        OnPropertyChanged(nameof(SessionAnalysisModesText));
-        RecomputeSessionAnalysis();
-        PersistRecordedStatisticsPreferencesIfEnabled();
-        UpdateRecordedSessionExtensionHostState();
-    }
-
-    partial void OnSelectedBalanceDisplacementModeChanged(BalanceDisplacementMode value)
-    {
-        SessionContext.SelectedBalanceDisplacementMode = value;
-        OnPropertyChanged(nameof(SessionAnalysisModesText));
-        RecomputeSessionAnalysis();
-        PersistRecordedStatisticsPreferencesIfEnabled();
-    }
-
-    partial void OnSelectedBalanceSpeedModeChanged(BalanceSpeedMode value)
-    {
-        SessionContext.SelectedBalanceSpeedMode = value;
-        OnPropertyChanged(nameof(SessionAnalysisModesText));
-        RecomputeSessionAnalysis();
-        PersistRecordedStatisticsPreferencesIfEnabled();
-    }
-
-    partial void OnSelectedVelocityAverageModeChanged(VelocityAverageMode value)
-    {
-        SessionContext.SelectedVelocityAverageMode = value;
-        ClearDampingRangeSelections();
-        OnPropertyChanged(nameof(SessionAnalysisModesText));
-        RecomputeDamperPercentagesForAnalysisRange();
-        RecomputeSessionAnalysis();
-        PersistRecordedStatisticsPreferencesIfEnabled();
-        UpdateRecordedSessionExtensionHostState();
-    }
-
-    partial void OnSelectedSessionAnalysisTargetProfileChanged(SessionAnalysisTargetProfile value)
-    {
-        SessionContext.SelectedSessionAnalysisTargetProfile = value;
-        RecomputeSessionAnalysis();
-        PersistRecordedStatisticsPreferencesIfEnabled();
-    }
-
-    partial void OnDampingSpeedCutoffsChanged(DampingSpeedCutoffs value)
-    {
-        SessionContext.DampingSpeedCutoffs = value;
-        RecomputeDamperPercentagesForAnalysisRange();
-        RecomputeSessionAnalysisIfAllowed();
-        UpdateRecordedSessionExtensionHostState();
-    }
-
     #region Private methods
 
     private static SessionPresentationDimensions? CreatePresentationDimensions(Rect? bounds)
@@ -318,7 +261,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         SessionContext.CanEditDampingSpeedCutoffs = dampingSpeedCutoffOwner is not null;
         OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
         SessionContext.PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
-        DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
+        SessionContext.DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
     }
 
     public void PreviewDampingSpeedCutoff(
@@ -331,8 +274,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
             return;
         }
 
-        dampingSpeedCutoffPreviewOrigin ??= DampingSpeedCutoffs;
-        DampingSpeedCutoffs = DampingSpeedCutoffs.With(
+        dampingSpeedCutoffPreviewOrigin ??= SessionContext.DampingSpeedCutoffs;
+        SessionContext.DampingSpeedCutoffs = SessionContext.DampingSpeedCutoffs.With(
             side,
             circuit,
             DampingCutoffInteraction.RoundDragValue(cutoffMmPerSecond));
@@ -346,7 +289,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         }
 
         dampingSpeedCutoffPreviewOrigin = null;
-        DampingSpeedCutoffs = origin;
+        SessionContext.DampingSpeedCutoffs = origin;
     }
 
     public async Task CommitDampingSpeedCutoffAsync(
@@ -360,11 +303,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         }
 
         dampingSpeedCutoffPreviewOrigin = null;
-        var committedCutoffs = DampingSpeedCutoffs.With(
+        var committedCutoffs = SessionContext.DampingSpeedCutoffs.With(
             side,
             circuit,
             DampingCutoffInteraction.RoundDragValue(cutoffMmPerSecond));
-        DampingSpeedCutoffs = committedCutoffs;
+        SessionContext.DampingSpeedCutoffs = committedCutoffs;
         SessionContext.PlotDampingSpeedCutoffs = committedCutoffs;
 
         var result = await bikeCoordinator.UpdateDampingSpeedCutoffAsync(
@@ -390,7 +333,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
                 break;
 
             case BikeDampingSpeedCutoffUpdateResult.Failed failed:
-                DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
+                SessionContext.DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
                 SessionContext.PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
                 ErrorMessages.Add($"Could not save damping cutoff: {failed.ErrorMessage}");
                 break;
@@ -413,8 +356,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         ApplyDamperPercentages(sessionPresentationService.CalculateDamperPercentages(
             TelemetryData,
             AnalysisRange,
-            SelectedVelocityAverageMode,
-            DampingSpeedCutoffs));
+            SessionContext.SelectedVelocityAverageMode,
+            SessionContext.DampingSpeedCutoffs));
     }
 
     internal void ApplyModeAwareDamperPercentages(SessionDamperPercentages sampleAveragedPercentages)
@@ -425,7 +368,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
             return;
         }
 
-        if (AnalysisRange is null && SelectedVelocityAverageMode == VelocityAverageMode.SampleAveraged)
+        if (AnalysisRange is null && SessionContext.SelectedVelocityAverageMode == VelocityAverageMode.SampleAveraged)
         {
             ApplyDamperPercentages(sampleAveragedPercentages);
             return;
@@ -449,14 +392,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         SessionContext.SessionAnalysis = sessionAnalysisService.Analyze(new SessionAnalysisRequest(
             TelemetryData,
             AnalysisRange,
-            SelectedTravelHistogramMode,
-            SelectedVelocityAverageMode,
-            SelectedBalanceDisplacementMode,
-            SelectedBalanceSpeedMode,
+            SessionContext.SelectedTravelHistogramMode,
+            SessionContext.SelectedVelocityAverageMode,
+            SessionContext.SelectedBalanceDisplacementMode,
+            SessionContext.SelectedBalanceSpeedMode,
             SessionContext.DamperPercentages,
-            SelectedSessionAnalysisTargetProfile)
+            SessionContext.SelectedSessionAnalysisTargetProfile)
         {
-            DampingSpeedCutoffs = this.DampingSpeedCutoffs,
+            DampingSpeedCutoffs = SessionContext.DampingSpeedCutoffs,
         });
     }
 
@@ -575,9 +518,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
                 Timeline),
             new RecordedSessionStatisticsState(
                 SessionContext.DamperPercentages,
-                DampingSpeedCutoffs,
-                SelectedVelocityAverageMode,
-                SelectedTravelHistogramMode));
+                SessionContext.DampingSpeedCutoffs,
+                SessionContext.SelectedVelocityAverageMode,
+                SessionContext.SelectedTravelHistogramMode));
     }
 
     private void UpdateRecordedSessionExtensionHostState()
@@ -806,11 +749,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         MediaWorkspace = new SessionMediaWorkspaceViewModel(SessionContext);
         StatisticsWorkspace = new SessionStatisticsWorkspaceViewModel(
             SessionContext,
-            value => SelectedTravelHistogramMode = value,
-            value => SelectedBalanceDisplacementMode = value,
-            value => SelectedBalanceSpeedMode = value,
-            value => SelectedVelocityAverageMode = value,
-            value => SelectedSessionAnalysisTargetProfile = value,
+            value => SessionContext.SelectedTravelHistogramMode = value,
+            value => SessionContext.SelectedBalanceDisplacementMode = value,
+            value => SessionContext.SelectedBalanceSpeedMode = value,
+            value => SessionContext.SelectedVelocityAverageMode = value,
+            value => SessionContext.SelectedSessionAnalysisTargetProfile = value,
             SelectTelemetryRangeSelectionCommand,
             PreviewDampingSpeedCutoff,
             CancelDampingSpeedCutoffPreview,
@@ -1023,6 +966,35 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     {
         switch (args.PropertyName)
         {
+            case nameof(RecordedSessionContext.SelectedTravelHistogramMode):
+                OnPropertyChanged(nameof(SessionAnalysisModesText));
+                RecomputeSessionAnalysis();
+                PersistRecordedStatisticsPreferencesIfEnabled();
+                UpdateRecordedSessionExtensionHostState();
+                break;
+            case nameof(RecordedSessionContext.SelectedBalanceDisplacementMode):
+            case nameof(RecordedSessionContext.SelectedBalanceSpeedMode):
+                OnPropertyChanged(nameof(SessionAnalysisModesText));
+                RecomputeSessionAnalysis();
+                PersistRecordedStatisticsPreferencesIfEnabled();
+                break;
+            case nameof(RecordedSessionContext.SelectedVelocityAverageMode):
+                ClearDampingRangeSelections();
+                OnPropertyChanged(nameof(SessionAnalysisModesText));
+                RecomputeDamperPercentagesForAnalysisRange();
+                RecomputeSessionAnalysis();
+                PersistRecordedStatisticsPreferencesIfEnabled();
+                UpdateRecordedSessionExtensionHostState();
+                break;
+            case nameof(RecordedSessionContext.SelectedSessionAnalysisTargetProfile):
+                RecomputeSessionAnalysis();
+                PersistRecordedStatisticsPreferencesIfEnabled();
+                break;
+            case nameof(RecordedSessionContext.DampingSpeedCutoffs):
+                RecomputeDamperPercentagesForAnalysisRange();
+                RecomputeSessionAnalysisIfAllowed();
+                UpdateRecordedSessionExtensionHostState();
+                break;
             case nameof(RecordedSessionContext.FullTrackPoints):
                 if (MapViewModel is not null)
                 {
@@ -1130,11 +1102,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         suppressAnalysisRecompute = true;
         try
         {
-            SelectedTravelHistogramMode = preferences.TravelHistogramMode;
-            SelectedVelocityAverageMode = preferences.VelocityAverageMode;
-            SelectedBalanceDisplacementMode = preferences.BalanceDisplacementMode;
-            SelectedBalanceSpeedMode = preferences.BalanceSpeedMode;
-            SelectedSessionAnalysisTargetProfile = preferences.SessionAnalysisTargetProfile;
+            SessionContext.SelectedTravelHistogramMode = preferences.TravelHistogramMode;
+            SessionContext.SelectedVelocityAverageMode = preferences.VelocityAverageMode;
+            SessionContext.SelectedBalanceDisplacementMode = preferences.BalanceDisplacementMode;
+            SessionContext.SelectedBalanceSpeedMode = preferences.BalanceSpeedMode;
+            SessionContext.SelectedSessionAnalysisTargetProfile = preferences.SessionAnalysisTargetProfile;
         }
         finally
         {
@@ -1159,11 +1131,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     private SessionStatisticsPreferences CreateStatisticsPreferences()
     {
         return new SessionStatisticsPreferences(
-            SelectedTravelHistogramMode,
-            SelectedVelocityAverageMode,
-            SelectedBalanceDisplacementMode,
-            SelectedBalanceSpeedMode,
-            SelectedSessionAnalysisTargetProfile);
+            SessionContext.SelectedTravelHistogramMode,
+            SessionContext.SelectedVelocityAverageMode,
+            SessionContext.SelectedBalanceDisplacementMode,
+            SessionContext.SelectedBalanceSpeedMode,
+            SessionContext.SelectedSessionAnalysisTargetProfile);
     }
 
     private void PersistRecordedStatisticsPreferencesIfEnabled()

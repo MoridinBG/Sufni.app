@@ -263,7 +263,7 @@ public class SessionDetailViewModelTests
         editor.SetAnalysisRange(0.02, 0.16);
         editor.SessionContext.FrontStatisticsState = SurfacePresentationState.Ready;
         editor.StatisticsWorkspace.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
-        var selection = CreateFrontDampingSelection(telemetry, editor.SelectedVelocityAverageMode);
+        var selection = CreateFrontDampingSelection(telemetry, editor.SessionContext.SelectedVelocityAverageMode);
 
         editor.StatisticsWorkspace.SelectTelemetryRangeSelectionCommand.Execute(selection);
 
@@ -271,7 +271,7 @@ public class SessionDetailViewModelTests
         Assert.Equal(editor.AnalysisRange, editor.StatisticsWorkspace.AnalysisRange);
         Assert.Equal("Selected range 0.0-0.2s", editor.StatisticsWorkspace.SessionAnalysisRangeText);
         Assert.Equal(editor.SessionContext.FrontStatisticsState, editor.StatisticsWorkspace.FrontStatisticsState);
-        Assert.Equal(VelocityAverageMode.StrokePeakAveraged, editor.SelectedVelocityAverageMode);
+        Assert.Equal(VelocityAverageMode.StrokePeakAveraged, editor.SessionContext.SelectedVelocityAverageMode);
         Assert.Equal(VelocityAverageMode.StrokePeakAveraged, editor.StatisticsWorkspace.SelectedVelocityAverageMode);
         Assert.Equal(editor.SessionAnalysisModesText, editor.StatisticsWorkspace.SessionAnalysisModesText);
         Assert.Equal(selection, editor.SelectedFrontRangeSelection);
@@ -306,11 +306,11 @@ public class SessionDetailViewModelTests
 
         var editor = CreateEditor(snapshot);
 
-        Assert.Equal(TravelHistogramMode.ActiveSuspension, editor.SelectedTravelHistogramMode);
-        Assert.Equal(BalanceDisplacementMode.Zenith, editor.SelectedBalanceDisplacementMode);
-        Assert.Equal(BalanceSpeedMode.Both, editor.SelectedBalanceSpeedMode);
-        Assert.Equal(VelocityAverageMode.SampleAveraged, editor.SelectedVelocityAverageMode);
-        Assert.Equal(SessionAnalysisTargetProfile.Trail, editor.SelectedSessionAnalysisTargetProfile);
+        Assert.Equal(TravelHistogramMode.ActiveSuspension, editor.SessionContext.SelectedTravelHistogramMode);
+        Assert.Equal(BalanceDisplacementMode.Zenith, editor.SessionContext.SelectedBalanceDisplacementMode);
+        Assert.Equal(BalanceSpeedMode.Both, editor.SessionContext.SelectedBalanceSpeedMode);
+        Assert.Equal(VelocityAverageMode.SampleAveraged, editor.SessionContext.SelectedVelocityAverageMode);
+        Assert.Equal(SessionAnalysisTargetProfile.Trail, editor.SessionContext.SelectedSessionAnalysisTargetProfile);
         Assert.Equal(TravelHistogramMode.ActiveSuspension, editor.StatisticsWorkspace.SelectedTravelHistogramMode);
         Assert.Equal(BalanceDisplacementMode.Zenith, editor.StatisticsWorkspace.SelectedBalanceDisplacementMode);
         Assert.Equal(BalanceSpeedMode.Both, editor.StatisticsWorkspace.SelectedBalanceSpeedMode);
@@ -356,7 +356,7 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
         var telemetry = TestTelemetryData.CreateProcessed();
         editor.TelemetryData = telemetry;
-        var selection = CreateFrontDampingSelection(telemetry, editor.SelectedVelocityAverageMode);
+        var selection = CreateFrontDampingSelection(telemetry, editor.SessionContext.SelectedVelocityAverageMode);
 
         editor.SelectTelemetryRangeSelectionCommand.Execute(selection);
 
@@ -511,9 +511,9 @@ public class SessionDetailViewModelTests
         {
             var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
             editor.TelemetryData = TestTelemetryData.CreateProcessed();
-            editor.SelectedTravelHistogramMode = TravelHistogramMode.DynamicSag;
-            editor.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
-            editor.SelectedBalanceDisplacementMode = BalanceDisplacementMode.Travel;
+            editor.SessionContext.SelectedTravelHistogramMode = TravelHistogramMode.DynamicSag;
+            editor.SessionContext.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
+            editor.SessionContext.SelectedBalanceDisplacementMode = BalanceDisplacementMode.Travel;
 
             editor.SetAnalysisRange(0.02, 0.16);
 
@@ -973,7 +973,7 @@ public class SessionDetailViewModelTests
 
         editor.PreviewDampingSpeedCutoff(SuspensionType.Front, DampingSpeedCircuit.Compression, 257);
 
-        Assert.Equal(previewCutoffs, editor.DampingSpeedCutoffs);
+        Assert.Equal(previewCutoffs, editor.SessionContext.DampingSpeedCutoffs);
         Assert.Equal(initialCutoffs, editor.SessionContext.PlotDampingSpeedCutoffs);
         Assert.Equal(previewPercentages, editor.SessionContext.DamperPercentages);
         Assert.Equal(11, editor.DamperPage.FrontHscPercentage);
@@ -1022,7 +1022,7 @@ public class SessionDetailViewModelTests
             SuspensionType.Front,
             DampingSpeedCircuit.Rebound,
             270);
-        Assert.Equal(savedCutoffs, editor.DampingSpeedCutoffs);
+        Assert.Equal(savedCutoffs, editor.SessionContext.DampingSpeedCutoffs);
         Assert.Equal(savedCutoffs, editor.SessionContext.PlotDampingSpeedCutoffs);
         Assert.True(editor.CanEditDampingSpeedCutoffs);
         Assert.False(editor.IsDirty);
@@ -1055,7 +1055,7 @@ public class SessionDetailViewModelTests
 
         await editor.CommitDampingSpeedCutoffAsync(SuspensionType.Rear, DampingSpeedCircuit.Compression, 500);
 
-        Assert.Equal(initialCutoffs, editor.DampingSpeedCutoffs);
+        Assert.Equal(initialCutoffs, editor.SessionContext.DampingSpeedCutoffs);
         Assert.Equal(initialCutoffs, editor.SessionContext.PlotDampingSpeedCutoffs);
         Assert.False(editor.IsDirty);
         Assert.Contains(editor.ErrorMessages, message => message.Contains("disk full", StringComparison.Ordinal));
@@ -1269,10 +1269,10 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(snapshot, sessionPreferences: preferences);
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        Assert.Equal(TravelHistogramMode.DynamicSag, editor.SelectedTravelHistogramMode);
-        Assert.Equal(VelocityAverageMode.StrokePeakAveraged, editor.SelectedVelocityAverageMode);
-        Assert.Equal(BalanceDisplacementMode.Travel, editor.SelectedBalanceDisplacementMode);
-        Assert.Equal(SessionAnalysisTargetProfile.DH, editor.SelectedSessionAnalysisTargetProfile);
+        Assert.Equal(TravelHistogramMode.DynamicSag, editor.SessionContext.SelectedTravelHistogramMode);
+        Assert.Equal(VelocityAverageMode.StrokePeakAveraged, editor.SessionContext.SelectedVelocityAverageMode);
+        Assert.Equal(BalanceDisplacementMode.Travel, editor.SessionContext.SelectedBalanceDisplacementMode);
+        Assert.Equal(SessionAnalysisTargetProfile.DH, editor.SessionContext.SelectedSessionAnalysisTargetProfile);
         await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
     }
 
@@ -1301,7 +1301,7 @@ public class SessionDetailViewModelTests
         };
         syncStream.OnNext(synced);
 
-        Assert.Equal(TravelHistogramMode.DynamicSag, editor.SelectedTravelHistogramMode);
+        Assert.Equal(TravelHistogramMode.DynamicSag, editor.SessionContext.SelectedTravelHistogramMode);
         await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
     }
 
@@ -1336,7 +1336,7 @@ public class SessionDetailViewModelTests
         syncStream.OnNext(synced);
 
         Assert.Equal(beforeInvokeCount + 1, dispatcher.InvokeCount);
-        Assert.Equal(TravelHistogramMode.DynamicSag, editor.SelectedTravelHistogramMode);
+        Assert.Equal(TravelHistogramMode.DynamicSag, editor.SessionContext.SelectedTravelHistogramMode);
         await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
     }
 
@@ -1368,7 +1368,7 @@ public class SessionDetailViewModelTests
         preferences.ClearReceivedCalls();
         sessionAnalysisService.ClearReceivedCalls();
 
-        editor.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
+        editor.SessionContext.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
 
         sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionAnalysisRequest>(request =>
             request.VelocityAverageMode == VelocityAverageMode.StrokePeakAveraged &&
