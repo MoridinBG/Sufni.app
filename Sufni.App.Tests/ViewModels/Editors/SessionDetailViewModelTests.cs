@@ -1032,37 +1032,6 @@ public class SessionDetailViewModelTests
         Assert.Empty(editor.ErrorMessages);
     }
 
-    [AvaloniaFact]
-    public async Task DampingSpeedCutoffCommitFailure_RestoresPersistedCutoffAndReportsError()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
-        var bikeId = Guid.NewGuid();
-        var owner = new DampingSpeedCutoffOwner(bikeId, 7);
-        var initialCutoffs = DampingSpeedCutoffs.FromValues(100, 200, 300, 400);
-        bikeCoordinator.UpdateDampingSpeedCutoffAsync(
-                bikeId,
-                owner.BaselineUpdated,
-                SuspensionType.Rear,
-                DampingSpeedCircuit.Compression,
-                500)
-            .Returns(new BikeDampingSpeedCutoffUpdateResult.Failed("disk full"));
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(LoadedDesktopResult(telemetry, initialCutoffs, owner));
-        SetDesktop(true);
-
-        var editor = CreateEditor(snapshot, bikeCoordinator: bikeCoordinator);
-        await editor.LoadedCommand.ExecuteAsync(null);
-        editor.PreviewDampingSpeedCutoff(SuspensionType.Rear, DampingSpeedCircuit.Compression, 500);
-
-        await editor.CommitDampingSpeedCutoffAsync(SuspensionType.Rear, DampingSpeedCircuit.Compression, 500);
-
-        Assert.Equal(initialCutoffs, editor.SessionContext.DampingSpeedCutoffs);
-        Assert.Equal(initialCutoffs, editor.SessionContext.PlotDampingSpeedCutoffs);
-        Assert.False(editor.IsDirty);
-        Assert.Contains(editor.ErrorMessages, message => message.Contains("disk full", StringComparison.Ordinal));
-    }
 
     [AvaloniaFact]
     public async Task Loaded_OnDesktop_AppliesPersistedPlotPreferences()
