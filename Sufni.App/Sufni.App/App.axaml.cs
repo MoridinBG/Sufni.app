@@ -12,6 +12,7 @@ using Sufni.App.Services.LiveStreaming;
 using Sufni.App.Stores;
 using Sufni.App.Theming;
 using Sufni.App.ViewModels;
+using Sufni.App.ViewModels.Editors;
 using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.Views;
 using Sufni.App.DesktopViews;
@@ -99,6 +100,7 @@ public partial class App : Application
                 sp.GetRequiredService<MainWindowViewModel>());
             ServiceCollection.AddSingleton<IShellCoordinator>(sp =>
                 new DesktopShellCoordinator(() => sp.GetRequiredService<IMainWindowShellHost>()));
+            ServiceCollection.AddSingleton<ISessionLayoutStrategy, DesktopSessionLayoutStrategy>();
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime)
         {
@@ -106,6 +108,7 @@ public partial class App : Application
                 sp.GetRequiredService<MainViewModel>());
             ServiceCollection.AddSingleton<IShellCoordinator>(sp =>
                 new MobileShellCoordinator(() => sp.GetRequiredService<IMainViewShellHost>()));
+            ServiceCollection.AddSingleton<ISessionLayoutStrategy, MobileSessionLayoutStrategy>();
         }
 
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();

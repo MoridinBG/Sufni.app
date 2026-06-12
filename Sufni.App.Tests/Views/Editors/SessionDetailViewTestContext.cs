@@ -120,7 +120,7 @@ internal sealed class SessionDetailViewTestContext
 
         ViewTestHelpers.EnsureSessionDetailViewSetup(isDesktop: false);
 
-        var editor = CreateEditor(snapshot);
+        var editor = CreateEditor(snapshot, isDesktopLayout: false);
         var view = new SessionDetailView
         {
             DataContext = editor
@@ -157,7 +157,7 @@ internal sealed class SessionDetailViewTestContext
         sessionStore.Get(snapshot.Id).Returns(snapshot);
     }
 
-    private SessionDetailViewModel CreateEditor(SessionSnapshot snapshot)
+    private SessionDetailViewModel CreateEditor(SessionSnapshot snapshot, bool isDesktopLayout = true)
     {
         return new SessionDetailViewModel(
             snapshot,
@@ -170,7 +170,10 @@ internal sealed class SessionDetailViewTestContext
             shell,
             dialogService,
             sessionPreferences,
-            new InlineUiThreadDispatcher());
+            new InlineUiThreadDispatcher(),
+            isDesktopLayout
+                ? new DesktopSessionLayoutStrategy()
+                : new MobileSessionLayoutStrategy());
     }
 }
 

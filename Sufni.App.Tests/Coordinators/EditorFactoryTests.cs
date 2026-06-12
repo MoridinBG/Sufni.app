@@ -138,6 +138,7 @@ public class EditorFactoryTests
             shell,
             Substitute.For<IDialogService>(),
             new InlineUiThreadDispatcher(),
+            new DesktopSessionLayoutStrategy(),
             Array.Empty<IRecordedSessionExtensionFactory>(),
             Substitute.For<IExtensionDatabaseConnection>(),
             Substitute.For<IRecordedSessionDataReader>(),

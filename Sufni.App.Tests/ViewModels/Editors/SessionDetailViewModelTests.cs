@@ -60,7 +60,8 @@ public class SessionDetailViewModelTests
         ISessionPreferences? sessionPreferences = null,
         IBikeCoordinator? bikeCoordinator = null,
         IReadOnlyList<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories = null,
-        IUiThreadDispatcher? uiThreadDispatcher = null)
+        IUiThreadDispatcher? uiThreadDispatcher = null,
+        ISessionLayoutStrategy? layoutStrategy = null)
     {
         if (isDesktop.HasValue)
         {
@@ -82,6 +83,7 @@ public class SessionDetailViewModelTests
             dialogService,
             preferencesService,
             uiThreadDispatcher ?? new InlineUiThreadDispatcher(),
+            layoutStrategy ?? new DesktopSessionLayoutStrategy(),
             bikeCoordinator,
             recordedSessionExtensionFactories,
             Substitute.For<IExtensionDatabaseConnection>(),
@@ -1676,7 +1678,7 @@ public class SessionDetailViewModelTests
             .Returns(result);
         SetDesktop(false);
 
-        var editor = CreateEditor(snapshot);
+        var editor = CreateEditor(snapshot, layoutStrategy: new MobileSessionLayoutStrategy());
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
         var springPage = editor.Pages.OfType<SpringPageViewModel>().Single();
 
@@ -1726,7 +1728,7 @@ public class SessionDetailViewModelTests
             .Returns(result);
         SetDesktop(false);
 
-        var editor = CreateEditor(snapshot);
+        var editor = CreateEditor(snapshot, layoutStrategy: new MobileSessionLayoutStrategy());
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
 
         Assert.Equal(SurfaceStateKind.NoData, editor.SessionContext.FrontStatisticsState.Kind);
@@ -1755,7 +1757,7 @@ public class SessionDetailViewModelTests
             .Returns(result);
         SetDesktop(false);
 
-        var editor = CreateEditor(snapshot);
+        var editor = CreateEditor(snapshot, layoutStrategy: new MobileSessionLayoutStrategy());
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
         var springPage = editor.Pages.OfType<SpringPageViewModel>().Single();
         var damperPage = editor.Pages.OfType<DamperPageViewModel>().Single();
@@ -1797,7 +1799,7 @@ public class SessionDetailViewModelTests
             .Returns(result);
         SetDesktop(false);
 
-        var editor = CreateEditor(snapshot);
+        var editor = CreateEditor(snapshot, layoutStrategy: new MobileSessionLayoutStrategy());
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
 
         Assert.Same(trackPoints, editor.SessionContext.TrackPoints);
@@ -1896,7 +1898,7 @@ public class SessionDetailViewModelTests
                 callInfo.ArgAt<CancellationToken>(2)));
         SetDesktop(false);
 
-        var editor = CreateEditor(snapshot);
+        var editor = CreateEditor(snapshot, layoutStrategy: new MobileSessionLayoutStrategy());
         var loadTask = editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
         await Task.Yield();
 
@@ -1944,7 +1946,7 @@ public class SessionDetailViewModelTests
             .Returns(new SessionSaveResult.Saved(11));
         SetDesktop(false);
 
-        var editor = CreateEditor(snapshot);
+        var editor = CreateEditor(snapshot, layoutStrategy: new MobileSessionLayoutStrategy());
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
         editor.Name = "renamed";
 

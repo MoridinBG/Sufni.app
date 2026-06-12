@@ -46,13 +46,6 @@ namespace Sufni.App.ViewModels.Editors;
 /// </summary>
 public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISessionOperationGateway
 {
-    private enum PresentationMode
-    {
-        Unknown,
-        Desktop,
-        Mobile
-    }
-
     public Guid Id { get; private set; }
     public long BaselineUpdated { get; private set; }
 
@@ -98,7 +91,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private readonly CancellableOperation loadOperation = new();
     private SessionPresentationDimensions? lastPresentationDimensions;
-    private PresentationMode presentationMode = PresentationMode.Unknown;
     private double? pendingAnalysisRangeBoundary;
     private bool suppressDirtinessEvaluation;
     private bool suppressAnalysisRecompute;
@@ -120,6 +112,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly TelemetryPlotRowAction showElevationStatisticsSelectionAction;
     private readonly PlotAutozoomController plotAutozoomController;
     private readonly DamperCutoffWorkflow damperCutoffWorkflow;
+    private readonly ISessionLayoutStrategy layoutStrategy;
 
     #endregion Private fields
 
@@ -353,25 +346,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         try
         {
-            if (presentationMode == PresentationMode.Desktop)
-            {
-                var result = await sessionCoordinator.LoadDesktopDetailAsync(Id, token);
-                if (token.IsCancellationRequested) return;
-                presentationApplier.ApplyDesktopLoadResult(result);
-                return;
-            }
-
-            if (presentationMode == PresentationMode.Unknown)
-            {
-                return;
-            }
-
-            if (lastPresentationDimensions is null) return;
-
-            var mobileResult = await sessionCoordinator.LoadMobileDetailAsync(
-                Id, lastPresentationDimensions.Value, token);
-            if (token.IsCancellationRequested) return;
-            presentationApplier.ApplyMobileLoadResult(mobileResult);
+            await layoutStrategy.LoadDetailAsync(
+                sessionCoordinator,
+                Id,
+                lastPresentationDimensions,
+                presentationApplier,
+                token);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -598,6 +578,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         IDialogService dialogService,
         ISessionPreferences sessionPreferences,
         IUiThreadDispatcher uiThreadDispatcher,
+        ISessionLayoutStrategy layoutStrategy,
         IBikeCoordinator? bikeCoordinator = null,
         IEnumerable<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories = null,
         IExtensionDatabaseConnection? extensionDatabase = null,
@@ -606,6 +587,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         : base(shell, dialogService, uiThreadDispatcher)
     {
         ArgumentNullException.ThrowIfNull(sessionPreferences);
+        this.layoutStrategy = layoutStrategy;
 
         var extensionFactories = recordedSessionExtensionFactories?.ToArray() ?? [];
         if (extensionFactories.Length > 0 &&
@@ -1344,7 +1326,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private async Task Loaded(Rect? bounds = null)
     {
         viewLoaded = true;
-        presentationMode = bounds is null ? PresentationMode.Desktop : PresentationMode.Mobile;
         var dimensions = CreatePresentationDimensions(bounds);
         if (dimensions is not null)
         {
@@ -1388,7 +1369,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     }
 
     private bool ShouldDeferDomainHandling() =>
-        presentationMode == PresentationMode.Desktop &&
+        layoutStrategy.DefersDomainHandlingWhenInactive &&
         hasBeenActivated &&
         !IsTabActive;
 
