@@ -34,9 +34,8 @@ public partial class MapView : UserControl
 
     private MapControl? mapControl;
     private RecordedSessionExtensionSlots? subscribedSlots;
-    private bool applyingTimelineUpdate;
-    private bool mapPointerInteractionActive;
-    private bool viewportNotificationQueued;
+    private readonly MapInteractionController interaction = new(
+        action => Dispatcher.UIThread.Post(action, DispatcherPriority.Background));
 
     private readonly WritableLayer positionMarkerLayer = new()
     {
@@ -111,20 +110,13 @@ public partial class MapView : UserControl
             mapControl.Map.Layers.Add(CreateExtensionOverlayLayer());
             mapControl.Map.Layers.Add(positionMarkerLayer);
 
-            mapControl.Map.Navigator.ViewportChanged += OnNavigatorViewportChanged;
+            interaction.ViewportNotificationDue += NotifyViewportChanged;
+            mapControl.Map.Navigator.ViewportChanged += (_, _) => interaction.NavigatorViewportChanged();
             mapControl.PointerPressed += OnMapPointerPressed;
             mapControl.PointerMoved += OnMapPointerMoved;
-            mapControl.PointerReleased += (_, _) =>
-            {
-                QueueViewportChangedNotification();
-                mapPointerInteractionActive = false;
-            };
-            mapControl.PointerCaptureLost += (_, _) =>
-            {
-                QueueViewportChangedNotification();
-                mapPointerInteractionActive = false;
-            };
-            mapControl.PointerWheelChanged += (_, _) => QueueViewportChangedNotification();
+            mapControl.PointerReleased += (_, _) => interaction.PointerReleasedOrCaptureLost();
+            mapControl.PointerCaptureLost += (_, _) => interaction.PointerReleasedOrCaptureLost();
+            mapControl.PointerWheelChanged += (_, _) => interaction.WheelChanged();
         }
 
         SetNormalizedCursorPosition(1);
@@ -208,7 +200,7 @@ public partial class MapView : UserControl
             // Keep late track updates aligned with the shared timeline range.
             if (sessionTrackLayer.Extent != null)
             {
-                RunWithoutViewportTimelineUpdates(() =>
+                interaction.RunWithoutViewportTimelineUpdates(() =>
                 {
                     if (ViewModel.SessionTrackPoints.Count > 1)
                     {
@@ -339,16 +331,13 @@ public partial class MapView : UserControl
     private void OnMapPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         e.PreventGestureRecognition();
-        mapPointerInteractionActive = true;
+        interaction.PointerPressed();
     }
 
     private void OnMapPointerMoved(object? sender, PointerEventArgs e)
     {
         e.PreventGestureRecognition();
-        if (mapPointerInteractionActive)
-        {
-            QueueViewportChangedNotification();
-        }
+        interaction.PointerMoved();
     }
 
     private void UpdateTileLayer(TileLayerConfig config)
@@ -461,93 +450,39 @@ public partial class MapView : UserControl
         var startSeconds = context.Value.OriginSeconds + startNormalized * context.Value.DurationSeconds;
         var endSeconds = context.Value.OriginSeconds + endNormalized * context.Value.DurationSeconds;
         var pointsInRange = MapTrackGeometry.GetTrackPointsInTimeRange(sessionTrackPoints, startSeconds, endSeconds);
-        if (pointsInRange.Count == 0)
+        switch (MapViewportController.ComputeRangeFit(pointsInRange, padding))
         {
-            return;
-        }
+            case MapViewportController.CenterFit center:
+                mapControl.Map.Navigator.CenterOnAndZoomTo(
+                    new Mapsui.MPoint(center.X, center.Y),
+                    Math.Min(mapControl.Map.Navigator.Viewport.Resolution, center.MaxResolution));
+                break;
 
-        var minX = pointsInRange.Min(p => p.X);
-        var maxX = pointsInRange.Max(p => p.X);
-        var minY = pointsInRange.Min(p => p.Y);
-        var maxY = pointsInRange.Max(p => p.Y);
-
-        var width = maxX - minX;
-        var height = maxY - minY;
-        if (width <= 0 && height <= 0)
-        {
-            mapControl.Map.Navigator.CenterOnAndZoomTo(
-                new Mapsui.MPoint((minX + maxX) / 2, (minY + maxY) / 2),
-                Math.Min(mapControl.Map.Navigator.Viewport.Resolution, 10));
-            return;
-        }
-
-        if (width <= 0)
-        {
-            var halfWidth = height / 2.0;
-            minX -= halfWidth;
-            maxX += halfWidth;
-            width = maxX - minX;
-        }
-
-        if (height <= 0)
-        {
-            var halfHeight = width / 2.0;
-            minY -= halfHeight;
-            maxY += halfHeight;
-            height = maxY - minY;
-        }
-
-        var paddingX = width * padding;
-        var paddingY = height * padding;
-
-        var extent = new Mapsui.MRect(
-            minX - paddingX,
-            minY - paddingY,
-            maxX + paddingX,
-            maxY + paddingY);
-
-        mapControl.Map.Navigator.ZoomToBox(extent);
-    }
-
-    private void OnNavigatorViewportChanged(object? sender, EventArgs e)
-    {
-        if (mapPointerInteractionActive)
-        {
-            QueueViewportChangedNotification();
+            case MapViewportController.ExtentFit extent:
+                mapControl.Map.Navigator.ZoomToBox(
+                    new Mapsui.MRect(extent.MinX, extent.MinY, extent.MaxX, extent.MaxY));
+                break;
         }
     }
 
-    private void QueueViewportChangedNotification()
-    {
-        if (viewportNotificationQueued || applyingTimelineUpdate)
-        {
-            return;
-        }
-
-        viewportNotificationQueued = true;
-        Dispatcher.UIThread.Post(() =>
-        {
-            viewportNotificationQueued = false;
-            NotifyViewportChanged();
-        }, DispatcherPriority.Background);
-    }
 
     private void NotifyViewportChanged()
     {
         var sessionTrackPoints = ViewModel?.SessionTrackPoints;
-        if (applyingTimelineUpdate || sessionTrackPoints is null || sessionTrackPoints.Count < 2 || mapControl == null || Timeline is null) return;
+        if (interaction.IsApplyingTimelineUpdate || sessionTrackPoints is null || sessionTrackPoints.Count < 2 || mapControl == null || Timeline is null) return;
 
         var viewport = mapControl.Map.Navigator.Viewport;
-        var halfWidth = viewport.Width * viewport.Resolution / 2;
-        var halfHeight = viewport.Height * viewport.Resolution / 2;
-        var minX = viewport.CenterX - halfWidth;
-        var maxX = viewport.CenterX + halfWidth;
-        var minY = viewport.CenterY - halfHeight;
-        var maxY = viewport.CenterY + halfHeight;
+        var bounds = MapViewportController.ComputeBounds(
+            viewport.CenterX,
+            viewport.CenterY,
+            viewport.Width,
+            viewport.Height,
+            viewport.Resolution);
 
         var context = GetTimelineContext(sessionTrackPoints);
         if (context is null ||
-            !MapTrackGeometry.TryGetVisibleTrackRange(sessionTrackPoints, context.Value, minX, maxX, minY, maxY, out var start, out var end))
+            !MapTrackGeometry.TryGetVisibleTrackRange(
+                sessionTrackPoints, context.Value, bounds.MinX, bounds.MaxX, bounds.MinY, bounds.MaxY, out var start, out var end))
         {
             return;
         }
@@ -589,13 +524,12 @@ public partial class MapView : UserControl
 
     private void ApplyTimeline(SessionTimelineLinkViewModel timeline)
     {
-        if (mapControl is null || applyingTimelineUpdate)
+        if (mapControl is null || interaction.IsApplyingTimelineUpdate)
         {
             return;
         }
 
-        applyingTimelineUpdate = true;
-        try
+        interaction.RunWithoutViewportTimelineUpdates(() =>
         {
             if (timeline.NormalizedCursorPosition is double cursor)
             {
@@ -607,30 +541,7 @@ public partial class MapView : UserControl
             }
 
             ZoomToNormalizedRange(timeline.VisibleRangeStart, timeline.VisibleRangeEnd);
-        }
-        finally
-        {
-            applyingTimelineUpdate = false;
-        }
-    }
-
-    private void RunWithoutViewportTimelineUpdates(Action action)
-    {
-        if (applyingTimelineUpdate)
-        {
-            action();
-            return;
-        }
-
-        applyingTimelineUpdate = true;
-        try
-        {
-            action();
-        }
-        finally
-        {
-            applyingTimelineUpdate = false;
-        }
+        });
     }
 
     private TrackTimeRange? GetTimelineContext(IReadOnlyList<TrackPoint> sessionTrackPoints)
