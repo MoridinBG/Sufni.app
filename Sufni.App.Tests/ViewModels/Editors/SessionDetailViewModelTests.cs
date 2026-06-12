@@ -196,11 +196,11 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(TestSnapshots.Session());
         var telemetry = TestTelemetryData.CreateProcessed();
 
-        editor.TelemetryData = telemetry;
+        editor.SessionContext.TelemetryData = telemetry;
         editor.SetAnalysisRange(1, 2);
 
         Assert.Same(telemetry, editor.SessionContext.TelemetryData);
-        Assert.Equal(editor.AnalysisRange, editor.SessionContext.AnalysisRange);
+        Assert.Equal(editor.SessionContext.AnalysisRange, editor.SessionContext.AnalysisRange);
         Assert.Equal(editor.SessionContext.TrackTimelineContext, editor.SessionContext.TrackTimelineContext);
     }
 
@@ -230,7 +230,7 @@ public class SessionDetailViewModelTests
             Rows = [new SessionGraphRowPreferences(TelemetryGraphRowIds.Velocity, true, [])],
         };
 
-        editor.TelemetryData = TestTelemetryData.CreateProcessed();
+        editor.SessionContext.TelemetryData = TestTelemetryData.CreateProcessed();
         editor.SessionContext.TravelGraphState = SurfacePresentationState.Ready;
         editor.SessionContext.ShowVelocityAirtime = true;
         editor.SessionContext.StatisticsSelectionHighlightRanges =
@@ -240,8 +240,8 @@ public class SessionDetailViewModelTests
         editor.GraphWorkspace.SetAnalysisRange(1, 2);
         editor.GraphWorkspace.GraphPreferences = graphPreferences;
 
-        Assert.Same(editor.TelemetryData, editor.GraphWorkspace.TelemetryData);
-        Assert.Equal(editor.AnalysisRange, editor.GraphWorkspace.AnalysisRange);
+        Assert.Same(editor.SessionContext.TelemetryData, editor.GraphWorkspace.TelemetryData);
+        Assert.Equal(editor.SessionContext.AnalysisRange, editor.GraphWorkspace.AnalysisRange);
         Assert.Equal(editor.SessionContext.TravelGraphState, editor.GraphWorkspace.TravelGraphState);
         Assert.Equal(editor.SessionContext.ShowVelocityAirtime, editor.GraphWorkspace.ShowVelocityAirtime);
         Assert.Equal(editor.SessionContext.StatisticsSelectionHighlightRanges, editor.GraphWorkspace.StatisticsSelectionHighlightRanges);
@@ -259,7 +259,7 @@ public class SessionDetailViewModelTests
         ((INotifyPropertyChanged)editor.StatisticsWorkspace).PropertyChanged += (_, args) =>
             observed.Add(args.PropertyName);
 
-        editor.TelemetryData = telemetry;
+        editor.SessionContext.TelemetryData = telemetry;
         editor.SetAnalysisRange(0.02, 0.16);
         editor.SessionContext.FrontStatisticsState = SurfacePresentationState.Ready;
         editor.StatisticsWorkspace.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
@@ -268,7 +268,7 @@ public class SessionDetailViewModelTests
         editor.StatisticsWorkspace.SelectTelemetryRangeSelectionCommand.Execute(selection);
 
         Assert.Same(telemetry, editor.StatisticsWorkspace.TelemetryData);
-        Assert.Equal(editor.AnalysisRange, editor.StatisticsWorkspace.AnalysisRange);
+        Assert.Equal(editor.SessionContext.AnalysisRange, editor.StatisticsWorkspace.AnalysisRange);
         Assert.Equal("Selected range 0.0-0.2s", editor.StatisticsWorkspace.SessionAnalysisRangeText);
         Assert.Equal(editor.SessionContext.FrontStatisticsState, editor.StatisticsWorkspace.FrontStatisticsState);
         Assert.Equal(VelocityAverageMode.StrokePeakAveraged, editor.SessionContext.SelectedVelocityAverageMode);
@@ -355,7 +355,7 @@ public class SessionDetailViewModelTests
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
         var telemetry = TestTelemetryData.CreateProcessed();
-        editor.TelemetryData = telemetry;
+        editor.SessionContext.TelemetryData = telemetry;
         var selection = CreateFrontDampingSelection(telemetry, editor.SessionContext.SelectedVelocityAverageMode);
 
         editor.SelectTelemetryRangeSelectionCommand.Execute(selection);
@@ -510,7 +510,7 @@ public class SessionDetailViewModelTests
         try
         {
             var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-            editor.TelemetryData = TestTelemetryData.CreateProcessed();
+            editor.SessionContext.TelemetryData = TestTelemetryData.CreateProcessed();
             editor.SessionContext.SelectedTravelHistogramMode = TravelHistogramMode.DynamicSag;
             editor.SessionContext.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
             editor.SessionContext.SelectedBalanceDisplacementMode = BalanceDisplacementMode.Travel;
@@ -537,7 +537,7 @@ public class SessionDetailViewModelTests
             new TemperatureAverage(2, 24.76)
         ];
 
-        editor.TelemetryData = telemetry;
+        editor.SessionContext.TelemetryData = telemetry;
 
         Assert.True(editor.NotesPage.HasTemperatureAverages);
         Assert.Equal(2, editor.NotesPage.TemperatureAverages.Count);
@@ -546,7 +546,7 @@ public class SessionDetailViewModelTests
         Assert.Equal("Rear", editor.NotesPage.TemperatureAverages[1].SensorName);
         Assert.Equal($"{24.76.ToString("F1", CultureInfo.CurrentCulture)} C", editor.NotesPage.TemperatureAverages[1].TemperatureText);
 
-        editor.TelemetryData = null;
+        editor.SessionContext.TelemetryData = null;
 
         Assert.False(editor.NotesPage.HasTemperatureAverages);
         Assert.Empty(editor.NotesPage.TemperatureAverages);
@@ -724,7 +724,7 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(snapshot);
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        Assert.Same(telemetry, editor.TelemetryData);
+        Assert.Same(telemetry, editor.SessionContext.TelemetryData);
         Assert.Same(trackPoints, editor.SessionContext.TrackPoints);
         Assert.Same(fullTrackPoints, editor.SessionContext.FullTrackPoints);
         Assert.Equal(400.0, editor.SessionContext.MediaColumnWidth);
@@ -824,7 +824,7 @@ public class SessionDetailViewModelTests
         var lease = context.StartOperation("Extension work");
         lease.Report("Extension still working", 50);
 
-        Assert.Equal(selectedRange, editor.AnalysisRange);
+        Assert.Equal(selectedRange, editor.SessionContext.AnalysisRange);
         Assert.Equal(0.2, editor.Timeline.VisibleRangeStart, 6);
         Assert.Equal(0.8, editor.Timeline.VisibleRangeEnd, 6);
         Assert.Contains("extension error", editor.ErrorMessages);
@@ -1450,12 +1450,12 @@ public class SessionDetailViewModelTests
             .Returns(rangePercentages);
 
         var editor = CreateEditor(snapshot);
-        editor.TelemetryData = telemetry;
+        editor.SessionContext.TelemetryData = telemetry;
 
         editor.SetAnalysisRange(0.02, 0.16);
 
-        Assert.Equal(0.02, editor.AnalysisRange?.StartSeconds);
-        Assert.Equal(0.16, editor.AnalysisRange?.EndSeconds);
+        Assert.Equal(0.02, editor.SessionContext.AnalysisRange?.StartSeconds);
+        Assert.Equal(0.16, editor.SessionContext.AnalysisRange?.EndSeconds);
         Assert.Equal(10, editor.DamperPage.FrontHscPercentage);
         Assert.False(editor.IsDirty);
     }
@@ -1475,7 +1475,7 @@ public class SessionDetailViewModelTests
             .Returns(rangePercentages);
 
         var editor = CreateEditor(snapshot);
-        editor.TelemetryData = telemetry;
+        editor.SessionContext.TelemetryData = telemetry;
         sessionAnalysisService.ClearReceivedCalls();
 
         editor.SetAnalysisRange(0.02, 0.16);
@@ -1508,12 +1508,12 @@ public class SessionDetailViewModelTests
             .Returns(fullSessionPercentages);
 
         var editor = CreateEditor(snapshot);
-        editor.TelemetryData = telemetry;
+        editor.SessionContext.TelemetryData = telemetry;
         editor.SetAnalysisRange(0.02, 0.16);
 
         editor.ClearAnalysisRange();
 
-        Assert.Null(editor.AnalysisRange);
+        Assert.Null(editor.SessionContext.AnalysisRange);
         Assert.Equal(11, editor.DamperPage.FrontHscPercentage);
         Assert.False(editor.IsDirty);
     }
@@ -1523,20 +1523,20 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var editor = CreateEditor(snapshot);
-        editor.TelemetryData = CreateVibrationTelemetry();
+        editor.SessionContext.TelemetryData = CreateVibrationTelemetry();
 
         editor.SetAnalysisRangeBoundary(0.02);
         editor.ClearAnalysisRange();
         editor.SetAnalysisRangeBoundary(0.16);
 
-        Assert.Null(editor.AnalysisRange);
+        Assert.Null(editor.SessionContext.AnalysisRange);
     }
 
     [AvaloniaFact]
     public void DamperPercentagesChange_DoesNotIndependentlyRecomputeAnalysis()
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-        editor.TelemetryData = TestTelemetryData.CreateProcessed();
+        editor.SessionContext.TelemetryData = TestTelemetryData.CreateProcessed();
         sessionAnalysisService.ClearReceivedCalls();
 
         editor.SessionContext.DamperPercentages = new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8);
@@ -1549,15 +1549,15 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var editor = CreateEditor(snapshot);
-        editor.TelemetryData = CreateVibrationTelemetry();
+        editor.SessionContext.TelemetryData = CreateVibrationTelemetry();
 
         editor.SetAnalysisRangeBoundaryFromMarker(0.02);
-        Assert.Null(editor.AnalysisRange);
+        Assert.Null(editor.SessionContext.AnalysisRange);
 
         editor.SetAnalysisRangeBoundaryFromMarker(0.16);
 
-        Assert.Equal(0.02, editor.AnalysisRange?.StartSeconds);
-        Assert.Equal(0.16, editor.AnalysisRange?.EndSeconds);
+        Assert.Equal(0.02, editor.SessionContext.AnalysisRange?.StartSeconds);
+        Assert.Equal(0.16, editor.SessionContext.AnalysisRange?.EndSeconds);
     }
 
     [AvaloniaFact]
@@ -1565,13 +1565,13 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var editor = CreateEditor(snapshot);
-        editor.TelemetryData = CreateVibrationTelemetry();
+        editor.SessionContext.TelemetryData = CreateVibrationTelemetry();
         editor.SetAnalysisRange(0.02, 0.18);
 
         editor.SetAnalysisRangeBoundaryFromMarker(0.05);
 
-        Assert.Equal(0.05, editor.AnalysisRange?.StartSeconds);
-        Assert.Equal(0.18, editor.AnalysisRange?.EndSeconds);
+        Assert.Equal(0.05, editor.SessionContext.AnalysisRange?.StartSeconds);
+        Assert.Equal(0.18, editor.SessionContext.AnalysisRange?.EndSeconds);
     }
 
     [AvaloniaFact]
@@ -1680,7 +1680,7 @@ public class SessionDetailViewModelTests
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
         var springPage = editor.Pages.OfType<SpringPageViewModel>().Single();
 
-        Assert.NotNull(editor.TelemetryData);
+        Assert.NotNull(editor.SessionContext.TelemetryData);
         Assert.Equal("front-travel", springPage.FrontTravelHistogram);
         Assert.Equal("front-velocity", editor.DamperPage.FrontVelocityHistogram);
         Assert.True(editor.IsComplete);
@@ -1880,7 +1880,7 @@ public class SessionDetailViewModelTests
 
         await loadTask;
 
-        Assert.Null(editor.TelemetryData);
+        Assert.Null(editor.SessionContext.TelemetryData);
         Assert.False(editor.IsComplete);
     }
 
@@ -1999,7 +1999,7 @@ public class SessionDetailViewModelTests
 
         await Task.WhenAll(firstLoad, secondLoad);
 
-        Assert.Same(secondTelemetry, editor.TelemetryData);
+        Assert.Same(secondTelemetry, editor.SessionContext.TelemetryData);
         Assert.Equal(10, editor.DamperPage.FrontHscPercentage);
     }
 
@@ -2051,16 +2051,16 @@ public class SessionDetailViewModelTests
 
         void MarkWhenFinalStateApplied()
         {
-            if (ReferenceEquals(editor.TelemetryData, finalTelemetry) &&
+            if (ReferenceEquals(editor.SessionContext.TelemetryData, finalTelemetry) &&
                 editor.DamperPage.FrontHscPercentage == 1)
             {
                 finalResultApplied.TrySetResult();
             }
         }
 
-        editor.PropertyChanged += (_, args) =>
+        editor.SessionContext.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(SessionDetailViewModel.TelemetryData))
+            if (args.PropertyName == nameof(RecordedSessionContext.TelemetryData))
             {
                 MarkWhenFinalStateApplied();
             }
@@ -2103,7 +2103,7 @@ public class SessionDetailViewModelTests
 
         await finalResultApplied.Task;
 
-        Assert.Same(finalTelemetry, editor.TelemetryData);
+        Assert.Same(finalTelemetry, editor.SessionContext.TelemetryData);
         await sessionCoordinator.Received(3).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
         watch.Dispose();
     }
@@ -2227,13 +2227,13 @@ public class SessionDetailViewModelTests
 
         var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
         await editor.LoadedCommand.ExecuteAsync(null);
-        Assert.Same(oldTelemetry, editor.TelemetryData);
+        Assert.Same(oldTelemetry, editor.SessionContext.TelemetryData);
 
-        editor.PropertyChanged += (_, args) =>
+        editor.SessionContext.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(SessionDetailViewModel.TelemetryData))
+            if (args.PropertyName == nameof(RecordedSessionContext.TelemetryData))
             {
-                telemetryChanges.Add(editor.TelemetryData);
+                telemetryChanges.Add(editor.SessionContext.TelemetryData);
             }
         };
 
@@ -2242,10 +2242,10 @@ public class SessionDetailViewModelTests
             DerivedChangeKind.Initial,
             new SessionStaleness.DependencyHashChanged()));
 
-        await WaitForAsync(() => ReferenceEquals(editor.TelemetryData, freshTelemetry));
+        await WaitForAsync(() => ReferenceEquals(editor.SessionContext.TelemetryData, freshTelemetry));
 
         Assert.Contains(null, telemetryChanges);
-        Assert.Same(freshTelemetry, editor.TelemetryData);
+        Assert.Same(freshTelemetry, editor.SessionContext.TelemetryData);
         await sessionCoordinator.Received(2).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
     }
 
@@ -2519,11 +2519,11 @@ public class SessionDetailViewModelTests
 
         await editor.LoadedCommand.ExecuteAsync(null);
         watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
-        Assert.Same(oldTelemetry, editor.TelemetryData);
+        Assert.Same(oldTelemetry, editor.SessionContext.TelemetryData);
 
         watch.OnNext(DomainFromSnapshot(updatedSnapshot));
 
-        await WaitForAsync(() => ReferenceEquals(editor.TelemetryData, freshTelemetry));
+        await WaitForAsync(() => ReferenceEquals(editor.SessionContext.TelemetryData, freshTelemetry));
 
         Assert.Equal(updatedSnapshot.Updated, editor.BaselineUpdated);
         await sessionCoordinator.Received(2).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
@@ -2557,7 +2557,7 @@ public class SessionDetailViewModelTests
         Assert.True(editor.IsDirty);
         Assert.Equal("dirty draft", editor.DescriptionText);
         Assert.Equal(snapshot.Updated, editor.BaselineUpdated);
-        Assert.Same(oldTelemetry, editor.TelemetryData);
+        Assert.Same(oldTelemetry, editor.SessionContext.TelemetryData);
         await sessionCoordinator.Received(1).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
         await dialogService.Received(1).ShowConfirmationAsync(
             Arg.Any<string>(),

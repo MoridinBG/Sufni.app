@@ -175,15 +175,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
 
     #region Observable properties
 
-    [ObservableProperty] private TelemetryData? telemetryData;
-    [ObservableProperty] private TelemetryTimeRange? analysisRange;
     [ObservableProperty] private bool isComplete;
     public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } = SessionAnalysisPresentation.TravelHistogramModeOptions;
     public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } = SessionAnalysisPresentation.BalanceDisplacementModeOptions;
     public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } = SessionAnalysisPresentation.BalanceSpeedModeOptions;
     public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } = SessionAnalysisPresentation.VelocityAverageModeOptions;
     public IReadOnlyList<SessionAnalysisTargetProfileOption> SessionAnalysisTargetProfileOptions { get; } = SessionAnalysisPresentation.SessionAnalysisTargetProfileOptions;
-    public string SessionAnalysisRangeText => AnalysisRange is { } range
+    public string SessionAnalysisRangeText => SessionContext.AnalysisRange is { } range
         ? $"Selected range {FormatSeconds(range.StartSeconds)}-{FormatSeconds(range.EndSeconds)}s"
         : "Full session";
     public string SessionAnalysisModesText => SessionAnalysisPresentation.DescribeModes(
@@ -194,43 +192,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     public ObservableCollection<PageViewModelBase> Pages => SessionContext.Pages;
 
     #endregion Observable properties
-
-    partial void OnTelemetryDataChanged(TelemetryData? value)
-    {
-        SessionContext.TelemetryData = value;
-        IsComplete = value != null;
-        NotesPage.SetTemperatureAverages(value?.TemperatureAverages ?? []);
-        pendingAnalysisRangeBoundary = null;
-        ClearStatisticsSelections();
-        RefreshTrackTimelineContext();
-        if (value is null)
-        {
-            SessionContext.SessionAnalysis = SessionAnalysisResult.Hidden;
-            UpdateRecordedSessionExtensionHostState();
-            return;
-        }
-
-        if (AnalysisRange is not null)
-        {
-            ClearAnalysisRange();
-            return;
-        }
-
-        RecomputeDamperPercentagesForAnalysisRange();
-        RecomputeSessionAnalysisIfAllowed();
-        UpdateRecordedSessionExtensionHostState();
-    }
-
-    partial void OnAnalysisRangeChanged(TelemetryTimeRange? value)
-    {
-        SessionContext.AnalysisRange = value;
-        OnPropertyChanged(nameof(SessionAnalysisRangeText));
-        ClearStatisticsSelections();
-        presentationApplier.RefreshAnalysisRangeStates();
-        RecomputeDamperPercentagesForAnalysisRange();
-        RecomputeSessionAnalysisIfAllowed();
-        UpdateRecordedSessionExtensionHostState();
-    }
 
     #region Private methods
 
@@ -347,28 +308,28 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
 
     private void RecomputeDamperPercentagesForAnalysisRange()
     {
-        if (TelemetryData is null)
+        if (SessionContext.TelemetryData is null)
         {
             ClearDamperPercentages();
             return;
         }
 
         ApplyDamperPercentages(sessionPresentationService.CalculateDamperPercentages(
-            TelemetryData,
-            AnalysisRange,
+            SessionContext.TelemetryData,
+            SessionContext.AnalysisRange,
             SessionContext.SelectedVelocityAverageMode,
             SessionContext.DampingSpeedCutoffs));
     }
 
     internal void ApplyModeAwareDamperPercentages(SessionDamperPercentages sampleAveragedPercentages)
     {
-        if (TelemetryData is null)
+        if (SessionContext.TelemetryData is null)
         {
             ClearDamperPercentages();
             return;
         }
 
-        if (AnalysisRange is null && SessionContext.SelectedVelocityAverageMode == VelocityAverageMode.SampleAveraged)
+        if (SessionContext.AnalysisRange is null && SessionContext.SelectedVelocityAverageMode == VelocityAverageMode.SampleAveraged)
         {
             ApplyDamperPercentages(sampleAveragedPercentages);
             return;
@@ -390,8 +351,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     internal void RecomputeSessionAnalysis()
     {
         SessionContext.SessionAnalysis = sessionAnalysisService.Analyze(new SessionAnalysisRequest(
-            TelemetryData,
-            AnalysisRange,
+            SessionContext.TelemetryData,
+            SessionContext.AnalysisRange,
             SessionContext.SelectedTravelHistogramMode,
             SessionContext.SelectedVelocityAverageMode,
             SessionContext.SelectedBalanceDisplacementMode,
@@ -417,7 +378,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
         suppressAnalysisRecompute = true;
         try
         {
-            TelemetryData = value;
+            SessionContext.TelemetryData = value;
         }
         finally
         {
@@ -427,7 +388,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
 
     private void RefreshTrackTimelineContext()
     {
-        SessionContext.TrackTimelineContext = TelemetryData is { } telemetry
+        SessionContext.TrackTimelineContext = SessionContext.TelemetryData is { } telemetry
             ? TrackPointSeries.BuildTimelineContext(
                 SessionContext.TrackPoints,
                 telemetry.Metadata.Timestamp,
@@ -501,7 +462,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     private RecordedSessionHostState CreateRecordedSessionExtensionHostState()
     {
         var snapshot = sessionStore.Get(Id);
-        var timelineDurationSeconds = TelemetryData?.Metadata.Duration ?? snapshot?.DurationSeconds;
+        var timelineDurationSeconds = SessionContext.TelemetryData?.Metadata.Duration ?? snapshot?.DurationSeconds;
 
         return new RecordedSessionHostState(
             new RecordedSessionIdentityState(
@@ -511,7 +472,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
                 snapshot?.DurationSeconds,
                 viewLoaded,
                 IsTabActive),
-            new RecordedSessionSelectionState(AnalysisRange),
+            new RecordedSessionSelectionState(SessionContext.AnalysisRange),
             new RecordedSessionTimelineState(
                 SessionContext.TrackTimelineContext,
                 timelineDurationSeconds,
@@ -927,7 +888,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
 
     private void ClearDampingRangeSelections()
     {
-        if (!statisticsSelectionController.ClearDampingRangeSelections(TelemetryData, AnalysisRange))
+        if (!statisticsSelectionController.ClearDampingRangeSelections(SessionContext.TelemetryData, SessionContext.AnalysisRange))
         {
             return;
         }
@@ -966,6 +927,37 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     {
         switch (args.PropertyName)
         {
+            case nameof(RecordedSessionContext.TelemetryData):
+                IsComplete = SessionContext.TelemetryData != null;
+                NotesPage.SetTemperatureAverages(SessionContext.TelemetryData?.TemperatureAverages ?? []);
+                pendingAnalysisRangeBoundary = null;
+                ClearStatisticsSelections();
+                RefreshTrackTimelineContext();
+                if (SessionContext.TelemetryData is null)
+                {
+                    SessionContext.SessionAnalysis = SessionAnalysisResult.Hidden;
+                    UpdateRecordedSessionExtensionHostState();
+                    break;
+                }
+
+                if (SessionContext.AnalysisRange is not null)
+                {
+                    ClearAnalysisRange();
+                    break;
+                }
+
+                RecomputeDamperPercentagesForAnalysisRange();
+                RecomputeSessionAnalysisIfAllowed();
+                UpdateRecordedSessionExtensionHostState();
+                break;
+            case nameof(RecordedSessionContext.AnalysisRange):
+                OnPropertyChanged(nameof(SessionAnalysisRangeText));
+                ClearStatisticsSelections();
+                presentationApplier.RefreshAnalysisRangeStates();
+                RecomputeDamperPercentagesForAnalysisRange();
+                RecomputeSessionAnalysisIfAllowed();
+                UpdateRecordedSessionExtensionHostState();
+                break;
             case nameof(RecordedSessionContext.SelectedTravelHistogramMode):
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
                 RecomputeSessionAnalysis();
@@ -1009,7 +1001,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
                 }
 
                 RefreshTrackTimelineContext();
-                if (TelemetryData is not null)
+                if (SessionContext.TelemetryData is not null)
                 {
                     presentationApplier.ApplyRecordedTrackGraphStates();
                 }
@@ -1332,7 +1324,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     [RelayCommand]
     private void SelectTelemetryRangeSelection(TelemetryRangeSelection? selection)
     {
-        if (!statisticsSelectionController.Select(selection, TelemetryData, AnalysisRange)) return;
+        if (!statisticsSelectionController.Select(selection, SessionContext.TelemetryData, SessionContext.AnalysisRange)) return;
 
         SyncStatisticsSelectionController();
         ClearStatisticsSelectionToggles();
@@ -1347,40 +1339,40 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, IReco
     public void SetAnalysisRange(double startSeconds, double endSeconds)
     {
         pendingAnalysisRangeBoundary = null;
-        if (TelemetryData is null ||
+        if (SessionContext.TelemetryData is null ||
             !TelemetryTimeRange.TryCreateClamped(
                 startSeconds,
                 endSeconds,
-                TelemetryData.Metadata.Duration,
+                SessionContext.TelemetryData.Metadata.Duration,
                 out var range))
         {
             return;
         }
 
-        AnalysisRange = range;
+        SessionContext.AnalysisRange = range;
     }
 
     public void ClearAnalysisRange()
     {
         pendingAnalysisRangeBoundary = null;
-        if (AnalysisRange is null)
+        if (SessionContext.AnalysisRange is null)
         {
             return;
         }
 
-        AnalysisRange = null;
+        SessionContext.AnalysisRange = null;
     }
 
     public void SetAnalysisRangeBoundary(double boundarySeconds)
     {
-        if (TelemetryData is null ||
-            !TelemetryTimeRange.TryClampBoundary(boundarySeconds, TelemetryData.Metadata.Duration, out var clampedBoundarySeconds))
+        if (SessionContext.TelemetryData is null ||
+            !TelemetryTimeRange.TryClampBoundary(boundarySeconds, SessionContext.TelemetryData.Metadata.Duration, out var clampedBoundarySeconds))
         {
             pendingAnalysisRangeBoundary = null;
             return;
         }
 
-        if (AnalysisRange is { } range)
+        if (SessionContext.AnalysisRange is { } range)
         {
             if (Math.Abs(clampedBoundarySeconds - range.StartSeconds) <= Math.Abs(clampedBoundarySeconds - range.EndSeconds))
             {

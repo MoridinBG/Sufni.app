@@ -59,7 +59,7 @@ internal sealed class RecordedPresentationApplier
 
     public void ClearRecordedPresentation()
     {
-        owner.TelemetryData = null;
+        context.TelemetryData = null;
         context.FullTrackPoints = null;
         context.TrackPoints = null;
         context.MediaColumnWidth = null;
@@ -171,7 +171,7 @@ internal sealed class RecordedPresentationApplier
                     HasFrontCacheStatistics(loadedFromCache.Data),
                     HasRearCacheStatistics(loadedFromCache.Data),
                     loadedFromCache.Data.BalanceAvailable);
-                ApplyRecordedReadyGraphStates(owner.TelemetryData);
+                ApplyRecordedReadyGraphStates(context.TelemetryData);
                 ApplyMobileTrackPresentation(loadedFromCache.TrackData);
                 context.ScreenState = SessionScreenPresentationState.Ready;
                 owner.IsComplete = true;
@@ -186,7 +186,7 @@ internal sealed class RecordedPresentationApplier
                     HasFrontCacheStatistics(builtCache.Data),
                     HasRearCacheStatistics(builtCache.Data),
                     builtCache.Data.BalanceAvailable);
-                ApplyRecordedReadyGraphStates(owner.TelemetryData);
+                ApplyRecordedReadyGraphStates(context.TelemetryData);
                 ApplyMobileTrackPresentation(builtCache.TrackData);
                 context.ScreenState = SessionScreenPresentationState.Ready;
                 owner.IsComplete = true;
@@ -205,7 +205,7 @@ internal sealed class RecordedPresentationApplier
 
     public void RefreshAnalysisRangeStates()
     {
-        if (owner.TelemetryData is { } telemetry)
+        if (context.TelemetryData is { } telemetry)
         {
             ApplyAnalysisRangeStates(telemetry);
         }
@@ -213,7 +213,7 @@ internal sealed class RecordedPresentationApplier
 
     public void ApplyRecordedTrackGraphStates()
     {
-        ApplyRecordedPlotAvailability(owner.TelemetryData);
+        ApplyRecordedPlotAvailability(context.TelemetryData);
         recordedSpeedGraphBaseState = TrackPointSeries.HasSpeedSeries(context.TrackPoints)
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
@@ -311,14 +311,14 @@ internal sealed class RecordedPresentationApplier
 
     private void ApplyAnalysisRangeStates(TelemetryData telemetry)
     {
-        context.FrontStatisticsState = SessionStatisticsSurfaceState.ForSuspension(telemetry, SuspensionType.Front, owner.AnalysisRange);
-        context.RearStatisticsState = SessionStatisticsSurfaceState.ForSuspension(telemetry, SuspensionType.Rear, owner.AnalysisRange);
-        context.CompressionBalanceState = SessionStatisticsSurfaceState.ForBalance(telemetry, BalanceType.Compression, owner.AnalysisRange);
-        context.ReboundBalanceState = SessionStatisticsSurfaceState.ForBalance(telemetry, BalanceType.Rebound, owner.AnalysisRange);
-        context.FrontForkVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Fork, owner.AnalysisRange);
-        context.FrontFrameVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Frame, owner.AnalysisRange);
-        context.RearForkVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Fork, owner.AnalysisRange);
-        context.RearFrameVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Frame, owner.AnalysisRange);
+        context.FrontStatisticsState = SessionStatisticsSurfaceState.ForSuspension(telemetry, SuspensionType.Front, context.AnalysisRange);
+        context.RearStatisticsState = SessionStatisticsSurfaceState.ForSuspension(telemetry, SuspensionType.Rear, context.AnalysisRange);
+        context.CompressionBalanceState = SessionStatisticsSurfaceState.ForBalance(telemetry, BalanceType.Compression, context.AnalysisRange);
+        context.ReboundBalanceState = SessionStatisticsSurfaceState.ForBalance(telemetry, BalanceType.Rebound, context.AnalysisRange);
+        context.FrontForkVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Fork, context.AnalysisRange);
+        context.FrontFrameVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Frame, context.AnalysisRange);
+        context.RearForkVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Fork, context.AnalysisRange);
+        context.RearFrameVibrationState = SessionStatisticsSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Frame, context.AnalysisRange);
     }
 
     private void HideVibrationStates()
