@@ -24,7 +24,6 @@ using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 namespace Sufni.App.Tests.ViewModels.Editors;
@@ -79,7 +78,7 @@ public class SessionDetailViewModelTests
             recordedSessionGraph,
             sessionPresentationService,
             sessionAnalysisService,
-            tileLayerService,
+            new TestMapViewModelFactory(tileLayerService),
             shell,
             dialogService,
             preferencesService,

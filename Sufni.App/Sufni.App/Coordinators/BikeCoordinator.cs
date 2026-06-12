@@ -9,7 +9,6 @@ using Sufni.App.Queries;
 using Sufni.App.Services;
 using Sufni.App.SessionDetails;
 using Sufni.App.Stores;
-using Sufni.App.Views.Plots;
 using Sufni.Telemetry;
 using System.Threading.Tasks;
 using System.Threading;
@@ -234,7 +233,7 @@ public class BikeCoordinator(
             return new BikeDampingSpeedCutoffUpdateResult.Conflict(current);
         }
 
-        var roundedCutoff = DampingCutoffInteraction.RoundDragValue(cutoffMmPerSecond);
+        var roundedCutoff = DampingCutoffEditing.RoundDragValue(cutoffMmPerSecond);
         var updatedCutoffs = current.DampingSpeedCutoffs.With(side, circuit, roundedCutoff);
         var updatedSnapshot = current with
         {

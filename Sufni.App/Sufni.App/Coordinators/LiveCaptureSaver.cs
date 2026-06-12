@@ -21,7 +21,7 @@ public sealed class LiveCaptureSaver
     private readonly ISessionStoreWriter sessionStore;
     private readonly ISynchronizableRepository<Setup> setupRepository;
     private readonly ISynchronizableRepository<Bike> bikeRepository;
-    private readonly ISessionRepository sessionRepository;
+    private readonly ISessionTelemetryWriter sessionTelemetryWriter;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ISessionPreferences sessionPreferences;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
@@ -31,7 +31,7 @@ public sealed class LiveCaptureSaver
         ISessionStoreWriter sessionStore,
         ISynchronizableRepository<Setup> setupRepository,
         ISynchronizableRepository<Bike> bikeRepository,
-        ISessionRepository sessionRepository,
+        ISessionTelemetryWriter sessionTelemetryWriter,
         IBackgroundTaskRunner backgroundTaskRunner,
         ISessionPreferences sessionPreferences,
         IRecordedSessionSourceStoreWriter sourceStore,
@@ -40,7 +40,7 @@ public sealed class LiveCaptureSaver
         this.sessionStore = sessionStore;
         this.setupRepository = setupRepository;
         this.bikeRepository = bikeRepository;
-        this.sessionRepository = sessionRepository;
+        this.sessionTelemetryWriter = sessionTelemetryWriter;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.sessionPreferences = sessionPreferences;
         this.sourceStore = sourceStore;
@@ -88,7 +88,7 @@ public sealed class LiveCaptureSaver
             session.ProcessedData = reprocessResult.TelemetryData.BinaryForm;
             session.ProcessingFingerprintJson = AppJson.Serialize(reprocessResult.Fingerprint);
 
-            var fresh = await sessionRepository.PutProcessedSessionAsync(session, reprocessResult.GeneratedFullTrack, source);
+            var fresh = await sessionTelemetryWriter.PutProcessedSessionAsync(session, reprocessResult.GeneratedFullTrack, source);
 
             var snapshot = SessionSnapshot.From(fresh);
             await sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences);

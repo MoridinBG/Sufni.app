@@ -1,6 +1,5 @@
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.SessionDetails;
-using Sufni.App.Views.Plots;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Models;
@@ -38,6 +37,6 @@ public class DampingSpeedCutoffsTests
     [InlineData(2500, 2000)]
     public void RoundDragValue_ClampsAndRoundsToNearestStep(double value, double expected)
     {
-        Assert.Equal(expected, DampingCutoffInteraction.RoundDragValue(value));
+        Assert.Equal(expected, DampingCutoffEditing.RoundDragValue(value));
     }
 }

@@ -25,7 +25,10 @@ public static class HapticFeedbackBehavior
     public static bool GetIsEnabled(Control element) =>
         element.GetValue(IsEnabledProperty);
 
-    private static readonly PlatformHaptics? feedback =
+    // Resolved at use rather than cached at type initialization: the static
+    // field variant ran before the service provider was built and went stale
+    // across test apps.
+    private static PlatformHaptics? Feedback =>
         App.Current?.Services?.GetService<PlatformHaptics>();
 
     static HapticFeedbackBehavior()
@@ -46,5 +49,5 @@ public static class HapticFeedbackBehavior
     }
 
     private static void OnLongPressRequested(object? sender, RoutedEventArgs e) =>
-        feedback?.LongPress();
+        Feedback?.LongPress();
 }

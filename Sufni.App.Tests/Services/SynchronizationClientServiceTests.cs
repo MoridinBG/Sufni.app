@@ -11,6 +11,7 @@ public class SynchronizationClientServiceTests
 {
     private readonly ISyncDataStore syncDataStore = Substitute.For<ISyncDataStore>();
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
+    private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
     private readonly IHttpApiService httpApiService = Substitute.For<IHttpApiService>();
     private readonly IAppPreferences appPreferences = Substitute.For<IAppPreferences>();
@@ -31,6 +32,7 @@ public class SynchronizationClientServiceTests
         return new SynchronizationClientService(
             syncDataStore,
             sessionRepository,
+            sessionTelemetryWriter,
             recordedSessionSourceRepository,
             httpApiService,
             appPreferences,

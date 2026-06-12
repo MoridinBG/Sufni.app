@@ -15,7 +15,7 @@ using Sufni.App.ExtensionHost.Contracts.Services;
 
 namespace Sufni.App.Services;
 
-public class DialogService : IDialogService, IExtensionDialogService
+public class DialogService : IDialogService, IDialogHost, IExtensionDialogService
 {
     private readonly ViewLocator viewLocator;
     private Window? owner;

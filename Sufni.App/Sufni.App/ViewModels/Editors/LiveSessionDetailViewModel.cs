@@ -17,7 +17,6 @@ using Sufni.App.Services;
 using Sufni.App.SessionDetails;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.App.ViewModels;
-using Sufni.App.Views.Plots;
 using Sufni.Telemetry;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -212,7 +211,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         ISessionCoordinator sessionCoordinator,
         ISessionPresentationService sessionPresentationService,
         IBackgroundTaskRunner backgroundTaskRunner,
-        ITileLayerService tileLayerService,
+        IMapViewModelFactory mapViewModelFactory,
         IShellCoordinator shell,
         IDialogService dialogService,
         IUiThreadDispatcher uiThreadDispatcher,
@@ -238,7 +237,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
         var timeline = new SessionTimelineLinkViewModel();
         graphWorkspace = new LiveSessionGraphWorkspaceViewModel(timeline, CreatePlotRanges(context), liveSessionService.GraphBatches);
-        mediaWorkspace = new LiveSessionMediaWorkspaceViewModel(tileLayerService, dialogService, timeline, uiThreadDispatcher);
+        mediaWorkspace = new LiveSessionMediaWorkspaceViewModel(mapViewModelFactory, timeline);
         Name = CreateDefaultName(DateTimeOffset.Now);
         LiveGraphPage = new LiveGraphPageViewModel(graphWorkspace, mediaWorkspace);
         SpringPage = new SpringPageViewModel(this);
@@ -835,7 +834,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         DampingSpeedCutoffs = DampingSpeedCutoffs.With(
             side,
             circuit,
-            DampingCutoffInteraction.RoundDragValue(cutoffMmPerSecond));
+            DampingCutoffEditing.RoundDragValue(cutoffMmPerSecond));
     }
 
     public void CancelDampingSpeedCutoffPreview()
@@ -863,7 +862,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         var committedCutoffs = DampingSpeedCutoffs.With(
             side,
             circuit,
-            DampingCutoffInteraction.RoundDragValue(cutoffMmPerSecond));
+            DampingCutoffEditing.RoundDragValue(cutoffMmPerSecond));
         DampingSpeedCutoffs = committedCutoffs;
         PlotDampingSpeedCutoffs = committedCutoffs;
 

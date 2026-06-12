@@ -498,7 +498,7 @@ public class VelocityBandView : TemplatedControl
 
     private void PreviewCutoff(DampingSpeedCircuit circuit, double cutoff)
     {
-        activeGuideCutoff = DampingCutoffInteraction.RoundDragValue(cutoff);
+        activeGuideCutoff = DampingCutoffEditing.RoundDragValue(cutoff);
         StatisticsWorkspace?.PreviewDampingSpeedCutoff(SuspensionType, circuit, cutoff);
         RefreshGuide();
     }

@@ -39,17 +39,14 @@ public sealed class LiveSessionMediaWorkspaceViewModel : ObservableObject, ISess
     }
 
     public LiveSessionMediaWorkspaceViewModel(
-        ITileLayerService tileLayerService,
-        IDialogService dialogService,
-        SessionTimelineLinkViewModel timeline,
-        IUiThreadDispatcher uiThreadDispatcher)
+        IMapViewModelFactory mapViewModelFactory,
+        SessionTimelineLinkViewModel timeline)
     {
         Timeline = timeline;
-        MapViewModel = new MapViewModel(tileLayerService, dialogService, uiThreadDispatcher)
-        {
-            FullTrackPoints = [],
-            SessionTrackPoints = [],
-        };
+        var mapViewModel = mapViewModelFactory.Create();
+        mapViewModel.FullTrackPoints = [];
+        mapViewModel.SessionTrackPoints = [];
+        MapViewModel = mapViewModel;
     }
 
     public async Task InitializeAsync()

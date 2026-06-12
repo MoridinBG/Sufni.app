@@ -6,7 +6,6 @@ using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.ViewModels.Editors;

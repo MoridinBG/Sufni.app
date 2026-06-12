@@ -12,7 +12,9 @@ using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
 namespace Sufni.App.ExtensionHosting.RecordedSessions;
 
-internal sealed class RecordedSessionDataReader(ISessionRepository sessionRepository) : IRecordedSessionDataReader
+internal sealed class RecordedSessionDataReader(
+    ISessionRepository sessionRepository,
+    ISessionTelemetryProcessor sessionTelemetryProcessor) : IRecordedSessionDataReader
 {
     public async Task<IReadOnlyList<RecordedSessionCatalogItem>> GetSessionsAsync(
         CancellationToken cancellationToken = default)
@@ -50,9 +52,9 @@ internal sealed class RecordedSessionDataReader(ISessionRepository sessionReposi
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var telemetry = await sessionRepository.GetSessionPsstAsync(sessionId);
+        var raw = await sessionRepository.GetSessionRawPsstAsync(sessionId);
         cancellationToken.ThrowIfCancellationRequested();
-        return telemetry;
+        return raw is null ? null : sessionTelemetryProcessor.ReadProcessedTelemetryData(raw);
     }
 
     public async Task<IReadOnlyList<TrackPoint>?> GetTrackAsync(

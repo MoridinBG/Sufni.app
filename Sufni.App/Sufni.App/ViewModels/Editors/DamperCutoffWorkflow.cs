@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.SessionDetails;
-using Sufni.App.Views.Plots;
 using Sufni.Telemetry;
 
 namespace Sufni.App.ViewModels.Editors;
@@ -46,7 +45,7 @@ internal sealed class DamperCutoffWorkflow(
         context.DampingSpeedCutoffs = context.DampingSpeedCutoffs.With(
             side,
             circuit,
-            DampingCutoffInteraction.RoundDragValue(cutoffMmPerSecond));
+            DampingCutoffEditing.RoundDragValue(cutoffMmPerSecond));
     }
 
     public void CancelPreview()
@@ -71,7 +70,7 @@ internal sealed class DamperCutoffWorkflow(
         var committedCutoffs = context.DampingSpeedCutoffs.With(
             side,
             circuit,
-            DampingCutoffInteraction.RoundDragValue(cutoffMmPerSecond));
+            DampingCutoffEditing.RoundDragValue(cutoffMmPerSecond));
         context.DampingSpeedCutoffs = committedCutoffs;
         context.PlotDampingSpeedCutoffs = committedCutoffs;
 

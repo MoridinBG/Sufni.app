@@ -15,6 +15,7 @@ public class TrackCoordinator(
     ITrackRepository trackRepository,
     ISynchronizableRepository<Track> trackEntityRepository,
     ISessionRepository sessionRepository,
+    ISessionTelemetryWriter sessionTelemetryWriter,
     IFilesService filesService,
     IBackgroundTaskRunner backgroundTaskRunner) : ITrackCoordinator
 {
@@ -102,7 +103,7 @@ public class TrackCoordinator(
             var start = telemetryData.Metadata.Timestamp;
             var end = start + (int)Math.Ceiling(telemetryData.Metadata.Duration);
             trackPoints = fullTrack.GenerateSessionTrack(start, end);
-            await sessionRepository.PatchSessionTrackAsync(sessionId, trackPoints);
+            await sessionTelemetryWriter.PatchSessionTrackAsync(sessionId, trackPoints);
         }
 
         return new SessionTrackPresentationData(

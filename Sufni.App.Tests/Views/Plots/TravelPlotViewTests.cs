@@ -24,7 +24,6 @@ using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
 using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 namespace Sufni.App.Tests.Views.Plots;

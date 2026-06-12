@@ -1,20 +1,10 @@
 using System.Threading.Tasks;
-using Avalonia.Controls;
 using Sufni.App.Models;
 
 namespace Sufni.App.Services;
 
-public enum DialogPresentationMode
-{
-    Window,
-    Overlay
-}
-
 public interface IDialogService
 {
-    public void SetOwner(Window owner);
-    public void SetOverlayHost(Control host);
-    public void SetPresentationMode(DialogPresentationMode mode);
     public Task<PromptResult> ShowCloseConfirmationAsync(bool isSaveEnabled = true);
     public Task<TileLayerConfig?> ShowAddTileLayerDialogAsync();
     public Task<PromptResult> ShowContentDialogAsync(object contentViewModel, DialogOptions options);

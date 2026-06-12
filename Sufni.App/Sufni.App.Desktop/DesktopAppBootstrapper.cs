@@ -18,6 +18,7 @@ public static class DesktopAppBootstrapper
             sp.GetRequiredService<ISyncDataStore>(),
             sp.GetRequiredService<IPairedDeviceRepository>(),
             sp.GetRequiredService<ISessionRepository>(),
+            sp.GetRequiredService<ISessionTelemetryWriter>(),
             sp.GetRequiredService<IRecordedSessionSourceRepository>(),
             sp.GetRequiredService<IAppPreferences>(),
             sp.GetRequiredService<ISecureStorage>(),

@@ -46,6 +46,7 @@ public class SynchronizationServerService : ISynchronizationServerService
     private readonly ISyncDataStore syncDataStore;
     private readonly IPairedDeviceRepository pairedDeviceRepository;
     private readonly ISessionRepository sessionRepository;
+    private readonly ISessionTelemetryWriter sessionTelemetryWriter;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly IAppPreferences appPreferences;
     private readonly IExtensionSyncService? extensionSyncService;
@@ -83,10 +84,11 @@ public class SynchronizationServerService : ISynchronizationServerService
         ISyncDataStore syncDataStore,
         IPairedDeviceRepository pairedDeviceRepository,
         ISessionRepository sessionRepository,
+        ISessionTelemetryWriter sessionTelemetryWriter,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IAppPreferences appPreferences,
         ISecureStorage secureStorage)
-        : this(syncDataStore, pairedDeviceRepository, sessionRepository, recordedSessionSourceRepository, appPreferences, secureStorage, null)
+        : this(syncDataStore, pairedDeviceRepository, sessionRepository, sessionTelemetryWriter, recordedSessionSourceRepository, appPreferences, secureStorage, null)
     {
     }
 
@@ -94,6 +96,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         ISyncDataStore syncDataStore,
         IPairedDeviceRepository pairedDeviceRepository,
         ISessionRepository sessionRepository,
+        ISessionTelemetryWriter sessionTelemetryWriter,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IAppPreferences appPreferences,
         ISecureStorage secureStorage,
@@ -102,6 +105,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         this.syncDataStore = syncDataStore;
         this.pairedDeviceRepository = pairedDeviceRepository;
         this.sessionRepository = sessionRepository;
+        this.sessionTelemetryWriter = sessionTelemetryWriter;
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.appPreferences = appPreferences;
         this.secureStorage = secureStorage;
@@ -609,7 +613,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
                         try
                         {
-                            await sessionRepository.PatchSessionPsstAsync(id, data);
+                            await sessionTelemetryWriter.PatchSessionPsstAsync(id, data);
                         }
                         catch (InvalidDataException ex)
                         {

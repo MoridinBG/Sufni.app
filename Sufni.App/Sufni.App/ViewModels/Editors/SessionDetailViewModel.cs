@@ -1,4 +1,3 @@
-using Avalonia.Media;
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -10,7 +9,6 @@ using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.App.ExtensionHosting.RecordedSessions;
 using Sufni.App.Models;
@@ -21,8 +19,6 @@ using Sufni.App.SessionGraph;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels.SessionPages;
 using Sufni.App.ViewModels;
-using Sufni.App.Views.Controls;
-using Sufni.App.Views.Plots;
 using Sufni.Telemetry;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -80,7 +76,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly StatisticsSelectionController statisticsSelectionController = new();
     private readonly RecordedPresentationApplier presentationApplier;
     private readonly RecordedPreferenceStore recordedPreferenceStore;
-    private readonly Dictionary<string, PageViewModelBase> recordedSessionExtensionPages = [];
+    private readonly RecordedSessionExtensionPagesController? extensionPagesController;
+    private readonly ProcessingPreferenceWorkflow processingPreferenceWorkflow;
     private Session session;
     private RecordedGraphPageViewModel GraphPage { get; }
     private StrokesPageViewModel StrokesPage { get; }
@@ -98,18 +95,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private bool hasBeenActivated;
     private SessionPlotPreferences plotPreferences = SessionPreferences.Default.Plots;
     private SessionGraphPreferences graphPreferences = SessionPreferences.Default.Graph;
-    private readonly TelemetryPlotRowAction showAirtimeAction;
-    private readonly TelemetryPlotRowAction showVelocityAirtimeAction;
-    private readonly TelemetryPlotRowAction showImuAirtimeAction;
-    private readonly TelemetryPlotRowAction showPitchRollAirtimeAction;
-    private readonly TelemetryPlotRowAction showSpeedAirtimeAction;
-    private readonly TelemetryPlotRowAction showElevationAirtimeAction;
-    private readonly TelemetryPlotRowAction showStatisticsSelectionAction;
-    private readonly TelemetryPlotRowAction showVelocityStatisticsSelectionAction;
-    private readonly TelemetryPlotRowAction showImuStatisticsSelectionAction;
-    private readonly TelemetryPlotRowAction showPitchRollStatisticsSelectionAction;
-    private readonly TelemetryPlotRowAction showSpeedStatisticsSelectionAction;
-    private readonly TelemetryPlotRowAction showElevationStatisticsSelectionAction;
+    private readonly SessionPlotRowActionsController plotRowActions;
     private readonly PlotAutozoomController plotAutozoomController;
     private readonly DamperCutoffWorkflow damperCutoffWorkflow;
     private readonly ISessionLayoutStrategy layoutStrategy;
@@ -150,12 +136,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public TelemetrySourceVisibilityStore SourceVisibility => SessionContext.SourceVisibility;
     public PreferencesPageViewModel PreferencesPage { get; } = new();
     public MapViewModel? MapViewModel => SessionContext.MapViewModel;
-    public IReadOnlyList<TelemetryPlotRowAction> TravelHeaderActions { get; }
-    public IReadOnlyList<TelemetryPlotRowAction> VelocityHeaderActions { get; }
-    public IReadOnlyList<TelemetryPlotRowAction> ImuHeaderActions { get; }
-    public IReadOnlyList<TelemetryPlotRowAction> PitchRollHeaderActions { get; }
-    public IReadOnlyList<TelemetryPlotRowAction> SpeedHeaderActions { get; }
-    public IReadOnlyList<TelemetryPlotRowAction> ElevationHeaderActions { get; }
+    public IReadOnlyList<TelemetryPlotRowAction> TravelHeaderActions => plotRowActions.TravelHeaderActions;
+    public IReadOnlyList<TelemetryPlotRowAction> VelocityHeaderActions => plotRowActions.VelocityHeaderActions;
+    public IReadOnlyList<TelemetryPlotRowAction> ImuHeaderActions => plotRowActions.ImuHeaderActions;
+    public IReadOnlyList<TelemetryPlotRowAction> PitchRollHeaderActions => plotRowActions.PitchRollHeaderActions;
+    public IReadOnlyList<TelemetryPlotRowAction> SpeedHeaderActions => plotRowActions.SpeedHeaderActions;
+    public IReadOnlyList<TelemetryPlotRowAction> ElevationHeaderActions => plotRowActions.ElevationHeaderActions;
     public TelemetryRangeSelection? SelectedFrontRangeSelection => statisticsSelectionController.SelectedFrontRangeSelection;
     public TelemetryRangeSelection? SelectedRearRangeSelection => statisticsSelectionController.SelectedRearRangeSelection;
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> PlotContextMenuActionsByRowId { get; }
@@ -456,7 +442,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         .StartOperation(description);
 
     void IRecordedSessionHostOperations.RequestPageSelection(string contributionId) =>
-        RequestRecordedSessionExtensionPageSelection(contributionId);
+        extensionPagesController?.RequestRecordedSessionExtensionPageSelection(contributionId);
 
     Guid ISessionOperationGateway.SessionId => Id;
 
@@ -482,86 +468,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     void ISessionOperationGateway.SetGraphPreferences(SessionGraphPreferences preferences) =>
         GraphPreferences = preferences;
 
-    private void RequestRecordedSessionExtensionPageSelection(string contributionId)
-    {
-        if (recordedSessionExtensions is null)
-        {
-            return;
-        }
-
-        var contribution = recordedSessionExtensions.ExtensionSlots.Pages
-            .Where(contribution => StringComparer.Ordinal.Equals(contribution.ContributionId, contributionId))
-            .OrderBy(contribution => contribution.Order)
-            .ThenBy(contribution => contribution.ExtensionId, StringComparer.Ordinal)
-            .FirstOrDefault();
-        if (contribution is null ||
-            !recordedSessionExtensionPages.TryGetValue(RecordedSessionExtensionPageKey(contribution), out var page))
-        {
-            return;
-        }
-
-        foreach (var currentPage in Pages)
-        {
-            currentPage.Selected = false;
-        }
-
-        page.Selected = true;
-    }
-
-    private void OnRecordedSessionExtensionPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
-    {
-        ApplyRecordedSessionExtensionPages();
-    }
-
-    private void ApplyRecordedSessionExtensionPages()
-    {
-        if (recordedSessionExtensions is null)
-        {
-            return;
-        }
-
-        var contributions = recordedSessionExtensions.ExtensionSlots.Pages
-            .OrderBy(contribution => contribution.RequestedIndex)
-            .ThenBy(contribution => contribution.Order)
-            .ThenBy(contribution => contribution.ExtensionId, StringComparer.Ordinal)
-            .ThenBy(contribution => contribution.ContributionId, StringComparer.Ordinal)
-            .ToArray();
-        var desiredKeys = contributions
-            .Select(RecordedSessionExtensionPageKey)
-            .ToHashSet(StringComparer.Ordinal);
-
-        foreach (var entry in recordedSessionExtensionPages.ToArray())
-        {
-            Pages.Remove(entry.Value);
-            if (!desiredKeys.Contains(entry.Key))
-            {
-                recordedSessionExtensionPages.Remove(entry.Key);
-            }
-        }
-
-        var insertedCount = 0;
-        foreach (var contribution in contributions)
-        {
-            var key = RecordedSessionExtensionPageKey(contribution);
-            if (!recordedSessionExtensionPages.TryGetValue(key, out var page))
-            {
-                page = new RecordedSessionExtensionPageViewModel(
-                    contribution.DisplayName,
-                    contribution.ViewModel);
-                recordedSessionExtensionPages.Add(key, page);
-            }
-
-            var insertIndex = Math.Clamp(contribution.RequestedIndex + insertedCount, 0, Pages.Count);
-            Pages.Insert(insertIndex, page);
-            insertedCount++;
-        }
-    }
-
-    private static string RecordedSessionExtensionPageKey(RecordedSessionPageContribution contribution)
-    {
-        return $"{contribution.ExtensionId}\u001f{contribution.ContributionId}";
-    }
-
     #endregion
 
     #region Constructors
@@ -573,7 +479,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         IRecordedSessionGraph recordedSessionGraph,
         ISessionPresentationService sessionPresentationService,
         ISessionAnalysisService sessionAnalysisService,
-        ITileLayerService tileLayerService,
+        IMapViewModelFactory mapViewModelFactory,
         IShellCoordinator shell,
         IDialogService dialogService,
         ISessionPreferences sessionPreferences,
@@ -596,32 +502,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             sessionPreferences,
             () => Id,
             ErrorMessages.Add);
-        showAirtimeAction = CreateAirtimeAction("travel_airtime", SessionContext.ShowAirtime, () => SessionContext.ShowAirtime = !SessionContext.ShowAirtime);
-        showVelocityAirtimeAction = CreateAirtimeAction("velocity_airtime", SessionContext.ShowVelocityAirtime, () => SessionContext.ShowVelocityAirtime = !SessionContext.ShowVelocityAirtime);
-        showImuAirtimeAction = CreateAirtimeAction("imu_airtime", SessionContext.ShowImuAirtime, () => SessionContext.ShowImuAirtime = !SessionContext.ShowImuAirtime);
-        showPitchRollAirtimeAction = CreateAirtimeAction("pitch_roll_airtime", SessionContext.ShowPitchRollAirtime, () => SessionContext.ShowPitchRollAirtime = !SessionContext.ShowPitchRollAirtime);
-        showSpeedAirtimeAction = CreateAirtimeAction("speed_airtime", SessionContext.ShowSpeedAirtime, () => SessionContext.ShowSpeedAirtime = !SessionContext.ShowSpeedAirtime);
-        showElevationAirtimeAction = CreateAirtimeAction("elevation_airtime", SessionContext.ShowElevationAirtime, () => SessionContext.ShowElevationAirtime = !SessionContext.ShowElevationAirtime);
-        showStatisticsSelectionAction = CreateStatisticsSelectionAction("travel_statistics_selection", SessionContext.ShowStatisticsSelection, () => SessionContext.ShowStatisticsSelection = !SessionContext.ShowStatisticsSelection);
-        showVelocityStatisticsSelectionAction = CreateStatisticsSelectionAction("velocity_statistics_selection", SessionContext.ShowVelocityStatisticsSelection, () => SessionContext.ShowVelocityStatisticsSelection = !SessionContext.ShowVelocityStatisticsSelection);
-        showImuStatisticsSelectionAction = CreateStatisticsSelectionAction("imu_statistics_selection", SessionContext.ShowImuStatisticsSelection, () => SessionContext.ShowImuStatisticsSelection = !SessionContext.ShowImuStatisticsSelection);
-        showPitchRollStatisticsSelectionAction = CreateStatisticsSelectionAction("pitch_roll_statistics_selection", SessionContext.ShowPitchRollStatisticsSelection, () => SessionContext.ShowPitchRollStatisticsSelection = !SessionContext.ShowPitchRollStatisticsSelection);
-        showSpeedStatisticsSelectionAction = CreateStatisticsSelectionAction("speed_statistics_selection", SessionContext.ShowSpeedStatisticsSelection, () => SessionContext.ShowSpeedStatisticsSelection = !SessionContext.ShowSpeedStatisticsSelection);
-        showElevationStatisticsSelectionAction = CreateStatisticsSelectionAction("elevation_statistics_selection", SessionContext.ShowElevationStatisticsSelection, () => SessionContext.ShowElevationStatisticsSelection = !SessionContext.ShowElevationStatisticsSelection);
-        TravelHeaderActions = [showAirtimeAction, showStatisticsSelectionAction];
-        VelocityHeaderActions = [showVelocityAirtimeAction, showVelocityStatisticsSelectionAction];
-        ImuHeaderActions = [showImuAirtimeAction, showImuStatisticsSelectionAction];
-        PitchRollHeaderActions = [showPitchRollAirtimeAction, showPitchRollStatisticsSelectionAction];
-        SpeedHeaderActions = [showSpeedAirtimeAction, showSpeedStatisticsSelectionAction];
-        ElevationHeaderActions = [showElevationAirtimeAction, showElevationStatisticsSelectionAction];
+        plotRowActions = new SessionPlotRowActionsController(SessionContext);
         plotAutozoomController = new PlotAutozoomController(Timeline);
         PlotContextMenuActionsByRowId = plotAutozoomController.ActionsByRowId;
-        SessionContext.TravelHeaderActions = TravelHeaderActions;
-        SessionContext.VelocityHeaderActions = VelocityHeaderActions;
-        SessionContext.ImuHeaderActions = ImuHeaderActions;
-        SessionContext.PitchRollHeaderActions = PitchRollHeaderActions;
-        SessionContext.SpeedHeaderActions = SpeedHeaderActions;
-        SessionContext.ElevationHeaderActions = ElevationHeaderActions;
         SessionContext.PlotContextMenuActionsByRowId = PlotContextMenuActionsByRowId;
         session = SessionFromSnapshot(snapshot);
         Id = snapshot.Id;
@@ -654,6 +537,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             sessionStore,
             dialogService,
             this);
+        processingPreferenceWorkflow = new ProcessingPreferenceWorkflow(
+            recordedPreferenceStore,
+            PreferencesPage,
+            dialogService,
+            sessionCoordinator,
+            sessionStore,
+            stalenessReconciler,
+            this);
         if (extensionHost is not null)
         {
             recordedSessionOperationCoordinator = new RecordedSessionOperationCoordinator(
@@ -668,7 +559,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 uiThreadDispatcher,
                 recordedSessionOperationCoordinator,
                 this);
-            recordedSessionExtensions.ExtensionSlots.Pages.CollectionChanged += OnRecordedSessionExtensionPagesChanged;
+            extensionPagesController = new RecordedSessionExtensionPagesController(recordedSessionExtensions, Pages);
         }
         SessionContext.ExtensionSlots = ExtensionSlots;
         SessionContext.PropertyChanged += OnSessionContextPropertyChanged;
@@ -700,7 +591,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         Pages.Add(AnalysisPage);
         Pages.Add(NotesPage);
         Pages.Add(PreferencesPage);
-        SessionContext.MapViewModel = new MapViewModel(tileLayerService, dialogService, uiThreadDispatcher);
+        SessionContext.MapViewModel = mapViewModelFactory.Create();
         _ = SessionContext.MapViewModel.InitializeAsync();
         if (snapshot.HasProcessedData)
         {
@@ -746,56 +637,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         return s;
     }
 
-    private TelemetryPlotRowAction CreateAirtimeAction(string id, bool isChecked, Action toggle)
-    {
-        return new TelemetryPlotRowAction
-        {
-            Id = id,
-            Kind = TelemetryPlotRowActionKind.Toggle,
-            IconPathData =
-                "M12 4C7 4 3 7 1 12C3 17 7 20 12 20C17 20 21 17 23 12C21 7 17 4 12 4ZM12 16C9.8 16 8 14.2 8 12C8 9.8 9.8 8 12 8C14.2 8 16 9.8 16 12C16 14.2 14.2 16 12 16Z",
-            ToolTip = isChecked ? "Hide airtime" : "Show airtime",
-            Command = new RelayCommand(toggle),
-            IsChecked = isChecked,
-            Tone = TelemetryPlotRowActionTone.Default,
-        };
-    }
-
-    private TelemetryPlotRowAction CreateStatisticsSelectionAction(string id, bool isChecked, Action toggle)
-    {
-        var action = new TelemetryPlotRowAction
-        {
-            Id = id,
-            Kind = TelemetryPlotRowActionKind.Toggle,
-            IconPathData = "M4 6H20V8H4V6ZM4 11H17V13H4V11ZM4 16H13V18H4V16Z",
-            Command = new RelayCommand(toggle),
-            Tone = TelemetryPlotRowActionTone.Default,
-        };
-        UpdateStatisticsSelectionAction(action, isChecked, SessionContext.HasStatisticsSelection);
-        return action;
-    }
-
-    private static void UpdateAirtimeAction(TelemetryPlotRowAction action, bool isChecked)
-    {
-        action.IsChecked = isChecked;
-        action.ToolTip = isChecked ? "Hide airtime" : "Show airtime";
-    }
-
-    private static void UpdateStatisticsSelectionAction(TelemetryPlotRowAction action, bool isChecked, bool hasSelection)
-    {
-        action.IsChecked = isChecked;
-        action.IsEnabled = hasSelection;
-        action.ToolTip = hasSelection
-            ? isChecked ? "Hide selected strokes" : "Show selected strokes"
-            : "Select a stroke group";
-    }
-
     private void ClearStatisticsSelections()
     {
         statisticsSelectionController.Clear();
         SyncStatisticsSelectionController();
-        ClearStatisticsSelectionToggles();
-        RefreshStatisticsSelectionActionStates();
+        plotRowActions.ClearStatisticsSelectionToggles();
+        plotRowActions.RefreshStatisticsSelectionActionStates();
     }
 
     private void ClearDampingRangeSelections()
@@ -808,10 +655,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SyncStatisticsSelectionController();
         if (!SessionContext.HasStatisticsSelection)
         {
-            ClearStatisticsSelectionToggles();
+            plotRowActions.ClearStatisticsSelectionToggles();
         }
 
-        RefreshStatisticsSelectionActionStates();
+        plotRowActions.RefreshStatisticsSelectionActionStates();
     }
 
     private void SyncStatisticsSelectionController()
@@ -822,18 +669,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         OnPropertyChanged(nameof(SelectedRearRangeSelection));
         SessionContext.StatisticsSelectionHighlightRanges = statisticsSelectionController.HighlightRanges;
     }
-
-    private void RefreshStatisticsSelectionActionStates()
-    {
-        var hasSelection = SessionContext.HasStatisticsSelection;
-        UpdateStatisticsSelectionAction(showStatisticsSelectionAction, SessionContext.ShowStatisticsSelection, hasSelection);
-        UpdateStatisticsSelectionAction(showVelocityStatisticsSelectionAction, SessionContext.ShowVelocityStatisticsSelection, hasSelection);
-        UpdateStatisticsSelectionAction(showImuStatisticsSelectionAction, SessionContext.ShowImuStatisticsSelection, hasSelection);
-        UpdateStatisticsSelectionAction(showPitchRollStatisticsSelectionAction, SessionContext.ShowPitchRollStatisticsSelection, hasSelection);
-        UpdateStatisticsSelectionAction(showSpeedStatisticsSelectionAction, SessionContext.ShowSpeedStatisticsSelection, hasSelection);
-        UpdateStatisticsSelectionAction(showElevationStatisticsSelectionAction, SessionContext.ShowElevationStatisticsSelection, hasSelection);
-    }
-
 
     private void OnSessionContextPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
@@ -927,53 +762,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
                 UpdateRecordedSessionExtensionHostState();
                 break;
-            case nameof(RecordedSessionContext.ShowAirtime):
-                UpdateAirtimeAction(showAirtimeAction, SessionContext.ShowAirtime);
-                break;
-            case nameof(RecordedSessionContext.ShowVelocityAirtime):
-                UpdateAirtimeAction(showVelocityAirtimeAction, SessionContext.ShowVelocityAirtime);
-                break;
-            case nameof(RecordedSessionContext.ShowImuAirtime):
-                UpdateAirtimeAction(showImuAirtimeAction, SessionContext.ShowImuAirtime);
-                break;
-            case nameof(RecordedSessionContext.ShowPitchRollAirtime):
-                UpdateAirtimeAction(showPitchRollAirtimeAction, SessionContext.ShowPitchRollAirtime);
-                break;
-            case nameof(RecordedSessionContext.ShowSpeedAirtime):
-                UpdateAirtimeAction(showSpeedAirtimeAction, SessionContext.ShowSpeedAirtime);
-                break;
-            case nameof(RecordedSessionContext.ShowElevationAirtime):
-                UpdateAirtimeAction(showElevationAirtimeAction, SessionContext.ShowElevationAirtime);
-                break;
-            case nameof(RecordedSessionContext.ShowStatisticsSelection):
-                UpdateStatisticsSelectionAction(showStatisticsSelectionAction, SessionContext.ShowStatisticsSelection, SessionContext.HasStatisticsSelection);
-                break;
-            case nameof(RecordedSessionContext.ShowVelocityStatisticsSelection):
-                UpdateStatisticsSelectionAction(showVelocityStatisticsSelectionAction, SessionContext.ShowVelocityStatisticsSelection, SessionContext.HasStatisticsSelection);
-                break;
-            case nameof(RecordedSessionContext.ShowImuStatisticsSelection):
-                UpdateStatisticsSelectionAction(showImuStatisticsSelectionAction, SessionContext.ShowImuStatisticsSelection, SessionContext.HasStatisticsSelection);
-                break;
-            case nameof(RecordedSessionContext.ShowPitchRollStatisticsSelection):
-                UpdateStatisticsSelectionAction(showPitchRollStatisticsSelectionAction, SessionContext.ShowPitchRollStatisticsSelection, SessionContext.HasStatisticsSelection);
-                break;
-            case nameof(RecordedSessionContext.ShowSpeedStatisticsSelection):
-                UpdateStatisticsSelectionAction(showSpeedStatisticsSelectionAction, SessionContext.ShowSpeedStatisticsSelection, SessionContext.HasStatisticsSelection);
-                break;
-            case nameof(RecordedSessionContext.ShowElevationStatisticsSelection):
-                UpdateStatisticsSelectionAction(showElevationStatisticsSelectionAction, SessionContext.ShowElevationStatisticsSelection, SessionContext.HasStatisticsSelection);
-                break;
         }
-    }
-
-    private void ClearStatisticsSelectionToggles()
-    {
-        SessionContext.ShowStatisticsSelection = false;
-        SessionContext.ShowVelocityStatisticsSelection = false;
-        SessionContext.ShowImuStatisticsSelection = false;
-        SessionContext.ShowPitchRollStatisticsSelection = false;
-        SessionContext.ShowSpeedStatisticsSelection = false;
-        SessionContext.ShowElevationStatisticsSelection = false;
     }
 
     private void EvaluateDirtinessFromPageChange()
@@ -1049,67 +838,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         recordedPreferenceStore.PersistChangeIfEnabled(current => current with { Statistics = statistics });
     }
 
-    private void OnProcessingPreferenceChangeCommitted(object? sender, EventArgs args)
-    {
-        _ = PersistRecordedProcessingPreferenceAndRecomputeAsync();
-    }
-
-    private async Task PersistRecordedProcessingPreferenceAndRecomputeAsync()
-    {
-        if (!recordedPreferenceStore.PersistenceEnabled || !viewLoaded)
-        {
-            return;
-        }
-
-        if (!recordedPreferenceStore.TryBeginProcessingPreferenceRecompute())
-        {
-            PreferencesPage.ApplyProcessingPreferences(recordedPreferenceStore.Current.Processing);
-            return;
-        }
-
-        var processing = PreferencesPage.CreateProcessingPreferences();
-        if (processing == recordedPreferenceStore.Current.Processing)
-        {
-            recordedPreferenceStore.EndProcessingPreferenceRecompute();
-            return;
-        }
-
-        try
-        {
-            if (IsDirty)
-            {
-                var confirmed = await dialogService.ShowConfirmationAsync(
-                    "Recompute session?",
-                    "Changing the velocity filter recomputes this session and will discard unsaved changes.");
-                if (!confirmed)
-                {
-                    PreferencesPage.ApplyProcessingPreferences(recordedPreferenceStore.Current.Processing);
-                    return;
-                }
-
-                if (sessionStore.Get(Id) is { } current)
-                {
-                    await ApplyPersistedSnapshotAsync(current);
-                }
-            }
-
-            var previousProcessing = recordedPreferenceStore.Current.Processing;
-            recordedPreferenceStore.UpdateCurrent(current => current with { Processing = processing });
-            if (!await recordedPreferenceStore.PersistChangeAsync(current => current with { Processing = processing }))
-            {
-                recordedPreferenceStore.UpdateCurrent(current => current with { Processing = previousProcessing });
-                PreferencesPage.ApplyProcessingPreferences(recordedPreferenceStore.Current.Processing);
-                return;
-            }
-
-            var result = await sessionCoordinator.RecomputeAsync(Id, BaselineUpdated);
-            await stalenessReconciler.ApplyRecomputeResultAsync(result);
-        }
-        finally
-        {
-            recordedPreferenceStore.EndProcessingPreferenceRecompute();
-        }
-    }
+    private void OnProcessingPreferenceChangeCommitted(object? sender, EventArgs args) =>
+        _ = processingPreferenceWorkflow.HandleProcessingPreferenceChangeCommittedAsync();
 
     #endregion Private methods
 
@@ -1239,13 +969,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         if (!statisticsSelectionController.Select(selection, SessionContext.TelemetryData, SessionContext.AnalysisRange)) return;
 
         SyncStatisticsSelectionController();
-        ClearStatisticsSelectionToggles();
+        plotRowActions.ClearStatisticsSelectionToggles();
         if (SessionContext.HasStatisticsSelection)
         {
             SessionContext.ShowStatisticsSelection = true;
         }
 
-        RefreshStatisticsSelectionActionStates();
+        plotRowActions.RefreshStatisticsSelectionActionStates();
     }
 
     public void SetAnalysisRange(double startSeconds, double endSeconds)

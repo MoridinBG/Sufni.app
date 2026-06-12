@@ -9,6 +9,7 @@ using Sufni.App.SessionGraph;
 using Sufni.App.Services;
 using Sufni.App.Services.Management;
 using Sufni.App.Services.LiveStreaming;
+using Sufni.App.Services.SessionAnalysis;
 using Sufni.App.Stores;
 using Sufni.App.Theming;
 using Sufni.App.ViewModels;
@@ -136,6 +137,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISessionCacheStore, SessionCacheStore>();
         ServiceCollection.AddSingleton<ITrackRepository, TrackRepository>();
         ServiceCollection.AddSingleton<ISessionRepository, SessionRepository>();
+        ServiceCollection.AddSingleton<ISessionTelemetryWriter, SessionTelemetryWriter>();
         ServiceCollection.AddSingleton<ISyncDataStore, SynchronizationMergeEngine>();
         ServiceCollection.AddSingleton<IExtensionDatabaseConnection, ExtensionDatabaseConnection>();
         ServiceCollection.AddSingleton<IRecordedSessionDataReader, RecordedSessionDataReader>();
@@ -148,11 +150,13 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IMapPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Map);
         ServiceCollection.AddSingleton<ISessionPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Session);
         ServiceCollection.AddSingleton<ITileLayerService, TileLayerService>();
+        ServiceCollection.AddSingleton<IMapViewModelFactory, MapViewModelFactory>();
         ServiceCollection.AddSingleton<FilesService>();
         ServiceCollection.AddSingleton<IFilesService>(sp => sp.GetRequiredService<FilesService>());
         ServiceCollection.AddSingleton<IFilePickerService>(sp => sp.GetRequiredService<FilesService>());
         ServiceCollection.AddSingleton<DialogService>();
         ServiceCollection.AddSingleton<IDialogService>(sp => sp.GetRequiredService<DialogService>());
+        ServiceCollection.AddSingleton<IDialogHost>(sp => sp.GetRequiredService<DialogService>());
         ServiceCollection.AddSingleton<IExtensionDialogService>(sp => sp.GetRequiredService<DialogService>());
         ServiceCollection.AddSingleton<BikeStore>();
         ServiceCollection.AddSingleton<IBikeStore>(sp => sp.GetRequiredService<BikeStore>());
@@ -183,12 +187,23 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IRecordedSessionReprocessor, RecordedSessionReprocessor>();
         ServiceCollection.AddSingleton<TrackCoordinator>();
         ServiceCollection.AddSingleton<ITrackCoordinator>(sp => sp.GetRequiredService<TrackCoordinator>());
-        ServiceCollection.AddSingleton<SessionLoader>();
+        ServiceCollection.AddSingleton<SessionLoader>(sp => new SessionLoader(
+            sp.GetRequiredService<ISessionStoreWriter>(),
+            sp.GetRequiredService<ISessionRepository>(),
+            sp.GetRequiredService<ISessionTelemetryWriter>(),
+            sp.GetRequiredService<ISessionTelemetryProcessor>(),
+            sp.GetRequiredService<ISessionCacheStore>(),
+            sp.GetRequiredService<IHttpApiService>(),
+            sp.GetRequiredService<IBackgroundTaskRunner>(),
+            sp.GetRequiredService<ITrackCoordinator>(),
+            sp.GetRequiredService<ISessionPresentationService>(),
+            sp.GetRequiredService<IRecordedSessionDomainQuery>()));
         ServiceCollection.AddSingleton<SessionSaver>();
         ServiceCollection.AddSingleton<LiveCaptureSaver>();
         ServiceCollection.AddSingleton<SessionRecomputer>(sp => new SessionRecomputer(
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<ISessionRepository>(),
+            sp.GetRequiredService<ISessionTelemetryWriter>(),
             sp.GetRequiredService<ISynchronizableRepository<Track>>(),
             sp.GetRequiredService<ISynchronizableRepository<Session>>(),
             sp.GetRequiredService<IBackgroundTaskRunner>(),
@@ -236,12 +251,11 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISyncCoordinator>(sp => sp.GetRequiredService<SyncCoordinator>());
         ServiceCollection.AddSingleton<ImportSessionsCoordinator>(sp =>
             new ImportSessionsCoordinator(
-                sp.GetRequiredService<ISessionRepository>(),
+                sp.GetRequiredService<ISessionTelemetryWriter>(),
                 sp.GetRequiredService<ISynchronizableRepository<Setup>>(),
                 sp.GetRequiredService<ISynchronizableRepository<Bike>>(),
                 sp.GetRequiredService<ISessionStoreWriter>(),
                 sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
-                sp.GetRequiredService<IShellCoordinator>(),
                 sp.GetRequiredService<IBackgroundTaskRunner>(),
                 sp.GetRequiredService<IUiThreadDispatcher>(),
                 sp.GetRequiredService<IDaqManagementService>(),
@@ -306,7 +320,7 @@ public partial class App : Application
         }
 
         var fileService = Services.GetRequiredService<IFilesService>();
-        var dialogService = Services.GetRequiredService<IDialogService>();
+        var dialogHost = Services.GetRequiredService<IDialogHost>();
         var mainViewModel = Services.GetRequiredService<MainViewModel>();
         var mainWindowViewModel = Services.GetRequiredService<MainWindowViewModel>();
 
@@ -315,9 +329,9 @@ public partial class App : Application
             case IClassicDesktopStyleApplicationLifetime desktop:
                 desktop.MainWindow = new MainWindow();
                 fileService.SetTarget(TopLevel.GetTopLevel(desktop.MainWindow));
-                dialogService.SetOwner(desktop.MainWindow);
-                dialogService.SetOverlayHost(desktop.MainWindow);
-                dialogService.SetPresentationMode(DialogPresentationMode.Window);
+                dialogHost.SetOwner(desktop.MainWindow);
+                dialogHost.SetOverlayHost(desktop.MainWindow);
+                dialogHost.SetPresentationMode(DialogPresentationMode.Window);
                 desktop.MainWindow.DataContext = mainWindowViewModel;
                 desktop.Exit += (_, _) => LoggingBootstrapper.FlushAndClose();
                 break;
@@ -328,8 +342,8 @@ public partial class App : Application
                 };
                 if (singleViewPlatform.MainView is Control mainView)
                 {
-                    dialogService.SetOverlayHost(mainView);
-                    dialogService.SetPresentationMode(DialogPresentationMode.Overlay);
+                    dialogHost.SetOverlayHost(mainView);
+                    dialogHost.SetPresentationMode(DialogPresentationMode.Overlay);
                 }
                 singleViewPlatform.MainView.Loaded += (_, _) =>
                 {

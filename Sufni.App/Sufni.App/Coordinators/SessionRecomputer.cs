@@ -21,6 +21,7 @@ public sealed class SessionRecomputer
 
     private readonly ISessionStoreWriter sessionStore;
     private readonly ISessionRepository sessionRepository;
+    private readonly ISessionTelemetryWriter sessionTelemetryWriter;
     private readonly ISynchronizableRepository<Track> trackEntityRepository;
     private readonly ISynchronizableRepository<Session> sessionEntityRepository;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
@@ -33,6 +34,7 @@ public sealed class SessionRecomputer
     public SessionRecomputer(
         ISessionStoreWriter sessionStore,
         ISessionRepository sessionRepository,
+        ISessionTelemetryWriter sessionTelemetryWriter,
         ISynchronizableRepository<Track> trackEntityRepository,
         ISynchronizableRepository<Session> sessionEntityRepository,
         IBackgroundTaskRunner backgroundTaskRunner,
@@ -44,6 +46,7 @@ public sealed class SessionRecomputer
     {
         this.sessionStore = sessionStore;
         this.sessionRepository = sessionRepository;
+        this.sessionTelemetryWriter = sessionTelemetryWriter;
         this.trackEntityRepository = trackEntityRepository;
         this.sessionEntityRepository = sessionEntityRepository;
         this.backgroundTaskRunner = backgroundTaskRunner;
@@ -160,7 +163,7 @@ public sealed class SessionRecomputer
             persisted.ProcessedData = reprocessResult.TelemetryData.BinaryForm;
             persisted.ProcessingFingerprintJson = AppJson.Serialize(reprocessResult.Fingerprint);
 
-            var fresh = await sessionRepository.PutProcessedSessionIfUnchangedAsync(
+            var fresh = await sessionTelemetryWriter.PutProcessedSessionIfUnchangedAsync(
                 persisted,
                 newFullTrack,
                 source: null,

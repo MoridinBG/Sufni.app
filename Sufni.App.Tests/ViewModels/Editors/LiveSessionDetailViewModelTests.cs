@@ -1069,7 +1069,7 @@ public class LiveSessionDetailViewModelTests
             sessionCoordinator,
             sessionPresentationService,
             backgroundTaskRunner,
-            tileLayerService,
+            new TestMapViewModelFactory(tileLayerService),
             shell,
             dialogService,
             new InlineUiThreadDispatcher(),

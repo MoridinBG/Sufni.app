@@ -16,10 +16,11 @@ public class TrackCoordinatorTests
     private readonly ITrackRepository trackRepository = Substitute.For<ITrackRepository>();
     private readonly ISynchronizableRepository<Track> trackEntityRepository = Substitute.For<ISynchronizableRepository<Track>>();
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
+    private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
     private readonly IFilesService filesService = Substitute.For<IFilesService>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
 
-    private TrackCoordinator CreateCoordinator() => new(trackRepository, trackEntityRepository, sessionRepository, filesService, backgroundTaskRunner);
+    private TrackCoordinator CreateCoordinator() => new(trackRepository, trackEntityRepository, sessionRepository, sessionTelemetryWriter, filesService, backgroundTaskRunner);
 
     [Fact]
     public async Task ImportGpxAsync_ImportsSelectedFiles()
@@ -105,7 +106,7 @@ public class TrackCoordinatorTests
         Assert.Same(fullTrack.Points, result.FullTrackPoints);
         Assert.Same(existingTrack, result.TrackPoints);
         Assert.Equal(400.0, result.MediaColumnWidth);
-        await sessionRepository.DidNotReceive().PatchSessionTrackAsync(Arg.Any<Guid>(), Arg.Any<List<TrackPoint>>());
+        await sessionTelemetryWriter.DidNotReceive().PatchSessionTrackAsync(Arg.Any<Guid>(), Arg.Any<List<TrackPoint>>());
     }
 
     [Fact]
@@ -136,7 +137,7 @@ public class TrackCoordinatorTests
         var result = await CreateCoordinator().LoadSessionTrackAsync(sessionId, null, telemetry);
 
         await trackRepository.Received(1).AssociateSessionWithTrackAsync(sessionId);
-        await sessionRepository.Received(1).PatchSessionTrackAsync(
+        await sessionTelemetryWriter.Received(1).PatchSessionTrackAsync(
             sessionId,
             Arg.Is<List<TrackPoint>>(points => points.Count > 0
                                                && points.All(point => point.Elevation.HasValue && point.Elevation.Value > 0)

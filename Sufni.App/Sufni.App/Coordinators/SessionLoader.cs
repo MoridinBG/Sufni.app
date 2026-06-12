@@ -21,6 +21,8 @@ public sealed class SessionLoader
 
     private readonly ISessionStoreWriter sessionStore;
     private readonly ISessionRepository sessionRepository;
+    private readonly ISessionTelemetryWriter sessionTelemetryWriter;
+    private readonly ISessionTelemetryProcessor sessionTelemetryProcessor;
     private readonly ISessionCacheStore sessionCacheStore;
     private readonly IHttpApiService httpApiService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
@@ -28,9 +30,11 @@ public sealed class SessionLoader
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly IRecordedSessionDomainQuery recordedSessionDomainQuery;
 
-    public SessionLoader(
+    internal SessionLoader(
         ISessionStoreWriter sessionStore,
         ISessionRepository sessionRepository,
+        ISessionTelemetryWriter sessionTelemetryWriter,
+        ISessionTelemetryProcessor sessionTelemetryProcessor,
         ISessionCacheStore sessionCacheStore,
         IHttpApiService httpApiService,
         IBackgroundTaskRunner backgroundTaskRunner,
@@ -40,6 +44,8 @@ public sealed class SessionLoader
     {
         this.sessionStore = sessionStore;
         this.sessionRepository = sessionRepository;
+        this.sessionTelemetryWriter = sessionTelemetryWriter;
+        this.sessionTelemetryProcessor = sessionTelemetryProcessor;
         this.sessionCacheStore = sessionCacheStore;
         this.httpApiService = httpApiService;
         this.backgroundTaskRunner = backgroundTaskRunner;
@@ -238,8 +244,12 @@ public sealed class SessionLoader
 
     private Task<TelemetryData?> LoadTelemetryDataAsync(Guid sessionId, CancellationToken cancellationToken)
     {
-        return backgroundTaskRunner.RunAsync(
-            () => sessionRepository.GetSessionPsstAsync(sessionId),
+        return backgroundTaskRunner.RunAsync<TelemetryData?>(
+            async () =>
+            {
+                var raw = await sessionRepository.GetSessionRawPsstAsync(sessionId);
+                return raw is null ? null : sessionTelemetryProcessor.ReadProcessedTelemetryData(raw);
+            },
             cancellationToken);
     }
 
@@ -271,7 +281,7 @@ public sealed class SessionLoader
         cancellationToken.ThrowIfCancellationRequested();
 
         await backgroundTaskRunner.RunAsync(
-            () => sessionRepository.PatchSessionPsstAsync(sessionId, psst),
+            () => sessionTelemetryWriter.PatchSessionPsstAsync(sessionId, psst),
             cancellationToken);
 
         var fresh = await backgroundTaskRunner.RunAsync(

@@ -21,12 +21,11 @@ namespace Sufni.App.Tests.Coordinators;
 
 public class ImportSessionsCoordinatorTests
 {
-    private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
+    private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
     private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
     private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
-    private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly RecordingBackgroundTaskRunner backgroundTaskRunner = new();
     private IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
     private readonly IDaqManagementService daqManagementService = Substitute.For<IDaqManagementService>();
@@ -58,7 +57,7 @@ public class ImportSessionsCoordinatorTests
                         SourceHash: source.SourceHash)));
             });
 
-        sessionRepository
+        sessionTelemetryWriter
             .PutProcessedSessionAsync(
                 Arg.Any<Session>(),
                 Arg.Any<Track?>(),
@@ -75,12 +74,11 @@ public class ImportSessionsCoordinatorTests
     }
 
     private ImportSessionsCoordinator CreateCoordinator() => new(
-        sessionRepository,
+        sessionTelemetryWriter,
         setupRepository,
         bikeRepository,
         sessionStore,
         sourceStore,
-        shell,
         backgroundTaskRunner,
         uiThreadDispatcher,
         daqManagementService,
@@ -171,7 +169,7 @@ public class ImportSessionsCoordinatorTests
 
         // Session persisted with the expected metadata.
         var expectedTimestamp = new DateTimeOffset(startTime).ToUnixTimeSeconds();
-        await sessionRepository.Received(1).PutProcessedSessionAsync(
+        await sessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
             Arg.Is<Session>(s =>
                 s.Name == "ride-01" &&
                 s.Description == "morning lap" &&
@@ -252,7 +250,7 @@ public class ImportSessionsCoordinatorTests
         var coordinator = CreateCoordinator();
         var result = await coordinator.ImportAsync(new[] { file }, setup.Id);
 
-        await sessionRepository.Received(1).PutProcessedSessionAsync(
+        await sessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
             Arg.Is<Session>(s =>
                 s.Name == "ride-gps" &&
                 s.ProcessedData != null &&
@@ -283,7 +281,7 @@ public class ImportSessionsCoordinatorTests
 
         await file.Received(1).OnTrashed();
         await file.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
-        await sessionRepository.DidNotReceive().PutProcessedSessionAsync(
+        await sessionTelemetryWriter.DidNotReceive().PutProcessedSessionAsync(
             Arg.Any<Session>(),
             Arg.Any<Track?>(),
             Arg.Any<RecordedSessionSource?>());
@@ -304,7 +302,7 @@ public class ImportSessionsCoordinatorTests
         await file.DidNotReceive().OnTrashed();
         await file.DidNotReceive().OnImported();
         await file.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
-        await sessionRepository.DidNotReceive().PutProcessedSessionAsync(
+        await sessionTelemetryWriter.DidNotReceive().PutProcessedSessionAsync(
             Arg.Any<Session>(),
             Arg.Any<Track?>(),
             Arg.Any<RecordedSessionSource?>());
@@ -332,7 +330,7 @@ public class ImportSessionsCoordinatorTests
         var failure = Assert.Single(result.Failures);
         Assert.Equal("broken", failure.FileName);
         Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
-        await sessionRepository.DidNotReceive().PutProcessedSessionAsync(
+        await sessionTelemetryWriter.DidNotReceive().PutProcessedSessionAsync(
             Arg.Any<Session>(),
             Arg.Any<Track?>(),
             Arg.Any<RecordedSessionSource?>());
@@ -349,7 +347,7 @@ public class ImportSessionsCoordinatorTests
     {
         var (setup, _) = SeedSetupAndBike();
         var file = CreateTelemetryFile(name: "persist-fail", shouldBeImported: true);
-        sessionRepository
+        sessionTelemetryWriter
             .PutProcessedSessionAsync(
                 Arg.Any<Session>(),
                 Arg.Any<Track?>(),
@@ -423,7 +421,7 @@ public class ImportSessionsCoordinatorTests
         Assert.Single(result.Failures);
         Assert.Single(result.Imported);
         Assert.Equal("ok", result.Imported[0].Name);
-        await sessionRepository.Received(1).PutProcessedSessionAsync(
+        await sessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
             Arg.Is<Session>(s => s.Name == "ok"),
             Arg.Any<Track?>(),
             Arg.Any<RecordedSessionSource?>());

@@ -27,6 +27,7 @@ public static class MobileAppBootstrapper
         services.AddSingleton<ISynchronizationClientService>(sp => new SynchronizationClientService(
             sp.GetRequiredService<ISyncDataStore>(),
             sp.GetRequiredService<ISessionRepository>(),
+            sp.GetRequiredService<ISessionTelemetryWriter>(),
             sp.GetRequiredService<IRecordedSessionSourceRepository>(),
             sp.GetRequiredService<IHttpApiService>(),
             sp.GetRequiredService<IAppPreferences>(),

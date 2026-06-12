@@ -14,7 +14,6 @@ using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.SessionDetails;
-using Sufni.App.Views.Controls;
 using Sufni.Telemetry;
 
 namespace Sufni.App.ViewModels.Editors;

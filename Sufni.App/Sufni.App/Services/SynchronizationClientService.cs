@@ -15,6 +15,7 @@ public class SynchronizationClientService : ISynchronizationClientService
 
     private readonly ISyncDataStore syncDataStore;
     private readonly ISessionRepository sessionRepository;
+    private readonly ISessionTelemetryWriter sessionTelemetryWriter;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly IHttpApiService httpApiService;
     private readonly IAppPreferences appPreferences;
@@ -23,16 +24,18 @@ public class SynchronizationClientService : ISynchronizationClientService
     public SynchronizationClientService(
         ISyncDataStore syncDataStore,
         ISessionRepository sessionRepository,
+        ISessionTelemetryWriter sessionTelemetryWriter,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IHttpApiService httpApiService,
         IAppPreferences appPreferences)
-        : this(syncDataStore, sessionRepository, recordedSessionSourceRepository, httpApiService, appPreferences, null)
+        : this(syncDataStore, sessionRepository, sessionTelemetryWriter, recordedSessionSourceRepository, httpApiService, appPreferences, null)
     {
     }
 
     internal SynchronizationClientService(
         ISyncDataStore syncDataStore,
         ISessionRepository sessionRepository,
+        ISessionTelemetryWriter sessionTelemetryWriter,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IHttpApiService httpApiService,
         IAppPreferences appPreferences,
@@ -40,6 +43,7 @@ public class SynchronizationClientService : ISynchronizationClientService
     {
         this.syncDataStore = syncDataStore;
         this.sessionRepository = sessionRepository;
+        this.sessionTelemetryWriter = sessionTelemetryWriter;
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.httpApiService = httpApiService;
         this.appPreferences = appPreferences;
@@ -136,7 +140,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             var psst = await httpApiService.GetSessionPsstAsync(id);
             if (psst is not null)
             {
-                await sessionRepository.PatchSessionPsstAsync(id, psst);
+                await sessionTelemetryWriter.PatchSessionPsstAsync(id, psst);
                 downloadedCount++;
             }
         }

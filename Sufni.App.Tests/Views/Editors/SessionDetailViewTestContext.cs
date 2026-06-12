@@ -166,7 +166,7 @@ internal sealed class SessionDetailViewTestContext
             recordedSessionGraph,
             sessionPresentationService,
             sessionAnalysisService,
-            tileLayerService,
+            new TestMapViewModelFactory(tileLayerService),
             shell,
             dialogService,
             sessionPreferences,

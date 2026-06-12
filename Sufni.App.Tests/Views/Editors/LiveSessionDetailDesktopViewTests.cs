@@ -118,7 +118,7 @@ public class LiveSessionDetailDesktopViewTests
             sessionCoordinator,
             sessionPresentationService,
             backgroundTaskRunner,
-            tileLayerService,
+            new TestMapViewModelFactory(tileLayerService),
             shell,
             dialogService,
             new InlineUiThreadDispatcher())

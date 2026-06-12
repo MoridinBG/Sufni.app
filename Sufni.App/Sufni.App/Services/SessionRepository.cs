@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using SQLite;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.Models;
-using Sufni.Telemetry;
 
 using static Sufni.App.Services.PersistenceGuards;
 
@@ -20,8 +19,6 @@ public interface ISessionRepository
     Task<Session?> GetSessionAsync(Guid id);
 
     Task<List<Guid>> GetIncompleteSessionIdsAsync();
-
-    Task<TelemetryData?> GetSessionPsstAsync(Guid id);
 
     Task<byte[]?> GetSessionRawPsstAsync(Guid id);
 
@@ -37,15 +34,13 @@ public interface ISessionRepository
         RecordedSessionSource? source,
         long baselineUpdated);
 
-    Task PatchSessionPsstAsync(Guid id, byte[] data);
+    Task UpdateSessionPsstAsync(Guid id, byte[] data, SessionSummaryMetrics metrics);
 
-    Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points);
+    Task UpdateSessionTrackAsync(Guid id, List<TrackPoint> points, SessionSummaryMetrics metrics);
 }
 
 internal sealed class SessionRepository(
-    SqliteConnectionContext connectionContext,
-    ISessionTelemetryProcessor sessionTelemetryProcessor,
-    ITrackRepository trackRepository) : ISessionRepository
+    SqliteConnectionContext connectionContext) : ISessionRepository
 {
     private static readonly string ActiveSessionMetadataProjection = $"""
                                                                      id,
@@ -163,19 +158,6 @@ internal sealed class SessionRepository(
         return (await connection.QueryAsync<Session>(query)).Select(session => session.Id).ToList();
     }
 
-    public async Task<TelemetryData?> GetSessionPsstAsync(Guid id)
-    {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        var sessions = await connection.QueryAsync<Session>(
-            "SELECT data FROM session WHERE deleted IS null AND id = ?", id);
-        if (sessions.Count != 1 || sessions[0].ProcessedData is not { } processedData)
-        {
-            return null;
-        }
-
-        return sessionTelemetryProcessor.ReadProcessedTelemetryData(processedData);
-    }
-
     public async Task<byte[]?> GetSessionRawPsstAsync(Guid id)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
@@ -229,25 +211,11 @@ internal sealed class SessionRepository(
         return PutProcessedSessionCoreAsync(session, newFullTrack, source, baselineUpdated);
     }
 
-    public async Task PatchSessionPsstAsync(Guid id, byte[] data)
+    public async Task UpdateSessionPsstAsync(Guid id, byte[] data, SessionSummaryMetrics metrics)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
 
-        var session = await connection.Table<Session>()
-            .Where(candidate => candidate.Id == id && candidate.Deleted == null)
-            .FirstOrDefaultAsync();
-        if (session is null)
-        {
-            throw new Exception($"Session {id} does not exist.");
-        }
-
-        var telemetryData = sessionTelemetryProcessor.ReadProcessedTelemetryData(data);
-        session.ProcessedData = data;
-        var durationSeconds = telemetryData.Metadata?.Duration ?? session.DurationSeconds;
-        var metrics = sessionTelemetryProcessor.ComputeSummaryMetrics(durationSeconds, session.Track);
-        var hasTrackPoints = session.Track is { Count: > 0 };
-
-        await connection.ExecuteAsync(
+        var updatedRows = await connection.ExecuteAsync(
             """
             UPDATE session
             SET
@@ -256,35 +224,27 @@ internal sealed class SessionRepository(
                 distance_meters=?,
                 ascent_meters=?,
                 descent_meters=?
-            WHERE id=?
+            WHERE id=? AND deleted IS NULL
             """,
             data,
             metrics.DurationSeconds,
-            hasTrackPoints ? metrics.DistanceMeters : session.DistanceMeters,
-            hasTrackPoints ? metrics.AscentMeters : session.AscentMeters,
-            hasTrackPoints ? metrics.DescentMeters : session.DescentMeters,
+            metrics.DistanceMeters,
+            metrics.AscentMeters,
+            metrics.DescentMeters,
             id);
-    }
-
-    public async Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points)
-    {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-
-        var session = await connection.Table<Session>()
-            .Where(candidate => candidate.Id == id && candidate.Deleted == null)
-            .FirstOrDefaultAsync();
-        if (session is null)
+        if (updatedRows == 0)
         {
             throw new Exception($"Session {id} does not exist.");
         }
+    }
 
-        session.Track = points;
-        var metrics = sessionTelemetryProcessor.ComputeSummaryMetrics(
-            sessionTelemetryProcessor.ReadProcessedDurationSeconds(session.ProcessedData) ?? session.DurationSeconds,
-            points);
+    public async Task UpdateSessionTrackAsync(Guid id, List<TrackPoint> points, SessionSummaryMetrics metrics)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+
         var pointsJson = AppJson.Serialize(points);
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        await connection.ExecuteAsync(
+        var updatedRows = await connection.ExecuteAsync(
             """
             UPDATE session
             SET
@@ -294,7 +254,7 @@ internal sealed class SessionRepository(
                 ascent_meters=?,
                 descent_meters=?,
                 updated=?
-            WHERE id=?
+            WHERE id=? AND deleted IS NULL
             """,
             pointsJson,
             metrics.DurationSeconds,
@@ -303,6 +263,10 @@ internal sealed class SessionRepository(
             metrics.DescentMeters,
             now,
             id);
+        if (updatedRows == 0)
+        {
+            throw new Exception($"Session {id} does not exist.");
+        }
     }
 
     private async Task<Session?> PutProcessedSessionCoreAsync(
@@ -339,12 +303,6 @@ internal sealed class SessionRepository(
 
                 session.FullTrack = newFullTrack.Id;
             }
-            else if (session.FullTrack is null && session.Timestamp.HasValue)
-            {
-                session.FullTrack = await trackRepository.FindTrackContainingTimestampAsync(session.Timestamp.Value);
-            }
-
-            await ApplySessionSummaryMetricsAsync(connection, session, newFullTrack);
 
             var existingSession = await EntityExistsAsync<Session>(connection, session.Id);
             session.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -389,70 +347,6 @@ internal sealed class SessionRepository(
 
         return await GetSessionAsync(session.Id)
                ?? throw new InvalidOperationException($"Session {session.Id} was not found after processed-session persistence.");
-    }
-
-    private async Task ApplySessionSummaryMetricsAsync(
-        SQLiteAsyncConnection connection,
-        Session session,
-        Track? generatedFullTrack)
-    {
-        var durationSeconds = sessionTelemetryProcessor.ReadProcessedDurationSeconds(session.ProcessedData) ?? session.DurationSeconds;
-        var points = await GetMetricTrackPointsAsync(connection, session, generatedFullTrack, durationSeconds);
-        var metrics = sessionTelemetryProcessor.ComputeSummaryMetrics(durationSeconds, points);
-
-        session.DurationSeconds = metrics.DurationSeconds;
-        session.DistanceMeters = metrics.DistanceMeters;
-        session.AscentMeters = metrics.AscentMeters;
-        session.DescentMeters = metrics.DescentMeters;
-    }
-
-    private async Task<IReadOnlyList<TrackPoint>?> GetMetricTrackPointsAsync(
-        SQLiteAsyncConnection connection,
-        Session session,
-        Track? generatedFullTrack,
-        double? durationSeconds)
-    {
-        if (session.Track is { Count: > 0 })
-        {
-            return session.Track;
-        }
-
-        if (generatedFullTrack?.Points is { Count: > 0 } generatedPoints)
-        {
-            return generatedPoints;
-        }
-
-        return await TryGenerateSessionTrackFromFullTrackAsync(
-            connection,
-            session.FullTrack,
-            session.Timestamp,
-            durationSeconds);
-    }
-
-    private async Task<List<TrackPoint>?> TryGenerateSessionTrackFromFullTrackAsync(
-        SQLiteAsyncConnection connection,
-        Guid? fullTrackId,
-        long? timestamp,
-        double? durationSeconds)
-    {
-        if (!fullTrackId.HasValue ||
-            !timestamp.HasValue ||
-            durationSeconds is not { } duration ||
-            !double.IsFinite(duration) ||
-            duration <= 0)
-        {
-            return null;
-        }
-
-        var fullTrack = await connection.Table<Track>()
-            .Where(track => track.Id == fullTrackId.Value && track.Deleted == null)
-            .FirstOrDefaultAsync();
-        if (fullTrack is null)
-        {
-            return null;
-        }
-
-        return sessionTelemetryProcessor.GenerateSessionTrackFromFullTrack(fullTrack, timestamp, durationSeconds);
     }
 
     private static Task<int> UpdateProcessedSessionAsync(

@@ -6,7 +6,6 @@ using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
@@ -14,7 +13,6 @@ using Sufni.App.SessionDetails;
 using Sufni.App.Stores;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.SessionPages;
-using Sufni.App.Views.Controls;
 using Sufni.Telemetry;
 
 namespace Sufni.App.ViewModels.Editors;

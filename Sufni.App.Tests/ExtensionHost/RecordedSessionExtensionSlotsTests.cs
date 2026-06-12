@@ -8,7 +8,6 @@ using Sufni.App.Views.Controls;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Plots;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.App.Tests.Infrastructure;
 

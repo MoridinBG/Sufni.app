@@ -12,6 +12,7 @@ using Sufni.App.SessionDetails;
 using Sufni.App.Services.Management;
 using Sufni.App.SessionGraph;
 using Sufni.App.Stores;
+using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
@@ -253,7 +254,7 @@ public class EditorFactoryTests
             Substitute.For<IRecordedSessionGraph>(),
             Substitute.For<ISessionPresentationService>(),
             Substitute.For<ISessionAnalysisService>(),
-            Substitute.For<ITileLayerService>(),
+            new TestMapViewModelFactory(Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges()),
             Substitute.For<ISessionPreferences>(),
             TestCoordinatorSubstitutes.LiveDaq(),
             Substitute.For<IDaqManagementService>(),

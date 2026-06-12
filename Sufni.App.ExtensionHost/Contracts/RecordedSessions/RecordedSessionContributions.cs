@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using Sufni.App.ExtensionHost.Contracts.Plots;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 namespace Sufni.App.ExtensionHost.Contracts.RecordedSessions;

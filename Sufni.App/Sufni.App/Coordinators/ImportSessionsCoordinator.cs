@@ -22,12 +22,11 @@ namespace Sufni.App.Coordinators;
 /// persists both the canonical raw source and the derived session data.
 /// </summary>
 public class ImportSessionsCoordinator(
-    ISessionRepository sessionRepository,
+    ISessionTelemetryWriter sessionTelemetryWriter,
     ISynchronizableRepository<Setup> setupRepository,
     ISynchronizableRepository<Bike> bikeRepository,
     ISessionStoreWriter sessionStore,
     IRecordedSessionSourceStoreWriter sourceStore,
-    IShellCoordinator shell,
     IBackgroundTaskRunner backgroundTaskRunner,
     IUiThreadDispatcher uiThreadDispatcher,
     IDaqManagementService daqManagementService,
@@ -155,7 +154,7 @@ public class ImportSessionsCoordinator(
                         session.ProcessingFingerprintJson = AppJson.Serialize(reprocessResult.Fingerprint);
 
                         logger.Verbose("Persisting imported session for {FileName}", telemetryFile.Name);
-                        var persisted = await sessionRepository.PutProcessedSessionAsync(
+                        var persisted = await sessionTelemetryWriter.PutProcessedSessionAsync(
                             session,
                             reprocessResult.GeneratedFullTrack,
                             source);

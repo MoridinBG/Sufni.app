@@ -15,6 +15,8 @@ internal sealed class TestPersistenceHarness
     private readonly SqliteConnectionContext context;
     private readonly ITrackRepository trackRepository;
     private readonly ISessionRepository sessionRepository;
+    private readonly ISessionTelemetryProcessor sessionTelemetryProcessor;
+    private readonly ISessionTelemetryWriter sessionTelemetryWriter;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly ISyncDataStore syncDataStore;
     private readonly IExtensionDatabaseConnection extensionDatabaseConnection;
@@ -35,11 +37,17 @@ internal sealed class TestPersistenceHarness
     {
         this.context = context;
         trackRepository = new TrackRepository(context);
-        sessionRepository = new SessionRepository(context, new SessionTelemetryProcessor(), trackRepository);
+        sessionRepository = new SessionRepository(context);
+        sessionTelemetryProcessor = new SessionTelemetryProcessor();
+        sessionTelemetryWriter = new SessionTelemetryWriter(sessionRepository, trackRepository, sessionTelemetryProcessor);
         recordedSessionSourceRepository = new RecordedSessionSourceRepository(context);
         syncDataStore = new SynchronizationMergeEngine(context, trackRepository);
         extensionDatabaseConnection = new ExtensionDatabaseConnection(context);
     }
+
+    public ISessionRepository SessionRepository => sessionRepository;
+
+    public ISessionTelemetryWriter SessionTelemetryWriter => sessionTelemetryWriter;
 
     public Task<SQLiteAsyncConnection> GetInitializedConnectionAsync() =>
         context.GetInitializedConnectionAsync();
@@ -84,8 +92,11 @@ internal sealed class TestPersistenceHarness
     public Task<List<Guid>> GetIncompleteSessionIdsAsync() =>
         sessionRepository.GetIncompleteSessionIdsAsync();
 
-    public Task<TelemetryData?> GetSessionPsstAsync(Guid id) =>
-        sessionRepository.GetSessionPsstAsync(id);
+    public async Task<TelemetryData?> GetSessionPsstAsync(Guid id)
+    {
+        var raw = await sessionRepository.GetSessionRawPsstAsync(id);
+        return raw is null ? null : sessionTelemetryProcessor.ReadProcessedTelemetryData(raw);
+    }
 
     public Task<byte[]?> GetSessionRawPsstAsync(Guid id) =>
         sessionRepository.GetSessionRawPsstAsync(id);
@@ -100,20 +111,20 @@ internal sealed class TestPersistenceHarness
         Session session,
         Track? newFullTrack,
         RecordedSessionSource? source) =>
-        sessionRepository.PutProcessedSessionAsync(session, newFullTrack, source);
+        sessionTelemetryWriter.PutProcessedSessionAsync(session, newFullTrack, source);
 
     public Task<Session?> PutProcessedSessionIfUnchangedAsync(
         Session session,
         Track? newFullTrack,
         RecordedSessionSource? source,
         long baselineUpdated) =>
-        sessionRepository.PutProcessedSessionIfUnchangedAsync(session, newFullTrack, source, baselineUpdated);
+        sessionTelemetryWriter.PutProcessedSessionIfUnchangedAsync(session, newFullTrack, source, baselineUpdated);
 
     public Task PatchSessionPsstAsync(Guid id, byte[] data) =>
-        sessionRepository.PatchSessionPsstAsync(id, data);
+        sessionTelemetryWriter.PatchSessionPsstAsync(id, data);
 
     public Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points) =>
-        sessionRepository.PatchSessionTrackAsync(id, points);
+        sessionTelemetryWriter.PatchSessionTrackAsync(id, points);
 
     public Task<List<RecordedSessionSource>> GetRecordedSessionSourcesAsync() =>
         recordedSessionSourceRepository.GetRecordedSessionSourcesAsync();
