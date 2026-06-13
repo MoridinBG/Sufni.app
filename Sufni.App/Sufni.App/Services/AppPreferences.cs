@@ -653,10 +653,11 @@ public sealed class AppPreferences : IAppPreferences
     {
         public string? PaneId { get; set; }
         public double? Ratio { get; set; }
+        public bool? IsCollapsed { get; set; }
 
         public SessionPaneSizePreference ToModel()
         {
-            return new SessionPaneSizePreference(PaneId ?? "", Ratio ?? 0);
+            return new SessionPaneSizePreference(PaneId ?? "", Ratio ?? 0, IsCollapsed ?? false);
         }
 
         public static SessionPaneSizePreferenceDocument FromModel(SessionPaneSizePreference preferences)
@@ -665,6 +666,7 @@ public sealed class AppPreferences : IAppPreferences
             {
                 PaneId = preferences.PaneId,
                 Ratio = preferences.Ratio,
+                IsCollapsed = preferences.IsCollapsed,
             };
         }
     }

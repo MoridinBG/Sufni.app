@@ -1,15 +1,24 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Layout;
+using Sufni.App.DesktopViews.Controls;
 using Sufni.App.Models;
 
 namespace Sufni.App.DesktopViews.Editors;
 
 public partial class SessionShellDesktopView : UserControl
 {
+    private const double DefaultMediaColumnWidth = 400;
+
     private bool applyingLayoutPreferences;
 
     public static readonly StyledProperty<bool> HasMediaContentProperty =
         AvaloniaProperty.Register<SessionShellDesktopView, bool>(nameof(HasMediaContent));
+
+    public static readonly StyledProperty<double> MediaColumnWidthProperty =
+        AvaloniaProperty.Register<SessionShellDesktopView, double>(
+            nameof(MediaColumnWidth),
+            defaultValue: DefaultMediaColumnWidth);
 
     public static readonly StyledProperty<Control?> GraphContentProperty =
         AvaloniaProperty.Register<SessionShellDesktopView, Control?>(nameof(GraphContent));
@@ -34,6 +43,7 @@ public partial class SessionShellDesktopView : UserControl
     static SessionShellDesktopView()
     {
         HasMediaContentProperty.Changed.AddClassHandler<SessionShellDesktopView>((view, _) => view.ApplyLayoutPreferences());
+        MediaColumnWidthProperty.Changed.AddClassHandler<SessionShellDesktopView>((view, _) => view.ApplyMediaColumnWidth());
         LayoutPreferencesProperty.Changed.AddClassHandler<SessionShellDesktopView>((view, _) => view.ApplyLayoutPreferences());
     }
 
@@ -47,6 +57,12 @@ public partial class SessionShellDesktopView : UserControl
     {
         get => GetValue(HasMediaContentProperty);
         set => SetValue(HasMediaContentProperty, value);
+    }
+
+    public double MediaColumnWidth
+    {
+        get => GetValue(MediaColumnWidthProperty);
+        set => SetValue(MediaColumnWidthProperty, value);
     }
 
     public Control? MediaContent
@@ -82,31 +98,16 @@ public partial class SessionShellDesktopView : UserControl
     public SessionShellDesktopView()
     {
         InitializeComponent();
-        SessionSectionGridSizing.AttachColumnReset(
-            this.FindControl<GridSplitter>("MediaSplitter"),
-            this.FindControl<Grid>("TopLayoutGrid")!,
-            (0, new GridLength(1, GridUnitType.Star)),
-            (2, GridLength.Auto));
-        SessionSectionGridSizing.AttachRowReset(
-            this.FindControl<GridSplitter>("TelemetryStatisticsSplitter"),
-            this.FindControl<Grid>("RootLayoutGrid")!,
-            (0, new GridLength(1, GridUnitType.Star)),
-            (2, new GridLength(1, GridUnitType.Star)));
-        SessionSectionGridSizing.AttachColumnReset(
-            this.FindControl<GridSplitter>("StatisticsSidebarSplitter"),
-            this.FindControl<Grid>("BottomLayoutGrid")!,
-            (0, new GridLength(1, GridUnitType.Star)),
-            (2, new GridLength(400, GridUnitType.Pixel)));
-        SessionSectionGridSizing.AttachCommit(
-            this.FindControl<GridSplitter>("MediaSplitter"),
-            PublishLayoutPreferences);
-        SessionSectionGridSizing.AttachCommit(
-            this.FindControl<GridSplitter>("TelemetryStatisticsSplitter"),
-            PublishLayoutPreferences);
-        SessionSectionGridSizing.AttachCommit(
-            this.FindControl<GridSplitter>("StatisticsSidebarSplitter"),
-            PublishLayoutPreferences);
+        ShellRowsSplit.PropertyChanged += OnShellRowsSplitPropertyChanged;
+        GraphMediaSplit.PropertyChanged += OnGraphMediaSplitPropertyChanged;
+        StatisticsSidebarSplit.PropertyChanged += OnStatisticsSidebarSplitPropertyChanged;
+        ApplyMediaColumnWidth();
         ApplyLayoutPreferences();
+    }
+
+    private void ApplyMediaColumnWidth()
+    {
+        GraphMediaSplit.DefaultSecondLength = new GridLength(NormalizeMediaColumnWidth(MediaColumnWidth));
     }
 
     private void ApplyLayoutPreferences()
@@ -114,9 +115,9 @@ public partial class SessionShellDesktopView : UserControl
         applyingLayoutPreferences = true;
         try
         {
-            ApplyRootRows();
-            ApplyTopColumns();
-            ApplyBottomColumns();
+            ShellRowsSplit.Preferences = LayoutPreferences.DesktopShellRows;
+            GraphMediaSplit.Preferences = HasMediaContent ? LayoutPreferences.DesktopGraphMediaColumns : null;
+            StatisticsSidebarSplit.Preferences = LayoutPreferences.DesktopStatisticsSidebarColumns;
         }
         finally
         {
@@ -124,79 +125,60 @@ public partial class SessionShellDesktopView : UserControl
         }
     }
 
-    private void ApplyRootRows()
+    private void OnShellRowsSplitPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs args)
     {
-        var grid = RootLayoutGrid;
-        SessionSectionGridSizing.ResetRows(
-            grid,
-            (0, new GridLength(1, GridUnitType.Star)),
-            (2, new GridLength(1, GridUnitType.Star)));
-        SessionSectionGridSizing.TryApplyRowRatios(
-            grid,
-            LayoutPreferences.DesktopShellRows,
-            [
-                (0, SessionLayoutPaneIds.GraphMediaArea),
-                (2, SessionLayoutPaneIds.StatisticsSidebarArea),
-            ]);
+        if (args.Property == CollapsibleSplitView.PreferencesProperty)
+        {
+            UpdateShellRowsPreferences(ShellRowsSplit.Preferences);
+        }
     }
 
-    private void ApplyTopColumns()
+    private void OnGraphMediaSplitPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs args)
     {
-        var grid = TopLayoutGrid;
-        SessionSectionGridSizing.ResetColumns(
-            grid,
-            (0, new GridLength(1, GridUnitType.Star)),
-            (2, HasMediaContent ? GridLength.Auto : new GridLength(0)));
-        if (!HasMediaContent)
+        if (args.Property == CollapsibleSplitView.PreferencesProperty)
+        {
+            UpdateGraphMediaPreferences(GraphMediaSplit.Preferences);
+        }
+    }
+
+    private void OnStatisticsSidebarSplitPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs args)
+    {
+        if (args.Property == CollapsibleSplitView.PreferencesProperty)
+        {
+            UpdateStatisticsSidebarPreferences(StatisticsSidebarSplit.Preferences);
+        }
+    }
+
+    private void UpdateShellRowsPreferences(SessionPaneGroupPreferences? value)
+    {
+        if (applyingLayoutPreferences)
         {
             return;
         }
 
-        SessionSectionGridSizing.TryApplyColumnRatios(
-            grid,
-            LayoutPreferences.DesktopGraphMediaColumns,
-            [
-                (0, SessionLayoutPaneIds.Graph),
-                (2, SessionLayoutPaneIds.Media),
-            ]);
+        LayoutPreferences = LayoutPreferences with { DesktopShellRows = value };
     }
 
-    private void ApplyBottomColumns()
+    private void UpdateGraphMediaPreferences(SessionPaneGroupPreferences? value)
     {
-        var grid = BottomLayoutGrid;
-        SessionSectionGridSizing.ResetColumns(
-            grid,
-            (0, new GridLength(1, GridUnitType.Star)),
-            (2, new GridLength(400, GridUnitType.Pixel)));
-        SessionSectionGridSizing.TryApplyColumnRatios(
-            grid,
-            LayoutPreferences.DesktopStatisticsSidebarColumns,
-            [
-                (0, SessionLayoutPaneIds.Statistics),
-                (2, SessionLayoutPaneIds.Sidebar),
-            ]);
-    }
-
-    private void PublishLayoutPreferences()
-    {
-        if (applyingLayoutPreferences || VisualRoot is null)
+        if (applyingLayoutPreferences)
         {
             return;
         }
 
-        LayoutPreferences = LayoutPreferences with
-        {
-            DesktopShellRows = SessionSectionGridSizing.CaptureRatios(
-                (SessionLayoutPaneIds.GraphMediaArea, TopLayoutGrid.Bounds.Height),
-                (SessionLayoutPaneIds.StatisticsSidebarArea, BottomLayoutGrid.Bounds.Height)),
-            DesktopGraphMediaColumns = HasMediaContent
-                ? SessionSectionGridSizing.CaptureRatios(
-                    (SessionLayoutPaneIds.Graph, GraphHost.Bounds.Width),
-                    (SessionLayoutPaneIds.Media, MediaHost.Bounds.Width))
-                : null,
-            DesktopStatisticsSidebarColumns = SessionSectionGridSizing.CaptureRatios(
-                (SessionLayoutPaneIds.Statistics, StatisticsHost.Bounds.Width),
-                (SessionLayoutPaneIds.Sidebar, SidebarHost.Bounds.Width)),
-        };
+        LayoutPreferences = LayoutPreferences with { DesktopGraphMediaColumns = HasMediaContent ? value : null };
     }
+
+    private void UpdateStatisticsSidebarPreferences(SessionPaneGroupPreferences? value)
+    {
+        if (applyingLayoutPreferences)
+        {
+            return;
+        }
+
+        LayoutPreferences = LayoutPreferences with { DesktopStatisticsSidebarColumns = value };
+    }
+
+    private static double NormalizeMediaColumnWidth(double width) =>
+        double.IsFinite(width) && width > 0 ? width : DefaultMediaColumnWidth;
 }

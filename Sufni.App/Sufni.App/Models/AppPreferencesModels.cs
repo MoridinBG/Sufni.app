@@ -244,38 +244,54 @@ public sealed record SessionPaneGroupPreferences
     [JsonPropertyName("panes")]
     public IReadOnlyList<SessionPaneSizePreference> Panes { get; init; } = [];
 
-    public bool TryGetRatios(IReadOnlyList<string> paneIds, out IReadOnlyList<double> ratios)
+    public bool TryGetPaneStates(
+        IReadOnlyList<string> paneIds,
+        out IReadOnlyList<SessionPaneStatePreference> states)
     {
-        ratios = [];
+        states = [];
         if (paneIds.Count == 0 || Panes.Count != paneIds.Count)
         {
             return false;
         }
 
-        var ratiosById = new Dictionary<string, double>(StringComparer.Ordinal);
+        var statesById = new Dictionary<string, SessionPaneStatePreference>(StringComparer.Ordinal);
         foreach (var pane in Panes)
         {
             if (string.IsNullOrWhiteSpace(pane.PaneId) ||
                 !double.IsFinite(pane.Ratio) ||
                 pane.Ratio <= 0 ||
-                !ratiosById.TryAdd(pane.PaneId, pane.Ratio))
+                !statesById.TryAdd(
+                    pane.PaneId,
+                    new SessionPaneStatePreference(pane.PaneId, pane.Ratio, pane.IsCollapsed)))
             {
                 return false;
             }
         }
 
-        var values = new double[paneIds.Count];
+        var values = new SessionPaneStatePreference[paneIds.Count];
         for (var i = 0; i < paneIds.Count; i++)
         {
-            if (!ratiosById.TryGetValue(paneIds[i], out var ratio))
+            if (!statesById.TryGetValue(paneIds[i], out var state))
             {
                 return false;
             }
 
-            values[i] = ratio;
+            values[i] = state;
         }
 
-        ratios = values;
+        states = values;
+        return true;
+    }
+
+    public bool TryGetRatios(IReadOnlyList<string> paneIds, out IReadOnlyList<double> ratios)
+    {
+        ratios = [];
+        if (!TryGetPaneStates(paneIds, out var states))
+        {
+            return false;
+        }
+
+        ratios = states.Select(static state => state.Ratio).ToArray();
         return true;
     }
 
@@ -296,9 +312,15 @@ public sealed record SessionPaneGroupPreferences
     }
 }
 
+public sealed record SessionPaneStatePreference(
+    string PaneId,
+    double Ratio,
+    bool IsCollapsed);
+
 public sealed record SessionPaneSizePreference(
     [property: JsonPropertyName("pane_id")] string PaneId,
-    [property: JsonPropertyName("ratio")] double Ratio);
+    [property: JsonPropertyName("ratio")] double Ratio,
+    [property: JsonPropertyName("is_collapsed")] bool IsCollapsed = false);
 
 public static class SessionLayoutPaneIds
 {

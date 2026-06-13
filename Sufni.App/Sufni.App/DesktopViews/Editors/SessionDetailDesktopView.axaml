@@ -60,7 +60,8 @@ mc:Ignorable="d">
         <editors:SessionShellDesktopView
             HasMediaContent="{Binding MediaWorkspace.HasMediaContent}"
             IsVisible="{Binding SessionContext.ScreenState.IsReady}"
-            LayoutPreferences="{Binding LayoutPreferences, Mode=TwoWay}">
+            LayoutPreferences="{Binding LayoutPreferences, Mode=TwoWay}"
+            MediaColumnWidth="{Binding MediaWorkspace.MediaColumnWidth, TargetNullValue=400}">
 
             <editors:SessionShellDesktopView.GraphContent>
                 <items:RecordedSessionGraphDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).GraphWorkspace}" />

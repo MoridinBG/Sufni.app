@@ -1,4 +1,6 @@
 using System;
+using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -101,6 +103,8 @@ public partial class MapView : UserControl
         // Setup initial layers
         if (mapControl != null)
         {
+            mapControl.Map = new Mapsui.Map();
+            RemoveLoggingWidgets();
             var trackLayer = CreateFullTrackLayer(); // Initially empty until ViewModel updates
             mapControl.Map.Layers.Add(trackLayer);
 
@@ -279,6 +283,47 @@ public partial class MapView : UserControl
         layer.Features = features;
         layer.DataHasChanged();
         mapControl.Refresh();
+    }
+
+    private void RemoveLoggingWidgets()
+    {
+        if (mapControl is null)
+        {
+            return;
+        }
+
+        var widgets = mapControl.Map.Widgets;
+        if (widgets is ConcurrentQueue<IWidget> widgetQueue)
+        {
+            var retainedWidgets = widgetQueue
+                .Where(static widget => widget is not LoggingWidget)
+                .ToArray();
+            widgetQueue.Clear();
+            foreach (var widget in retainedWidgets)
+            {
+                widgetQueue.Enqueue(widget);
+            }
+
+            return;
+        }
+
+        foreach (var widget in mapControl.Map.Widgets.OfType<LoggingWidget>().ToArray())
+        {
+            if (widgets is ICollection<IWidget> widgetCollection)
+            {
+                widgetCollection.Remove(widget);
+                continue;
+            }
+
+            if (widgets is IList widgetList)
+            {
+                widgetList.Remove(widget);
+                continue;
+            }
+
+            var removeMethod = widgets.GetType().GetMethod("Remove", [typeof(IWidget)]);
+            removeMethod?.Invoke(widgets, [widget]);
+        }
     }
 
     private static void AddExtensionOverlayFeatures(

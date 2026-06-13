@@ -26,7 +26,10 @@ mc:Ignorable="d">
     </Interaction.Behaviors>
 
     <Grid>
-        <editors:SessionShellDesktopView HasMediaContent="{Binding MediaWorkspace.HasMediaContent}" IsVisible="{Binding ScreenState.IsReady}">
+        <editors:SessionShellDesktopView
+            HasMediaContent="{Binding MediaWorkspace.HasMediaContent}"
+            IsVisible="{Binding ScreenState.IsReady}"
+            MediaColumnWidth="{Binding MediaWorkspace.MediaColumnWidth, TargetNullValue=400}">
 
             <editors:SessionShellDesktopView.GraphContent>
                 <items:LiveSessionGraphDesktopView DataContext="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext).GraphWorkspace}" />

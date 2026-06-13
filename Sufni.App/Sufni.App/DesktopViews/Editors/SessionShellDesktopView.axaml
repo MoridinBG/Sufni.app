@@ -3,8 +3,10 @@ x:Class="Sufni.App.DesktopViews.Editors.SessionShellDesktopView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:desktopControls="clr-namespace:Sufni.App.DesktopViews.Controls"
 xmlns:editors="clr-namespace:Sufni.App.DesktopViews.Editors"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:models="clr-namespace:Sufni.App.Models"
 d:DesignHeight="800"
 d:DesignWidth="800"
 x:Name="Root"
@@ -12,45 +14,56 @@ x:DataType="editors:SessionShellDesktopView"
 Background="{DynamicResource SufniSurfacePage}"
 mc:Ignorable="d">
 
-    <Grid x:Name="RootLayoutGrid" RowDefinitions="* auto *">
+    <desktopControls:CollapsibleSplitView
+        x:Name="ShellRowsSplit"
+        FirstPaneId="{x:Static models:SessionLayoutPaneIds.GraphMediaArea}"
+        FirstPaneLabel="graph and media"
+        Orientation="Vertical"
+        SecondPaneId="{x:Static models:SessionLayoutPaneIds.StatisticsSidebarArea}"
+        SecondPaneLabel="statistics and sidebar">
 
-        <Grid x:Name="TopLayoutGrid" Grid.Row="0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="0" />
-            </Grid.ColumnDefinitions>
+        <desktopControls:CollapsibleSplitView.FirstContent>
+            <desktopControls:CollapsibleSplitView
+                x:Name="GraphMediaSplit"
+                DefaultFirstLength="*"
+                DefaultSecondLength="Auto"
+                FirstPaneId="{x:Static models:SessionLayoutPaneIds.Graph}"
+                FirstPaneLabel="graphs"
+                HasSecondPane="{Binding #Root.HasMediaContent}"
+                Orientation="Horizontal"
+                SecondPaneId="{x:Static models:SessionLayoutPaneIds.Media}"
+                SecondPaneLabel="media">
 
-            <ContentControl Name="GraphHost" Grid.Column="0" Content="{Binding #Root.GraphContent}" />
+                <desktopControls:CollapsibleSplitView.FirstContent>
+                    <ContentControl Name="GraphHost" Content="{Binding #Root.GraphContent}" />
+                </desktopControls:CollapsibleSplitView.FirstContent>
 
-            <GridSplitter
-            Name="MediaSplitter"
-            Grid.Column="1"
-            ResizeDirection="Columns"
-            IsVisible="{Binding #Root.HasMediaContent}" />
+                <desktopControls:CollapsibleSplitView.SecondContent>
+                    <ContentControl
+                        Name="MediaHost"
+                        Margin="0,39,0,0"
+                        Content="{Binding #Root.MediaContent}" />
+                </desktopControls:CollapsibleSplitView.SecondContent>
+            </desktopControls:CollapsibleSplitView>
+        </desktopControls:CollapsibleSplitView.FirstContent>
 
-            <ContentControl
-            Name="MediaHost"
-            Grid.Column="2"
-            Margin="0,39,0,0"
-            IsVisible="{Binding #Root.HasMediaContent}"
-            Content="{Binding #Root.MediaContent}" />
-        </Grid>
+        <desktopControls:CollapsibleSplitView.SecondContent>
+            <desktopControls:CollapsibleSplitView
+                x:Name="StatisticsSidebarSplit"
+                DefaultFirstLength="*"
+                DefaultSecondLength="400"
+                FirstPaneId="{x:Static models:SessionLayoutPaneIds.Statistics}"
+                FirstPaneLabel="statistics"
+                Orientation="Horizontal"
+                SecondPaneId="{x:Static models:SessionLayoutPaneIds.Sidebar}"
+                SecondPaneLabel="sidebar">
 
-        <GridSplitter
-        x:Name="TelemetryStatisticsSplitter"
-        Grid.Row="1"
-        ResizeDirection="Rows" />
+                <desktopControls:CollapsibleSplitView.FirstContent>
+                    <ContentControl Name="StatisticsHost" Content="{Binding #Root.StatisticsContent}" />
+                </desktopControls:CollapsibleSplitView.FirstContent>
 
-        <Grid x:Name="BottomLayoutGrid" Grid.Row="2" ColumnDefinitions="* auto 400">
-            <ContentControl Name="StatisticsHost" Grid.Column="0" Content="{Binding #Root.StatisticsContent}" />
-
-            <GridSplitter
-            x:Name="StatisticsSidebarSplitter"
-            Grid.Column="1"
-            ResizeDirection="Columns" />
-
-            <Grid Grid.Column="2" RowDefinitions="auto auto *">
+                <desktopControls:CollapsibleSplitView.SecondContent>
+                    <Grid RowDefinitions="auto auto *">
                 <ContentControl Name="ControlHost" Grid.Row="0" Content="{Binding #Root.ControlContent}" />
 
                 <GridSplitter
@@ -61,7 +74,9 @@ mc:Ignorable="d">
                 IsVisible="{Binding #Root.ControlContent, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
                 <ContentControl Name="SidebarHost" Grid.Row="2" Content="{Binding #Root.SidebarContent}" />
-            </Grid>
-        </Grid>
-    </Grid>
+                    </Grid>
+                </desktopControls:CollapsibleSplitView.SecondContent>
+            </desktopControls:CollapsibleSplitView>
+        </desktopControls:CollapsibleSplitView.SecondContent>
+    </desktopControls:CollapsibleSplitView>
 </UserControl>

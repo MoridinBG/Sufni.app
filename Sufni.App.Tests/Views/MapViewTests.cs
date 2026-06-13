@@ -6,6 +6,7 @@ using Avalonia.Headless.XUnit;
 using CommunityToolkit.Mvvm.Input;
 using Mapsui.Layers;
 using Mapsui.UI.Avalonia;
+using Mapsui.Widgets.InfoWidgets;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
@@ -370,6 +371,33 @@ public class MapViewTests
             await ViewTestHelpers.FlushDispatcherAsync();
 
             Assert.Empty(overlayLayer.Features);
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task MapView_RemovesMapsuiLoggingWidget()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+
+        var view = new MapView
+        {
+            DataContext = CreateViewModelWithTrack(),
+        };
+
+        var host = ViewTestHelpers.ShowView(view);
+
+        try
+        {
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            var mapControl = view.FindControl<MapControl>("MapControl");
+            Assert.NotNull(mapControl);
+            Assert.Empty(mapControl!.Map.Widgets.OfType<LoggingWidget>());
         }
         finally
         {

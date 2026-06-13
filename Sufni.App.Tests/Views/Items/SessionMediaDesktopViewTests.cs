@@ -4,9 +4,13 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Layout;
 using Avalonia.VisualTree;
 using NSubstitute;
+using Sufni.App.DesktopViews.Controls;
 using Sufni.App.DesktopViews.Items;
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.Models;
@@ -17,8 +21,6 @@ using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.Editors;
 using Sufni.App.Views;
 using Sufni.App.Views.Controls;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
 
 namespace Sufni.App.Tests.Views.Items;
 
@@ -55,21 +57,39 @@ public class SessionMediaDesktopViewTests
 
         var mediaRoot = mounted.View.FindControl<Grid>("MediaContentRoot");
         var mapHost = mounted.View.FindControl<PlaceholderOverlayContainer>("MapHost");
-        var mediaSplitter = mounted.View.FindControl<GridSplitter>("MediaSplitter");
+        var primarySplit = FindSplit(mounted.View, "PrimaryMediaSplit");
+        var lowerSplit = FindSplit(mounted.View, "LowerMediaSplit");
         var mapView = mounted.View.GetVisualDescendants().OfType<MapView>().Single();
 
         Assert.NotNull(mediaRoot);
         Assert.NotNull(mapHost);
-        Assert.NotNull(mediaSplitter);
         Assert.True(mediaRoot!.IsVisible);
         Assert.True(mapHost!.IsVisible);
         Assert.True(mapView.IsVisible);
         Assert.Same(workspace.ExtensionSlots, mapView.ExtensionSlots);
         Assert.Same(workspace.Timeline, mapView.Timeline);
-        Assert.False(mediaSplitter!.IsVisible);
+        Assert.False(FindPart<Border>(primarySplit, "PART_SplitHandle").IsVisible);
+        Assert.False(FindPart<Border>(lowerSplit, "PART_SplitHandle").IsVisible);
         Assert.True(
-            mapHost!.Bounds.Height > mounted.View.Bounds.Height * 0.9,
+            mapHost.Bounds.Height > mounted.View.Bounds.Height * 0.9,
             $"Expected map-only media to fill the available height. View={mounted.View.Bounds}, MapHost={mapHost.Bounds}.");
+    }
+
+    [AvaloniaFact]
+    public async Task SessionMediaDesktopView_DoesNotApplyMediaColumnWidthAsRootMinimum()
+    {
+        var workspace = CreateWorkspace(
+            [
+                new TrackPoint(1, 2, 3, 4),
+            ],
+            mediaUrl: "media.mp4");
+
+        await using var mounted = await MountAsync(workspace);
+
+        var mediaRoot = mounted.View.FindControl<Grid>("MediaContentRoot");
+
+        Assert.NotNull(mediaRoot);
+        Assert.Equal(0, mediaRoot!.MinWidth);
     }
 
     [AvaloniaFact]
@@ -91,14 +111,18 @@ public class SessionMediaDesktopViewTests
 
         var mediaRoot = mounted.View.FindControl<Grid>("MediaContentRoot");
         var mapHost = mounted.View.FindControl<PlaceholderOverlayContainer>("MapHost");
+        var primarySplit = FindSplit(mounted.View, "PrimaryMediaSplit");
+        var lowerSplit = FindSplit(mounted.View, "LowerMediaSplit");
         var mediaPanes = Assert.Single(
             mounted.View.GetVisualDescendants().OfType<RecordedSessionMediaPanesView>());
 
         Assert.NotNull(mediaRoot);
         Assert.NotNull(mapHost);
-        Assert.NotNull(mediaPanes);
         Assert.True(mediaRoot!.IsVisible);
         Assert.False(mapHost!.IsVisible);
+        Assert.False(FindPart<Border>(primarySplit, "PART_SplitHandle").IsVisible);
+        Assert.False(FindPart<Border>(lowerSplit, "PART_SplitHandle").IsVisible);
+        Assert.True(mediaPanes.IsVisible);
         Assert.True(
             contribution.Bounds.Height > mounted.View.Bounds.Height * 0.9,
             $"Expected extension-only media pane to fill the available height. View={mounted.View.Bounds}, Contribution={contribution.Bounds}.");
@@ -112,25 +136,19 @@ public class SessionMediaDesktopViewTests
         [
             new TrackPoint(1, 2, 3, 4),
         ]);
-        workspace.ExtensionSlots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
-            "extension",
-            "media-pane",
-            Order: 0,
-            new TestContributionViewModel
-            {
-                Content = new TextBlock { Name = "DesktopMediaPane", Text = "Media pane" },
-            }));
+        workspace.ExtensionSlots.MediaPanes.Add(CreateMediaPaneContribution("Media pane"));
 
         await using var mounted = await MountAsync(workspace);
 
         var mapHost = mounted.View.FindControl<PlaceholderOverlayContainer>("MapHost");
-        var splitter = mounted.View.FindControl<GridSplitter>("MediaPaneSplitter");
+        var primarySplit = FindSplit(mounted.View, "PrimaryMediaSplit");
+        var lowerSplit = FindSplit(mounted.View, "LowerMediaSplit");
         var mediaPanes = Assert.Single(
             mounted.View.GetVisualDescendants().OfType<RecordedSessionMediaPanesView>());
 
         Assert.NotNull(mapHost);
-        Assert.NotNull(splitter);
-        Assert.True(splitter!.IsVisible);
+        Assert.False(FindPart<Border>(primarySplit, "PART_SplitHandle").IsVisible);
+        Assert.True(FindPart<Border>(lowerSplit, "PART_SplitHandle").IsVisible);
         Assert.True(mediaPanes.IsVisible);
         Assert.True(
             mapHost!.Bounds.Height > mounted.View.Bounds.Height * 0.4,
@@ -142,20 +160,60 @@ public class SessionMediaDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task SessionMediaDesktopView_AppliesStoredMediaRowRatios()
+    public async Task SessionMediaDesktopView_SplitsMediaAndMap_WhenBothArePresent()
+    {
+        var workspace = CreateWorkspace(
+            [
+                new TrackPoint(1, 2, 3, 4),
+            ],
+            mediaUrl: "media.mp4");
+
+        await using var mounted = await MountAsync(workspace);
+
+        var primarySplit = FindSplit(mounted.View, "PrimaryMediaSplit");
+        var lowerSplit = FindSplit(mounted.View, "LowerMediaSplit");
+        var mediaHost = mounted.View.FindControl<PlaceholderOverlayContainer>("MediaHost")!;
+        var mapHost = mounted.View.FindControl<PlaceholderOverlayContainer>("MapHost")!;
+
+        Assert.True(FindPart<Border>(primarySplit, "PART_SplitHandle").IsVisible);
+        Assert.False(FindPart<Border>(lowerSplit, "PART_SplitHandle").IsVisible);
+        Assert.True(mediaHost.IsVisible);
+        Assert.True(mapHost.IsVisible);
+        Assert.True(mediaHost.Bounds.Height > mounted.View.Bounds.Height * 0.4);
+        Assert.True(mapHost.Bounds.Height > mounted.View.Bounds.Height * 0.4);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionMediaDesktopView_SplitsMediaAndExtension_WhenMapIsAbsent()
+    {
+        var workspace = CreateWorkspace([], mediaUrl: "media.mp4");
+        workspace.ExtensionSlots.MediaPanes.Add(CreateMediaPaneContribution("Media pane"));
+
+        await using var mounted = await MountAsync(workspace);
+
+        var primarySplit = FindSplit(mounted.View, "PrimaryMediaSplit");
+        var lowerSplit = FindSplit(mounted.View, "LowerMediaSplit");
+        var mediaHost = mounted.View.FindControl<PlaceholderOverlayContainer>("MediaHost")!;
+        var mediaPanes = Assert.Single(
+            mounted.View.GetVisualDescendants().OfType<RecordedSessionMediaPanesView>());
+
+        Assert.True(FindPart<Border>(primarySplit, "PART_SplitHandle").IsVisible);
+        Assert.False(FindPart<Border>(lowerSplit, "PART_SplitHandle").IsVisible);
+        Assert.True(mediaHost.IsVisible);
+        Assert.True(mediaPanes.IsVisible);
+        Assert.True(mediaHost.Bounds.Height > mounted.View.Bounds.Height * 0.4);
+        Assert.True(mediaPanes.Bounds.Height > mounted.View.Bounds.Height * 0.4);
+        AssertContributionText(mounted.View, "Media pane");
+    }
+
+    [AvaloniaFact]
+    public async Task SessionMediaDesktopView_AppliesStoredMediaRowRatios_ForTwoVisiblePanes()
     {
         var workspace = CreateWorkspace(
         [
             new TrackPoint(1, 2, 3, 4),
         ]);
-        workspace.ExtensionSlots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
-            "extension",
-            "media-pane",
-            Order: 0,
-            new TestContributionViewModel
-            {
-                Content = new TextBlock { Name = "DesktopMediaPane", Text = "Media pane" },
-            }));
+        workspace.ExtensionSlots.MediaPanes.Add(CreateMediaPaneContribution("Media pane"));
 
         await using var mounted = await MountAsync(
             workspace,
@@ -165,12 +223,128 @@ public class SessionMediaDesktopViewTests
                 new SessionPaneSizePreference(SessionLayoutPaneIds.ExtensionMedia, 0.75),
             ]));
 
-        var mediaRoot = mounted.View.FindControl<Grid>("MediaContentRoot")!;
+        var lowerSplit = FindSplit(mounted.View, "LowerMediaSplit");
+        var (map, extensionMedia) = GetPaneLengths(lowerSplit);
 
-        Assert.Equal(0.25, mediaRoot.RowDefinitions[2].Height.Value);
-        Assert.Equal(GridUnitType.Star, mediaRoot.RowDefinitions[2].Height.GridUnitType);
-        Assert.Equal(0.75, mediaRoot.RowDefinitions[4].Height.Value);
-        Assert.Equal(GridUnitType.Star, mediaRoot.RowDefinitions[4].Height.GridUnitType);
+        Assert.Equal(0.25, map.Value);
+        Assert.Equal(GridUnitType.Star, map.GridUnitType);
+        Assert.Equal(0.75, extensionMedia.Value);
+        Assert.Equal(GridUnitType.Star, extensionMedia.GridUnitType);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionMediaDesktopView_AppliesStoredMediaRowRatios_ForThreeVisiblePanes()
+    {
+        var workspace = CreateWorkspace(
+            [
+                new TrackPoint(1, 2, 3, 4),
+            ],
+            mediaUrl: "media.mp4");
+        workspace.ExtensionSlots.MediaPanes.Add(CreateMediaPaneContribution("Media pane"));
+
+        await using var mounted = await MountAsync(
+            workspace,
+            new SessionPaneGroupPreferences(
+            [
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.2),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Map, 0.3),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.ExtensionMedia, 0.5),
+            ]));
+
+        var primarySplit = FindSplit(mounted.View, "PrimaryMediaSplit");
+        var lowerSplit = FindSplit(mounted.View, "LowerMediaSplit");
+        var primary = GetPaneLengths(primarySplit);
+        var lower = GetPaneLengths(lowerSplit);
+
+        Assert.Equal(0.2, primary.First.Value);
+        Assert.Equal(0.8, primary.Second.Value);
+        Assert.Equal(0.375, lower.First.Value, precision: 6);
+        Assert.Equal(0.625, lower.Second.Value, precision: 6);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionMediaDesktopView_MapCollapsedState_HidesMapContentAndExpandsMedia()
+    {
+        var workspace = CreateWorkspace(
+            [
+                new TrackPoint(1, 2, 3, 4),
+            ],
+            mediaUrl: "media.mp4");
+        workspace.ExtensionSlots.MediaPanes.Add(CreateMediaPaneContribution("Media pane"));
+
+        await using var mounted = await MountAsync(
+            workspace,
+            new SessionPaneGroupPreferences(
+            [
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.4),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Map, 0.2, IsCollapsed: true),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.ExtensionMedia, 0.4),
+            ]));
+
+        var lowerSplit = FindSplit(mounted.View, "LowerMediaSplit");
+
+        Assert.True(lowerSplit.IsFirstPaneCollapsed);
+        var mapHost = FindPart<ContentControl>(lowerSplit, "PART_FirstContentHost");
+        Assert.False(mapHost.IsVisible);
+        Assert.Null(mapHost.Content);
+        Assert.True(FindPart<Button>(lowerSplit, "PART_FirstCollapsedHeader").IsVisible);
+        Assert.True(FindPart<ContentControl>(lowerSplit, "PART_SecondContentHost").IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionMediaDesktopView_ExtensionMediaCollapsedState_HidesExtensionContentAndExpandsMap()
+    {
+        var workspace = CreateWorkspace(
+        [
+            new TrackPoint(1, 2, 3, 4),
+        ]);
+        workspace.ExtensionSlots.MediaPanes.Add(CreateMediaPaneContribution("Media pane"));
+
+        await using var mounted = await MountAsync(
+            workspace,
+            new SessionPaneGroupPreferences(
+            [
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Map, 0.8),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.ExtensionMedia, 0.2, IsCollapsed: true),
+            ]));
+
+        var lowerSplit = FindSplit(mounted.View, "LowerMediaSplit");
+
+        Assert.True(lowerSplit.IsSecondPaneCollapsed);
+        Assert.True(FindPart<ContentControl>(lowerSplit, "PART_FirstContentHost").IsVisible);
+        var extensionHost = FindPart<ContentControl>(lowerSplit, "PART_SecondContentHost");
+        Assert.False(extensionHost.IsVisible);
+        Assert.Null(extensionHost.Content);
+        Assert.True(FindPart<Button>(lowerSplit, "PART_SecondCollapsedHeader").IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionMediaDesktopView_MediaCollapsedState_HidesMediaContentAndExpandsMapAndExtension()
+    {
+        var workspace = CreateWorkspace(
+            [
+                new TrackPoint(1, 2, 3, 4),
+            ],
+            mediaUrl: "media.mp4");
+        workspace.ExtensionSlots.MediaPanes.Add(CreateMediaPaneContribution("Media pane"));
+
+        await using var mounted = await MountAsync(
+            workspace,
+            new SessionPaneGroupPreferences(
+            [
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.2, IsCollapsed: true),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Map, 0.4),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.ExtensionMedia, 0.4),
+            ]));
+
+        var primarySplit = FindSplit(mounted.View, "PrimaryMediaSplit");
+
+        Assert.True(primarySplit.IsFirstPaneCollapsed);
+        var mediaHost = FindPart<ContentControl>(primarySplit, "PART_FirstContentHost");
+        Assert.False(mediaHost.IsVisible);
+        Assert.Null(mediaHost.Content);
+        Assert.True(FindPart<Button>(primarySplit, "PART_FirstCollapsedHeader").IsVisible);
+        Assert.True(FindPart<ContentControl>(primarySplit, "PART_SecondContentHost").IsVisible);
     }
 
     [AvaloniaFact]
@@ -180,14 +354,7 @@ public class SessionMediaDesktopViewTests
         [
             new TrackPoint(1, 2, 3, 4),
         ]);
-        workspace.ExtensionSlots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
-            "extension",
-            "media-pane",
-            Order: 0,
-            new TestContributionViewModel
-            {
-                Content = new TextBlock { Name = "DesktopMediaPane", Text = "Media pane" },
-            }));
+        workspace.ExtensionSlots.MediaPanes.Add(CreateMediaPaneContribution("Media pane"));
 
         await using var mounted = await MountAsync(
             workspace,
@@ -197,12 +364,47 @@ public class SessionMediaDesktopViewTests
                 new SessionPaneSizePreference(SessionLayoutPaneIds.ExtensionMedia, 0.75),
             ]));
 
-        var mediaRoot = mounted.View.FindControl<Grid>("MediaContentRoot")!;
+        var lowerSplit = FindSplit(mounted.View, "LowerMediaSplit");
+        var (map, extensionMedia) = GetPaneLengths(lowerSplit);
 
-        Assert.Equal(1, mediaRoot.RowDefinitions[2].Height.Value);
-        Assert.Equal(GridUnitType.Star, mediaRoot.RowDefinitions[2].Height.GridUnitType);
-        Assert.Equal(1, mediaRoot.RowDefinitions[4].Height.Value);
-        Assert.Equal(GridUnitType.Star, mediaRoot.RowDefinitions[4].Height.GridUnitType);
+        Assert.Equal(1, map.Value);
+        Assert.Equal(GridUnitType.Star, map.GridUnitType);
+        Assert.Equal(1, extensionMedia.Value);
+        Assert.Equal(GridUnitType.Star, extensionMedia.GridUnitType);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionMediaDesktopView_PrimarySplitCommit_DoesNotPersistSyntheticPaneId()
+    {
+        var workspace = CreateWorkspace(
+            [
+                new TrackPoint(1, 2, 3, 4),
+            ],
+            mediaUrl: "media.mp4");
+        workspace.ExtensionSlots.MediaPanes.Add(CreateMediaPaneContribution("Media pane"));
+
+        await using var mounted = await MountAsync(
+            workspace,
+            new SessionPaneGroupPreferences(
+            [
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.2),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Map, 0.3),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.ExtensionMedia, 0.5),
+            ]));
+
+        var primarySplit = FindSplit(mounted.View, "PrimaryMediaSplit");
+        primarySplit.BeginDragForTests();
+        primarySplit.DragToFirstRatioForTests(0.4);
+        primarySplit.CompleteDragForTests();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.NotNull(mounted.View.LayoutPreferences);
+        Assert.Equal(
+            [SessionLayoutPaneIds.Media, SessionLayoutPaneIds.Map, SessionLayoutPaneIds.ExtensionMedia],
+            mounted.View.LayoutPreferences!.Panes.Select(pane => pane.PaneId).ToArray());
+        Assert.Equal(0.4, mounted.View.LayoutPreferences.Panes[0].Ratio, precision: 6);
+        Assert.Equal(0.225, mounted.View.LayoutPreferences.Panes[1].Ratio, precision: 6);
+        Assert.Equal(0.375, mounted.View.LayoutPreferences.Panes[2].Ratio, precision: 6);
     }
 
     [AvaloniaFact]
@@ -215,20 +417,22 @@ public class SessionMediaDesktopViewTests
         var mediaRoot = mounted.View.FindControl<Grid>("MediaContentRoot");
         var mediaHost = mounted.View.FindControl<PlaceholderOverlayContainer>("MediaHost");
         var mapHost = mounted.View.FindControl<PlaceholderOverlayContainer>("MapHost");
-        var mediaSplitter = mounted.View.FindControl<GridSplitter>("MediaSplitter");
+        var primarySplit = FindSplit(mounted.View, "PrimaryMediaSplit");
+        var lowerSplit = mounted.View.GetVisualDescendants()
+            .OfType<CollapsibleSplitView>()
+            .SingleOrDefault(split => split.Name == "LowerMediaSplit");
         var mapView = mounted.View.GetVisualDescendants().OfType<MapView>().SingleOrDefault();
 
         Assert.NotNull(mediaRoot);
         Assert.NotNull(mediaHost);
         Assert.NotNull(mapHost);
-        Assert.NotNull(mediaSplitter);
         Assert.True(mediaRoot!.IsVisible);
         Assert.True(mediaHost!.IsVisible);
         Assert.False(mapHost!.IsVisible);
-        Assert.False(mediaSplitter!.IsVisible);
+        Assert.False(FindPart<Border>(primarySplit, "PART_SplitHandle").IsVisible);
+        Assert.Null(lowerSplit);
+        Assert.False(FindPart<ContentControl>(primarySplit, "PART_SecondContentHost").IsVisible);
         Assert.Null(mapView);
-        Assert.Equal(0, mediaRoot.RowDefinitions[2].Height.Value);
-        Assert.Equal(GridUnitType.Pixel, mediaRoot.RowDefinitions[2].Height.GridUnitType);
     }
 
     private static async Task<MountedSessionMediaDesktopView> MountAsync(
@@ -248,6 +452,18 @@ public class SessionMediaDesktopViewTests
         return new MountedSessionMediaDesktopView(host, view);
     }
 
+    private static RecordedSessionMediaPaneContribution CreateMediaPaneContribution(string text)
+    {
+        return new RecordedSessionMediaPaneContribution(
+            "extension",
+            "media-pane",
+            Order: 0,
+            new TestContributionViewModel
+            {
+                Content = new TextBlock { Name = "DesktopMediaPane", Text = text },
+            });
+    }
+
     private static void AssertContributionText(Control root, string text)
     {
         var textBlocks = root.GetVisualDescendants()
@@ -258,6 +474,34 @@ public class SessionMediaDesktopViewTests
             textBlock is not null,
             $"Expected contribution text '{text}'. Actual text blocks: {string.Join(", ", textBlocks.Select(block => $"{block.Name}:{block.Text}"))}");
         Assert.Equal(text, textBlock!.Text);
+    }
+
+    private static CollapsibleSplitView FindSplit(SessionMediaDesktopView view, string name)
+    {
+        return view.GetVisualDescendants()
+            .OfType<CollapsibleSplitView>()
+            .Single(split => split.Name == name);
+    }
+
+    private static T FindPart<T>(CollapsibleSplitView split, string name)
+        where T : Control
+    {
+        return split.GetVisualDescendants()
+            .OfType<T>()
+            .Single(control =>
+                control.Name == name &&
+                control.FindAncestorOfType<CollapsibleSplitView>() == split);
+    }
+
+    private static (GridLength First, GridLength Second) GetPaneLengths(CollapsibleSplitView split)
+    {
+        var grid = Assert.IsType<Grid>(split.Content);
+        if (split.Orientation == Orientation.Horizontal)
+        {
+            return (grid.ColumnDefinitions[0].Width, grid.ColumnDefinitions[2].Width);
+        }
+
+        return (grid.RowDefinitions[0].Height, grid.RowDefinitions[2].Height);
     }
 
     private static SessionMediaWorkspaceStub CreateWorkspace(IReadOnlyList<TrackPoint> trackPoints, string? mediaUrl = null)

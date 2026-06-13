@@ -345,7 +345,7 @@ public class AppPreferencesTests
             desktopGraphMediaColumns: new SessionPaneGroupPreferences(
             [
                 new SessionPaneSizePreference(SessionLayoutPaneIds.Graph, 0.7),
-                new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.3),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.3, IsCollapsed: true),
             ]),
             desktopStatisticsSidebarColumns: new SessionPaneGroupPreferences(
             [
@@ -386,9 +386,55 @@ public class AppPreferencesTests
         Assert.Equal(
             0.3,
             layoutJson.GetProperty("desktopGraphMediaColumns").GetProperty("panes")[1].GetProperty("ratio").GetDouble());
+        Assert.True(
+            layoutJson.GetProperty("desktopGraphMediaColumns").GetProperty("panes")[1].GetProperty("isCollapsed").GetBoolean());
+        Assert.False(
+            layoutJson.GetProperty("desktopGraphMediaColumns").GetProperty("panes")[0].GetProperty("isCollapsed").GetBoolean());
         Assert.Equal(
             SessionLayoutPaneIds.ExtensionMedia,
             layoutJson.GetProperty("desktopMediaRows").GetProperty("panes")[1].GetProperty("paneId").GetString());
+    }
+
+    [Fact]
+    public async Task SessionPreferences_LoadsLegacyLayoutPaneEntriesWithoutCollapsedStateAsExpanded()
+    {
+        using var tempDirectory = new TempDirectory("sufni-preferences-test");
+        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
+        var sessionId = Guid.NewGuid();
+
+        await File.WriteAllTextAsync(
+            preferencesPath,
+            $$"""
+            {
+              "version": 1,
+              "session": {
+                "sessions": {
+                  "{{sessionId:D}}": {
+                    "layout": {
+                      "desktopGraphMediaColumns": {
+                        "panes": [
+                          {
+                            "paneId": "{{SessionLayoutPaneIds.Graph}}",
+                            "ratio": 0.7
+                          },
+                          {
+                            "paneId": "{{SessionLayoutPaneIds.Media}}",
+                            "ratio": 0.3
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        var preferences = new AppPreferences(preferencesPath);
+
+        var stored = await preferences.Session.GetRecordedAsync(sessionId);
+
+        Assert.NotNull(stored.Layout.DesktopGraphMediaColumns);
+        Assert.All(stored.Layout.DesktopGraphMediaColumns!.Panes, pane => Assert.False(pane.IsCollapsed));
     }
 
     [Fact]
