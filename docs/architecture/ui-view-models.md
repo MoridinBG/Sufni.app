@@ -224,7 +224,11 @@ the recorded editor, `LiveGraphPageViewModel` for the live editor.
 Several statistics pages are also workspace-backed so their
 presentation states and SVG surfaces can be built from the editor's
 analysis service; notes and preferences remain the mostly local
-parameterless pages.
+parameterless pages. On desktop, the recorded-session statistics view
+keeps the tab strip fixed and places the selected statistics body plus
+extension banners inside one vertical scroll region; statistics plot
+hosts use natural fixed plot heights instead of stretching to the
+current statistics pane height.
 
 Most pages are pure projection surfaces over data the editor pushes
 in: `SpringPageViewModel`, `DamperPageViewModel`, and

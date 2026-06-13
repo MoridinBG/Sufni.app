@@ -16,9 +16,9 @@ mc:Ignorable="d">
             <Grid>
                 <Grid IsVisible="{Binding #Root.ShowFrequencyHistogram}">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="3*" />
+                        <RowDefinition Height="{Binding #Root.TravelHistogramRowHeight}" />
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="2*" />
+                        <RowDefinition Height="{Binding #Root.TravelFrequencyHistogramRowHeight}" />
                     </Grid.RowDefinitions>
 
                     <plots:SessionStatisticsPlotView

@@ -15,7 +15,7 @@ d:DesignWidth="800"
 x:DataType="vm:ISessionStatisticsWorkspace"
 mc:Ignorable="d">
 
-    <Grid RowDefinitions="auto auto *">
+    <Grid RowDefinitions="auto *">
         <Grid.Resources>
             <converters:SurfaceStateToGridLengthConverter x:Key="SurfaceStateToGridLengthConverter" />
             <converters:AnySurfaceStateToGridLengthMultiConverter x:Key="AnySurfaceStateToGridLengthMultiConverter" />
@@ -75,22 +75,27 @@ mc:Ignorable="d">
             </TabStrip.Items>
         </TabStrip>
 
-        <controls:RecordedSessionStatisticsContributionsView
+        <ScrollViewer
+        Name="StatisticsPaneScrollViewer"
         Grid.Row="1"
         Margin="16,16,16,0"
-        ExtensionSlots="{Binding ExtensionSlots}" />
+        HorizontalScrollBarVisibility="Disabled"
+        VerticalScrollBarVisibility="Auto">
+            <StackPanel
+            Name="StatisticsScrollablePanel"
+            Width="{Binding #StatisticsPaneScrollViewer.Bounds.Width}"
+            ClipToBounds="True"
+            Spacing="16">
+                <controls:RecordedSessionStatisticsContributionsView ExtensionSlots="{Binding ExtensionSlots}" />
 
-        <ItemsControl
-        Name="StatisticsContentHost"
-        Grid.Row="2"
-        Margin="16,16,16,0">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <Panel />
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
+                <ItemsControl Name="StatisticsContentHost">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Panel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
 
-            <ItemsControl.Items>
+                    <ItemsControl.Items>
 
                 <!--  Spring rate  -->
                 <Grid Name="SpringRate">
@@ -162,46 +167,44 @@ mc:Ignorable="d">
 
                 <!--  Strokes  -->
                 <Grid Name="Strokes">
-                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                                <ColumnDefinition Width="{Binding RearStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
-                            </Grid.ColumnDefinitions>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                            <ColumnDefinition Width="{Binding RearStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
+                        </Grid.ColumnDefinitions>
 
-                            <controls:StrokeStatisticsHost
-                            Grid.Column="0"
-                            Margin="0,0,8,0"
-                            AnalysisRange="{Binding AnalysisRange}"
-                            ExtensionSlots="{Binding ExtensionSlots}"
-                            PresentationState="{Binding FrontStatisticsState}"
-                            SelectTelemetryRangeSelectionCommand="{Binding SelectTelemetryRangeSelectionCommand}"
-                            SelectedFrontRangeSelection="{Binding SelectedFrontRangeSelection}"
-                            SelectedRearRangeSelection="{Binding SelectedRearRangeSelection}"
-                            SuspensionType="Front"
-                            Telemetry="{Binding TelemetryData}"
-                            Title="Front strokes" />
+                        <controls:StrokeStatisticsHost
+                        Grid.Column="0"
+                        Margin="0,0,8,0"
+                        AnalysisRange="{Binding AnalysisRange}"
+                        ExtensionSlots="{Binding ExtensionSlots}"
+                        PresentationState="{Binding FrontStatisticsState}"
+                        SelectTelemetryRangeSelectionCommand="{Binding SelectTelemetryRangeSelectionCommand}"
+                        SelectedFrontRangeSelection="{Binding SelectedFrontRangeSelection}"
+                        SelectedRearRangeSelection="{Binding SelectedRearRangeSelection}"
+                        SuspensionType="Front"
+                        Telemetry="{Binding TelemetryData}"
+                        Title="Front strokes" />
 
-                            <controls:StrokeStatisticsHost
-                            Grid.Column="1"
-                            Margin="8,0,0,0"
-                            AnalysisRange="{Binding AnalysisRange}"
-                            ExtensionSlots="{Binding ExtensionSlots}"
-                            PresentationState="{Binding RearStatisticsState}"
-                            SelectTelemetryRangeSelectionCommand="{Binding SelectTelemetryRangeSelectionCommand}"
-                            SelectedFrontRangeSelection="{Binding SelectedFrontRangeSelection}"
-                            SelectedRearRangeSelection="{Binding SelectedRearRangeSelection}"
-                            SuspensionType="Rear"
-                            Telemetry="{Binding TelemetryData}"
-                            Title="Rear strokes" />
-                        </Grid>
-                    </ScrollViewer>
+                        <controls:StrokeStatisticsHost
+                        Grid.Column="1"
+                        Margin="8,0,0,0"
+                        AnalysisRange="{Binding AnalysisRange}"
+                        ExtensionSlots="{Binding ExtensionSlots}"
+                        PresentationState="{Binding RearStatisticsState}"
+                        SelectTelemetryRangeSelectionCommand="{Binding SelectTelemetryRangeSelectionCommand}"
+                        SelectedFrontRangeSelection="{Binding SelectedFrontRangeSelection}"
+                        SelectedRearRangeSelection="{Binding SelectedRearRangeSelection}"
+                        SuspensionType="Rear"
+                        Telemetry="{Binding TelemetryData}"
+                        Title="Rear strokes" />
+                    </Grid>
                 </Grid>
 
                 <!--  Damping  -->
                 <Grid
                 Name="Damping"
-                RowDefinitions="Auto,*">
+                RowDefinitions="Auto,Auto">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=*}" />
                         <ColumnDefinition Width="{Binding FrontStatisticsState, Converter={StaticResource SurfaceStateToGridLengthConverter}, ConverterParameter=Auto}" />
@@ -254,6 +257,7 @@ mc:Ignorable="d">
                     HsrPercentage="{Binding DamperPercentages.FrontHsrPercentage}"
                     LscPercentage="{Binding DamperPercentages.FrontLscPercentage}"
                     LsrPercentage="{Binding DamperPercentages.FrontLsrPercentage}"
+                    PlotHeight="440"
                     PlotDampingSpeedCutoffs="{Binding PlotDampingSpeedCutoffs}"
                     PresentationState="{Binding FrontStatisticsState}"
                     SelectTelemetryRangeSelectionCommand="{Binding SelectTelemetryRangeSelectionCommand}"
@@ -276,6 +280,7 @@ mc:Ignorable="d">
                     HsrPercentage="{Binding DamperPercentages.RearHsrPercentage}"
                     LscPercentage="{Binding DamperPercentages.RearLscPercentage}"
                     LsrPercentage="{Binding DamperPercentages.RearLsrPercentage}"
+                    PlotHeight="440"
                     PlotDampingSpeedCutoffs="{Binding PlotDampingSpeedCutoffs}"
                     PresentationState="{Binding RearStatisticsState}"
                     SelectTelemetryRangeSelectionCommand="{Binding SelectTelemetryRangeSelectionCommand}"
@@ -303,6 +308,7 @@ mc:Ignorable="d">
                     BalanceType="Compression"
                     DampingSpeedCutoffs="{Binding DampingSpeedCutoffs}"
                     ExtensionSlots="{Binding ExtensionSlots}"
+                    PlotHeight="380"
                     PlotDampingSpeedCutoffs="{Binding PlotDampingSpeedCutoffs}"
                     PresentationState="{Binding CompressionBalanceState}"
                     Telemetry="{Binding TelemetryData}"
@@ -351,6 +357,7 @@ mc:Ignorable="d">
                     BalanceType="Rebound"
                     DampingSpeedCutoffs="{Binding DampingSpeedCutoffs}"
                     ExtensionSlots="{Binding ExtensionSlots}"
+                    PlotHeight="380"
                     PlotDampingSpeedCutoffs="{Binding PlotDampingSpeedCutoffs}"
                     PresentationState="{Binding ReboundBalanceState}"
                     Telemetry="{Binding TelemetryData}"
@@ -407,6 +414,8 @@ mc:Ignorable="d">
                     AnalysisRange="{Binding AnalysisRange}"
                     ExtensionSlots="{Binding ExtensionSlots}"
                     ImuLocation="Fork"
+                    MinCardHeight="320"
+                    PlotRowHeight="260"
                     PresentationState="{Binding FrontForkVibrationState}"
                     SuspensionType="Front"
                     Telemetry="{Binding TelemetryData}"
@@ -418,6 +427,8 @@ mc:Ignorable="d">
                     AnalysisRange="{Binding AnalysisRange}"
                     ExtensionSlots="{Binding ExtensionSlots}"
                     ImuLocation="Frame"
+                    MinCardHeight="320"
+                    PlotRowHeight="260"
                     PresentationState="{Binding FrontFrameVibrationState}"
                     SuspensionType="Front"
                     Telemetry="{Binding TelemetryData}"
@@ -429,6 +440,8 @@ mc:Ignorable="d">
                     AnalysisRange="{Binding AnalysisRange}"
                     ExtensionSlots="{Binding ExtensionSlots}"
                     ImuLocation="Fork"
+                    MinCardHeight="320"
+                    PlotRowHeight="260"
                     PresentationState="{Binding RearForkVibrationState}"
                     SuspensionType="Rear"
                     Telemetry="{Binding TelemetryData}"
@@ -440,6 +453,8 @@ mc:Ignorable="d">
                     AnalysisRange="{Binding AnalysisRange}"
                     ExtensionSlots="{Binding ExtensionSlots}"
                     ImuLocation="Frame"
+                    MinCardHeight="320"
+                    PlotRowHeight="260"
                     PresentationState="{Binding RearFrameVibrationState}"
                     SuspensionType="Rear"
                     Telemetry="{Binding TelemetryData}"
@@ -450,7 +465,9 @@ mc:Ignorable="d">
                 <Grid Name="Analysis">
                     <itemviews:SessionAnalysisView />
                 </Grid>
-            </ItemsControl.Items>
-        </ItemsControl>
+                    </ItemsControl.Items>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </UserControl>

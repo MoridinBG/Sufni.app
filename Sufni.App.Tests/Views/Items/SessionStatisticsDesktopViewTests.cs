@@ -88,6 +88,100 @@ public class SessionStatisticsDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_UsesSingleScrollableStatisticsPanel()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+
+        await using var mounted = await MountAsync(workspace);
+
+        var scrollViewer = mounted.View.FindControl<ScrollViewer>("StatisticsPaneScrollViewer");
+        var scrollablePanel = mounted.View.FindControl<StackPanel>("StatisticsScrollablePanel");
+        var strokes = mounted.View.FindControl<Grid>("Strokes");
+
+        Assert.NotNull(scrollViewer);
+        Assert.NotNull(scrollablePanel);
+        Assert.NotNull(strokes);
+        Assert.Equal(ScrollBarVisibility.Disabled, scrollViewer!.HorizontalScrollBarVisibility);
+        Assert.Equal(ScrollBarVisibility.Auto, scrollViewer.VerticalScrollBarVisibility);
+        Assert.Same(scrollablePanel, scrollViewer.Content);
+        Assert.DoesNotContain(strokes!.GetVisualDescendants(), control => control is ScrollViewer);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_UsesNaturalPlotHeights_ForStatisticsTabs()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true,
+            hasFrontForkVibration: true,
+            hasFrontFrameVibration: true,
+            hasRearForkVibration: true,
+            hasRearFrameVibration: true);
+
+        await using var mounted = await MountAsync(workspace);
+
+        var tabControl = mounted.View.FindControl<TabStrip>("TabControl")!;
+        var springRate = mounted.View.FindControl<Grid>("SpringRate")!;
+        var damping = mounted.View.FindControl<Grid>("Damping")!;
+        var balance = mounted.View.FindControl<Grid>("Balance")!;
+        var vibration = mounted.View.FindControl<Grid>("Vibration")!;
+
+        tabControl.SelectedIndex = 0;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        var springHosts = springRate.GetVisualDescendants()
+            .OfType<TravelStatisticsHost>()
+            .Where(host => host.ShowFrequencyHistogram)
+            .ToArray();
+        Assert.Equal(2, springHosts.Length);
+        Assert.All(springHosts, host =>
+        {
+            Assert.Equal(320, host.TravelHistogramRowHeight.Value);
+            Assert.Equal(GridUnitType.Pixel, host.TravelHistogramRowHeight.GridUnitType);
+            Assert.Equal(240, host.TravelFrequencyHistogramRowHeight.Value);
+            Assert.Equal(GridUnitType.Pixel, host.TravelFrequencyHistogramRowHeight.GridUnitType);
+        });
+
+        tabControl.SelectedIndex = 2;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        var dampingHosts = damping.GetVisualDescendants()
+            .OfType<VelocityStatisticsHost>()
+            .Where(host => host.PresentationState.ReservesLayout)
+            .ToArray();
+        Assert.Equal(2, dampingHosts.Length);
+        Assert.All(dampingHosts, host => Assert.Equal(440, host.PlotHeight));
+
+        tabControl.SelectedIndex = 3;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        var balanceHosts = balance.GetVisualDescendants()
+            .OfType<BalanceStatisticsHost>()
+            .Where(host => host.PresentationState.ReservesLayout)
+            .ToArray();
+        Assert.Equal(2, balanceHosts.Length);
+        Assert.All(balanceHosts, host => Assert.Equal(380, host.PlotHeight));
+
+        tabControl.SelectedIndex = 4;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        var vibrationHosts = vibration.GetVisualDescendants()
+            .OfType<VibrationStatisticsHost>()
+            .Where(host => host.PresentationState.ReservesLayout)
+            .ToArray();
+        Assert.Equal(4, vibrationHosts.Length);
+        Assert.All(vibrationHosts, host =>
+        {
+            Assert.Equal(260, host.PlotRowHeight.Value);
+            Assert.Equal(GridUnitType.Pixel, host.PlotRowHeight.GridUnitType);
+        });
+    }
+
+    [AvaloniaFact]
     public async Task SessionStatisticsDesktopView_ShowsOnlyFrontDampingHosts_WhenOnlyFrontStatisticsAreAvailable()
     {
         var workspace = new SessionStatisticsWorkspaceStub(
