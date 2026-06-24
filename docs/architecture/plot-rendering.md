@@ -57,6 +57,14 @@ telemetry reloads. `TelemetryPlot` translates those neutral line and
 band descriptors into ScottPlot plottables without knowing extension
 workflow semantics.
 
+The recorded-session statistics area can also host contributed
+statistics tabs as neutral view-model-backed content. The desktop
+statistics view orders those tabs among the built-in statistics tabs by
+requested index and contribution order, while mobile projects them into
+the recorded-session page collection at the corresponding statistics
+position. Public plot classes and statistics plot views do not depend on
+the contributed content's implementation details.
+
 Velocity, stroke-length, stroke-speed, and deep-travel statistics
 plots are selectable through the neutral `ISelectableStatisticsPlot`
 contract. `SessionStatisticsPlotView` converts pointer coordinates into

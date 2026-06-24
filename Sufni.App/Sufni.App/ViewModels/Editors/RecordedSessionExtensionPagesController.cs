@@ -1,3 +1,4 @@
+using Sufni.App.ExtensionHost.Contracts;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHosting.RecordedSessions;
 using Sufni.App.ViewModels.SessionPages;
@@ -27,6 +28,7 @@ internal sealed class RecordedSessionExtensionPagesController
         this.manager = manager;
         this.pages = pages;
         manager.ExtensionSlots.Pages.CollectionChanged += OnRecordedSessionExtensionPagesChanged;
+        manager.ExtensionSlots.StatisticsTabs.CollectionChanged += OnRecordedSessionExtensionPagesChanged;
     }
 
     public void RequestRecordedSessionExtensionPageSelection(string contributionId)
@@ -37,7 +39,7 @@ internal sealed class RecordedSessionExtensionPagesController
             .ThenBy(contribution => contribution.ExtensionId, StringComparer.Ordinal)
             .FirstOrDefault();
         if (contribution is null ||
-            !recordedSessionExtensionPages.TryGetValue(RecordedSessionExtensionPageKey(contribution), out var page))
+            !recordedSessionExtensionPages.TryGetValue(RecordedSessionPageKey(contribution), out var page))
         {
             return;
         }
@@ -57,14 +59,44 @@ internal sealed class RecordedSessionExtensionPagesController
 
     private void ApplyRecordedSessionExtensionPages()
     {
-        var contributions = manager.ExtensionSlots.Pages
+        var pageEntries = manager.ExtensionSlots.Pages
             .OrderBy(contribution => contribution.RequestedIndex)
             .ThenBy(contribution => contribution.Order)
             .ThenBy(contribution => contribution.ExtensionId, StringComparer.Ordinal)
             .ThenBy(contribution => contribution.ContributionId, StringComparer.Ordinal)
+            .Select(contribution => new ExtensionPageEntry(
+                RecordedSessionPageKey(contribution),
+                contribution.DisplayName,
+                contribution.ViewModel,
+                contribution.RequestedIndex,
+                FamilyOrder: 0,
+                contribution.Order,
+                contribution.ExtensionId,
+                contribution.ContributionId));
+        var statisticsTabEntries = manager.ExtensionSlots.StatisticsTabs
+            .OrderBy(contribution => contribution.RequestedIndex)
+            .ThenBy(contribution => contribution.Order)
+            .ThenBy(contribution => contribution.ExtensionId, StringComparer.Ordinal)
+            .ThenBy(contribution => contribution.ContributionId, StringComparer.Ordinal)
+            .Select(contribution => new ExtensionPageEntry(
+                StatisticsTabPageKey(contribution),
+                contribution.DisplayName,
+                contribution.ViewModel,
+                contribution.RequestedIndex + 1,
+                FamilyOrder: 1,
+                contribution.Order,
+                contribution.ExtensionId,
+                contribution.ContributionId));
+        var entries = pageEntries
+            .Concat(statisticsTabEntries)
+            .OrderBy(entry => entry.RequestedIndex)
+            .ThenBy(entry => entry.FamilyOrder)
+            .ThenBy(entry => entry.Order)
+            .ThenBy(entry => entry.ExtensionId, StringComparer.Ordinal)
+            .ThenBy(entry => entry.ContributionId, StringComparer.Ordinal)
             .ToArray();
-        var desiredKeys = contributions
-            .Select(RecordedSessionExtensionPageKey)
+        var desiredKeys = entries
+            .Select(entry => entry.Key)
             .ToHashSet(StringComparer.Ordinal);
 
         foreach (var entry in recordedSessionExtensionPages.ToArray())
@@ -77,25 +109,39 @@ internal sealed class RecordedSessionExtensionPagesController
         }
 
         var insertedCount = 0;
-        foreach (var contribution in contributions)
+        foreach (var entry in entries)
         {
-            var key = RecordedSessionExtensionPageKey(contribution);
-            if (!recordedSessionExtensionPages.TryGetValue(key, out var page))
+            if (!recordedSessionExtensionPages.TryGetValue(entry.Key, out var page))
             {
                 page = new RecordedSessionExtensionPageViewModel(
-                    contribution.DisplayName,
-                    contribution.ViewModel);
-                recordedSessionExtensionPages.Add(key, page);
+                    entry.DisplayName,
+                    entry.ViewModel);
+                recordedSessionExtensionPages.Add(entry.Key, page);
             }
 
-            var insertIndex = Math.Clamp(contribution.RequestedIndex + insertedCount, 0, pages.Count);
+            var insertIndex = Math.Clamp(entry.RequestedIndex + insertedCount, 0, pages.Count);
             pages.Insert(insertIndex, page);
             insertedCount++;
         }
     }
 
-    private static string RecordedSessionExtensionPageKey(RecordedSessionPageContribution contribution)
+    private static string RecordedSessionPageKey(RecordedSessionPageContribution contribution)
     {
-        return $"{contribution.ExtensionId}\u001f{contribution.ContributionId}";
+        return $"page:{contribution.ExtensionId}\u001f{contribution.ContributionId}";
     }
+
+    private static string StatisticsTabPageKey(RecordedSessionStatisticsTabContribution contribution)
+    {
+        return $"statistics:{contribution.ExtensionId}\u001f{contribution.ContributionId}";
+    }
+
+    private sealed record ExtensionPageEntry(
+        string Key,
+        string DisplayName,
+        IExtensionViewModel ViewModel,
+        int RequestedIndex,
+        int FamilyOrder,
+        int Order,
+        string ExtensionId,
+        string ContributionId);
 }

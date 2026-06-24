@@ -38,8 +38,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.ExtensionHost", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.ExtensionHost.TestSupport", "Sufni.App.ExtensionHost.TestSupport\Sufni.App.ExtensionHost.TestSupport.csproj", "{2F11E0A7-9EE1-42F6-AA11-9F23BCFE3824}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sufni.App", "Sufni.App", "{EBD68505-5B9D-A395-6909-71C4D7611850}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

@@ -1,10 +1,10 @@
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts;
 
 namespace Sufni.App.ViewModels.SessionPages;
 
 internal sealed class RecordedSessionExtensionPageViewModel(
     string displayName,
-    IRecordedSessionPageContributionViewModel viewModel) : PageViewModelBase(displayName)
+    IExtensionViewModel viewModel) : PageViewModelBase(displayName)
 {
-    public IRecordedSessionPageContributionViewModel ViewModel { get; } = viewModel;
+    public IExtensionViewModel ViewModel { get; } = viewModel;
 }

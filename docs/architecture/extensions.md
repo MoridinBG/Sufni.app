@@ -155,13 +155,13 @@ The builder can copy an existing slot snapshot, and the slot collection exposes
 a generic change subscription so host mirroring is not manually repeated per
 slot family.
 
-The current public slot families are:
+The 14 current public slot families are:
 
 - graph toolbar actions
 - contributed pages
 - media panes
 - map overlays
-- statistics banners, statistics plot overlays, and statistics metric annotations
+- statistics banners, statistics tabs, statistics plot overlays, and statistics metric annotations
 - session-list indicators and actions
 - plot context-menu actions
 - plot-row header actions
@@ -169,7 +169,7 @@ The current public slot families are:
 - recorded time-range overlays
 
 View-model-backed slot families use marker interfaces instead of `object`:
-toolbar, page, media pane, statistics banner/overlay, session-list indicator,
+toolbar, page, media pane, statistics banner/tab/overlay, session-list indicator,
 session-list action, and hosted graph row contributions each require the
 matching `IRecordedSession...ContributionViewModel` marker. Descriptor-only
 families such as map overlays, statistics metrics, plot context actions, row
@@ -183,6 +183,15 @@ Session-list indicators and actions are created by registered `IRecordedSessionL
 Providers whose contribution availability can change without a core recorded-session summary change also implement `IRecordedSessionListContributionChangeSource`. The aggregate list service exposes those invalidations as a neutral `ContributionsChanged` event. Session list rows respond by asking the list service to recreate their indicator and action descriptors from the latest summary, without the public app learning which extension-owned state changed.
 
 Views render these through generic host controls or bindable descriptor properties. Public plot and map models receive neutral descriptors only; they do not depend on extension workflow semantics.
+
+Statistics-tab contributions add neutral view-model-backed content to the
+recorded-session statistics area. Each contribution declares a zero-based
+`RequestedIndex` relative to the built-in statistics tab order. Desktop renders
+contributions before the built-in tab with the same requested index and sorts
+multiple contributions by `Order`, extension id, and contribution id; requested
+indexes after the built-in range render after the built-in statistics tabs.
+Mobile projects the same contributions into the recorded-session pages
+collection at the corresponding statistics-page position, after the graph page.
 
 Time-series graph targets are typed at the extension boundary. Built-in graph rows are referenced with `RecordedSessionBuiltInGraphRow`; extension-owned rows are referenced with `RecordedSessionGraphRowTarget.Extension(extensionId, contributionId)`. The target's `StableKey` is the only string used internally for row lookup and persisted expansion state. Host XAML may keep legacy `TelemetryGraphRowIds` for built-in rows behind conversion helpers, but extension-facing contribution records do not expose those row id strings.
 

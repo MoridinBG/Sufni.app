@@ -88,6 +88,127 @@ public class SessionStatisticsDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_RendersContributedStatisticsTabBeforeMatchingBuiltInTab()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+        workspace.ExtensionSlots.StatisticsTabs.Add(CreateStatisticsTabContribution("extension-tab"));
+
+        await using var mounted = await MountAsync(workspace);
+
+        Assert.Equal(
+            [
+                "Spring rate",
+                "Strokes",
+                "Damping",
+                "Extension tab",
+                "Balance",
+                "Vibration",
+                "Analysis",
+            ],
+            GetTabHeaders(mounted.View));
+    }
+
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_SelectingContributedStatisticsTab_ShowsExtensionContentOnly()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+        workspace.ExtensionSlots.StatisticsTabs.Add(CreateStatisticsTabContribution("extension-tab"));
+
+        await using var mounted = await MountAsync(workspace);
+        await SelectTabAsync(mounted.View, "Extension tab");
+
+        var extensionContent = GetExtensionStatisticsTabContent(mounted.View);
+        Assert.True(extensionContent.IsVisible);
+        Assert.False(mounted.View.FindControl<Grid>("SpringRate")!.IsVisible);
+        Assert.False(mounted.View.FindControl<Grid>("Strokes")!.IsVisible);
+        Assert.False(mounted.View.FindControl<Grid>("Damping")!.IsVisible);
+        Assert.False(mounted.View.FindControl<Grid>("Balance")!.IsVisible);
+        Assert.False(mounted.View.FindControl<Grid>("Vibration")!.IsVisible);
+        Assert.False(mounted.View.FindControl<Grid>("Analysis")!.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_RemovingSelectedContributedStatisticsTab_FallsBackToSpring()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+        workspace.ExtensionSlots.StatisticsTabs.Add(CreateStatisticsTabContribution("extension-tab"));
+
+        await using var mounted = await MountAsync(workspace);
+        await SelectTabAsync(mounted.View, "Extension tab");
+
+        workspace.ExtensionSlots.StatisticsTabs.Clear();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(
+            ["Spring rate", "Strokes", "Damping", "Balance", "Vibration", "Analysis"],
+            GetTabHeaders(mounted.View));
+        Assert.True(mounted.View.FindControl<Grid>("SpringRate")!.IsVisible);
+        var statisticsContentHost = mounted.View.FindControl<ItemsControl>("StatisticsContentHost")!;
+        Assert.DoesNotContain(
+            statisticsContentHost.Items.OfType<TestContributionViewModel>(),
+            view => view.Name == "ExtensionStatisticsTabContent");
+    }
+
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_SelectingBuiltInTab_StillDisplaysBuiltInPane_WhenExtensionTabsExist()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+        workspace.ExtensionSlots.StatisticsTabs.Add(CreateStatisticsTabContribution("extension-tab"));
+
+        await using var mounted = await MountAsync(workspace);
+        await SelectTabAsync(mounted.View, "Balance");
+
+        Assert.False(mounted.View.FindControl<Grid>("SpringRate")!.IsVisible);
+        Assert.False(mounted.View.FindControl<Grid>("Damping")!.IsVisible);
+        Assert.True(mounted.View.FindControl<Grid>("Balance")!.IsVisible);
+        Assert.False(GetExtensionStatisticsTabContent(mounted.View).IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_ReusesContributedStatisticsTabContentAcrossRebuilds()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+        workspace.ExtensionSlots.StatisticsTabs.Add(CreateStatisticsTabContribution("extension-tab"));
+
+        await using var mounted = await MountAsync(workspace);
+        var firstContent = GetExtensionStatisticsTabContent(mounted.View);
+
+        workspace.ExtensionSlots.StatisticsTabs.Add(CreateStatisticsTabContribution(
+            "later-extension-tab",
+            "Later extension tab",
+            "LaterExtensionStatisticsTabContent"));
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Same(firstContent, GetExtensionStatisticsTabContent(mounted.View));
+        Assert.NotNull(GetExtensionStatisticsTabContent(mounted.View, "LaterExtensionStatisticsTabContent"));
+    }
+
+    [AvaloniaFact]
     public async Task SessionStatisticsDesktopView_UsesSingleScrollableStatisticsPanel()
     {
         var workspace = new SessionStatisticsWorkspaceStub(
@@ -320,6 +441,56 @@ public class SessionStatisticsDesktopViewTests
 
         var host = await ViewTestHelpers.ShowViewAsync(view);
         return new MountedSessionStatisticsDesktopView(host, view);
+    }
+
+    private static RecordedSessionStatisticsTabContribution CreateStatisticsTabContribution(
+        string contributionId,
+        string displayName = "Extension tab",
+        string contentName = "ExtensionStatisticsTabContent")
+    {
+        return new RecordedSessionStatisticsTabContribution(
+            "extension",
+            contributionId,
+            Order: 0,
+            displayName,
+            RequestedIndex: 3,
+            new TestContributionViewModel
+            {
+                Name = contentName,
+                Content = new TextBlock { Text = contentName },
+            });
+    }
+
+    private static IReadOnlyList<string> GetTabHeaders(SessionStatisticsDesktopView view)
+    {
+        var tabControl = view.FindControl<TabStrip>("TabControl")!;
+        return tabControl.Items
+            .OfType<TabItem>()
+            .Select(item => item.Header?.ToString() ?? "")
+            .ToArray();
+    }
+
+    private static async Task SelectTabAsync(SessionStatisticsDesktopView view, string header)
+    {
+        var tabControl = view.FindControl<TabStrip>("TabControl")!;
+        var index = tabControl.Items
+            .OfType<TabItem>()
+            .Select((item, itemIndex) => (item, itemIndex))
+            .Single(entry => string.Equals(entry.item.Header?.ToString(), header, StringComparison.Ordinal))
+            .itemIndex;
+
+        tabControl.SelectedIndex = index;
+        await ViewTestHelpers.FlushDispatcherAsync();
+    }
+
+    private static TestContributionViewModel GetExtensionStatisticsTabContent(
+        SessionStatisticsDesktopView view,
+        string name = "ExtensionStatisticsTabContent")
+    {
+        var statisticsContentHost = view.FindControl<ItemsControl>("StatisticsContentHost")!;
+        return statisticsContentHost.Items
+            .OfType<TestContributionViewModel>()
+            .Single(view => view.Name == name);
     }
 
     private static void AssertContributionText(Control root, string name, string text)

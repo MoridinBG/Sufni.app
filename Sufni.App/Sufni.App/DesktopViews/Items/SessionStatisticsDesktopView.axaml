@@ -46,33 +46,6 @@ mc:Ignorable="d">
                     <UniformGrid HorizontalAlignment="Stretch" Rows="1" />
                 </ItemsPanelTemplate>
             </TabStrip.ItemsPanel>
-
-            <TabStrip.Items>
-                <TabItem
-                HorizontalAlignment="Center"
-                FontSize="{StaticResource SufniTabFontSizeStatistics}"
-                Header="Spring rate" />
-                <TabItem
-                HorizontalAlignment="Center"
-                FontSize="{StaticResource SufniTabFontSizeStatistics}"
-                Header="Strokes" />
-                <TabItem
-                HorizontalAlignment="Center"
-                FontSize="{StaticResource SufniTabFontSizeStatistics}"
-                Header="Damping" />
-                <TabItem
-                HorizontalAlignment="Center"
-                FontSize="{StaticResource SufniTabFontSizeStatistics}"
-                Header="Balance" />
-                <TabItem
-                HorizontalAlignment="Center"
-                FontSize="{StaticResource SufniTabFontSizeStatistics}"
-                Header="Vibration" />
-                <TabItem
-                HorizontalAlignment="Center"
-                FontSize="{StaticResource SufniTabFontSizeStatistics}"
-                Header="Analysis" />
-            </TabStrip.Items>
         </TabStrip>
 
         <ScrollViewer

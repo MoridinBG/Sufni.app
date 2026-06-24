@@ -175,8 +175,8 @@ There are five kinds of view model in the presentation layer:
   actions (airtime and statistics-selection toggles) and keeps their
   checked/enabled state in sync with the context;
   `RecordedSessionExtensionPagesController` mirrors contributed
-  extension pages into the editor's `Pages` collection and resolves
-  contributed-page selection requests; and
+  extension pages and contributed statistics tabs into the editor's
+  `Pages` collection and resolves contributed-page selection requests; and
   `ProcessingPreferenceWorkflow` owns the
   confirm-recompute-persist flow that runs when a processing
   preference change is committed. The editor constructs them and
@@ -224,11 +224,14 @@ the recorded editor, `LiveGraphPageViewModel` for the live editor.
 Several statistics pages are also workspace-backed so their
 presentation states and SVG surfaces can be built from the editor's
 analysis service; notes and preferences remain the mostly local
-parameterless pages. On desktop, the recorded-session statistics view
-keeps the tab strip fixed and places the selected statistics body plus
-extension banners inside one vertical scroll region; statistics plot
-hosts use natural fixed plot heights instead of stretching to the
-current statistics pane height.
+parameterless pages. Recorded-session extension scopes can contribute
+additional statistics tabs; mobile projects those tabs into the same
+`Pages` collection at the matching statistics-page position. On
+desktop, the recorded-session statistics view composes built-in and
+contributed statistics tabs into one tab strip and places the selected
+statistics body plus extension banners inside one vertical scroll
+region; statistics plot hosts use natural fixed plot heights instead
+of stretching to the current statistics pane height.
 
 Most pages are pure projection surfaces over data the editor pushes
 in: `SpringPageViewModel`, `DamperPageViewModel`, and
