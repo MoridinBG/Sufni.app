@@ -12,6 +12,8 @@ public interface IRecordedSessionStatisticsBannerContributionViewModel : IExtens
 
 public interface IRecordedSessionStatisticsOverlayContributionViewModel : IExtensionViewModel;
 
+public interface IRecordedSessionStatisticsTabContributionViewModel : IExtensionViewModel;
+
 public interface IRecordedSessionListIndicatorContributionViewModel : IExtensionViewModel;
 
 public interface IRecordedSessionListActionContributionViewModel : IExtensionViewModel;

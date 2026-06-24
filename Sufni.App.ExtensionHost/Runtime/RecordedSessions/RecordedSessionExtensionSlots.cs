@@ -16,6 +16,7 @@ public sealed class RecordedSessionExtensionSlots
     public ObservableCollection<RecordedSessionMediaPaneContribution> MediaPanes { get; } = CreateCollection<RecordedSessionMediaPaneContribution>();
     public ObservableCollection<RecordedSessionMapOverlayContribution> MapOverlays { get; } = CreateCollection<RecordedSessionMapOverlayContribution>();
     public ObservableCollection<RecordedSessionStatisticsBannerContribution> StatisticsBanners { get; } = CreateCollection<RecordedSessionStatisticsBannerContribution>();
+    public ObservableCollection<RecordedSessionStatisticsTabContribution> StatisticsTabs { get; } = CreateCollection<RecordedSessionStatisticsTabContribution>();
     public ObservableCollection<RecordedSessionStatisticsOverlayContribution> StatisticsOverlays { get; } = CreateCollection<RecordedSessionStatisticsOverlayContribution>();
     public ObservableCollection<RecordedSessionStatisticsMetricContribution> StatisticsMetrics { get; } = CreateCollection<RecordedSessionStatisticsMetricContribution>();
     public ObservableCollection<RecordedSessionListIndicatorContribution> SessionListIndicators { get; } = CreateCollection<RecordedSessionListIndicatorContribution>();
@@ -38,6 +39,7 @@ public sealed class RecordedSessionExtensionSlots
                 Subscribe(MediaPanes, changed),
                 Subscribe(MapOverlays, changed),
                 Subscribe(StatisticsBanners, changed),
+                Subscribe(StatisticsTabs, changed),
                 Subscribe(StatisticsOverlays, changed),
                 Subscribe(StatisticsMetrics, changed),
                 Subscribe(SessionListIndicators, changed),

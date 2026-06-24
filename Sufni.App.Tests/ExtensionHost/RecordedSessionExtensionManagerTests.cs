@@ -142,17 +142,21 @@ public class RecordedSessionExtensionManagerTests
             "match 12.00",
             "-2.00",
             RecordedSessionMetricTone.Negative);
+        var statisticsTabContribution = CreateStatisticsTabContribution("test", "tab");
 
         factory.Scope!.Slots.GraphToolbarActions.Add(contribution);
         factory.Scope.Slots.StatisticsMetrics.Add(metricContribution);
+        factory.Scope.Slots.StatisticsTabs.Add(statisticsTabContribution);
 
         Assert.Equal([contribution], manager.ExtensionSlots.GraphToolbarActions);
         Assert.Equal([metricContribution], manager.ExtensionSlots.StatisticsMetrics);
+        Assert.Equal([statisticsTabContribution], manager.ExtensionSlots.StatisticsTabs);
 
         await manager.DisposeScopesAsync();
 
         Assert.Empty(manager.ExtensionSlots.GraphToolbarActions);
         Assert.Empty(manager.ExtensionSlots.StatisticsMetrics);
+        Assert.Empty(manager.ExtensionSlots.StatisticsTabs);
     }
 
     [Fact]
@@ -166,6 +170,70 @@ public class RecordedSessionExtensionManagerTests
             ]));
 
         Assert.Contains("duplicate", exception.Message);
+    }
+
+    [Fact]
+    public async Task ScopeSlotChanges_AcceptsStatisticsTabContributionFromOwner()
+    {
+        var factory = new TestRecordedSessionExtensionFactory("owner");
+        var manager = CreateManager([factory]);
+        await manager.InitializeAsync(CreateState(isLoaded: true));
+        var contribution = CreateStatisticsTabContribution("owner", "tab");
+
+        factory.Scope!.Slots.StatisticsTabs.Add(contribution);
+
+        Assert.Equal([contribution], manager.ExtensionSlots.StatisticsTabs);
+    }
+
+    [Fact]
+    public async Task ScopeSlotChanges_RejectStatisticsTabContributionFromDifferentOwner()
+    {
+        var factory = new TestRecordedSessionExtensionFactory("owner");
+        var manager = CreateManager([factory]);
+        await manager.InitializeAsync(CreateState(isLoaded: true));
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            factory.Scope!.Slots.StatisticsTabs.Add(CreateStatisticsTabContribution("other", "tab")));
+
+        Assert.Contains("other:tab", exception.Message);
+        Assert.Contains("owner", exception.Message);
+        Assert.Empty(manager.ExtensionSlots.StatisticsTabs);
+    }
+
+    [Fact]
+    public async Task ScopeSlotChanges_RejectStatisticsTabContributionWithBlankContributionId()
+    {
+        var factory = new TestRecordedSessionExtensionFactory("owner");
+        var manager = CreateManager([factory]);
+        await manager.InitializeAsync(CreateState(isLoaded: true));
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            factory.Scope!.Slots.StatisticsTabs.Add(CreateStatisticsTabContribution("owner", " ")));
+
+        Assert.Contains("recorded-session statistics tabs contribution id is required", exception.Message);
+        Assert.Empty(manager.ExtensionSlots.StatisticsTabs);
+    }
+
+    [Fact]
+    public async Task ScopeSlotChanges_RejectDuplicateContributionIdsAcrossStatisticsTabsAndOtherSlotFamilies()
+    {
+        var factory = new TestRecordedSessionExtensionFactory("owner");
+        var manager = CreateManager([factory]);
+        await manager.InitializeAsync(CreateState(isLoaded: true));
+        factory.Scope!.Slots.StatisticsTabs.Add(CreateStatisticsTabContribution("owner", "duplicate"));
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            factory.Scope.Slots.Pages.Add(new RecordedSessionPageContribution(
+                "owner",
+                "duplicate",
+                Order: 2,
+                "Page",
+                new TestContributionViewModel(),
+                RequestedIndex: 0)));
+
+        Assert.Contains("duplicate", exception.Message);
+        Assert.Contains("owner", exception.Message);
+        Assert.Empty(manager.ExtensionSlots.Pages);
     }
 
     [Fact]
@@ -328,6 +396,19 @@ public class RecordedSessionExtensionManagerTests
                 DampingSpeedCutoffs.Default,
                 VelocityAverageMode.SampleAveraged,
                 TravelHistogramMode.ActiveSuspension));
+    }
+
+    private static RecordedSessionStatisticsTabContribution CreateStatisticsTabContribution(
+        string extensionId,
+        string contributionId)
+    {
+        return new RecordedSessionStatisticsTabContribution(
+            extensionId,
+            contributionId,
+            Order: 1,
+            "Extension tab",
+            RequestedIndex: 3,
+            new TestContributionViewModel());
     }
 
     private sealed class DeferredUiThreadDispatcher : IUiThreadDispatcher

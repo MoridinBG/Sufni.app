@@ -26,20 +26,30 @@ public class RecordedSessionExtensionSlotPublisherTests
             Order: 20,
             RecordedSessionBuiltInGraphRow.Travel,
             new TelemetryPlotContextMenuAction("inspect", "Inspect", new RelayCommand(() => { })));
+        var statisticsTab = new RecordedSessionStatisticsTabContribution(
+            "extension",
+            "tab",
+            Order: 30,
+            "Extension tab",
+            RequestedIndex: 3,
+            new TestContributionViewModel());
 
         publisher.Publish(builder =>
         {
             builder.MediaPanes.Add(mediaPane);
             builder.PlotContextMenuActions.Add(contextMenu);
+            builder.StatisticsTabs.Add(statisticsTab);
         });
 
         Assert.Equal([mediaPane], slots.MediaPanes);
         Assert.Equal([contextMenu], slots.PlotContextMenuActions);
+        Assert.Equal([statisticsTab], slots.StatisticsTabs);
 
         publisher.Publish(builder => builder.MediaPanes.Add(mediaPane with { ContributionId = "updated" }));
 
         Assert.Equal(["updated"], slots.MediaPanes.Select(contribution => contribution.ContributionId));
         Assert.Empty(slots.PlotContextMenuActions);
+        Assert.Empty(slots.StatisticsTabs);
     }
 
     [Fact]

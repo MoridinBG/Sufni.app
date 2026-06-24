@@ -11,6 +11,7 @@ internal sealed class TestContributionViewModel :
     IRecordedSessionPageContributionViewModel,
     IRecordedSessionMediaPaneContributionViewModel,
     IRecordedSessionStatisticsBannerContributionViewModel,
+    IRecordedSessionStatisticsTabContributionViewModel,
     IRecordedSessionStatisticsOverlayContributionViewModel,
     IRecordedSessionListIndicatorContributionViewModel,
     IRecordedSessionListActionContributionViewModel,

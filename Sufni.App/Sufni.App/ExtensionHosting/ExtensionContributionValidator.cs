@@ -68,6 +68,7 @@ internal static class ExtensionContributionValidator
         ValidateContributions(slots.MediaPanes, ownerExtensionId, "recorded-session media panes", contributionIds);
         ValidateContributions(slots.MapOverlays, ownerExtensionId, "recorded-session map overlays", contributionIds);
         ValidateContributions(slots.StatisticsBanners, ownerExtensionId, "recorded-session statistics banners", contributionIds);
+        ValidateContributions(slots.StatisticsTabs, ownerExtensionId, "recorded-session statistics tabs", contributionIds);
         ValidateContributions(slots.StatisticsOverlays, ownerExtensionId, "recorded-session statistics overlays", contributionIds);
         ValidateContributions(slots.StatisticsMetrics, ownerExtensionId, "recorded-session statistics metrics", contributionIds);
         ValidateContributions(slots.SessionListIndicators, ownerExtensionId, "recorded-session list indicators", contributionIds);

@@ -25,6 +25,7 @@ public class RecordedSessionExtensionSlotsTests
         Assert.Empty(slots.MediaPanes);
         Assert.Empty(slots.MapOverlays);
         Assert.Empty(slots.StatisticsBanners);
+        Assert.Empty(slots.StatisticsTabs);
         Assert.Empty(slots.StatisticsOverlays);
         Assert.Empty(slots.StatisticsMetrics);
         Assert.Empty(slots.SessionListIndicators);
@@ -64,6 +65,13 @@ public class RecordedSessionExtensionSlotsTests
             "match 42.00",
             "+3.00",
             RecordedSessionMetricTone.Positive));
+        slots.StatisticsTabs.Add(new RecordedSessionStatisticsTabContribution(
+            "extension",
+            "tab",
+            Order: 40,
+            "Extension tab",
+            RequestedIndex: 3,
+            new TestContributionViewModel()));
 
         var toolbarContribution = Assert.Single(slots.GraphToolbarActions);
         Assert.Equal(RecordedSessionToolbarZone.Leading, toolbarContribution.Zone);
@@ -77,6 +85,9 @@ public class RecordedSessionExtensionSlotsTests
         Assert.Equal(RecordedSessionStatisticsMetricTarget.FrontHscPercentage, metricContribution.TargetMetric);
         Assert.True(metricContribution.HasDeltaValue);
         Assert.True(metricContribution.IsPositiveTone);
+        var tabContribution = Assert.Single(slots.StatisticsTabs);
+        Assert.Equal("Extension tab", tabContribution.DisplayName);
+        Assert.Equal(3, tabContribution.RequestedIndex);
     }
 
     [Fact]
@@ -88,12 +99,12 @@ public class RecordedSessionExtensionSlotsTests
 
         AddOneContributionToEachFamily(slots);
 
-        Assert.Equal(13, notifications);
+        Assert.Equal(14, notifications);
 
         subscription.Dispose();
         slots.GraphToolbarActions.Add(CreateToolbarContribution("after-dispose"));
 
-        Assert.Equal(13, notifications);
+        Assert.Equal(14, notifications);
     }
 
     [Fact]
@@ -111,6 +122,7 @@ public class RecordedSessionExtensionSlotsTests
         Assert.Equal(["media"], target.MediaPanes.Select(contribution => contribution.ContributionId));
         Assert.Equal(["map"], target.MapOverlays.Select(contribution => contribution.ContributionId));
         Assert.Equal(["banner"], target.StatisticsBanners.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["tab"], target.StatisticsTabs.Select(contribution => contribution.ContributionId));
         Assert.Equal(["overlay"], target.StatisticsOverlays.Select(contribution => contribution.ContributionId));
         Assert.Equal(["metric"], target.StatisticsMetrics.Select(contribution => contribution.ContributionId));
         Assert.Equal(["indicator"], target.SessionListIndicators.Select(contribution => contribution.ContributionId));
@@ -147,17 +159,24 @@ public class RecordedSessionExtensionSlotsTests
             "banner",
             Order: 5,
             new TestContributionViewModel()));
+        slots.StatisticsTabs.Add(new RecordedSessionStatisticsTabContribution(
+            "extension",
+            "tab",
+            Order: 6,
+            "Extension tab",
+            RequestedIndex: 3,
+            new TestContributionViewModel()));
         slots.StatisticsOverlays.Add(new RecordedSessionStatisticsOverlayContribution(
             "extension",
             "overlay",
-            Order: 6,
+            Order: 7,
             RecordedSessionStatisticsPlotTarget.TravelHistogram(SuspensionType.Front),
             ViewModel: null,
             Overlay: null));
         slots.StatisticsMetrics.Add(new RecordedSessionStatisticsMetricContribution(
             "extension",
             "metric",
-            Order: 7,
+            Order: 8,
             RecordedSessionStatisticsMetricTarget.FrontHscPercentage,
             "42.00",
             DeltaValue: null,
@@ -165,29 +184,29 @@ public class RecordedSessionExtensionSlotsTests
         slots.SessionListIndicators.Add(new RecordedSessionListIndicatorContribution(
             "extension",
             "indicator",
-            Order: 8,
+            Order: 9,
             new TestContributionViewModel()));
         slots.SessionListActions.Add(new RecordedSessionListActionContribution(
             "extension",
             "list-action",
-            Order: 9,
+            Order: 10,
             new TestContributionViewModel()));
         slots.PlotContextMenuActions.Add(new RecordedSessionPlotContextMenuContribution(
             "extension",
             "context",
-            Order: 10,
+            Order: 11,
             RecordedSessionBuiltInGraphRow.Travel,
             new TelemetryPlotContextMenuAction("inspect", "Inspect", new RelayCommand(() => { }))));
         slots.PlotRowHeaderActions.Add(new RecordedSessionPlotRowActionContribution(
             "extension",
             "row-action",
-            Order: 11,
+            Order: 12,
             RecordedSessionGraphRowTarget.BuiltIn(RecordedSessionBuiltInGraphRow.Travel),
             new TelemetryPlotRowAction { Id = "row-action" }));
         slots.HostedGraphRows.Add(new RecordedSessionHostedGraphRowContribution(
             "extension",
             "hosted-row",
-            Order: 12,
+            Order: 13,
             RecordedSessionBuiltInGraphRow.Travel,
             RecordedSessionGraphRowTarget.Extension("extension", "hosted-row"),
             "Hosted row",
@@ -197,7 +216,7 @@ public class RecordedSessionExtensionSlotsTests
         slots.TimeRangeOverlays.Add(new RecordedSessionTimeRangeOverlayContribution(
             "extension",
             "range",
-            Order: 13,
+            Order: 14,
             RecordedSessionGraphRowTarget.BuiltIn(RecordedSessionBuiltInGraphRow.Travel),
             new RecordedTimeRangeOverlaySetRegistration(
                 "range",

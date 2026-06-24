@@ -79,6 +79,14 @@ public sealed record RecordedSessionStatisticsBannerContribution(
     int Order,
     IRecordedSessionStatisticsBannerContributionViewModel ViewModel) : IRecordedSessionContribution;
 
+public sealed record RecordedSessionStatisticsTabContribution(
+    string ExtensionId,
+    string ContributionId,
+    int Order,
+    string DisplayName,
+    int RequestedIndex,
+    IRecordedSessionStatisticsTabContributionViewModel ViewModel) : IRecordedSessionContribution;
+
 public sealed record RecordedSessionStatisticsOverlayContribution(
     string ExtensionId,
     string ContributionId,

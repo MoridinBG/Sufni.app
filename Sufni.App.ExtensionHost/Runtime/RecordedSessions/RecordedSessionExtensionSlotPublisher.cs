@@ -13,6 +13,7 @@ public sealed class RecordedSessionExtensionSlotBuilder
     public List<RecordedSessionMediaPaneContribution> MediaPanes { get; } = [];
     public List<RecordedSessionMapOverlayContribution> MapOverlays { get; } = [];
     public List<RecordedSessionStatisticsBannerContribution> StatisticsBanners { get; } = [];
+    public List<RecordedSessionStatisticsTabContribution> StatisticsTabs { get; } = [];
     public List<RecordedSessionStatisticsOverlayContribution> StatisticsOverlays { get; } = [];
     public List<RecordedSessionStatisticsMetricContribution> StatisticsMetrics { get; } = [];
     public List<RecordedSessionListIndicatorContribution> SessionListIndicators { get; } = [];
@@ -31,6 +32,7 @@ public sealed class RecordedSessionExtensionSlotBuilder
         MediaPanes.AddRange(slots.MediaPanes);
         MapOverlays.AddRange(slots.MapOverlays);
         StatisticsBanners.AddRange(slots.StatisticsBanners);
+        StatisticsTabs.AddRange(slots.StatisticsTabs);
         StatisticsOverlays.AddRange(slots.StatisticsOverlays);
         StatisticsMetrics.AddRange(slots.StatisticsMetrics);
         SessionListIndicators.AddRange(slots.SessionListIndicators);
@@ -48,6 +50,7 @@ public sealed class RecordedSessionExtensionSlotBuilder
         slots.MediaPanes.ReplaceWith(MediaPanes);
         slots.MapOverlays.ReplaceWith(MapOverlays);
         slots.StatisticsBanners.ReplaceWith(StatisticsBanners);
+        slots.StatisticsTabs.ReplaceWith(StatisticsTabs);
         slots.StatisticsOverlays.ReplaceWith(StatisticsOverlays);
         slots.StatisticsMetrics.ReplaceWith(StatisticsMetrics);
         slots.SessionListIndicators.ReplaceWith(SessionListIndicators);
