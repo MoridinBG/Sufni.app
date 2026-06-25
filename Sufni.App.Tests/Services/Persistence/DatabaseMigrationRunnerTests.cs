@@ -315,7 +315,7 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
-    public async Task Initialization_BackfillsLegacySessionProcessingFingerprintWithoutRecomputing()
+    public async Task Initialization_DoesNotBackfillLegacySessionProcessingFingerprintAfterProcessingVersionAdvance()
     {
         using var tempDatabase = new TempDatabase("legacy-session-fingerprint-backfill.db");
         var seed = SeedProcessedSessionDatabase(tempDatabase.DatabasePath);
@@ -334,23 +334,25 @@ public class DatabaseMigrationRunnerTests
             BikeSnapshot.From(seed.Bike),
             RecordedSessionSourceSnapshot.From(seed.Source));
 
-        Assert.Equal(evaluation.Current, evaluation.Persisted);
-        Assert.IsType<SessionStaleness.Current>(evaluation.Staleness);
+        Assert.Null(evaluation.Persisted);
+        Assert.IsType<SessionStaleness.UnknownLegacyFingerprint>(evaluation.Staleness);
     }
 
     [Fact]
-    public async Task Initialization_BackfillsProcessingVersionOnlySessionFingerprintWithoutRecomputing()
+    public async Task Initialization_DoesNotBackfillPreviousProcessingVersionFingerprintAfterProcessingVersionAdvance()
     {
         using var tempDatabase = new TempDatabase("old-processing-version-fingerprint.db");
+        ProcessingFingerprint? staleFingerprint = null;
         var seed = SeedProcessedSessionDatabase(
             tempDatabase.DatabasePath,
             seed =>
             {
                 var current = CreateCurrentFingerprint(seed);
-                return AppJson.Serialize(current with
+                staleFingerprint = current with
                 {
                     ProcessingVersion = TelemetryProcessingVersion.Current - 1
-                });
+                };
+                return AppJson.Serialize(staleFingerprint);
             });
 
         var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
@@ -367,25 +369,29 @@ public class DatabaseMigrationRunnerTests
             BikeSnapshot.From(seed.Bike),
             RecordedSessionSourceSnapshot.From(seed.Source));
 
-        Assert.Equal(evaluation.Current, evaluation.Persisted);
-        Assert.IsType<SessionStaleness.Current>(evaluation.Staleness);
+        Assert.Equal(staleFingerprint, evaluation.Persisted);
+        var staleness = Assert.IsType<SessionStaleness.ProcessingVersionChanged>(evaluation.Staleness);
+        Assert.Equal(TelemetryProcessingVersion.Current - 1, staleness.Persisted);
+        Assert.Equal(TelemetryProcessingVersion.Current, staleness.CurrentVersion);
     }
 
     [Fact]
-    public async Task Initialization_BackfillsLegacyDependencyHashJsonFingerprintWithoutRecomputing()
+    public async Task Initialization_DoesNotBackfillLegacyDependencyHashJsonFingerprintAfterProcessingVersionAdvance()
     {
         using var tempDatabase = new TempDatabase("legacy-dependency-hash-json-fingerprint.db");
+        ProcessingFingerprint? staleFingerprint = null;
         var seed = SeedProcessedSessionDatabase(
             tempDatabase.DatabasePath,
             seed =>
             {
                 var current = CreateCurrentFingerprint(seed);
-                return AppJson.Serialize(current with
+                staleFingerprint = current with
                 {
                     DependencyHash = ProcessingDependencyHash.ComputeLegacySnakeCaseJson(
                         SetupSnapshot.From(seed.Setup, boardId: null),
                         BikeSnapshot.From(seed.Bike))
-                });
+                };
+                return AppJson.Serialize(staleFingerprint);
             });
 
         var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
@@ -402,12 +408,12 @@ public class DatabaseMigrationRunnerTests
             BikeSnapshot.From(seed.Bike),
             RecordedSessionSourceSnapshot.From(seed.Source));
 
-        Assert.Equal(evaluation.Current, evaluation.Persisted);
-        Assert.IsType<SessionStaleness.Current>(evaluation.Staleness);
+        Assert.Equal(staleFingerprint, evaluation.Persisted);
+        Assert.IsType<SessionStaleness.DependencyHashChanged>(evaluation.Staleness);
     }
 
     [Fact]
-    public async Task Initialization_BackfillsLegacyRearSuspensionKindFingerprintWithoutRecomputing()
+    public async Task Initialization_DoesNotBackfillLegacyRearSuspensionKindFingerprintAfterProcessingVersionAdvance()
     {
         using var tempDatabase = new TempDatabase("legacy-rear-suspension-kind-fingerprint.db");
         var linkage = TestSnapshots.FullSuspensionLinkage();
@@ -417,6 +423,7 @@ public class DatabaseMigrationRunnerTests
             ShockStroke = linkage.ShockStroke,
             Linkage = linkage
         };
+        ProcessingFingerprint? staleFingerprint = null;
         var seed = SeedProcessedSessionDatabase(
             tempDatabase.DatabasePath,
             seed =>
@@ -426,11 +433,12 @@ public class DatabaseMigrationRunnerTests
                 {
                     RearSuspensionKind = RearSuspensionKind.None
                 };
-                return AppJson.Serialize(fingerprintService.CreateCurrent(
+                staleFingerprint = fingerprintService.CreateCurrent(
                     SessionSnapshot.From(seed.Session),
                     SetupSnapshot.From(seed.Setup, boardId: null),
                     legacyBike,
-                    RecordedSessionSourceSnapshot.From(seed.Source)));
+                    RecordedSessionSourceSnapshot.From(seed.Source));
+                return AppJson.Serialize(staleFingerprint);
             },
             bikeSnapshot,
             storeLegacyRearSuspensionKind: true);
@@ -452,19 +460,20 @@ public class DatabaseMigrationRunnerTests
             BikeSnapshot.From(persistedBike),
             RecordedSessionSourceSnapshot.From(seed.Source));
 
-        Assert.Equal(evaluation.Current, evaluation.Persisted);
-        Assert.IsType<SessionStaleness.Current>(evaluation.Staleness);
+        Assert.Equal(staleFingerprint, evaluation.Persisted);
+        Assert.IsType<SessionStaleness.DependencyHashChanged>(evaluation.Staleness);
     }
 
     [Fact]
-    public async Task Initialization_BackfillsExistingDependencyHashMismatchOnceWithoutRecomputing()
+    public async Task Initialization_DoesNotBackfillExistingDependencyHashMismatchAfterProcessingVersionAdvance()
     {
         using var tempDatabase = new TempDatabase("existing-dependency-mismatch-fingerprint.db");
+        ProcessingFingerprint? staleFingerprint = null;
         var seed = SeedProcessedSessionDatabase(
             tempDatabase.DatabasePath,
             seed =>
             {
-                var staleFingerprint = CreateCurrentFingerprint(seed) with
+                staleFingerprint = CreateCurrentFingerprint(seed) with
                 {
                     DependencyHash = "changed-dependency"
                 };
@@ -485,8 +494,8 @@ public class DatabaseMigrationRunnerTests
             BikeSnapshot.From(seed.Bike),
             RecordedSessionSourceSnapshot.From(seed.Source));
 
-        Assert.Equal(evaluation.Current, evaluation.Persisted);
-        Assert.IsType<SessionStaleness.Current>(evaluation.Staleness);
+        Assert.Equal(staleFingerprint, evaluation.Persisted);
+        Assert.IsType<SessionStaleness.DependencyHashChanged>(evaluation.Staleness);
     }
 
     [Fact]

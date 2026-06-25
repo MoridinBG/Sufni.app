@@ -3,7 +3,7 @@ namespace Sufni.Telemetry;
 public sealed record TelemetryProcessingOptions(int VelocityFilterWindowMilliseconds)
 {
     public const int MinVelocityFilterWindowMilliseconds = 0;
-    public const int DefaultVelocityFilterWindowMilliseconds = 50;
+    public const int DefaultVelocityFilterWindowMilliseconds = 25;
     public const int MaxVelocityFilterWindowMilliseconds = 1000;
 
     public TelemetryProcessingOptions()

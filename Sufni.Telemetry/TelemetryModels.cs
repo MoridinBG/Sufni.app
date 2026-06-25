@@ -33,6 +33,8 @@ public class Suspension
     public double[] TravelBins { get; set; }
     public double[] VelocityBins { get; set; }
     public double[] FineVelocityBins { get; set; }
+    public ProcessedSuspensionSegment[] Segments { get; set; } = [];
+    public bool HasGaps { get; set; }
 }
 
 public record BikeData(

@@ -33,6 +33,17 @@ public class StrokesTests
     }
 
     [Fact]
+    public void Overlaps_WithRealTimes_UsesTimeOverlapInsteadOfDenseIndexes()
+    {
+        var s1 = new Stroke { Start = 0, End = 100, StartSeconds = 0.0, EndSeconds = 1.0 };
+        var s2 = new Stroke { Start = 0, End = 100, StartSeconds = 2.0, EndSeconds = 3.0 };
+
+        var result = s1.Overlaps(s2);
+
+        Assert.False(result);
+    }
+
+    [Fact]
     public void FilterStrokes_WithSineWave_DetectsAlternatingStrokes()
     {
         // Arrange

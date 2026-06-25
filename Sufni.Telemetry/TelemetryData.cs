@@ -24,6 +24,9 @@ public class TelemetryData
     public RawImuData? ImuData { get; set; }
     public GpsRecord[]? GpsData { get; set; }
     public TemperatureAverage[] TemperatureAverages { get; set; } = [];
+    public RawStreamGap[] StreamGaps { get; set; } = [];
+    public SstFinalStatus? FinalStatus { get; set; }
+    public bool MissingFinalStatus { get; set; }
     [IgnoreMember] public byte[] BinaryForm => MessagePackSerializer.Serialize(this);
 
     #endregion
@@ -75,8 +78,8 @@ public class TelemetryData
 
                     var at = new Airtime
                     {
-                        Start = Math.Max(f.Start, r.Start) / (double)Metadata.SampleRate,
-                        End = Math.Min(f.End, r.End) / (double)Metadata.SampleRate
+                        Start = StrokeStartSeconds(f, r),
+                        End = StrokeEndSeconds(f, r)
                     };
                     airtimes.Add(at);
                     break;
@@ -88,14 +91,17 @@ public class TelemetryData
             foreach (var f in Front.Strokes.Idlings)
             {
                 if (!f.AirCandidate) continue;
-                var fMean = Front.Travel[f.Start..(f.End + 1)].Mean();
-                var rMean = Rear.Travel[f.Start..(f.End + 1)].Mean();
+                if (!TryGetMeanTravel(Front, f, out var fMean) ||
+                    !TryGetMeanTravel(Rear, f, out var rMean))
+                {
+                    continue;
+                }
 
                 if (!((fMean + rMean) / 2 <= maxMean * Parameters.AirtimeTravelMeanThresholdRatio)) continue;
                 var at = new Airtime
                 {
-                    Start = f.Start / (double)Metadata.SampleRate,
-                    End = f.End / (double)Metadata.SampleRate
+                    Start = StrokeStartSeconds(f),
+                    End = StrokeEndSeconds(f)
                 };
                 airtimes.Add(at);
             }
@@ -103,14 +109,17 @@ public class TelemetryData
             foreach (var r in Rear.Strokes.Idlings)
             {
                 if (!r.AirCandidate) continue;
-                var fMean = Front.Travel[r.Start..(r.End + 1)].Mean();
-                var rMean = Rear.Travel[r.Start..(r.End + 1)].Mean();
+                if (!TryGetMeanTravel(Front, r, out var fMean) ||
+                    !TryGetMeanTravel(Rear, r, out var rMean))
+                {
+                    continue;
+                }
 
                 if (!((fMean + rMean) / 2 <= maxMean * Parameters.AirtimeTravelMeanThresholdRatio)) continue;
                 var at = new Airtime
                 {
-                    Start = r.Start / (double)Metadata.SampleRate,
-                    End = r.End / (double)Metadata.SampleRate
+                    Start = StrokeStartSeconds(r),
+                    End = StrokeEndSeconds(r)
                 };
                 airtimes.Add(at);
             }
@@ -122,8 +131,8 @@ public class TelemetryData
                 if (!f.AirCandidate) continue;
                 var at = new Airtime
                 {
-                    Start = f.Start / (double)Metadata.SampleRate,
-                    End = f.End / (double)Metadata.SampleRate
+                    Start = StrokeStartSeconds(f),
+                    End = StrokeEndSeconds(f)
                 };
                 airtimes.Add(at);
             }
@@ -135,14 +144,82 @@ public class TelemetryData
                 if (!r.AirCandidate) continue;
                 var at = new Airtime
                 {
-                    Start = r.Start / (double)Metadata.SampleRate,
-                    End = r.End / (double)Metadata.SampleRate
+                    Start = StrokeStartSeconds(r),
+                    End = StrokeEndSeconds(r)
                 };
                 airtimes.Add(at);
             }
         }
 
         Airtimes = [.. airtimes];
+    }
+
+    private double StrokeStartSeconds(Stroke first, Stroke? second = null)
+    {
+        if (second is not null &&
+            first.EndSeconds > first.StartSeconds &&
+            second.EndSeconds > second.StartSeconds)
+        {
+            return Math.Max(first.StartSeconds, second.StartSeconds);
+        }
+
+        return StrokeStartSeconds(first);
+    }
+
+    private double StrokeEndSeconds(Stroke first, Stroke? second = null)
+    {
+        if (second is not null &&
+            first.EndSeconds > first.StartSeconds &&
+            second.EndSeconds > second.StartSeconds)
+        {
+            return Math.Min(first.EndSeconds, second.EndSeconds);
+        }
+
+        return StrokeEndSeconds(first);
+    }
+
+    private double StrokeStartSeconds(Stroke stroke) =>
+        stroke.EndSeconds > stroke.StartSeconds ? stroke.StartSeconds : stroke.Start / (double)Metadata.SampleRate;
+
+    private double StrokeEndSeconds(Stroke stroke) =>
+        stroke.EndSeconds > stroke.StartSeconds ? stroke.EndSeconds : stroke.End / (double)Metadata.SampleRate;
+
+    private bool TryGetMeanTravel(Suspension suspension, Stroke stroke, out double mean)
+    {
+        if (!suspension.HasGaps)
+        {
+            if (suspension.Travel.Length == 0)
+            {
+                mean = 0;
+                return false;
+            }
+
+            var start = Math.Clamp(stroke.Start, 0, suspension.Travel.Length - 1);
+            var end = Math.Clamp(stroke.End, 0, suspension.Travel.Length - 1);
+            if (end < start)
+            {
+                mean = 0;
+                return false;
+            }
+
+            mean = suspension.Travel[start..(end + 1)].Mean();
+            return true;
+        }
+
+        var sampler = new SuspensionTimeSeriesSampler(suspension.Segments, Metadata.SampleRate);
+        var startSeconds = StrokeStartSeconds(stroke);
+        var endSeconds = StrokeEndSeconds(stroke);
+        var values = new List<double>();
+        for (var seconds = startSeconds; seconds <= endSeconds; seconds += 1.0 / Metadata.SampleRate)
+        {
+            if (sampler.TrySampleTravel(seconds, out var travel))
+            {
+                values.Add(travel);
+            }
+        }
+
+        mean = values.Count == 0 ? 0 : values.Average();
+        return values.Count > 0;
     }
 
     private static void ApplySuspensionTrace(Suspension suspension, ProcessedSuspensionTrace trace)
@@ -154,7 +231,41 @@ public class TelemetryData
         suspension.TravelBins = trace.TravelBins;
         suspension.VelocityBins = trace.VelocityBins;
         suspension.FineVelocityBins = trace.FineVelocityBins;
+        if (trace.Travel.Length == 0)
+        {
+            suspension.Segments = [];
+        }
+        else
+        {
+            suspension.Segments =
+            [
+                new ProcessedSuspensionSegment
+                {
+                    FirstDenseIndex = 0,
+                    FirstSourceIndex = 0,
+                    StartSeconds = 0,
+                    Travel = trace.Travel,
+                    Velocity = trace.Velocity,
+                },
+            ];
+        }
+
+        suspension.HasGaps = false;
     }
+
+    private static bool UsesSegmentAwareTravel(RawTelemetryData rawData) =>
+        rawData.Version == SstV5Constants.Version &&
+        (rawData.FrontSegments.Length > 1 ||
+         rawData.RearSegments.Length > 1 ||
+         rawData.StreamGaps.Any(gap => gap.StreamKind == SstV5Constants.StreamTravel));
+
+    // A travel gap tagged with a side's sensor bit belongs only to that side. A travel gap with
+    // no location (e.g. a stream-level final-status counter) is not side-attributable, so it is
+    // treated as affecting both sides.
+    private static bool HasTravelGapForSide(RawStreamGap[] streamGaps, uint sensorBit) =>
+        streamGaps.Any(gap =>
+            gap.StreamKind == SstV5Constants.StreamTravel &&
+            (gap.LocationId is null || gap.LocationId == (byte)sensorBit));
 
     private static void ProcessSuspensionSide(
         Suspension suspension,
@@ -190,6 +301,153 @@ public class TelemetryData
 
         ApplySuspensionTrace(suspension, trace);
         suspension.AnomalyRate = CalculateAnomalyRate(preprocessed.AnomalyCount, preprocessed.Samples.Length, sampleRate);
+    }
+
+    private static void ProcessSegmentAwareSuspensionSide(
+        Suspension suspension,
+        RawCountSegment[] rawSegments,
+        bool measurementWraps,
+        Func<ushort, double>? measurementToTravel,
+        int sampleRate,
+        TelemetryProcessingOptions processingOptions)
+    {
+        if (rawSegments.Length == 0)
+        {
+            suspension.Present = false;
+            suspension.Travel = [];
+            suspension.Velocity = [];
+            suspension.Strokes = new Strokes();
+            suspension.TravelBins = [];
+            suspension.VelocityBins = [];
+            suspension.FineVelocityBins = [];
+            suspension.Segments = [];
+            suspension.HasGaps = false;
+            return;
+        }
+
+        Debug.Assert(measurementToTravel is not null);
+        if (measurementToTravel is null)
+        {
+            throw new InvalidOperationException("Present suspension is missing travel calibration.");
+        }
+
+        var travelValues = new List<double>();
+        var velocityValues = new List<double>();
+        var processedSegments = new List<ProcessedSuspensionSegment>();
+        var compressions = new List<Stroke>();
+        var rebounds = new List<Stroke>();
+        var idlings = new List<Stroke>();
+        var anomalyCount = 0;
+        var sampleCount = 0;
+
+        foreach (var rawSegment in rawSegments.OrderBy(segment => segment.FirstIndex))
+        {
+            if (rawSegment.Counts.Length == 0)
+            {
+                continue;
+            }
+
+            var denseOffset = travelValues.Count;
+            var segmentStartSeconds = rawSegment.FirstMonotonicDeltaUs / 1_000_000.0;
+            var preprocessed = MeasurementPreprocessor.Process(
+                rawSegment.Counts,
+                MeasurementPreprocessor.SensorTypeForWrapping(measurementWraps),
+                sampleRate);
+            anomalyCount += preprocessed.AnomalyCount;
+            sampleCount += preprocessed.Samples.Length;
+
+            double[] segmentTravel;
+            double[] segmentVelocity;
+            Strokes segmentStrokes;
+            if (preprocessed.Samples.Length < 5)
+            {
+                segmentTravel = CalculateTravel(preprocessed.Samples, suspension.MaxTravel!.Value, measurementToTravel);
+                segmentVelocity = new double[segmentTravel.Length];
+                segmentStrokes = Strokes.FromCategorized([], [], []);
+            }
+            else
+            {
+                var segmentTime = CreateTimeArray(preprocessed.Samples.Length, sampleRate);
+                var segmentFilter = CreateVelocityFilter(preprocessed.Samples.Length, sampleRate, processingOptions);
+                var trace = SuspensionTraceProcessor.Process(
+                    preprocessed.Samples,
+                    suspension.MaxTravel!.Value,
+                    measurementToTravel,
+                    sampleRate,
+                    segmentTime,
+                    segmentFilter);
+                segmentTravel = trace.Travel;
+                segmentVelocity = trace.Velocity;
+                segmentStrokes = trace.Strokes;
+                OffsetStrokeTimes(segmentStrokes, denseOffset, segmentStartSeconds, sampleRate);
+            }
+
+            travelValues.AddRange(segmentTravel);
+            velocityValues.AddRange(segmentVelocity);
+            processedSegments.Add(new ProcessedSuspensionSegment
+            {
+                FirstDenseIndex = denseOffset,
+                FirstSourceIndex = rawSegment.FirstIndex,
+                StartSeconds = segmentStartSeconds,
+                Travel = segmentTravel,
+                Velocity = segmentVelocity,
+            });
+            compressions.AddRange(segmentStrokes.Compressions);
+            rebounds.AddRange(segmentStrokes.Rebounds);
+            idlings.AddRange(segmentStrokes.Idlings);
+        }
+
+        suspension.Present = travelValues.Count > 0;
+        suspension.Travel = travelValues.ToArray();
+        suspension.Velocity = velocityValues.ToArray();
+        suspension.Strokes = Strokes.FromCategorized([.. compressions], [.. rebounds], [.. idlings]);
+        suspension.TravelBins = suspension.MaxTravel is > 0
+            ? HistogramBuilder.Linspace(0, suspension.MaxTravel.Value, Parameters.TravelHistBins + 1)
+            : [];
+        var velocityForBins = suspension.Velocity.Length == 0 ? [0.0] : suspension.Velocity;
+        suspension.VelocityBins = HistogramBuilder.DigitizeVelocity(velocityForBins, Parameters.VelocityHistStep).Bins;
+        suspension.FineVelocityBins = HistogramBuilder.DigitizeVelocity(velocityForBins, Parameters.VelocityHistStepFine).Bins;
+        suspension.Segments = [.. processedSegments];
+        suspension.HasGaps = processedSegments.Count > 1;
+        suspension.AnomalyRate = CalculateAnomalyRate(anomalyCount, sampleCount, sampleRate);
+    }
+
+    private static double[] CalculateTravel(
+        ushort[] measurements,
+        double maxTravel,
+        Func<ushort, double> measurementToTravel)
+    {
+        var travel = new double[measurements.Length];
+        for (var index = 0; index < measurements.Length; index++)
+        {
+            travel[index] = Math.Clamp(measurementToTravel(measurements[index]), 0, maxTravel);
+        }
+
+        return travel;
+    }
+
+    private static double[] CreateTimeArray(int length, int sampleRate)
+    {
+        var time = new double[length];
+        for (var index = 0; index < time.Length; index++)
+        {
+            time[index] = index / (double)sampleRate;
+        }
+
+        return time;
+    }
+
+    private static void OffsetStrokeTimes(Strokes strokes, int denseOffset, double segmentStartSeconds, int sampleRate)
+    {
+        foreach (var stroke in strokes.Compressions.Concat(strokes.Rebounds).Concat(strokes.Idlings))
+        {
+            var localStart = stroke.Start;
+            var localEnd = stroke.End;
+            stroke.Start += denseOffset;
+            stroke.End += denseOffset;
+            stroke.StartSeconds = segmentStartSeconds + localStart / (double)sampleRate;
+            stroke.EndSeconds = segmentStartSeconds + localEnd / (double)sampleRate;
+        }
     }
 
     private static SavitzkyGolay? CreateVelocityFilter(
@@ -281,6 +539,52 @@ public class TelemetryData
         td.ImuData = rawData.ImuData;
         td.GpsData = rawData.GpsData;
         td.TemperatureAverages = CalculateTemperatureAverages(rawData.TemperatureData);
+        td.StreamGaps = rawData.StreamGaps;
+        td.FinalStatus = rawData.FinalStatus;
+        td.MissingFinalStatus = rawData.MissingFinalStatus;
+
+        if (UsesSegmentAwareTravel(rawData))
+        {
+            td.Front.Present = rawData.FrontSegments.Length > 0;
+            td.Rear.Present = rawData.RearSegments.Length > 0;
+            if (!td.Front.Present && !td.Rear.Present)
+            {
+                throw new Exception("Front and rear record arrays are empty!");
+            }
+
+            ProcessSegmentAwareSuspensionSide(
+                td.Front,
+                rawData.FrontSegments,
+                bikeData.FrontMeasurementWraps,
+                bikeData.FrontMeasurementToTravel,
+                td.Metadata.SampleRate,
+                processingOptions);
+            ProcessSegmentAwareSuspensionSide(
+                td.Rear,
+                rawData.RearSegments,
+                bikeData.RearMeasurementWraps,
+                bikeData.RearMeasurementToTravel,
+                td.Metadata.SampleRate,
+                processingOptions);
+
+            td.Front.HasGaps = td.Front.HasGaps || HasTravelGapForSide(rawData.StreamGaps, SstV5Constants.SensorForkTravel);
+            td.Rear.HasGaps = td.Rear.HasGaps || HasTravelGapForSide(rawData.StreamGaps, SstV5Constants.SensorShockTravel);
+            td.CalculateAirTimes();
+
+            if (logLifecycle)
+            {
+                logger.Verbose(
+                    "Segment-aware telemetry processing completed with front present {FrontPresent}, rear present {RearPresent}, {AirtimeCount} airtimes, {MarkerCount} markers, IMU present {HasImuData}, and GPS points {GpsPointCount}",
+                    td.Front.Present,
+                    td.Rear.Present,
+                    td.Airtimes.Length,
+                    td.Markers.Length,
+                    td.ImuData is not null,
+                    td.GpsData?.Length ?? 0);
+            }
+
+            return td;
+        }
 
         // Evaluate front and rear input arrays
         var fc = rawData.Front.Length;
@@ -380,10 +684,38 @@ public class TelemetryData
             Timestamp = capture.Metadata.Timestamp,
             Front = capture.FrontMeasurements.ToArray(),
             Rear = capture.RearMeasurements.ToArray(),
+            SessionStartUtcMs = checked(capture.Metadata.Timestamp * 1000),
+            RecordingDurationSeconds = capture.Metadata.Duration,
             Markers = capture.Markers,
             ImuData = capture.ImuData,
             GpsData = capture.GpsData,
         };
+
+        if (rawData.Front.Length > 0)
+        {
+            rawData.FrontSegments =
+            [
+                new RawCountSegment
+                {
+                    FirstIndex = 0,
+                    FirstMonotonicDeltaUs = 0,
+                    Counts = rawData.Front,
+                }
+            ];
+        }
+
+        if (rawData.Rear.Length > 0)
+        {
+            rawData.RearSegments =
+            [
+                new RawCountSegment
+                {
+                    FirstIndex = 0,
+                    FirstMonotonicDeltaUs = 0,
+                    Counts = rawData.Rear,
+                }
+            ];
+        }
 
         return FromRecording(rawData, capture.Metadata, capture.BikeData, processingOptions, logLifecycle: false);
     }

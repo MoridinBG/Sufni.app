@@ -85,6 +85,59 @@ public class TelemetryStatisticsHighlightRangeTests
     }
 
     [Fact]
+    public void CalculateHighlightRanges_WithGappedStroke_UsesStrokeSeconds()
+    {
+        var telemetry = CreateTelemetryData(
+            new Stroke
+            {
+                Start = 2,
+                End = 3,
+                StartSeconds = 1.0,
+                EndSeconds = 1.1,
+                DigitizedVelocity = [1, 1],
+                DigitizedTravel = [2, 3],
+                Stat = new StrokeStat
+                {
+                    Count = 2,
+                    MaxTravel = 15,
+                    MaxVelocity = 1,
+                },
+            });
+        telemetry.Metadata.Duration = 1.2;
+        telemetry.Front.Travel = [0, 5, 10, 25];
+        telemetry.Front.Velocity = [0, 0, 0, 0];
+        telemetry.Front.HasGaps = true;
+        telemetry.Front.Segments =
+        [
+            new ProcessedSuspensionSegment
+            {
+                StartSeconds = 0.0,
+                Travel = [0, 5],
+                Velocity = [0, 0],
+            },
+            new ProcessedSuspensionSegment
+            {
+                StartSeconds = 1.0,
+                Travel = [10, 25],
+                Velocity = [0, 0],
+            },
+        ];
+        var selection = new StrokeLengthRangeSelection(
+            SuspensionType.Front,
+            BalanceType.Compression,
+            TelemetryRangeSelection.BinRange.FromBins([0, 10, 20, 30], 1));
+
+        var ranges = TelemetryStatistics.CalculateHighlightRanges(
+            telemetry,
+            selection,
+            new TelemetryTimeRange(0.9, 1.2));
+
+        var range = Assert.Single(ranges);
+        Assert.Equal(1.0, range.StartSeconds, precision: 6);
+        Assert.Equal(1.2, range.EndSeconds, precision: 6);
+    }
+
+    [Fact]
     public void MergeHighlightRanges_MergesOnlyOverlappingRangesForSameSuspensionSide()
     {
         var ranges = new[]

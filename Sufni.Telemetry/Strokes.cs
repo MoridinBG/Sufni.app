@@ -26,6 +26,8 @@ public class Stroke
     public int[] DigitizedTravel { get; set; }
     public int[] DigitizedVelocity { get; set; }
     public int[] FineDigitizedVelocity { get; set; }
+    public double StartSeconds { get; set; }
+    public double EndSeconds { get; set; }
 
     #endregion Public properties
 
@@ -74,6 +76,14 @@ public class Stroke
 
     public bool Overlaps(Stroke other)
     {
+        if (EndSeconds > StartSeconds && other.EndSeconds > other.StartSeconds)
+        {
+            var duration = Math.Max(EndSeconds - StartSeconds, other.EndSeconds - other.StartSeconds);
+            var start = Math.Max(StartSeconds, other.StartSeconds);
+            var end = Math.Min(EndSeconds, other.EndSeconds);
+            return end - start >= Parameters.AirtimeOverlapThreshold * duration;
+        }
+
         var l = Math.Max(End - Start, other.End - other.Start);
         var s = Math.Max(Start, other.Start);
         var e = Math.Min(End, other.End);
@@ -159,6 +169,13 @@ public class Strokes
         }
     }
 
+    public static Strokes FromCategorized(Stroke[] compressions, Stroke[] rebounds, Stroke[] idlings) => new()
+    {
+        Compressions = compressions,
+        Rebounds = rebounds,
+        Idlings = idlings,
+    };
+
     public static Stroke[] FilterStrokes(double[] velocity, double[] travel, double maxTravel, int sampleRate)
     {
         var strokes = new List<Stroke>();
@@ -196,10 +213,16 @@ public class Strokes
             {
                 strokes[^1].End = i;
                 strokes[^1].Duration += duration;
+                strokes[^1].EndSeconds = i / (double)sampleRate;
             }
             else
             {
-                strokes.Add(new Stroke(startIndex, i, duration, travel, velocity, maxTravel));
+                var stroke = new Stroke(startIndex, i, duration, travel, velocity, maxTravel)
+                {
+                    StartSeconds = startIndex / (double)sampleRate,
+                    EndSeconds = i / (double)sampleRate,
+                };
+                strokes.Add(stroke);
             }
         }
 

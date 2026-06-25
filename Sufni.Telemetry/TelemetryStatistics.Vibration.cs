@@ -6,7 +6,8 @@ public static partial class TelemetryStatistics
 {
     public static bool HasVibrationData(TelemetryData telemetryData, ImuLocation location)
     {
-        return telemetryData.ImuData is { Records.Count: > 0, ActiveLocations.Count: > 0 } &&
+        return telemetryData.ImuData is { ActiveLocations.Count: > 0 } &&
+            telemetryData.ImuData.HasSamples &&
             telemetryData.ImuData.ActiveLocations.Contains((byte)location);
     }
 
@@ -16,13 +17,26 @@ public static partial class TelemetryStatistics
         SuspensionType pairedSuspension,
         TelemetryTimeRange? range = null)
     {
-        if (!HasVibrationData(telemetryData, location) || !HasStrokeData(telemetryData, pairedSuspension, range))
+        if (!HasVibrationData(telemetryData, location))
         {
             return null;
         }
 
         Debug.Assert(telemetryData.ImuData is not null);
         var suspension = GetSuspension(telemetryData, pairedSuspension);
+        // Only divert to the segmented path when there is an actual gap. SST3/SST4 (and dense SST5)
+        // populate one dense IMU segment per location with HasGaps = false, and must keep the dense
+        // path so their vibration numbers do not change.
+        if (suspension.HasGaps || telemetryData.ImuData.HasGaps)
+        {
+            return CalculateSegmentedVibration(telemetryData, location, suspension, range);
+        }
+
+        if (!HasStrokeData(telemetryData, pairedSuspension, range))
+        {
+            return null;
+        }
+
         if (suspension.MaxTravel is not > 0 ||
             suspension.Travel.Length < 2 ||
             telemetryData.Metadata.SampleRate <= 0 ||
@@ -147,6 +161,194 @@ public static partial class TelemetryStatistics
             rebound.Thirds,
             overall.Thirds);
     }
+
+    private static VibrationStats? CalculateSegmentedVibration(
+        TelemetryData telemetryData,
+        ImuLocation location,
+        Suspension suspension,
+        TelemetryTimeRange? range)
+    {
+        Debug.Assert(telemetryData.ImuData is not null);
+        if (suspension.MaxTravel is not > 0 ||
+            suspension.Segments.Length == 0 ||
+            telemetryData.Metadata.SampleRate <= 0 ||
+            telemetryData.ImuData.SampleRate <= 0)
+        {
+            return null;
+        }
+
+        var meta = telemetryData.ImuData.Meta.FirstOrDefault(entry => entry.LocationId == (byte)location);
+        if (meta is null || meta.AccelLsbPerG <= 0)
+        {
+            return null;
+        }
+
+        if (!TryGetSelectedSeconds(telemetryData, range, out var selectedStartSeconds, out var selectedEndSeconds) ||
+            !HasStrokeInTimeRange(suspension, selectedStartSeconds, selectedEndSeconds, telemetryData.Metadata.SampleRate))
+        {
+            return null;
+        }
+
+        var sampler = new SuspensionTimeSeriesSampler(suspension.Segments, telemetryData.Metadata.SampleRate);
+        var compression = new VibrationAccumulator();
+        var rebound = new VibrationAccumulator();
+        var other = new VibrationAccumulator();
+        var overall = new VibrationAccumulator();
+
+        foreach (var sample in EnumerateImuSamples(telemetryData.ImuData, location))
+        {
+            if (sample.Time < selectedStartSeconds || sample.Time >= selectedEndSeconds)
+            {
+                continue;
+            }
+
+            if (!sampler.TrySampleTravel(sample.Time, out var travel))
+            {
+                continue;
+            }
+
+            var positionRatio = travel / suspension.MaxTravel.Value;
+            var g = Math.Abs(sample.Record.Az / (double)meta.AccelLsbPerG - 1.0);
+            var kind = StrokeKindAtTime(suspension, sample.Time, telemetryData.Metadata.SampleRate);
+
+            overall.Add(g, positionRatio);
+            switch (kind)
+            {
+                case StrokeKind.Compression:
+                    compression.Add(g, positionRatio);
+                    break;
+                case StrokeKind.Rebound:
+                    rebound.Add(g, positionRatio);
+                    break;
+                default:
+                    other.Add(g, positionRatio);
+                    break;
+            }
+        }
+
+        if (overall.SumG <= 0)
+        {
+            return null;
+        }
+
+        var totalMovement = CalculateSegmentedMovement(
+            suspension,
+            telemetryData.Metadata.SampleRate,
+            selectedStartSeconds,
+            selectedEndSeconds);
+        var totalGSeconds = overall.SumG / telemetryData.ImuData.SampleRate;
+        return new VibrationStats(
+            compression.SumG / overall.SumG * 100.0,
+            rebound.SumG / overall.SumG * 100.0,
+            other.SumG / overall.SumG * 100.0,
+            totalMovement / totalGSeconds,
+            compression.AverageG,
+            rebound.AverageG,
+            overall.AverageG,
+            compression.Thirds,
+            rebound.Thirds,
+            overall.Thirds);
+    }
+
+    private static bool TryGetSelectedSeconds(
+        TelemetryData telemetryData,
+        TelemetryTimeRange? range,
+        out double selectedStartSeconds,
+        out double selectedEndSeconds)
+    {
+        if (range is null)
+        {
+            selectedStartSeconds = 0.0;
+            selectedEndSeconds = double.PositiveInfinity;
+            return true;
+        }
+
+        selectedStartSeconds = Math.Clamp(range.Value.StartSeconds, 0, telemetryData.Metadata.Duration);
+        selectedEndSeconds = Math.Clamp(range.Value.EndSeconds, 0, telemetryData.Metadata.Duration);
+        return selectedEndSeconds - selectedStartSeconds >= TelemetryTimeRange.MinimumDurationSeconds;
+    }
+
+    private static IEnumerable<TimedImuSample> EnumerateImuSamples(RawImuData imuData, ImuLocation location)
+    {
+        var locationId = (byte)location;
+        if (imuData.Segments.Count > 0)
+        {
+            foreach (var segment in imuData.Segments
+                         .Where(segment => segment.LocationId == locationId)
+                         .OrderBy(segment => segment.FirstMonotonicDeltaUs))
+            {
+                var startSeconds = segment.FirstMonotonicDeltaUs / 1_000_000.0;
+                for (var index = 0; index < segment.Records.Length; index++)
+                {
+                    yield return new TimedImuSample(
+                        startSeconds + index / (double)imuData.SampleRate,
+                        segment.Records[index]);
+                }
+            }
+
+            yield break;
+        }
+
+        var locationCount = imuData.ActiveLocations.Count;
+        var sampleIndex = 0;
+        for (var recordIndex = 0; recordIndex < imuData.Records.Count; recordIndex++)
+        {
+            var recordLocation = imuData.ActiveLocations[recordIndex % locationCount];
+            if (recordLocation != locationId)
+            {
+                continue;
+            }
+
+            yield return new TimedImuSample(sampleIndex / (double)imuData.SampleRate, imuData.Records[recordIndex]);
+            sampleIndex++;
+        }
+    }
+
+    private static bool HasStrokeInTimeRange(Suspension suspension, double selectedStartSeconds, double selectedEndSeconds, int sampleRate) =>
+        suspension.Strokes.Compressions.Concat(suspension.Strokes.Rebounds).Any(stroke =>
+            StrokeEndSeconds(stroke, sampleRate) >= selectedStartSeconds &&
+            StrokeStartSeconds(stroke, sampleRate) < selectedEndSeconds);
+
+    private static StrokeKind StrokeKindAtTime(Suspension suspension, double seconds, int sampleRate)
+    {
+        if (suspension.Strokes.Compressions.Any(stroke => ContainsTime(stroke, seconds, sampleRate)))
+        {
+            return StrokeKind.Compression;
+        }
+
+        return suspension.Strokes.Rebounds.Any(stroke => ContainsTime(stroke, seconds, sampleRate))
+            ? StrokeKind.Rebound
+            : StrokeKind.Other;
+    }
+
+    private static bool ContainsTime(Stroke stroke, double seconds, int sampleRate) =>
+        seconds >= StrokeStartSeconds(stroke, sampleRate) && seconds <= StrokeEndSeconds(stroke, sampleRate);
+
+    private static double CalculateSegmentedMovement(
+        Suspension suspension,
+        int sampleRate,
+        double selectedStartSeconds,
+        double selectedEndSeconds)
+    {
+        var total = 0.0;
+        foreach (var segment in suspension.Segments)
+        {
+            for (var index = 1; index < segment.Travel.Length; index++)
+            {
+                var seconds = segment.StartSeconds + index / (double)sampleRate;
+                if (seconds < selectedStartSeconds || seconds >= selectedEndSeconds)
+                {
+                    continue;
+                }
+
+                total += Math.Abs(segment.Travel[index] - segment.Travel[index - 1]);
+            }
+        }
+
+        return total;
+    }
+
+    private readonly record struct TimedImuSample(double Time, ImuRecord Record);
 
     private sealed class VibrationAccumulator
     {

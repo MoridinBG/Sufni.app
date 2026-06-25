@@ -349,6 +349,110 @@ public class TelemetryDataTests
     }
 
     [Fact]
+    public void BinarySerialization_WithSegmentedData_PreservesSegmentsStrokeTimesAndFinalStatusMetadata()
+    {
+        var telemetry = new TelemetryData
+        {
+            Metadata = new Metadata { SampleRate = 100 },
+            Front = new Suspension
+            {
+                Present = true,
+                MaxTravel = 100,
+                Travel = [0, 1],
+                Velocity = [0, 10],
+                TravelBins = [0, 100],
+                VelocityBins = [0, 10],
+                FineVelocityBins = [0, 10],
+                HasGaps = true,
+                Segments =
+                [
+                    new ProcessedSuspensionSegment
+                    {
+                        FirstDenseIndex = 0,
+                        FirstSourceIndex = 10,
+                        StartSeconds = 1.5,
+                        Travel = [0, 1],
+                        Velocity = [0, 10],
+                    }
+                ],
+                Strokes = new Strokes
+                {
+                    Compressions =
+                    [
+                        new Stroke
+                        {
+                            Start = 0,
+                            End = 1,
+                            StartSeconds = 1.5,
+                            EndSeconds = 1.51,
+                            Stat = new StrokeStat(),
+                            DigitizedTravel = [],
+                            DigitizedVelocity = [],
+                            FineDigitizedVelocity = [],
+                        }
+                    ],
+                    Rebounds = [],
+                },
+            },
+            Rear = new Suspension { Strokes = new Strokes(), Travel = [], Velocity = [], TravelBins = [], VelocityBins = [], FineVelocityBins = [] },
+            Airtimes = [],
+            ImuData = new RawImuData
+            {
+                SampleRate = 100,
+                HasGaps = true,
+                Segments =
+                [
+                    new RawImuSegment
+                    {
+                        LocationId = 1,
+                        FirstIndex = 10,
+                        FirstMonotonicDeltaUs = 1_500_000,
+                        Records = [new ImuRecord(1, 2, 3, 4, 5, 6)],
+                    }
+                ],
+            },
+            StreamGaps =
+            [
+                new RawStreamGap
+                {
+                    StreamKind = 1,
+                    FirstMissingIndex = 2,
+                    MissingCount = 3,
+                    MissingTimeUs = 30_000,
+                    Reason = "index_gap",
+                }
+            ],
+            FinalStatus = new SstFinalStatus
+            {
+                SessionResultReason = 2,
+                StoppedMonotonicDeltaUs = 2_000_000,
+                Streams =
+                [
+                    new SstStreamFinalStatus
+                    {
+                        StreamKind = 1,
+                        ProducerState = 1,
+                        ProducerMissedCount = 3,
+                    }
+                ],
+            },
+        };
+
+        var result = TelemetryData.FromBinary(telemetry.BinaryForm);
+
+        Assert.True(result.Front.HasGaps);
+        Assert.Equal(1.5, result.Front.Segments[0].StartSeconds);
+        Assert.Equal(1.5, result.Front.Strokes.Compressions[0].StartSeconds);
+        Assert.NotNull(result.ImuData);
+        Assert.True(result.ImuData.HasGaps);
+        Assert.Single(result.ImuData.Segments);
+        Assert.Single(result.StreamGaps);
+        Assert.Equal("index_gap", result.StreamGaps[0].Reason);
+        Assert.NotNull(result.FinalStatus);
+        Assert.Equal(2, result.FinalStatus.SessionResultReason);
+    }
+
+    [Fact]
     public void FromRecording_ComputesTemperatureAveragesByLocation()
     {
         var samples = Enumerable.Range(0, 200).Select(value => (ushort)value).ToArray();
@@ -380,6 +484,152 @@ public class TelemetryDataTests
         Assert.Equal(19.0, result.TemperatureAverages[0].TemperatureCelsius);
         Assert.Equal(1, result.TemperatureAverages[1].LocationId);
         Assert.Equal(22.0, result.TemperatureAverages[1].TemperatureCelsius);
+    }
+
+    [Fact]
+    public void FromRecording_WithV5TravelGap_ProcessesSegmentsWithoutCrossingGap()
+    {
+        var rawData = CreateSegmentedRaw(
+            new RawCountSegment
+            {
+                FirstIndex = 0,
+                FirstMonotonicDeltaUs = 0,
+                Counts = Enumerable.Range(0, 50).Select(index => (ushort)index).ToArray(),
+            },
+            new RawCountSegment
+            {
+                FirstIndex = 100,
+                FirstMonotonicDeltaUs = 1_000_000,
+                Counts = Enumerable.Range(0, 50).Select(index => (ushort)(50 - index)).ToArray(),
+            });
+
+        var result = TelemetryData.FromRecording(
+            rawData,
+            new Metadata { SampleRate = 100, Duration = 1.5 },
+            new BikeData(100, null, value => value, null),
+            new TelemetryProcessingOptions(0));
+
+        Assert.True(result.Front.HasGaps);
+        Assert.Equal(2, result.Front.Segments.Length);
+        Assert.Equal(100, result.Front.Travel.Length);
+        var allStrokes = result.Front.Strokes.Compressions
+            .Concat(result.Front.Strokes.Rebounds)
+            .Concat(result.Front.Strokes.Idlings);
+        Assert.All(allStrokes, stroke =>
+        {
+            Assert.Contains(result.Front.Segments, segment =>
+                stroke.Start >= segment.FirstDenseIndex &&
+                stroke.End < segment.FirstDenseIndex + segment.Travel.Length);
+        });
+    }
+
+    [Fact]
+    public void FromRecording_WithFrontOnlyTravelGap_LeavesRearWithoutGaps()
+    {
+        var rawData = new RawTelemetryData
+        {
+            Version = 5,
+            SampleRate = 100,
+            FrontSegments =
+            [
+                new RawCountSegment
+                {
+                    FirstIndex = 0,
+                    FirstMonotonicDeltaUs = 0,
+                    Counts = Enumerable.Range(0, 50).Select(index => (ushort)index).ToArray(),
+                },
+                new RawCountSegment
+                {
+                    FirstIndex = 100,
+                    FirstMonotonicDeltaUs = 1_000_000,
+                    Counts = Enumerable.Range(0, 50).Select(index => (ushort)(50 - index)).ToArray(),
+                },
+            ],
+            RearSegments =
+            [
+                new RawCountSegment
+                {
+                    FirstIndex = 0,
+                    FirstMonotonicDeltaUs = 0,
+                    Counts = Enumerable.Range(0, 100).Select(index => (ushort)index).ToArray(),
+                },
+            ],
+            StreamGaps =
+            [
+                new RawStreamGap
+                {
+                    StreamKind = 1,
+                    LocationId = 1, // fork/front travel sensor bit
+                    FirstMissingIndex = 50,
+                    MissingCount = 50,
+                    MissingTimeUs = 500_000,
+                    Reason = "index_gap",
+                },
+            ],
+        };
+
+        var result = TelemetryData.FromRecording(
+            rawData,
+            new Metadata { SampleRate = 100, Duration = 2.0 },
+            new BikeData(100, 100, value => value, value => value),
+            new TelemetryProcessingOptions(0));
+
+        Assert.True(result.Front.HasGaps);
+        Assert.True(result.Rear.Present);
+        // The gap is attributed to the front sensor, so the rear side must stay dense.
+        Assert.False(result.Rear.HasGaps);
+    }
+
+    [Fact]
+    public void FromRecording_WithV5ShortSegment_AppendsTravelWithZeroVelocityAndNoStrokes()
+    {
+        var rawData = CreateSegmentedRaw(new RawCountSegment
+        {
+            FirstIndex = 10,
+            FirstMonotonicDeltaUs = 100_000,
+            Counts = [1, 2, 3],
+        });
+
+        var result = TelemetryData.FromRecording(
+            rawData,
+            new Metadata { SampleRate = 100, Duration = 0.13 },
+            new BikeData(100, null, value => value, null),
+            new TelemetryProcessingOptions(0));
+
+        Assert.True(result.Front.Present);
+        Assert.Equal([1.0, 2.0, 3.0], result.Front.Travel);
+        Assert.Equal([0.0, 0.0, 0.0], result.Front.Velocity);
+        Assert.Empty(result.Front.Strokes.Compressions);
+        Assert.Empty(result.Front.Strokes.Rebounds);
+        Assert.Empty(result.Front.Strokes.Idlings);
+    }
+
+    [Fact]
+    public void FromRecording_WithV5Segments_SetsStrokeSecondsFromSegmentTime()
+    {
+        var rawData = CreateSegmentedRaw(
+            new RawCountSegment
+            {
+                FirstIndex = 0,
+                FirstMonotonicDeltaUs = 0,
+                Counts = Enumerable.Range(0, 50).Select(index => (ushort)index).ToArray(),
+            },
+            new RawCountSegment
+            {
+                FirstIndex = 100,
+                FirstMonotonicDeltaUs = 1_000_000,
+                Counts = Enumerable.Range(0, 50).Select(index => (ushort)(50 - index)).ToArray(),
+            });
+
+        var result = TelemetryData.FromRecording(
+            rawData,
+            new Metadata { SampleRate = 100, Duration = 1.5 },
+            new BikeData(100, null, value => value, null),
+            new TelemetryProcessingOptions(0));
+
+        var rebound = Assert.Single(result.Front.Strokes.Rebounds);
+        Assert.InRange(rebound.StartSeconds, 1.0, 1.5);
+        Assert.InRange(rebound.EndSeconds, 1.0, 1.5);
     }
 
     [Fact]
@@ -652,6 +902,37 @@ public class TelemetryDataTests
         Assert.Equal(39, statistics.Max);
         Assert.Equal(travel.Average(), statistics.Average, 6);
         Assert.Equal(2, statistics.Bottomouts);
+    }
+
+    [Fact]
+    public void CalculateTravelStatistics_WithGappedDynamicSagRange_UsesSegmentTimes()
+    {
+        var telemetry = CreateTelemetry([1.0, 2.0, 10.0, 20.0], maxTravel: 100, sampleRate: 10);
+        telemetry.Metadata.Duration = 1.2;
+        telemetry.Front.HasGaps = true;
+        telemetry.Front.Segments =
+        [
+            new ProcessedSuspensionSegment
+            {
+                StartSeconds = 0.0,
+                Travel = [1.0, 2.0],
+                Velocity = [0.0, 0.0],
+            },
+            new ProcessedSuspensionSegment
+            {
+                StartSeconds = 1.0,
+                Travel = [10.0, 20.0],
+                Velocity = [0.0, 0.0],
+            },
+        ];
+        var options = new TravelStatisticsOptions(
+            Range: new TelemetryTimeRange(0.9, 1.2),
+            HistogramMode: TravelHistogramMode.DynamicSag);
+
+        var statistics = TelemetryStatistics.CalculateTravelStatistics(telemetry, SuspensionType.Front, options);
+
+        Assert.Equal(20, statistics.Max);
+        Assert.Equal(15, statistics.Average, 6);
     }
 
     [Fact]
@@ -994,6 +1275,41 @@ public class TelemetryDataTests
     }
 
     [Fact]
+    public void CalculateVibration_WithDenseImuSegmentsAndNoGaps_MatchesDensePathResult()
+    {
+        var travel = Enumerable.Repeat(10.0, 400).ToArray();
+
+        var denseImu = CreateImuData(ImuLocation.Fork, sampleRate: 1000, sampleCount: 2000, vibrationG: 1);
+        var segmentedImu = CreateImuData(ImuLocation.Fork, sampleRate: 1000, sampleCount: 2000, vibrationG: 1);
+        // A real SST4 import carries dense interleaved Records plus one dense segment per location
+        // with HasGaps = false; that must keep the dense vibration result unchanged.
+        segmentedImu.Segments =
+        [
+            new RawImuSegment
+            {
+                LocationId = (byte)ImuLocation.Fork,
+                FirstIndex = 0,
+                FirstMonotonicDeltaUs = 0,
+                Records = segmentedImu.Records.ToArray(),
+            },
+        ];
+        segmentedImu.HasGaps = false;
+
+        var denseStats = TelemetryStatistics.CalculateVibration(
+            CreateTelemetry(travel, maxTravel: 100, sampleRate: 200, compressions: [CreateStroke(0, 99)], rebounds: [CreateStroke(100, 199)], imuData: denseImu),
+            ImuLocation.Fork,
+            SuspensionType.Front);
+        var segmentedStats = TelemetryStatistics.CalculateVibration(
+            CreateTelemetry(travel, maxTravel: 100, sampleRate: 200, compressions: [CreateStroke(0, 99)], rebounds: [CreateStroke(100, 199)], imuData: segmentedImu),
+            ImuLocation.Fork,
+            SuspensionType.Front);
+
+        Assert.NotNull(denseStats);
+        Assert.NotNull(segmentedStats);
+        Assert.Equal(denseStats, segmentedStats);
+    }
+
+    [Fact]
     public void CalculateVibration_ComputesMagicCarpetFromSuspensionMovementAndTotalVibration()
     {
         var telemetry = CreateTelemetry(
@@ -1033,6 +1349,85 @@ public class TelemetryDataTests
         Assert.NotNull(baseStats);
         Assert.NotNull(oversampledStats);
         Assert.Equal(baseStats.MagicCarpet, oversampledStats.MagicCarpet, 6);
+    }
+
+    [Fact]
+    public void CalculateVibration_WithSegmentedImu_SkipsSamplesInTravelGaps()
+    {
+        var compression = CreateStroke(0, 1);
+        compression.StartSeconds = 0.0;
+        compression.EndSeconds = 0.1;
+        var telemetry = new TelemetryData
+        {
+            Metadata = new Metadata { SampleRate = 10, Duration = 1.2 },
+            Front = new Suspension
+            {
+                Present = true,
+                MaxTravel = 100,
+                Travel = [0, 10, 20, 30],
+                Velocity = [0, 100, 0, 100],
+                HasGaps = true,
+                Segments =
+                [
+                    new ProcessedSuspensionSegment
+                    {
+                        FirstDenseIndex = 0,
+                        FirstSourceIndex = 0,
+                        StartSeconds = 0.0,
+                        Travel = [0, 10],
+                        Velocity = [0, 100],
+                    },
+                    new ProcessedSuspensionSegment
+                    {
+                        FirstDenseIndex = 2,
+                        FirstSourceIndex = 10,
+                        StartSeconds = 1.0,
+                        Travel = [20, 30],
+                        Velocity = [0, 100],
+                    }
+                ],
+                Strokes = Strokes.FromCategorized([compression], [], []),
+                TravelBins = CreateTravelBins(100),
+                VelocityBins = [-100, 0, 100],
+                FineVelocityBins = [-100, 0, 100],
+            },
+            Rear = new Suspension { Strokes = new Strokes(), Travel = [], Velocity = [], TravelBins = [], VelocityBins = [], FineVelocityBins = [] },
+            Airtimes = [],
+            ImuData = new RawImuData
+            {
+                SampleRate = 10,
+                ActiveLocations = [(byte)ImuLocation.Fork],
+                Meta = [new ImuMetaEntry((byte)ImuLocation.Fork, 1000, 1)],
+                HasGaps = true,
+                Segments =
+                [
+                    new RawImuSegment
+                    {
+                        LocationId = (byte)ImuLocation.Fork,
+                        FirstIndex = 0,
+                        FirstMonotonicDeltaUs = 0,
+                        Records =
+                        [
+                            new ImuRecord(0, 0, 2000, 0, 0, 0),
+                            new ImuRecord(0, 0, 2000, 0, 0, 0),
+                        ],
+                    },
+                    new RawImuSegment
+                    {
+                        LocationId = (byte)ImuLocation.Fork,
+                        FirstIndex = 5,
+                        FirstMonotonicDeltaUs = 500_000,
+                        Records = [new ImuRecord(0, 0, 2000, 0, 0, 0)],
+                    }
+                ],
+            },
+        };
+
+        var stats = TelemetryStatistics.CalculateVibration(telemetry, ImuLocation.Fork, SuspensionType.Front);
+
+        Assert.NotNull(stats);
+        Assert.Equal(100.0, stats!.CompressionPercent);
+        Assert.Equal(0.0, stats.OtherPercent);
     }
 
     [Fact]
@@ -1203,6 +1598,25 @@ public class TelemetryDataTests
             Airtimes = [],
         };
     }
+
+    private static RawTelemetryData CreateSegmentedRaw(params RawCountSegment[] frontSegments) => new()
+    {
+        Version = 5,
+        SampleRate = 100,
+        FrontSegments = frontSegments,
+        Front = frontSegments.SelectMany(segment => segment.Counts).ToArray(),
+        StreamGaps =
+        [
+            new RawStreamGap
+            {
+                StreamKind = 1,
+                FirstMissingIndex = 50,
+                MissingCount = 50,
+                MissingTimeUs = 500_000,
+                Reason = "index_gap",
+            }
+        ],
+    };
 
     private static TelemetryData CreateTelemetry(
         double[] travel,

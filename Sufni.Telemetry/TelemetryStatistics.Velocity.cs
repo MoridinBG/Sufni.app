@@ -513,7 +513,7 @@ public static partial class TelemetryStatistics
             var length = Math.Abs(suspension.Travel[stroke.End] - suspension.Travel[stroke.Start]);
             if (HistogramBuilder.DigitizeValue(length, travelBins) == selection.Bin.Index)
             {
-                ranges.Add(CreateHighlightRange(stroke.Start, stroke.End, telemetryData.Metadata.SampleRate));
+                ranges.Add(CreateHighlightRange(stroke, telemetryData.Metadata.SampleRate));
             }
         }
 
@@ -539,7 +539,7 @@ public static partial class TelemetryStatistics
             var speed = Math.Abs(stroke.Stat.MaxVelocity);
             if (HistogramBuilder.DigitizeValue(speed, bins) == selection.Bin.Index)
             {
-                ranges.Add(CreateHighlightRange(stroke.Start, stroke.End, telemetryData.Metadata.SampleRate));
+                ranges.Add(CreateHighlightRange(stroke, telemetryData.Metadata.SampleRate));
             }
         }
 
@@ -575,7 +575,7 @@ public static partial class TelemetryStatistics
 
             if (HistogramBuilder.DigitizeValue(stroke.Stat.MaxTravel, bins) == selection.Bin.Index)
             {
-                ranges.Add(CreateHighlightRange(stroke.Start, stroke.End, telemetryData.Metadata.SampleRate));
+                ranges.Add(CreateHighlightRange(stroke, telemetryData.Metadata.SampleRate));
             }
         }
 
@@ -615,14 +615,14 @@ public static partial class TelemetryStatistics
 
                 if (matchingStart >= 0)
                 {
-                    ranges.Add(CreateHighlightRange(stroke.Start + matchingStart, stroke.Start + index - 1, sampleRate));
+                    ranges.Add(CreateHighlightRange(stroke, matchingStart, index - 1, sampleRate));
                     matchingStart = -1;
                 }
             }
 
             if (matchingStart >= 0)
             {
-                ranges.Add(CreateHighlightRange(stroke.Start + matchingStart, stroke.Start + sampleCount - 1, sampleRate));
+                ranges.Add(CreateHighlightRange(stroke, matchingStart, sampleCount - 1, sampleRate));
             }
         }
 
@@ -649,17 +649,31 @@ public static partial class TelemetryStatistics
                 continue;
             }
 
-            ranges.Add(CreateHighlightRange(stroke.Start, stroke.End, sampleRate));
+            ranges.Add(CreateHighlightRange(stroke, sampleRate));
         }
 
         return ranges;
     }
 
-    private static TelemetryHighlightRange CreateHighlightRange(int firstSampleIndex, int lastSampleIndex, int sampleRate)
+    private static TelemetryHighlightRange CreateHighlightRange(Stroke stroke, int sampleRate)
     {
+        var step = sampleRate > 0 ? 1.0 / sampleRate : 0.0;
         return new TelemetryHighlightRange(
-            firstSampleIndex / (double)sampleRate,
-            (lastSampleIndex + 1) / (double)sampleRate);
+            StrokeStartSeconds(stroke, sampleRate),
+            StrokeEndSeconds(stroke, sampleRate) + step);
+    }
+
+    private static TelemetryHighlightRange CreateHighlightRange(
+        Stroke stroke,
+        int firstStrokeSampleOffset,
+        int lastStrokeSampleOffset,
+        int sampleRate)
+    {
+        var step = sampleRate > 0 ? 1.0 / sampleRate : 0.0;
+        var strokeStartSeconds = StrokeStartSeconds(stroke, sampleRate);
+        return new TelemetryHighlightRange(
+            strokeStartSeconds + firstStrokeSampleOffset * step,
+            strokeStartSeconds + (lastStrokeSampleOffset + 1) * step);
     }
 
     private static double CalculateSampleAverageVelocity(Stroke[] strokes)
