@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using ScottPlot;
 using Sufni.App.Services.Imu;
 using Sufni.App.Theming;
@@ -38,13 +39,13 @@ public sealed class FramePitchRollPlot(Plot plot, SufniTheme? theme = null) : Re
                     "Pitch",
                     "deg",
                     FrontColor,
-                    new SampledValues(pitchRoll.PitchDegrees, telemetryData.ImuData.SampleRate),
+                    CreatePitchValues(telemetryData.ImuData, pitchRoll),
                     "0.#"),
                 new RecordedTimeSeries(
                     "Roll",
                     "deg",
                     RearColor,
-                    new SampledValues(pitchRoll.RollDegrees, telemetryData.ImuData.SampleRate),
+                    CreateRollValues(telemetryData.ImuData, pitchRoll),
                     "0.#")
             ],
             new RecordedTimeSeriesValueRange(-maximum, maximum),
@@ -77,5 +78,41 @@ public sealed class FramePitchRollPlot(Plot plot, SufniTheme? theme = null) : Re
         }
 
         return Math.Max(AxisFloorDegrees, maximum * AxisPadding);
+    }
+
+    private static RecordedTimeSeriesValues CreatePitchValues(RawImuData imuData, FramePitchRollSeries pitchRoll)
+    {
+        if (!imuData.HasGaps)
+        {
+            return new SampledValues(pitchRoll.PitchDegrees, imuData.SampleRate);
+        }
+
+        if (pitchRoll.Segments.Count == 0)
+        {
+            return new ExplicitValues(pitchRoll.Times, pitchRoll.PitchDegrees);
+        }
+
+        return new SegmentedValues(
+            pitchRoll.Segments
+                .Select(segment => new ExplicitValues(segment.Times, segment.PitchDegrees))
+                .ToArray());
+    }
+
+    private static RecordedTimeSeriesValues CreateRollValues(RawImuData imuData, FramePitchRollSeries pitchRoll)
+    {
+        if (!imuData.HasGaps)
+        {
+            return new SampledValues(pitchRoll.RollDegrees, imuData.SampleRate);
+        }
+
+        if (pitchRoll.Segments.Count == 0)
+        {
+            return new ExplicitValues(pitchRoll.Times, pitchRoll.RollDegrees);
+        }
+
+        return new SegmentedValues(
+            pitchRoll.Segments
+                .Select(segment => new ExplicitValues(segment.Times, segment.RollDegrees))
+                .ToArray());
     }
 }

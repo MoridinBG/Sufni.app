@@ -536,7 +536,7 @@ internal static class SessionDiagnostics
             }
         }
 
-        if (!addedComparableVibration && telemetryData.ImuData is { Records.Count: > 0 })
+        if (!addedComparableVibration && telemetryData.ImuData?.HasSamples == true)
         {
             findings.Add(new DiagnosticFinding(
                 SessionAnalysisFindingId.VibrationNotUsedForRecommendations,

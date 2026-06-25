@@ -3,6 +3,7 @@ using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Models;
 using Sufni.App.Plots;
+using Sufni.Telemetry;
 using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
 using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
 
@@ -68,6 +69,45 @@ public class TravelVelocityLegendTests
         Assert.True(front.IsVisible);
         Assert.False(rear.IsVisible);
         Assert.True(visibility.IsVisible(TelemetryGraphRowIds.Travel, TelemetrySourceKeys.Front));
+    }
+
+    [Fact]
+    public void TravelPlot_TryToggleInteractiveLegendAt_TogglesAllSegmentPlottablesForSource()
+    {
+        var telemetry = CreateMinimal();
+        telemetry.Front.HasGaps = true;
+        telemetry.Front.Segments =
+        [
+            new ProcessedSuspensionSegment { StartSeconds = 0.0, Travel = [0, 25], Velocity = [0, 10] },
+            new ProcessedSuspensionSegment { StartSeconds = 1.0, Travel = [50, 75], Velocity = [20, 30] },
+        ];
+        telemetry.Rear.HasGaps = true;
+        telemetry.Rear.Segments =
+        [
+            new ProcessedSuspensionSegment { StartSeconds = 0.0, Travel = [0, 20], Velocity = [0, 8] },
+            new ProcessedSuspensionSegment { StartSeconds = 1.0, Travel = [40, 60], Velocity = [16, 24] },
+        ];
+        var visibility = new TelemetrySourceVisibilityStore();
+        var plot = new Plot();
+        var sut = new TravelPlot(plot)
+        {
+            SourceVisibility = visibility,
+        };
+
+        sut.LoadTelemetryData(telemetry);
+
+        var scatters = plot.PlottableList.OfType<Scatter>().ToArray();
+        Assert.Equal(4, scatters.Length);
+        Assert.Equal(["Front", "", "Rear", ""], scatters.Select(scatter => scatter.LegendText ?? string.Empty).ToArray());
+        var plotSize = new PixelSize(500, 300);
+
+        Assert.True(sut.TryToggleInteractiveLegendAt(GetLegendItemCenter(plot, scatters[2], plotSize), plotSize));
+
+        Assert.True(scatters[0].IsVisible);
+        Assert.True(scatters[1].IsVisible);
+        Assert.False(scatters[2].IsVisible);
+        Assert.False(scatters[3].IsVisible);
+        Assert.False(visibility.IsVisible(TelemetryGraphRowIds.Travel, TelemetrySourceKeys.Rear));
     }
 
     [Fact]

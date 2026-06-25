@@ -114,6 +114,47 @@ public class RecordedTimeSeriesPlotTests
     }
 
     [Fact]
+    public void LoadTimeSeries_RendersSegmentedValuesAsScattersAndCursorIgnoresGaps()
+    {
+        var plot = new Plot();
+        var sut = new TestRecordedTimeSeriesPlot(plot);
+
+        sut.LoadForTest(new RecordedTimeSeriesData(
+            "Speed (km/h)",
+            "No speed data",
+            DurationSeconds: 2,
+            Series:
+            [
+                new RecordedTimeSeries(
+                    "Speed",
+                    "km/h",
+                    Color.FromHex("#ffffbf"),
+                    new SegmentedValues(
+                    [
+                        new ExplicitValues([0, 0.1, 0.2], [0, 10, 20]),
+                        new ExplicitValues([1.0, 1.1, 1.2], [30, 40, 50])
+                    ]),
+                    "0.#")
+            ]));
+
+        var scatters = plot.PlottableList.OfType<Scatter>().ToArray();
+        Assert.Equal(2, scatters.Length);
+        Assert.Equal("Speed", scatters[0].LegendText);
+        Assert.True(string.IsNullOrEmpty(scatters[1].LegendText));
+        Assert.Empty(plot.PlottableList.OfType<Signal>());
+
+        sut.SetCursorPositionWithReadout(0.1);
+
+        var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
+        Assert.True(tooltip.IsVisible);
+        Assert.Contains("Speed: 10 km/h", tooltip.LabelText);
+
+        sut.SetCursorPositionWithReadout(0.6);
+
+        Assert.False(tooltip.IsVisible);
+    }
+
+    [Fact]
     public void RangeOverlays_RenderSelectedAndPreviewRanges()
     {
         var plot = new Plot();

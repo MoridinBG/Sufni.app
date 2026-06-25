@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using ScottPlot;
 using Sufni.App.Models;
 using Sufni.App.Theming;
@@ -24,7 +25,10 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
                 "Front",
                 "mm",
                 FrontColor,
-                new SampledValues(telemetryData.Front.Travel, telemetryData.Metadata.SampleRate),
+                CreateSegmentAwareValues(
+                    telemetryData.Front,
+                    telemetryData.Metadata.SampleRate,
+                    segment => segment.Travel),
                 "0.#",
                 SourceKey: TelemetrySourceKeys.Front)
             {
@@ -39,7 +43,10 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
                 "Rear",
                 "mm",
                 RearColor,
-                new SampledValues(telemetryData.Rear.Travel, telemetryData.Metadata.SampleRate),
+                CreateSegmentAwareValues(
+                    telemetryData.Rear,
+                    telemetryData.Metadata.SampleRate,
+                    segment => segment.Travel),
                 "0.#",
                 SourceKey: TelemetrySourceKeys.Rear)
             {
@@ -72,5 +79,36 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
         var travelText = value.ToString("0.#", CultureInfo.InvariantCulture);
         var percentage = Math.Round(value / maxTravel * 100.0, MidpointRounding.AwayFromZero);
         return $"{travelText} mm ({percentage.ToString("0", CultureInfo.InvariantCulture)}%)";
+    }
+
+    private static RecordedTimeSeriesValues CreateSegmentAwareValues(
+        Suspension suspension,
+        int sampleRate,
+        Func<ProcessedSuspensionSegment, double[]> getValues)
+    {
+        if (!suspension.HasGaps)
+        {
+            return new SampledValues(suspension.Travel, sampleRate);
+        }
+
+        return new SegmentedValues(
+            suspension.Segments
+                .Select(segment => CreateExplicitSegment(segment, sampleRate, getValues(segment)))
+                .Where(segment => segment.YValues.Length > 0)
+                .ToArray());
+    }
+
+    private static ExplicitValues CreateExplicitSegment(
+        ProcessedSuspensionSegment segment,
+        int sampleRate,
+        double[] values)
+    {
+        var xValues = new double[values.Length];
+        for (var index = 0; index < values.Length; index++)
+        {
+            xValues[index] = segment.StartSeconds + index / (double)sampleRate;
+        }
+
+        return new ExplicitValues(xValues, values);
     }
 }

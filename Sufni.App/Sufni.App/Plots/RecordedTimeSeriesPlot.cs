@@ -15,6 +15,8 @@ public sealed record SampledValues(double[] Samples, int SampleRate) : RecordedT
 
 public sealed record ExplicitValues(double[] XValues, double[] YValues) : RecordedTimeSeriesValues;
 
+public sealed record SegmentedValues(IReadOnlyList<ExplicitValues> Segments) : RecordedTimeSeriesValues;
+
 public sealed record RecordedTimeSeries(
     string Label,
     string Unit,
@@ -168,7 +170,7 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
             position,
             cursorDurationSeconds,
             cursorSeries
-                .Where(series => series.Plottable.IsVisible)
+                .Where(series => series.Plottables.Any(plottable => plottable.IsVisible))
                 .Select(series => series.CursorSeries)
                 .ToArray());
     }
@@ -202,14 +204,17 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
 
         foreach (var series in preparedSeries)
         {
-            var plottable = series.AddToPlot(Plot);
-            cursorSeries.Add(new PlottableCursorReadoutSeries(plottable, series.CursorSeries));
+            var plottables = series.AddToPlot(Plot);
+            cursorSeries.Add(new PlottableCursorReadoutSeries(plottables, series.CursorSeries));
             if (interactiveLegendEnabled)
             {
-                RegisterInteractiveLegendSource(
-                    plottable,
-                    data.InteractiveLegendRowId!,
-                    series.Source.SourceKey ?? series.Source.Label);
+                foreach (var plottable in plottables)
+                {
+                    RegisterInteractiveLegendSource(
+                        plottable,
+                        data.InteractiveLegendRowId!,
+                        series.Source.SourceKey ?? series.Source.Label);
+                }
             }
         }
 
@@ -410,6 +415,7 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
         {
             SampledValues sampledValues => PrepareSampledSeries(series, sampledValues),
             ExplicitValues explicitValues => PrepareExplicitSeries(series, explicitValues),
+            SegmentedValues segmentedValues => PrepareSegmentedSeries(series, segmentedValues),
             _ => null
         };
     }
@@ -463,6 +469,53 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
         return PreparedTimeSeries.FromExplicitValues(series, xValues, yValues, cursorReadoutSeries);
     }
 
+    private PreparedTimeSeries? PrepareSegmentedSeries(RecordedTimeSeries series, SegmentedValues values)
+    {
+        var plotSegments = new List<PreparedSeriesSegment>();
+        var cursorXValues = new List<double>();
+        var cursorYValues = new List<double>();
+        var cursorSegmentRanges = new List<CursorReadoutSegmentIndexRange>();
+
+        foreach (var segment in values.Segments)
+        {
+            var count = Math.Min(segment.XValues.Length, segment.YValues.Length);
+            if (count < 2)
+            {
+                continue;
+            }
+
+            var xValues = segment.XValues.Length == count ? segment.XValues : segment.XValues.Take(count).ToArray();
+            var sourceYValues = segment.YValues.Length == count ? segment.YValues : segment.YValues.Take(count).ToArray();
+            var yValues = TelemetryDisplaySmoothing.ApplyIrregular(xValues, sourceYValues, SmoothingLevel);
+
+            plotSegments.Add(PreparedSeriesSegment.FromExplicitValues(
+                xValues,
+                yValues,
+                showLegend: plotSegments.Count == 0));
+
+            cursorSegmentRanges.Add(new CursorReadoutSegmentIndexRange(cursorXValues.Count, count));
+            cursorXValues.AddRange(xValues);
+            cursorYValues.AddRange(yValues);
+        }
+
+        if (plotSegments.Count == 0)
+        {
+            return null;
+        }
+
+        var cursorReadoutSeries = CursorReadoutSeries.FromSegmentedScatterSamples(
+            series.Label,
+            series.Unit,
+            series.Color,
+            cursorXValues,
+            cursorYValues,
+            cursorSegmentRanges,
+            series.Format,
+            series.CursorValueFormatter);
+
+        return PreparedTimeSeries.FromSegmentedValues(series, plotSegments, cursorReadoutSeries);
+    }
+
     private static RecordedTimeSeriesValueRange GetValueRange(IReadOnlyList<PreparedTimeSeries> series)
     {
         var minimum = series.Min(item => item.MinimumY);
@@ -477,24 +530,18 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
     {
         private PreparedTimeSeries(
             RecordedTimeSeries source,
-            double[] xValues,
-            double[] yValues,
-            double? step,
+            IReadOnlyList<PreparedSeriesSegment> segments,
             CursorReadoutSeries cursorSeries)
         {
             Source = source;
-            XValues = xValues;
-            YValues = yValues;
-            Step = step;
+            Segments = segments;
             CursorSeries = cursorSeries;
-            MinimumY = yValues.Min();
-            MaximumY = yValues.Max();
+            MinimumY = segments.Min(segment => segment.YValues.Min());
+            MaximumY = segments.Max(segment => segment.YValues.Max());
         }
 
         public RecordedTimeSeries Source { get; }
-        public double[] XValues { get; }
-        public double[] YValues { get; }
-        public double? Step { get; }
+        public IReadOnlyList<PreparedSeriesSegment> Segments { get; }
         public CursorReadoutSeries CursorSeries { get; }
         public double MinimumY { get; }
         public double MaximumY { get; }
@@ -505,7 +552,10 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
             double step,
             CursorReadoutSeries cursorSeries)
         {
-            return new PreparedTimeSeries(source, [], yValues, step, cursorSeries);
+            return new PreparedTimeSeries(
+                source,
+                [PreparedSeriesSegment.FromSampledValues(yValues, step)],
+                cursorSeries);
         }
 
         public static PreparedTimeSeries FromExplicitValues(
@@ -514,31 +564,79 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
             double[] yValues,
             CursorReadoutSeries cursorSeries)
         {
-            return new PreparedTimeSeries(source, xValues, yValues, null, cursorSeries);
+            return new PreparedTimeSeries(
+                source,
+                [PreparedSeriesSegment.FromExplicitValues(xValues, yValues, showLegend: true)],
+                cursorSeries);
         }
 
-        public IPlottable AddToPlot(Plot plot)
+        public static PreparedTimeSeries FromSegmentedValues(
+            RecordedTimeSeries source,
+            IReadOnlyList<PreparedSeriesSegment> segments,
+            CursorReadoutSeries cursorSeries)
         {
-            if (Step is { } step)
+            return new PreparedTimeSeries(source, segments, cursorSeries);
+        }
+
+        public IReadOnlyList<IPlottable> AddToPlot(Plot plot)
+        {
+            var plottables = new List<IPlottable>(Segments.Count);
+            foreach (var segment in Segments)
             {
-                var signal = plot.Add.Signal(YValues, step, Source.Color);
-                signal.Axes.XAxis = plot.Axes.Bottom;
-                signal.Axes.YAxis = plot.Axes.Left;
-                signal.LineWidth = Source.LineWidth;
-                signal.LegendText = Source.Label;
-                return signal;
+                if (segment.Step is { } step)
+                {
+                    var signal = plot.Add.Signal(segment.YValues, step, Source.Color);
+                    signal.Axes.XAxis = plot.Axes.Bottom;
+                    signal.Axes.YAxis = plot.Axes.Left;
+                    signal.LineWidth = Source.LineWidth;
+                    if (segment.ShowLegend)
+                    {
+                        signal.LegendText = Source.Label;
+                    }
+
+                    plottables.Add(signal);
+                    continue;
+                }
+
+                var scatter = plot.Add.Scatter(segment.XValues, segment.YValues);
+                scatter.Color = Source.Color;
+                scatter.LineWidth = Source.LineWidth;
+                if (segment.ShowLegend)
+                {
+                    scatter.LegendText = Source.Label;
+                }
+
+                scatter.MarkerStyle.IsVisible = false;
+                plottables.Add(scatter);
             }
 
-            var scatter = plot.Add.Scatter(XValues, YValues);
-            scatter.Color = Source.Color;
-            scatter.LineWidth = Source.LineWidth;
-            scatter.LegendText = Source.Label;
-            scatter.MarkerStyle.IsVisible = false;
-            return scatter;
+            return plottables;
         }
     }
 
-    private sealed record PlottableCursorReadoutSeries(IPlottable Plottable, CursorReadoutSeries CursorSeries);
+    private sealed class PreparedSeriesSegment
+    {
+        private PreparedSeriesSegment(double[] xValues, double[] yValues, double? step, bool showLegend)
+        {
+            XValues = xValues;
+            YValues = yValues;
+            Step = step;
+            ShowLegend = showLegend;
+        }
+
+        public double[] XValues { get; }
+        public double[] YValues { get; }
+        public double? Step { get; }
+        public bool ShowLegend { get; }
+
+        public static PreparedSeriesSegment FromSampledValues(double[] yValues, double step) =>
+            new([], yValues, step, showLegend: true);
+
+        public static PreparedSeriesSegment FromExplicitValues(double[] xValues, double[] yValues, bool showLegend) =>
+            new(xValues, yValues, null, showLegend);
+    }
+
+    private sealed record PlottableCursorReadoutSeries(IReadOnlyList<IPlottable> Plottables, CursorReadoutSeries CursorSeries);
 
     private sealed class RangeOverlayRenderState(string id)
     {

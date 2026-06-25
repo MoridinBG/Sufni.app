@@ -300,14 +300,14 @@ internal sealed class RecordedPresentationApplier
     private static bool HasImuTelemetry(TelemetryData? telemetry)
     {
         return telemetry?.ImuData is { } imuData &&
-               imuData.Records.Count > 0 &&
+               imuData.HasSamples &&
                imuData.ActiveLocations.Count > 0;
     }
 
     private static bool HasFramePitchRollTelemetry(TelemetryData? telemetry)
     {
         if (telemetry?.ImuData is not { } imuData ||
-            imuData.Records.Count == 0 ||
+            !imuData.HasSamples ||
             !imuData.ActiveLocations.Contains((byte)ImuLocation.Frame))
         {
             return false;

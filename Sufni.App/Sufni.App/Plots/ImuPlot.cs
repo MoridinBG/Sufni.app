@@ -17,7 +17,7 @@ public class ImuPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPl
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if (telemetryData.ImuData == null || telemetryData.ImuData.Records.Count == 0 || telemetryData.ImuData.ActiveLocations.Count == 0)
+        if (telemetryData.ImuData == null || !telemetryData.ImuData.HasSamples || telemetryData.ImuData.ActiveLocations.Count == 0)
         {
             ShowEmptyState(telemetryData.Metadata.Duration);
             return;
@@ -50,7 +50,7 @@ public class ImuPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPl
                 label,
                 "g",
                 color,
-                new SampledValues(vibrationSeries.RmsG, telemetryData.ImuData.SampleRate),
+                CreateValues(telemetryData.ImuData, vibrationSeries),
                 "0.###",
                 SourceKey: TelemetrySourceKeys.ImuLocation(vibrationSeries.LocationId)));
         }
@@ -76,5 +76,23 @@ public class ImuPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPl
             "No IMU data",
             durationSeconds,
             []));
+    }
+
+    private static RecordedTimeSeriesValues CreateValues(RawImuData imuData, ImuVibrationSeries vibrationSeries)
+    {
+        if (!imuData.HasGaps)
+        {
+            return new SampledValues(vibrationSeries.RmsG, imuData.SampleRate);
+        }
+
+        if (vibrationSeries.Segments.Count == 0)
+        {
+            return new ExplicitValues(vibrationSeries.Times, vibrationSeries.RmsG);
+        }
+
+        return new SegmentedValues(
+            vibrationSeries.Segments
+                .Select(segment => new ExplicitValues(segment.Times, segment.Values))
+                .ToArray());
     }
 }

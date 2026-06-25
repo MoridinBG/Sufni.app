@@ -39,12 +39,15 @@ public sealed record CursorReadout(
     public Color AccentColor => Lines.FirstOrDefault()?.Color ?? Colors.LightGray;
 }
 
+internal readonly record struct CursorReadoutSegmentIndexRange(int StartIndex, int Count);
+
 public sealed class CursorReadoutSeries
 {
     private readonly IReadOnlyList<double>? xValues;
     private readonly IReadOnlyList<double> yValues;
     private readonly double? regularStep;
     private readonly Func<double, string>? valueFormatter;
+    private readonly IReadOnlyList<CursorReadoutSegmentIndexRange>? segmentIndexRanges;
     private readonly double maximumX;
     private readonly bool xValuesSorted;
 
@@ -57,6 +60,7 @@ public sealed class CursorReadoutSeries
         IReadOnlyList<double> yValues,
         double? regularStep,
         Func<double, string>? valueFormatter,
+        IReadOnlyList<CursorReadoutSegmentIndexRange>? segmentIndexRanges,
         double maximumX)
     {
         Label = label;
@@ -67,6 +71,7 @@ public sealed class CursorReadoutSeries
         this.yValues = yValues;
         this.regularStep = regularStep;
         this.valueFormatter = valueFormatter;
+        this.segmentIndexRanges = segmentIndexRanges;
         this.maximumX = maximumX;
         xValuesSorted = xValues is not null && IsSortedAscending(xValues);
     }
@@ -87,7 +92,7 @@ public sealed class CursorReadoutSeries
         Func<double, string>? valueFormatter = null)
     {
         var finiteStep = double.IsFinite(step) && step > 0 ? step : 1.0;
-        return new CursorReadoutSeries(label, unit, color, format, null, yValues, finiteStep, valueFormatter, maximumX);
+        return new CursorReadoutSeries(label, unit, color, format, null, yValues, finiteStep, valueFormatter, null, maximumX);
     }
 
     public static CursorReadoutSeries FromScatterSamples(
@@ -99,7 +104,20 @@ public sealed class CursorReadoutSeries
         string format = "0.##",
         Func<double, string>? valueFormatter = null)
     {
-        return new CursorReadoutSeries(label, unit, color, format, xValues, yValues, null, valueFormatter, 0);
+        return new CursorReadoutSeries(label, unit, color, format, xValues, yValues, null, valueFormatter, null, 0);
+    }
+
+    internal static CursorReadoutSeries FromSegmentedScatterSamples(
+        string label,
+        string unit,
+        Color color,
+        IReadOnlyList<double> xValues,
+        IReadOnlyList<double> yValues,
+        IReadOnlyList<CursorReadoutSegmentIndexRange> segmentIndexRanges,
+        string format = "0.##",
+        Func<double, string>? valueFormatter = null)
+    {
+        return new CursorReadoutSeries(label, unit, color, format, xValues, yValues, null, valueFormatter, segmentIndexRanges, 0);
     }
 
     public bool TryGetLine(double position, out CursorReadoutLine line)
@@ -136,6 +154,11 @@ public sealed class CursorReadoutSeries
         if (xValues is null || xValues.Count == 0)
         {
             return -1;
+        }
+
+        if (segmentIndexRanges is not null)
+        {
+            return GetNearestSegmentedIndex(position);
         }
 
         if (xValuesSorted)
@@ -202,6 +225,88 @@ public sealed class CursorReadoutSeries
         if (high < 0)
         {
             return 0;
+        }
+
+        return Math.Abs(position - xValues[high]) <= Math.Abs(xValues[low] - position)
+            ? high
+            : low;
+    }
+
+    private int GetNearestSegmentedIndex(double position)
+    {
+        if (xValues is null || segmentIndexRanges is null)
+        {
+            return -1;
+        }
+
+        foreach (var segment in segmentIndexRanges)
+        {
+            if (segment.Count <= 0 ||
+                segment.StartIndex < 0 ||
+                segment.StartIndex >= xValues.Count)
+            {
+                continue;
+            }
+
+            var endIndex = Math.Min(segment.StartIndex + segment.Count, xValues.Count) - 1;
+            var startTime = xValues[segment.StartIndex];
+            var endTime = xValues[endIndex];
+            if (position < startTime || position > endTime)
+            {
+                continue;
+            }
+
+            return GetNearestSortedIndexInRange(position, segment.StartIndex, endIndex);
+        }
+
+        return -1;
+    }
+
+    private int GetNearestSortedIndexInRange(double position, int startIndex, int endIndex)
+    {
+        if (xValues is null)
+        {
+            return -1;
+        }
+
+        if (position <= xValues[startIndex])
+        {
+            return startIndex;
+        }
+
+        if (position >= xValues[endIndex])
+        {
+            return endIndex;
+        }
+
+        var low = startIndex;
+        var high = endIndex;
+        while (low <= high)
+        {
+            var mid = low + (high - low) / 2;
+            var midValue = xValues[mid];
+            if (position < midValue)
+            {
+                high = mid - 1;
+            }
+            else if (position > midValue)
+            {
+                low = mid + 1;
+            }
+            else
+            {
+                return mid;
+            }
+        }
+
+        if (low > endIndex)
+        {
+            return endIndex;
+        }
+
+        if (high < startIndex)
+        {
+            return startIndex;
         }
 
         return Math.Abs(position - xValues[high]) <= Math.Abs(xValues[low] - position)

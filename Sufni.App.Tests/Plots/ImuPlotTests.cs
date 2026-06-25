@@ -51,6 +51,52 @@ public class ImuPlotTests
     }
 
     [Fact]
+    public void LoadTelemetryData_WithGappedImuData_RendersSegmentedScatterSeries()
+    {
+        var plot = new Plot();
+        var sut = new ImuPlot(plot);
+        var telemetry = CreateMinimal();
+        telemetry.ImuData = new RawImuData
+        {
+            SampleRate = 10,
+            ActiveLocations = [(byte)ImuLocation.Frame],
+            Meta = [new ImuMetaEntry((byte)ImuLocation.Frame, 1000, 100)],
+            HasGaps = true,
+            Segments =
+            [
+                new RawImuSegment
+                {
+                    LocationId = (byte)ImuLocation.Frame,
+                    FirstMonotonicDeltaUs = 0,
+                    Records =
+                    [
+                        new ImuRecord(0, 0, 1000, 0, 0, 0),
+                        new ImuRecord(0, 0, 1000, 0, 0, 0),
+                    ],
+                },
+                new RawImuSegment
+                {
+                    LocationId = (byte)ImuLocation.Frame,
+                    FirstMonotonicDeltaUs = 1_000_000,
+                    Records =
+                    [
+                        new ImuRecord(0, 0, 1000, 0, 0, 0),
+                        new ImuRecord(0, 0, 1000, 0, 0, 0),
+                    ],
+                },
+            ],
+        };
+
+        sut.LoadTelemetryData(telemetry);
+
+        var scatters = plot.PlottableList.OfType<Scatter>().ToArray();
+        Assert.Equal(2, scatters.Length);
+        Assert.Empty(plot.PlottableList.OfType<Signal>());
+        Assert.Equal("Frame", scatters[0].LegendText);
+        Assert.True(string.IsNullOrEmpty(scatters[1].LegendText));
+    }
+
+    [Fact]
     public void LoadTelemetryData_ShowsEmptyState_WhenImuDataIsMissing()
     {
         var plot = new Plot();

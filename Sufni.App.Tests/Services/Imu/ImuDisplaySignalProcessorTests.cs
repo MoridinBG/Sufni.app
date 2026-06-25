@@ -116,6 +116,43 @@ public class ImuDisplaySignalProcessorTests
     }
 
     [Fact]
+    public void CorrectionWeightAt_WithGappedSuspension_SamplesVelocityByRealTimeNotDenseIndex()
+    {
+        // Front travel has a time gap: segment 0 sits at t=0 (low velocity) and segment 1 at
+        // t=1.0 (high velocity). The dense Velocity array is just the concatenation
+        // [0, 0, 500, 500], so a dense-index lookup at t=1.0 (index 10) lands out of bounds and
+        // misses the high velocity. The attitude correction must sample by real time instead.
+        var telemetry = new TelemetryData
+        {
+            Metadata = new Metadata { SampleRate = 10, Duration = 1.2 },
+            Front = new Suspension
+            {
+                Present = true,
+                HasGaps = true,
+                Travel = [0, 0, 0, 0],
+                Velocity = [0, 0, 500, 500],
+                Strokes = new Strokes(),
+                Segments =
+                [
+                    new ProcessedSuspensionSegment { FirstDenseIndex = 0, StartSeconds = 0.0, Travel = [0, 0], Velocity = [0, 0] },
+                    new ProcessedSuspensionSegment { FirstDenseIndex = 2, StartSeconds = 1.0, Travel = [0, 0], Velocity = [500, 500] },
+                ],
+            },
+            Rear = new Suspension { Present = false, Strokes = new Strokes() },
+            Airtimes = [],
+        };
+
+        var context = AttitudeCorrectionContext.CreateRecorded(telemetry);
+
+        // Low-velocity first segment: accelerometer correction is applied.
+        Assert.Equal(1.0, context.CorrectionWeightAt(0.0));
+        // Inside the gap there is no sample, so correction stays enabled.
+        Assert.Equal(1.0, context.CorrectionWeightAt(0.5));
+        // Real time 1.0 falls in the high-velocity second segment: correction is suppressed.
+        Assert.Equal(0.0, context.CorrectionWeightAt(1.0));
+    }
+
+    [Fact]
     public void ProcessRecorded_SuppressesPitchRoll_WhenFrameGyroScaleIsInvalid()
     {
         var data = CreateRawImuData(
@@ -131,6 +168,46 @@ public class ImuDisplaySignalProcessorTests
 
         Assert.Single(result.VibrationSeries);
         Assert.Null(result.FramePitchRoll);
+    }
+
+    [Fact]
+    public void ProcessRecorded_WithSegments_UsesSegmentTimesWithoutLegacyRecords()
+    {
+        var data = new RawImuData
+        {
+            SampleRate = 10,
+            ActiveLocations = [(byte)ImuLocation.Frame],
+            Meta = [new ImuMetaEntry((byte)ImuLocation.Frame, 1000, 100)],
+            Records = [],
+            HasGaps = true,
+            Segments =
+            [
+                new RawImuSegment
+                {
+                    LocationId = (byte)ImuLocation.Frame,
+                    FirstIndex = 0,
+                    FirstMonotonicDeltaUs = 0,
+                    Records = [FramePitch10Degrees(), FramePitch10Degrees()],
+                },
+                new RawImuSegment
+                {
+                    LocationId = (byte)ImuLocation.Frame,
+                    FirstIndex = 20,
+                    FirstMonotonicDeltaUs = 1_000_000,
+                    Records = [FrameLevel()],
+                }
+            ],
+        };
+
+        var result = ImuDisplaySignalProcessor.ProcessRecorded(data);
+
+        var vibration = Assert.Single(result.VibrationSeries);
+        Assert.Equal([0.0, 0.1, 1.0], vibration.Times);
+        Assert.NotNull(result.FramePitchRoll);
+        Assert.Equal([0.0, 0.1, 1.0], result.FramePitchRoll!.Times);
+        Assert.InRange(result.FramePitchRoll.PitchDegrees[0], 9.5, 10.5);
+        Assert.InRange(result.FramePitchRoll.PitchDegrees[1], 9.5, 10.5);
+        Assert.Equal(0.0, result.FramePitchRoll.PitchDegrees[2], precision: 6);
     }
 
     [Fact]

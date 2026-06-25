@@ -6,9 +6,33 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Services.Imu;
 
-public sealed record ImuVibrationSeries(byte LocationId, double[] Times, double[] RmsG);
+public sealed record ImuDisplayValueSegment(double[] Times, double[] Values);
 
-public sealed record FramePitchRollSeries(double[] Times, double[] PitchDegrees, double[] RollDegrees);
+public sealed record FramePitchRollSegment(double[] Times, double[] PitchDegrees, double[] RollDegrees);
+
+public sealed record ImuVibrationSeries(
+    byte LocationId,
+    double[] Times,
+    double[] RmsG,
+    IReadOnlyList<ImuDisplayValueSegment> Segments)
+{
+    public ImuVibrationSeries(byte locationId, double[] times, double[] rmsG)
+        : this(locationId, times, rmsG, [])
+    {
+    }
+}
+
+public sealed record FramePitchRollSeries(
+    double[] Times,
+    double[] PitchDegrees,
+    double[] RollDegrees,
+    IReadOnlyList<FramePitchRollSegment> Segments)
+{
+    public FramePitchRollSeries(double[] times, double[] pitchDegrees, double[] rollDegrees)
+        : this(times, pitchDegrees, rollDegrees, [])
+    {
+    }
+}
 
 public sealed record RecordedImuDisplaySeries(
     IReadOnlyList<ImuVibrationSeries> VibrationSeries,
@@ -53,39 +77,63 @@ public static class ImuDisplaySignalProcessor
         RawImuData imuData,
         AttitudeCorrectionContext attitudeCorrectionContext)
     {
-        if (imuData.SampleRate <= 0 || imuData.Records.Count == 0 || imuData.ActiveLocations.Count == 0)
+        if (imuData.SampleRate <= 0 || !imuData.HasSamples || imuData.ActiveLocations.Count == 0)
         {
             return new RecordedImuDisplaySeries([], null);
         }
 
         var metaByLocation = BuildMetaLookup(imuData.Meta);
-        var samplesByLocation = DeinterleaveSamples(imuData);
-        var vibrationSeries = new List<ImuVibrationSeries>(samplesByLocation.Count);
+        var sampleSegmentsByLocation = BuildSampleSegmentsByLocation(imuData);
+        var vibrationSeries = new List<ImuVibrationSeries>(sampleSegmentsByLocation.Count);
         FramePitchRollSeries? framePitchRoll = null;
 
-        foreach (var entry in samplesByLocation.OrderBy(entry => entry.Key))
+        foreach (var entry in sampleSegmentsByLocation.OrderBy(entry => entry.Key))
         {
             if (!metaByLocation.TryGetValue(entry.Key, out var meta) || meta.AccelLsbPerG <= 0)
             {
                 continue;
             }
 
-            var result = ProcessLocation(
-                entry.Value,
-                imuData.SampleRate,
-                meta.AccelLsbPerG,
-                meta.GyroLsbPerDps,
-                includePitchRoll: entry.Key == 0,
-                attitudeCorrectionContext);
+            var locationResults = entry.Value
+                .Where(segment => segment.Count > 0)
+                .Select(segment => ProcessLocation(
+                    segment,
+                    imuData.SampleRate,
+                    meta.AccelLsbPerG,
+                    meta.GyroLsbPerDps,
+                    includePitchRoll: entry.Key == 0,
+                    attitudeCorrectionContext))
+                .Where(result => result.RmsG.Length > 0)
+                .ToArray();
 
-            if (result.RmsG.Length > 0)
+            if (locationResults.Length > 0)
             {
-                vibrationSeries.Add(new ImuVibrationSeries(entry.Key, result.Times, result.RmsG));
+                vibrationSeries.Add(new ImuVibrationSeries(
+                    entry.Key,
+                    locationResults.SelectMany(result => result.Times).ToArray(),
+                    locationResults.SelectMany(result => result.RmsG).ToArray(),
+                    locationResults
+                        .Select(result => new ImuDisplayValueSegment(result.Times, result.RmsG))
+                        .ToArray()));
             }
 
             if (entry.Key == 0)
             {
-                framePitchRoll = result.FramePitchRoll;
+                var frameResults = locationResults
+                    .Select(result => result.FramePitchRoll)
+                    .Where(result => result is not null)
+                    .Cast<FramePitchRollSeries>()
+                    .ToArray();
+                if (frameResults.Length > 0)
+                {
+                    framePitchRoll = new FramePitchRollSeries(
+                        frameResults.SelectMany(result => result.Times).ToArray(),
+                        frameResults.SelectMany(result => result.PitchDegrees).ToArray(),
+                        frameResults.SelectMany(result => result.RollDegrees).ToArray(),
+                        frameResults
+                            .Select(result => new FramePitchRollSegment(result.Times, result.PitchDegrees, result.RollDegrees))
+                            .ToArray());
+                }
             }
         }
 
@@ -305,6 +353,45 @@ public static class ImuDisplaySignalProcessor
         return lookup;
     }
 
+    private static Dictionary<byte, List<List<TimedImuSample>>> BuildSampleSegmentsByLocation(RawImuData imuData)
+    {
+        if (imuData.Segments.Count == 0)
+        {
+            return DeinterleaveSamples(imuData)
+                .ToDictionary(
+                    entry => entry.Key,
+                    entry => new List<List<TimedImuSample>> { entry.Value });
+        }
+
+        var samplesByLocation = new Dictionary<byte, List<List<TimedImuSample>>>();
+        foreach (var location in imuData.ActiveLocations)
+        {
+            samplesByLocation.TryAdd(location, []);
+        }
+
+        foreach (var segment in imuData.Segments.OrderBy(segment => segment.FirstMonotonicDeltaUs))
+        {
+            if (!samplesByLocation.TryGetValue(segment.LocationId, out var segments))
+            {
+                segments = [];
+                samplesByLocation[segment.LocationId] = segments;
+            }
+
+            var startSeconds = segment.FirstMonotonicDeltaUs / 1_000_000.0;
+            var samples = new List<TimedImuSample>(segment.Records.Length);
+            for (var index = 0; index < segment.Records.Length; index++)
+            {
+                samples.Add(new TimedImuSample(
+                    startSeconds + index / (double)imuData.SampleRate,
+                    segment.Records[index]));
+            }
+
+            segments.Add(samples);
+        }
+
+        return samplesByLocation;
+    }
+
     private static Dictionary<byte, List<TimedImuSample>> DeinterleaveSamples(RawImuData imuData)
     {
         var samplesByLocation = new Dictionary<byte, List<TimedImuSample>>();
@@ -491,6 +578,8 @@ internal sealed class AttitudeCorrectionContext
     private readonly int travelSampleRate;
     private readonly Suspension? front;
     private readonly Suspension? rear;
+    private readonly SuspensionTimeSeriesSampler? frontVelocitySampler;
+    private readonly SuspensionTimeSeriesSampler? rearVelocitySampler;
     private readonly IReadOnlyList<Airtime> airtimes;
 
     private AttitudeCorrectionContext()
@@ -503,8 +592,15 @@ internal sealed class AttitudeCorrectionContext
         travelSampleRate = telemetryData.Metadata?.SampleRate ?? 0;
         front = telemetryData.Front;
         rear = telemetryData.Rear;
+        frontVelocitySampler = CreateVelocitySampler(front, travelSampleRate);
+        rearVelocitySampler = CreateVelocitySampler(rear, travelSampleRate);
         airtimes = telemetryData.Airtimes ?? [];
     }
+
+    private static SuspensionTimeSeriesSampler? CreateVelocitySampler(Suspension? suspension, int sampleRate) =>
+        suspension is { HasGaps: true, Segments.Length: > 0 } && sampleRate > 0
+            ? new SuspensionTimeSeriesSampler(suspension.Segments, sampleRate)
+            : null;
 
     public static AttitudeCorrectionContext CreateRecorded(TelemetryData telemetryData)
     {
@@ -514,8 +610,8 @@ internal sealed class AttitudeCorrectionContext
     public double CorrectionWeightAt(double timeSeconds)
     {
         if (IsWithinAirtimeWindow(timeSeconds) ||
-            HasHighSuspensionVelocity(front, timeSeconds) ||
-            HasHighSuspensionVelocity(rear, timeSeconds))
+            HasHighSuspensionVelocity(front, frontVelocitySampler, timeSeconds) ||
+            HasHighSuspensionVelocity(rear, rearVelocitySampler, timeSeconds))
         {
             return 0;
         }
@@ -537,9 +633,22 @@ internal sealed class AttitudeCorrectionContext
         return false;
     }
 
-    private bool HasHighSuspensionVelocity(Suspension? suspension, double timeSeconds)
+    private bool HasHighSuspensionVelocity(Suspension? suspension, SuspensionTimeSeriesSampler? sampler, double timeSeconds)
     {
-        if (travelSampleRate <= 0 || suspension is not { Present: true } || suspension.Velocity is not { Length: > 0 } velocity)
+        if (travelSampleRate <= 0 || suspension is not { Present: true })
+        {
+            return false;
+        }
+
+        // Gapped suspensions can't be indexed by dense position; sample by real time instead
+        // (and treat a time that falls in a gap as "not high velocity").
+        if (sampler is not null)
+        {
+            return sampler.TrySampleVelocity(timeSeconds, out var sampledVelocity) &&
+                Math.Abs(sampledVelocity) >= SuspensionVelocityThresholdMmPerSecond;
+        }
+
+        if (suspension.Velocity is not { Length: > 0 } velocity)
         {
             return false;
         }

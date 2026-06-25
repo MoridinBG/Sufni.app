@@ -94,15 +94,15 @@ public sealed class RecordedSessionReprocessor(IProcessingFingerprintService fin
         return TelemetryData.FromLiveCapture(capture, processingOptions);
     }
 
-    private static Metadata MetadataFromRaw(string sourceName, RawTelemetryData rawTelemetryData) => new()
+    internal static Metadata MetadataFromRaw(string sourceName, RawTelemetryData rawTelemetryData) => new()
     {
         SourceName = sourceName,
         Version = rawTelemetryData.Version,
         SampleRate = rawTelemetryData.SampleRate,
         Timestamp = rawTelemetryData.Timestamp,
-        Duration = rawTelemetryData.SampleRate > 0
+        Duration = rawTelemetryData.RecordingDurationSeconds ?? (rawTelemetryData.SampleRate > 0
             ? (double)Math.Max(rawTelemetryData.Front.Length, rawTelemetryData.Rear.Length) / rawTelemetryData.SampleRate
-            : 0.0
+            : 0.0)
     };
 
     private static Setup SetupFromSnapshot(SetupSnapshot snapshot) => new(snapshot.Id, snapshot.Name)

@@ -122,4 +122,26 @@ public class RecordedSessionReprocessorTests
         Assert.Equal(source.SourceHash, result.Fingerprint.SourceHash);
     }
 
+    [Fact]
+    public void MetadataFromRaw_UsesRecordingDurationSecondsWhenPresent()
+    {
+        var raw = new RawTelemetryData
+        {
+            Version = 5,
+            SampleRate = 100,
+            Timestamp = 1_700_000_000,
+            Front = [1, 2],
+            Rear = [1, 2],
+            RecordingDurationSeconds = 12.5,
+        };
+
+        var metadata = RecordedSessionReprocessor.MetadataFromRaw("v5-gap.sst", raw);
+
+        Assert.Equal("v5-gap.sst", metadata.SourceName);
+        Assert.Equal(5, metadata.Version);
+        Assert.Equal(100, metadata.SampleRate);
+        Assert.Equal(1_700_000_000, metadata.Timestamp);
+        Assert.Equal(12.5, metadata.Duration);
+    }
+
 }

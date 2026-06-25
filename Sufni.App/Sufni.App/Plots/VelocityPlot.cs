@@ -23,7 +23,7 @@ public class VelocityPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSer
                 "Front",
                 "m/s",
                 FrontColor,
-                new SampledValues(fullVelocity, telemetryData.Metadata.SampleRate),
+                CreateSegmentAwareValues(telemetryData.Front, fullVelocity, telemetryData.Metadata.SampleRate),
                 "0.###",
                 SourceKey: TelemetrySourceKeys.Front));
             minimum = fullVelocity.Min();
@@ -37,7 +37,7 @@ public class VelocityPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSer
                 "Rear",
                 "m/s",
                 RearColor,
-                new SampledValues(fullVelocity, telemetryData.Metadata.SampleRate),
+                CreateSegmentAwareValues(telemetryData.Rear, fullVelocity, telemetryData.Metadata.SampleRate),
                 "0.###",
                 SourceKey: TelemetrySourceKeys.Rear));
             minimum = Math.Min(minimum, fullVelocity.Min());
@@ -57,5 +57,39 @@ public class VelocityPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSer
             ShowLegendWhenSingleSource: true,
             EnableInteractiveLegend: true,
             InteractiveLegendRowId: TelemetryGraphRowIds.Velocity));
+    }
+
+    private static RecordedTimeSeriesValues CreateSegmentAwareValues(
+        Suspension suspension,
+        double[] denseVelocityMetersPerSecond,
+        int sampleRate)
+    {
+        if (!suspension.HasGaps)
+        {
+            return new SampledValues(denseVelocityMetersPerSecond, sampleRate);
+        }
+
+        return new SegmentedValues(
+            suspension.Segments
+                .Select(segment => CreateExplicitSegment(
+                    segment,
+                    sampleRate,
+                    segment.Velocity.Select(value => value / 1000).ToArray()))
+                .Where(segment => segment.YValues.Length > 0)
+                .ToArray());
+    }
+
+    private static ExplicitValues CreateExplicitSegment(
+        ProcessedSuspensionSegment segment,
+        int sampleRate,
+        double[] values)
+    {
+        var xValues = new double[values.Length];
+        for (var index = 0; index < values.Length; index++)
+        {
+            xValues[index] = segment.StartSeconds + index / (double)sampleRate;
+        }
+
+        return new ExplicitValues(xValues, values);
     }
 }

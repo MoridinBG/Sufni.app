@@ -71,13 +71,14 @@ internal sealed class TelemetryLegendInteraction(Plot plot)
             return false;
         }
 
-        if (source.Plottable.IsVisible && sources.Count(item => item.Plottable.IsVisible) <= 1)
+        var sourceVisible = IsSourceVisible(source);
+        if (sourceVisible && CountVisibleSources() <= 1)
         {
             return false;
         }
 
-        var visible = !source.Plottable.IsVisible;
-        source.Plottable.IsVisible = visible;
+        var visible = !sourceVisible;
+        SetSourcePlottablesVisible(source, visible);
         sourceVisibility.SetVisible(source.RowId, source.SourceKey, visible);
         return true;
     }
@@ -124,8 +125,29 @@ internal sealed class TelemetryLegendInteraction(Plot plot)
         }
 
         var fallback = sources[0];
-        fallback.Plottable.IsVisible = true;
+        SetSourcePlottablesVisible(fallback, true);
         sourceVisibility.SetVisible(fallback.RowId, fallback.SourceKey, true);
+    }
+
+    private bool IsSourceVisible(RegisteredSource source) =>
+        sources.Any(item =>
+            item.RowId == source.RowId &&
+            item.SourceKey == source.SourceKey &&
+            item.Plottable.IsVisible);
+
+    private int CountVisibleSources() =>
+        sources
+            .Where(source => source.Plottable.IsVisible)
+            .Select(source => (source.RowId, source.SourceKey))
+            .Distinct()
+            .Count();
+
+    private void SetSourcePlottablesVisible(RegisteredSource source, bool visible)
+    {
+        foreach (var item in sources.Where(item => item.RowId == source.RowId && item.SourceKey == source.SourceKey))
+        {
+            item.Plottable.IsVisible = visible;
+        }
     }
 
     private static bool IsPointInLegendRow(Pixel pixel, PixelRect legendRect, int index, int itemCount)
