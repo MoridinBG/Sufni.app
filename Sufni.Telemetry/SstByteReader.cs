@@ -36,6 +36,18 @@ internal ref struct SstByteReader(ReadOnlySpan<byte> bytes)
         return value;
     }
 
+    public int ReadInt32()
+    {
+        var value = BinaryPrimitives.ReadInt32LittleEndian(ReadBytes(sizeof(int)));
+        return value;
+    }
+
+    public ulong ReadUInt64()
+    {
+        var value = BinaryPrimitives.ReadUInt64LittleEndian(ReadBytes(sizeof(ulong)));
+        return value;
+    }
+
     public long ReadInt64()
     {
         var value = BinaryPrimitives.ReadInt64LittleEndian(ReadBytes(sizeof(long)));

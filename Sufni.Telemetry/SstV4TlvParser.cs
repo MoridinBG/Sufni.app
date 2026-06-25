@@ -381,6 +381,11 @@ public class SstV4TlvParser : ISstParser
         if (front.Length == 0 && rear.Length == 0)
             throw new FormatException("SST v4 telemetry data is missing.");
 
+        if (imuData is { Meta.Count: > 0 })
+        {
+            PopulateDenseImuSegments(imuData);
+        }
+
         var rtd = new RawTelemetryData
         {
             Magic = "SST"u8.ToArray(),
@@ -392,20 +397,59 @@ public class SstV4TlvParser : ISstParser
             GpsData = gpsRecords.Count > 0 ? gpsRecords.ToArray() : null,
             TemperatureData = temperatureSamples.ToArray(),
             Malformed = malformedMessage is not null,
-            MalformedMessage = malformedMessage
+            MalformedMessage = malformedMessage,
+            SessionStartUtcMs = checked(timestamp * 1000),
+            RecordingDurationSeconds = (double)Math.Max(front.Length, rear.Length) / sampleRate
         };
 
         if (front.Length > 0)
         {
             rtd.Front = front;
+            rtd.FrontSegments = [CreateDenseSegment(front)];
         }
 
         if (rear.Length > 0)
         {
             rtd.Rear = rear;
+            rtd.RearSegments = [CreateDenseSegment(rear)];
         }
 
         return rtd;
+    }
+
+    private static RawCountSegment CreateDenseSegment(ushort[] counts) => new()
+    {
+        FirstIndex = 0,
+        FirstMonotonicDeltaUs = 0,
+        Counts = counts,
+    };
+
+    private static void PopulateDenseImuSegments(RawImuData imuData)
+    {
+        imuData.Segments.Clear();
+        imuData.HasGaps = false;
+
+        if (imuData.ActiveLocations.Count == 0 || imuData.Records.Count == 0)
+        {
+            return;
+        }
+
+        for (var locationIndex = 0; locationIndex < imuData.ActiveLocations.Count; locationIndex++)
+        {
+            var records = new List<ImuRecord>();
+            for (var recordIndex = locationIndex; recordIndex < imuData.Records.Count; recordIndex += imuData.ActiveLocations.Count)
+            {
+                records.Add(imuData.Records[recordIndex]);
+            }
+
+            imuData.Segments.Add(new RawImuSegment
+            {
+                LocationId = imuData.ActiveLocations[locationIndex],
+                FirstIndex = 0,
+                FirstMonotonicDeltaUs = 0,
+                Records = records.ToArray(),
+            });
+        }
     }
 
     private static ChunkBounds ResolveChunkBounds(int dataLength, int chunkStart, ushort declaredPayloadLength)

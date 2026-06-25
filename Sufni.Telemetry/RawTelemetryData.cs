@@ -23,6 +23,13 @@ public class RawTelemetryData
     public TemperatureSample[] TemperatureData { get; set; } = [];
     public bool Malformed { get; set; }
     public string? MalformedMessage { get; set; }
+    public long SessionStartUtcMs { get; set; }
+    public double? RecordingDurationSeconds { get; set; }
+    public RawCountSegment[] FrontSegments { get; set; } = [];
+    public RawCountSegment[] RearSegments { get; set; } = [];
+    public RawStreamGap[] StreamGaps { get; set; } = [];
+    public SstFinalStatus? FinalStatus { get; set; }
+    public bool MissingFinalStatus { get; set; }
 
     #endregion Public properties
 
@@ -58,14 +65,26 @@ public class RawTelemetryData
 
     private static (ISstParser Parser, byte Version) CreateParser(BinaryReader reader)
     {
-        var magic = reader.ReadBytes(3);
-        if (Encoding.ASCII.GetString(magic) != "SST")
+        var magic = reader.ReadBytes(4);
+        if (magic.Length != 4)
+        {
+            logger.Verbose("Rejected stream because SST magic header was incomplete");
+            throw new FormatException("Data is not SST format");
+        }
+
+        if (magic is [(byte)'S', (byte)'S', (byte)'T', (byte)'5'])
+        {
+            logger.Verbose("Selected SST parser version {Version}", SstV5Constants.Version);
+            return (new SstV5Parser(), SstV5Constants.Version);
+        }
+
+        if (magic[0] != (byte)'S' || magic[1] != (byte)'S' || magic[2] != (byte)'T')
         {
             logger.Verbose("Rejected stream because SST magic header was missing");
             throw new FormatException("Data is not SST format");
         }
 
-        var version = reader.ReadByte();
+        var version = magic[3];
 
         ISstParser parser = version switch
         {

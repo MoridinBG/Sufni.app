@@ -91,19 +91,20 @@ The view model may ask `IFilesService` for a folder, but it does not construct t
 
 ## File Format & Parsing
 
-SST files are the raw binary format written by the Pico DAQ. Two versions exist.
+SST files are the raw binary format written by the Pico DAQ. The app currently supports SST v3, SST v4 TLV, and SST v5 chunked recordings.
 
 ```mermaid
 graph TD
-    Stream["byte stream"] --> Magic["Read 3 bytes: 'SST'"]
-    Magic --> Version["Read version byte"]
-    Version -->|"3"| V3["SstV3Parser"]
-    Version -->|"4"| V4["SstV4TlvParser"]
+    Stream["byte stream"] --> Prefix["Read first 4 bytes"]
+    Prefix -->|"SST + version 3"| V3["SstV3Parser"]
+    Prefix -->|"SST + version 4"| V4["SstV4TlvParser"]
+    Prefix -->|"SST5"| V5["SstV5Parser"]
     V3 --> RawTD["RawTelemetryData<br/>(raw uint16 front/rear, markers, IMU/GPS/temperature, malformed flag)"]
     V4 --> RawTD
+    V5 --> RawTD
 ```
 
-`RawTelemetryData.FromStream()` (`Sufni.Telemetry/RawTelemetryData.cs`) reads the magic bytes and version, then dispatches to the appropriate `ISstParser` implementation. Each parser (`ISstParser`) exposes two entry points: `Parse()` for full data extraction, and `Inspect()` for a lightweight header scan that returns an `SstFileInspection` (sealed hierarchy: `ValidSstFileInspection` or `MalformedSstFileInspection`) without reading the full payload. `RawTelemetryData.InspectStream()` is the corresponding entry point for the inspect path — file implementations use it for eager header inspection before import. V3 and V4 primitive reads use the shared span cursor `SstByteReader`; V4 SST GPS chunks and live GPS batches share `GpsBinaryRecordDecoder` and its 46-byte record-size constant.
+`RawTelemetryData.FromStream()` (`Sufni.Telemetry/RawTelemetryData.cs`) reads the first four bytes, then dispatches to the appropriate `ISstParser` implementation: legacy `SST` plus version byte `3` or `4`, or the `SST5` fixed magic. Each parser (`ISstParser`) exposes two entry points: `Parse()` for full data extraction, and `Inspect()` for a lightweight header scan that returns an `SstFileInspection` (sealed hierarchy: `ValidSstFileInspection` or `MalformedSstFileInspection`) without reading the full payload. `RawTelemetryData.InspectStream()` is the corresponding entry point for the inspect path — file implementations use it for eager header inspection before import. Primitive reads use the shared span cursor `SstByteReader`; V4 SST GPS chunks and live GPS batches share `GpsBinaryRecordDecoder` and its 46-byte record-size constant.
 
 Spike elimination is **not** part of the SST parser. The parsers populate the raw `Front` / `Rear` arrays directly; the [Spike Elimination](#spike-elimination) cleanup runs later in `TelemetryData.FromRecording()` via `MeasurementPreprocessor.Process(...)`, once the bike's sensor calibration is known.
 
@@ -146,6 +147,18 @@ The parser (`Sufni.Telemetry/SstV4TlvParser.cs`) tracks `telemetrySampleCount` a
 
 The `Inspect()` path walks every TLV chunk, validating each chunk's declared length and accumulating telemetry sample count without decoding IMU/GPS payloads. This is enough to compute duration, version, the `HasUnknown` flag, and any malformed-warning message — used for UI display before import. Unknown TLV chunk types (or unknown rate-stream types inside a `Rates` chunk) do not block import: inspect skips past their payload and sets `HasUnknown = true` on the resulting `ValidSstFileInspection`. A `MalformedSstFileInspection` is returned only for header / framing failures that prevent a clean read — truncated header, invalid chunk lengths, incomplete trailing chunk header, or a missing/invalid telemetry sample rate. If the final TLV chunk declares bytes past EOF, the parser trims incomplete trailing data, keeps any complete records, marks the result with a malformed warning, and still allows import.
 
+### SST V5 Chunked Format
+
+SST v5 starts with the fixed `SST5` magic and a 24-byte file header containing the header size, zero flags, session start UTC milliseconds, and session start monotonic microseconds. The rest of the file is an ordered stream of 8-byte chunk envelopes (`chunk_type`, zero flags, payload length) followed by chunk payload bytes.
+
+The first chunk must be `SESSION_METADATA`. It declares stream descriptors and source descriptors for the fixed stream kinds the app understands: travel, IMU, temperature, GPS, battery, and marker. Data chunks are descriptor-driven rather than hard-coded by parser position. Travel and IMU are fixed-rate streams; GPS, temperature, battery, and marker records are event/timestamp-oriented app-domain records or validated metadata.
+
+The app imports SST v5 only when metadata contains processable travel: a `TRAVEL` stream descriptor, at least one accepted fork or shock travel source, an integer-Hz travel rate that fits the app's `ushort` sample-rate model, and at least one complete travel data chunk. Valid SST v5 files without processable travel are reported as `MalformedSstFileInspection` with `CanImport = false` and the message `SST v5 travel data is missing or unsupported by this app.`
+
+SST v5 preserves fixed-rate gaps. Raw travel is stored as `RawCountSegment` runs per side (`FrontSegments` / `RearSegments`), and raw IMU is stored as `RawImuSegment` runs per physical location. Compatibility dense arrays (`Front`, `Rear`, and dense IMU `Records` only when IMU coverage is actually dense) still exist for legacy consumers, but gap-aware processing prefers segments. Missing indexes, timing discontinuities, invalid source validity, and producer/sink final-status misses are recorded as `RawStreamGap` entries. `TelemetryData.FromRecording()` processes each travel segment independently, stores `ProcessedSuspensionSegment` runs on each `Suspension`, and keeps stroke times in real seconds so strokes, airtime, statistics, plots, and IMU vibration do not bridge missing time.
+
+SST v5 final status is parsed into `SstFinalStatus` when present. Missing final status is importable and shown as a warning: `SST v5 final status is missing; parsed complete data chunks only.` If a trailing chunk declares bytes beyond EOF after valid metadata and at least one complete travel chunk, the parser trims only the incomplete trailing chunk, keeps the complete prefix importable, and surfaces `SST v5 chunk extends past end of file; incomplete trailing chunk data was trimmed.`
+
 ### Spike Elimination
 
 `SpikeElimination.EliminateSpikes()` (`Sufni.Telemetry/SpikeElimination.cs`) cleans sensor data in four stages:
@@ -160,14 +173,15 @@ The `Inspect()` path walks every TLV chunk, validating each chunk's declared len
 
 `SpikeElimination` returns cleaned integer samples plus an anomaly count. The later `MeasurementPreprocessor.Process(...)` caller decides how to map those cleaned samples back to the sensor domain: linear sensors clamp to the valid 12-bit ADC range `[0, 4095]`, while rotational sensors are unwrapped before spike detection and wrapped modulo 4096 afterward. The anomaly count is converted to an anomaly rate (per second) for quality reporting.
 
-### V4 Data Structures
+### Parsed Telemetry Data Structures
 
 All are MessagePack-serializable types defined in `Sufni.Telemetry/`:
 
 - **`GpsRecord`** — Timestamp (UTC DateTime), Latitude, Longitude, Altitude, Speed (m/s), Heading, FixMode, Satellites, Epe2d/Epe3d (error estimates in meters)
 - **`ImuRecord`** — Ax, Ay, Az (int16 acceleration counts), Gx, Gy, Gz (int16 gyroscope counts), already bias-corrected and rotated by firmware into bike frame (`X=forward`, `Y=left`, `Z=up`)
 - **`ImuMetaEntry`** — LocationId (sensor position: 0=frame, 1=fork, 2=shock), AccelLsbPerG, GyroLsbPerDps (calibration)
-- **`RawImuData`** — Container: Meta list, SampleRate, Records list, ActiveLocations list
+- **`RawImuData`** — Container: Meta list, SampleRate, Records list, ActiveLocations list, per-location `RawImuSegment` runs, and `HasGaps`
 - **`MarkerData`** — TimestampOffset (seconds from session start)
 - **`TemperatureSample`** — TimestampUtc, LocationId, TemperatureCelsius
 - **`TemperatureAverage`** — LocationId and averaged TemperatureCelsius, derived during processing and serialized on `TelemetryData`
+- **`RawStreamGap` / `SstFinalStatus`** — SST v5 gap and terminal stream-status metadata retained on raw/processed telemetry for diagnostics and safe reprocessing

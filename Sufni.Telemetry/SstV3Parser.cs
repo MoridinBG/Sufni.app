@@ -95,19 +95,30 @@ public class SstV3Parser : ISstParser
             Version = version,
             SampleRate = sampleRate,
             Timestamp = timestamp,
-            Markers = []
+            Markers = [],
+            SessionStartUtcMs = checked(timestamp * 1000),
+            RecordingDurationSeconds = (double)count / sampleRate
         };
 
         if (frontPresent)
         {
             rtd.Front = front;
+            rtd.FrontSegments = [CreateDenseSegment(front)];
         }
 
         if (rearPresent)
         {
             rtd.Rear = rear;
+            rtd.RearSegments = [CreateDenseSegment(rear)];
         }
 
         return rtd;
     }
+
+    private static RawCountSegment CreateDenseSegment(ushort[] counts) => new()
+    {
+        FirstIndex = 0,
+        FirstMonotonicDeltaUs = 0,
+        Counts = counts,
+    };
 }
