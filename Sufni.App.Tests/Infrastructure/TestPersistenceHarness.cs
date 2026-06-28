@@ -6,6 +6,7 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHosting.Database;
 using Sufni.App.Models;
 using Sufni.App.Services;
+using Sufni.App.SessionGraph;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Infrastructure;
@@ -36,12 +37,14 @@ internal sealed class TestPersistenceHarness
     private TestPersistenceHarness(SqliteConnectionContext context)
     {
         this.context = context;
+        var fingerprintService = new ProcessingFingerprintService();
         trackRepository = new TrackRepository(context);
-        sessionRepository = new SessionRepository(context);
+        sessionRepository = new SessionRepository(context, fingerprintService);
         sessionTelemetryProcessor = new SessionTelemetryProcessor();
-        sessionTelemetryWriter = new SessionTelemetryWriter(sessionRepository, trackRepository, sessionTelemetryProcessor);
+        var sessionCacheStore = new SessionCacheStore(context);
+        sessionTelemetryWriter = new SessionTelemetryWriter(sessionRepository, trackRepository, sessionTelemetryProcessor, sessionCacheStore);
         recordedSessionSourceRepository = new RecordedSessionSourceRepository(context);
-        syncDataStore = new SynchronizationMergeEngine(context, trackRepository);
+        syncDataStore = new SynchronizationMergeEngine(context, trackRepository, fingerprintService);
         extensionDatabaseConnection = new ExtensionDatabaseConnection(context);
     }
 
@@ -113,15 +116,17 @@ internal sealed class TestPersistenceHarness
         RecordedSessionSource? source) =>
         sessionTelemetryWriter.PutProcessedSessionAsync(session, newFullTrack, source);
 
-    public Task<Session?> PutProcessedSessionIfUnchangedAsync(
+    public Task<Session?> UpdateProcessedDerivedDataAsync(
         Session session,
         Track? newFullTrack,
-        RecordedSessionSource? source,
-        long baselineUpdated) =>
-        sessionTelemetryWriter.PutProcessedSessionIfUnchangedAsync(session, newFullTrack, source, baselineUpdated);
+        ProcessingFingerprint expectedInputFingerprint) =>
+        sessionTelemetryWriter.UpdateProcessedDerivedDataAsync(session, newFullTrack, expectedInputFingerprint);
 
-    public Task PatchSessionPsstAsync(Guid id, byte[] data) =>
-        sessionTelemetryWriter.PatchSessionPsstAsync(id, data);
+    public Task PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint = null) =>
+        sessionTelemetryWriter.PatchSessionPsstAsync(id, data, fingerprint);
+
+    public Task SwapSessionPsstAsync(Guid id, byte[] data, string? fingerprint = null) =>
+        sessionTelemetryWriter.SwapSessionPsstAsync(id, data, fingerprint);
 
     public Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points, double? gpsOffsetSeconds = null) =>
         sessionTelemetryWriter.PatchSessionTrackAsync(id, points, gpsOffsetSeconds);
@@ -144,8 +149,8 @@ internal sealed class TestPersistenceHarness
     public Task<Guid?> FindTrackByTimeRangeAsync(long startTime, long endTime) =>
         trackRepository.FindTrackByTimeRangeAsync(startTime, endTime);
 
-    public Task<Guid?> AssociateSessionWithTrackAsync(Guid sessionId) =>
-        trackRepository.AssociateSessionWithTrackAsync(sessionId);
+    public Task<Guid?> FindTrackContainingTimestampAsync(long? timestamp) =>
+        trackRepository.FindTrackContainingTimestampAsync(timestamp);
 
     public Task<long> GetLastSyncTimeAsync(string? serverUrl) =>
         syncDataStore.GetLastSyncTimeAsync(serverUrl);

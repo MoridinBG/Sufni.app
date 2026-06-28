@@ -17,6 +17,11 @@ public interface IRecordedSessionSourceRepository
 
     Task<List<Guid>> GetSessionIdsMissingRecordedSourceAsync();
 
+    // Session ids that own a recorded-source row (ids only; the payload BLOBs
+    // are not loaded). Used by the startup normalization pass to find the
+    // source-backed sessions it can recompute.
+    Task<List<Guid>> GetSourceBackedSessionIdsAsync();
+
     Task PutRecordedSessionSourceAsync(RecordedSessionSource source);
 
     Task DeleteRecordedSessionSourceAsync(Guid sessionId);
@@ -70,6 +75,14 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
                 })
                 .Select(row => row.Id)
         ];
+    }
+
+    public async Task<List<Guid>> GetSourceBackedSessionIdsAsync()
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        var rows = await connection.QueryAsync<SourceSessionIdRow>(
+            "SELECT session_id FROM session_recording_source");
+        return [.. rows.Select(row => row.SessionId)];
     }
 
     public async Task PutRecordedSessionSourceAsync(RecordedSessionSource source)
@@ -145,6 +158,12 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
         }
 
         return null;
+    }
+
+    private sealed class SourceSessionIdRow
+    {
+        [Column("session_id")]
+        public Guid SessionId { get; set; }
     }
 
     private sealed class SessionSourceStatusRow

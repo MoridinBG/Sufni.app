@@ -84,6 +84,7 @@ internal static class AppJson
 [JsonSerializable(typeof(List<TileLayerConfig>))]
 [JsonSerializable(typeof(TrackPoint))]
 [JsonSerializable(typeof(RecordedSessionSourceTransfer))]
+[JsonSerializable(typeof(SessionDataTransfer))]
 [JsonSerializable(typeof(RecordedSessionSourceKind))]
 [JsonSerializable(typeof(RecordedLiveCaptureSourcePayload))]
 [JsonSerializable(typeof(ProcessingFingerprint))]

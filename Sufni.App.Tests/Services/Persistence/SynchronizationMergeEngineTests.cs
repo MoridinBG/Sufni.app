@@ -5,6 +5,8 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHosting.Database;
 using Sufni.App.Models;
 using Sufni.App.Services;
+using Sufni.App.SessionGraph;
+using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
 
@@ -189,6 +191,8 @@ public class SynchronizationMergeEngineTests
             ClientUpdated = 88
         };
 
+        var beforeMerge = await database.GetSessionAsync(sessionId);
+
         await database.ApplyRemoteSynchronizationDataAsync(new SynchronizationData
         {
             Sessions = [remoteSession],
@@ -206,11 +210,14 @@ public class SynchronizationMergeEngineTests
         Assert.Equal(setupId, session.Setup);
         Assert.Equal(1234, session.Timestamp);
         Assert.Equal(trackId, session.FullTrack);
-        Assert.Equal("""{"remote":true}""", session.ProcessingFingerprintJson);
-        Assert.Equal(65, session.DurationSeconds);
-        Assert.Equal(10, session.DistanceMeters);
-        Assert.Equal(4, session.AscentMeters);
-        Assert.Equal(2, session.DescentMeters);
+        // The held-BLOB row defers the fingerprint and the BLOB-derived metrics: they
+        // stay coherent with the bytes the row still holds (preserved from the local
+        // row) and move only when the swap commits the new BLOB. Metadata syncs now.
+        Assert.Equal(beforeMerge!.ProcessingFingerprintJson, session.ProcessingFingerprintJson);
+        Assert.Equal(beforeMerge.DurationSeconds, session.DurationSeconds);
+        Assert.Equal(beforeMerge.DistanceMeters, session.DistanceMeters);
+        Assert.Equal(beforeMerge.AscentMeters, session.AscentMeters);
+        Assert.Equal(beforeMerge.DescentMeters, session.DescentMeters);
         Assert.Equal(99, session.Updated);
         Assert.Equal("50", session.FrontSpringRate);
         Assert.Equal("60", session.RearSpringRate);
@@ -244,6 +251,8 @@ public class SynchronizationMergeEngineTests
                 ClientUpdated = 1
             });
         }
+
+        var beforeMerge = await database.GetSessionAsync(sessionId);
 
         await database.MergeAllAsync(new SynchronizationData
         {
@@ -281,11 +290,14 @@ public class SynchronizationMergeEngineTests
         Assert.Equal(setupId, session.Setup);
         Assert.Equal(1234, session.Timestamp);
         Assert.Equal(trackId, session.FullTrack);
-        Assert.Equal("""{"remote":true}""", session.ProcessingFingerprintJson);
-        Assert.Equal(65, session.DurationSeconds);
-        Assert.Equal(10, session.DistanceMeters);
-        Assert.Equal(4, session.AscentMeters);
-        Assert.Equal(2, session.DescentMeters);
+        // The held-BLOB row defers the fingerprint and the BLOB-derived metrics: they
+        // stay coherent with the bytes the row still holds (preserved from the local
+        // row) and move only when the swap commits the new BLOB. Metadata syncs now.
+        Assert.Equal(beforeMerge!.ProcessingFingerprintJson, session.ProcessingFingerprintJson);
+        Assert.Equal(beforeMerge.DurationSeconds, session.DurationSeconds);
+        Assert.Equal(beforeMerge.DistanceMeters, session.DistanceMeters);
+        Assert.Equal(beforeMerge.AscentMeters, session.AscentMeters);
+        Assert.Equal(beforeMerge.DescentMeters, session.DescentMeters);
         Assert.Equal("50", session.FrontSpringRate);
         Assert.Equal("60", session.RearSpringRate);
         Assert.True(session.HasProcessedData);
@@ -294,6 +306,192 @@ public class SynchronizationMergeEngineTests
         Assert.Equal(2, sessionTrack!.Count);
         Assert.Equal(originalPsst, rawPsst);
 
+    }
+
+    [Fact]
+    public async Task MergeAllAsync_RecordsPushSwapRequest_WhenHeldBlobIsDatabaseStaleAndIncomingMatchesCurrentInputs()
+    {
+        using var tempDatabase = new TempDatabase("push-swap-record.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+        var setupId = Guid.NewGuid();
+        var bikeId = Guid.NewGuid();
+
+        var database = new TestPersistenceHarness(databasePath);
+        _ = await database.GetSessionsAsync();
+
+        // The hub's current dependencies and the canonical DB-inputs fingerprint they produce.
+        var setup = new Setup { Id = setupId, BikeId = bikeId, Name = "setup" };
+        var bike = new Bike { Id = bikeId, Name = "bike", HeadAngle = 65 };
+        var source = PersistenceTestData.CreateRecordedSessionSource(sessionId);
+        await database.PutAsync(setup);
+        await database.PutAsync(bike);
+        await database.PutRecordedSessionSourceAsync(source);
+
+        var canonical = new ProcessingFingerprintService().CreateCurrentDatabaseInputs(
+            SessionSnapshot.From(new Session(sessionId, "session", "desc", setupId, 100)),
+            SetupSnapshot.From(setup, null),
+            BikeSnapshot.From(bike),
+            RecordedSessionSourceSnapshot.From(source));
+        var incomingFingerprint = AppJson.Serialize(canonical);
+        var heldFingerprint = AppJson.Serialize(canonical with { DependencyHash = "stale-dependency-hash" });
+
+        // The hub holds an old, DB-stale BLOB.
+        using (var connection = new SQLiteConnection(databasePath))
+        {
+            connection.Insert(new Session(sessionId, "hub", "desc", setupId, 100)
+            {
+                ProcessedData = new byte[] { 1, 2, 3 },
+                ProcessingFingerprintJson = heldFingerprint,
+                Updated = 1,
+                ClientUpdated = 1
+            });
+        }
+
+        // A client pushes metadata advertising the canonical fingerprint.
+        await database.MergeAllAsync(new SynchronizationData
+        {
+            Sessions =
+            [
+                new Session(sessionId, "hub", "desc", setupId, 100)
+                {
+                    ProcessingFingerprintJson = incomingFingerprint,
+                    Updated = 99,
+                    ClientUpdated = 88
+                }
+            ]
+        });
+
+        // The hub kept its held, DB-stale BLOB + fingerprint (deferred) and recorded a
+        // push-swap request toward the canonical fingerprint so a client uploads the bytes.
+        var session = await database.GetSessionAsync(sessionId);
+        Assert.Equal(heldFingerprint, session!.ProcessingFingerprintJson);
+        using var verify = new SQLiteConnection(databasePath);
+        Assert.Equal(1, verify.ExecuteScalar<int>("SELECT COUNT(*) FROM session_blob_swap_request"));
+        Assert.Equal(
+            incomingFingerprint,
+            verify.ExecuteScalar<string>(
+                "SELECT target_fingerprint FROM session_blob_swap_request WHERE session_id = ?",
+                sessionId));
+    }
+
+    [Fact]
+    public async Task MergeAllAsync_RecordsPushSwapRequest_WhenIncomingMetadataArrivesBeforeRecordedSource()
+    {
+        using var tempDatabase = new TempDatabase("push-swap-missing-source.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+        var setupId = Guid.NewGuid();
+        var bikeId = Guid.NewGuid();
+
+        var database = new TestPersistenceHarness(databasePath);
+        _ = await database.GetSessionsAsync();
+
+        var setup = new Setup { Id = setupId, BikeId = bikeId, Name = "setup" };
+        var bike = new Bike { Id = bikeId, Name = "bike", HeadAngle = 65 };
+        var source = PersistenceTestData.CreateRecordedSessionSource(sessionId);
+        await database.PutAsync(setup);
+        await database.PutAsync(bike);
+
+        var canonical = new ProcessingFingerprintService().CreateCurrentDatabaseInputs(
+            SessionSnapshot.From(new Session(sessionId, "session", "desc", setupId, 100)),
+            SetupSnapshot.From(setup, null),
+            BikeSnapshot.From(bike),
+            RecordedSessionSourceSnapshot.From(source));
+        var incomingFingerprint = AppJson.Serialize(canonical);
+        var heldFingerprint = AppJson.Serialize(canonical with { DependencyHash = "stale-dependency-hash" });
+
+        using (var connection = new SQLiteConnection(databasePath))
+        {
+            connection.Insert(new Session(sessionId, "hub", "desc", setupId, 100)
+            {
+                ProcessedData = new byte[] { 1, 2, 3 },
+                ProcessingFingerprintJson = heldFingerprint,
+                Updated = 1,
+                ClientUpdated = 1
+            });
+        }
+
+        await database.MergeAllAsync(new SynchronizationData
+        {
+            Sessions =
+            [
+                new Session(sessionId, "hub", "desc", setupId, 100)
+                {
+                    ProcessingFingerprintJson = incomingFingerprint,
+                    Updated = 99,
+                    ClientUpdated = 88
+                }
+            ]
+        });
+
+        var session = await database.GetSessionAsync(sessionId);
+        Assert.Equal(heldFingerprint, session!.ProcessingFingerprintJson);
+        using var verify = new SQLiteConnection(databasePath);
+        Assert.Equal(0, verify.ExecuteScalar<int>("SELECT COUNT(*) FROM session_recording_source WHERE session_id = ?", sessionId));
+        Assert.Equal(1, verify.ExecuteScalar<int>("SELECT COUNT(*) FROM session_blob_swap_request"));
+        Assert.Equal(
+            incomingFingerprint,
+            verify.ExecuteScalar<string>(
+                "SELECT target_fingerprint FROM session_blob_swap_request WHERE session_id = ?",
+                sessionId));
+    }
+
+    [Fact]
+    public async Task MergeAllAsync_DoesNotRecordPushSwapRequest_WhenIncomingFingerprintIsDatabaseStale()
+    {
+        using var tempDatabase = new TempDatabase("push-swap-skip-stale.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+        var setupId = Guid.NewGuid();
+        var bikeId = Guid.NewGuid();
+
+        var database = new TestPersistenceHarness(databasePath);
+        _ = await database.GetSessionsAsync();
+
+        var setup = new Setup { Id = setupId, BikeId = bikeId, Name = "setup" };
+        var bike = new Bike { Id = bikeId, Name = "bike", HeadAngle = 65 };
+        var source = PersistenceTestData.CreateRecordedSessionSource(sessionId);
+        await database.PutAsync(setup);
+        await database.PutAsync(bike);
+        await database.PutRecordedSessionSourceAsync(source);
+
+        var canonical = new ProcessingFingerprintService().CreateCurrentDatabaseInputs(
+            SessionSnapshot.From(new Session(sessionId, "session", "desc", setupId, 100)),
+            SetupSnapshot.From(setup, null),
+            BikeSnapshot.From(bike),
+            RecordedSessionSourceSnapshot.From(source));
+        // Neither the held nor the incoming BLOB matches the hub's current inputs, so the
+        // incoming is not authoritative: requesting a swap toward it would regress the hub.
+        var heldFingerprint = AppJson.Serialize(canonical with { DependencyHash = "hub-old-hash" });
+        var incomingFingerprint = AppJson.Serialize(canonical with { DependencyHash = "client-stale-hash" });
+
+        using (var connection = new SQLiteConnection(databasePath))
+        {
+            connection.Insert(new Session(sessionId, "hub", "desc", setupId, 100)
+            {
+                ProcessedData = new byte[] { 1, 2, 3 },
+                ProcessingFingerprintJson = heldFingerprint,
+                Updated = 1,
+                ClientUpdated = 1
+            });
+        }
+
+        await database.MergeAllAsync(new SynchronizationData
+        {
+            Sessions =
+            [
+                new Session(sessionId, "hub", "desc", setupId, 100)
+                {
+                    ProcessingFingerprintJson = incomingFingerprint,
+                    Updated = 99,
+                    ClientUpdated = 88
+                }
+            ]
+        });
+
+        using var verify = new SQLiteConnection(databasePath);
+        Assert.Equal(0, verify.ExecuteScalar<int>("SELECT COUNT(*) FROM session_blob_swap_request"));
     }
 
     [Fact]

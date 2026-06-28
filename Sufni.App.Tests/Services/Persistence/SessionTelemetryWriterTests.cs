@@ -1,6 +1,7 @@
 using SQLite;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.Models;
+using Sufni.App.SessionGraph;
 using Sufni.App.Tests.Infrastructure;
 
 namespace Sufni.App.Tests.Services.Persistence;
@@ -145,14 +146,16 @@ public class SessionTelemetryWriterTests
     }
 
     [Fact]
-    public async Task PutProcessedSessionIfUnchangedAsync_ReturnsNull_WhenBaselineDoesNotMatch()
+    public async Task UpdateProcessedDerivedDataAsync_ReturnsNull_WhenDatabaseInputsDoNotMatch()
     {
-        using var tempDatabase = new TempDatabase("writer-conflict.db");
+        using var tempDatabase = new TempDatabase("writer-coherence-rollback.db");
         var databasePath = tempDatabase.DatabasePath;
         var sessionId = Guid.NewGuid();
 
         var database = new TestPersistenceHarness(databasePath);
-        var persisted = await database.PutProcessedSessionAsync(
+        // The session has no resolvable setup/source, so the writer's derived-only
+        // path rolls back on the in-transaction DB-input re-check and persists nothing.
+        await database.PutProcessedSessionAsync(
             new Session(sessionId, "original", "desc", null, 100)
             {
                 ProcessedData = PersistenceTestData.CreateTelemetryBlob(65)
@@ -160,20 +163,18 @@ public class SessionTelemetryWriterTests
             newFullTrack: null,
             source: null);
 
-        var result = await database.PutProcessedSessionIfUnchangedAsync(
+        var result = await database.UpdateProcessedDerivedDataAsync(
             new Session(sessionId, "recomputed", "desc", null, 100)
             {
                 ProcessedData = PersistenceTestData.CreateTelemetryBlob(66)
             },
             newFullTrack: null,
-            source: null,
-            persisted.Updated - 1);
+            new ProcessingFingerprint(3, 1, Guid.NewGuid(), Guid.NewGuid(), 1, "dependency", "source-hash"));
 
         Assert.Null(result);
         var current = await database.GetSessionAsync(sessionId);
         Assert.NotNull(current);
         Assert.Equal("original", current!.Name);
-
     }
 
     [Fact]
@@ -251,6 +252,64 @@ public class SessionTelemetryWriterTests
         Assert.Equal(65, session.DurationSeconds);
         Assert.Equal(originalPsst, await database.GetSessionRawPsstAsync(sessionId));
 
+    }
+
+    [Fact]
+    public async Task PatchSessionPsstAsync_RejectsMismatchedFingerprint_WithoutChangingExistingData()
+    {
+        using var tempDatabase = new TempDatabase("writer-psst-fingerprint-reject.db");
+        var sessionId = Guid.NewGuid();
+        var heldBlob = PersistenceTestData.CreateTelemetryBlob(65);
+        const string heldFingerprint = """{"schemaVersion":3,"velocityFilterWindowMilliseconds":25}""";
+        var incomingBlob = PersistenceTestData.CreateTelemetryBlob(80);
+        const string incomingFingerprint = """{"schemaVersion":3,"velocityFilterWindowMilliseconds":100}""";
+
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        await database.PutProcessedSessionAsync(new Session(sessionId, "session", "desc", null, 100)
+        {
+            ProcessedData = heldBlob,
+            ProcessingFingerprintJson = heldFingerprint
+        }, newFullTrack: null, source: null);
+
+        // The bytes are valid, so the rejection is purely the fingerprint integrity
+        // check (the hub asked for the BLOB matching its stored fingerprint). The held
+        // BLOB and its fingerprint are left intact for a later retry.
+        await Assert.ThrowsAsync<InvalidDataException>(
+            () => database.PatchSessionPsstAsync(sessionId, incomingBlob, incomingFingerprint));
+
+        var session = await database.GetSessionAsync(sessionId);
+        Assert.NotNull(session);
+        Assert.Equal(heldBlob, await database.GetSessionRawPsstAsync(sessionId));
+        Assert.Equal(heldFingerprint, session!.ProcessingFingerprintJson);
+    }
+
+    [Fact]
+    public async Task SwapSessionPsstAsync_OverwritesHeldBlobAndFingerprint_WhenFingerprintDiffers()
+    {
+        using var tempDatabase = new TempDatabase("writer-psst-swap.db");
+        var sessionId = Guid.NewGuid();
+        var heldBlob = PersistenceTestData.CreateTelemetryBlob(65);
+        const string heldFingerprint = """{"schemaVersion":3,"velocityFilterWindowMilliseconds":25}""";
+        var incomingBlob = PersistenceTestData.CreateTelemetryBlob(80);
+        const string incomingFingerprint = """{"schemaVersion":3,"velocityFilterWindowMilliseconds":100}""";
+
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        await database.PutProcessedSessionAsync(new Session(sessionId, "session", "desc", null, 100)
+        {
+            ProcessedData = heldBlob,
+            ProcessingFingerprintJson = heldFingerprint
+        }, newFullTrack: null, source: null);
+
+        // The caller already matched the downloaded fingerprint to its target, so the
+        // swap replaces the held BLOB and its fingerprint coherently even though they
+        // differ from what the row currently advertises.
+        await database.SwapSessionPsstAsync(sessionId, incomingBlob, incomingFingerprint);
+
+        var session = await database.GetSessionAsync(sessionId);
+        Assert.NotNull(session);
+        Assert.Equal(incomingBlob, await database.GetSessionRawPsstAsync(sessionId));
+        Assert.Equal(incomingFingerprint, session!.ProcessingFingerprintJson);
+        Assert.Equal(80, session.DurationSeconds);
     }
 
     [Fact]

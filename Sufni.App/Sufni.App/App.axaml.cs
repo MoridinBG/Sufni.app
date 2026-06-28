@@ -138,6 +138,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ITrackRepository, TrackRepository>();
         ServiceCollection.AddSingleton<ISessionRepository, SessionRepository>();
         ServiceCollection.AddSingleton<ISessionTelemetryWriter, SessionTelemetryWriter>();
+        ServiceCollection.AddSingleton<ISessionBlobSwapRequestStore, SessionBlobSwapRequestStore>();
         ServiceCollection.AddSingleton<ISyncDataStore, SynchronizationMergeEngine>();
         ServiceCollection.AddSingleton<IExtensionDatabaseConnection, ExtensionDatabaseConnection>();
         ServiceCollection.AddSingleton<IRecordedSessionDataReader, RecordedSessionDataReader>();
@@ -182,6 +183,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IRecordedSessionSourceStoreWriter>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
         ServiceCollection.AddSingleton<IAppDataRefresher, AppDataRefresher>();
         ServiceCollection.AddSingleton<IProcessingFingerprintService, ProcessingFingerprintService>();
+        ServiceCollection.AddSingleton<IRecordedSessionProcessingOptionCache, RecordedSessionProcessingOptionCache>();
         ServiceCollection.AddSingleton<IRecordedSessionDomainQuery, RecordedSessionDomainQuery>();
         ServiceCollection.AddSingleton<IRecordedSessionGraph, RecordedSessionGraph>();
         ServiceCollection.AddSingleton<IRecordedSessionReprocessor, RecordedSessionReprocessor>();
@@ -198,9 +200,7 @@ public partial class App : Application
             sp.GetRequiredService<ITrackCoordinator>(),
             sp.GetRequiredService<ISessionPresentationService>(),
             sp.GetRequiredService<IRecordedSessionDomainQuery>()));
-        ServiceCollection.AddSingleton<SessionSaver>();
-        ServiceCollection.AddSingleton<LiveCaptureSaver>();
-        ServiceCollection.AddSingleton<SessionRecomputer>(sp => new SessionRecomputer(
+        ServiceCollection.AddSingleton<ISessionRecomputeEngine>(sp => new SessionRecomputeEngine(
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<ISessionRepository>(),
             sp.GetRequiredService<ISessionTelemetryWriter>(),
@@ -212,15 +212,22 @@ public partial class App : Application
             sp.GetRequiredService<IRecordedSessionDomainQuery>(),
             sp.GetRequiredService<IRecordedSessionReprocessor>(),
             sp.GetRequiredService<IExtensionCascadeService>()));
-        ServiceCollection.AddSingleton<SessionDeleter>(sp => new SessionDeleter(
+        ServiceCollection.AddSingleton<SessionCommandService>(sp => new SessionCommandService(
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<ISessionRepository>(),
+            sp.GetRequiredService<ISessionTelemetryWriter>(),
+            sp.GetRequiredService<ISynchronizableRepository<Setup>>(),
+            sp.GetRequiredService<ISynchronizableRepository<Bike>>(),
             sp.GetRequiredService<ISynchronizableRepository<Track>>(),
             sp.GetRequiredService<ISynchronizableRepository<Session>>(),
-            sp.GetRequiredService<ISessionPreferences>(),
-            sp.GetRequiredService<Func<IEditorFactory>>(),
             sp.GetRequiredService<IRecordedSessionSourceRepository>(),
             sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
+            sp.GetRequiredService<IRecordedSessionReprocessor>(),
+            sp.GetRequiredService<IBackgroundTaskRunner>(),
+            sp.GetRequiredService<ISessionPreferences>(),
+            sp.GetRequiredService<IShellCoordinator>(),
+            sp.GetRequiredService<ISessionRecomputeEngine>(),
+            sp.GetRequiredService<Func<IEditorFactory>>(),
             sp.GetRequiredService<IExtensionCascadeService>()));
         ServiceCollection.AddSingleton<SessionSyncApplier>(sp => new SessionSyncApplier(
             sp.GetRequiredService<ISessionStoreWriter>(),
@@ -230,6 +237,15 @@ public partial class App : Application
             sp.GetRequiredService<IUiThreadDispatcher>(),
             sp.GetService<ISynchronizationServerService>()));
         ServiceCollection.AddSingleton<ISessionCoordinator, SessionCoordinator>();
+        ServiceCollection.AddSingleton<ProcessingOptionsResetMigration>(sp => new ProcessingOptionsResetMigration(
+            sp.GetRequiredService<SqliteConnectionContext>(),
+            sp.GetRequiredService<IRecordedSessionSourceRepository>(),
+            sp.GetRequiredService<ISessionRepository>(),
+            sp.GetRequiredService<IAppDataRefresher>(),
+            sp.GetRequiredService<ISessionPreferences>(),
+            sp.GetRequiredService<IRecordedSessionProcessingOptionCache>(),
+            sp.GetRequiredService<ISessionRecomputeEngine>(),
+            sp.GetRequiredService<IBackgroundTaskRunner>()));
         ServiceCollection.AddSingleton<LiveDaqStore>();
         ServiceCollection.AddSingleton<ILiveDaqStore>(sp => sp.GetRequiredService<LiveDaqStore>());
         ServiceCollection.AddSingleton<ILiveDaqStoreWriter>(sp => sp.GetRequiredService<LiveDaqStore>());
@@ -318,6 +334,12 @@ public partial class App : Application
         {
             _ = Services.GetRequiredService(eagerServiceType);
         }
+
+        // One-time, per-device normalization: reset every source-backed session's
+        // processing option to 25 ms and recompute it so its fingerprint records the
+        // option it processed. Fire-and-forget off the UI thread; the pass waits for
+        // database initialization itself and is resumable via its core_migration marker.
+        _ = Services.GetRequiredService<ProcessingOptionsResetMigration>().RunAsync();
 
         var fileService = Services.GetRequiredService<IFilesService>();
         var dialogHost = Services.GetRequiredService<IDialogHost>();

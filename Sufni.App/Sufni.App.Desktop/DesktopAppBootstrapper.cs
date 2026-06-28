@@ -22,6 +22,7 @@ public static class DesktopAppBootstrapper
             sp.GetRequiredService<IRecordedSessionSourceRepository>(),
             sp.GetRequiredService<IAppPreferences>(),
             sp.GetRequiredService<ISecureStorage>(),
+            sp.GetRequiredService<ISessionBlobSwapRequestStore>(),
             sp.GetService<IExtensionSyncService>()));
         services.AddSingleton<IPairingServerCoordinator, PairingServerCoordinator>();
         services.AddSingleton<IInboundSyncCoordinator, InboundSyncCoordinator>();

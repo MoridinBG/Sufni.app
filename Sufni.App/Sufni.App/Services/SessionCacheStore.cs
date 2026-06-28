@@ -9,6 +9,11 @@ public interface ISessionCacheStore
     Task<SessionCache?> GetSessionCacheAsync(Guid sessionId);
 
     Task<Guid> PutSessionCacheAsync(SessionCache sessionCache);
+
+    // Removes the mobile session_cache row for one session. Derived writers call
+    // this after changing session.data or the cached session-window track so the
+    // next mobile load rebuilds the cache from the fresh derived data.
+    Task DeleteSessionCacheAsync(Guid sessionId);
 }
 
 internal sealed class SessionCacheStore(SqliteConnectionContext connectionContext) : ISessionCacheStore
@@ -37,5 +42,13 @@ internal sealed class SessionCacheStore(SqliteConnectionContext connectionContex
         }
 
         return sessionCache.SessionId;
+    }
+
+    public async Task DeleteSessionCacheAsync(Guid sessionId)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        await connection.ExecuteAsync(
+            "DELETE FROM session_cache WHERE session_id = ?",
+            sessionId);
     }
 }

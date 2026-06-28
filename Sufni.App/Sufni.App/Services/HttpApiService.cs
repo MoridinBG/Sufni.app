@@ -488,7 +488,7 @@ internal class HttpApiService : IHttpApiService
         return incompleteSessions ?? [];
     }
 
-    public async Task<byte[]?> GetSessionPsstAsync(Guid id)
+    public async Task<SessionDataTransfer?> GetSessionPsstAsync(Guid id)
     {
         await EnsureTokenFreshAsync();
 
@@ -503,14 +503,16 @@ internal class HttpApiService : IHttpApiService
             return null;
         }
         response.EnsureSuccessStatusCode();
-        var psst = await response.Content.ReadAsByteArrayAsync();
+        // The body carries the fingerprint of the bytes alongside them so the
+        // caller can verify the download against its swap/fill target.
+        var transfer = await response.Content.ReadFromJsonAsync(AppJson.Context.SessionDataTransfer);
 
-        logger.Verbose("Downloaded {ByteCount} bytes of session data for {SessionId}", psst.Length, id);
+        logger.Verbose("Downloaded {ByteCount} bytes of session data for {SessionId}", transfer?.Data.Length ?? 0, id);
 
-        return psst;
+        return transfer;
     }
 
-    public async Task PatchSessionPsstAsync(Guid id, byte[] data)
+    public async Task PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint)
     {
         await EnsureTokenFreshAsync();
 
@@ -520,9 +522,10 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Patch,
             route,
-            () => client.PatchAsync(
+            () => client.PatchAsJsonAsync(
                 route,
-                new ByteArrayContent(data)));
+                new SessionDataTransfer(fingerprint, data),
+                AppJson.Context.SessionDataTransfer));
         response.EnsureSuccessStatusCode();
     }
 

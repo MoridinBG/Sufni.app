@@ -20,7 +20,7 @@ public class SynchronizationClientServiceTests
     {
         httpApiService.ServerUrl.Returns("https://temporary-sync-endpoint.test");
         httpApiService.GetIncompleteSessionIdsAsync().Returns([]);
-        sessionRepository.GetIncompleteSessionIdsAsync().Returns([]);
+        sessionRepository.GetIncompleteSessionIdsWithFingerprintAsync().Returns([]);
         httpApiService.GetIncompleteSessionSourceIdsAsync().Returns([]);
         recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync().Returns([]);
         appPreferences.GetSyncDataAsync(Arg.Any<long>()).Returns((AppPreferencesSyncData?)null);
@@ -201,7 +201,7 @@ public class SynchronizationClientServiceTests
             .Returns(_ =>
             {
                 calls.Add("core");
-                return Task.CompletedTask;
+                return (IReadOnlyList<SessionBlobSwap>)Array.Empty<SessionBlobSwap>();
             });
         appPreferences.ApplySyncDataAsync(remoteChanges.AppPreferences)
             .Returns(_ =>
@@ -243,6 +243,45 @@ public class SynchronizationClientServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(extensionSync).SyncAll());
 
         await syncDataStore.DidNotReceive().UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
+    }
+
+    [Fact]
+    public async Task SyncAll_HoldsWatermark_WhenSwapDoesNotResolve()
+    {
+        var sessionId = Guid.NewGuid();
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        syncDataStore.ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>())
+            .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(sessionId, """{"target":true}""")]);
+        // The peer does not yet hold the target BLOB, so the swap cannot commit.
+        httpApiService.GetSessionPsstAsync(sessionId).Returns((SessionDataTransfer?)null);
+
+        await CreateService().SyncAll();
+
+        // The watermark stays back so the next run re-derives and retries the swap;
+        // advancing it would strand the swap permanently (BLOB writes do not bump updated).
+        await sessionTelemetryWriter.DidNotReceive().SwapSessionPsstAsync(
+            Arg.Any<Guid>(), Arg.Any<byte[]>(), Arg.Any<string?>());
+        await syncDataStore.DidNotReceive().UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
+    }
+
+    [Fact]
+    public async Task SyncAll_CommitsSwapAndAdvancesWatermark_WhenDownloadedFingerprintMatchesTarget()
+    {
+        var sessionId = Guid.NewGuid();
+        const string target = """{"target":true}""";
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        syncDataStore.ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>())
+            .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(sessionId, target)]);
+        httpApiService.GetSessionPsstAsync(sessionId).Returns(new SessionDataTransfer(target, [1, 2, 3]));
+
+        await CreateService().SyncAll();
+
+        await sessionTelemetryWriter.Received(1).SwapSessionPsstAsync(sessionId, Arg.Any<byte[]>(), target);
+        await syncDataStore.Received(1).UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
     }
 
     [Fact]

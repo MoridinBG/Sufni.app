@@ -5,6 +5,7 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHosting.Database;
 using Sufni.App.Models;
 using Sufni.App.Services;
+using Sufni.App.SessionGraph;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.Telemetry;
 
@@ -121,53 +122,42 @@ public class SessionRepositoryTests
     }
 
     [Fact]
-    public async Task PutProcessedSessionIfUnchangedAsync_ReturnsNullAndRollsBack_WhenBaselineDoesNotMatch()
+    public async Task UpdateProcessedDerivedDataAsync_ReturnsNullAndRollsBack_WhenDatabaseInputsDoNotMatch()
     {
-        using var tempDatabase = new TempDatabase("processed-session-conflict.db");
+        using var tempDatabase = new TempDatabase("processed-derived-data-rollback.db");
         var databasePath = tempDatabase.DatabasePath;
         var sessionId = Guid.NewGuid();
         var newTrack = PersistenceTestData.CreateFullTrack();
 
         var database = new TestPersistenceHarness(databasePath);
+        // The session has no resolvable setup/source, so the in-transaction
+        // DB-input fingerprint re-check cannot match the expected inputs. The
+        // derived-only write must roll back: stale processed data is not written
+        // and the new full track is not inserted.
         var original = new Session(sessionId, "original", "desc", null, 100)
         {
             ProcessedData = PersistenceTestData.CreateTelemetryBlob(65),
             ProcessingFingerprintJson = """{"schemaVersion":1}"""
         };
         var persisted = await database.PutProcessedSessionAsync(original, newFullTrack: null, source: null);
-        var baselineUpdated = persisted.Updated;
-        var newerUpdated = baselineUpdated + 10;
-
-        using (var connection = new SQLiteConnection(databasePath))
-        {
-            connection.Execute(
-                "UPDATE session SET name=?, data=?, updated=? WHERE id=?",
-                "newer",
-                new byte[] { 4, 5, 6 },
-                newerUpdated,
-                sessionId);
-        }
+        var originalRaw = await database.GetSessionRawPsstAsync(sessionId);
 
         var recomputed = new Session(sessionId, "recomputed", "desc", null, 100)
         {
             ProcessedData = PersistenceTestData.CreateTelemetryBlob(66),
-            ProcessingFingerprintJson = """{"schemaVersion":2}"""
+            ProcessingFingerprintJson = """{"schemaVersion":3}"""
         };
+        var expectedInputFingerprint = new ProcessingFingerprint(
+            3, 1, Guid.NewGuid(), Guid.NewGuid(), 1, "dependency", "source-hash");
 
-        var result = await database.PutProcessedSessionIfUnchangedAsync(
-            recomputed,
-            newTrack,
-            source: null,
-            baselineUpdated);
+        var result = await database.UpdateProcessedDerivedDataAsync(recomputed, newTrack, expectedInputFingerprint);
 
         Assert.Null(result);
         var current = await database.GetSessionAsync(sessionId);
         Assert.NotNull(current);
-        Assert.Equal("newer", current!.Name);
-        Assert.Equal(newerUpdated, current.Updated);
-        Assert.Equal([4, 5, 6], await database.GetSessionRawPsstAsync(sessionId));
+        Assert.Equal(persisted.Updated, current!.Updated);
+        Assert.Equal(originalRaw, await database.GetSessionRawPsstAsync(sessionId));
         Assert.Null(await database.GetAsync<Track>(newTrack.Id));
-
     }
 
     [Fact]
@@ -226,6 +216,7 @@ public class SessionRepositoryTests
         await database.SessionRepository.UpdateSessionPsstAsync(
             sessionId,
             data,
+            null,
             new SessionSummaryMetrics(65, 10, 4, 2));
 
         var after = await database.GetSessionAsync(sessionId);
@@ -252,6 +243,7 @@ public class SessionRepositoryTests
         await Assert.ThrowsAsync<Exception>(() => database.SessionRepository.UpdateSessionPsstAsync(
             Guid.NewGuid(),
             [1, 2, 3],
+            null,
             new SessionSummaryMetrics(null, null, null, null)));
 
     }
@@ -307,13 +299,13 @@ public class SessionRepositoryTests
     }
 
     [Fact]
-    public async Task PutSessionAsync_ReusesSoftDeletedRow_AndPreservesExistingBinaryData()
+    public async Task PutSessionAsync_ReusesSoftDeletedRow_AndPreservesExistingDerivedData()
     {
         using var tempDatabase = new TempDatabase("session-revive.db");
         var databasePath = tempDatabase.DatabasePath;
         var sessionId = Guid.NewGuid();
         var setupId = Guid.NewGuid();
-        var fullTrackId = Guid.NewGuid();
+        var existingFullTrackId = Guid.NewGuid();
         var originalPsst = new byte[] { 9, 8, 7 };
         var originalTrack = new List<TrackPoint>
         {
@@ -324,22 +316,30 @@ public class SessionRepositoryTests
         var database = new TestPersistenceHarness(databasePath);
         _ = await database.GetSessionsAsync();
 
+        // A soft-deleted row that was fully processed: it carries the derived
+        // columns (PSST blob, session track, full-track linkage, fingerprint).
         using (var connection = new SQLiteConnection(databasePath))
         {
             connection.Insert(new Session(sessionId, "old", "old desc", null, 50)
             {
                 ProcessedData = originalPsst,
                 Track = originalTrack,
+                FullTrack = existingFullTrackId,
+                ProcessingFingerprintJson = """{"existing":true}""",
                 Updated = 10,
                 ClientUpdated = 10,
                 Deleted = 10
             });
         }
 
+        // The metadata save carries only user-authored metadata. Any derived
+        // columns set on the incoming model are ignored: PutSessionAsync writes
+        // metadata, COALESCE-preserves track/data, and never touches the
+        // full-track linkage or fingerprint owned by the processed-write pipeline.
         await database.PutSessionAsync(new Session(sessionId, "new", "new desc", setupId, 1234)
         {
-            FullTrack = fullTrackId,
-            ProcessingFingerprintJson = """{"current":true}"""
+            FullTrack = Guid.NewGuid(),
+            ProcessingFingerprintJson = """{"incoming":true}"""
         });
 
         var session = await database.GetSessionAsync(sessionId);
@@ -351,10 +351,12 @@ public class SessionRepositoryTests
         Assert.Equal("new desc", session.Description);
         Assert.Equal(setupId, session.Setup);
         Assert.Equal(1234, session.Timestamp);
-        Assert.Equal(fullTrackId, session.FullTrack);
-        Assert.Equal("""{"current":true}""", session.ProcessingFingerprintJson);
-        Assert.True(session.HasProcessedData);
         Assert.Null(session.Deleted);
+        // Derived columns are preserved from the existing row, not taken from the
+        // incoming metadata save.
+        Assert.Equal(existingFullTrackId, session.FullTrack);
+        Assert.Equal("""{"existing":true}""", session.ProcessingFingerprintJson);
+        Assert.True(session.HasProcessedData);
         Assert.Equal(originalPsst, rawPsst);
         Assert.NotNull(sessionTrack);
         Assert.Equal(2, sessionTrack!.Count);

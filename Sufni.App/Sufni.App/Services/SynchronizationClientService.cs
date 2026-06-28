@@ -1,5 +1,6 @@
 using Sufni.App.ExtensionHosting.Sync;
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Sufni.App.ExtensionHost.Contracts.Sync;
@@ -80,10 +81,12 @@ public class SynchronizationClientService : ISynchronizationClientService
 
         foreach (var id in incompleteSessions)
         {
-            var psst = await sessionRepository.GetSessionRawPsstAsync(id);
-            if (psst is not null)
+            var blob = await sessionRepository.GetSessionRawPsstWithFingerprintAsync(id);
+            if (blob is not null)
             {
-                await httpApiService.PatchSessionPsstAsync(id, psst);
+                // Upload the bytes with their fingerprint so the hub rejects a
+                // mismatch instead of storing bytes that contradict its metadata.
+                await httpApiService.PatchSessionPsstAsync(id, blob.Value.Data, blob.Value.Fingerprint);
                 uploadedCount++;
             }
         }
@@ -94,12 +97,12 @@ public class SynchronizationClientService : ISynchronizationClientService
             incompleteSessions.Count);
     }
 
-    private async Task PullRemoteChanges(
+    private async Task<IReadOnlyList<SessionBlobSwap>> PullRemoteChanges(
         long lastSyncTime,
         IProgress<SynchronizationProgressSnapshot>? progress)
     {
         var syncData = await httpApiService.PullSyncAsync(lastSyncTime);
-        await syncDataStore.ApplyRemoteSynchronizationDataAsync(syncData);
+        var swaps = await syncDataStore.ApplyRemoteSynchronizationDataAsync(syncData);
         await appPreferences.ApplySyncDataAsync(syncData.AppPreferences);
         if (extensionSyncService is not null)
         {
@@ -128,27 +131,87 @@ public class SynchronizationClientService : ISynchronizationClientService
             syncData.Sessions.Count(session => !session.Deleted.HasValue),
             syncData.ExtensionBatches.Count,
             syncData.AppPreferences is not null);
+
+        return swaps;
     }
 
-    private async Task PullIncompleteSessions()
+    private async Task<int> PullIncompleteSessions(IReadOnlyList<SessionBlobSwap> swaps)
     {
-        var incompleteSessionIds = await sessionRepository.GetIncompleteSessionIdsAsync();
+        // A "session blob to pull" is a missing or stale processed BLOB, identified
+        // by an (id, target-fingerprint) pair. Two sources, one match-checked
+        // download loop:
+        //  - fills: rows with no BLOB (data IS NULL); target = the row's own stored
+        //    fingerprint, so a fill commits only bytes matching its metadata.
+        //  - swaps: rows whose held BLOB has a different current-schema fingerprint
+        //    than the one just pulled; target = the accepted remote fingerprint.
+        var fills = await sessionRepository.GetIncompleteSessionIdsWithFingerprintAsync();
         var downloadedCount = 0;
 
-        foreach (var id in incompleteSessionIds)
+        foreach (var (id, fingerprint) in fills)
         {
-            var psst = await httpApiService.GetSessionPsstAsync(id);
-            if (psst is not null)
+            if (await TryDownloadAndCommitAsync(id, fingerprint))
             {
-                await sessionTelemetryWriter.PatchSessionPsstAsync(id, psst);
                 downloadedCount++;
             }
         }
 
+        // Count swaps that did not commit this run. Fills are re-derived every run from
+        // `data IS NULL`, so an unresolved fill is naturally retried; a swap is derived
+        // from the transient pulled-metadata delta, and BLOB writes do not bump
+        // `updated`, so once the watermark advances past it the swap is never re-derived.
+        // The caller therefore holds the watermark back while any swap is unresolved.
+        var unresolvedSwaps = 0;
+        foreach (var swap in swaps)
+        {
+            if (await TryDownloadAndCommitAsync(swap.SessionId, swap.TargetFingerprint))
+            {
+                downloadedCount++;
+            }
+            else
+            {
+                unresolvedSwaps++;
+            }
+        }
+
         logger.Verbose(
-            "Pulled {DownloadedCount} incomplete sessions out of {IncompleteSessionCount} local placeholders",
+            "Pulled {DownloadedCount} session blobs ({FillCount} fills, {SwapCount} swaps requested, {UnresolvedSwapCount} swaps unresolved)",
             downloadedCount,
-            incompleteSessionIds.Count);
+            fills.Count,
+            swaps.Count,
+            unresolvedSwaps);
+
+        return unresolvedSwaps;
+    }
+
+    // Downloads a processed BLOB and commits it only when its fingerprint matches
+    // the target. A 404 (null) or a fingerprint mismatch is "resolved for now": the
+    // run may still advance its single last-sync watermark and re-detect later. A
+    // network error propagates, so the watermark does NOT advance and the transient
+    // swap set is re-derived from the same metadata delta next run.
+    private async Task<bool> TryDownloadAndCommitAsync(Guid id, string? targetFingerprint)
+    {
+        if (string.IsNullOrEmpty(targetFingerprint))
+        {
+            // No current target (legacy / unfingerprinted): defer to the one-time normalization pass.
+            return false;
+        }
+
+        var transfer = await httpApiService.GetSessionPsstAsync(id);
+        if (transfer is null)
+        {
+            return false;
+        }
+
+        if (!StringComparer.Ordinal.Equals(transfer.Fingerprint, targetFingerprint))
+        {
+            logger.Verbose(
+                "Skipped session {SessionId}: downloaded fingerprint does not match the target",
+                id);
+            return false;
+        }
+
+        await sessionTelemetryWriter.SwapSessionPsstAsync(id, transfer.Data, transfer.Fingerprint);
+        return true;
     }
 
     private async Task PushIncompleteSessionSources()
@@ -211,15 +274,34 @@ public class SynchronizationClientService : ISynchronizationClientService
 
             logger.Verbose("Starting synchronization client run with last sync time {LastSyncTime}", lastSyncTime);
 
+            // Built by the phase-2 metadata merge and consumed by the phase-4
+            // session-data pull. Transient: if any phase throws, the watermark below
+            // is not advanced and the next run re-derives this set.
+            IReadOnlyList<SessionBlobSwap> swaps = [];
+            var unresolvedSwaps = 0;
+
             await RunPhaseAsync(progress, SynchronizationPhase.PushingLocalChanges, "Pushing local changes", 1, () => PushLocalChanges(lastSyncTime));
-            await RunPhaseAsync(progress, SynchronizationPhase.PullingRemoteChanges, "Pulling remote changes", 2, () => PullRemoteChanges(lastSyncTime, progress));
+            await RunPhaseAsync(progress, SynchronizationPhase.PullingRemoteChanges, "Pulling remote changes", 2, async () => swaps = await PullRemoteChanges(lastSyncTime, progress));
             await RunPhaseAsync(progress, SynchronizationPhase.PushingIncompleteSessions, "Uploading session data", 3, PushIncompleteSessions);
-            await RunPhaseAsync(progress, SynchronizationPhase.PullingIncompleteSessions, "Downloading session data", 4, PullIncompleteSessions);
+            await RunPhaseAsync(progress, SynchronizationPhase.PullingIncompleteSessions, "Downloading session data", 4, async () => unresolvedSwaps = await PullIncompleteSessions(swaps));
             await RunPhaseAsync(progress, SynchronizationPhase.PushingIncompleteSessionSources, "Uploading recorded sources", 5, PushIncompleteSessionSources);
             await RunPhaseAsync(progress, SynchronizationPhase.PullingIncompleteSessionSources, "Downloading recorded sources", 6, PullIncompleteSessionSources);
 
-            await syncDataStore.UpdateLastSyncTimeAsync(SyncStateKey);
-            logger.Verbose("Synchronization client run completed");
+            // Only advance the single sync watermark when every swap committed. A swap is
+            // derived from the pulled-metadata delta and BLOB writes do not bump `updated`,
+            // so advancing past an unresolved swap would strand it permanently. Holding the
+            // watermark re-pulls the same delta next run, re-derives the swap, and retries.
+            if (unresolvedSwaps == 0)
+            {
+                await syncDataStore.UpdateLastSyncTimeAsync(SyncStateKey);
+                logger.Verbose("Synchronization client run completed");
+            }
+            else
+            {
+                logger.Information(
+                    "Holding sync watermark: {UnresolvedSwapCount} session-blob swap(s) did not resolve this run and will be retried next sync",
+                    unresolvedSwaps);
+            }
         }
         catch (System.Exception exception)
         {

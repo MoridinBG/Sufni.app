@@ -50,46 +50,44 @@ public class TrackRepositoryTests
     }
 
     [Fact]
-    public async Task AssociateSessionWithTrackAsync_UpdatesAssociationAndBumpsSessionUpdated()
+    public async Task FindTrackContainingTimestampAsync_ReturnsTightestCoveringWindow()
     {
-        using var tempDatabase = new TempDatabase("session-track-association.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var sessionId = Guid.NewGuid();
-        var trackId = Guid.NewGuid();
+        using var tempDatabase = new TempDatabase("track-tightest-window.db");
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
 
-        var database = new TestPersistenceHarness(databasePath);
-        _ = await database.GetSessionsAsync();
+        var widestId = Guid.NewGuid();
+        var wideId = Guid.NewGuid();
+        var tightestId = Guid.NewGuid();
 
-        using (var connection = new SQLiteConnection(databasePath))
-        {
-            connection.Insert(new Session(sessionId, "session", "desc", null, 100)
-            {
-                Updated = 1,
-                ClientUpdated = 1
-            });
-        }
-
+        // All three tracks cover timestamp 150; their windows are 250, 100, and 20.
         await database.PutAsync(new Track
         {
-            Id = trackId,
-            Points =
-            [
-                new TrackPoint(90, 1, 1, 0),
-                new TrackPoint(110, 2, 2, 0)
-            ]
+            Id = widestId,
+            Points = [new TrackPoint(50, 1, 1, 10), new TrackPoint(300, 2, 2, 11)]
+        });
+        await database.PutAsync(new Track
+        {
+            Id = wideId,
+            Points = [new TrackPoint(100, 1, 1, 10), new TrackPoint(200, 2, 2, 11)]
+        });
+        await database.PutAsync(new Track
+        {
+            Id = tightestId,
+            Points = [new TrackPoint(140, 1, 1, 10), new TrackPoint(160, 2, 2, 11)]
         });
 
-        var before = await database.GetSessionAsync(sessionId);
+        var found = await database.FindTrackContainingTimestampAsync(150);
 
-        var associatedTrackId = await database.AssociateSessionWithTrackAsync(sessionId);
+        // The tightest covering window wins, deterministically, regardless of insert order.
+        Assert.Equal(tightestId, found);
+    }
 
-        var after = await database.GetSessionAsync(sessionId);
+    [Fact]
+    public async Task FindTrackContainingTimestampAsync_ReturnsNull_WhenTimestampIsMissing()
+    {
+        using var tempDatabase = new TempDatabase("track-no-timestamp.db");
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
 
-        Assert.NotNull(before);
-        Assert.NotNull(after);
-        Assert.Equal(trackId, associatedTrackId);
-        Assert.Equal(trackId, after!.FullTrack);
-        Assert.True(after.Updated > before!.Updated);
-
+        Assert.Null(await database.FindTrackContainingTimestampAsync(null));
     }
 }

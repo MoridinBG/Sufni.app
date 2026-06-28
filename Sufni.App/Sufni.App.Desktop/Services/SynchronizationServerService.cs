@@ -49,6 +49,7 @@ public class SynchronizationServerService : ISynchronizationServerService
     private readonly ISessionTelemetryWriter sessionTelemetryWriter;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly IAppPreferences appPreferences;
+    private readonly ISessionBlobSwapRequestStore swapRequestStore;
     private readonly IExtensionSyncService? extensionSyncService;
     private readonly ISecureStorage secureStorage;
     private readonly object advertisingGate = new();
@@ -87,8 +88,9 @@ public class SynchronizationServerService : ISynchronizationServerService
         ISessionTelemetryWriter sessionTelemetryWriter,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IAppPreferences appPreferences,
-        ISecureStorage secureStorage)
-        : this(syncDataStore, pairedDeviceRepository, sessionRepository, sessionTelemetryWriter, recordedSessionSourceRepository, appPreferences, secureStorage, null)
+        ISecureStorage secureStorage,
+        ISessionBlobSwapRequestStore swapRequestStore)
+        : this(syncDataStore, pairedDeviceRepository, sessionRepository, sessionTelemetryWriter, recordedSessionSourceRepository, appPreferences, secureStorage, swapRequestStore, null)
     {
     }
 
@@ -100,6 +102,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IAppPreferences appPreferences,
         ISecureStorage secureStorage,
+        ISessionBlobSwapRequestStore swapRequestStore,
         IExtensionSyncService? extensionSyncService)
     {
         this.syncDataStore = syncDataStore;
@@ -109,6 +112,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.appPreferences = appPreferences;
         this.secureStorage = secureStorage;
+        this.swapRequestStore = swapRequestStore;
         this.extensionSyncService = extensionSyncService;
         Initialization = Init();
     }
@@ -572,8 +576,17 @@ public class SynchronizationServerService : ISynchronizationServerService
                     async () =>
                     {
                         var incompleteSessions = await sessionRepository.GetIncompleteSessionIdsAsync();
-                        logger.Verbose("Synchronization incomplete-session query returned {SessionCount} sessions", incompleteSessions.Count);
-                        return Results.Ok(incompleteSessions);
+                        var pendingSwaps = await swapRequestStore.GetRequestedSessionIdsAsync();
+                        // Advertise both rows with no BLOB (fills) and held-BLOB rows the
+                        // hub wants a newer BLOB for (push-swaps), so a client uploads the
+                        // matching bytes. The two sets are disjoint, but Union guards overlap.
+                        var requestedSessions = incompleteSessions.Union(pendingSwaps).ToList();
+                        logger.Verbose(
+                            "Synchronization incomplete-session query returned {SessionCount} sessions ({FillCount} fills, {SwapCount} push-swaps)",
+                            requestedSessions.Count,
+                            incompleteSessions.Count,
+                            pendingSwaps.Count);
+                        return Results.Ok(requestedSessions);
                     });
             });
 
@@ -583,21 +596,19 @@ public class SynchronizationServerService : ISynchronizationServerService
                     SyncActivity(SynchronizationPhase.ServingSessionData, "Serving session data"),
                     async () =>
                     {
-                        var data = await sessionRepository.GetSessionRawPsstAsync(id);
-                        if (data is null)
+                        var blob = await sessionRepository.GetSessionRawPsstWithFingerprintAsync(id);
+                        if (blob is null)
                         {
                             logger.Warning("Session data download failed because session {SessionId} was not found", id);
                             return Results.NotFound(new { msg = "Session does not exist!" });
                         }
 
-                        logger.Verbose("Serving session data for {SessionId} with {ByteCount} bytes", id, data.Length);
-                        var name = $"{id}.psst";
+                        logger.Verbose("Serving session data for {SessionId} with {ByteCount} bytes", id, blob.Value.Data.Length);
 
-                        return Results.File(
-                            fileContents: data,
-                            contentType: "application/octet-stream",
-                            fileDownloadName: name
-                        );
+                        // The response carries the fingerprint of the bytes so the
+                        // client can verify the download against its swap/fill
+                        // target before committing (download-then-swap).
+                        return Results.Ok(new SessionDataTransfer(blob.Value.Fingerprint, blob.Value.Data));
                     });
             });
 
@@ -607,13 +618,37 @@ public class SynchronizationServerService : ISynchronizationServerService
                     SyncActivity(SynchronizationPhase.ReceivingSessionData, "Receiving session data"),
                     async () =>
                     {
-                        await using var memoryStream = new MemoryStream();
-                        await request.BodyReader.CopyToAsync(memoryStream);
-                        var data = memoryStream.ToArray();
+                        var transfer = await request.ReadFromJsonAsync(AppJson.Context.SessionDataTransfer);
+                        if (transfer is null)
+                        {
+                            logger.Warning("Session data patch failed because request JSON was empty for {SessionId}", id);
+                            return Results.BadRequest();
+                        }
 
                         try
                         {
-                            await sessionTelemetryWriter.PatchSessionPsstAsync(id, data);
+                            var swapTarget = await swapRequestStore.GetTargetFingerprintAsync(id);
+                            if (swapTarget is not null)
+                            {
+                                // Push-swap row: only the uploader holding the wanted bytes
+                                // commits the swap (overwriting the held BLOB + fingerprint +
+                                // BLOB-derived metrics coherently and dropping the request).
+                                // Any other upload is just a client that does not have those
+                                // bytes yet, so it is ignored and the row stays pending — no
+                                // 400, so that client's sync run does not fail.
+                                if (StringComparer.Ordinal.Equals(transfer.Fingerprint, swapTarget))
+                                {
+                                    await sessionTelemetryWriter.SwapSessionPsstAsync(id, transfer.Data, transfer.Fingerprint);
+                                    await swapRequestStore.ClearAsync(id);
+                                }
+                            }
+                            else
+                            {
+                                // Fill: rejects invalid bytes AND a fingerprint that does not
+                                // match this row's stored fingerprint; both throw
+                                // InvalidDataException, mapped to 400 so the row stays pending.
+                                await sessionTelemetryWriter.PatchSessionPsstAsync(id, transfer.Data, transfer.Fingerprint);
+                            }
                         }
                         catch (InvalidDataException ex)
                         {
@@ -626,7 +661,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                             return Results.NotFound();
                         }
 
-                        logger.Verbose("Patched session data for {SessionId} with {ByteCount} bytes", id, data.Length);
+                        logger.Verbose("Patched session data for {SessionId} with {ByteCount} bytes", id, transfer.Data.Length);
                         SessionDataArrived?.Invoke(this, new SessionDataArrivedEventArgs(id));
                         return Results.NoContent();
                     });

@@ -17,8 +17,8 @@ public interface IHttpApiService
     public Task<SynchronizationData> PullSyncAsync(long since = 0);
     public Task PushSyncAsync(SynchronizationData syncData);
     public Task<List<Guid>> GetIncompleteSessionIdsAsync();
-    public Task<byte[]?> GetSessionPsstAsync(Guid id);
-    public Task PatchSessionPsstAsync(Guid id, byte[] data);
+    public Task<SessionDataTransfer?> GetSessionPsstAsync(Guid id);
+    public Task PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint);
     public Task<List<Guid>> GetIncompleteSessionSourceIdsAsync();
     public Task<RecordedSessionSourceTransfer?> GetRecordedSessionSourceAsync(Guid id);
     public Task PatchRecordedSessionSourceAsync(RecordedSessionSourceTransfer source);
