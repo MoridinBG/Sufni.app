@@ -257,6 +257,7 @@ public class EditorFactoryTests
             Substitute.For<ISessionAnalysisService>(),
             new TestMapViewModelFactory(Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges()),
             Substitute.For<ISessionPreferences>(),
+            Substitute.For<IRecordedSessionProcessingOptionCache>(),
             TestCoordinatorSubstitutes.LiveDaq(),
             Substitute.For<IDaqManagementService>(),
             Substitute.For<IFilesService>(),

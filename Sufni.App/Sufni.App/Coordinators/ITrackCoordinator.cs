@@ -16,7 +16,7 @@ public interface ITrackCoordinator
         TelemetryData telemetryData,
         CancellationToken cancellationToken = default);
 
-    Task<SessionGpsOffsetUpdateResult?> UpdateSessionGpsOffsetAsync(
+    Task<bool> UpdateSessionGpsOffsetAsync(
         Guid sessionId,
         Guid? fullTrackId,
         TelemetryData telemetryData,

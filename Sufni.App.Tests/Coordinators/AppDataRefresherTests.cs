@@ -1,5 +1,6 @@
 using NSubstitute;
 using Sufni.App.Coordinators;
+using Sufni.App.SessionGraph;
 using Sufni.App.Stores;
 
 namespace Sufni.App.Tests.Coordinators;
@@ -14,15 +15,20 @@ public class AppDataRefresherTests
         var sessionStore = Substitute.For<ISessionStoreWriter>();
         var sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
         var pairedDeviceStore = Substitute.For<IPairedDeviceStoreWriter>();
+        var processingOptionCache = Substitute.For<IRecordedSessionProcessingOptionCache>();
         var refresher = new AppDataRefresher(
             bikeStore,
             setupStore,
             sessionStore,
             sourceStore,
-            pairedDeviceStore);
+            pairedDeviceStore,
+            processingOptionCache);
 
         await refresher.RefreshAsync();
 
+        // The option cache must hydrate before stores refresh so the graph's
+        // first sweep sees each session's real option.
+        await processingOptionCache.Received(1).HydrateAsync();
         await bikeStore.Received(1).RefreshAsync();
         await setupStore.Received(1).RefreshAsync();
         await sessionStore.Received(1).RefreshAsync();

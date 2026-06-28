@@ -28,10 +28,14 @@ public interface ISessionCoordinator
         SessionPreferences preferences,
         CancellationToken cancellationToken = default);
 
-    Task<SessionRecomputeResult> RecomputeAsync(
-        Guid sessionId,
-        long baselineUpdated,
-        CancellationToken cancellationToken = default);
+    Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, RecomputeReason reason);
+
+    /// <summary>
+    /// True while a recompute for this session is in flight. The staleness
+    /// prompter reads it to avoid prompting for a recompute the user just
+    /// triggered (the request flips this true synchronously, before any await).
+    /// </summary>
+    bool IsRecomputeActive(Guid sessionId);
 
     Task<SessionDeleteResult> DeleteAsync(Guid sessionId);
 }

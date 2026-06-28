@@ -18,6 +18,7 @@ public class TrackCoordinator(
     ISynchronizableRepository<Track> trackEntityRepository,
     ISessionRepository sessionRepository,
     ISessionTelemetryWriter sessionTelemetryWriter,
+    ISessionStoreWriter sessionStore,
     IFilesService filesService,
     IBackgroundTaskRunner backgroundTaskRunner) : ITrackCoordinator
 {
@@ -47,7 +48,7 @@ public class TrackCoordinator(
             cancellationToken);
     }
 
-    public Task<SessionGpsOffsetUpdateResult?> UpdateSessionGpsOffsetAsync(
+    public Task<bool> UpdateSessionGpsOffsetAsync(
         Guid sessionId,
         Guid? fullTrackId,
         TelemetryData telemetryData,
@@ -103,7 +104,11 @@ public class TrackCoordinator(
 
         var session = await sessionRepository.GetSessionAsync(sessionId);
         var gpsOffsetSeconds = NormalizeGpsOffsetSeconds(session?.GpsOffsetSeconds ?? 0);
-        var resolvedFullTrackId = fullTrackId ?? await trackRepository.AssociateSessionWithTrackAsync(sessionId);
+
+        // Read-only load: the snapshot's full_track_id is the only source of the
+        // association. The write/recompute path owns establishing it, so an
+        // unassociated session simply renders without a track here.
+        var resolvedFullTrackId = fullTrackId;
         if (resolvedFullTrackId is null)
         {
             return new SessionTrackPresentationData(null, null, null, null);
@@ -114,10 +119,12 @@ public class TrackCoordinator(
         var fullTrack = (await trackEntityRepository.GetAsync(resolvedFullTrackId.Value))!;
         var trackPoints = await sessionRepository.GetSessionTrackAsync(sessionId);
 
+        // When the cached session-window polyline is missing or no longer aligned
+        // with the current GPS offset, regenerate it in memory for display only.
+        // Persisting the cached polyline is the processed-write path's job.
         if (!IsSessionTrackAligned(trackPoints, telemetryData, gpsOffsetSeconds))
         {
             trackPoints = GenerateSessionTrack(fullTrack, telemetryData, gpsOffsetSeconds);
-            await sessionTelemetryWriter.PatchSessionTrackAsync(sessionId, trackPoints);
         }
 
         return new SessionTrackPresentationData(
@@ -127,7 +134,7 @@ public class TrackCoordinator(
             DefaultMediaColumnWidth);
     }
 
-    private async Task<SessionGpsOffsetUpdateResult?> UpdateSessionGpsOffsetCoreAsync(
+    private async Task<bool> UpdateSessionGpsOffsetCoreAsync(
         Guid sessionId,
         Guid? fullTrackId,
         TelemetryData telemetryData,
@@ -136,10 +143,12 @@ public class TrackCoordinator(
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var resolvedFullTrackId = fullTrackId ?? await trackRepository.AssociateSessionWithTrackAsync(sessionId);
+        // Association is established by the write/recompute path; a session without
+        // a linked full track has nothing to offset.
+        var resolvedFullTrackId = fullTrackId;
         if (resolvedFullTrackId is null)
         {
-            return null;
+            return false;
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -147,29 +156,30 @@ public class TrackCoordinator(
         var fullTrack = await trackEntityRepository.GetAsync(resolvedFullTrackId.Value);
         if (fullTrack is null)
         {
-            return null;
+            return false;
         }
 
         var normalizedOffset = NormalizeGpsOffsetSeconds(gpsOffsetSeconds);
         var trackPoints = GenerateSessionTrack(fullTrack, telemetryData, normalizedOffset);
         if (trackPoints.Count == 0)
         {
-            return null;
+            return false;
         }
 
+        // One-way persist: PatchSessionTrackAsync writes the offset and cached
+        // polyline without an optimistic-concurrency guard and without touching the
+        // processed BLOB or its fingerprint, so it cannot false-conflict. Upserting
+        // the refreshed snapshot lets the session-detail watch reaction refresh the
+        // track and baseline like a recompute — no result is pushed to the editor.
         await sessionTelemetryWriter.PatchSessionTrackAsync(sessionId, trackPoints, normalizedOffset);
         var updatedSession = await sessionRepository.GetSessionAsync(sessionId);
         if (updatedSession is null)
         {
-            return null;
+            return false;
         }
 
-        var trackData = new SessionTrackPresentationData(
-            resolvedFullTrackId,
-            fullTrack.Points,
-            trackPoints,
-            DefaultMediaColumnWidth);
-        return new SessionGpsOffsetUpdateResult(SessionSnapshot.From(updatedSession), trackData);
+        sessionStore.Upsert(SessionSnapshot.From(updatedSession));
+        return true;
     }
 
     private static List<TrackPoint> GenerateSessionTrack(

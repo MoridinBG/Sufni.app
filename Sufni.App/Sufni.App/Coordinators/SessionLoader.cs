@@ -271,8 +271,8 @@ public sealed class SessionLoader
         }
 
         logger.Verbose("Downloading telemetry data during load for session {SessionId}", sessionId);
-        var psst = await httpApiService.GetSessionPsstAsync(sessionId);
-        if (psst is null)
+        var transfer = await httpApiService.GetSessionPsstAsync(sessionId);
+        if (transfer is null)
         {
             logger.Warning("Telemetry data is not yet available from the server for session {SessionId}", sessionId);
             return null;
@@ -280,8 +280,11 @@ public sealed class SessionLoader
 
         cancellationToken.ThrowIfCancellationRequested();
 
+        // Commit the downloaded bytes with their fingerprint so the row coherently
+        // advertises what it now holds. The fingerprint is written as-is
+        // here; the sync phase-4 pull is the path that match-checks against a target.
         await backgroundTaskRunner.RunAsync(
-            () => sessionTelemetryWriter.PatchSessionPsstAsync(sessionId, psst),
+            () => sessionTelemetryWriter.SwapSessionPsstAsync(sessionId, transfer.Data, transfer.Fingerprint),
             cancellationToken);
 
         var fresh = await backgroundTaskRunner.RunAsync(

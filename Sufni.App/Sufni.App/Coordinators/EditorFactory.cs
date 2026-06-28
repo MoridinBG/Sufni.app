@@ -31,6 +31,7 @@ internal sealed class EditorFactory(
     ISessionAnalysisService sessionAnalysisService,
     IMapViewModelFactory mapViewModelFactory,
     ISessionPreferences sessionPreferences,
+    IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache,
     ILiveDaqCoordinator liveDaqCoordinator,
     IDaqManagementService daqManagementService,
     IFilesService filesService,
@@ -139,6 +140,7 @@ internal sealed class EditorFactory(
             sessionPreferences,
             uiThreadDispatcher,
             sessionLayoutStrategy,
+            recordedSessionProcessingOptionCache,
             bikeCoordinator,
             new ExtensionHostDependencies(
                 recordedSessionExtensionFactories.ToArray(),

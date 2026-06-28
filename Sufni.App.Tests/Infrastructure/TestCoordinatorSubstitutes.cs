@@ -68,7 +68,7 @@ internal static class TestCoordinatorSubstitutes
         var coordinator = Substitute.For<ISessionCoordinator>();
 
         coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
-        coordinator.RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>())
+        coordinator.RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>())
             .Returns(new SessionRecomputeResult.NotRecomputable(new SessionStaleness.MissingRawSource()));
 
         return coordinator;
