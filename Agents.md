@@ -302,10 +302,10 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
   `IPairingClientCoordinator`) are eagerly resolved in
   `App.OnFrameworkInitializationCompleted` so the subscriptions wire
   up before any sync, pairing, or telemetry arrival happens.
-  `SessionCoordinator` itself is a thin facade over the six session
-  use-case classes (`SessionLoader`, `SessionSaver`,
-  `SessionRecomputer`, `SessionDeleter`, `LiveCaptureSaver`,
-  `SessionSyncApplier`) — see
+  `SessionCoordinator` itself is a thin router over the session
+  use-case classes (`SessionLoader` for reads, `SessionCommandService`
+  for store-writing commands and recompute requests, the
+  `SessionRecomputeEngine` it drives, and `SessionSyncApplier`) — see
   [ui-workflows.md](docs/architecture/ui-workflows.md#coordinators).
 
 Full details: [docs/architecture/ui.md](docs/architecture/ui.md),

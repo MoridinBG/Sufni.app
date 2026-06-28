@@ -107,6 +107,36 @@ surfaces:
   `DerivedChangeKind` flags value describing what changed since the
   previous domain snapshot.
 
+The recorded detail editor consumes this stream through a single
+reaction that treats two axes orthogonally. The *derived* axis
+(processed-data availability, fingerprint, or the session-window track)
+always refreshes the displayed telemetry/track and advances the
+editor's optimistic-concurrency baseline — even while a metadata prompt
+is pending, and without resetting unsaved edits. The *metadata* axis
+(`SessionMetadataChanged`, now user-authored fields only: name,
+description, setup, timestamp, tuning) is decided independently: an
+external metadata change with no local edits is absorbed, while a change
+against unsaved edits prompts to discard-and-reload and otherwise holds
+the baseline back so the next save still detects the conflict. That
+held-back state is pinned: once the user declines, a later derived-only
+emission (e.g. a recompute result) refreshes telemetry but does **not**
+advance the baseline past the unacknowledged metadata edit, so it cannot
+silently clear the pending conflict; the pin lifts only when the conflict
+resolves (reload, save, or absorb).
+`FullTrackId`/`GpsOffsetSeconds` are classified as `DerivedTrackChanged`
+rather than metadata, so a recompute or GPS-offset adjustment refreshes
+the track without a discard prompt.
+
+Recompute and GPS-offset adjustment are one-way: they persist and upsert
+the session store, and the refresh reaches the editor through this same
+watch reaction rather than a pushed result.
+`ISessionCoordinator.RequestRecomputeAsync(sessionId, reason)` is
+baseline-free — the `SessionRecomputeEngine` owns serialization and
+liveness — and the staleness prompter is forward-only: on a stale,
+recomputable session it confirms and requests a recompute (suppressed
+while a recompute the user just triggered is in flight), surfacing only
+the unrecomputable/failed outcomes.
+
 Graph recomputes are coalesced through an injected
 `IRecordedSessionGraphScheduler`; the default
 `AvaloniaRecordedSessionGraphScheduler` posts to
@@ -121,7 +151,9 @@ that dependency.
 `ProcessingFingerprintService` is the pure derivation service behind
 the graph. It parses the persisted fingerprint JSON from
 `SessionSnapshot`, computes the current fingerprint from session,
-setup, bike, and source snapshots, and classifies staleness as:
+setup, bike, and source snapshots plus the session's clamped
+velocity-filter processing option (read from an app-wide cache that
+re-hydrates after each sync apply), and classifies staleness as:
 
 - `Current` — processed data matches the recorded source and current
   processing inputs.
@@ -136,12 +168,12 @@ setup, bike, and source snapshots, and classifies staleness as:
   whether the processed BLOB/fingerprint is known to be stale even
   though the app cannot repair it until the source is restored.
 
-Legacy processed sessions can enter the store already repaired because `DatabaseMigrationRunner` runs a one-time source-backed fingerprint backfill during SQLite startup, then records it in `core_migration`. That pass fills existing processed rows without recomputing their telemetry, while later startups only repair explicitly known legacy fingerprint shapes. The graph still reports stale for new source/dependency mismatches after the one-time marker exists.
+Once the processing fingerprint began recording the velocity-filter option, every pre-existing fingerprint reads as legacy — stale and recomputable. A one-time, per-device startup pass (`ProcessingOptionsResetMigration`) resets each source-backed session's stored option to the 25 ms default and recomputes it through the recompute engine, so the stored fingerprint records the option it was produced with and the session stops being stale. The pass runs off the UI thread, is tracked in `core_migration` so it runs once, and is resumable: an interrupted run leaves the marker unwritten and retries on the next launch. Source-less sessions cannot be recomputed and are left untouched, surfacing through the not-recomputable staleness state. The graph still reports stale for new source/dependency/option mismatches after the marker exists.
 
 `IRecordedSessionDomainQuery` is the command-side companion. It reads
 the current session/setup/bike/source snapshots synchronously from
 stores and returns one `RecordedSessionDomainSnapshot` for workflows
-such as `SessionCoordinator.RecomputeAsync`. Coordinators use the
+such as the recompute engine. Coordinators use the
 query for current-state decisions; they do not subscribe to the graph
 stream.
 
@@ -175,6 +207,6 @@ and calibration context without repeated database round-trips. See
 current business question without owning a collection. It joins the
 current session, setup, bike, and recorded-source snapshots and
 returns the same domain snapshot shape that `IRecordedSessionGraph`
-publishes. `SessionCoordinator.RecomputeAsync` uses it for
-baseline/staleness checks before loading the raw source and before
+publishes. The `SessionRecomputeEngine` uses it for the staleness gate
+before loading the raw source and a still-current guard before
 committing recomputed data.

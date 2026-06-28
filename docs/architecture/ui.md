@@ -138,14 +138,17 @@ The live session path is deliberately separate:
 `Saved(SessionId, Updated)` or `Failed(ErrorMessage)` because there
 is no optimistic-concurrency baseline for an in-memory live capture.
 
-Recorded-session recompute follows the same explicit-result pattern:
-`SessionCoordinator.RecomputeAsync(sessionId, baselineUpdated)`
-returns `Recomputed(NewBaselineUpdated)`, `Conflict(CurrentSnapshot)`,
-`NotRecomputable(SessionStaleness)`, or `Failed(ErrorMessage)`.
-The coordinator checks the editor baseline before loading the source
-and again before persistence, so a recompute cannot overwrite a
-metadata edit or sync arrival that happened while processing was
-running.
+Recorded-session recompute follows the same explicit-result pattern but is
+**baseline-free**: `SessionCoordinator.RequestRecomputeAsync(sessionId, reason)`
+returns `Recomputed(NewBaselineUpdated)`, `Superseded`,
+`NotRecomputable(SessionStaleness)`, or `Failed(ErrorMessage)`, where
+`RecomputeReason` records why the recompute was requested (logging only). The
+`SessionRecomputeEngine` owns per-session, cancel-and-replace serialization and
+recompute liveness, so a user's own recompute never false-conflicts: a run
+displaced by a newer explicit request resolves to `Superseded`, a run whose DB
+inputs change underneath it re-enqueues itself until it converges, and the
+refreshed result reaches the editor through the recorded-session graph rather
+than this return value (see [recompute flow](ui-state.md#recorded-session-graph)).
 
 The same convention is used for infrastructure-facing service outcomes
 such as `StorageProviderRegistrationResult` (`Added` / `AlreadyOpen`)
