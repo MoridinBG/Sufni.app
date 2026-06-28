@@ -114,7 +114,7 @@ public class SessionListViewModelTests
             sessionCache.AddOrUpdate(summary);
 
             var sessionCoordinator = TestCoordinatorSubstitutes.Session();
-            sessionCoordinator.RecomputeAsync(summary.Id, summary.Updated, Arg.Any<CancellationToken>())
+            sessionCoordinator.RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList)
                 .Returns(new SessionRecomputeResult.Recomputed(summary.Updated + 1));
 
             var viewModel = new SessionListViewModel(graph, sessionCoordinator, UiThreadDispatcher);
@@ -124,7 +124,7 @@ public class SessionListViewModelTests
             await row.RecalculateCommand.ExecuteAsync(null);
 
             await sessionCoordinator.Received(1)
-                .RecomputeAsync(summary.Id, summary.Updated, Arg.Any<CancellationToken>());
+                .RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList);
             Assert.Empty(viewModel.ErrorMessages);
         }
     }
@@ -202,7 +202,7 @@ public class SessionListViewModelTests
             sessionCache.AddOrUpdate(summary);
 
             var sessionCoordinator = TestCoordinatorSubstitutes.Session();
-            sessionCoordinator.RecomputeAsync(summary.Id, summary.Updated, Arg.Any<CancellationToken>())
+            sessionCoordinator.RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList)
                 .Returns(new SessionRecomputeResult.Failed("boom"));
 
             var viewModel = new SessionListViewModel(graph, sessionCoordinator, UiThreadDispatcher);
@@ -225,7 +225,7 @@ public class SessionListViewModelTests
             sessionCache.AddOrUpdate(summary);
 
             var sessionCoordinator = TestCoordinatorSubstitutes.Session();
-            sessionCoordinator.RecomputeAsync(summary.Id, summary.Updated, Arg.Any<CancellationToken>())
+            sessionCoordinator.RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList)
                 .Returns(new SessionRecomputeResult.Recomputed(summary.Updated + 1));
 
             var viewModel = new SessionListViewModel(graph, sessionCoordinator, UiThreadDispatcher);
@@ -235,7 +235,7 @@ public class SessionListViewModelTests
             await row.RecalculateCommand.ExecuteAsync(null);
 
             await sessionCoordinator.Received(1)
-                .RecomputeAsync(summary.Id, summary.Updated, Arg.Any<CancellationToken>());
+                .RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList);
         }
     }
 

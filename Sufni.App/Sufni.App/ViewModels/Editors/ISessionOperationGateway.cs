@@ -16,12 +16,9 @@ namespace Sufni.App.ViewModels.Editors;
 internal interface ISessionOperationGateway : IRecordedSessionHostOperations
 {
     Guid SessionId { get; }
-    long BaselineUpdated { get; set; }
     bool IsDirty { get; }
     bool IsViewLoaded { get; }
     bool ShouldDeferDomainHandling();
-    Task ApplyPersistedSnapshotAsync(SessionSnapshot snapshot);
-    Task RequestLoadAsync();
     void UpdateExtensionHostState();
     void SetGraphPreferences(SessionGraphPreferences preferences);
     void SetAnalysisRangeBoundary(double boundarySeconds);

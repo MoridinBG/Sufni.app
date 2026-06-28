@@ -1,3 +1,4 @@
+using System.Threading;
 using Sufni.App.Models;
 using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.SessionGraph;
@@ -142,6 +143,55 @@ public class RecordedSessionReprocessorTests
         Assert.Equal(100, metadata.SampleRate);
         Assert.Equal(1_700_000_000, metadata.Timestamp);
         Assert.Equal(12.5, metadata.Duration);
+    }
+
+    [Fact]
+    public async Task ReprocessAsync_RecordsTheProcessingOptionInTheFingerprint()
+    {
+        var session = TestSnapshots.Session(id: Guid.NewGuid(), setupId: Guid.NewGuid());
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid());
+        var setup = TestSnapshots.Setup(id: session.SetupId!.Value, bikeId: bike.Id) with
+        {
+            FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
+            {
+                Length = 10,
+                Resolution = 12
+            })
+        };
+        var sstBytes = TestSstFiles.CreateV3WithFrontOnly();
+        var payload = RecordedSessionSourcePayloadCodec.CompressImportedSst(sstBytes);
+        var source = new RecordedSessionSource
+        {
+            SessionId = session.Id,
+            SourceKind = RecordedSessionSourceKind.ImportedSst,
+            SourceName = "source.SST",
+            SchemaVersion = 1,
+            SourceHash = RecordedSessionSourceHash.Compute(
+                RecordedSessionSourceKind.ImportedSst,
+                "source.SST",
+                1,
+                payload),
+            Payload = payload
+        };
+        var domain = new RecordedSessionDomainSnapshot(
+            session,
+            setup,
+            bike,
+            null,
+            null,
+            RecordedSessionSourceSnapshot.From(source),
+            new SessionStaleness.MissingProcessedData(),
+            DerivedChangeKind.None);
+        var reprocessor = new RecordedSessionReprocessor(new ProcessingFingerprintService());
+
+        // The single derivation path (import / live-save / recompute all flow through
+        // here) stamps the option it was produced with into the v3 fingerprint, so a
+        // later velocity-filter change makes the stored BLOB read as stale.
+        var result = await reprocessor.ReprocessAsync(
+            domain, source, new TelemetryProcessingOptions(100), CancellationToken.None);
+
+        Assert.Equal(3, result.Fingerprint.SchemaVersion);
+        Assert.Equal(100, result.Fingerprint.VelocityFilterWindowMilliseconds);
     }
 
 }

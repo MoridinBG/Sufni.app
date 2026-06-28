@@ -74,6 +74,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly RecordedSessionExtensionManager? recordedSessionExtensions;
     private readonly RecordedSessionOperationCoordinator? recordedSessionOperationCoordinator;
     private readonly SessionStalenessReconciler stalenessReconciler;
+    private readonly IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache;
+    private bool observedInitialDomain;
+    private RecordedSessionDomainSnapshot? deferredDomain;
     private readonly StatisticsSelectionController statisticsSelectionController = new();
     private readonly RecordedPresentationApplier presentationApplier;
     private readonly RecordedPreferenceStore recordedPreferenceStore;
@@ -93,6 +96,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private RecordedSessionTimelineAlignmentMark? pendingTimelineAlignmentMark;
     private bool suppressDirtinessEvaluation;
     private bool suppressAnalysisRecompute;
+    // Set when the user declines to reload after an external metadata edit landed
+    // on a dirty draft: BaselineUpdated is pinned below that edit so the next save
+    // still conflicts. A later derived-only emission must not advance the baseline
+    // past the unacknowledged edit, or the conflict would be silently lost.
+    private bool metadataConflictPending;
     private bool viewLoaded;
     private bool hasBeenActivated;
     private SessionPlotPreferences plotPreferences = SessionPreferences.Default.Plots;
@@ -424,11 +432,150 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         session = SessionFromSnapshot(snapshot);
         SessionContext.SessionSnapshot = snapshot;
         BaselineUpdated = snapshot.Updated;
+        metadataConflictPending = false;
         IsComplete = snapshot.HasProcessedData;
         await ResetImplementation();
         EvaluateDirtiness();
         NotifyEditorCommandStateChanged();
         UpdateRecordedSessionExtensionHostState();
+    }
+
+    // Single entry point for graph emissions on the opened session. It treats the
+    // derived and metadata axes orthogonally: derived telemetry always refreshes
+    // (even while a metadata prompt is pending), and the metadata prompt is decided
+    // independently so unsaved edits are never silently discarded.
+    private async Task OnDomainChangedAsync(RecordedSessionDomainSnapshot domain)
+    {
+        // The watch subscription is fire-and-forget; an unguarded throw would
+        // surface only as an unobserved task exception.
+        try
+        {
+            await OnDomainChangedCoreAsync(domain);
+        }
+        catch (Exception exception)
+        {
+            ErrorMessages.Add($"Failed to handle a session change: {exception.Message}");
+        }
+    }
+
+    private async Task OnDomainChangedCoreAsync(RecordedSessionDomainSnapshot domain)
+    {
+        if (!viewLoaded)
+        {
+            return;
+        }
+
+        UpdateRecordedSessionExtensionHostState();
+
+        if (ShouldDeferDomainHandling())
+        {
+            deferredDomain = domain;
+            return;
+        }
+
+        deferredDomain = null;
+
+        var initial = !observedInitialDomain;
+        observedInitialDomain = true;
+
+        if (!initial)
+        {
+            // The initial replay already matches the loaded state, so only real
+            // changes drive the derived/metadata reaction.
+            await ApplyDomainReactionAsync(domain);
+        }
+
+        await stalenessReconciler.HandleStalenessAsync(
+            domain,
+            initial ? RecomputeReason.StaleOnOpen : RecomputeReason.DependencyChanged);
+    }
+
+    private async Task ApplyDomainReactionAsync(RecordedSessionDomainSnapshot domain)
+    {
+        var snapshot = domain.Session;
+        var metadataChanged = domain.ChangeKind.HasFlag(DerivedChangeKind.SessionMetadataChanged);
+        var reloadTelemetry =
+            domain.ChangeKind.HasFlag(DerivedChangeKind.ProcessedDataAvailabilityChanged) ||
+            domain.ChangeKind.HasFlag(DerivedChangeKind.FingerprintChanged) ||
+            domain.ChangeKind.HasFlag(DerivedChangeKind.DerivedTrackChanged);
+
+        if (metadataChanged && IsDirty)
+        {
+            // Refresh derived telemetry even while the discard prompt is pending so
+            // plots never show stale data; unsaved edits are preserved.
+            RefreshDerivedState(snapshot);
+            if (reloadTelemetry)
+            {
+                await RequestLoadAsync();
+            }
+
+            var discard = await dialogService.ShowConfirmationAsync(
+                "Session changed elsewhere",
+                "This session has been updated from another source. Discard your changes and reload?");
+            if (discard)
+            {
+                await ApplyPersistedSnapshotAsync(snapshot);
+            }
+            else
+            {
+                // On no: keep editing and hold BaselineUpdated back so the next save's
+                // optimistic-concurrency check still observes the external metadata edit.
+                // The pin survives later derived-only emissions until the conflict is
+                // resolved (reload, save, or absorb).
+                metadataConflictPending = true;
+            }
+
+            return;
+        }
+
+        if (metadataChanged)
+        {
+            // External metadata change with no local edits: absorb it (reset the
+            // editable fields and advance the baseline).
+            await ApplyPersistedSnapshotAsync(snapshot);
+            if (reloadTelemetry)
+            {
+                await RequestLoadAsync();
+            }
+
+            return;
+        }
+
+        // Pure derived change (recompute, GPS offset, sync blob swap): refresh the
+        // telemetry/track and advance the baseline without resetting editable fields.
+        // While an external metadata edit is unacknowledged, keep the baseline pinned
+        // so the next save still detects that conflict instead of overwriting it.
+        RefreshDerivedState(snapshot);
+        if (!metadataConflictPending)
+        {
+            BaselineUpdated = snapshot.Updated;
+        }
+
+        if (reloadTelemetry)
+        {
+            await RequestLoadAsync();
+        }
+    }
+
+    private void RefreshDerivedState(SessionSnapshot snapshot)
+    {
+        session.FullTrack = snapshot.FullTrackId;
+        session.GpsOffsetSeconds = snapshot.GpsOffsetSeconds;
+        session.Updated = snapshot.Updated;
+        IsComplete = snapshot.HasProcessedData;
+        SessionContext.SessionSnapshot = snapshot;
+        UpdateRecordedSessionExtensionHostState();
+    }
+
+    private Task HandleDeferredDomainAsync()
+    {
+        if (!viewLoaded || deferredDomain is not { } domain)
+        {
+            return Task.CompletedTask;
+        }
+
+        deferredDomain = null;
+        return OnDomainChangedAsync(domain);
     }
 
     private RecordedSessionHostState CreateRecordedSessionExtensionHostState()
@@ -580,30 +727,19 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         var newOffsetSeconds = NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds + resolution.OffsetDeltaSeconds);
-        var result = await trackCoordinator.UpdateSessionGpsOffsetAsync(
+        var applied = await trackCoordinator.UpdateSessionGpsOffsetAsync(
             Id,
             session.FullTrack,
             telemetry,
             newOffsetSeconds);
 
-        if (result is null)
+        if (!applied)
         {
             ErrorMessages.Add("GPS offset could not be applied: no matching track segment was found.");
-            return;
         }
 
-        ApplyGpsOffsetUpdate(result);
-    }
-
-    private void ApplyGpsOffsetUpdate(SessionGpsOffsetUpdateResult result)
-    {
-        session.FullTrack = result.Session.FullTrackId;
-        session.GpsOffsetSeconds = result.Session.GpsOffsetSeconds;
-        session.Updated = result.Session.Updated;
-        BaselineUpdated = result.Session.Updated;
-        SessionContext.SessionSnapshot = result.Session;
-        presentationApplier.ApplyRecordedTrackPresentationData(result.TrackData);
-        UpdateRecordedSessionExtensionHostState();
+        // One-way: on success the store upsert drives the refreshed track and
+        // baseline through the session-detail watch reaction, like recompute.
     }
 
     private static double NormalizeGpsOffsetSeconds(double gpsOffsetSeconds) =>
@@ -687,22 +823,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     Guid ISessionOperationGateway.SessionId => Id;
 
-    long ISessionOperationGateway.BaselineUpdated
-    {
-        get => BaselineUpdated;
-        set => BaselineUpdated = value;
-    }
-
     bool ISessionOperationGateway.IsDirty => IsDirty;
 
     bool ISessionOperationGateway.IsViewLoaded => viewLoaded;
 
     bool ISessionOperationGateway.ShouldDeferDomainHandling() => ShouldDeferDomainHandling();
-
-    Task ISessionOperationGateway.ApplyPersistedSnapshotAsync(SessionSnapshot snapshot) =>
-        ApplyPersistedSnapshotAsync(snapshot);
-
-    Task ISessionOperationGateway.RequestLoadAsync() => RequestLoadAsync();
 
     void ISessionOperationGateway.UpdateExtensionHostState() => UpdateRecordedSessionExtensionHostState();
 
@@ -727,6 +852,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         ISessionPreferences sessionPreferences,
         IUiThreadDispatcher uiThreadDispatcher,
         ISessionLayoutStrategy layoutStrategy,
+        IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache,
         IBikeCoordinator? bikeCoordinator = null,
         ExtensionHostDependencies? extensionHost = null)
         : base(shell, dialogService, uiThreadDispatcher)
@@ -741,6 +867,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         this.recordedSessionGraph = recordedSessionGraph;
         this.sessionPresentationService = sessionPresentationService;
         this.sessionAnalysisService = sessionAnalysisService;
+        this.recordedSessionProcessingOptionCache = recordedSessionProcessingOptionCache;
         recordedPreferenceStore = new RecordedPreferenceStore(
             sessionPreferences,
             () => Id,
@@ -786,16 +913,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             ErrorMessages.Add);
         stalenessReconciler = new SessionStalenessReconciler(
             sessionCoordinator,
-            sessionStore,
             dialogService,
             this);
         processingPreferenceWorkflow = new ProcessingPreferenceWorkflow(
             recordedPreferenceStore,
             PreferencesPage,
-            dialogService,
             sessionCoordinator,
-            sessionStore,
-            stalenessReconciler,
+            recordedSessionProcessingOptionCache,
             this);
         if (extensionHost is not null)
         {
@@ -1139,6 +1263,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 session = newSession;
                 session.Updated = saved.NewBaselineUpdated;
                 BaselineUpdated = saved.NewBaselineUpdated;
+                metadataConflictPending = false;
                 IsDirty = false;
                 break;
 
@@ -1151,6 +1276,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                     session = SessionFromSnapshot(conflict.CurrentSnapshot);
                     SessionContext.SessionSnapshot = conflict.CurrentSnapshot;
                     BaselineUpdated = conflict.CurrentSnapshot.Updated;
+                    metadataConflictPending = false;
                     IsComplete = conflict.CurrentSnapshot.HasProcessedData;
                     await ResetImplementation();
                     EvaluateDirtiness();
@@ -1319,7 +1445,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         EnsureScopedSubscription(s =>
         {
             s.Add(recordedPreferenceStore.Observe().Subscribe(OnSyncedPreferencesArrived));
-            s.Add(watch.Subscribe(domain => _ = stalenessReconciler.HandleDomainChangedAsync(domain)));
+            s.Add(watch.Subscribe(domain => _ = OnDomainChangedAsync(domain)));
         });
 
         await InitializeRecordedSessionExtensionsAsync();
@@ -1337,7 +1463,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        _ = stalenessReconciler.HandleDeferredDomainAsync();
+        _ = HandleDeferredDomainAsync();
     }
 
     protected override void OnDeactivated()
@@ -1373,6 +1499,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         viewLoaded = false;
         loadOperation.Cancel();
+        observedInitialDomain = false;
+        deferredDomain = null;
         stalenessReconciler.ResetForUnload();
         UpdateRecordedSessionExtensionHostState();
         await DisposeRecordedSessionExtensionScopesAsync();

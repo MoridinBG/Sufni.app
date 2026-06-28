@@ -140,6 +140,25 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
+    // Persists a change WITHOUT advancing the document's sync clock. A no-bump
+    // write keeps the document from winning whole-document last-writer-wins sync,
+    // so a purely local normalization cannot overwrite a peer's unrelated
+    // preferences. Use only for changes that every device derives identically.
+    private async Task UpdateWithoutAdvancingSyncClockAsync(Action<AppPreferencesDocument> update)
+    {
+        await gate.WaitAsync();
+        try
+        {
+            var document = await ReadDocumentCoreAsync();
+            update(document);
+            await WriteDocumentCoreAsync(document);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
     private static long GetCurrentTimestamp() => DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
     private async Task<AppPreferencesDocument> ReadDocumentCoreAsync()
@@ -225,6 +244,23 @@ public sealed class AppPreferences : IAppPreferences
             return owner.ReadAsync(document => document.Session.GetRecorded(sessionId));
         }
 
+        public Task<IReadOnlyDictionary<Guid, SessionPreferences>> GetAllRecordedAsync()
+        {
+            return owner.ReadAsync<IReadOnlyDictionary<Guid, SessionPreferences>>(document =>
+            {
+                var result = new Dictionary<Guid, SessionPreferences>();
+                foreach (var (key, value) in document.Session.Sessions)
+                {
+                    if (value is not null && Guid.TryParse(key, out var sessionId))
+                    {
+                        result[sessionId] = value.ToModel();
+                    }
+                }
+
+                return result;
+            });
+        }
+
         public Task UpdateRecordedAsync(Guid sessionId, Func<SessionPreferences, SessionPreferences> update)
         {
             ArgumentNullException.ThrowIfNull(update);
@@ -239,6 +275,18 @@ public sealed class AppPreferences : IAppPreferences
         public Task RemoveRecordedAsync(Guid sessionId)
         {
             return owner.UpdateAsync(document => document.Session.Sessions.Remove(SessionKey(sessionId)));
+        }
+
+        public Task ResetRecordedProcessingToDefaultLocallyAsync(Guid sessionId)
+        {
+            return owner.UpdateWithoutAdvancingSyncClockAsync(document =>
+            {
+                // Reset only Processing to the default; the session's other
+                // preferences (plots, statistics, graph, layout) are preserved.
+                var current = document.Session.GetRecorded(sessionId);
+                var reset = current with { Processing = new SessionProcessingPreferences() };
+                document.Session.Sessions[SessionKey(sessionId)] = SessionPreferencesDocument.FromModel(reset);
+            });
         }
 
         public IObservable<SessionPreferences> ObserveRecorded(Guid sessionId)

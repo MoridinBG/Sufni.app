@@ -1,5 +1,6 @@
 using Sufni.App.Stores;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;
+using Sufni.Telemetry;
 
 namespace Sufni.App.SessionGraph;
 
@@ -14,21 +15,51 @@ public interface IProcessingFingerprintService
         SessionSnapshot session,
         SetupSnapshot setup,
         BikeSnapshot bike,
+        RecordedSessionSourceSnapshot source,
+        TelemetryProcessingOptions? options = null);
+
+    /// <summary>
+    /// Builds a fingerprint from the DB-resident processing inputs only (setup,
+    /// bike, source, versions), without the preference-stored processing option.
+    /// The in-transaction recompute coherence guard uses this together with
+    /// <see cref="ProcessingFingerprint.MatchesDatabaseInputs"/> because it cannot
+    /// read the option inside a SQLite transaction.
+    /// </summary>
+    ProcessingFingerprint CreateCurrentDatabaseInputs(
+        SessionSnapshot session,
+        SetupSnapshot setup,
+        BikeSnapshot bike,
         RecordedSessionSourceSnapshot source);
 
     ProcessingFingerprint? ParsePersisted(SessionSnapshot session);
+
+    /// <summary>
+    /// The schema version stamped into fingerprints created by this build. The
+    /// sync merge uses it to recognize current-schema fingerprints (a pre-current
+    /// or unparseable fingerprint is "legacy" and defers BLOB swaps to the one-time normalization pass).
+    /// </summary>
+    int CurrentSchemaVersion { get; }
+
+    /// <summary>
+    /// Parses a persisted fingerprint JSON string, returning null when it is
+    /// absent or cannot be deserialized. Used by the sync merge to compare the
+    /// schema versions of the local and remote fingerprints.
+    /// </summary>
+    ProcessingFingerprint? Parse(string? fingerprintJson);
 
     SessionStaleness Evaluate(
         SessionSnapshot session,
         SetupSnapshot? setup,
         BikeSnapshot? bike,
-        RecordedSessionSourceSnapshot? source);
+        RecordedSessionSourceSnapshot? source,
+        TelemetryProcessingOptions? options = null);
 
     ProcessingFingerprintEvaluation EvaluateState(
         SessionSnapshot session,
         SetupSnapshot? setup,
         BikeSnapshot? bike,
-        RecordedSessionSourceSnapshot? source);
+        RecordedSessionSourceSnapshot? source,
+        TelemetryProcessingOptions? options = null);
 }
 
 /// <summary>

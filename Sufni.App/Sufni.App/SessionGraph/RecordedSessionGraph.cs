@@ -8,6 +8,7 @@ using DynamicData;
 using Sufni.App.Stores;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.Telemetry;
 
 namespace Sufni.App.SessionGraph;
 
@@ -20,6 +21,7 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
 {
     private readonly IBikeStore bikeStore;
     private readonly IProcessingFingerprintService fingerprintService;
+    private readonly IRecordedSessionProcessingOptionCache processingOptionCache;
     private readonly IRecordedSessionGraphScheduler scheduler;
     private readonly SourceCache<RecordedSessionSummary, Guid> summaries = new(summary => summary.Id);
     private readonly Dictionary<Guid, SessionSnapshot> sessions = [];
@@ -40,6 +42,7 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
         IBikeStore bikeStore,
         IRecordedSessionSourceStore sourceStore,
         IProcessingFingerprintService fingerprintService,
+        IRecordedSessionProcessingOptionCache processingOptionCache,
         IUiThreadDispatcher uiThreadDispatcher)
         : this(
             sessionStore,
@@ -47,6 +50,7 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
             bikeStore,
             sourceStore,
             fingerprintService,
+            processingOptionCache,
             new UiThreadRecordedSessionGraphScheduler(uiThreadDispatcher))
     {
     }
@@ -57,16 +61,22 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
         IBikeStore bikeStore,
         IRecordedSessionSourceStore sourceStore,
         IProcessingFingerprintService fingerprintService,
+        IRecordedSessionProcessingOptionCache processingOptionCache,
         IRecordedSessionGraphScheduler scheduler)
     {
         this.bikeStore = bikeStore;
         this.fingerprintService = fingerprintService;
+        this.processingOptionCache = processingOptionCache;
         this.scheduler = scheduler;
 
         subscriptions.Add(sessionStore.Connect().Subscribe(ApplySessionChanges));
         subscriptions.Add(setupStore.Connect().Subscribe(ApplySetupChanges));
         subscriptions.Add(bikeStore.Connect().Subscribe(ApplyBikeChanges));
         subscriptions.Add(sourceStore.Connect().Subscribe(ApplySourceChanges));
+
+        // Preference->graph edge: a processing-option change re-evaluates the
+        // affected session so EvaluateState re-runs with the new option.
+        subscriptions.Add(processingOptionCache.OptionChanged.Subscribe(QueueRecompute));
     }
 
     public IObservable<IChangeSet<RecordedSessionSummary, Guid>> ConnectSessions() => summaries.Connect();
@@ -308,6 +318,8 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
         QueueRecompute(sessionIds);
     }
 
+    public void QueueRecompute(Guid sessionId) => QueueRecompute([sessionId]);
+
     private void QueueRecompute(IEnumerable<Guid> sessionIds)
     {
         var shouldSchedule = false;
@@ -418,6 +430,7 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
                     bike,
                     source,
                     fingerprintService,
+                    processingOptionCache.Get(session.Id),
                     changeKind);
                 domains[session.Id] = domain;
                 summaries.AddOrUpdate(new RecordedSessionSummary(
@@ -480,6 +493,11 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
             changeKind |= DerivedChangeKind.SessionMetadataChanged;
         }
 
+        if (SessionTrackChanged(previous.Session, session))
+        {
+            changeKind |= DerivedChangeKind.DerivedTrackChanged;
+        }
+
         if (previous.Session.HasProcessedData != session.HasProcessedData)
         {
             changeKind |= DerivedChangeKind.ProcessedDataAvailabilityChanged;
@@ -503,13 +521,15 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
         return changeKind;
     }
 
+    private static bool SessionTrackChanged(SessionSnapshot previous, SessionSnapshot current) =>
+        previous.FullTrackId != current.FullTrackId ||
+        previous.GpsOffsetSeconds != current.GpsOffsetSeconds;
+
     private static bool SessionMetadataChanged(SessionSnapshot previous, SessionSnapshot current) =>
         previous.Name != current.Name ||
         previous.Description != current.Description ||
         previous.SetupId != current.SetupId ||
         previous.Timestamp != current.Timestamp ||
-        previous.FullTrackId != current.FullTrackId ||
-        previous.GpsOffsetSeconds != current.GpsOffsetSeconds ||
         previous.FrontSpringRate != current.FrontSpringRate ||
         previous.FrontHighSpeedCompression != current.FrontHighSpeedCompression ||
         previous.FrontLowSpeedCompression != current.FrontLowSpeedCompression ||

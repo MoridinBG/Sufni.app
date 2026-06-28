@@ -80,18 +80,4 @@ public class RecordedPreferenceStoreTests
         Assert.False(persisted);
         Assert.Contains(errors, error => error.Contains("disk full", StringComparison.Ordinal));
     }
-
-    [Fact]
-    public void TryBeginProcessingPreferenceRecompute_GatesConcurrentRecomputeUntilEnded()
-    {
-        var service = Substitute.For<ISessionPreferences>();
-        var sut = new RecordedPreferenceStore(service, Guid.NewGuid, _ => { });
-
-        Assert.True(sut.TryBeginProcessingPreferenceRecompute());
-        Assert.False(sut.TryBeginProcessingPreferenceRecompute());
-
-        sut.EndProcessingPreferenceRecompute();
-
-        Assert.True(sut.TryBeginProcessingPreferenceRecompute());
-    }
 }

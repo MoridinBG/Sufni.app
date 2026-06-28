@@ -1,5 +1,6 @@
 using System;
 using Sufni.App.Stores;
+using Sufni.Telemetry;
 
 namespace Sufni.App.SessionGraph;
 
@@ -13,7 +14,8 @@ public sealed class RecordedSessionDomainQuery(
     ISetupStore setupStore,
     IBikeStore bikeStore,
     IRecordedSessionSourceStore sourceStore,
-    IProcessingFingerprintService fingerprintService) : IRecordedSessionDomainQuery
+    IProcessingFingerprintService fingerprintService,
+    IRecordedSessionProcessingOptionCache processingOptionCache) : IRecordedSessionDomainQuery
 {
     public RecordedSessionDomainSnapshot? Get(Guid sessionId)
     {
@@ -29,6 +31,7 @@ public sealed class RecordedSessionDomainQuery(
                 bikeStore,
                 sourceStore.Get(session.Id),
                 fingerprintService,
+                processingOptionCache.Get(session.Id),
                 DerivedChangeKind.None);
     }
 }
@@ -41,10 +44,11 @@ internal static class RecordedSessionDomainSnapshotFactory
         IBikeStore bikeStore,
         RecordedSessionSourceSnapshot? source,
         IProcessingFingerprintService fingerprintService,
+        TelemetryProcessingOptions options,
         DerivedChangeKind changeKind)
     {
         var bike = setup is null ? null : bikeStore.Get(setup.BikeId);
-        return Create(session, setup, bike, source, fingerprintService, changeKind);
+        return Create(session, setup, bike, source, fingerprintService, options, changeKind);
     }
 
     public static RecordedSessionDomainSnapshot Create(
@@ -53,9 +57,10 @@ internal static class RecordedSessionDomainSnapshotFactory
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source,
         IProcessingFingerprintService fingerprintService,
+        TelemetryProcessingOptions options,
         DerivedChangeKind changeKind)
     {
-        var evaluation = fingerprintService.EvaluateState(session, setup, bike, source);
+        var evaluation = fingerprintService.EvaluateState(session, setup, bike, source, options);
 
         return new RecordedSessionDomainSnapshot(
             session,

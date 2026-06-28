@@ -1,206 +1,69 @@
-using System;
-using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.Coordinators;
-using Sufni.App.SessionGraph;
 using Sufni.App.Services;
-using Sufni.App.Stores;
+using Sufni.App.SessionGraph;
 
 namespace Sufni.App.ViewModels.Editors;
 
+/// <summary>
+/// Forward-only staleness prompter for the opened session. When the session is
+/// stale and recomputable it confirms with the user and requests a recompute
+/// through the engine, surfacing only the unrecomputable / failed outcomes. A
+/// recompute the user just triggered suppresses the prompt (engine liveness),
+/// and on success the engine's store upsert — not this prompter — drives the
+/// editor refresh through the session-detail watch reaction.
+/// </summary>
 internal sealed class SessionStalenessReconciler
 {
     private readonly ISessionCoordinator sessionCoordinator;
-    private readonly ISessionStore sessionStore;
     private readonly IDialogService dialogService;
     private readonly ISessionOperationGateway gateway;
-    private bool observedInitialDomain;
     private bool recomputePromptRunning;
     private string? promptedRecomputeSignature;
-    private RecordedSessionDomainSnapshot? deferredDomainWhileInactive;
     private bool reportedNotRecomputableStale;
 
     public SessionStalenessReconciler(
         ISessionCoordinator sessionCoordinator,
-        ISessionStore sessionStore,
         IDialogService dialogService,
         ISessionOperationGateway gateway)
     {
         this.sessionCoordinator = sessionCoordinator;
-        this.sessionStore = sessionStore;
         this.dialogService = dialogService;
         this.gateway = gateway;
     }
 
-    public async Task HandleDomainChangedAsync(RecordedSessionDomainSnapshot domain)
+    public async Task HandleStalenessAsync(RecordedSessionDomainSnapshot domain, RecomputeReason reason)
     {
-        // Callers subscribe fire-and-forget; an unguarded throw here would
-        // surface only as an unobserved task exception.
-        try
+        // Suppress the prompt for a recompute the user just triggered: the request
+        // flips engine.IsActive(id) true synchronously before any await, and both
+        // the graph emission and the request run on the UI thread.
+        if (sessionCoordinator.IsRecomputeActive(gateway.SessionId))
         {
-            await HandleDomainChangedCoreAsync(domain);
-        }
-        catch (Exception exception)
-        {
-            gateway.AddError($"Failed to handle a session change: {exception.Message}");
-        }
-    }
-
-    private async Task HandleDomainChangedCoreAsync(RecordedSessionDomainSnapshot domain)
-    {
-        if (!gateway.IsViewLoaded)
-        {
-            return;
-        }
-
-        gateway.UpdateExtensionHostState();
-
-        if (gateway.ShouldDeferDomainHandling())
-        {
-            deferredDomainWhileInactive = domain;
-            return;
-        }
-
-        deferredDomainWhileInactive = null;
-
-        var initial = !observedInitialDomain;
-        observedInitialDomain = true;
-
-        if (initial)
-        {
-            await HandleInitialDomainAsync(domain);
             return;
         }
 
         if (!domain.Staleness.IsStale)
         {
             promptedRecomputeSignature = null;
-        }
-
-        if (ShouldPromptForDerivedChange(domain.ChangeKind) && domain.Staleness.CanRecompute)
-        {
-            await PromptForRecomputeAsync(domain);
-            return;
-        }
-
-        if (domain.Session.Updated > gateway.BaselineUpdated && !domain.Staleness.IsStale)
-        {
-            await ReloadFreshExternalUpdateAsync(domain);
-            return;
-        }
-
-        if (domain.ChangeKind.HasFlag(DerivedChangeKind.ProcessedDataAvailabilityChanged) &&
-            domain.Session.HasProcessedData &&
-            !domain.Staleness.IsStale)
-        {
-            _ = gateway.RequestLoadAsync();
-        }
-    }
-
-    public Task HandleDeferredDomainAsync()
-    {
-        if (!gateway.IsViewLoaded || deferredDomainWhileInactive is not { } domain)
-        {
-            return Task.CompletedTask;
-        }
-
-        deferredDomainWhileInactive = null;
-        return HandleDomainChangedAsync(domain);
-    }
-
-    public void ResetForUnload()
-    {
-        observedInitialDomain = false;
-        promptedRecomputeSignature = null;
-        deferredDomainWhileInactive = null;
-    }
-
-    public async Task ApplyRecomputeResultAsync(SessionRecomputeResult result)
-    {
-        switch (result)
-        {
-            case SessionRecomputeResult.Recomputed recomputed:
-                gateway.BaselineUpdated = recomputed.NewBaselineUpdated;
-                if (sessionStore.Get(gateway.SessionId) is { } current)
-                {
-                    await gateway.ApplyPersistedSnapshotAsync(current);
-                }
-
-                await gateway.RequestLoadAsync();
-                break;
-
-            case SessionRecomputeResult.Conflict conflict:
-                var reload = await dialogService.ShowConfirmationAsync(
-                    "Session changed elsewhere",
-                    "This session has been updated from another source. Discard your changes and reload?");
-                if (reload)
-                {
-                    await gateway.ApplyPersistedSnapshotAsync(conflict.CurrentSnapshot);
-                    await gateway.RequestLoadAsync();
-                }
-                break;
-
-            case SessionRecomputeResult.NotRecomputable:
-                ReportNotRecomputableStale();
-                break;
-
-            case SessionRecomputeResult.Failed failed:
-                gateway.AddError($"Session could not be recomputed: {failed.ErrorMessage}");
-                break;
-        }
-    }
-
-    private static bool ShouldPromptForDerivedChange(DerivedChangeKind changeKind) =>
-        changeKind.HasFlag(DerivedChangeKind.ProcessedDataAvailabilityChanged) ||
-        changeKind.HasFlag(DerivedChangeKind.DependencyChanged) ||
-        changeKind.HasFlag(DerivedChangeKind.SourceAvailabilityChanged) ||
-        changeKind.HasFlag(DerivedChangeKind.FingerprintChanged);
-
-    private async Task HandleInitialDomainAsync(RecordedSessionDomainSnapshot domain)
-    {
-        if (!domain.Staleness.IsStale)
-        {
             return;
         }
 
         if (domain.Staleness.CanRecompute)
         {
-            await PromptForRecomputeAsync(domain);
+            await PromptForRecomputeAsync(domain, reason);
             return;
         }
 
         ReportNotRecomputableStale();
     }
 
-    private async Task ReloadFreshExternalUpdateAsync(RecordedSessionDomainSnapshot domain)
+    public void ResetForUnload()
     {
-        if (gateway.IsDirty)
-        {
-            var reload = await dialogService.ShowConfirmationAsync(
-                "Session changed elsewhere",
-                "This session has been updated from another source. Discard your changes and reload?");
-            if (!reload)
-            {
-                return;
-            }
-        }
-
-        await gateway.ApplyPersistedSnapshotAsync(domain.Session);
-        await gateway.RequestLoadAsync();
+        promptedRecomputeSignature = null;
+        reportedNotRecomputableStale = false;
     }
 
-    private void ReportNotRecomputableStale()
-    {
-        if (reportedNotRecomputableStale)
-        {
-            return;
-        }
-
-        reportedNotRecomputableStale = true;
-        gateway.AddError("Session is stale and cannot be recomputed until the source recording is restored.");
-    }
-
-    private async Task PromptForRecomputeAsync(RecordedSessionDomainSnapshot domain)
+    private async Task PromptForRecomputeAsync(RecordedSessionDomainSnapshot domain, RecomputeReason reason)
     {
         if (recomputePromptRunning)
         {
@@ -225,17 +88,37 @@ internal sealed class SessionStalenessReconciler
                 return;
             }
 
-            await gateway.ApplyPersistedSnapshotAsync(domain.Session);
-            var result = await sessionCoordinator.RecomputeAsync(
-                gateway.SessionId,
-                gateway.BaselineUpdated,
-                CancellationToken.None);
-            await ApplyRecomputeResultAsync(result);
+            var result = await sessionCoordinator.RequestRecomputeAsync(gateway.SessionId, reason);
+            switch (result)
+            {
+                case SessionRecomputeResult.NotRecomputable:
+                    ReportNotRecomputableStale();
+                    break;
+
+                case SessionRecomputeResult.Failed failed:
+                    gateway.AddError($"Session could not be recomputed: {failed.ErrorMessage}");
+                    break;
+
+                // Recomputed: the engine's store upsert drives the editor through the
+                // session-detail watch reaction. Superseded: a newer explicit request
+                // owns the result.
+            }
         }
         finally
         {
             recomputePromptRunning = false;
         }
+    }
+
+    private void ReportNotRecomputableStale()
+    {
+        if (reportedNotRecomputableStale)
+        {
+            return;
+        }
+
+        reportedNotRecomputableStale = true;
+        gateway.AddError("Session is stale and cannot be recomputed until the source recording is restored.");
     }
 
     private static string RecomputePromptTitle(RecordedSessionDomainSnapshot domain) =>
@@ -245,7 +128,7 @@ internal sealed class SessionStalenessReconciler
 
     private static string RecomputePromptMessage(bool isDirty) =>
         isDirty
-            ? "Recompute this session now? This will discard unsaved changes."
+            ? "Recompute this session now? Your unsaved changes will be kept."
             : "Recompute this session now?";
 
     private static string RecomputePromptSignature(RecordedSessionDomainSnapshot domain) =>
@@ -258,7 +141,9 @@ internal sealed class SessionStalenessReconciler
             domain.CurrentFingerprint?.ProcessingVersion,
             domain.CurrentFingerprint?.SetupId,
             domain.CurrentFingerprint?.BikeId,
+            domain.CurrentFingerprint?.TrackProjectionVersion,
             domain.CurrentFingerprint?.DependencyHash,
             domain.CurrentFingerprint?.SourceHash,
+            domain.CurrentFingerprint?.VelocityFilterWindowMilliseconds,
             domain.Staleness.GetType().FullName);
 }

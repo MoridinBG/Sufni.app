@@ -46,10 +46,6 @@ public sealed record SessionTrackPresentationData(
     List<TrackPoint>? TrackPoints,
     double? MediaColumnWidth);
 
-public sealed record SessionGpsOffsetUpdateResult(
-    SessionSnapshot Session,
-    SessionTrackPresentationData TrackData);
-
 public sealed record SessionCachePresentationData(
     string? FrontTravelHistogram,
     string? RearTravelHistogram,

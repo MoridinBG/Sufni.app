@@ -11,7 +11,6 @@ internal sealed class RecordedPreferenceStore
     private readonly Func<Guid> sessionId;
     private readonly Action<string> addError;
     private bool persistenceEnabled;
-    private bool processingPreferenceRecomputeRunning;
 
     public RecordedPreferenceStore(
         ISessionPreferences sessionPreferences,
@@ -90,22 +89,6 @@ internal sealed class RecordedPreferenceStore
             addError($"Session preferences could not be saved: {e.Message}");
             return false;
         }
-    }
-
-    public bool TryBeginProcessingPreferenceRecompute()
-    {
-        if (processingPreferenceRecomputeRunning)
-        {
-            return false;
-        }
-
-        processingPreferenceRecomputeRunning = true;
-        return true;
-    }
-
-    public void EndProcessingPreferenceRecompute()
-    {
-        processingPreferenceRecomputeRunning = false;
     }
 
     private void Apply(SessionPreferences preferences, Action<SessionPreferences> apply)

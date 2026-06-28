@@ -115,7 +115,7 @@ public class SessionListViewTests
         var graph = Substitute.For<IRecordedSessionGraph>();
         graph.ConnectSessions().Returns(cache.Connect());
         var coordinator = TestCoordinatorSubstitutes.Session();
-        coordinator.RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>())
+        coordinator.RequestRecomputeAsync(snapshot.Id, RecomputeReason.ManualFromList)
             .Returns(new SessionRecomputeResult.Recomputed(snapshot.Updated + 1));
 
         var viewModel = new SessionListViewModel(graph, coordinator, new InlineUiThreadDispatcher());
@@ -134,7 +134,7 @@ public class SessionListViewTests
         swipe!.SwipeState = SwipeState.LeftVisible;
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        await coordinator.Received(1).RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>());
+        await coordinator.Received(1).RequestRecomputeAsync(snapshot.Id, RecomputeReason.ManualFromList);
         Assert.Equal(SwipeState.Hidden, swipe.SwipeState);
 
         swipe.SwipeState = SwipeState.RightVisible;

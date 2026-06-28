@@ -175,7 +175,8 @@ internal sealed class SessionDetailViewTestContext
             new InlineUiThreadDispatcher(),
             isDesktopLayout
                 ? new DesktopSessionLayoutStrategy()
-                : new MobileSessionLayoutStrategy());
+                : new MobileSessionLayoutStrategy(),
+            new InMemoryRecordedSessionProcessingOptionCache());
     }
 }
 

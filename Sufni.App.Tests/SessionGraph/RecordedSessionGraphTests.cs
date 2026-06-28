@@ -279,12 +279,14 @@ public class RecordedSessionGraphTests
 
         public RecordedSessionGraph CreateGraph(
             IProcessingFingerprintService fingerprintService,
-            IRecordedSessionGraphScheduler scheduler) => new(
+            IRecordedSessionGraphScheduler scheduler,
+            IRecordedSessionProcessingOptionCache? optionCache = null) => new(
             Sessions,
             Setups,
             Bikes,
             Sources,
             fingerprintService,
+            optionCache ?? new InMemoryRecordedSessionProcessingOptionCache(),
             scheduler);
 
         public void Add(TestContext context)

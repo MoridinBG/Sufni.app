@@ -4,6 +4,7 @@ using Sufni.App.SessionGraph;
 using Sufni.App.Stores;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.SessionGraph;
 
@@ -14,6 +15,13 @@ public class RecordedSessionDomainQueryTests
     private readonly IBikeStore bikeStore = Substitute.For<IBikeStore>();
     private readonly IRecordedSessionSourceStore sourceStore = Substitute.For<IRecordedSessionSourceStore>();
     private readonly ProcessingFingerprintService fingerprintService = new();
+    private readonly IRecordedSessionProcessingOptionCache processingOptionCache =
+        Substitute.For<IRecordedSessionProcessingOptionCache>();
+
+    public RecordedSessionDomainQueryTests()
+    {
+        processingOptionCache.Get(Arg.Any<Guid>()).Returns(TelemetryProcessingOptions.Default);
+    }
 
     [Fact]
     public void Get_ReturnsNull_WhenSessionIsMissing()
@@ -65,7 +73,7 @@ public class RecordedSessionDomainQueryTests
         var fingerprintService = Substitute.For<IProcessingFingerprintService>();
         var staleness = new SessionStaleness.Current();
         fingerprintService
-            .EvaluateState(context.Session, context.Setup, context.Bike, context.Source)
+            .EvaluateState(context.Session, context.Setup, context.Bike, context.Source, Arg.Any<TelemetryProcessingOptions?>())
             .Returns(new ProcessingFingerprintEvaluation(fingerprint, fingerprint, staleness));
         sessionStore.Get(context.Session.Id).Returns(context.Session);
         setupStore.Get(context.Setup.Id).Returns(context.Setup);
@@ -76,7 +84,8 @@ public class RecordedSessionDomainQueryTests
             setupStore,
             bikeStore,
             sourceStore,
-            fingerprintService);
+            fingerprintService,
+            processingOptionCache);
 
         var domain = query.Get(context.Session.Id);
 
@@ -84,7 +93,8 @@ public class RecordedSessionDomainQueryTests
         Assert.Equal(fingerprint, domain!.CurrentFingerprint);
         Assert.Equal(fingerprint, domain.PersistedFingerprint);
         Assert.Equal(staleness, domain.Staleness);
-        fingerprintService.Received(1).EvaluateState(context.Session, context.Setup, context.Bike, context.Source);
+        fingerprintService.Received(1).EvaluateState(
+            context.Session, context.Setup, context.Bike, context.Source, Arg.Any<TelemetryProcessingOptions?>());
         fingerprintService.DidNotReceive().CreateCurrent(
             Arg.Any<SessionSnapshot>(),
             Arg.Any<SetupSnapshot>(),
@@ -165,7 +175,8 @@ public class RecordedSessionDomainQueryTests
         setupStore,
         bikeStore,
         sourceStore,
-        fingerprintService);
+        fingerprintService,
+        processingOptionCache);
 
     private TestContext CreateCurrentContext()
     {

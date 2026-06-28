@@ -59,7 +59,7 @@ public sealed class RecordedSessionReprocessor(IProcessingFingerprintService fin
         var fullTrack = telemetryData.GpsData is { Length: > 0 }
             ? Track.FromGpsRecords(telemetryData.GpsData)
             : null;
-        var fingerprint = fingerprintService.CreateCurrent(domain.Session, domain.Setup, domain.Bike, domain.Source);
+        var fingerprint = fingerprintService.CreateCurrent(domain.Session, domain.Setup, domain.Bike, domain.Source, processingOptions);
 
         return Task.FromResult(new RecordedSessionReprocessResult(telemetryData, fullTrack, fingerprint));
     }

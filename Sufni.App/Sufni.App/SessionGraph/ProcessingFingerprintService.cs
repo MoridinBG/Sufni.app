@@ -14,9 +14,23 @@ namespace Sufni.App.SessionGraph;
 /// </summary>
 public sealed class ProcessingFingerprintService : IProcessingFingerprintService
 {
-    private const int SchemaVersion = 2;
+    private const int SchemaVersion = 3;
+
+    public int CurrentSchemaVersion => SchemaVersion;
 
     public ProcessingFingerprint CreateCurrent(
+        SessionSnapshot session,
+        SetupSnapshot setup,
+        BikeSnapshot bike,
+        RecordedSessionSourceSnapshot source,
+        TelemetryProcessingOptions? options = null) =>
+        CreateCurrentDatabaseInputs(session, setup, bike, source) with
+        {
+            VelocityFilterWindowMilliseconds =
+                (options ?? TelemetryProcessingOptions.Default).ClampedVelocityFilterWindowMilliseconds,
+        };
+
+    public ProcessingFingerprint CreateCurrentDatabaseInputs(
         SessionSnapshot session,
         SetupSnapshot setup,
         BikeSnapshot bike,
@@ -47,16 +61,19 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             source.SourceHash);
     }
 
-    public ProcessingFingerprint? ParsePersisted(SessionSnapshot session)
+    public ProcessingFingerprint? ParsePersisted(SessionSnapshot session) =>
+        Parse(session.ProcessingFingerprintJson);
+
+    public ProcessingFingerprint? Parse(string? fingerprintJson)
     {
-        if (string.IsNullOrWhiteSpace(session.ProcessingFingerprintJson))
+        if (string.IsNullOrWhiteSpace(fingerprintJson))
         {
             return null;
         }
 
         try
         {
-            return AppJson.Deserialize<ProcessingFingerprint>(session.ProcessingFingerprintJson);
+            return AppJson.Deserialize<ProcessingFingerprint>(fingerprintJson);
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException)
         {
@@ -68,23 +85,27 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         SessionSnapshot session,
         SetupSnapshot? setup,
         BikeSnapshot? bike,
-        RecordedSessionSourceSnapshot? source)
+        RecordedSessionSourceSnapshot? source,
+        TelemetryProcessingOptions? options = null)
     {
+        options ??= TelemetryProcessingOptions.Default;
         var persisted = ParsePersisted(session);
-        return Evaluate(session, setup, bike, source, persisted, current: null);
+        return Evaluate(session, setup, bike, source, persisted, current: null, options);
     }
 
     public ProcessingFingerprintEvaluation EvaluateState(
         SessionSnapshot session,
         SetupSnapshot? setup,
         BikeSnapshot? bike,
-        RecordedSessionSourceSnapshot? source)
+        RecordedSessionSourceSnapshot? source,
+        TelemetryProcessingOptions? options = null)
     {
+        options ??= TelemetryProcessingOptions.Default;
         var persisted = ParsePersisted(session);
         var current = setup is not null && bike is not null && source is not null
-            ? CreateCurrent(session, setup, bike, source)
+            ? CreateCurrent(session, setup, bike, source, options)
             : null;
-        var staleness = Evaluate(session, setup, bike, source, persisted, current);
+        var staleness = Evaluate(session, setup, bike, source, persisted, current, options);
 
         return new ProcessingFingerprintEvaluation(current, persisted, staleness);
     }
@@ -95,12 +116,13 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source,
         ProcessingFingerprint? persisted,
-        ProcessingFingerprint? current)
+        ProcessingFingerprint? current,
+        TelemetryProcessingOptions options)
     {
         if (source is null)
         {
             return new SessionStaleness.MissingRawSource(
-                IsProcessedStateStaleWithoutRawSource(session, setup, bike, persisted));
+                IsProcessedStateStaleWithoutRawSource(session, setup, bike, persisted, options));
         }
 
         if (setup is null || bike is null)
@@ -125,10 +147,11 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
                 TelemetryProcessingVersion.Current);
         }
 
-        current ??= CreateCurrent(session, setup, bike, source);
+        current ??= CreateCurrent(session, setup, bike, source, options);
         return persisted.SetupId != current.SetupId ||
                persisted.BikeId != current.BikeId ||
                persisted.TrackProjectionVersion != current.TrackProjectionVersion ||
+               persisted.VelocityFilterWindowMilliseconds != current.VelocityFilterWindowMilliseconds ||
                !StringComparer.Ordinal.Equals(persisted.DependencyHash, current.DependencyHash) ||
                !StringComparer.Ordinal.Equals(persisted.SourceHash, current.SourceHash)
             ? new SessionStaleness.DependencyHashChanged()
@@ -139,7 +162,8 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         SessionSnapshot session,
         SetupSnapshot? setup,
         BikeSnapshot? bike,
-        ProcessingFingerprint? persisted)
+        ProcessingFingerprint? persisted,
+        TelemetryProcessingOptions options)
     {
         if (setup is null || bike is null)
         {
@@ -161,9 +185,13 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             return true;
         }
 
+        // Mirror the source-backed comparison, including the processing option: a
+        // source-less row whose processed data was computed with a different
+        // velocity-filter window is stale (it just cannot self-heal by recompute).
         return persisted.SetupId != setup.Id ||
                persisted.BikeId != bike.Id ||
                persisted.TrackProjectionVersion != GpsTrackPointProjection.ProjectionVersion ||
+               persisted.VelocityFilterWindowMilliseconds != options.ClampedVelocityFilterWindowMilliseconds ||
                !StringComparer.Ordinal.Equals(
                    persisted.DependencyHash,
                    ProcessingDependencyHash.Compute(setup, bike));

@@ -55,8 +55,36 @@ public class ProcessingFingerprintServiceTests
 
         var current = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
 
-        Assert.Equal(2, current.SchemaVersion);
+        Assert.Equal(3, current.SchemaVersion);
         Assert.Equal(1, current.TrackProjectionVersion);
+    }
+
+    [Fact]
+    public void Evaluate_ReturnsStaleRecomputable_WhenOnlyVelocityFilterOptionDiffers()
+    {
+        var context = CreateContext();
+        // Persisted fingerprint produced at the 25 ms default option.
+        var persisted = service.CreateCurrent(
+            context.Session, context.Setup, context.Bike, context.Source, new TelemetryProcessingOptions(25));
+        var session = context.Session with
+        {
+            HasProcessedData = true,
+            ProcessingFingerprintJson = AppJson.Serialize(persisted)
+        };
+
+        // Same DB inputs (setup/bike/source/versions), only the velocity-filter window
+        // changed: the stored BLOB is now stale and recomputable.
+        var changed = service.Evaluate(
+            session, context.Setup, context.Bike, context.Source, new TelemetryProcessingOptions(100));
+        Assert.IsType<SessionStaleness.DependencyHashChanged>(changed);
+        Assert.True(changed.IsStale);
+        Assert.True(changed.CanRecompute);
+
+        // Reverting to the option the BLOB was produced with re-evaluates as current,
+        // proving the option is the only difference above.
+        var unchanged = service.Evaluate(
+            session, context.Setup, context.Bike, context.Source, new TelemetryProcessingOptions(25));
+        Assert.IsType<SessionStaleness.Current>(unchanged);
     }
 
     [Fact]

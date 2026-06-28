@@ -11,172 +11,191 @@ namespace Sufni.App.Tests.ViewModels.Editors;
 public class SessionStalenessReconcilerTests
 {
     [Fact]
-    public async Task HandleDomainChangedAsync_ReloadsFreshExternalUpdate_WhenEditorIsClean()
-    {
-        var harness = new ReconcilerHarness();
-        var initial = TestSnapshots.Session(updated: 1);
-        var updated = initial with { Updated = 2, Description = "external update" };
-
-        await harness.Reconciler.HandleDomainChangedAsync(Domain(initial, DerivedChangeKind.Initial));
-        await harness.Reconciler.HandleDomainChangedAsync(Domain(updated, DerivedChangeKind.SessionMetadataChanged));
-
-        Assert.Equal([updated], harness.AppliedSnapshots);
-        Assert.Equal(1, harness.LoadRequestCount);
-        Assert.Equal(2, harness.HostUpdateCount);
-    }
-
-    [Fact]
-    public async Task HandleDomainChangedAsync_AsksBeforeReloadingDirtyExternalUpdate()
-    {
-        var harness = new ReconcilerHarness { IsDirty = true };
-        var initial = TestSnapshots.Session(updated: 1);
-        var updated = initial with { Updated = 2, Description = "external update" };
-        harness.DialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>())
-            .Returns(false);
-
-        await harness.Reconciler.HandleDomainChangedAsync(Domain(initial, DerivedChangeKind.Initial));
-        await harness.Reconciler.HandleDomainChangedAsync(Domain(updated, DerivedChangeKind.SessionMetadataChanged));
-
-        Assert.Empty(harness.AppliedSnapshots);
-        Assert.Equal(0, harness.LoadRequestCount);
-        await harness.DialogService.Received(1).ShowConfirmationAsync(
-            Arg.Any<string>(),
-            Arg.Is<string>(message => message.Contains("reload", StringComparison.OrdinalIgnoreCase)));
-    }
-
-    [Fact]
-    public async Task HandleDomainChangedAsync_RecomputesConfirmedStaleDerivedChange()
+    public async Task HandleStalenessAsync_RequestsRecompute_WhenStaleRecomputableAndConfirmed()
     {
         var sessionId = Guid.NewGuid();
-        var recomputed = TestSnapshots.Session(id: sessionId, updated: 12);
-        var harness = new ReconcilerHarness(sessionId: sessionId, baselineUpdated: 5);
-        harness.DialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>())
-            .Returns(true);
-        harness.SessionCoordinator
-            .RecomputeAsync(sessionId, 5, Arg.Any<CancellationToken>())
+        var harness = new ReconcilerHarness(sessionId);
+        harness.DialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        harness.SessionCoordinator.RequestRecomputeAsync(sessionId, Arg.Any<RecomputeReason>())
             .Returns(new SessionRecomputeResult.Recomputed(12));
-        harness.SessionStore.Get(sessionId).Returns(recomputed);
 
-        await harness.Reconciler.HandleDomainChangedAsync(Domain(
-            TestSnapshots.Session(id: sessionId, updated: 5, name: "stale"),
-            DerivedChangeKind.Initial,
-            new SessionStaleness.DependencyHashChanged()));
+        await harness.Reconciler.HandleStalenessAsync(
+            Domain(TestSnapshots.Session(id: sessionId, updated: 5, name: "stale"), new SessionStaleness.DependencyHashChanged()),
+            RecomputeReason.StaleOnOpen);
 
-        Assert.Equal(12, harness.BaselineUpdated);
-        Assert.Equal([TestSnapshots.Session(id: sessionId, updated: 5, name: "stale"), recomputed], harness.AppliedSnapshots);
-        Assert.Equal(1, harness.LoadRequestCount);
-        await harness.SessionCoordinator.Received(1)
-            .RecomputeAsync(sessionId, 5, Arg.Any<CancellationToken>());
+        await harness.SessionCoordinator.Received(1).RequestRecomputeAsync(sessionId, RecomputeReason.StaleOnOpen);
+        // A successful recompute drives the editor through the store/watch reaction,
+        // not the prompter; the prompter surfaces no error and applies no snapshot.
+        Assert.Empty(harness.Errors);
+        Assert.Empty(harness.Gateway.AppliedSnapshots);
     }
 
     [Fact]
-    public async Task ApplyRecomputeResultAsync_ConflictReloads_WhenConfirmed()
-    {
-        var sessionId = Guid.NewGuid();
-        var current = TestSnapshots.Session(id: sessionId, updated: 9);
-        var harness = new ReconcilerHarness(sessionId: sessionId);
-        harness.DialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>())
-            .Returns(true);
-
-        await harness.Reconciler.ApplyRecomputeResultAsync(new SessionRecomputeResult.Conflict(current));
-
-        Assert.Equal([current], harness.AppliedSnapshots);
-        Assert.Equal(1, harness.LoadRequestCount);
-        await harness.DialogService.Received(1).ShowConfirmationAsync(
-            Arg.Any<string>(),
-            Arg.Is<string>(message => message.Contains("reload", StringComparison.OrdinalIgnoreCase)));
-    }
-
-    [Fact]
-    public async Task ApplyRecomputeResultAsync_NotRecomputableReportsOnlyOnce()
+    public async Task HandleStalenessAsync_DoesNotRecompute_WhenUserDeclines()
     {
         var harness = new ReconcilerHarness();
-        var result = new SessionRecomputeResult.NotRecomputable(new SessionStaleness.MissingRawSource());
+        harness.DialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
 
-        await harness.Reconciler.ApplyRecomputeResultAsync(result);
-        await harness.Reconciler.ApplyRecomputeResultAsync(result);
+        await harness.Reconciler.HandleStalenessAsync(
+            Domain(TestSnapshots.Session(updated: 5), new SessionStaleness.DependencyHashChanged()),
+            RecomputeReason.StaleOnOpen);
+
+        await harness.SessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
+        Assert.Empty(harness.Errors);
+    }
+
+    [Fact]
+    public async Task HandleStalenessAsync_SuppressesPrompt_WhenRecomputeAlreadyActive()
+    {
+        var sessionId = Guid.NewGuid();
+        var harness = new ReconcilerHarness(sessionId);
+        harness.SessionCoordinator.IsRecomputeActive(sessionId).Returns(true);
+
+        await harness.Reconciler.HandleStalenessAsync(
+            Domain(TestSnapshots.Session(id: sessionId, updated: 5), new SessionStaleness.DependencyHashChanged()),
+            RecomputeReason.DependencyChanged);
+
+        await harness.DialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+        await harness.SessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
+    }
+
+    [Fact]
+    public async Task HandleStalenessAsync_DoesNotPrompt_WhenNotStale()
+    {
+        var harness = new ReconcilerHarness();
+
+        await harness.Reconciler.HandleStalenessAsync(
+            Domain(TestSnapshots.Session(updated: 5), new SessionStaleness.Current()),
+            RecomputeReason.DependencyChanged);
+
+        await harness.DialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+        Assert.Empty(harness.Errors);
+    }
+
+    [Fact]
+    public async Task HandleStalenessAsync_ReportsStaleOnce_WhenNotRecomputable()
+    {
+        var harness = new ReconcilerHarness();
+        var domain = Domain(
+            TestSnapshots.Session(updated: 5),
+            new SessionStaleness.MissingDependencies(SetupMissing: true, BikeMissing: false));
+
+        await harness.Reconciler.HandleStalenessAsync(domain, RecomputeReason.StaleOnOpen);
+        await harness.Reconciler.HandleStalenessAsync(domain, RecomputeReason.StaleOnOpen);
 
         var error = Assert.Single(harness.Errors);
         Assert.Contains("stale", error, StringComparison.OrdinalIgnoreCase);
+        await harness.DialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
     }
 
     [Fact]
-    public async Task HandleDomainChangedAsync_ReportsError_WhenDialogServiceThrows()
+    public async Task HandleStalenessAsync_SurfacesError_WhenRecomputeFails()
     {
-        var harness = new ReconcilerHarness();
-        harness.DialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>())
-            .Returns<bool>(_ => throw new InvalidOperationException("dialog unavailable"));
+        var sessionId = Guid.NewGuid();
+        var harness = new ReconcilerHarness(sessionId);
+        harness.DialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        harness.SessionCoordinator.RequestRecomputeAsync(sessionId, Arg.Any<RecomputeReason>())
+            .Returns(new SessionRecomputeResult.Failed("boom"));
 
-        var task = harness.Reconciler.HandleDomainChangedAsync(Domain(
-            TestSnapshots.Session(updated: 5),
-            DerivedChangeKind.Initial,
-            new SessionStaleness.DependencyHashChanged()));
+        await harness.Reconciler.HandleStalenessAsync(
+            Domain(TestSnapshots.Session(id: sessionId, updated: 5), new SessionStaleness.DependencyHashChanged()),
+            RecomputeReason.StaleOnOpen);
 
-        await task;
-        Assert.Single(harness.Errors);
-        Assert.Empty(harness.AppliedSnapshots);
+        Assert.Contains(harness.Errors, error => error.Contains("boom", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task HandleStalenessAsync_ReportsStale_WhenRecomputeReturnsNotRecomputable()
+    {
+        var sessionId = Guid.NewGuid();
+        var harness = new ReconcilerHarness(sessionId);
+        harness.DialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        harness.SessionCoordinator.RequestRecomputeAsync(sessionId, Arg.Any<RecomputeReason>())
+            .Returns(new SessionRecomputeResult.NotRecomputable(new SessionStaleness.MissingRawSource(ProcessedStateStale: true)));
+
+        await harness.Reconciler.HandleStalenessAsync(
+            Domain(TestSnapshots.Session(id: sessionId, updated: 5), new SessionStaleness.DependencyHashChanged()),
+            RecomputeReason.StaleOnOpen);
+
+        Assert.Contains(harness.Errors, error => error.Contains("stale", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task HandleStalenessAsync_PromptsOncePerSignature()
+    {
+        var sessionId = Guid.NewGuid();
+        var harness = new ReconcilerHarness(sessionId);
+        harness.DialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        harness.SessionCoordinator.RequestRecomputeAsync(sessionId, Arg.Any<RecomputeReason>())
+            .Returns(new SessionRecomputeResult.Recomputed(12));
+        var domain = Domain(
+            TestSnapshots.Session(id: sessionId, updated: 5, name: "stale"),
+            new SessionStaleness.DependencyHashChanged());
+
+        await harness.Reconciler.HandleStalenessAsync(domain, RecomputeReason.StaleOnOpen);
+        await harness.Reconciler.HandleStalenessAsync(domain, RecomputeReason.StaleOnOpen);
+
+        await harness.DialogService.Received(1).ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task HandleStalenessAsync_PromptsAgain_WhenProcessingOptionOnlyFingerprintChanges()
+    {
+        var sessionId = Guid.NewGuid();
+        var setupId = Guid.NewGuid();
+        var bikeId = Guid.NewGuid();
+        var harness = new ReconcilerHarness(sessionId);
+        harness.DialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
+        var session = TestSnapshots.Session(id: sessionId, updated: 5, name: "stale");
+        var fingerprint = new ProcessingFingerprint(
+            3,
+            7,
+            setupId,
+            bikeId,
+            1,
+            "dependency",
+            "source",
+            25);
+
+        await harness.Reconciler.HandleStalenessAsync(
+            Domain(session, new SessionStaleness.DependencyHashChanged(), fingerprint),
+            RecomputeReason.StaleOnOpen);
+        await harness.Reconciler.HandleStalenessAsync(
+            Domain(session, new SessionStaleness.DependencyHashChanged(), fingerprint with
+            {
+                VelocityFilterWindowMilliseconds = 100,
+            }),
+            RecomputeReason.StaleOnOpen);
+
+        await harness.DialogService.Received(2).ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+        await harness.SessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
     }
 
     private static RecordedSessionDomainSnapshot Domain(
         SessionSnapshot session,
-        DerivedChangeKind changeKind,
-        SessionStaleness? staleness = null) => new(
+        SessionStaleness staleness,
+        ProcessingFingerprint? currentFingerprint = null) => new(
         session,
         null,
         null,
+        currentFingerprint,
         null,
         null,
-        null,
-        staleness ?? new SessionStaleness.Current(),
-        changeKind);
+        staleness,
+        DerivedChangeKind.None);
 
     private sealed class ReconcilerHarness
     {
         public ISessionCoordinator SessionCoordinator { get; } = Substitute.For<ISessionCoordinator>();
-        public ISessionStore SessionStore { get; } = Substitute.For<ISessionStore>();
         public IDialogService DialogService { get; } = Substitute.For<IDialogService>();
         public TestSessionOperationGateway Gateway { get; } = new();
-        public List<SessionSnapshot> AppliedSnapshots => Gateway.AppliedSnapshots;
         public List<string> Errors => Gateway.Errors;
-        public int LoadRequestCount => Gateway.LoadRequestCount;
-        public int HostUpdateCount => Gateway.HostUpdateCount;
-
-        public long BaselineUpdated
-        {
-            get => Gateway.BaselineUpdated;
-            set => Gateway.BaselineUpdated = value;
-        }
-
-        public bool IsDirty
-        {
-            get => Gateway.IsDirty;
-            set => Gateway.IsDirty = value;
-        }
-
-        public bool IsViewLoaded
-        {
-            get => Gateway.IsViewLoaded;
-            set => Gateway.IsViewLoaded = value;
-        }
-
-        public bool ShouldDeferDomainHandling
-        {
-            get => Gateway.DeferDomainHandling;
-            set => Gateway.DeferDomainHandling = value;
-        }
-
         public SessionStalenessReconciler Reconciler { get; }
 
-        public ReconcilerHarness(Guid? sessionId = null, long baselineUpdated = 1)
+        public ReconcilerHarness(Guid? sessionId = null)
         {
             Gateway.SessionId = sessionId ?? Guid.NewGuid();
-            Gateway.BaselineUpdated = baselineUpdated;
-
-            Reconciler = new SessionStalenessReconciler(
-                SessionCoordinator,
-                SessionStore,
-                DialogService,
-                Gateway);
+            Reconciler = new SessionStalenessReconciler(SessionCoordinator, DialogService, Gateway);
         }
     }
 }

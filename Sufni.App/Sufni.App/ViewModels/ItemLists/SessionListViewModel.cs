@@ -160,15 +160,11 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     private async Task RecalculateSessionAsync(SessionRowViewModel row)
     {
-        var result = await sessionCoordinator.RecomputeAsync(row.Id, row.Updated);
+        var result = await sessionCoordinator.RequestRecomputeAsync(row.Id, RecomputeReason.ManualFromList);
 
         switch (result)
         {
             case SessionRecomputeResult.Recomputed:
-                break;
-
-            case SessionRecomputeResult.Conflict:
-                ErrorMessages.Add("Session changed elsewhere. Open it before recalculating.");
                 break;
 
             case SessionRecomputeResult.NotRecomputable:

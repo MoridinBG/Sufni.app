@@ -63,7 +63,8 @@ public class SessionDetailViewModelTests
         IBikeCoordinator? bikeCoordinator = null,
         IReadOnlyList<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories = null,
         IUiThreadDispatcher? uiThreadDispatcher = null,
-        ISessionLayoutStrategy? layoutStrategy = null)
+        ISessionLayoutStrategy? layoutStrategy = null,
+        IRecordedSessionProcessingOptionCache? processingOptionCache = null)
     {
         if (isDesktop.HasValue)
         {
@@ -87,6 +88,7 @@ public class SessionDetailViewModelTests
             preferencesService,
             uiThreadDispatcher ?? new InlineUiThreadDispatcher(),
             layoutStrategy ?? new DesktopSessionLayoutStrategy(),
+            processingOptionCache ?? new InMemoryRecordedSessionProcessingOptionCache(),
             bikeCoordinator,
             new ExtensionHostDependencies(
                 recordedSessionExtensionFactories ?? [],
@@ -415,7 +417,7 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task GpsContextMenuAlignment_PersistsOffsetAndRefreshesTimelineContext()
+    public async Task GpsContextMenuAlignment_PersistsOffsetThroughCoordinator()
     {
         var fullTrackId = Guid.NewGuid();
         var snapshot = TestSnapshots.Session(hasProcessedData: true, updated: 5) with
@@ -429,34 +431,16 @@ public class SessionDetailViewModelTests
             new(telemetry.Metadata.Timestamp + 1, 1, 1, 0, 10),
             new(telemetry.Metadata.Timestamp + 2, 2, 2, 0, 20),
         };
-        var updatedTrackPoints = new List<TrackPoint>
-        {
-            new(telemetry.Metadata.Timestamp + 4, 4, 4, 0, 40),
-            new(telemetry.Metadata.Timestamp + 5, 5, 5, 0, 50),
-        };
-        var updatedFullTrackPoints = new List<TrackPoint>
-        {
-            new(telemetry.Metadata.Timestamp, 0, 0, 0),
-            new(telemetry.Metadata.Timestamp + 6, 6, 6, 0),
-        };
-        var updatedSnapshot = snapshot with
-        {
-            GpsOffsetSeconds = 4.0,
-            Updated = 9,
-        };
+        // The GPS-offset write is one-way: the coordinator persists the offset and
+        // upserts the store, returning success. The refreshed track/baseline reach
+        // the editor through its watch reaction, not a pushed result.
         trackCoordinator.UpdateSessionGpsOffsetAsync(
                 snapshot.Id,
                 fullTrackId,
                 telemetry,
                 4.0,
                 Arg.Any<CancellationToken>())
-            .Returns(new SessionGpsOffsetUpdateResult(
-                updatedSnapshot,
-                new SessionTrackPresentationData(
-                    fullTrackId,
-                    updatedFullTrackPoints,
-                    updatedTrackPoints,
-                    400.0)));
+            .Returns(true);
         var editor = CreateEditor(snapshot);
         editor.SessionContext.TelemetryData = telemetry;
         editor.SessionContext.TrackPoints = initialTrackPoints;
@@ -490,11 +474,6 @@ public class SessionDetailViewModelTests
             telemetry,
             4.0,
             Arg.Any<CancellationToken>());
-        Assert.Equal(9, editor.BaselineUpdated);
-        Assert.Equal(4.0, editor.SessionContext.SessionSnapshot?.GpsOffsetSeconds);
-        Assert.Same(updatedTrackPoints, editor.SessionContext.TrackPoints);
-        Assert.Same(updatedFullTrackPoints, editor.SessionContext.FullTrackPoints);
-        Assert.Equal(telemetry.Metadata.Timestamp + 4.0, editor.SessionContext.TrackTimelineContext?.OriginSeconds);
         Assert.False(editor.IsDirty);
     }
 
@@ -1364,6 +1343,7 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true, updated: 5);
         var recomputedSnapshot = snapshot with { Updated = 7 };
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
         var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
         ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
         Func<SessionPreferences, SessionPreferences>? update = null;
@@ -1373,23 +1353,34 @@ public class SessionDetailViewModelTests
             .Returns(Task.CompletedTask);
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
-        sessionCoordinator.RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>())
-            .Returns(new SessionRecomputeResult.Recomputed(recomputedSnapshot.Updated));
+        var recomputeRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        sessionCoordinator.RequestRecomputeAsync(snapshot.Id, Arg.Any<RecomputeReason>())
+            .Returns(_ =>
+            {
+                sessionStore.Get(snapshot.Id).Returns(recomputedSnapshot);
+                recomputeRequested.TrySetResult();
+                return new SessionRecomputeResult.Recomputed(recomputedSnapshot.Updated);
+            });
         SetDesktop(true);
 
-        var editor = CreateEditor(snapshot, sessionPreferences: preferences);
+        var editor = CreateEditor(snapshot, watch.AsObservable(), sessionPreferences: preferences);
         await editor.LoadedCommand.ExecuteAsync(null);
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
         preferences.ClearReceivedCalls();
-        sessionStore.Get(snapshot.Id).Returns(recomputedSnapshot);
 
         editor.PreferencesPage.VelocityFilterWindowMilliseconds = 250;
         editor.PreferencesPage.CommitProcessingPreferenceChange();
 
+        // The committed option persists the preference and requests a recompute; the
+        // engine's store upsert then surfaces as a derived domain that advances the baseline.
+        await recomputeRequested.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        watch.OnNext(DomainFromSnapshot(recomputedSnapshot, DerivedChangeKind.FingerprintChanged));
         await WaitForAsync(() => editor.BaselineUpdated == recomputedSnapshot.Updated);
+
         await preferences.Received(1).UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
         Assert.NotNull(update);
         Assert.Equal(250, update!(SessionPreferences.Default).Processing.VelocityFilterWindowMilliseconds);
-        await sessionCoordinator.Received(1).RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>());
+        await sessionCoordinator.Received(1).RequestRecomputeAsync(snapshot.Id, Arg.Any<RecomputeReason>());
     }
 
     [AvaloniaFact]
@@ -2249,8 +2240,12 @@ public class SessionDetailViewModelTests
 
         await finalResultApplied.Task;
 
+        // The presentation load is a cancel-and-replace operation: each watch refresh
+        // that arrives while a load is in flight cancels it and starts a fresh load
+        // (initial + three refreshes = four invocations). Only the final, uncancelled
+        // load applies its result, so rapid refreshes never surface stale telemetry.
         Assert.Same(finalTelemetry, editor.SessionContext.TelemetryData);
-        await sessionCoordinator.Received(3).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
+        await sessionCoordinator.Received(4).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
         watch.Dispose();
     }
 
@@ -2268,7 +2263,7 @@ public class SessionDetailViewModelTests
                 Arg.Any<string>(),
                 Arg.Any<string>())
             .Returns(true);
-        sessionCoordinator.RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>())
+        sessionCoordinator.RequestRecomputeAsync(snapshot.Id, Arg.Any<RecomputeReason>())
             .Returns(_ =>
             {
                 sessionStore.Get(snapshot.Id).Returns(recomputedSnapshot);
@@ -2285,8 +2280,12 @@ public class SessionDetailViewModelTests
             new SessionStaleness.UnknownLegacyFingerprint()));
 
         await recomputeCalled.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        await Task.Yield();
-        Assert.Equal(recomputedSnapshot.Updated, editor.BaselineUpdated);
+
+        // The reconciler prompts for the stale-on-open domain and requests a
+        // recompute. The resulting baseline advance is driven by the watch reaction,
+        // which other tests cover; here we assert the forward-only prompt-and-request.
+        await dialogService.Received(1).ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+        await sessionCoordinator.Received(1).RequestRecomputeAsync(snapshot.Id, RecomputeReason.StaleOnOpen);
     }
 
     [AvaloniaFact]
@@ -2302,14 +2301,13 @@ public class SessionDetailViewModelTests
             DerivedChangeKind.Initial,
             new SessionStaleness.DependencyHashChanged());
 
-        sessionStore.Get(snapshot.Id).Returns(snapshot, snapshot, recomputedSnapshot, recomputedSnapshot);
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(new SessionDesktopLoadResult.TelemetryPending());
         dialogService.ShowConfirmationAsync(
                 Arg.Any<string>(),
                 Arg.Any<string>())
             .Returns(true);
-        sessionCoordinator.RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>())
+        sessionCoordinator.RequestRecomputeAsync(snapshot.Id, Arg.Any<RecomputeReason>())
             .Returns(_ =>
             {
                 recomputeStarted.TrySetResult();
@@ -2319,25 +2317,27 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
         await editor.LoadedCommand.ExecuteAsync(null);
 
+        // First stale emission prompts and requests the recompute.
         watch.OnNext(staleDomain);
         await recomputeStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
+        // Re-emitting the same stale signature while the recompute is in flight is
+        // suppressed by the running prompt.
         watch.OnNext(staleDomain);
         watch.OnNext(staleDomain);
         await Task.Yield();
 
-        sessionStore.Get(snapshot.Id).Returns(recomputedSnapshot);
+        // After the recompute resolves, the same stale signature stays deduplicated:
+        // the prompter only re-arms when a different signature or a fresh state arrives.
         recomputeResult.SetResult(new SessionRecomputeResult.Recomputed(recomputedSnapshot.Updated));
-        await WaitForAsync(() => editor.BaselineUpdated == recomputedSnapshot.Updated);
-
+        await Task.Yield();
         watch.OnNext(staleDomain);
         await Task.Yield();
 
         await dialogService.Received(1).ShowConfirmationAsync(
             Arg.Any<string>(),
             Arg.Any<string>());
-        await sessionCoordinator.Received(1).RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>());
-        Assert.Equal(recomputedSnapshot.Updated, editor.BaselineUpdated);
+        await sessionCoordinator.Received(1).RequestRecomputeAsync(snapshot.Id, Arg.Any<RecomputeReason>());
     }
 
     [AvaloniaFact]
@@ -2364,10 +2364,12 @@ public class SessionDetailViewModelTests
                 Arg.Any<string>(),
                 Arg.Any<string>())
             .Returns(true);
-        sessionCoordinator.RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>())
+        var recomputeRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        sessionCoordinator.RequestRecomputeAsync(snapshot.Id, Arg.Any<RecomputeReason>())
             .Returns(_ =>
             {
                 sessionStore.Get(snapshot.Id).Returns(recomputedSnapshot);
+                recomputeRequested.TrySetResult();
                 return new SessionRecomputeResult.Recomputed(recomputedSnapshot.Updated);
             });
 
@@ -2387,6 +2389,11 @@ public class SessionDetailViewModelTests
             snapshot,
             DerivedChangeKind.Initial,
             new SessionStaleness.DependencyHashChanged()));
+
+        // The stale-on-open prompt requests the recompute; the engine's store upsert
+        // then surfaces as a fresh derived domain that reloads the presentation.
+        await recomputeRequested.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        watch.OnNext(DomainFromSnapshot(recomputedSnapshot, DerivedChangeKind.FingerprintChanged));
 
         await WaitForAsync(() => ReferenceEquals(editor.SessionContext.TelemetryData, freshTelemetry));
 
@@ -2432,7 +2439,7 @@ public class SessionDetailViewModelTests
         await dialogService.Received(1).ShowConfirmationAsync(
             Arg.Any<string>(),
             Arg.Any<string>());
-        await sessionCoordinator.DidNotReceive().RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
+        await sessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
     }
 
     private static void AssertDefaultHiddenAirtimeAction(
@@ -2535,24 +2542,23 @@ public class SessionDetailViewModelTests
 
         Assert.Empty(editor.ErrorMessages);
         await dialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
-        await sessionCoordinator.DidNotReceive().RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
+        await sessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
     }
 
     [AvaloniaFact]
-    public async Task RuntimeDerivedChange_RecomputeConfirmation_DiscardsDirtyDraft()
+    public async Task RuntimeDerivedChange_RecomputeConfirmation_PreservesDirtyDraft()
     {
         var snapshot = TestSnapshots.Session(name: "trail run", description: "persisted", hasProcessedData: true, updated: 5);
         var recomputedSnapshot = snapshot with { Updated = 8 };
         var watch = new Subject<RecordedSessionDomainSnapshot>();
         var recomputeCalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        sessionStore.Get(snapshot.Id).Returns(snapshot, snapshot, recomputedSnapshot, recomputedSnapshot);
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(new SessionDesktopLoadResult.TelemetryPending());
         dialogService.ShowConfirmationAsync(
                 Arg.Any<string>(),
                 Arg.Any<string>())
             .Returns(true);
-        sessionCoordinator.RecomputeAsync(snapshot.Id, snapshot.Updated, Arg.Any<CancellationToken>())
+        sessionCoordinator.RequestRecomputeAsync(snapshot.Id, Arg.Any<RecomputeReason>())
             .Returns(_ =>
             {
                 sessionStore.Get(snapshot.Id).Returns(recomputedSnapshot);
@@ -2566,15 +2572,20 @@ public class SessionDetailViewModelTests
         editor.DescriptionText = "dirty draft";
         Assert.True(editor.IsDirty);
 
+        // A dependency change prompts a recompute; the user confirms.
         watch.OnNext(DomainFromSnapshot(
             snapshot,
             DerivedChangeKind.DependencyChanged,
             new SessionStaleness.DependencyHashChanged()));
-
         await recomputeCalled.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        await Task.Yield();
-        Assert.False(editor.IsDirty);
-        Assert.Equal("persisted", editor.DescriptionText);
+
+        // The recompute result surfaces as a pure derived change: it refreshes the
+        // derived state and advances the baseline, but keeps the unsaved draft.
+        watch.OnNext(DomainFromSnapshot(recomputedSnapshot, DerivedChangeKind.FingerprintChanged));
+        await WaitForAsync(() => editor.BaselineUpdated == recomputedSnapshot.Updated);
+
+        Assert.True(editor.IsDirty);
+        Assert.Equal("dirty draft", editor.DescriptionText);
         Assert.Equal(recomputedSnapshot.Updated, editor.BaselineUpdated);
     }
 
@@ -2600,7 +2611,7 @@ public class SessionDetailViewModelTests
 
         Assert.True(editor.IsDirty);
         Assert.Equal("dirty draft", editor.DescriptionText);
-        await sessionCoordinator.DidNotReceive().RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
+        await sessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
     }
 
     [AvaloniaFact]
@@ -2640,7 +2651,7 @@ public class SessionDetailViewModelTests
         await dialogService.Received(1).ShowConfirmationAsync(
             Arg.Any<string>(),
             Arg.Any<string>());
-        await sessionCoordinator.DidNotReceive().RecomputeAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
+        await sessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
     }
 
     [AvaloniaFact]
@@ -2669,7 +2680,9 @@ public class SessionDetailViewModelTests
         watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
         Assert.Same(oldTelemetry, editor.SessionContext.TelemetryData);
 
-        watch.OnNext(DomainFromSnapshot(updatedSnapshot));
+        // A recompute that produced fresh telemetry surfaces as a pure derived
+        // change; the editor reloads its presentation and advances the baseline.
+        watch.OnNext(DomainFromSnapshot(updatedSnapshot, DerivedChangeKind.FingerprintChanged));
 
         await WaitForAsync(() => ReferenceEquals(editor.SessionContext.TelemetryData, freshTelemetry));
 
@@ -2699,7 +2712,9 @@ public class SessionDetailViewModelTests
         editor.DescriptionText = "dirty draft";
         Assert.True(editor.IsDirty);
 
-        watch.OnNext(DomainFromSnapshot(updatedSnapshot));
+        // External metadata edit while the local draft is dirty: the editor prompts
+        // to discard, and on decline keeps the draft and holds the baseline back.
+        watch.OnNext(DomainFromSnapshot(updatedSnapshot, DerivedChangeKind.SessionMetadataChanged));
         await Task.Yield();
 
         Assert.True(editor.IsDirty);
@@ -2710,6 +2725,87 @@ public class SessionDetailViewModelTests
         await dialogService.Received(1).ShowConfirmationAsync(
             Arg.Any<string>(),
             Arg.Any<string>());
+    }
+
+    [AvaloniaFact]
+    public async Task DerivedChange_AfterDeclinedMetadataConflict_HoldsBaselineSoNextSaveStillConflicts()
+    {
+        var snapshot = TestSnapshots.Session(name: "trail run", description: "persisted", hasProcessedData: true, updated: 5);
+        var metadataSnapshot = snapshot with { Updated = 8, Description = "remote" };
+        var derivedSnapshot = snapshot with { Updated = 9 };
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
+
+        var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        editor.DescriptionText = "dirty draft";
+        Assert.True(editor.IsDirty);
+
+        // An external metadata edit lands on the dirty draft; the user declines to discard.
+        watch.OnNext(DomainFromSnapshot(metadataSnapshot, DerivedChangeKind.SessionMetadataChanged));
+        await Task.Yield();
+        Assert.Equal(snapshot.Updated, editor.BaselineUpdated);
+
+        // A later derived-only change refreshes telemetry but must not advance the
+        // baseline past the still-unacknowledged metadata edit.
+        watch.OnNext(DomainFromSnapshot(derivedSnapshot, DerivedChangeKind.FingerprintChanged));
+        await Task.Yield();
+        Assert.Equal(snapshot.Updated, editor.BaselineUpdated);
+
+        // The held-back baseline means the next save still detects the external edit
+        // as a conflict instead of silently overwriting it.
+        sessionCoordinator.SaveAsync(Arg.Any<Session>(), Arg.Any<long>())
+            .Returns(new SessionSaveResult.Conflict(metadataSnapshot));
+        await editor.SaveCommand.ExecuteAsync(null);
+        await sessionCoordinator.Received(1).SaveAsync(Arg.Any<Session>(), snapshot.Updated);
+    }
+
+    [AvaloniaFact]
+    public async Task CombinedMetadataAndDerivedChange_RefreshesTelemetry_AndStillPromptsForMetadata()
+    {
+        var snapshot = TestSnapshots.Session(name: "trail run", description: "persisted", hasProcessedData: true, updated: 5);
+        var combinedSnapshot = snapshot with { Updated = 8, Description = "remote" };
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        var oldTelemetry = TestTelemetryData.CreateProcessed();
+        var freshTelemetry = TestTelemetryData.CreateProcessed();
+        var loadCount = 0;
+
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                loadCount++;
+                return loadCount == 1
+                    ? LoadedDesktopResult(oldTelemetry)
+                    : LoadedDesktopResult(freshTelemetry);
+            });
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
+
+        var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        editor.DescriptionText = "dirty draft";
+        Assert.True(editor.IsDirty);
+
+        // One emission carries BOTH a derived change and an external metadata change.
+        // The two axes are handled orthogonally: the derived telemetry refreshes
+        // regardless, while the metadata change against the dirty draft still prompts.
+        watch.OnNext(DomainFromSnapshot(
+            combinedSnapshot,
+            DerivedChangeKind.FingerprintChanged | DerivedChangeKind.SessionMetadataChanged));
+
+        await WaitForAsync(() => ReferenceEquals(editor.SessionContext.TelemetryData, freshTelemetry));
+
+        // Derived axis applied: plots never show stale telemetry even with a pending prompt.
+        await sessionCoordinator.Received(2).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
+        // Metadata axis decided independently: prompt shown, declined -> draft kept and
+        // the baseline held back so the next save still detects the conflict.
+        await dialogService.Received(1).ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+        Assert.True(editor.IsDirty);
+        Assert.Equal("dirty draft", editor.DescriptionText);
+        Assert.Equal(snapshot.Updated, editor.BaselineUpdated);
     }
 
     private static RecordedSessionDomainSnapshot DomainFromSnapshot(
