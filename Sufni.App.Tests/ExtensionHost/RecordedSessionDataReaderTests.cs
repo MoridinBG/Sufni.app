@@ -17,14 +17,10 @@ public class RecordedSessionDataReaderTests
         new(sessionRepository, trackEntityRepository, telemetryProcessor);
 
     [Fact]
-    public async Task GetTrackAsync_ReturnsCachedTrack_WhenAlignedWithProcessedTelemetry()
+    public async Task GetTrackAsync_ReturnsCachedTrack_WhenAlignedWithSessionTimestamp()
     {
         var sessionId = Guid.NewGuid();
         var fullTrackId = Guid.NewGuid();
-        var raw = new byte[] { 1 };
-        var telemetry = TestTelemetryData.CreateMinimal(duration: 3.0);
-        telemetry.Metadata.Timestamp = 1000;
-        telemetry.Metadata.Duration = 3.0;
         var cachedTrack = new List<TrackPoint>
         {
             new(1001.5, 1, 1, 100),
@@ -36,20 +32,21 @@ public class RecordedSessionDataReaderTests
             "Session",
             "",
             setup: null,
-            timestamp: telemetry.Metadata.Timestamp)
+            timestamp: 1000)
         {
             FullTrack = fullTrackId,
-            DurationSeconds = telemetry.Metadata.Duration,
+            DurationSeconds = 3.0,
             GpsOffsetSeconds = 1.5,
             HasProcessedData = true,
         });
-        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
-        telemetryProcessor.Map(raw, telemetry);
 
         var result = await CreateReader().GetTrackAsync(sessionId, TestContext.Current.CancellationToken);
 
         Assert.Same(cachedTrack, result);
         await trackEntityRepository.DidNotReceive().GetAsync(Arg.Any<Guid>());
+        // Alignment is decided from the session row alone; the heavy processed
+        // telemetry blob must never be loaded while enumerating candidates.
+        await sessionRepository.DidNotReceive().GetSessionRawPsstAsync(Arg.Any<Guid>());
     }
 
     [Fact]
@@ -57,25 +54,19 @@ public class RecordedSessionDataReaderTests
     {
         var sessionId = Guid.NewGuid();
         var fullTrackId = Guid.NewGuid();
-        var raw = new byte[] { 1 };
-        var telemetry = TestTelemetryData.CreateMinimal(duration: 2.0);
-        telemetry.Metadata.Timestamp = 1000;
-        telemetry.Metadata.Duration = 2.0;
         sessionRepository.GetSessionTrackAsync(sessionId).Returns((List<TrackPoint>?)null);
         sessionRepository.GetSessionAsync(sessionId).Returns(new Session(
             sessionId,
             "Session",
             "",
             setup: null,
-            timestamp: telemetry.Metadata.Timestamp)
+            timestamp: 1000)
         {
             FullTrack = fullTrackId,
-            DurationSeconds = telemetry.Metadata.Duration,
+            DurationSeconds = 2.0,
             GpsOffsetSeconds = 0.5,
             HasProcessedData = true,
         });
-        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
-        telemetryProcessor.Map(raw, telemetry);
         trackEntityRepository.GetAsync(fullTrackId).Returns(new Track
         {
             Id = fullTrackId,
@@ -94,6 +85,7 @@ public class RecordedSessionDataReaderTests
         Assert.Equal(1000.5, result[0].Time, precision: 6);
         Assert.Equal(1002.5, result[^1].Time, precision: 6);
         await trackEntityRepository.Received(1).GetAsync(fullTrackId);
+        await sessionRepository.DidNotReceive().GetSessionRawPsstAsync(Arg.Any<Guid>());
     }
 
     [Fact]
@@ -101,10 +93,6 @@ public class RecordedSessionDataReaderTests
     {
         var sessionId = Guid.NewGuid();
         var fullTrackId = Guid.NewGuid();
-        var raw = new byte[] { 1 };
-        var telemetry = TestTelemetryData.CreateMinimal(duration: 2.0);
-        telemetry.Metadata.Timestamp = 1000;
-        telemetry.Metadata.Duration = 2.0;
         var staleTrack = new List<TrackPoint>
         {
             new(1000.0, 1, 1, 100),
@@ -116,15 +104,13 @@ public class RecordedSessionDataReaderTests
             "Session",
             "",
             setup: null,
-            timestamp: telemetry.Metadata.Timestamp)
+            timestamp: 1000)
         {
             FullTrack = fullTrackId,
-            DurationSeconds = telemetry.Metadata.Duration,
+            DurationSeconds = 2.0,
             GpsOffsetSeconds = 0.5,
             HasProcessedData = true,
         });
-        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
-        telemetryProcessor.Map(raw, telemetry);
         trackEntityRepository.GetAsync(fullTrackId).Returns(new Track
         {
             Id = fullTrackId,
@@ -143,5 +129,6 @@ public class RecordedSessionDataReaderTests
         Assert.Equal(1000.5, result[0].Time, precision: 6);
         Assert.Equal(1002.5, result[^1].Time, precision: 6);
         await trackEntityRepository.Received(1).GetAsync(fullTrackId);
+        await sessionRepository.DidNotReceive().GetSessionRawPsstAsync(Arg.Any<Guid>());
     }
 }

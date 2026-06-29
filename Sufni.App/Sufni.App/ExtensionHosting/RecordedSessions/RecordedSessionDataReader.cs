@@ -72,17 +72,26 @@ internal sealed class RecordedSessionDataReader(
             return track;
         }
 
-        var telemetry = await GetProcessedTelemetryAsync(sessionId, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        if (telemetry is null || SessionTrackProjection.IsSessionTrackAligned(track, telemetry, session.GpsOffsetSeconds))
+        // The cached session-window track is generated from the session row's own
+        // timestamp and duration, so align and regenerate against those instead of
+        // deserializing the full processed-telemetry blob per session — matching
+        // enumerates every session, so a per-session blob decode dominated the scan.
+        if (SessionTrackProjection.IsSessionTrackAligned(track, session.Timestamp, session.GpsOffsetSeconds))
         {
             return track;
         }
 
         var fullTrack = await trackEntityRepository.GetAsync(fullTrackId);
         cancellationToken.ThrowIfCancellationRequested();
-        return fullTrack is null
-            ? track
-            : SessionTrackProjection.GenerateSessionTrack(fullTrack, telemetry, session.GpsOffsetSeconds);
+        if (fullTrack is null)
+        {
+            return track;
+        }
+
+        return sessionTelemetryProcessor.GenerateSessionTrackFromFullTrack(
+            fullTrack,
+            session.Timestamp,
+            session.DurationSeconds,
+            session.GpsOffsetSeconds) ?? track;
     }
 }

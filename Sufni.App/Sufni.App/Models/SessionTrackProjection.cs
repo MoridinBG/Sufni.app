@@ -29,9 +29,29 @@ internal static class SessionTrackProjection
             return false;
         }
 
-        var expectedStart = GetSessionStartSeconds(telemetryData, gpsOffsetSeconds);
-        return Math.Abs(trackPoints[0].Time - expectedStart) <= AlignmentToleranceSeconds;
+        return IsAlignedTo(trackPoints, GetSessionStartSeconds(telemetryData, gpsOffsetSeconds));
     }
+
+    // Alignment check driven by the session row's own timestamp, for callers that
+    // would otherwise deserialize the whole processed-telemetry blob just to read
+    // its metadata. The cached session-window track is generated from
+    // session.Timestamp (see SessionTelemetryWriter), so that is the value it must
+    // line up with.
+    public static bool IsSessionTrackAligned(
+        IReadOnlyList<TrackPoint>? trackPoints,
+        long? timestamp,
+        double gpsOffsetSeconds)
+    {
+        if (trackPoints is null || trackPoints.Count == 0 || timestamp is not { } value)
+        {
+            return false;
+        }
+
+        return IsAlignedTo(trackPoints, value + NormalizeGpsOffsetSeconds(gpsOffsetSeconds));
+    }
+
+    private static bool IsAlignedTo(IReadOnlyList<TrackPoint> trackPoints, double expectedStartSeconds) =>
+        Math.Abs(trackPoints[0].Time - expectedStartSeconds) <= AlignmentToleranceSeconds;
 
     public static double NormalizeGpsOffsetSeconds(double gpsOffsetSeconds) =>
         double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;

@@ -157,9 +157,12 @@ without a long positional constructor. It exposes constrained host operations:
 
 `IRecordedSessionDataReader.GetTrackAsync` returns the session-window track
 projection used by the recorded-session view: cached points when the cache is
-current, or a read-only projection from the linked full track and processed
-telemetry when the cache is missing or aligned to an older GPS offset. The
-read path does not persist regenerated points.
+current, or a read-only projection from the linked full track when the cache is
+missing or aligned to an older GPS offset. Alignment and regeneration use the
+session row's own timestamp and duration — the values the processed-write path
+generates the cache from — so the read path never deserializes the processed
+telemetry blob per session (matching enumerates every session, where a per-session
+blob decode dominated the scan). The read path does not persist regenerated points.
 
 Operation leases reject stale progress and cancel superseded work, so extension tasks share the existing editor busy surface without controlling the editor lifecycle. Extension work reports percent values on a `0..100` scale. The recorded-session host projects those reports through `SessionOperationPresentationState` and renders the standard nonblocking busy overlay above the current session content. Extension operation progress does not set the session detail `ScreenState`; that state remains reserved for loading and error state of the session detail itself.
 
