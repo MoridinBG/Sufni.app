@@ -43,7 +43,7 @@ public class MainPagesViewTests
     }
 
     [AvaloniaFact]
-    public async Task MainPagesView_BindsPrimaryPagesToTabbedPage_AndUpdatesSelectedIndex()
+    public async Task MainPagesView_TabbedPage_UpdatesSelectedPrimaryIndex_OnSelectionChange()
     {
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
@@ -59,15 +59,13 @@ public class MainPagesViewTests
         var tabbedPage = mounted.View.FindControl<TabbedPage>("PagesTabbedPage");
 
         Assert.NotNull(tabbedPage);
-        Assert.Same(viewModel.PrimaryPages, tabbedPage!.ItemsSource);
-        Assert.NotNull(tabbedPage.PageTemplate);
-        Assert.Equal(0, tabbedPage.SelectedIndex);
+        Assert.Equal(0, tabbedPage!.SelectedIndex);
 
+        // The bottom tab strip drives the view model's primary-page selection.
         tabbedPage.SelectedIndex = 2;
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(2, viewModel.SelectedPrimaryIndex);
-        Assert.Equal(2, tabbedPage.SelectedIndex);
 
         tabbedPage.SelectedIndex = 3;
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -76,7 +74,7 @@ public class MainPagesViewTests
     }
 
     [AvaloniaFact]
-    public async Task MainPagesView_PageTemplate_CreatesSafeAreaFreePrimaryContentPage()
+    public async Task MainPagesView_TabbedPage_BindsPrimaryPageContent_WithoutSafeAreaPadding()
     {
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
@@ -91,19 +89,16 @@ public class MainPagesViewTests
 
         var tabbedPage = mounted.View.FindControl<TabbedPage>("PagesTabbedPage")
             ?? throw new InvalidOperationException("Primary tabbed page was not found.");
-        var pageTemplate = tabbedPage.PageTemplate
-            ?? throw new InvalidOperationException("Primary page template was not found.");
-        var descriptor = viewModel.PrimaryPages[0];
+        var pages = tabbedPage.Pages
+            ?? throw new InvalidOperationException("Primary pages were not found.");
 
-        var contentPage = Assert.IsType<ContentPage>(pageTemplate.Build(descriptor));
-        contentPage.DataContext = descriptor;
-        await ViewTestHelpers.FlushDispatcherAsync();
+        // The primary pages are declared statically and bind their content back to the
+        // root view model; the first (selected) page is the representative case.
+        var sessionsPage = pages.Cast<ContentPage>().First();
 
-        Assert.False(contentPage.AutomaticallyApplySafeAreaPadding);
-        Assert.Equal(descriptor.Header, contentPage.Header);
-        Assert.Same(descriptor.Content, contentPage.Content);
-        var icon = Assert.IsType<Image>(contentPage.Icon);
-        Assert.Equal(18, icon.Width);
+        Assert.False(sessionsPage.AutomaticallyApplySafeAreaPadding);
+        Assert.Equal("Sessions", sessionsPage.Header);
+        Assert.Same(viewModel.SessionsPage, sessionsPage.Content);
     }
 
     [AvaloniaFact]
