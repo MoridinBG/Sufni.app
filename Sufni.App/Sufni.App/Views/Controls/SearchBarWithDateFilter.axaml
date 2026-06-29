@@ -1,4 +1,5 @@
 <UserControl
+Name="Root"
 x:Class="Sufni.App.Views.Controls.SearchBarWithDateFilter"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -14,6 +15,7 @@ mc:Ignorable="d">
     <controls:SearchBarCore
     SearchBoxBorderThickness="0"
     SearchBoxCornerRadius="5"
+    ShowDrawerButton="{Binding #Root.ShowDrawerButton}"
     SyncIndicatorForeground="{DynamicResource SufniAccentColor}">
         <controls:SearchBarCore.CloseButtonVisible>
             <MultiBinding Converter="{x:Static BoolConverters.And}">

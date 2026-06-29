@@ -57,11 +57,20 @@ public partial class ItemListViewModelBase : ViewModelBase
 
     partial void OnSearchBoxIsFocusedChanged(bool value)
     {
-        if (value)
-        {
-            DateFilterVisible = true;
-        }
+        DateFilterVisible = value || HasActiveDateFilter();
     }
+
+    partial void OnDateFilterFromChanged(DateTime? value)
+    {
+        DateFilterVisible = SearchBoxIsFocused || HasActiveDateFilter();
+    }
+
+    partial void OnDateFilterToChanged(DateTime? value)
+    {
+        DateFilterVisible = SearchBoxIsFocused || HasActiveDateFilter();
+    }
+
+    private bool HasActiveDateFilter() => DateFilterFrom is not null || DateFilterTo is not null;
 
     #endregion Property change handlers
 
@@ -138,7 +147,7 @@ public partial class ItemListViewModelBase : ViewModelBase
     private void ClearSearchText()
     {
         SearchText = null;
-        DateFilterVisible = false;
+        DateFilterVisible = HasActiveDateFilter();
     }
 
     [RelayCommand]

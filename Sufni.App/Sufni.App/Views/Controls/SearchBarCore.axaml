@@ -11,11 +11,12 @@ xmlns:vm="clr-namespace:Sufni.App.ViewModels"
 xmlns:vml="clr-namespace:Sufni.App.ViewModels.ItemLists"
 d:DesignHeight="450"
 d:DesignWidth="800"
+Focusable="True"
 x:DataType="vml:ItemListViewModelBase"
 mc:Ignorable="d">
 
     <Grid
-    Margin="20,0,0,20"
+    Margin="20,0,0,0"
     ColumnDefinitions="*">
         <Grid.RowDefinitions>
             <RowDefinition Height="{Binding #Root.SearchRowHeight}" />
@@ -33,7 +34,18 @@ mc:Ignorable="d">
         CornerRadius="{Binding $parent[controls:SearchBarCore].SearchBoxCornerRadius}"
         IsFocused="{Binding SearchBoxIsFocused, Mode=OneWayToSource}"
         Text="{Binding SearchText}"
-        Watermark="Search ..." />
+        Watermark="Search ...">
+            <TextBox.Styles>
+                <!--  Keep the flat search field borderless while focused. The Fluent
+                      TextBox theme otherwise forces a 2px accent border on focus
+                      (TextControlBorderThemeThicknessFocused), overriding the
+                      configured zero thickness; the fixed-height mobile header clips
+                      it and it lingers after the soft keyboard is dismissed.  -->
+                <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+                    <Setter Property="BorderThickness" Value="0" />
+                </Style>
+            </TextBox.Styles>
+        </TextBox>
 
         <!--  Hamburger menu  -->
         <Button
@@ -41,7 +53,8 @@ mc:Ignorable="d">
         Width="32"
         HorizontalAlignment="Left"
         Classes="embedded"
-        Command="{Binding $parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).OpenDrawerCommand}">
+        Command="{Binding $parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).OpenDrawerCommand}"
+        IsVisible="{Binding $parent[controls:SearchBarCore].ShowDrawerButton}">
             <Image Margin="0,2,0,0" Source="{SvgImage /Assets/fa-bars.svg}" />
         </Button>
 
@@ -54,6 +67,7 @@ mc:Ignorable="d">
         HorizontalAlignment="Right"
         Classes="embedded"
         Command="{Binding ClearSearchTextCommand}"
+        Click="CloseButton_OnClick"
         IsVisible="{Binding $parent[controls:SearchBarCore].CloseButtonVisible}">
             <Image Source="{SvgImage /Assets/fa-xmark.svg}" />
         </Button>

@@ -30,6 +30,57 @@
     </UserControl.Resources>
 
     <Grid ColumnDefinitions="*" RowDefinitions="auto * auto auto">
+        <Border
+            Name="DatePickers"
+            Grid.Row="0"
+            Grid.Column="0"
+            Padding="20,5,20,5"
+            Background="{DynamicResource SufniRegion}"
+            IsVisible="{Binding DateFilterVisible}">
+            <Grid ColumnDefinitions="* auto *" RowDefinitions="auto">
+                <CalendarDatePicker
+                    Grid.Column="0"
+                    HorizontalAlignment="Stretch"
+                    DisplayDateEnd="{Binding DateFilterTo}"
+                    SelectedDate="{Binding DateFilterFrom}" />
+                <Button
+                    Name="ClearFromDateButton"
+                    Grid.Column="0"
+                    Width="30"
+                    Margin="0,0,20,0"
+                    HorizontalAlignment="Right"
+                    Classes="embedded"
+                    Command="{Binding ClearDateFilterCommand}"
+                    CommandParameter="from"
+                    IsVisible="{Binding DateFilterFrom, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <Image Source="{SvgImage /Assets/fa-xmark.svg}" />
+                </Button>
+
+                <TextBlock
+                    Grid.Column="1"
+                    Margin="8,0"
+                    VerticalAlignment="Center"
+                    Text="→" />
+
+                <CalendarDatePicker
+                    Grid.Column="2"
+                    HorizontalAlignment="Stretch"
+                    DisplayDateStart="{Binding DateFilterFrom}"
+                    SelectedDate="{Binding DateFilterTo}" />
+                <Button
+                    Name="ClearToDateButton"
+                    Grid.Column="2"
+                    Width="30"
+                    Margin="0,0,20,0"
+                    HorizontalAlignment="Right"
+                    Classes="embedded"
+                    Command="{Binding ClearDateFilterCommand}"
+                    CommandParameter="to"
+                    IsVisible="{Binding DateFilterTo, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <Image Source="{SvgImage /Assets/fa-xmark.svg}" />
+                </Button>
+            </Grid>
+        </Border>
 
         <!--  List of Sessions  -->
         <controls:PullableMenuScrollViewer
@@ -38,9 +89,6 @@
             Margin="0,15,0,5"
             Items="{Binding DateGroups}"
             MenuItems="{Binding MenuItems}">
-            <controls:PullableMenuScrollViewer.TopContent>
-                <controls:SearchBarWithDateFilter />
-            </controls:PullableMenuScrollViewer.TopContent>
             <controls:PullableMenuScrollViewer.ItemTemplate>
                 <DataTemplate x:DataType="vml:SessionDateGroupViewModel">
                     <controls:SessionDateGroupView

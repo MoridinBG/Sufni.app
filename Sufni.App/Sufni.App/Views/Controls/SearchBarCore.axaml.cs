@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 
 namespace Sufni.App.Views.Controls;
@@ -26,6 +27,9 @@ public partial class SearchBarCore : UserControl
 
     public static readonly StyledProperty<GridLength> SearchRowHeightProperty =
         AvaloniaProperty.Register<SearchBarCore, GridLength>(nameof(SearchRowHeight), new GridLength(39));
+
+    public static readonly StyledProperty<bool> ShowDrawerButtonProperty =
+        AvaloniaProperty.Register<SearchBarCore, bool>(nameof(ShowDrawerButton), true);
 
     public object? SecondaryContent
     {
@@ -69,8 +73,19 @@ public partial class SearchBarCore : UserControl
         set => SetValue(SearchRowHeightProperty, value);
     }
 
+    public bool ShowDrawerButton
+    {
+        get => GetValue(ShowDrawerButtonProperty);
+        set => SetValue(ShowDrawerButtonProperty, value);
+    }
+
     public SearchBarCore()
     {
         InitializeComponent();
+    }
+
+    private void CloseButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        Focus();
     }
 }

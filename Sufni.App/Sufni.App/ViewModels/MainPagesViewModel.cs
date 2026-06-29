@@ -57,6 +57,7 @@ public partial class MainPagesViewModel : ViewModelBase
     public ObservableCollection<MainPrimaryPageViewModel> PrimaryPages { get; } = [];
     public IReadOnlyList<AppToolbarCommandContribution> ExtensionToolbarCommands { get; }
     public IReadOnlyList<AppToolbarViewContribution> ExtensionToolbarViews { get; }
+    public ViewModelBase SelectedPrimaryPageContent => GetSelectedPrimaryPage();
 
     #region Constructors
 
@@ -283,6 +284,7 @@ public partial class MainPagesViewModel : ViewModelBase
         }
 
         activePrimaryPage = nextPage;
+        OnPropertyChanged(nameof(SelectedPrimaryPageContent));
     }
 
     private void SyncProgressState()

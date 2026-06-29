@@ -25,11 +25,7 @@
             Grid.Column="0"
             Margin="0,15,0,5"
             Items="{Binding Items}"
-            MenuItems="{Binding MenuItems}">
-            <controls:PullableMenuScrollViewer.TopContent>
-                <controls:SearchBar />
-            </controls:PullableMenuScrollViewer.TopContent>
-        </controls:PullableMenuScrollViewer>
+            MenuItems="{Binding MenuItems}" />
 
         <shared:ItemListStatusOverlay
             Grid.Row="0"

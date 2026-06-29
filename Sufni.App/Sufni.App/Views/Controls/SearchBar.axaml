@@ -1,4 +1,5 @@
 <UserControl
+Name="Root"
 x:Class="Sufni.App.Views.Controls.SearchBar"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -16,6 +17,7 @@ mc:Ignorable="d">
     SearchBoxBorderThickness="{StaticResource SufniSearchBarBorderThickness}"
     SearchBoxCornerRadius="{StaticResource SufniSearchBarCornerRadius}"
     SearchRowHeight="{StaticResource SufniSearchBarHeightGridLength}"
+    ShowDrawerButton="{Binding #Root.ShowDrawerButton}"
     SyncIndicatorForeground="{DynamicResource SufniAccentSpinner}">
         <controls:SearchBarCore.CloseButtonVisible>
             <MultiBinding Converter="{x:Static BoolConverters.Or}">
