@@ -291,6 +291,28 @@ public class CollapsibleSplitViewTests
         AssertPane(mounted.View.Preferences!, "second", 0.65, isCollapsed: false);
     }
 
+    [AvaloniaFact]
+    public async Task CollapsibleSplitView_FiniteResize_DoesNotExpandToOversizedChildDesiredWidth()
+    {
+        var view = CreateView();
+        view.DefaultFirstLength = new GridLength(1, GridUnitType.Star);
+        view.DefaultSecondLength = new GridLength(400);
+        view.FirstContent = new Border { MinWidth = 1600 };
+
+        await using var mounted = await MountAsync(view);
+
+        Resize(mounted.View, width: 1800, height: 700);
+        Resize(mounted.View, width: 900, height: 700);
+
+        Assert.Equal(900, mounted.View.DesiredSize.Width);
+        Assert.Equal(900, mounted.View.Bounds.Width);
+        var grid = Assert.IsType<Grid>(mounted.View.Content);
+
+        Assert.True(
+            grid.ColumnDefinitions[2].ActualWidth > 0,
+            $"Expected second pane to keep positive width. Column widths: {grid.ColumnDefinitions[0].ActualWidth}, {grid.ColumnDefinitions[2].ActualWidth}.");
+    }
+
     private static CollapsibleSplitView CreateView()
     {
         return new CollapsibleSplitView
@@ -339,6 +361,12 @@ public class CollapsibleSplitViewTests
         var pane = Assert.Single(preferences.Panes, pane => pane.PaneId == paneId);
         Assert.Equal(ratio, pane.Ratio, precision: 6);
         Assert.Equal(isCollapsed, pane.IsCollapsed);
+    }
+
+    private static void Resize(Control control, double width, double height)
+    {
+        control.Measure(new Avalonia.Size(width, height));
+        control.Arrange(new Avalonia.Rect(0, 0, width, height));
     }
 }
 

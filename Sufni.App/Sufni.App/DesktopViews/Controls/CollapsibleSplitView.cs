@@ -150,6 +150,8 @@ public sealed class CollapsibleSplitView : UserControl
 
     public CollapsibleSplitView()
     {
+        ClipToBounds = true;
+
         firstPaneRoot.Children.Add(firstContentHost);
         firstPaneRoot.Children.Add(firstCollapsedHeader);
         secondPaneRoot.Children.Add(secondContentHost);
@@ -179,6 +181,15 @@ public sealed class CollapsibleSplitView : UserControl
         secondCollapsedHeader.Click += (_, _) => ExpandCollapsedPane(firstPane: false);
         UpdateContentHosts();
         ApplyPreferencesOrDefaults();
+    }
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        var desired = base.MeasureOverride(availableSize);
+
+        return new Size(
+            double.IsFinite(availableSize.Width) ? availableSize.Width : desired.Width,
+            double.IsFinite(availableSize.Height) ? availableSize.Height : desired.Height);
     }
 
     public Orientation Orientation
