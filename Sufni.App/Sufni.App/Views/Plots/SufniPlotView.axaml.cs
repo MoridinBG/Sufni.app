@@ -68,8 +68,8 @@ public abstract class SufniPlotView : TemplatedControl
 
         // Two-finger pinch zoom on touch.
         avaPlot.GestureRecognizers.Add(new PinchGestureRecognizer());
-        avaPlot.AddHandler(Gestures.PinchEvent, OnPlotPinch);
-        avaPlot.AddHandler(Gestures.PinchEndedEvent, OnPlotPinchEnded);
+        avaPlot.AddHandler(InputElement.PinchEvent, OnPlotPinch);
+        avaPlot.AddHandler(InputElement.PinchEndedEvent, OnPlotPinchEnded);
 
         CreatePlot();
         avaPlot.Plot.RenderManager.AxisLimitsChanged += (_, _) => NotifyViewportChanged();

@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Logging;
+using Avalonia.Skia;
 using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.Sync;
@@ -36,6 +37,7 @@ public static class DesktopAppBootstrapper
 
         return builder
             .WithInterFont()
+            .UseHarfBuzz()
             .With(new SkiaOptions { UseOpacitySaveLayer = true });
     }
 }

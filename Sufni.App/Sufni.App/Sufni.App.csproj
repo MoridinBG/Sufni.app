@@ -29,9 +29,9 @@
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Avalonia.Fonts.Inter" />
     <PackageReference Include="AvaloniaUI.DiagnosticsSupport" />
-    <PackageReference Include="Mapsui.Avalonia" />
+    <PackageReference Include="Mapsui.Avalonia12" />
     <PackageReference Include="Xaml.Behaviors.Avalonia" />
-    <PackageReference Include="Avalonia.Controls.PanAndZoom" />
+    <PackageReference Include="PanAndZoom" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="CsvHelper" />
     <PackageReference Include="Deadpikle.AvaloniaProgressRing" />

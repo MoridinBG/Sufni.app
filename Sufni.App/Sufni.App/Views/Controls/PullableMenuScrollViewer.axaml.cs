@@ -200,7 +200,7 @@ public partial class PullableMenuScrollViewer : UserControl
             TopContainer.Opacity = Math.Max(0, Math.Min(opacity, 1));
         };
 
-        Scroll.AddHandler(Gestures.ScrollGestureEndedEvent, HandlePartiallyVisibleTopContainer);
+        Scroll.AddHandler(InputElement.ScrollGestureEndedEvent, HandlePartiallyVisibleTopContainer);
         Scroll.PointerMoved += HandlePartiallyVisibleTopContainer;
     }
 
@@ -208,7 +208,7 @@ public partial class PullableMenuScrollViewer : UserControl
     {
         // When we scroll down while being at the top of the scroll viewer, we
         // move the whole control down.
-        Scroll.AddHandler(Gestures.ScrollGestureEvent, (s, e) =>
+        Scroll.AddHandler(InputElement.ScrollGestureEvent, (s, e) =>
         {
             if (Scroll.Offset.Y == 0)
             {
@@ -219,7 +219,7 @@ public partial class PullableMenuScrollViewer : UserControl
         });
 
         // Move the control back to its original place when we stopped pulling.
-        Scroll.AddHandler(Gestures.ScrollGestureEndedEvent, (s, e) =>
+        Scroll.AddHandler(InputElement.ScrollGestureEndedEvent, (s, e) =>
         {
             if (totalPulled != 0)
             {
