@@ -65,7 +65,7 @@ mc:Ignorable="d">
         Name="PagesMenu"
         Margin="0,0,0,5"
         Background="{DynamicResource SufniNavRailBackground}"
-        SelectedIndex="{Binding SelectedIndex}"
+        SelectedIndex="{Binding SelectedPrimaryIndex}"
         TabStripPlacement="Left">
             <TabItem Name="SessionTabItem">
                 <TabItem.Header>
@@ -164,7 +164,9 @@ mc:Ignorable="d">
                 <Image Width="18" Source="{SvgImage /Assets/fa-map.svg}" />
             </Button>
 
-            <controls:AppToolbarContributionsView Contributions="{Binding ExtensionToolbarActions}" />
+            <controls:AppToolbarContributionsView
+            CommandContributions="{Binding ExtensionToolbarCommands}"
+            ViewContributions="{Binding ExtensionToolbarViews}" />
 
             <!--  Paired devices button  -->
             <Button

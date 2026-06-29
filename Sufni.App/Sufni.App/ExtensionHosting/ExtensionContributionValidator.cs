@@ -11,7 +11,7 @@ namespace Sufni.App.ExtensionHosting;
 internal static class ExtensionContributionValidator
 {
     public static void ValidateAppToolbarContribution(
-        AppToolbarContribution contribution,
+        IExtensionContribution contribution,
         string ownerExtensionId,
         ContributionIdTracker? contributionIds = null)
     {
@@ -63,7 +63,8 @@ internal static class ExtensionContributionValidator
 
         var contributionIds = new ContributionIdTracker("recorded-session slots");
         var hostedRowTargets = ValidateHostedRows(slots.HostedGraphRows, ownerExtensionId, contributionIds);
-        ValidateContributions(slots.GraphToolbarActions, ownerExtensionId, "recorded-session graph toolbar", contributionIds);
+        ValidateContributions(slots.GraphToolbarCommands, ownerExtensionId, "recorded-session graph toolbar commands", contributionIds);
+        ValidateContributions(slots.GraphToolbarViews, ownerExtensionId, "recorded-session graph toolbar views", contributionIds);
         ValidateContributions(slots.Pages, ownerExtensionId, "recorded-session pages", contributionIds);
         ValidateContributions(slots.MediaPanes, ownerExtensionId, "recorded-session media panes", contributionIds);
         ValidateContributions(slots.MapOverlays, ownerExtensionId, "recorded-session map overlays", contributionIds);

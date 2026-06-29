@@ -14,16 +14,26 @@ mc:Ignorable="d">
     <Grid
     Name="RecordedSessionToolbarContributionsRoot"
     ColumnDefinitions="Auto,*,Auto">
-        <StackPanel
-        Name="LeadingGraphToolbarActionsHost"
-        Grid.Column="0"
-        Orientation="Horizontal"
-        Spacing="6" />
+        <CommandBar
+        Name="LeadingGraphToolbarCommandBar"
+        Grid.Column="0">
+            <CommandBar.Content>
+                <StackPanel
+                Name="LeadingGraphToolbarViewsHost"
+                Orientation="Horizontal"
+                Spacing="6" />
+            </CommandBar.Content>
+        </CommandBar>
 
-        <StackPanel
-        Name="TrailingGraphToolbarActionsHost"
-        Grid.Column="2"
-        Orientation="Horizontal"
-        Spacing="6" />
+        <CommandBar
+        Name="TrailingGraphToolbarCommandBar"
+        Grid.Column="2">
+            <CommandBar.Content>
+                <StackPanel
+                Name="TrailingGraphToolbarViewsHost"
+                Orientation="Horizontal"
+                Spacing="6" />
+            </CommandBar.Content>
+        </CommandBar>
     </Grid>
 </UserControl>

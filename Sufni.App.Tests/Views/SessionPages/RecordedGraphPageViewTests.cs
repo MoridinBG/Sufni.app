@@ -3,10 +3,13 @@ using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.Input;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Svg.Skia;
 using Avalonia.VisualTree;
 using NSubstitute;
+using Sufni.App.ExtensionHost.Contracts;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.Models;
@@ -141,24 +144,35 @@ public class RecordedGraphPageViewTests
             TestTelemetryData.CreateProcessed(),
             SurfacePresentationState.Ready,
             SurfacePresentationState.Hidden);
-        graphWorkspace.ExtensionSlots.GraphToolbarActions.Add(new RecordedSessionToolbarContribution(
+        var command = new RelayCommand(() => { });
+        graphWorkspace.ExtensionSlots.GraphToolbarCommands.Add(new RecordedSessionToolbarCommandContribution(
             "extension",
-            "toolbar-leading",
+            "toolbar-command",
             Order: 0,
             RecordedSessionToolbarZone.Leading,
-            new TestContributionViewModel
-            {
-                Content = new TextBlock { Name = "MobileToolbarLeadingAction", Text = "Leading" },
-            }));
-        graphWorkspace.ExtensionSlots.GraphToolbarActions.Add(new RecordedSessionToolbarContribution(
+            "Match",
+            new ToolbarIconDescriptor("/Assets/fa-link.svg", Width: 17, Height: 19),
+            command));
+        var leadingViewModel = new TestContributionViewModel
+        {
+            Content = new TextBlock { Name = "MobileToolbarLeadingAction", Text = "Leading" },
+        };
+        var trailingViewModel = new TestContributionViewModel
+        {
+            Content = new TextBlock { Name = "MobileToolbarTrailingAction", Text = "Trailing" },
+        };
+        graphWorkspace.ExtensionSlots.GraphToolbarViews.Add(new RecordedSessionToolbarViewContribution(
+            "extension",
+            "toolbar-leading",
+            Order: 1,
+            RecordedSessionToolbarZone.Leading,
+            leadingViewModel));
+        graphWorkspace.ExtensionSlots.GraphToolbarViews.Add(new RecordedSessionToolbarViewContribution(
             "extension",
             "toolbar-trailing",
             Order: 1,
             RecordedSessionToolbarZone.Trailing,
-            new TestContributionViewModel
-            {
-                Content = new TextBlock { Name = "MobileToolbarTrailingAction", Text = "Trailing" },
-            }));
+            trailingViewModel));
         var page = new RecordedGraphPageViewModel(graphWorkspace, CreateMediaWorkspace([]));
 
         await using var mounted = await MountAsync(page);
@@ -166,8 +180,18 @@ public class RecordedGraphPageViewTests
         var toolbarHost = Assert.Single(
             mounted.View.GetVisualDescendants().OfType<RecordedSessionToolbarContributionsView>());
         Assert.NotNull(toolbarHost);
-        AssertContributionText(mounted.View, "MobileToolbarLeadingAction", "Leading");
-        AssertContributionText(mounted.View, "MobileToolbarTrailingAction", "Trailing");
+        var leadingCommandBar = toolbarHost.FindControl<CommandBar>("LeadingGraphToolbarCommandBar");
+        Assert.NotNull(leadingCommandBar);
+        var button = Assert.Single(toolbarHost.GetVisualDescendants().OfType<CommandBarButton>(), button => button.Label == "Match");
+        Assert.Equal("Match", button.Label);
+        Assert.Same(command, button.Command);
+        var icon = Assert.IsType<Image>(button.Icon);
+        Assert.Equal(17, icon.Width);
+        Assert.Equal(19, icon.Height);
+        var svgImage = Assert.IsType<SvgImage>(icon.Source);
+        Assert.NotNull(svgImage.Source?.Picture);
+        AssertCommandBarContent(toolbarHost, "LeadingGraphToolbarViewsHost", leadingViewModel.Content!);
+        AssertCommandBarContent(toolbarHost, "TrailingGraphToolbarViewsHost", trailingViewModel.Content!);
     }
 
     [AvaloniaFact]
@@ -253,6 +277,16 @@ public class RecordedGraphPageViewTests
             textBlock is not null,
             $"Expected contribution text '{name}'. Actual text blocks: {string.Join(", ", textBlocks.Select(block => $"{block.Name}:{block.Text}"))}");
         Assert.Equal(text, textBlock!.Text);
+    }
+
+    private static void AssertCommandBarContent(
+        RecordedSessionToolbarContributionsView host,
+        string contentHostName,
+        object expectedContent)
+    {
+        var contentHost = host.FindControl<StackPanel>(contentHostName);
+        var contentControl = Assert.Single(contentHost!.Children.OfType<ContentControl>());
+        Assert.Same(expectedContent, contentControl.Content);
     }
 
     private static TelemetryPlotsRoot GetGraphRoot(RecordedGraphPageView view)

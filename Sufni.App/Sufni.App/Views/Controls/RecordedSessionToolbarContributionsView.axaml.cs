@@ -3,6 +3,7 @@ using System.Linq;
 using System;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Svg.Skia;
 using Sufni.App.ExtensionHost.Contracts;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
@@ -11,6 +12,9 @@ namespace Sufni.App.Views.Controls;
 
 public partial class RecordedSessionToolbarContributionsView : UserControl
 {
+    private static readonly Uri SvgAssetBaseUri =
+        new($"avares://{typeof(global::Sufni.App.App).Assembly.GetName().Name}/");
+
     private RecordedSessionExtensionSlots? subscribedSlots;
 
     public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
@@ -58,13 +62,15 @@ public partial class RecordedSessionToolbarContributionsView : UserControl
 
         if (subscribedSlots is not null)
         {
-            subscribedSlots.GraphToolbarActions.CollectionChanged -= OnToolbarContributionsChanged;
+            subscribedSlots.GraphToolbarCommands.CollectionChanged -= OnToolbarContributionsChanged;
+            subscribedSlots.GraphToolbarViews.CollectionChanged -= OnToolbarContributionsChanged;
         }
 
         subscribedSlots = slots;
         if (subscribedSlots is not null)
         {
-            subscribedSlots.GraphToolbarActions.CollectionChanged += OnToolbarContributionsChanged;
+            subscribedSlots.GraphToolbarCommands.CollectionChanged += OnToolbarContributionsChanged;
+            subscribedSlots.GraphToolbarViews.CollectionChanged += OnToolbarContributionsChanged;
         }
     }
 
@@ -75,37 +81,83 @@ public partial class RecordedSessionToolbarContributionsView : UserControl
 
     private void Rebuild()
     {
-        LeadingGraphToolbarActionsHost.Children.Clear();
-        TrailingGraphToolbarActionsHost.Children.Clear();
+        LeadingGraphToolbarCommandBar.PrimaryCommands.Clear();
+        TrailingGraphToolbarCommandBar.PrimaryCommands.Clear();
+        LeadingGraphToolbarViewsHost.Children.Clear();
+        TrailingGraphToolbarViewsHost.Children.Clear();
         if (ExtensionSlots is not { } slots)
         {
             return;
         }
 
-        foreach (var contribution in OrderedToolbarContributions(slots, RecordedSessionToolbarZone.Leading))
+        foreach (var contribution in OrderedToolbarCommandContributions(slots, RecordedSessionToolbarZone.Leading))
         {
-            LeadingGraphToolbarActionsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
+            LeadingGraphToolbarCommandBar.PrimaryCommands.Add(CreateCommandBarButton(contribution));
         }
 
-        foreach (var contribution in OrderedToolbarContributions(slots, RecordedSessionToolbarZone.Trailing))
+        foreach (var contribution in OrderedToolbarCommandContributions(slots, RecordedSessionToolbarZone.Trailing))
         {
-            TrailingGraphToolbarActionsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
+            TrailingGraphToolbarCommandBar.PrimaryCommands.Add(CreateCommandBarButton(contribution));
+        }
+
+        foreach (var contribution in OrderedToolbarViewContributions(slots, RecordedSessionToolbarZone.Leading))
+        {
+            LeadingGraphToolbarViewsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
+        }
+
+        foreach (var contribution in OrderedToolbarViewContributions(slots, RecordedSessionToolbarZone.Trailing))
+        {
+            TrailingGraphToolbarViewsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
         }
     }
 
-    private static IOrderedEnumerable<RecordedSessionToolbarContribution> OrderedToolbarContributions(
+    private static IOrderedEnumerable<RecordedSessionToolbarCommandContribution> OrderedToolbarCommandContributions(
         RecordedSessionExtensionSlots slots,
         RecordedSessionToolbarZone zone)
     {
-        return slots.GraphToolbarActions
+        return slots.GraphToolbarCommands
             .Where(contribution => contribution.Zone == zone)
             .OrderBy(static contribution => contribution.Order)
             .ThenBy(static contribution => contribution.ExtensionId, StringComparer.Ordinal)
             .ThenBy(static contribution => contribution.ContributionId, StringComparer.Ordinal);
     }
 
+    private static IOrderedEnumerable<RecordedSessionToolbarViewContribution> OrderedToolbarViewContributions(
+        RecordedSessionExtensionSlots slots,
+        RecordedSessionToolbarZone zone)
+    {
+        return slots.GraphToolbarViews
+            .Where(contribution => contribution.Zone == zone)
+            .OrderBy(static contribution => contribution.Order)
+            .ThenBy(static contribution => contribution.ExtensionId, StringComparer.Ordinal)
+            .ThenBy(static contribution => contribution.ContributionId, StringComparer.Ordinal);
+    }
+
+    private static CommandBarButton CreateCommandBarButton(RecordedSessionToolbarCommandContribution contribution)
+    {
+        return new CommandBarButton
+        {
+            Label = contribution.Label,
+            Icon = CreateIcon(contribution.Icon),
+            Command = contribution.Command,
+            CommandParameter = contribution.CommandParameter,
+        };
+    }
+
     private static Control CreateContributionControl(IExtensionViewModel viewModel)
     {
         return viewModel as Control ?? new ContentControl { Content = viewModel };
+    }
+
+    private static Image? CreateIcon(ToolbarIconDescriptor? descriptor)
+    {
+        return descriptor is null
+            ? null
+            : new Image
+            {
+                Width = descriptor.Width,
+                Height = descriptor.Height,
+                Source = new SvgImage { Source = SvgSource.Load(descriptor.AssetPath, SvgAssetBaseUri) },
+            };
     }
 }

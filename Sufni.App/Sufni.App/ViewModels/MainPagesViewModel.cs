@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -25,19 +26,18 @@ public partial class MainPagesViewModel : ViewModelBase
     private readonly IShellCoordinator shell;
     private readonly IThemeService themeService;
     private readonly IReadOnlyList<IExtensionStateRefreshParticipant> extensionStateRefreshParticipants;
-    private readonly ItemListViewModelBase[] primaryPages;
-    private ItemListViewModelBase? activePrimaryPage;
+    private MainPrimaryPageViewModel? activePrimaryPage;
 
     #region Observable properties
 
     [ObservableProperty] private bool databaseLoaded;
-    [ObservableProperty] private int selectedIndex;
+    [ObservableProperty] private int selectedPrimaryIndex;
     [ObservableProperty] private bool syncInProgress;
     [ObservableProperty] private string syncProgressText = string.Empty;
     [ObservableProperty] private double syncProgressValue;
     [ObservableProperty] private bool syncProgressIsIndeterminate = true;
     [ObservableProperty] private bool isPaired;
-    [ObservableProperty] private bool isMenuPaneOpen;
+    [ObservableProperty] private bool isDrawerOpen;
     [ObservableProperty] private bool isPairedDevicesListOpen;
     [ObservableProperty] private SufniThemeMode currentThemeMode;
     [ObservableProperty] private SufniThemeMode effectiveThemeMode;
@@ -54,7 +54,9 @@ public partial class MainPagesViewModel : ViewModelBase
     public PairedDeviceListViewModel PairedDevicesPage { get; init; }
     public PairingClientViewModel? PairingClientPage { get; init; }
     public PairingServerViewModel? PairingServerViewModel { get; init; }
-    public IReadOnlyList<AppToolbarContribution> ExtensionToolbarActions { get; }
+    public ObservableCollection<MainPrimaryPageViewModel> PrimaryPages { get; } = [];
+    public IReadOnlyList<AppToolbarCommandContribution> ExtensionToolbarCommands { get; }
+    public IReadOnlyList<AppToolbarViewContribution> ExtensionToolbarViews { get; }
 
     #region Constructors
 
@@ -93,9 +95,30 @@ public partial class MainPagesViewModel : ViewModelBase
         PairedDevicesPage = pairedDevicesPage;
         PairingClientPage = pairingClientPage;
         PairingServerViewModel = pairingServerViewModel;
-        ExtensionToolbarActions = BuildExtensionToolbarActions(appToolbarContributionProviders);
-        primaryPages = [SessionsPage, SetupsPage, BikesPage, LiveDaqsPage];
-        activePrimaryPage = GetSelectedPrimaryPage();
+        var toolbarContributions = BuildExtensionToolbarContributions(appToolbarContributionProviders);
+        ExtensionToolbarCommands = toolbarContributions.Commands;
+        ExtensionToolbarViews = toolbarContributions.Views;
+        PrimaryPages.Add(new MainPrimaryPageViewModel(
+            MainPrimaryPageRole.Sessions,
+            "Sessions",
+            "/Assets/fa-chart-line.svg",
+            SessionsPage));
+        PrimaryPages.Add(new MainPrimaryPageViewModel(
+            MainPrimaryPageRole.Setups,
+            "Setups",
+            "/Assets/cog.svg",
+            SetupsPage));
+        PrimaryPages.Add(new MainPrimaryPageViewModel(
+            MainPrimaryPageRole.Bikes,
+            "Bikes",
+            "/Assets/fa-person-mountainbiking.svg",
+            BikesPage));
+        PrimaryPages.Add(new MainPrimaryPageViewModel(
+            MainPrimaryPageRole.LiveDaqs,
+            "Live",
+            "/Assets/fa-link.svg",
+            LiveDaqsPage));
+        activePrimaryPage = GetSelectedPrimaryPageDescriptor();
 
         BikesPage.MenuItems.Add(new("sync", SyncCommand));
         BikesPage.MenuItems.Add(new("add", BikesPage.AddCommand));
@@ -124,15 +147,15 @@ public partial class MainPagesViewModel : ViewModelBase
         _ = LoadDatabaseContent();
     }
 
-    private static IReadOnlyList<AppToolbarContribution> BuildExtensionToolbarActions(
+    private static AppToolbarContributionSet BuildExtensionToolbarContributions(
         IEnumerable<IAppToolbarContributionProvider>? providers)
     {
         if (providers is null)
         {
-            return [];
+            return new AppToolbarContributionSet([], []);
         }
 
-        var contributions = new List<AppToolbarContribution>();
+        var contributions = new List<IExtensionContribution>();
         var contributionIds = new ExtensionContributionValidator.ContributionIdTracker("app toolbar contributions");
         foreach (var provider in providers)
         {
@@ -140,7 +163,16 @@ public partial class MainPagesViewModel : ViewModelBase
             ExtensionContributionValidator.ValidateRequiredId(
                 provider.ExtensionId,
                 "App toolbar contribution provider");
-            foreach (var contribution in provider.CreateContributions())
+            foreach (var contribution in provider.CreateCommandContributions())
+            {
+                ExtensionContributionValidator.ValidateAppToolbarContribution(
+                    contribution,
+                    provider.ExtensionId,
+                    contributionIds);
+                contributions.Add(contribution);
+            }
+
+            foreach (var contribution in provider.CreateViewContributions())
             {
                 ExtensionContributionValidator.ValidateAppToolbarContribution(
                     contribution,
@@ -150,10 +182,20 @@ public partial class MainPagesViewModel : ViewModelBase
             }
         }
 
-        return contributions
+        var orderedContributions = contributions
             .OrderBy(contribution => contribution.Order)
+            .ThenBy(contribution => contribution.ExtensionId, StringComparer.Ordinal)
+            .ThenBy(contribution => contribution.ContributionId, StringComparer.Ordinal)
             .ToArray();
+
+        return new AppToolbarContributionSet(
+            orderedContributions.OfType<AppToolbarCommandContribution>().ToArray(),
+            orderedContributions.OfType<AppToolbarViewContribution>().ToArray());
     }
+
+    private sealed record AppToolbarContributionSet(
+        IReadOnlyList<AppToolbarCommandContribution> Commands,
+        IReadOnlyList<AppToolbarViewContribution> Views);
 
     private void OnSyncCompleted(object? sender, SyncCompletedEventArgs e)
     {
@@ -210,29 +252,34 @@ public partial class MainPagesViewModel : ViewModelBase
         DatabaseLoaded = true;
     }
 
-    private ItemListViewModelBase GetSelectedPrimaryPage()
+    private ViewModelBase GetSelectedPrimaryPage()
     {
-        if (SelectedIndex >= 0 && SelectedIndex < primaryPages.Length)
-        {
-            return primaryPages[SelectedIndex];
-        }
-
-        return primaryPages[0];
+        return GetSelectedPrimaryPageDescriptor().Content;
     }
 
-    partial void OnSelectedIndexChanged(int value)
+    private MainPrimaryPageViewModel GetSelectedPrimaryPageDescriptor()
     {
-        var nextPage = GetSelectedPrimaryPage();
-        if (ReferenceEquals(activePrimaryPage, nextPage)) return;
-
-        if (activePrimaryPage is LiveDaqListViewModel previousLivePage)
+        if (SelectedPrimaryIndex >= 0 && SelectedPrimaryIndex < PrimaryPages.Count)
         {
-            previousLivePage.Deactivate();
+            return PrimaryPages[SelectedPrimaryIndex];
         }
 
-        if (nextPage is LiveDaqListViewModel nextLivePage)
+        return PrimaryPages[0];
+    }
+
+    partial void OnSelectedPrimaryIndexChanged(int value)
+    {
+        var nextPage = GetSelectedPrimaryPageDescriptor();
+        if (ReferenceEquals(activePrimaryPage, nextPage)) return;
+
+        if (activePrimaryPage?.Role == MainPrimaryPageRole.LiveDaqs)
         {
-            nextLivePage.Activate();
+            LiveDaqsPage.Deactivate();
+        }
+
+        if (nextPage.Role == MainPrimaryPageRole.LiveDaqs)
+        {
+            LiveDaqsPage.Activate();
         }
 
         activePrimaryPage = nextPage;
@@ -262,9 +309,9 @@ public partial class MainPagesViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void OpenMenuPane()
+    private void OpenDrawer()
     {
-        IsMenuPaneOpen = true;
+        IsDrawerOpen = true;
     }
 
     [RelayCommand]
@@ -274,7 +321,11 @@ public partial class MainPagesViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void OpenPage(ViewModelBase view) => shell.Open(view);
+    private void OpenPage(ViewModelBase view)
+    {
+        IsDrawerOpen = false;
+        shell.Open(view);
+    }
 
     [RelayCommand]
     private async Task OpenImport() => await importSessionsCoordinator.OpenAsync();

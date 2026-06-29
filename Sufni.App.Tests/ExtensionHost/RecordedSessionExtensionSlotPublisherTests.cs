@@ -58,7 +58,7 @@ public class RecordedSessionExtensionSlotPublisherTests
         var dispatcher = new TestUiThreadDispatcher(checkAccess: false);
         var slots = new RecordedSessionExtensionSlots();
         var publisher = new RecordedSessionExtensionSlotPublisher(slots, dispatcher);
-        var first = new RecordedSessionToolbarContribution(
+        var first = new RecordedSessionToolbarViewContribution(
             "extension",
             "first",
             Order: 1,
@@ -66,15 +66,15 @@ public class RecordedSessionExtensionSlotPublisherTests
             new TestContributionViewModel());
         var second = first with { ContributionId = "second" };
 
-        publisher.RequestPublish(builder => builder.GraphToolbarActions.Add(first));
-        publisher.RequestPublish(builder => builder.GraphToolbarActions.Add(second));
+        publisher.RequestPublish(builder => builder.GraphToolbarViews.Add(first));
+        publisher.RequestPublish(builder => builder.GraphToolbarViews.Add(second));
 
         Assert.Equal(1, dispatcher.PendingPostCount);
-        Assert.Empty(slots.GraphToolbarActions);
+        Assert.Empty(slots.GraphToolbarViews);
 
         dispatcher.RunPendingPosts();
 
-        Assert.Equal([second], slots.GraphToolbarActions);
+        Assert.Equal([second], slots.GraphToolbarViews);
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class RecordedSessionExtensionSlotPublisherTests
         var dispatcher = new TestUiThreadDispatcher(checkAccess: false);
         var slots = new RecordedSessionExtensionSlots();
         var publisher = new RecordedSessionExtensionSlotPublisher(slots, dispatcher);
-        var queued = new RecordedSessionToolbarContribution(
+        var queued = new RecordedSessionToolbarViewContribution(
             "extension",
             "queued",
             Order: 1,
@@ -91,15 +91,15 @@ public class RecordedSessionExtensionSlotPublisherTests
             new TestContributionViewModel());
         var current = queued with { ContributionId = "current" };
 
-        publisher.RequestPublish(builder => builder.GraphToolbarActions.Add(queued));
+        publisher.RequestPublish(builder => builder.GraphToolbarViews.Add(queued));
         dispatcher.SetCheckAccess(true);
-        publisher.RequestPublish(builder => builder.GraphToolbarActions.Add(current));
+        publisher.RequestPublish(builder => builder.GraphToolbarViews.Add(current));
 
-        Assert.Equal([current], slots.GraphToolbarActions);
+        Assert.Equal([current], slots.GraphToolbarViews);
 
         dispatcher.RunPendingPosts();
 
-        Assert.Equal([current], slots.GraphToolbarActions);
+        Assert.Equal([current], slots.GraphToolbarViews);
     }
 
     [Fact]
@@ -108,19 +108,19 @@ public class RecordedSessionExtensionSlotPublisherTests
         var dispatcher = new TestUiThreadDispatcher(checkAccess: false);
         var slots = new RecordedSessionExtensionSlots();
         var publisher = new RecordedSessionExtensionSlotPublisher(slots, dispatcher);
-        var queued = new RecordedSessionToolbarContribution(
+        var queued = new RecordedSessionToolbarViewContribution(
             "extension",
             "queued",
             Order: 1,
             RecordedSessionToolbarZone.Leading,
             new TestContributionViewModel());
 
-        publisher.RequestPublish(builder => builder.GraphToolbarActions.Add(queued));
+        publisher.RequestPublish(builder => builder.GraphToolbarViews.Add(queued));
         publisher.Clear();
 
         dispatcher.RunPendingPosts();
 
-        Assert.Empty(slots.GraphToolbarActions);
+        Assert.Empty(slots.GraphToolbarViews);
     }
 
     private sealed class TestUiThreadDispatcher(bool checkAccess) : IUiThreadDispatcher

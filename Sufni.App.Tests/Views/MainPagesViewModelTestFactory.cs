@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using DynamicData;
 using NSubstitute;
@@ -30,6 +31,7 @@ internal static class MainPagesViewModelTestFactory
         IAppDataRefresher? appDataRefresher = null,
         IThemeService? themeService = null,
         ISyncCoordinator? syncCoordinator = null,
+        IShellCoordinator? shell = null,
         IEnumerable<IAppToolbarContributionProvider>? appToolbarContributionProviders = null,
         PairingServerViewModel? pairingServerViewModel = null,
         IEnumerable<IExtensionStateRefreshParticipant>? extensionStateRefreshParticipants = null)
@@ -38,7 +40,7 @@ internal static class MainPagesViewModelTestFactory
         var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
         trackCoordinator ??= TestCoordinatorSubstitutes.Track();
         syncCoordinator ??= TestCoordinatorSubstitutes.Sync();
-        var shell = Substitute.For<IShellCoordinator>();
+        shell ??= Substitute.For<IShellCoordinator>();
 
         appDataRefresher.RefreshAsync().Returns(Task.CompletedTask);
         if (themeService is null)
@@ -129,13 +131,30 @@ internal static class MainPagesViewModelTestFactory
     }
 }
 
-internal sealed class TestAppToolbarContributionProvider(params AppToolbarContribution[] contributions)
-    : IAppToolbarContributionProvider
+internal sealed class TestAppToolbarContributionProvider : IAppToolbarContributionProvider
 {
-    public string ExtensionId => contributions.Length > 0 ? contributions[0].ExtensionId : "test";
+    private readonly IReadOnlyList<AppToolbarCommandContribution> commandContributions;
+    private readonly IReadOnlyList<AppToolbarViewContribution> viewContributions;
 
-    public IReadOnlyList<AppToolbarContribution> CreateContributions()
+    public TestAppToolbarContributionProvider(params AppToolbarViewContribution[] viewContributions)
+        : this([], viewContributions)
     {
-        return contributions;
     }
+
+    public TestAppToolbarContributionProvider(
+        IReadOnlyList<AppToolbarCommandContribution> commandContributions,
+        IReadOnlyList<AppToolbarViewContribution> viewContributions)
+    {
+        this.commandContributions = commandContributions;
+        this.viewContributions = viewContributions;
+    }
+
+    public string ExtensionId =>
+        commandContributions.FirstOrDefault()?.ExtensionId ??
+        viewContributions.FirstOrDefault()?.ExtensionId ??
+        "test";
+
+    public IReadOnlyList<AppToolbarCommandContribution> CreateCommandContributions() => commandContributions;
+
+    public IReadOnlyList<AppToolbarViewContribution> CreateViewContributions() => viewContributions;
 }

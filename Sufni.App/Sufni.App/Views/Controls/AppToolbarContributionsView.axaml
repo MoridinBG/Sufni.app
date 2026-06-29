@@ -3,5 +3,9 @@ x:Class="Sufni.App.Views.Controls.AppToolbarContributionsView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 x:Name="Root">
-    <StackPanel Name="AppToolbarContributionsHost" />
+    <CommandBar Name="AppToolbarCommandBar">
+        <CommandBar.Content>
+            <StackPanel Name="AppToolbarViewContributionsHost" />
+        </CommandBar.Content>
+    </CommandBar>
 </UserControl>

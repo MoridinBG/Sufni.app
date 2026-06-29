@@ -55,7 +55,8 @@ mc:Ignorable="d">
         </MenuItem>
         <controls:AppToolbarContributionsView
         Name="SidePanelExtensionToolbarActions"
-        Contributions="{Binding ExtensionToolbarActions}" />
+        CommandContributions="{Binding ExtensionToolbarCommands}"
+        ViewContributions="{Binding ExtensionToolbarViews}" />
         <Separator />
         <MenuItem Command="{Binding BikesPage.AddCommand}" Header="bike">
             <MenuItem.Icon>

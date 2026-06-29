@@ -41,7 +41,7 @@ mc:Ignorable="d">
         Width="32"
         HorizontalAlignment="Left"
         Classes="embedded"
-        Command="{Binding $parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).OpenMenuPaneCommand}">
+        Command="{Binding $parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).OpenDrawerCommand}">
             <Image Margin="0,2,0,0" Source="{SvgImage /Assets/fa-bars.svg}" />
         </Button>
 

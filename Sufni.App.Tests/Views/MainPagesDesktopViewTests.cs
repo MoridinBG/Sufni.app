@@ -1,6 +1,8 @@
 using System.Threading.Tasks;
+using System.Windows.Input;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Svg.Skia;
 using Avalonia.VisualTree;
 using NSubstitute;
 using Sufni.App.Coordinators;
@@ -112,36 +114,56 @@ public class MainPagesDesktopViewTests
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
 
-        var contribution = new AppToolbarContribution(
+        var command = Substitute.For<ICommand>();
+        var commandContribution = new AppToolbarCommandContribution(
+            "extension",
+            "toolbar-command",
+            Order: 0,
+            "Desktop command",
+            new ToolbarIconDescriptor("/Assets/fa-link.svg", Width: 17, Height: 19),
+            command);
+        var contributionViewModel = new TestContributionViewModel
+        {
+            Content = new TextBlock { Name = "DesktopExtensionToolbarAction", Text = "Desktop action" },
+        };
+        var contribution = new AppToolbarViewContribution(
             "extension",
             "toolbar-action",
-            Order: 0,
-            new TestContributionViewModel
-            {
-                Content = new TextBlock { Name = "DesktopExtensionToolbarAction", Text = "Desktop action" },
-            });
+            Order: 1,
+            contributionViewModel);
         var view = new MainPagesDesktopView
         {
             DataContext = MainPagesViewModelTestFactory.Create(
-                appToolbarContributionProviders: [new TestAppToolbarContributionProvider(contribution)])
+                appToolbarContributionProviders:
+                [
+                    new TestAppToolbarContributionProvider(
+                        [commandContribution],
+                        [contribution]),
+                ])
         };
 
         await using var mounted = await MountAsync(view);
 
         var host = Assert.Single(mounted.View.GetVisualDescendants().OfType<AppToolbarContributionsView>());
-        AssertContributionText(host, "DesktopExtensionToolbarAction", "Desktop action");
+        var commandBar = host.FindControl<CommandBar>("AppToolbarCommandBar");
+        Assert.NotNull(commandBar);
+        var button = Assert.Single(host.GetVisualDescendants().OfType<CommandBarButton>(), button => button.Label == "Desktop command");
+        Assert.Equal("Desktop command", button.Label);
+        Assert.Same(command, button.Command);
+        var icon = Assert.IsType<Image>(button.Icon);
+        Assert.Equal(17, icon.Width);
+        Assert.Equal(19, icon.Height);
+        var svgImage = Assert.IsType<SvgImage>(icon.Source);
+        Assert.NotNull(svgImage.Source?.Picture);
+        AssertCommandBarContent(host, contributionViewModel.Content!);
     }
 
-    private static void AssertContributionText(Control root, string name, string text)
+    private static void AssertCommandBarContent(AppToolbarContributionsView host, object expectedContent)
     {
-        var textBlocks = root.GetVisualDescendants()
-            .OfType<TextBlock>()
-            .ToArray();
-        var textBlock = textBlocks.SingleOrDefault(textBlock => textBlock.Name == name);
-        Assert.True(
-            textBlock is not null,
-            $"Expected contribution text '{name}'. Actual text blocks: {string.Join(", ", textBlocks.Select(block => $"{block.Name}:{block.Text}"))}");
-        Assert.Equal(text, textBlock!.Text);
+        var commandBar = host.FindControl<CommandBar>("AppToolbarCommandBar");
+        var contentHost = Assert.IsType<StackPanel>(commandBar!.Content);
+        var contentControl = Assert.Single(contentHost.Children.OfType<ContentControl>());
+        Assert.Same(expectedContent, contentControl.Content);
     }
 
     private static async Task<MountedMainPagesDesktopView> MountAsync(MainPagesDesktopView view)

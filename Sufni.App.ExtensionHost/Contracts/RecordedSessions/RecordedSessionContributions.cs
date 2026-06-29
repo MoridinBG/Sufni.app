@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Windows.Input;
 using Sufni.App.ExtensionHost.Contracts.Plots;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
@@ -13,7 +14,17 @@ public enum RecordedSessionToolbarZone
     Trailing,
 }
 
-public sealed record RecordedSessionToolbarContribution(
+public sealed record RecordedSessionToolbarCommandContribution(
+    string ExtensionId,
+    string ContributionId,
+    int Order,
+    RecordedSessionToolbarZone Zone,
+    string Label,
+    ToolbarIconDescriptor? Icon,
+    ICommand Command,
+    object? CommandParameter = null) : IRecordedSessionContribution;
+
+public sealed record RecordedSessionToolbarViewContribution(
     string ExtensionId,
     string ContributionId,
     int Order,

@@ -11,7 +11,8 @@ namespace Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
 public sealed class RecordedSessionExtensionSlots
 {
-    public ObservableCollection<RecordedSessionToolbarContribution> GraphToolbarActions { get; } = CreateCollection<RecordedSessionToolbarContribution>();
+    public ObservableCollection<RecordedSessionToolbarCommandContribution> GraphToolbarCommands { get; } = CreateCollection<RecordedSessionToolbarCommandContribution>();
+    public ObservableCollection<RecordedSessionToolbarViewContribution> GraphToolbarViews { get; } = CreateCollection<RecordedSessionToolbarViewContribution>();
     public ObservableCollection<RecordedSessionPageContribution> Pages { get; } = CreateCollection<RecordedSessionPageContribution>();
     public ObservableCollection<RecordedSessionMediaPaneContribution> MediaPanes { get; } = CreateCollection<RecordedSessionMediaPaneContribution>();
     public ObservableCollection<RecordedSessionMapOverlayContribution> MapOverlays { get; } = CreateCollection<RecordedSessionMapOverlayContribution>();
@@ -34,7 +35,8 @@ public sealed class RecordedSessionExtensionSlots
 
         return new RecordedSessionExtensionSlotChangeSubscription(
             [
-                Subscribe(GraphToolbarActions, changed),
+                Subscribe(GraphToolbarCommands, changed),
+                Subscribe(GraphToolbarViews, changed),
                 Subscribe(Pages, changed),
                 Subscribe(MediaPanes, changed),
                 Subscribe(MapOverlays, changed),

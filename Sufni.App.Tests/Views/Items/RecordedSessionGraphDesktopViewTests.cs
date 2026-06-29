@@ -9,12 +9,14 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Svg.Skia;
 using Avalonia.VisualTree;
 using Sufni.App.Plots;
 using ScottPlot.Avalonia;
 using ScottPlot.Plottables;
 using Sufni.App.DesktopViews.Items;
 using Sufni.App.Views.Plots;
+using Sufni.App.ExtensionHost.Contracts;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.Models;
@@ -38,32 +40,53 @@ public class RecordedSessionGraphDesktopViewTests
     public async Task RecordedSessionGraphDesktopView_RendersToolbarContributions()
     {
         var workspace = new RecordedSessionGraphWorkspaceStub(CreateMinimal());
-        workspace.ExtensionSlots.GraphToolbarActions.Add(new RecordedSessionToolbarContribution(
+        var command = new TestCommand();
+        workspace.ExtensionSlots.GraphToolbarCommands.Add(new RecordedSessionToolbarCommandContribution(
             "extension",
-            "toolbar-leading",
+            "toolbar-command",
             Order: 0,
             RecordedSessionToolbarZone.Leading,
-            new TestContributionViewModel
-            {
-                Content = new TextBlock { Name = "DesktopToolbarLeadingAction", Text = "Leading" },
-            }));
-        workspace.ExtensionSlots.GraphToolbarActions.Add(new RecordedSessionToolbarContribution(
+            "Desktop command",
+            new ToolbarIconDescriptor("/Assets/fa-link.svg", Width: 17, Height: 19),
+            command));
+        var leadingViewModel = new TestContributionViewModel
+        {
+            Content = new TextBlock { Name = "DesktopToolbarLeadingAction", Text = "Leading" },
+        };
+        var trailingViewModel = new TestContributionViewModel
+        {
+            Content = new TextBlock { Name = "DesktopToolbarTrailingAction", Text = "Trailing" },
+        };
+        workspace.ExtensionSlots.GraphToolbarViews.Add(new RecordedSessionToolbarViewContribution(
+            "extension",
+            "toolbar-leading",
+            Order: 1,
+            RecordedSessionToolbarZone.Leading,
+            leadingViewModel));
+        workspace.ExtensionSlots.GraphToolbarViews.Add(new RecordedSessionToolbarViewContribution(
             "extension",
             "toolbar-trailing",
             Order: 1,
             RecordedSessionToolbarZone.Trailing,
-            new TestContributionViewModel
-            {
-                Content = new TextBlock { Name = "DesktopToolbarTrailingAction", Text = "Trailing" },
-            }));
+            trailingViewModel));
 
         await using var mounted = await MountAsync(workspace);
 
         var toolbarHost = Assert.Single(
             mounted.View.GetVisualDescendants().OfType<RecordedSessionToolbarContributionsView>());
         Assert.NotNull(toolbarHost);
-        AssertContributionText(mounted.View, "DesktopToolbarLeadingAction", "Leading");
-        AssertContributionText(mounted.View, "DesktopToolbarTrailingAction", "Trailing");
+        var leadingCommandBar = toolbarHost.FindControl<CommandBar>("LeadingGraphToolbarCommandBar");
+        Assert.NotNull(leadingCommandBar);
+        var button = Assert.Single(toolbarHost.GetVisualDescendants().OfType<CommandBarButton>(), button => button.Label == "Desktop command");
+        Assert.Equal("Desktop command", button.Label);
+        Assert.Same(command, button.Command);
+        var icon = Assert.IsType<Image>(button.Icon);
+        Assert.Equal(17, icon.Width);
+        Assert.Equal(19, icon.Height);
+        var svgImage = Assert.IsType<SvgImage>(icon.Source);
+        Assert.NotNull(svgImage.Source?.Picture);
+        AssertCommandBarContent(toolbarHost, "LeadingGraphToolbarViewsHost", leadingViewModel.Content!);
+        AssertCommandBarContent(toolbarHost, "TrailingGraphToolbarViewsHost", trailingViewModel.Content!);
     }
 
     [AvaloniaFact]
@@ -259,6 +282,16 @@ public class RecordedSessionGraphDesktopViewTests
             textBlock is not null,
             $"Expected contribution text '{name}'. Actual text blocks: {string.Join(", ", textBlocks.Select(block => $"{block.Name}:{block.Text}"))}");
         Assert.Equal(text, textBlock!.Text);
+    }
+
+    private static void AssertCommandBarContent(
+        RecordedSessionToolbarContributionsView host,
+        string contentHostName,
+        object expectedContent)
+    {
+        var contentHost = host.FindControl<StackPanel>(contentHostName);
+        var contentControl = Assert.Single(contentHost!.Children.OfType<ContentControl>());
+        Assert.Same(expectedContent, contentControl.Content);
     }
 
     private static T GetNamedVisual<T>(Control root, string name)

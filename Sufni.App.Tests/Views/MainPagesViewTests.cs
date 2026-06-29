@@ -1,3 +1,4 @@
+using System;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Sufni.App.ExtensionHost.Contracts;
@@ -12,7 +13,7 @@ namespace Sufni.App.Tests.Views;
 public class MainPagesViewTests
 {
     [AvaloniaFact]
-    public async Task MainPagesView_OpensMenuPane_WhenViewModelCommandExecutes()
+    public async Task MainPagesView_OpensDrawer_WhenViewModelCommandExecutes()
     {
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
@@ -25,20 +26,20 @@ public class MainPagesViewTests
 
         await using var mounted = await MountAsync(view);
 
-        var splitView = mounted.View.FindControl<SplitView>("MainSplitView");
+        var drawerPage = mounted.View.FindControl<DrawerPage>("MainDrawerPage");
 
-        Assert.NotNull(splitView);
-        Assert.False(splitView!.IsPaneOpen);
+        Assert.NotNull(drawerPage);
+        Assert.False(drawerPage!.IsOpen);
 
-        viewModel.OpenMenuPaneCommand.Execute(null);
+        viewModel.OpenDrawerCommand.Execute(null);
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        Assert.True(viewModel.IsMenuPaneOpen);
-        Assert.True(splitView.IsPaneOpen);
+        Assert.True(viewModel.IsDrawerOpen);
+        Assert.True(drawerPage.IsOpen);
     }
 
     [AvaloniaFact]
-    public async Task MainPagesView_BindsPrimaryTabsToExpectedPages_AndUpdatesSelectedTab()
+    public async Task MainPagesView_BindsPrimaryPagesToTabbedPage_AndUpdatesSelectedIndex()
     {
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
@@ -51,36 +52,54 @@ public class MainPagesViewTests
 
         await using var mounted = await MountAsync(view);
 
-        var tabControl = mounted.View.FindControl<TabControl>("PagesTabControl");
-        var sessionsTab = mounted.View.FindControl<TabItem>("SessionTabItem");
-        var setupsTab = mounted.View.FindControl<TabItem>("BikeSetupsTabItem");
-        var bikesTab = mounted.View.FindControl<TabItem>("BikesTabItem");
-        var liveDaqsTab = mounted.View.FindControl<TabItem>("LiveDaqsTabItem");
+        var tabbedPage = mounted.View.FindControl<TabbedPage>("PagesTabbedPage");
 
-        Assert.NotNull(tabControl);
-        Assert.NotNull(sessionsTab);
-        Assert.NotNull(setupsTab);
-        Assert.NotNull(bikesTab);
-        Assert.NotNull(liveDaqsTab);
-        Assert.Same(viewModel.SessionsPage, sessionsTab!.Content);
-        Assert.Same(viewModel.SetupsPage, setupsTab!.Content);
-        Assert.Same(viewModel.BikesPage, bikesTab!.Content);
-        Assert.Same(viewModel.LiveDaqsPage, liveDaqsTab!.Content);
-        Assert.Same(sessionsTab, tabControl!.SelectedItem);
-        Assert.Equal(4, tabControl.ItemCount);
+        Assert.NotNull(tabbedPage);
+        Assert.Same(viewModel.PrimaryPages, tabbedPage!.ItemsSource);
+        Assert.NotNull(tabbedPage.PageTemplate);
+        Assert.Equal(0, tabbedPage.SelectedIndex);
 
-        tabControl.SelectedIndex = 2;
+        tabbedPage.SelectedIndex = 2;
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        Assert.Equal(2, viewModel.SelectedIndex);
-        Assert.Equal(2, tabControl.SelectedIndex);
-        Assert.Same(bikesTab, tabControl.SelectedItem);
+        Assert.Equal(2, viewModel.SelectedPrimaryIndex);
+        Assert.Equal(2, tabbedPage.SelectedIndex);
 
-        tabControl.SelectedIndex = 3;
+        tabbedPage.SelectedIndex = 3;
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        Assert.Equal(3, viewModel.SelectedIndex);
-        Assert.Same(liveDaqsTab, tabControl.SelectedItem);
+        Assert.Equal(3, viewModel.SelectedPrimaryIndex);
+    }
+
+    [AvaloniaFact]
+    public async Task MainPagesView_PageTemplate_CreatesSafeAreaFreePrimaryContentPage()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
+
+        var viewModel = MainPagesViewModelTestFactory.Create();
+        var view = new MainPagesView
+        {
+            DataContext = viewModel,
+        };
+
+        await using var mounted = await MountAsync(view);
+
+        var tabbedPage = mounted.View.FindControl<TabbedPage>("PagesTabbedPage")
+            ?? throw new InvalidOperationException("Primary tabbed page was not found.");
+        var pageTemplate = tabbedPage.PageTemplate
+            ?? throw new InvalidOperationException("Primary page template was not found.");
+        var descriptor = viewModel.PrimaryPages[0];
+
+        var contentPage = Assert.IsType<ContentPage>(pageTemplate.Build(descriptor));
+        contentPage.DataContext = descriptor;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.False(contentPage.AutomaticallyApplySafeAreaPadding);
+        Assert.Equal(descriptor.Header, contentPage.Header);
+        Assert.Same(descriptor.Content, contentPage.Content);
+        var icon = Assert.IsType<Image>(contentPage.Icon);
+        Assert.Equal(18, icon.Width);
     }
 
     [AvaloniaFact]
@@ -111,7 +130,7 @@ public class MainPagesViewTests
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
 
-        var contribution = new AppToolbarContribution(
+        var contribution = new AppToolbarViewContribution(
             "extension",
             "toolbar-action",
             Order: 0,
@@ -128,7 +147,8 @@ public class MainPagesViewTests
         var menuPanel = mounted.View.FindControl<SidePanel>("MenuPanel");
         var host = menuPanel!.FindControl<AppToolbarContributionsView>("SidePanelExtensionToolbarActions");
         Assert.NotNull(host);
-        Assert.Same(viewModel.ExtensionToolbarActions, host!.Contributions);
+        Assert.Same(viewModel.ExtensionToolbarCommands, host!.CommandContributions);
+        Assert.Same(viewModel.ExtensionToolbarViews, host.ViewContributions);
     }
 
     private static async Task<MountedMainPagesView> MountAsync(MainPagesView view)

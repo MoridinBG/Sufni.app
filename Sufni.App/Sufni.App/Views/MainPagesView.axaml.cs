@@ -16,7 +16,7 @@ public partial class MainPagesView : MainPagesViewBase
             {
                 menuItem.PointerPressed += (s, e) =>
                 {
-                    MainSplitView.IsPaneOpen = false;
+                    MainDrawerPage.IsOpen = false;
                 };
             }
         };

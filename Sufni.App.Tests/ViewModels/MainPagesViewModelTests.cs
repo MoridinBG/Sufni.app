@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,6 +11,7 @@ using Sufni.App.Tests.Infrastructure;
 using Sufni.App.Tests.Views;
 using Sufni.App.Stores;
 using Sufni.App.Theming;
+using Sufni.App.ViewModels;
 using Sufni.App.ViewModels.ItemLists;
 
 namespace Sufni.App.Tests.ViewModels;
@@ -20,17 +22,37 @@ public class MainPagesViewModelTests
     private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
 
     [Fact]
-    public void SelectedIndex_ActivatesLivePage_WhenSelected_AndDeactivatesIt_WhenLeft()
+    public void SelectedPrimaryIndex_ActivatesLivePage_WhenSelected_AndDeactivatesIt_WhenLeft()
     {
         var liveCoordinator = TestCoordinatorSubstitutes.LiveDaq();
         var livePage = new LiveDaqListViewModel(new LiveDaqStore(), liveCoordinator, UiThreadDispatcher);
         var viewModel = MainPagesViewModelTestFactory.Create(livePage);
+        var liveIndex = viewModel.PrimaryPages.IndexOf(
+            viewModel.PrimaryPages.Single(page => page.Role == MainPrimaryPageRole.LiveDaqs));
 
-        viewModel.SelectedIndex = 3;
-        viewModel.SelectedIndex = 0;
+        viewModel.SelectedPrimaryIndex = liveIndex;
+        viewModel.SelectedPrimaryIndex = 0;
 
         liveCoordinator.Received(1).Activate();
         liveCoordinator.Received(1).Deactivate();
+    }
+
+    [Fact]
+    public void Constructor_CreatesPrimaryPagesInExpectedOrder()
+    {
+        var viewModel = MainPagesViewModelTestFactory.Create();
+
+        Assert.Equal(
+            [MainPrimaryPageRole.Sessions, MainPrimaryPageRole.Setups, MainPrimaryPageRole.Bikes, MainPrimaryPageRole.LiveDaqs],
+            viewModel.PrimaryPages.Select(page => page.Role));
+        Assert.Equal(["Sessions", "Setups", "Bikes", "Live"], viewModel.PrimaryPages.Select(page => page.Header));
+        Assert.Equal(
+            ["/Assets/fa-chart-line.svg", "/Assets/cog.svg", "/Assets/fa-person-mountainbiking.svg", "/Assets/fa-link.svg"],
+            viewModel.PrimaryPages.Select(page => page.IconPath));
+        Assert.Same(viewModel.SessionsPage, viewModel.PrimaryPages[0].Content);
+        Assert.Same(viewModel.SetupsPage, viewModel.PrimaryPages[1].Content);
+        Assert.Same(viewModel.BikesPage, viewModel.PrimaryPages[2].Content);
+        Assert.Same(viewModel.LiveDaqsPage, viewModel.PrimaryPages[3].Content);
     }
 
     [Fact]
@@ -51,10 +73,26 @@ public class MainPagesViewModelTests
         trackCoordinator.ImportGpxAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(new GpxImportResult(0, 1)));
         var viewModel = MainPagesViewModelTestFactory.Create(trackCoordinator: trackCoordinator);
+        viewModel.SelectedPrimaryIndex = 2;
 
         await viewModel.OpenGpsTracksCommand.ExecuteAsync(null);
 
-        Assert.Single(viewModel.SessionsPage.Notifications);
+        Assert.Empty(viewModel.SessionsPage.Notifications);
+        Assert.Single(viewModel.BikesPage.Notifications);
+    }
+
+    [Fact]
+    public void OpenPageCommand_ClosesDrawerAndPushesNonPrimaryPageThroughShell()
+    {
+        var shell = Substitute.For<IShellCoordinator>();
+        var viewModel = MainPagesViewModelTestFactory.Create(shell: shell);
+        var page = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        viewModel.IsDrawerOpen = true;
+
+        viewModel.OpenPageCommand.Execute(page);
+
+        Assert.False(viewModel.IsDrawerOpen);
+        shell.Received(1).Open(page);
     }
 
     [Fact]
@@ -62,7 +100,8 @@ public class MainPagesViewModelTests
     {
         var viewModel = MainPagesViewModelTestFactory.Create();
 
-        Assert.Empty(viewModel.ExtensionToolbarActions);
+        Assert.Empty(viewModel.ExtensionToolbarCommands);
+        Assert.Empty(viewModel.ExtensionToolbarViews);
     }
 
     [Fact]
@@ -80,23 +119,38 @@ public class MainPagesViewModelTests
 
         Assert.Equal(
             ["earlier", "later"],
-            viewModel.ExtensionToolbarActions.Select(contribution => contribution.ContributionId));
-        Assert.Same(dependency, viewModel.ExtensionToolbarActions[1].ViewModel);
+            viewModel.ExtensionToolbarViews.Select(contribution => contribution.ContributionId));
+        Assert.Empty(viewModel.ExtensionToolbarCommands);
+        Assert.Same(dependency, viewModel.ExtensionToolbarViews[1].ViewModel);
     }
 
     [Fact]
     public void Constructor_ExposesExtensionToolbarActionsFromProviders()
     {
-        var contribution = new AppToolbarContribution(
+        var command = Substitute.For<ICommand>();
+        var commandContribution = new AppToolbarCommandContribution(
             "extension",
-            "action",
+            "command",
             Order: 0,
+            "Command",
+            Icon: null,
+            command);
+        var viewContribution = new AppToolbarViewContribution(
+            "extension",
+            "view",
+            Order: 1,
             new TestContributionViewModel());
 
         var viewModel = MainPagesViewModelTestFactory.Create(
-            appToolbarContributionProviders: [new TestAppToolbarContributionProvider(contribution)]);
+            appToolbarContributionProviders:
+            [
+                new TestAppToolbarContributionProvider(
+                    [commandContribution],
+                    [viewContribution]),
+            ]);
 
-        Assert.Equal([contribution], viewModel.ExtensionToolbarActions);
+        Assert.Equal([commandContribution], viewModel.ExtensionToolbarCommands);
+        Assert.Equal([viewContribution], viewModel.ExtensionToolbarViews);
     }
 
     [Fact]
@@ -241,11 +295,13 @@ public class MainPagesViewModelTests
     {
         public string ExtensionId => "extension";
 
-        public IReadOnlyList<AppToolbarContribution> CreateContributions()
+        public IReadOnlyList<AppToolbarCommandContribution> CreateCommandContributions() => [];
+
+        public IReadOnlyList<AppToolbarViewContribution> CreateViewContributions()
         {
             return
             [
-                new AppToolbarContribution("extension", "later", Order: 20, dependency),
+                new AppToolbarViewContribution("extension", "later", Order: 20, dependency),
             ];
         }
     }
@@ -254,11 +310,13 @@ public class MainPagesViewModelTests
     {
         public string ExtensionId => "extension";
 
-        public IReadOnlyList<AppToolbarContribution> CreateContributions()
+        public IReadOnlyList<AppToolbarCommandContribution> CreateCommandContributions() => [];
+
+        public IReadOnlyList<AppToolbarViewContribution> CreateViewContributions()
         {
             return
             [
-                new AppToolbarContribution("extension", "earlier", Order: 10, new TestContributionViewModel()),
+                new AppToolbarViewContribution("extension", "earlier", Order: 10, new TestContributionViewModel()),
             ];
         }
     }
@@ -267,24 +325,46 @@ public class MainPagesViewModelTests
     {
         public string ExtensionId => "owner";
 
-        public IReadOnlyList<AppToolbarContribution> CreateContributions()
+        public IReadOnlyList<AppToolbarCommandContribution> CreateCommandContributions()
         {
             return
             [
-                new AppToolbarContribution("other", "action", Order: 10, new TestContributionViewModel()),
+                new AppToolbarCommandContribution(
+                    "other",
+                    "action",
+                    Order: 10,
+                    "Action",
+                    Icon: null,
+                    Substitute.For<ICommand>()),
             ];
         }
+
+        public IReadOnlyList<AppToolbarViewContribution> CreateViewContributions() => [];
     }
 
     private sealed class DuplicateToolbarContributionProvider(string surface) : IAppToolbarContributionProvider
     {
         public string ExtensionId => "extension";
 
-        public IReadOnlyList<AppToolbarContribution> CreateContributions()
+        public IReadOnlyList<AppToolbarCommandContribution> CreateCommandContributions()
         {
             return
             [
-                new AppToolbarContribution(ExtensionId, "duplicate", Order: 10, new TestContributionViewModel()),
+                new AppToolbarCommandContribution(
+                    ExtensionId,
+                    "duplicate",
+                    Order: 10,
+                    "Duplicate",
+                    Icon: null,
+                    Substitute.For<ICommand>()),
+            ];
+        }
+
+        public IReadOnlyList<AppToolbarViewContribution> CreateViewContributions()
+        {
+            return
+            [
+                new AppToolbarViewContribution(ExtensionId, "duplicate", Order: 20, new TestContributionViewModel()),
             ];
         }
 

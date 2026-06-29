@@ -8,7 +8,8 @@ namespace Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
 public sealed class RecordedSessionExtensionSlotBuilder
 {
-    public List<RecordedSessionToolbarContribution> GraphToolbarActions { get; } = [];
+    public List<RecordedSessionToolbarCommandContribution> GraphToolbarCommands { get; } = [];
+    public List<RecordedSessionToolbarViewContribution> GraphToolbarViews { get; } = [];
     public List<RecordedSessionPageContribution> Pages { get; } = [];
     public List<RecordedSessionMediaPaneContribution> MediaPanes { get; } = [];
     public List<RecordedSessionMapOverlayContribution> MapOverlays { get; } = [];
@@ -27,7 +28,8 @@ public sealed class RecordedSessionExtensionSlotBuilder
     {
         ArgumentNullException.ThrowIfNull(slots);
 
-        GraphToolbarActions.AddRange(slots.GraphToolbarActions);
+        GraphToolbarCommands.AddRange(slots.GraphToolbarCommands);
+        GraphToolbarViews.AddRange(slots.GraphToolbarViews);
         Pages.AddRange(slots.Pages);
         MediaPanes.AddRange(slots.MediaPanes);
         MapOverlays.AddRange(slots.MapOverlays);
@@ -45,7 +47,8 @@ public sealed class RecordedSessionExtensionSlotBuilder
 
     internal void PublishTo(RecordedSessionExtensionSlots slots)
     {
-        slots.GraphToolbarActions.ReplaceWith(GraphToolbarActions);
+        slots.GraphToolbarCommands.ReplaceWith(GraphToolbarCommands);
+        slots.GraphToolbarViews.ReplaceWith(GraphToolbarViews);
         slots.Pages.ReplaceWith(Pages);
         slots.MediaPanes.ReplaceWith(MediaPanes);
         slots.MapOverlays.ReplaceWith(MapOverlays);

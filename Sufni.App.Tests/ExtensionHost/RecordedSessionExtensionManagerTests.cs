@@ -128,7 +128,7 @@ public class RecordedSessionExtensionManagerTests
         var factory = new TestRecordedSessionExtensionFactory("test");
         var manager = CreateManager([factory]);
         await manager.InitializeAsync(CreateState(isLoaded: true));
-        var contribution = new RecordedSessionToolbarContribution(
+        var contribution = new RecordedSessionToolbarViewContribution(
             "test",
             "toolbar",
             Order: 1,
@@ -144,17 +144,17 @@ public class RecordedSessionExtensionManagerTests
             RecordedSessionMetricTone.Negative);
         var statisticsTabContribution = CreateStatisticsTabContribution("test", "tab");
 
-        factory.Scope!.Slots.GraphToolbarActions.Add(contribution);
+        factory.Scope!.Slots.GraphToolbarViews.Add(contribution);
         factory.Scope.Slots.StatisticsMetrics.Add(metricContribution);
         factory.Scope.Slots.StatisticsTabs.Add(statisticsTabContribution);
 
-        Assert.Equal([contribution], manager.ExtensionSlots.GraphToolbarActions);
+        Assert.Equal([contribution], manager.ExtensionSlots.GraphToolbarViews);
         Assert.Equal([metricContribution], manager.ExtensionSlots.StatisticsMetrics);
         Assert.Equal([statisticsTabContribution], manager.ExtensionSlots.StatisticsTabs);
 
         await manager.DisposeScopesAsync();
 
-        Assert.Empty(manager.ExtensionSlots.GraphToolbarActions);
+        Assert.Empty(manager.ExtensionSlots.GraphToolbarViews);
         Assert.Empty(manager.ExtensionSlots.StatisticsMetrics);
         Assert.Empty(manager.ExtensionSlots.StatisticsTabs);
     }
@@ -244,7 +244,7 @@ public class RecordedSessionExtensionManagerTests
         await manager.InitializeAsync(CreateState(isLoaded: true));
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            factory.Scope!.Slots.GraphToolbarActions.Add(new RecordedSessionToolbarContribution(
+            factory.Scope!.Slots.GraphToolbarViews.Add(new RecordedSessionToolbarViewContribution(
                 "other",
                 "toolbar",
                 Order: 1,
@@ -253,7 +253,7 @@ public class RecordedSessionExtensionManagerTests
 
         Assert.Contains("other:toolbar", exception.Message);
         Assert.Contains("owner", exception.Message);
-        Assert.Empty(manager.ExtensionSlots.GraphToolbarActions);
+        Assert.Empty(manager.ExtensionSlots.GraphToolbarViews);
     }
 
     [Fact]
@@ -262,7 +262,7 @@ public class RecordedSessionExtensionManagerTests
         var factory = new TestRecordedSessionExtensionFactory("owner");
         var manager = CreateManager([factory]);
         await manager.InitializeAsync(CreateState(isLoaded: true));
-        factory.Scope!.Slots.GraphToolbarActions.Add(new RecordedSessionToolbarContribution(
+        factory.Scope!.Slots.GraphToolbarViews.Add(new RecordedSessionToolbarViewContribution(
             "owner",
             "duplicate",
             Order: 1,
@@ -311,7 +311,7 @@ public class RecordedSessionExtensionManagerTests
         var factory = new TestRecordedSessionExtensionFactory("test");
         var manager = CreateManager([factory], uiThreadDispatcher: dispatcher);
         await manager.InitializeAsync(CreateState(isLoaded: true));
-        var first = new RecordedSessionToolbarContribution(
+        var first = new RecordedSessionToolbarViewContribution(
             "test",
             "first",
             Order: 1,
@@ -319,15 +319,15 @@ public class RecordedSessionExtensionManagerTests
             new TestContributionViewModel());
         var second = first with { ContributionId = "second", Order = 2 };
 
-        factory.Scope!.Slots.GraphToolbarActions.Add(first);
-        factory.Scope.Slots.GraphToolbarActions.Add(second);
+        factory.Scope!.Slots.GraphToolbarViews.Add(first);
+        factory.Scope.Slots.GraphToolbarViews.Add(second);
 
         Assert.Equal(1, dispatcher.PendingPostCount);
-        Assert.Empty(manager.ExtensionSlots.GraphToolbarActions);
+        Assert.Empty(manager.ExtensionSlots.GraphToolbarViews);
 
         dispatcher.RunPendingPosts();
 
-        Assert.Equal([first, second], manager.ExtensionSlots.GraphToolbarActions);
+        Assert.Equal([first, second], manager.ExtensionSlots.GraphToolbarViews);
     }
 
     [Fact]

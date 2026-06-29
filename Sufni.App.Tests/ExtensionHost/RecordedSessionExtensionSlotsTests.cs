@@ -20,7 +20,8 @@ public class RecordedSessionExtensionSlotsTests
     {
         var slots = new RecordedSessionExtensionSlots();
 
-        Assert.Empty(slots.GraphToolbarActions);
+        Assert.Empty(slots.GraphToolbarCommands);
+        Assert.Empty(slots.GraphToolbarViews);
         Assert.Empty(slots.Pages);
         Assert.Empty(slots.MediaPanes);
         Assert.Empty(slots.MapOverlays);
@@ -45,12 +46,22 @@ public class RecordedSessionExtensionSlotsTests
             "Inspect",
             new RelayCommand(() => { }));
 
-        slots.GraphToolbarActions.Add(new RecordedSessionToolbarContribution(
+        slots.GraphToolbarCommands.Add(new RecordedSessionToolbarCommandContribution(
             "extension",
-            "toolbar",
+            "toolbar-command",
+            Order: 5,
+            RecordedSessionToolbarZone.Trailing,
+            "Toolbar command",
+            Icon: null,
+            new RelayCommand(() => { })));
+        slots.GraphToolbarViews.Add(new RecordedSessionToolbarViewContribution(
+            "extension",
+            "toolbar-view",
             Order: 10,
             RecordedSessionToolbarZone.Leading,
             new TestContributionViewModel()));
+        var commandContribution = Assert.Single(slots.GraphToolbarCommands);
+        Assert.Equal(RecordedSessionToolbarZone.Trailing, commandContribution.Zone);
         slots.PlotContextMenuActions.Add(new RecordedSessionPlotContextMenuContribution(
             "extension",
             "context",
@@ -73,7 +84,7 @@ public class RecordedSessionExtensionSlotsTests
             RequestedIndex: 3,
             new TestContributionViewModel()));
 
-        var toolbarContribution = Assert.Single(slots.GraphToolbarActions);
+        var toolbarContribution = Assert.Single(slots.GraphToolbarViews);
         Assert.Equal(RecordedSessionToolbarZone.Leading, toolbarContribution.Zone);
         var contextContribution = Assert.Single(slots.PlotContextMenuActions);
         Assert.Equal("extension", contextContribution.ExtensionId);
@@ -99,12 +110,12 @@ public class RecordedSessionExtensionSlotsTests
 
         AddOneContributionToEachFamily(slots);
 
-        Assert.Equal(14, notifications);
+        Assert.Equal(15, notifications);
 
         subscription.Dispose();
-        slots.GraphToolbarActions.Add(CreateToolbarContribution("after-dispose"));
+        slots.GraphToolbarViews.Add(CreateToolbarContribution("after-dispose"));
 
-        Assert.Equal(14, notifications);
+        Assert.Equal(15, notifications);
     }
 
     [Fact]
@@ -117,7 +128,8 @@ public class RecordedSessionExtensionSlotsTests
 
         publisher.Publish(builder => builder.AddFrom(source));
 
-        Assert.Equal(["toolbar"], target.GraphToolbarActions.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["toolbar-command"], target.GraphToolbarCommands.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["toolbar-view"], target.GraphToolbarViews.Select(contribution => contribution.ContributionId));
         Assert.Equal(["page"], target.Pages.Select(contribution => contribution.ContributionId));
         Assert.Equal(["media"], target.MediaPanes.Select(contribution => contribution.ContributionId));
         Assert.Equal(["map"], target.MapOverlays.Select(contribution => contribution.ContributionId));
@@ -135,7 +147,8 @@ public class RecordedSessionExtensionSlotsTests
 
     private static void AddOneContributionToEachFamily(RecordedSessionExtensionSlots slots)
     {
-        slots.GraphToolbarActions.Add(CreateToolbarContribution("toolbar"));
+        slots.GraphToolbarCommands.Add(CreateToolbarCommandContribution("toolbar-command"));
+        slots.GraphToolbarViews.Add(CreateToolbarContribution("toolbar-view"));
         slots.Pages.Add(new RecordedSessionPageContribution(
             "extension",
             "page",
@@ -229,12 +242,22 @@ public class RecordedSessionExtensionSlotsTests
                 IsVisible: true)));
     }
 
-    private static RecordedSessionToolbarContribution CreateToolbarContribution(string contributionId) =>
+    private static RecordedSessionToolbarViewContribution CreateToolbarContribution(string contributionId) =>
         new(
             "extension",
             contributionId,
             Order: 1,
             RecordedSessionToolbarZone.Leading,
             new TestContributionViewModel());
+
+    private static RecordedSessionToolbarCommandContribution CreateToolbarCommandContribution(string contributionId) =>
+        new(
+            "extension",
+            contributionId,
+            Order: 1,
+            RecordedSessionToolbarZone.Leading,
+            "Toolbar command",
+            Icon: null,
+            new RelayCommand(() => { }));
 
 }
