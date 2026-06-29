@@ -103,7 +103,7 @@ public class TrackCoordinator(
         cancellationToken.ThrowIfCancellationRequested();
 
         var session = await sessionRepository.GetSessionAsync(sessionId);
-        var gpsOffsetSeconds = NormalizeGpsOffsetSeconds(session?.GpsOffsetSeconds ?? 0);
+        var gpsOffsetSeconds = SessionTrackProjection.NormalizeGpsOffsetSeconds(session?.GpsOffsetSeconds ?? 0);
 
         // Read-only load: the snapshot's full_track_id is the only source of the
         // association. The write/recompute path owns establishing it, so an
@@ -122,9 +122,9 @@ public class TrackCoordinator(
         // When the cached session-window polyline is missing or no longer aligned
         // with the current GPS offset, regenerate it in memory for display only.
         // Persisting the cached polyline is the processed-write path's job.
-        if (!IsSessionTrackAligned(trackPoints, telemetryData, gpsOffsetSeconds))
+        if (!SessionTrackProjection.IsSessionTrackAligned(trackPoints, telemetryData, gpsOffsetSeconds))
         {
-            trackPoints = GenerateSessionTrack(fullTrack, telemetryData, gpsOffsetSeconds);
+            trackPoints = SessionTrackProjection.GenerateSessionTrack(fullTrack, telemetryData, gpsOffsetSeconds);
         }
 
         return new SessionTrackPresentationData(
@@ -159,8 +159,8 @@ public class TrackCoordinator(
             return false;
         }
 
-        var normalizedOffset = NormalizeGpsOffsetSeconds(gpsOffsetSeconds);
-        var trackPoints = GenerateSessionTrack(fullTrack, telemetryData, normalizedOffset);
+        var normalizedOffset = SessionTrackProjection.NormalizeGpsOffsetSeconds(gpsOffsetSeconds);
+        var trackPoints = SessionTrackProjection.GenerateSessionTrack(fullTrack, telemetryData, normalizedOffset);
         if (trackPoints.Count == 0)
         {
             return false;
@@ -182,32 +182,6 @@ public class TrackCoordinator(
         return true;
     }
 
-    private static List<TrackPoint> GenerateSessionTrack(
-        Track fullTrack,
-        TelemetryData telemetryData,
-        double gpsOffsetSeconds)
-    {
-        var start = telemetryData.Metadata.Timestamp + gpsOffsetSeconds;
-        var end = start + Math.Ceiling(telemetryData.Metadata.Duration);
-        return fullTrack.GenerateSessionTrack(start, end);
-    }
-
-    private static bool IsSessionTrackAligned(
-        IReadOnlyList<TrackPoint>? trackPoints,
-        TelemetryData telemetryData,
-        double gpsOffsetSeconds)
-    {
-        if (trackPoints is null || trackPoints.Count == 0)
-        {
-            return false;
-        }
-
-        var expectedStart = telemetryData.Metadata.Timestamp + gpsOffsetSeconds;
-        return Math.Abs(trackPoints[0].Time - expectedStart) <= 1e-6;
-    }
-
-    private static double NormalizeGpsOffsetSeconds(double gpsOffsetSeconds) =>
-        double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;
 }
 
 public sealed record GpxImportResult(int ImportedCount, int AlreadyImportedCount);

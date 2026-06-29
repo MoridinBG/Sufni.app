@@ -14,6 +14,7 @@ namespace Sufni.App.ExtensionHosting.RecordedSessions;
 
 internal sealed class RecordedSessionDataReader(
     ISessionRepository sessionRepository,
+    ISynchronizableRepository<Track> trackEntityRepository,
     ISessionTelemetryProcessor sessionTelemetryProcessor) : IRecordedSessionDataReader
 {
     public async Task<IReadOnlyList<RecordedSessionCatalogItem>> GetSessionsAsync(
@@ -64,6 +65,24 @@ internal sealed class RecordedSessionDataReader(
         cancellationToken.ThrowIfCancellationRequested();
         var track = await sessionRepository.GetSessionTrackAsync(sessionId);
         cancellationToken.ThrowIfCancellationRequested();
-        return track;
+        var session = await sessionRepository.GetSessionAsync(sessionId);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (session?.FullTrack is not { } fullTrackId)
+        {
+            return track;
+        }
+
+        var telemetry = await GetProcessedTelemetryAsync(sessionId, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (telemetry is null || SessionTrackProjection.IsSessionTrackAligned(track, telemetry, session.GpsOffsetSeconds))
+        {
+            return track;
+        }
+
+        var fullTrack = await trackEntityRepository.GetAsync(fullTrackId);
+        cancellationToken.ThrowIfCancellationRequested();
+        return fullTrack is null
+            ? track
+            : SessionTrackProjection.GenerateSessionTrack(fullTrack, telemetry, session.GpsOffsetSeconds);
     }
 }
