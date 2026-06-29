@@ -64,10 +64,10 @@ There are five kinds of view model in the presentation layer:
   closed. The triggering of the initial store refresh
   (`LoadDatabaseContent`) also lives here so the database load happens
   exactly once after the shell is constructed. It also exposes
-  `ExtensionToolbarActions` from DI-created app toolbar contribution
-  providers; the desktop nav rail and mobile side panel render those
-  neutral app-level action contributions without knowing extension
-  workflow types.
+  app toolbar command and view contributions from DI-created app
+  toolbar contribution providers; the desktop nav rail and mobile side
+  panel render those neutral app-level contributions without knowing
+  extension workflow types.
 
 - **Feature page view models** — non-entity top-level screens such as `ImportSessionsViewModel`, `WelcomeScreenViewModel`, and the pairing pages. They own only screen-scoped state, bind directly to controls, attach subscriptions and browse lifetime in `Loaded` / `Unloaded`, and delegate workflows to coordinators and services. `ImportSessionsViewModel` is the canonical example: it keeps datastore / file selection, notifications, and errors; resolves `SelectedSetup` from `ISetupStore.FindByBoardId`; asks `ITelemetryDataStoreService` to browse, load files, and register storage-provider folders; and delegates the actual import lifecycle to `ImportSessionsCoordinator`. For long-running screen actions they prefer the generated async-command `IsRunning` state over duplicate busy flags.
 
@@ -196,19 +196,25 @@ There are five kinds of view model in the presentation layer:
 
 `Sufni.App/Sufni.App/ViewModels/SessionPages/` holds the per-page view
 models that `SessionDetailViewModel` (recorded sessions) and
-`LiveSessionDetailViewModel` (live captures) compose into a
-swipe/tab UI. They share a tiny base, `PageViewModelBase`, which
-extends `ObservableObject` and adds two members: an immutable
-`DisplayName` used as the tab header, and an `[ObservableProperty]
-bool Selected` that the shell view (`SessionShellMobileView`) toggles
-when the user navigates between tabs. Pages do not own commands,
-notification bars, or shell navigation — the editor is still the
-`TabPageViewModelBase` and keeps the `Save` / `Reset` / `Close`
-surface.
+`LiveSessionDetailViewModel` (live captures) compose into the mobile
+session page surface. They share a tiny base, `PageViewModelBase`,
+which extends `ObservableObject` and exposes only the immutable
+`DisplayName` used as the page header. Page selection belongs to the
+owning session workspace, not to individual pages: recorded sessions
+store it in `RecordedSessionContext`; live sessions store it directly
+on `LiveSessionDetailViewModel`. Both surfaces expose
+`SelectedPageIndex`, `SelectedPage`, `PageCount`, and
+`SelectedPageDisplayName` through `ISessionShellMobileWorkspace`.
+Pages do not own commands, notification bars, selected flags, or shell
+navigation — the editor is still the `TabPageViewModelBase` and keeps
+the `Save` / `Reset` / `Close` surface.
 
 Each editor exposes an `ObservableCollection<PageViewModelBase>
-Pages` that the shell view binds against for both the tab header
-strip and the tab body. The two editors compose different sets:
+Pages`. `SessionShellMobileView` binds that collection to a
+`CarouselPage` and binds the shared selected index to both the
+`CarouselPage` and `PipsPager`, so swipes, pips, and contributed page
+selection all update the same workspace-owned index. The two editors
+compose different page sets:
 
 - Recorded sessions: graph, spring, strokes, damper, balance,
   vibration, analysis, notes, preferences.
@@ -226,7 +232,10 @@ presentation states and SVG surfaces can be built from the editor's
 analysis service; notes and preferences remain the mostly local
 parameterless pages. Recorded-session extension scopes can contribute
 additional statistics tabs; mobile projects those tabs into the same
-`Pages` collection at the matching statistics-page position. On
+`Pages` collection at the matching statistics-page position.
+`RecordedSessionExtensionPagesController` satisfies contributed-page
+selection requests by setting `RecordedSessionContext.SelectedPageIndex`
+to the matching page. On
 desktop, the recorded-session statistics view composes built-in and
 contributed statistics tabs into one tab strip and places the selected
 statistics body plus extension banners inside one vertical scroll

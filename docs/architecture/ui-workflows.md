@@ -167,9 +167,10 @@ coordinators to know their concrete types.
 ## Navigation
 
 Navigation is owned exclusively by `IShellCoordinator`. View models
-never poke at the shell view model directly — they call
-`shell.Open(view)`, `shell.OpenOrFocus<T>(match, factory)`,
-`shell.Close(view)`, `shell.CloseIfOpen<T>(match)`, or `shell.GoBack()`.
+never poke at shell controls directly — they call `shell.Open(view)`,
+`shell.OpenOrFocus<T>(match, factory)`, `shell.Close(view)`,
+`shell.CloseIfOpen<T>(match)`, or `shell.GoBack()`. `GoBack()`
+returns `true` only when the active shell consumed the back request.
 
 App-defined keyboard shortcuts are listed in
 `KeyboardShortcutRegistry`, grouped by source and shortcut ID in
@@ -180,12 +181,19 @@ platform command modifier (`Meta` / Cmd on macOS and iOS, `Control`
 on Windows, Linux, and Android). Native text editing, focus traversal,
 and control-internal keys stay local to their controls.
 
-- **Mobile** — `MobileShellCoordinator` wraps `MainViewModel`, which
-  maintains a `Stack<ViewModelBase>`. `Open` pushes; `Close` pops if
-  the supplied view is current; `GoBack` always pops; `OpenOrFocus`
-  always pushes (mobile has no concept of focusing an existing tab).
-  The Android back button is wired in `App.OnFrameworkInitializationCompleted`
-  to call `MainViewModel.OpenPreviousView()`.
+- **Mobile** — `MobileShellCoordinator` wraps
+  `IMobileNavigationShellHost`. `MainViewModel` sets the root view to
+  `MainPagesViewModel`; the host owns the logical stack and
+  materializes each view model as a `ContentPage` in the root
+  `NavigationPage` attached by `MainView`. `Open` pushes,
+  `OpenOrFocus` also pushes (mobile has no concept of focusing an
+  existing tab), `Close` closes only the current top view, and
+  `GoBack` pops only when the stack is above the root. `MainViewModel`
+  handles mobile back by closing the main drawer first, then delegating
+  to `shell.GoBack()`. The Android back button is wired in
+  `App.OnFrameworkInitializationCompleted` to use that bool return as
+  `e.Handled`, so back bubbles to the platform when the drawer is
+  closed and the navigation stack is already at root.
 - **Desktop** — `DesktopShellCoordinator` wraps `MainWindowViewModel`,
   which holds an `ObservableCollection<TabPageViewModelBase> Tabs`
   and a `CurrentView`. `OpenOrFocus<T>(match, create)` walks
@@ -200,7 +208,7 @@ and control-internal keys stay local to their controls.
   by fading the dragged tab and showing an insertion indicator, then
   commits the drop through `MainWindowViewModel.MoveTab`; this changes
   the shell collection order and keeps the moved tab active.
-  `GoBack` is a no-op on desktop.
+  `GoBack` returns `false` and is otherwise a no-op on desktop.
 
 `DesktopViews/` continues to provide extended layouts (side panels,
 richer controls) that the desktop tab renders instead of the mobile

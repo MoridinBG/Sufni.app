@@ -105,11 +105,36 @@ The service is invoked after successful bike, setup, session, and track delete w
 
 Extension sync is ordered after core entity/app-preference sync during apply, so extension payloads can rely on the core rows from the same sync response already being present locally.
 
-## App Toolbar Actions
+## App Toolbar Contributions
 
-`AppToolbarContribution` is the app-level action slot. Modules register `IAppToolbarContributionProvider` implementations through DI during `RegisterServices(...)`; each provider declares the owning `ExtensionId`. `MainPagesViewModel` resolves the providers, validates that every contribution id is present, every contribution extension id matches its provider, and no extension reuses a contribution id in the toolbar aggregation, then sorts by `Order` and exposes the result as `ExtensionToolbarActions`. The desktop nav rail and mobile side panel render those actions through `AppToolbarContributionsView`, after the built-in import/GPX actions and before the paired-device/theme area.
+App toolbar contributions are split into simple command descriptors and
+arbitrary view contributions. Modules register
+`IAppToolbarContributionProvider` implementations through DI during
+`RegisterServices(...)`; each provider declares the owning
+`ExtensionId` and returns command contributions from
+`CreateCommandContributions()` plus custom view contributions from
+`CreateViewContributions()`. `MainPagesViewModel` resolves the
+providers, validates that every contribution id is present, every
+contribution extension id matches its provider, and no extension
+reuses a contribution id across either app-toolbar family, then sorts
+by `Order` and exposes `ExtensionToolbarCommands` and
+`ExtensionToolbarViews`. The desktop nav rail and mobile side panel
+render those contributions through `AppToolbarContributionsView`,
+after the built-in import/GPX actions and before the paired-device /
+theme area.
 
-The contribution carries an extension id, contribution id, order, and an `IAppToolbarContributionViewModel`. The rendered host wraps non-control view models in `ContentControl`, allowing the extension view registry to resolve a matching view template. Providers are DI-created, so toolbar view models can depend on normal extension and host services.
+`AppToolbarCommandContribution` carries an extension id, contribution
+id, order, label, optional `ToolbarIconDescriptor`, `ICommand`, and
+optional command parameter. The host renders it as a `CommandBarButton`
+and maps only those descriptor fields. This path is for simple
+icon/text commands; it does not give an extension an arbitrary control
+tree or extension-specific button template. Extensions that need custom
+interactive UI contribute `AppToolbarViewContribution` instead. View
+contributions carry an `IAppToolbarContributionViewModel` and render in
+`CommandBar.Content`; the host wraps non-control view models in
+`ContentControl`, allowing the extension view registry to resolve a
+matching view template. Providers are DI-created, so toolbar commands
+and view models can depend on normal extension and host services.
 
 ## Recorded-Session Scope
 
@@ -129,6 +154,12 @@ without a long positional constructor. It exposes constrained host operations:
 - request contributed page selection
 - run a cancellable operation through `RecordedSessionOperationCoordinator`
 - read processed telemetry and track points through `IRecordedSessionDataReader`
+
+`IRecordedSessionDataReader.GetTrackAsync` returns the session-window track
+projection used by the recorded-session view: cached points when the cache is
+current, or a read-only projection from the linked full track and processed
+telemetry when the cache is missing or aligned to an older GPS offset. The
+read path does not persist regenerated points.
 
 Operation leases reject stale progress and cancel superseded work, so extension tasks share the existing editor busy surface without controlling the editor lifecycle. Extension work reports percent values on a `0..100` scale. The recorded-session host projects those reports through `SessionOperationPresentationState` and renders the standard nonblocking busy overlay above the current session content. Extension operation progress does not set the session detail `ScreenState`; that state remains reserved for loading and error state of the session detail itself.
 
@@ -155,9 +186,10 @@ The builder can copy an existing slot snapshot, and the slot collection exposes
 a generic change subscription so host mirroring is not manually repeated per
 slot family.
 
-The 14 current public slot families are:
+The 15 current public slot families are:
 
-- graph toolbar actions
+- graph toolbar commands
+- graph toolbar views
 - contributed pages
 - media panes
 - map overlays
@@ -169,14 +201,25 @@ The 14 current public slot families are:
 - recorded time-range overlays
 
 View-model-backed slot families use marker interfaces instead of `object`:
-toolbar, page, media pane, statistics banner/tab/overlay, session-list indicator,
-session-list action, and hosted graph row contributions each require the
-matching `IRecordedSession...ContributionViewModel` marker. Descriptor-only
-families such as map overlays, statistics metrics, plot context actions, row
-header actions, and time-range overlays carry neutral records or command
-descriptors instead.
+graph toolbar views, page, media pane, statistics banner/tab/overlay,
+session-list indicator, session-list action, and hosted graph row
+contributions each require the matching
+`IRecordedSession...ContributionViewModel` marker. Descriptor-only
+families such as graph toolbar commands, map overlays, statistics
+metrics, plot context actions, row header actions, and time-range
+overlays carry neutral records or command descriptors instead.
 
-Recorded-session graph toolbar contributions carry a `RecordedSessionToolbarZone` value. The host renders `Leading` contributions at the start of the graph toolbar and `Trailing` contributions at the end, with both zones sorted by `Order`, then extension id, then contribution id. Toolbar controls own their own transient UI, such as flyouts. The host does not provide a generic page-root overlay slot for extension-owned transient controls.
+Recorded-session graph toolbar command and view contributions both carry
+a `RecordedSessionToolbarZone` value. The host renders `Leading`
+contributions at the start of the graph toolbar and `Trailing`
+contributions at the end, with each family and zone sorted by `Order`,
+then extension id, then contribution id. Command contributions render as
+`CommandBarButton` instances with label, optional SVG icon, command, and
+optional command parameter only. Custom toolbar UI renders through
+`RecordedSessionToolbarViewContribution` in `CommandBar.Content`.
+Toolbar controls own their own transient UI, such as flyouts. The host
+does not provide a generic page-root overlay slot for extension-owned
+transient controls.
 
 Session-list indicators and actions are created by registered `IRecordedSessionListContributionProvider` implementations. Each provider declares its owning `ExtensionId`; duplicate providers for the same extension are rejected. `RecordedSessionListExtensionService` aggregates every provider, validates that contribution ids are present, validates that each contribution extension id matches its provider, rejects duplicate contribution ids globally per extension across indicators and actions for the row, and sorts each contribution family by `Order`, so separate modules can contribute to the same recorded-session row without replacing each other. Public builds with no providers return empty contribution lists.
 

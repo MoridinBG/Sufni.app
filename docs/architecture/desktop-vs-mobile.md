@@ -76,13 +76,13 @@ Both shells satisfy the same `IShellCoordinator` interface but back it with very
 
 | Aspect              | Desktop (`DesktopShellCoordinator`)                                          | Mobile (`MobileShellCoordinator`)                                |
 | ------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Shell host          | `MainWindowViewModel` with `ObservableCollection<TabPageViewModelBase> Tabs` | `MainViewModel` with `Stack<ViewModelBase>` view history         |
-| `Open(view)`        | Add the tab if missing, set `CurrentView`                                    | Push current view onto history, set `CurrentView`                |
+| Shell host          | `MainWindowViewModel` with `ObservableCollection<TabPageViewModelBase> Tabs` | `IMobileNavigationShellHost` materializing view models into `MainView`'s `NavigationPage` |
+| `Open(view)`        | Add the tab if missing, set `CurrentView`                                    | Push a `ContentPage` for the view model onto the navigation stack |
 | `OpenOrFocus<T>`    | Reuse a matching open tab, then a matching closed history tab, otherwise create | Always create + push (mobile has no concept of focusing)         |
-| `Close(view)`       | Remove the tab, push it onto a deduplicated `tabHistory` for `RestoreCommand` | Pop if the supplied view is current                              |
-| `GoBack()`          | No-op                                                                        | Pop one frame                                                    |
+| `Close(view)`       | Remove the tab, push it onto a deduplicated `tabHistory` for `RestoreCommand` | Close only when the supplied view is the current top page        |
+| `GoBack()`          | Return `false`                                                               | Pop above root and return whether the request was consumed       |
 | Initial view        | `WelcomeScreenViewModel` is added as the first tab                           | `MainPagesViewModel` is the root; no welcome screen              |
-| Hardware back       | n/a                                                                          | `TopLevel.BackRequested` wired in `App` to `OpenPreviousView()`  |
+| Hardware back       | n/a                                                                          | `TopLevel.BackRequested` closes the drawer first, then uses `GoBack()` as `e.Handled` |
 
 The full coordinator surface and rules live in [UI Workflows § Navigation](ui-workflows.md#navigation). Page lifecycle implications — `Loaded` / `Unloaded` for browse leases and store subscriptions — apply identically on both shells; see [UI § Threading & Lifecycle](ui.md#threading--lifecycle).
 
