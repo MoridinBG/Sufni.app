@@ -16,7 +16,8 @@ mc:Ignorable="d">
     ColumnDefinitions="Auto,*,Auto">
         <CommandBar
         Name="LeadingGraphToolbarCommandBar"
-        Grid.Column="0">
+        Grid.Column="0"
+        Background="Transparent">
             <CommandBar.Content>
                 <StackPanel
                 Name="LeadingGraphToolbarViewsHost"
@@ -27,7 +28,8 @@ mc:Ignorable="d">
 
         <CommandBar
         Name="TrailingGraphToolbarCommandBar"
-        Grid.Column="2">
+        Grid.Column="2"
+        Background="Transparent">
             <CommandBar.Content>
                 <StackPanel
                 Name="TrailingGraphToolbarViewsHost"

@@ -51,6 +51,7 @@
                         <ContentPage
                             Header="{Binding DisplayName}"
                             Content="{Binding}"
+                            Background="{DynamicResource SufniRegion}"
                             AutomaticallyApplySafeAreaPadding="False" />
                     </DataTemplate>
                 </CarouselPage.PageTemplate>
