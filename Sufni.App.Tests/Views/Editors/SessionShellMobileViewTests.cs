@@ -1,12 +1,11 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
-using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -31,15 +30,43 @@ public class SessionShellMobileViewTests
         var host = CreateHost();
         await using var mounted = await MountAsync(host);
 
-        var tabHeaders = mounted.Shell.GetVisualDescendants()
-            .OfType<ItemsControl>()
-            .First(c => c.Name == "TabHeaders");
+        var carousel = mounted.Shell.FindControl<CarouselPage>("SessionCarouselPage");
+        var pager = mounted.Shell.FindControl<PipsPager>("SessionPipsPager");
+        var header = mounted.Shell.FindControl<TextBlock>("SelectedPageHeader");
 
-        Assert.Equal(host.Pages.Count, tabHeaders.ItemCount);
+        Assert.NotNull(carousel);
+        Assert.Same(host.Pages, carousel!.ItemsSource);
+        Assert.NotNull(carousel.PageTemplate);
+        Assert.Equal(host.SelectedPageIndex, carousel.SelectedIndex);
+        Assert.NotNull(pager);
+        Assert.Equal(host.PageCount, pager!.NumberOfPages);
+        Assert.NotNull(header);
+        Assert.Equal(host.SelectedPageDisplayName, header!.Text);
         Assert.NotNull(mounted.Shell.GetVisualDescendants().OfType<EditableTitle>().FirstOrDefault());
         Assert.NotNull(mounted.Shell.GetVisualDescendants().OfType<ErrorMessagesBar>().FirstOrDefault());
         var buttonLine = mounted.Shell.GetVisualDescendants().OfType<CommonButtonLine>().FirstOrDefault();
         Assert.NotNull(buttonLine);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionShellMobileView_PageTemplate_CreatesSafeAreaFreeSessionContentPage()
+    {
+        var host = CreateHost();
+        await using var mounted = await MountAsync(host);
+
+        var carousel = mounted.Shell.FindControl<CarouselPage>("SessionCarouselPage")
+            ?? throw new InvalidOperationException("Session carousel was not found.");
+        var pageTemplate = carousel.PageTemplate
+            ?? throw new InvalidOperationException("Session page template was not found.");
+        var pageViewModel = host.Pages[0];
+
+        var contentPage = Assert.IsType<ContentPage>(pageTemplate.Build(pageViewModel));
+        contentPage.DataContext = pageViewModel;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.False(contentPage.AutomaticallyApplySafeAreaPadding);
+        Assert.Equal(pageViewModel.DisplayName, contentPage.Header);
+        Assert.Same(pageViewModel, contentPage.Content);
     }
 
     [AvaloniaFact]
@@ -97,69 +124,66 @@ public class SessionShellMobileViewTests
     }
 
     [AvaloniaFact]
-    public async Task SessionShellMobileView_HidesScrollbarsForMobileTabs()
+    public async Task SessionShellMobileView_UsesCarouselAndPagerInsteadOfLegacyTabControls()
     {
         var host = CreateHost();
         await using var mounted = await MountAsync(host);
 
-        var scrollViewers = mounted.Shell.GetVisualDescendants()
-            .OfType<ScrollViewer>()
-            .ToArray();
-
-        Assert.NotEmpty(scrollViewers);
-        Assert.All(scrollViewers, scrollViewer =>
-        {
-            Assert.NotEqual(ScrollBarVisibility.Auto, scrollViewer.HorizontalScrollBarVisibility);
-            Assert.NotEqual(ScrollBarVisibility.Visible, scrollViewer.HorizontalScrollBarVisibility);
-            Assert.NotEqual(ScrollBarVisibility.Auto, scrollViewer.VerticalScrollBarVisibility);
-            Assert.NotEqual(ScrollBarVisibility.Visible, scrollViewer.VerticalScrollBarVisibility);
-        });
+        Assert.NotNull(mounted.Shell.FindControl<CarouselPage>("SessionCarouselPage"));
+        Assert.NotNull(mounted.Shell.FindControl<PipsPager>("SessionPipsPager"));
+        Assert.Null(mounted.Shell.FindControl<ItemsControl>("TabHeaders"));
+        Assert.Null(mounted.Shell.FindControl<ScrollViewer>("TabScrollViewer"));
+        Assert.Null(mounted.Shell.FindControl<ItemsControl>("TabContainer"));
     }
 
     [AvaloniaFact]
-    public async Task SessionShellMobileView_PagesMutation_PreservesCurrentSelection()
+    public async Task SessionShellMobileView_SelectionControlsUpdateWorkspaceIndex()
     {
         var host = CreateHost();
         await using var mounted = await MountAsync(host);
 
-        var damperPage = host.Pages.OfType<DamperPageViewModel>().Single();
-        foreach (var page in host.Pages)
-        {
-            page.Selected = page == damperPage;
-        }
+        var carousel = mounted.Shell.FindControl<CarouselPage>("SessionCarouselPage")
+            ?? throw new InvalidOperationException("Session carousel was not found.");
+        var pager = mounted.Shell.FindControl<PipsPager>("SessionPipsPager")
+            ?? throw new InvalidOperationException("Session pips pager was not found.");
+        var header = mounted.Shell.FindControl<TextBlock>("SelectedPageHeader")
+            ?? throw new InvalidOperationException("Selected page header was not found.");
+
+        carousel.SelectedIndex = 1;
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        // Insert a new page — Damper should remain selected, and nothing else
-        // should become selected by the CollectionChanged handler.
-        var extraPage = new BalancePageViewModel();
-        var notesPage = host.Pages.OfType<NotesPageViewModel>().Single();
-        host.Pages.Insert(host.Pages.IndexOf(notesPage), extraPage);
+        Assert.Equal(1, host.SelectedPageIndex);
+        Assert.Equal("Damper", header.Text);
+
+        pager.SelectedPageIndex = 2;
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        Assert.True(damperPage.Selected);
-        Assert.All(
-            host.Pages.Where(page => page != damperPage),
-            page => Assert.False(page.Selected));
+        Assert.Equal(2, host.SelectedPageIndex);
+        Assert.Equal("Notes", header.Text);
+
+        host.SelectedPageIndex = 0;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(0, carousel.SelectedIndex);
+        Assert.Equal(0, pager.SelectedPageIndex);
+        Assert.Equal("Spring", header.Text);
     }
 
     [AvaloniaFact]
-    public async Task SessionShellMobileView_PagesMutation_WithNoSelection_SeedsFirstPageSelected()
+    public async Task SessionShellMobileView_PagesMutationUpdatesPagerCount()
     {
         var host = CreateHost();
         await using var mounted = await MountAsync(host);
 
-        // Clear any initial selection, then insert a page.
-        foreach (var page in host.Pages)
-        {
-            page.Selected = false;
-        }
+        var pager = mounted.Shell.FindControl<PipsPager>("SessionPipsPager")
+            ?? throw new InvalidOperationException("Session pips pager was not found.");
 
         var extraPage = new BalancePageViewModel();
         host.Pages.Insert(0, extraPage);
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        Assert.True(host.Pages[0].Selected);
-        Assert.All(host.Pages.Skip(1), page => Assert.False(page.Selected));
+        Assert.Equal(host.PageCount, pager.NumberOfPages);
+        Assert.Same(extraPage, host.SelectedPage);
     }
 
     [AvaloniaFact]
@@ -229,17 +253,15 @@ public class SessionShellMobileViewTests
 
     private static FakeShellHostViewModel CreateHost()
     {
-        return new FakeShellHostViewModel
+        var host = new FakeShellHostViewModel
         {
             Name = "Test session",
-            Pages =
-            [
-                new SpringPageViewModel(),
-                new DamperPageViewModel(),
-                new NotesPageViewModel(),
-            ],
             ScreenState = SessionScreenPresentationState.Ready,
         };
+        host.Pages.Add(new SpringPageViewModel());
+        host.Pages.Add(new DamperPageViewModel());
+        host.Pages.Add(new NotesPageViewModel());
+        return host;
     }
 
     private static async Task<MountedShell> MountAsync(FakeShellHostViewModel host)
@@ -281,11 +303,26 @@ internal sealed partial class FakeShellHostViewModel : ViewModelBase, ISessionSh
     public FakeShellHostViewModel()
         : base(new InlineUiThreadDispatcher())
     {
+        Pages.CollectionChanged += OnPagesChanged;
     }
 
     public TabPageViewModelBase Editor { get; } = new FakeTabPageViewModel(new InlineUiThreadDispatcher());
 
-    public ObservableCollection<PageViewModelBase> Pages { get; init; } = [];
+    public ObservableCollection<PageViewModelBase> Pages { get; } = [];
+
+    private int selectedPageIndex;
+
+    public int SelectedPageIndex
+    {
+        get => selectedPageIndex;
+        set => SetSelectedPageIndex(value);
+    }
+
+    public PageViewModelBase? SelectedPage => Pages.Count == 0 ? null : Pages[SelectedPageIndex];
+
+    public int PageCount => Pages.Count;
+
+    public string SelectedPageDisplayName => SelectedPage?.DisplayName ?? string.Empty;
 
     private sealed class FakeTabPageViewModel(IUiThreadDispatcher uiThreadDispatcher)
         : TabPageViewModelBase(uiThreadDispatcher);
@@ -334,4 +371,47 @@ internal sealed partial class FakeShellHostViewModel : ViewModelBase, ISessionSh
 
     [RelayCommand]
     private void Close() { }
+
+    private void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
+    {
+        var clampedIndex = ClampSelectedPageIndex(selectedPageIndex);
+        SetProperty(ref selectedPageIndex, clampedIndex, nameof(SelectedPageIndex));
+        NotifySelectedPagePropertiesChanged();
+    }
+
+    private void SetSelectedPageIndex(int value)
+    {
+        var clampedIndex = ClampSelectedPageIndex(value);
+        if (SetProperty(ref selectedPageIndex, clampedIndex, nameof(SelectedPageIndex)))
+        {
+            NotifySelectedPagePropertiesChanged();
+        }
+    }
+
+    private int ClampSelectedPageIndex(int value)
+    {
+        if (Pages.Count == 0)
+        {
+            return 0;
+        }
+
+        if (value < 0)
+        {
+            return 0;
+        }
+
+        if (value >= Pages.Count)
+        {
+            return Pages.Count - 1;
+        }
+
+        return value;
+    }
+
+    private void NotifySelectedPagePropertiesChanged()
+    {
+        OnPropertyChanged(nameof(SelectedPage));
+        OnPropertyChanged(nameof(PageCount));
+        OnPropertyChanged(nameof(SelectedPageDisplayName));
+    }
 }

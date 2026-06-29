@@ -33,6 +33,10 @@ public interface ISessionShellMobileWorkspace
     TabPageViewModelBase Editor { get; }
 
     ObservableCollection<PageViewModelBase> Pages { get; }
+    int SelectedPageIndex { get; set; }
+    PageViewModelBase? SelectedPage { get; }
+    int PageCount { get; }
+    string SelectedPageDisplayName { get; }
     SessionScreenPresentationState ScreenState { get; }
     SessionOperationPresentationState SessionOperationState { get; }
 }

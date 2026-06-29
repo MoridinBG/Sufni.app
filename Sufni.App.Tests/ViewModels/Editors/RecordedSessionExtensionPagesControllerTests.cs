@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
@@ -20,13 +19,13 @@ public class RecordedSessionExtensionPagesControllerTests
     public void PageContributions_InsertUsingExistingRequestedIndexBehavior()
     {
         var manager = CreateManager();
-        var pages = CreateBuiltInPages();
-        _ = new RecordedSessionExtensionPagesController(manager, pages);
+        var context = CreateBuiltInContext();
+        _ = new RecordedSessionExtensionPagesController(manager, context);
 
         manager.ExtensionSlots.Pages.Add(CreatePageContribution("extension-page", requestedIndex: 1));
 
         AssertPageOrder(
-            pages,
+            context.Pages,
             [
                 "Graph",
                 "Extension page",
@@ -43,13 +42,13 @@ public class RecordedSessionExtensionPagesControllerTests
     public void StatisticsTabContributions_InsertBeforeMatchingBuiltInStatisticsPage()
     {
         var manager = CreateManager();
-        var pages = CreateBuiltInPages();
-        _ = new RecordedSessionExtensionPagesController(manager, pages);
+        var context = CreateBuiltInContext();
+        _ = new RecordedSessionExtensionPagesController(manager, context);
 
         manager.ExtensionSlots.StatisticsTabs.Add(CreateStatisticsTabContribution("statistics-tab", requestedIndex: 3));
 
         AssertPageOrder(
-            pages,
+            context.Pages,
             [
                 "Graph",
                 "Spring rate",
@@ -66,13 +65,13 @@ public class RecordedSessionExtensionPagesControllerTests
     public void StatisticsTabContributions_InsertBeforeNextBuiltInStatisticsPage_WhenBalanceIsAbsent()
     {
         var manager = CreateManager();
-        var pages = CreateBuiltInPages(includeBalance: false);
-        _ = new RecordedSessionExtensionPagesController(manager, pages);
+        var context = CreateBuiltInContext(includeBalance: false);
+        _ = new RecordedSessionExtensionPagesController(manager, context);
 
         manager.ExtensionSlots.StatisticsTabs.Add(CreateStatisticsTabContribution("statistics-tab", requestedIndex: 3));
 
         AssertPageOrder(
-            pages,
+            context.Pages,
             [
                 "Graph",
                 "Spring rate",
@@ -88,14 +87,14 @@ public class RecordedSessionExtensionPagesControllerTests
     public void SlotReset_RemovesStaleStatisticsTabPages()
     {
         var manager = CreateManager();
-        var pages = CreateBuiltInPages();
-        _ = new RecordedSessionExtensionPagesController(manager, pages);
+        var context = CreateBuiltInContext();
+        _ = new RecordedSessionExtensionPagesController(manager, context);
 
         manager.ExtensionSlots.StatisticsTabs.Add(CreateStatisticsTabContribution("statistics-tab", requestedIndex: 3));
         manager.ExtensionSlots.StatisticsTabs.Clear();
 
         AssertPageOrder(
-            pages,
+            context.Pages,
             [
                 "Graph",
                 "Spring rate",
@@ -111,8 +110,8 @@ public class RecordedSessionExtensionPagesControllerTests
     public void StatisticsTabReorder_UpdatesPageOrderDeterministically()
     {
         var manager = CreateManager();
-        var pages = CreateBuiltInPages();
-        _ = new RecordedSessionExtensionPagesController(manager, pages);
+        var context = CreateBuiltInContext();
+        _ = new RecordedSessionExtensionPagesController(manager, context);
         var first = CreateStatisticsTabContribution("first", requestedIndex: 3, order: 2, displayName: "First");
         var second = CreateStatisticsTabContribution("second", requestedIndex: 3, order: 1, displayName: "Second");
 
@@ -121,7 +120,7 @@ public class RecordedSessionExtensionPagesControllerTests
         manager.ExtensionSlots.StatisticsTabs.ReplaceWith([first with { Order = 0 }, second]);
 
         AssertPageOrder(
-            pages,
+            context.Pages,
             [
                 "Graph",
                 "Spring rate",
@@ -133,6 +132,23 @@ public class RecordedSessionExtensionPagesControllerTests
                 "Vibration",
                 "Analysis",
             ]);
+    }
+
+    [Fact]
+    public void RequestPageSelection_SetsSelectedPageIndexOnContext()
+    {
+        var manager = CreateManager();
+        var context = CreateBuiltInContext();
+        var controller = new RecordedSessionExtensionPagesController(manager, context);
+
+        manager.ExtensionSlots.Pages.Add(CreatePageContribution("extension-page", requestedIndex: 1));
+        var contributedPage = Assert.Single(context.Pages, page => page.DisplayName == "Extension page");
+
+        controller.RequestRecordedSessionExtensionPageSelection("extension-page");
+
+        Assert.Equal(context.Pages.IndexOf(contributedPage), context.SelectedPageIndex);
+        Assert.Same(contributedPage, context.SelectedPage);
+        Assert.Equal("Extension page", context.SelectedPageDisplayName);
     }
 
     private static RecordedSessionExtensionManager CreateManager()
@@ -156,24 +172,22 @@ public class RecordedSessionExtensionPagesControllerTests
                 requestPageSelection: null));
     }
 
-    private static ObservableCollection<PageViewModelBase> CreateBuiltInPages(bool includeBalance = true)
+    private static RecordedSessionContext CreateBuiltInContext(bool includeBalance = true)
     {
-        ObservableCollection<PageViewModelBase> pages =
-        [
-            new("Graph"),
-            new("Spring rate"),
-            new("Strokes"),
-            new("Damping"),
-        ];
+        var context = new RecordedSessionContext();
+        context.Pages.Add(new PageViewModelBase("Graph"));
+        context.Pages.Add(new PageViewModelBase("Spring rate"));
+        context.Pages.Add(new PageViewModelBase("Strokes"));
+        context.Pages.Add(new PageViewModelBase("Damping"));
 
         if (includeBalance)
         {
-            pages.Add(new PageViewModelBase("Balance"));
+            context.Pages.Add(new PageViewModelBase("Balance"));
         }
 
-        pages.Add(new PageViewModelBase("Vibration"));
-        pages.Add(new PageViewModelBase("Analysis"));
-        return pages;
+        context.Pages.Add(new PageViewModelBase("Vibration"));
+        context.Pages.Add(new PageViewModelBase("Analysis"));
+        return context;
     }
 
     private static RecordedSessionPageContribution CreatePageContribution(

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
@@ -20,6 +21,25 @@ namespace Sufni.App.ViewModels.Editors;
 public sealed partial class RecordedSessionContext : ObservableObject
 {
     public ObservableCollection<PageViewModelBase> Pages { get; } = [];
+
+    private int selectedPageIndex;
+
+    public RecordedSessionContext()
+    {
+        Pages.CollectionChanged += OnPagesChanged;
+    }
+
+    public int SelectedPageIndex
+    {
+        get => selectedPageIndex;
+        set => SetSelectedPageIndex(value);
+    }
+
+    public PageViewModelBase? SelectedPage => Pages.Count == 0 ? null : Pages[SelectedPageIndex];
+
+    public int PageCount => Pages.Count;
+
+    public string SelectedPageDisplayName => SelectedPage?.DisplayName ?? string.Empty;
 
     public SessionTimelineLinkViewModel Timeline { get; } = new();
 
@@ -99,5 +119,48 @@ public sealed partial class RecordedSessionContext : ObservableObject
         MediaPaneState = string.IsNullOrWhiteSpace(value)
             ? SurfacePresentationState.Hidden
             : SurfacePresentationState.Ready;
+    }
+
+    private void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
+    {
+        var clampedIndex = ClampSelectedPageIndex(selectedPageIndex);
+        SetProperty(ref selectedPageIndex, clampedIndex, nameof(SelectedPageIndex));
+        NotifySelectedPagePropertiesChanged();
+    }
+
+    private void SetSelectedPageIndex(int value)
+    {
+        var clampedIndex = ClampSelectedPageIndex(value);
+        if (SetProperty(ref selectedPageIndex, clampedIndex, nameof(SelectedPageIndex)))
+        {
+            NotifySelectedPagePropertiesChanged();
+        }
+    }
+
+    private int ClampSelectedPageIndex(int value)
+    {
+        if (Pages.Count == 0)
+        {
+            return 0;
+        }
+
+        if (value < 0)
+        {
+            return 0;
+        }
+
+        if (value >= Pages.Count)
+        {
+            return Pages.Count - 1;
+        }
+
+        return value;
+    }
+
+    private void NotifySelectedPagePropertiesChanged()
+    {
+        OnPropertyChanged(nameof(SelectedPage));
+        OnPropertyChanged(nameof(PageCount));
+        OnPropertyChanged(nameof(SelectedPageDisplayName));
     }
 }

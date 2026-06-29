@@ -101,6 +101,41 @@ public class LiveSessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public void SelectedPageState_TracksLivePagesAndClampsCollectionChanges()
+    {
+        var editor = CreateEditor();
+        var changes = TrackPropertyChanges(editor);
+
+        Assert.Equal(editor.Pages.Count, editor.PageCount);
+        Assert.Same(editor.Pages[0], editor.SelectedPage);
+        Assert.Equal("Graph", editor.SelectedPageDisplayName);
+
+        editor.SelectedPageIndex = 2;
+
+        Assert.Same(editor.Pages[2], editor.SelectedPage);
+        Assert.Equal("Damper", editor.SelectedPageDisplayName);
+        Assert.Contains(nameof(LiveSessionDetailViewModel.SelectedPageIndex), changes);
+        Assert.Contains(nameof(LiveSessionDetailViewModel.SelectedPage), changes);
+        Assert.Contains(nameof(LiveSessionDetailViewModel.PageCount), changes);
+        Assert.Contains(nameof(LiveSessionDetailViewModel.SelectedPageDisplayName), changes);
+
+        editor.SelectedPageIndex = 99;
+        Assert.Equal(editor.Pages.Count - 1, editor.SelectedPageIndex);
+
+        changes.Clear();
+
+        editor.Pages.Clear();
+
+        Assert.Equal(0, editor.SelectedPageIndex);
+        Assert.Null(editor.SelectedPage);
+        Assert.Equal(0, editor.PageCount);
+        Assert.Equal(string.Empty, editor.SelectedPageDisplayName);
+        Assert.Contains(nameof(LiveSessionDetailViewModel.PageCount), changes);
+        Assert.Contains(nameof(LiveSessionDetailViewModel.SelectedPage), changes);
+        Assert.Contains(nameof(LiveSessionDetailViewModel.SelectedPageDisplayName), changes);
+    }
+
+    [AvaloniaFact]
     public async Task Reload_AfterUnload_ResubscribesToSnapshots()
     {
         var editor = CreateEditor();
@@ -1173,6 +1208,19 @@ public class LiveSessionDetailViewModelTests
     {
         await Task.Delay(150);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+    }
+
+    private static List<string> TrackPropertyChanges(INotifyPropertyChanged source)
+    {
+        var changes = new List<string>();
+        source.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is not null)
+            {
+                changes.Add(args.PropertyName);
+            }
+        };
+        return changes;
     }
 
     private static LiveGraphBatch CreateTravelOnlyBatch(long revision)

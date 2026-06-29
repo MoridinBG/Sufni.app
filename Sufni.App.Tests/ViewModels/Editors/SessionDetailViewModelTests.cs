@@ -961,8 +961,9 @@ public class SessionDetailViewModelTests
 
         factory.Context!.RequestPageSelection("extension-page");
 
-        Assert.True(contributedPage.Selected);
-        Assert.All(editor.Pages.Where(page => page != contributedPage), page => Assert.False(page.Selected));
+        Assert.Equal(editor.Pages.IndexOf(contributedPage), editor.SessionContext.SelectedPageIndex);
+        Assert.Same(contributedPage, editor.SessionContext.SelectedPage);
+        Assert.Equal(extensionPage.DisplayName, editor.SessionContext.SelectedPageDisplayName);
 
         await editor.UnloadedCommand.ExecuteAsync(null);
 

@@ -935,7 +935,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 uiThreadDispatcher,
                 recordedSessionOperationCoordinator,
                 this);
-            extensionPagesController = new RecordedSessionExtensionPagesController(recordedSessionExtensions, Pages);
+            extensionPagesController = new RecordedSessionExtensionPagesController(recordedSessionExtensions, SessionContext);
         }
         SessionContext.ExtensionSlots = ExtensionSlots;
         SessionContext.PropertyChanged += OnSessionContextPropertyChanged;

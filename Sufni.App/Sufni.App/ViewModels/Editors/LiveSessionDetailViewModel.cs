@@ -20,6 +20,7 @@ using Sufni.App.ViewModels;
 using Sufni.Telemetry;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
@@ -59,6 +60,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private DampingSpeedCutoffOwner? dampingSpeedCutoffOwner;
     private DampingSpeedCutoffs persistedDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
     private DampingSpeedCutoffs? dampingSpeedCutoffPreviewOrigin;
+    private int selectedPageIndex;
 
     public string IdentityKey { get; }
 
@@ -82,6 +84,14 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public BalancePageViewModel BalancePage { get; }
     public LiveGraphPageViewModel LiveGraphPage { get; }
     public ObservableCollection<PageViewModelBase> Pages { get; }
+    public int SelectedPageIndex
+    {
+        get => selectedPageIndex;
+        set => SetSelectedPageIndex(value);
+    }
+    public PageViewModelBase? SelectedPage => Pages.Count == 0 ? null : Pages[SelectedPageIndex];
+    public int PageCount => Pages.Count;
+    public string SelectedPageDisplayName => SelectedPage?.DisplayName ?? string.Empty;
     public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
 
     public SuspensionSettings ForkSettings => NotesPage.ForkSettings;
@@ -244,6 +254,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         DamperPage = new DamperPageViewModel(this);
         BalancePage = new BalancePageViewModel(this);
         Pages = [LiveGraphPage, SpringPage, DamperPage, NotesPage, PreferencesPage];
+        Pages.CollectionChanged += OnPagesChanged;
         WireNotesPageForwarding();
         WireRuntimePreferenceForwarding();
 
@@ -317,6 +328,49 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         }
 
         return new SessionPresentationDimensions((int)rect.Width, (int)(rect.Height / 2.0));
+    }
+
+    private void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
+    {
+        var clampedIndex = ClampSelectedPageIndex(selectedPageIndex);
+        SetProperty(ref selectedPageIndex, clampedIndex, nameof(SelectedPageIndex));
+        NotifySelectedPagePropertiesChanged();
+    }
+
+    private void SetSelectedPageIndex(int value)
+    {
+        var clampedIndex = ClampSelectedPageIndex(value);
+        if (SetProperty(ref selectedPageIndex, clampedIndex, nameof(SelectedPageIndex)))
+        {
+            NotifySelectedPagePropertiesChanged();
+        }
+    }
+
+    private int ClampSelectedPageIndex(int value)
+    {
+        if (Pages.Count == 0)
+        {
+            return 0;
+        }
+
+        if (value < 0)
+        {
+            return 0;
+        }
+
+        if (value >= Pages.Count)
+        {
+            return Pages.Count - 1;
+        }
+
+        return value;
+    }
+
+    private void NotifySelectedPagePropertiesChanged()
+    {
+        OnPropertyChanged(nameof(SelectedPage));
+        OnPropertyChanged(nameof(PageCount));
+        OnPropertyChanged(nameof(SelectedPageDisplayName));
     }
 
     protected override async Task CloseImplementation()

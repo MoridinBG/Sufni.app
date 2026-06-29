@@ -3,7 +3,6 @@ using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHosting.RecordedSessions;
 using Sufni.App.ViewModels.SessionPages;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Linq;
 using System;
@@ -18,15 +17,15 @@ namespace Sufni.App.ViewModels.Editors;
 internal sealed class RecordedSessionExtensionPagesController
 {
     private readonly RecordedSessionExtensionManager manager;
-    private readonly ObservableCollection<PageViewModelBase> pages;
+    private readonly RecordedSessionContext context;
     private readonly Dictionary<string, PageViewModelBase> recordedSessionExtensionPages = [];
 
     public RecordedSessionExtensionPagesController(
         RecordedSessionExtensionManager manager,
-        ObservableCollection<PageViewModelBase> pages)
+        RecordedSessionContext context)
     {
         this.manager = manager;
-        this.pages = pages;
+        this.context = context;
         manager.ExtensionSlots.Pages.CollectionChanged += OnRecordedSessionExtensionPagesChanged;
         manager.ExtensionSlots.StatisticsTabs.CollectionChanged += OnRecordedSessionExtensionPagesChanged;
     }
@@ -44,12 +43,11 @@ internal sealed class RecordedSessionExtensionPagesController
             return;
         }
 
-        foreach (var currentPage in pages)
+        var pageIndex = context.Pages.IndexOf(page);
+        if (pageIndex >= 0)
         {
-            currentPage.Selected = false;
+            context.SelectedPageIndex = pageIndex;
         }
-
-        page.Selected = true;
     }
 
     private void OnRecordedSessionExtensionPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
@@ -101,7 +99,7 @@ internal sealed class RecordedSessionExtensionPagesController
 
         foreach (var entry in recordedSessionExtensionPages.ToArray())
         {
-            pages.Remove(entry.Value);
+            context.Pages.Remove(entry.Value);
             if (!desiredKeys.Contains(entry.Key))
             {
                 recordedSessionExtensionPages.Remove(entry.Key);
@@ -119,8 +117,8 @@ internal sealed class RecordedSessionExtensionPagesController
                 recordedSessionExtensionPages.Add(entry.Key, page);
             }
 
-            var insertIndex = Math.Clamp(entry.RequestedIndex + insertedCount, 0, pages.Count);
-            pages.Insert(insertIndex, page);
+            var insertIndex = Math.Clamp(entry.RequestedIndex + insertedCount, 0, context.Pages.Count);
+            context.Pages.Insert(insertIndex, page);
             insertedCount++;
         }
     }

@@ -39,11 +39,16 @@ public class LiveSessionDetailViewTests
         var shell = mounted.View.GetVisualDescendants().OfType<SessionShellMobileView>().SingleOrDefault();
         Assert.NotNull(shell);
 
-        var tabHeaders = mounted.View.GetVisualDescendants()
-            .OfType<ItemsControl>()
-            .FirstOrDefault(c => c.Name == "TabHeaders");
-        Assert.NotNull(tabHeaders);
-        Assert.Equal(editor.Pages.Count, tabHeaders!.ItemCount);
+        var carousel = mounted.View.GetVisualDescendants()
+            .OfType<CarouselPage>()
+            .FirstOrDefault(c => c.Name == "SessionCarouselPage");
+        var pager = mounted.View.GetVisualDescendants()
+            .OfType<PipsPager>()
+            .FirstOrDefault(c => c.Name == "SessionPipsPager");
+        Assert.NotNull(carousel);
+        Assert.Same(editor.Pages, carousel!.ItemsSource);
+        Assert.NotNull(pager);
+        Assert.Equal(editor.PageCount, pager!.NumberOfPages);
         Assert.Equal(["Graph", "Spring", "Damper", "Notes", "Preferences"], editor.Pages.Select(page => page.DisplayName));
 
         Assert.NotNull(mounted.View.GetVisualDescendants().OfType<EditableTitle>().FirstOrDefault());

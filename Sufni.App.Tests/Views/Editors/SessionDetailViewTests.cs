@@ -19,12 +19,17 @@ public class SessionDetailViewTests
         await using var mounted = await context.MountMobileAsync(
             loadResult: context.CreateMobileLoadedState(includeBalance: false));
 
-        var tabHeaders = mounted.View.GetVisualDescendants()
-            .OfType<ItemsControl>()
-            .FirstOrDefault(c => c.Name == "TabHeaders");
+        var carousel = mounted.View.GetVisualDescendants()
+            .OfType<CarouselPage>()
+            .FirstOrDefault(c => c.Name == "SessionCarouselPage");
+        var pager = mounted.View.GetVisualDescendants()
+            .OfType<PipsPager>()
+            .FirstOrDefault(c => c.Name == "SessionPipsPager");
 
-        Assert.NotNull(tabHeaders);
-        Assert.Equal(mounted.Editor.Pages.Count, tabHeaders!.ItemCount);
+        Assert.NotNull(carousel);
+        Assert.Same(mounted.Editor.Pages, carousel!.ItemsSource);
+        Assert.NotNull(pager);
+        Assert.Equal(mounted.Editor.SessionContext.PageCount, pager!.NumberOfPages);
         Assert.DoesNotContain(mounted.Editor.Pages, page => page is BalancePageViewModel);
     }
 

@@ -3,6 +3,7 @@ using Avalonia.Headless.XUnit;
 using Sufni.App.ExtensionHost.Contracts;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ExtensionHosting;
+using Sufni.App.ViewModels.SessionPages;
 
 namespace Sufni.App.Tests.ExtensionHost;
 
@@ -57,6 +58,24 @@ public class ExtensionViewRegistryTests
     }
 
     [AvaloniaFact]
+    public void ViewLocator_Build_UsesExtensionRegistryForRecordedSessionExtensionPage()
+    {
+        TestApp.SetIsDesktop(false);
+
+        var registry = new ExtensionViewRegistry();
+        registry.Register(
+            typeof(ExtensionViewModel),
+            static () => new TextBlock { Text = "recorded extension" },
+            desktopFactory: null);
+        var locator = new ViewLocator(registry);
+        var page = new RecordedSessionExtensionPageViewModel("Extension", new ExtensionViewModel());
+
+        var control = locator.Build(page);
+
+        Assert.Equal("recorded extension", Assert.IsType<TextBlock>(control).Text);
+    }
+
+    [AvaloniaFact]
     public void ViewLocator_Match_ReturnsTrue_ForExtensionViewModel()
     {
         TestApp.SetIsDesktop(false);
@@ -71,6 +90,5 @@ public class ExtensionViewRegistryTests
         Assert.True(locator.Match(new ExtensionViewModel()));
     }
 
-    private sealed class ExtensionViewModel;
+    private sealed class ExtensionViewModel : IExtensionViewModel;
 }
-

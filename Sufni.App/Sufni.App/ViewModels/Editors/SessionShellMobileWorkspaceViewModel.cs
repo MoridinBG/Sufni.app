@@ -22,6 +22,18 @@ internal sealed class SessionShellMobileWorkspaceViewModel : ObservableObject, I
 
     public ObservableCollection<PageViewModelBase> Pages => context.Pages;
 
+    public int SelectedPageIndex
+    {
+        get => context.SelectedPageIndex;
+        set => context.SelectedPageIndex = value;
+    }
+
+    public PageViewModelBase? SelectedPage => context.SelectedPage;
+
+    public int PageCount => context.PageCount;
+
+    public string SelectedPageDisplayName => context.SelectedPageDisplayName;
+
     public SessionScreenPresentationState ScreenState => context.ScreenState;
 
     public SessionOperationPresentationState SessionOperationState => context.SessionOperationState;
@@ -37,6 +49,30 @@ internal sealed class SessionShellMobileWorkspaceViewModel : ObservableObject, I
         if (args.PropertyName is nameof(RecordedSessionContext.SessionOperationState))
         {
             OnPropertyChanged(nameof(SessionOperationState));
+            return;
+        }
+
+        if (args.PropertyName is nameof(RecordedSessionContext.SelectedPageIndex))
+        {
+            OnPropertyChanged(nameof(SelectedPageIndex));
+            return;
+        }
+
+        if (args.PropertyName is nameof(RecordedSessionContext.SelectedPage))
+        {
+            OnPropertyChanged(nameof(SelectedPage));
+            return;
+        }
+
+        if (args.PropertyName is nameof(RecordedSessionContext.PageCount))
+        {
+            OnPropertyChanged(nameof(PageCount));
+            return;
+        }
+
+        if (args.PropertyName is nameof(RecordedSessionContext.SelectedPageDisplayName))
+        {
+            OnPropertyChanged(nameof(SelectedPageDisplayName));
         }
     }
 }

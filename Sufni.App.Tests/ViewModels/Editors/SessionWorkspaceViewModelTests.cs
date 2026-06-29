@@ -87,6 +87,65 @@ public class SessionWorkspaceViewModelTests
         Assert.Contains(nameof(SessionStatisticsWorkspaceViewModel.SessionAnalysisModesText), changes);
     }
 
+    [Fact]
+    public void RecordedSessionContext_SelectedPageState_ClampsAndTracksCollectionChanges()
+    {
+        var context = new RecordedSessionContext();
+        var graph = new PageViewModelBase("Graph");
+        var damper = new PageViewModelBase("Damper");
+        var changes = TrackPropertyChanges(context);
+
+        context.Pages.Add(graph);
+        context.Pages.Add(damper);
+
+        Assert.Equal(2, context.PageCount);
+        Assert.Equal(0, context.SelectedPageIndex);
+        Assert.Same(graph, context.SelectedPage);
+        Assert.Equal("Graph", context.SelectedPageDisplayName);
+        Assert.Contains(nameof(RecordedSessionContext.PageCount), changes);
+        Assert.Contains(nameof(RecordedSessionContext.SelectedPage), changes);
+        Assert.Contains(nameof(RecordedSessionContext.SelectedPageDisplayName), changes);
+
+        changes.Clear();
+        context.SelectedPageIndex = 1;
+
+        Assert.Same(damper, context.SelectedPage);
+        Assert.Equal("Damper", context.SelectedPageDisplayName);
+        Assert.Contains(nameof(RecordedSessionContext.SelectedPageIndex), changes);
+        Assert.Contains(nameof(RecordedSessionContext.SelectedPage), changes);
+        Assert.Contains(nameof(RecordedSessionContext.PageCount), changes);
+        Assert.Contains(nameof(RecordedSessionContext.SelectedPageDisplayName), changes);
+
+        context.SelectedPageIndex = 99;
+        Assert.Equal(1, context.SelectedPageIndex);
+
+        context.SelectedPageIndex = -1;
+        Assert.Equal(0, context.SelectedPageIndex);
+
+        context.SelectedPageIndex = 1;
+        changes.Clear();
+
+        context.Pages.Remove(damper);
+
+        Assert.Equal(0, context.SelectedPageIndex);
+        Assert.Same(graph, context.SelectedPage);
+        Assert.Equal("Graph", context.SelectedPageDisplayName);
+        Assert.Contains(nameof(RecordedSessionContext.SelectedPageIndex), changes);
+        Assert.Contains(nameof(RecordedSessionContext.PageCount), changes);
+
+        changes.Clear();
+
+        context.Pages.Clear();
+
+        Assert.Equal(0, context.SelectedPageIndex);
+        Assert.Null(context.SelectedPage);
+        Assert.Equal(0, context.PageCount);
+        Assert.Equal(string.Empty, context.SelectedPageDisplayName);
+        Assert.Contains(nameof(RecordedSessionContext.SelectedPage), changes);
+        Assert.Contains(nameof(RecordedSessionContext.PageCount), changes);
+        Assert.Contains(nameof(RecordedSessionContext.SelectedPageDisplayName), changes);
+    }
+
     private static (RecordedSessionContext Context, TestSessionOperationGateway Gateway, SessionStatisticsWorkspaceViewModel Workspace) CreateStatisticsWorkspace()
     {
         var context = new RecordedSessionContext();
@@ -136,11 +195,26 @@ public class SessionWorkspaceViewModelTests
 
         context.ScreenState = SessionScreenPresentationState.Loading("Loading session.");
         context.SessionOperationState = SessionOperationPresentationState.Progress("Saving.", 25);
+        context.Pages.Add(new PageViewModelBase("Graph"));
+        context.Pages.Add(new PageViewModelBase("Damper"));
+        context.SelectedPageIndex = 1;
 
         Assert.Equal(context.ScreenState, workspace.ScreenState);
         Assert.Equal(context.SessionOperationState, workspace.SessionOperationState);
+        Assert.Equal(context.SelectedPageIndex, workspace.SelectedPageIndex);
+        Assert.Same(context.SelectedPage, workspace.SelectedPage);
+        Assert.Equal(context.PageCount, workspace.PageCount);
+        Assert.Equal(context.SelectedPageDisplayName, workspace.SelectedPageDisplayName);
         Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.ScreenState), changes);
         Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.SessionOperationState), changes);
+        Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.SelectedPageIndex), changes);
+        Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.SelectedPage), changes);
+        Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.PageCount), changes);
+        Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.SelectedPageDisplayName), changes);
+
+        workspace.SelectedPageIndex = 0;
+
+        Assert.Equal(0, context.SelectedPageIndex);
     }
 
     [Fact]
