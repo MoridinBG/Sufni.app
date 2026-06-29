@@ -1,6 +1,10 @@
 using System;
+using System.Linq;
+using System.Windows.Input;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Svg.Skia;
+using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.ViewModels;
@@ -149,6 +153,43 @@ public class MainPagesViewTests
         Assert.NotNull(host);
         Assert.Same(viewModel.ExtensionToolbarCommands, host!.CommandContributions);
         Assert.Same(viewModel.ExtensionToolbarViews, host.ViewContributions);
+    }
+
+    [AvaloniaFact]
+    public async Task MainPagesView_SidePanelRendersExtensionCommandAsMenuItem()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
+
+        var command = Substitute.For<ICommand>();
+        var commandContribution = new AppToolbarCommandContribution(
+            "extension",
+            "toolbar-command",
+            Order: 0,
+            "Mobile command",
+            new ToolbarIconDescriptor("/Assets/fa-link.svg", Width: 13, Height: 13),
+            command);
+        var viewModel = MainPagesViewModelTestFactory.Create(
+            appToolbarContributionProviders: [new TestAppToolbarContributionProvider([commandContribution], [])]);
+        var view = new MainPagesView
+        {
+            DataContext = viewModel,
+        };
+
+        await using var mounted = await MountAsync(view);
+
+        var menuPanel = mounted.View.FindControl<SidePanel>("MenuPanel");
+        var host = menuPanel!.FindControl<AppToolbarContributionsView>("SidePanelExtensionToolbarActions");
+        var contributionsHost = host!.FindControl<StackPanel>("ContributionsHost");
+        Assert.NotNull(contributionsHost);
+
+        // Command contributions render as menu items matching the built-in side-panel actions.
+        var menuItem = Assert.Single(contributionsHost!.Children.OfType<MenuItem>());
+        Assert.Equal("Mobile command", menuItem.Header);
+        Assert.Same(command, menuItem.Command);
+        var icon = Assert.IsType<Image>(menuItem.Icon);
+        Assert.Equal(13, icon.Width);
+        Assert.IsType<SvgImage>(icon.Source);
     }
 
     private static async Task<MountedMainPagesView> MountAsync(MainPagesView view)

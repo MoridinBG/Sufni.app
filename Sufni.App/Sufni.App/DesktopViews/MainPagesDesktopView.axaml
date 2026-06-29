@@ -166,6 +166,7 @@ mc:Ignorable="d">
 
             <controls:AppToolbarContributionsView
             CommandContributions="{Binding ExtensionToolbarCommands}"
+            Presentation="NavRail"
             ViewContributions="{Binding ExtensionToolbarViews}" />
 
             <!--  Paired devices button  -->

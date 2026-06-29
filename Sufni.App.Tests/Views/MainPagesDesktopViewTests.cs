@@ -145,25 +145,22 @@ public class MainPagesDesktopViewTests
         await using var mounted = await MountAsync(view);
 
         var host = Assert.Single(mounted.View.GetVisualDescendants().OfType<AppToolbarContributionsView>());
-        var commandBar = host.FindControl<CommandBar>("AppToolbarCommandBar");
-        Assert.NotNull(commandBar);
-        var button = Assert.Single(host.GetVisualDescendants().OfType<CommandBarButton>(), button => button.Label == "Desktop command");
-        Assert.Equal("Desktop command", button.Label);
+        var contributionsHost = host.FindControl<StackPanel>("ContributionsHost");
+        Assert.NotNull(contributionsHost);
+
+        // Command contributions render as icon-only embedded rail buttons with the label as a tooltip.
+        var button = Assert.Single(contributionsHost!.Children.OfType<Button>());
+        Assert.Contains("embedded", button.Classes);
         Assert.Same(command, button.Command);
-        var icon = Assert.IsType<Image>(button.Icon);
+        Assert.Equal("Desktop command", ToolTip.GetTip(button));
+        var icon = Assert.IsType<Image>(button.Content);
         Assert.Equal(17, icon.Width);
         Assert.Equal(19, icon.Height);
         var svgImage = Assert.IsType<SvgImage>(icon.Source);
         Assert.NotNull(svgImage.Source?.Picture);
-        AssertCommandBarContent(host, contributionViewModel.Content!);
-    }
 
-    private static void AssertCommandBarContent(AppToolbarContributionsView host, object expectedContent)
-    {
-        var commandBar = host.FindControl<CommandBar>("AppToolbarCommandBar");
-        var contentHost = Assert.IsType<StackPanel>(commandBar!.Content);
-        var contentControl = Assert.Single(contentHost.Children.OfType<ContentControl>());
-        Assert.Same(expectedContent, contentControl.Content);
+        // View contributions render directly in the host so their template resolves through ViewLocator.
+        Assert.Contains(contributionViewModel, contributionsHost.Children);
     }
 
     private static async Task<MountedMainPagesDesktopView> MountAsync(MainPagesDesktopView view)

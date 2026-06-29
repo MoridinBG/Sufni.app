@@ -125,16 +125,23 @@ theme area.
 
 `AppToolbarCommandContribution` carries an extension id, contribution
 id, order, label, optional `ToolbarIconDescriptor`, `ICommand`, and
-optional command parameter. The host renders it as a `CommandBarButton`
-and maps only those descriptor fields. This path is for simple
-icon/text commands; it does not give an extension an arbitrary control
-tree or extension-specific button template. Extensions that need custom
-interactive UI contribute `AppToolbarViewContribution` instead. View
-contributions carry an `IAppToolbarContributionViewModel` and render in
-`CommandBar.Content`; the host wraps non-control view models in
+optional command parameter. `AppToolbarContributionsView` renders each
+command contribution to match the surface it is placed in, set through
+its `Presentation` property: an icon-only embedded button with the label
+as a hover tooltip in the desktop nav rail, and a labeled menu item in
+the mobile side panel. Either way it maps only those descriptor fields.
+This path is for simple icon/text commands; it does not give an
+extension an arbitrary control tree or extension-specific button
+template. Extensions that need custom interactive UI contribute
+`AppToolbarViewContribution` instead. View contributions carry an
+`IAppToolbarContributionViewModel` and render directly in the
+contributions host; the host wraps non-control view models in
 `ContentControl`, allowing the extension view registry to resolve a
-matching view template. Providers are DI-created, so toolbar commands
-and view models can depend on normal extension and host services.
+matching view template. The host reserves no space when both
+contribution families are empty, so public builds with no contributions
+add nothing to the rail or side panel. Providers are DI-created, so
+toolbar commands and view models can depend on normal extension and host
+services.
 
 ## Recorded-Session Scope
 

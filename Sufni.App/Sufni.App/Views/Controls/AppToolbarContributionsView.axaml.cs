@@ -9,10 +9,22 @@ using Sufni.App.ExtensionHost.Contracts;
 
 namespace Sufni.App.Views.Controls;
 
+// Selects how contributed app-toolbar items are rendered so they match the
+// host they are placed in: the desktop nav rail's icon buttons or the mobile
+// side panel's menu items.
+public enum AppToolbarContributionPresentation
+{
+    NavRail,
+    Menu,
+}
+
 public partial class AppToolbarContributionsView : UserControl
 {
     private static readonly Uri SvgAssetBaseUri =
         new($"avares://{typeof(global::Sufni.App.App).Assembly.GetName().Name}/");
+
+    // Matches the fixed width of the built-in desktop nav rail buttons.
+    private const double NavRailButtonWidth = 50;
 
     private INotifyCollectionChanged? subscribedCommandContributions;
     private INotifyCollectionChanged? subscribedViewContributions;
@@ -25,6 +37,10 @@ public partial class AppToolbarContributionsView : UserControl
         AvaloniaProperty.Register<AppToolbarContributionsView, IEnumerable?>(
             nameof(ViewContributions));
 
+    public static readonly StyledProperty<AppToolbarContributionPresentation> PresentationProperty =
+        AvaloniaProperty.Register<AppToolbarContributionsView, AppToolbarContributionPresentation>(
+            nameof(Presentation));
+
     public IEnumerable? CommandContributions
     {
         get => GetValue(CommandContributionsProperty);
@@ -35,6 +51,12 @@ public partial class AppToolbarContributionsView : UserControl
     {
         get => GetValue(ViewContributionsProperty);
         set => SetValue(ViewContributionsProperty, value);
+    }
+
+    public AppToolbarContributionPresentation Presentation
+    {
+        get => GetValue(PresentationProperty);
+        set => SetValue(PresentationProperty, value);
     }
 
     public AppToolbarContributionsView()
@@ -51,6 +73,11 @@ public partial class AppToolbarContributionsView : UserControl
             if (args.Property == ViewContributionsProperty)
             {
                 SubscribeToViewContributions(ViewContributions);
+                Rebuild();
+            }
+
+            if (args.Property == PresentationProperty)
+            {
                 Rebuild();
             }
         };
@@ -116,17 +143,16 @@ public partial class AppToolbarContributionsView : UserControl
 
     private void Rebuild()
     {
-        AppToolbarCommandBar.PrimaryCommands.Clear();
-        AppToolbarViewContributionsHost.Children.Clear();
+        ContributionsHost.Children.Clear();
 
         foreach (var contribution in OrderedCommandContributions())
         {
-            AppToolbarCommandBar.PrimaryCommands.Add(CreateCommandBarButton(contribution));
+            ContributionsHost.Children.Add(CreateCommandControl(contribution));
         }
 
         foreach (var contribution in OrderedViewContributions())
         {
-            AppToolbarViewContributionsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
+            ContributionsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
         }
     }
 
@@ -148,11 +174,35 @@ public partial class AppToolbarContributionsView : UserControl
             .ThenBy(static contribution => contribution.ContributionId, System.StringComparer.Ordinal);
     }
 
-    private static CommandBarButton CreateCommandBarButton(AppToolbarCommandContribution contribution)
+    private Control CreateCommandControl(AppToolbarCommandContribution contribution)
     {
-        return new CommandBarButton
+        return Presentation == AppToolbarContributionPresentation.Menu
+            ? CreateMenuItem(contribution)
+            : CreateNavRailButton(contribution);
+    }
+
+    // Desktop nav rail: icon-only embedded button matching the built-in rail
+    // buttons, with the label surfaced as a hover tooltip.
+    private static Button CreateNavRailButton(AppToolbarCommandContribution contribution)
+    {
+        var button = new Button
         {
-            Label = contribution.Label,
+            Width = NavRailButtonWidth,
+            Command = contribution.Command,
+            CommandParameter = contribution.CommandParameter,
+            Content = CreateIcon(contribution.Icon),
+        };
+        button.Classes.Add("embedded");
+        ToolTip.SetTip(button, contribution.Label);
+        return button;
+    }
+
+    // Mobile side panel: menu item matching the built-in menu actions.
+    private static MenuItem CreateMenuItem(AppToolbarCommandContribution contribution)
+    {
+        return new MenuItem
+        {
+            Header = contribution.Label,
             Icon = CreateIcon(contribution.Icon),
             Command = contribution.Command,
             CommandParameter = contribution.CommandParameter,
