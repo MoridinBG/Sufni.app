@@ -44,8 +44,9 @@ public interface IShellCoordinator
     void CloseIfOpen<T>(Func<T, bool> match, bool forgetRestoreHistory = false) where T : ViewModelBase;
 
     /// <summary>
-    /// Pop the current view on mobile (e.g. hardware back button). No-op
-    /// on desktop.
+    /// Pop the current view on mobile (e.g. hardware back button). Returns
+    /// whether the shell consumed the back request. Always returns
+    /// <see langword="false"/> on desktop.
     /// </summary>
-    void GoBack();
+    bool GoBack();
 }

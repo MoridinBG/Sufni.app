@@ -205,8 +205,9 @@ public class DesktopShellCoordinatorTests
     {
         var coordinator = CreateCoordinator();
 
-        coordinator.GoBack();
+        var handled = coordinator.GoBack();
 
+        Assert.False(handled);
         host.DidNotReceiveWithAnyArgs().OpenView(default!);
         host.DidNotReceiveWithAnyArgs().CloseTabPage(default!, default);
         _ = host.DidNotReceiveWithAnyArgs().Tabs;

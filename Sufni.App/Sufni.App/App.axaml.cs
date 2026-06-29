@@ -105,10 +105,13 @@ public partial class App : Application
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime)
         {
-            ServiceCollection.AddSingleton<IMainViewShellHost>(sp =>
-                sp.GetRequiredService<MainViewModel>());
+            ServiceCollection.AddSingleton<MobileNavigationShellHost>();
+            ServiceCollection.AddSingleton<IMobileNavigationShellHost>(sp =>
+                sp.GetRequiredService<MobileNavigationShellHost>());
+            ServiceCollection.AddSingleton<IMobileNavigationPageHost>(sp =>
+                sp.GetRequiredService<MobileNavigationShellHost>());
             ServiceCollection.AddSingleton<IShellCoordinator>(sp =>
-                new MobileShellCoordinator(() => sp.GetRequiredService<IMainViewShellHost>()));
+                new MobileShellCoordinator(sp.GetRequiredService<IMobileNavigationShellHost>()));
             ServiceCollection.AddSingleton<ISessionLayoutStrategy, MobileSessionLayoutStrategy>();
         }
 
@@ -343,12 +346,12 @@ public partial class App : Application
 
         var fileService = Services.GetRequiredService<IFilesService>();
         var dialogHost = Services.GetRequiredService<IDialogHost>();
-        var mainViewModel = Services.GetRequiredService<MainViewModel>();
-        var mainWindowViewModel = Services.GetRequiredService<MainWindowViewModel>();
+        var shellCoordinator = Services.GetRequiredService<IShellCoordinator>();
 
         switch (ApplicationLifetime)
         {
             case IClassicDesktopStyleApplicationLifetime desktop:
+                var mainWindowViewModel = Services.GetRequiredService<MainWindowViewModel>();
                 desktop.MainWindow = new MainWindow();
                 fileService.SetTarget(TopLevel.GetTopLevel(desktop.MainWindow));
                 dialogHost.SetOwner(desktop.MainWindow);
@@ -358,13 +361,17 @@ public partial class App : Application
                 desktop.Exit += (_, _) => LoggingBootstrapper.FlushAndClose();
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
-                singleViewPlatform.MainView = new MainView
+                var mainViewModel = Services.GetRequiredService<MainViewModel>();
+                var mobileNavigationPageHost = Services.GetRequiredService<IMobileNavigationPageHost>();
+                var mainView = new MainView
                 {
                     DataContext = mainViewModel
                 };
-                if (singleViewPlatform.MainView is Control mainView)
+                mainView.SetNavigationPageHost(mobileNavigationPageHost);
+                singleViewPlatform.MainView = mainView;
+                if (singleViewPlatform.MainView is Control mainViewControl)
                 {
-                    dialogHost.SetOverlayHost(mainView);
+                    dialogHost.SetOverlayHost(mainViewControl);
                     dialogHost.SetPresentationMode(DialogPresentationMode.Overlay);
                 }
                 singleViewPlatform.MainView.Loaded += (_, _) =>
@@ -373,8 +380,13 @@ public partial class App : Application
                     Debug.Assert(topLevel is not null);
                     topLevel.BackRequested += (_, e) =>
                     {
-                        mainViewModel.OpenPreviousView();
-                        e.Handled = true;
+                        var handled = mainViewModel.TryCloseTransientShellSurface();
+                        if (!handled)
+                        {
+                            handled = shellCoordinator.GoBack();
+                        }
+
+                        e.Handled = handled;
                     };
                     fileService.SetTarget(topLevel);
                 };

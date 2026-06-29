@@ -1,7 +1,5 @@
-using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.VisualTree;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.Services;
@@ -17,37 +15,30 @@ namespace Sufni.App.Tests.Views;
 public class MainViewTests
 {
     [AvaloniaFact]
-    public async Task MainView_SwitchesMountedContent_WhenCurrentViewChanges()
+    public async Task MainView_AttachesNavigationPageHost_WhenLoaded_AndDetachesWhenUnloaded()
     {
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
 
         var mainPages = MainPagesViewModelTestFactory.Create();
-        var viewModel = new MainViewModel(mainPages, new InlineUiThreadDispatcher());
+        var navigationHost = Substitute.For<IMobileNavigationShellHost>();
+        var pageHost = Substitute.For<IMobileNavigationPageHost>();
+        var viewModel = new MainViewModel(mainPages, navigationHost, new InlineUiThreadDispatcher());
         var view = new MainView
         {
             DataContext = viewModel,
         };
+        view.SetNavigationPageHost(pageHost);
 
-        await using var mounted = await MountAsync(view);
+        var mounted = await MountAsync(view);
+        var navigationPage = mounted.View.FindControl<NavigationPage>("RootNavigationPage");
 
-        var host = mounted.View.FindControl<ContentControl>("CurrentViewHost");
+        Assert.NotNull(navigationPage);
+        pageHost.Received(1).Attach(navigationPage!);
 
-        Assert.NotNull(host);
-        Assert.Same(mainPages, host!.Content);
-        Assert.Single(mounted.View.GetVisualDescendants().OfType<MainPagesView>());
+        await mounted.DisposeAsync();
 
-        viewModel.OpenView(MainPagesViewModelTestFactory.CreateWelcomeScreen());
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.IsType<WelcomeScreenViewModel>(host.Content);
-        Assert.Single(mounted.View.GetVisualDescendants().OfType<WelcomeScreenView>());
-
-        viewModel.OpenPreviousView();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Same(mainPages, host.Content);
-        Assert.Single(mounted.View.GetVisualDescendants().OfType<MainPagesView>());
+        pageHost.Received(1).Detach(navigationPage!);
     }
 
     [AvaloniaFact]
@@ -58,11 +49,13 @@ public class MainViewTests
 
         var server = new TestSynchronizationServerService();
         var mainPages = MainPagesViewModelTestFactory.Create(syncCoordinator: CreateSyncCoordinator(server));
-        var viewModel = new MainViewModel(mainPages, new InlineUiThreadDispatcher());
+        var navigationHost = Substitute.For<IMobileNavigationShellHost>();
+        var viewModel = new MainViewModel(mainPages, navigationHost, new InlineUiThreadDispatcher());
         var view = new MainView
         {
             DataContext = viewModel,
         };
+        view.SetNavigationPageHost(Substitute.For<IMobileNavigationPageHost>());
 
         await using var mounted = await MountAsync(view);
 

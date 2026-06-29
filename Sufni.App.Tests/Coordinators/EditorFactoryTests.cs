@@ -305,8 +305,9 @@ public class EditorFactoryTests
             CloseIfOpenForgetRestoreHistory = forgetRestoreHistory;
         }
 
-        public void GoBack()
+        public bool GoBack()
         {
+            return false;
         }
     }
 }

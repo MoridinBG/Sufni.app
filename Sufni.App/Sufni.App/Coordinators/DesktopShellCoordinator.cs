@@ -44,8 +44,9 @@ public sealed class DesktopShellCoordinator(Func<IMainWindowShellHost> mainWindo
         }
     }
 
-    public void GoBack()
+    public bool GoBack()
     {
         // Desktop has no back stack.
+        return false;
     }
 }

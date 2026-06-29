@@ -3,24 +3,17 @@ using Sufni.App.ViewModels;
 
 namespace Sufni.App.Coordinators;
 
-public sealed class MobileShellCoordinator(Func<IMainViewShellHost> mainViewProvider) : IShellCoordinator
+public sealed class MobileShellCoordinator(IMobileNavigationShellHost navigationHost) : IShellCoordinator
 {
-    public void Open(ViewModelBase view) => mainViewProvider().OpenView(view);
+    public void Open(ViewModelBase view) => navigationHost.Push(view);
 
     // Mobile navigation is a stack — there is no concept of an
     // already-open editor to focus, so the factory always runs and the
     // new view is pushed.
     public void OpenOrFocus<T>(Func<T, bool> match, Func<T> create) where T : ViewModelBase
-        => mainViewProvider().OpenView(create());
+        => navigationHost.Push(create());
 
-    public void Close(ViewModelBase view)
-    {
-        var main = mainViewProvider();
-        if (ReferenceEquals(main.CurrentView, view))
-        {
-            main.OpenPreviousView();
-        }
-    }
+    public void Close(ViewModelBase view) => navigationHost.Close(view);
 
     // On mobile a list page and an editor for one of its rows are not on
     // the back stack at the same time, so there is nothing to close.
@@ -28,5 +21,5 @@ public sealed class MobileShellCoordinator(Func<IMainViewShellHost> mainViewProv
     {
     }
 
-    public void GoBack() => mainViewProvider().OpenPreviousView();
+    public bool GoBack() => navigationHost.Pop();
 }

@@ -331,7 +331,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
 
             isPaired = true;
             IsPairedChanged?.Invoke(this, EventArgs.Empty);
-            shell.GoBack();
+            _ = shell.GoBack();
             PairingConfirmed?.Invoke(this, EventArgs.Empty);
 
             logger.Information("Pairing confirmation completed");

@@ -10,10 +10,9 @@ d:DesignHeight="600"
 d:DesignWidth="500"
 x:DataType="vm:MainViewModel"
 Background="{DynamicResource SufniBackgroundDisabled}"
-TopLevel.AutoSafeAreaPadding="True"
 mc:Ignorable="d">
-    <Panel Background="{DynamicResource SufniRegion}">
-        <ContentControl Name="CurrentViewHost" VerticalAlignment="Stretch" Content="{Binding CurrentView}" />
+    <Panel TopLevel.AutoSafeAreaPadding="True" Background="{DynamicResource SufniRegion}">
+        <NavigationPage Name="RootNavigationPage" />
         <c:BusyOverlay
             Name="SyncBusyOverlay"
             BusyMessageFontWeight="Bold"

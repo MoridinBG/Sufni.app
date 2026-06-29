@@ -1,47 +1,39 @@
 using Sufni.App.ExtensionHost.Contracts.Services;
-﻿using System.Collections.Generic;
-using System.Diagnostics;
-using CommunityToolkit.Mvvm.ComponentModel;
+using Sufni.App.Coordinators;
 using Sufni.App.Services;
 
 namespace Sufni.App.ViewModels;
 
-public partial class MainViewModel : ViewModelBase, IMainViewShellHost
+public partial class MainViewModel : ViewModelBase
 {
-    private readonly Stack<ViewModelBase> viewHistory = new();
-
     #region Observable properties
 
-    [ObservableProperty] private ViewModelBase currentView;
     public MainPagesViewModel MainPagesViewModel { get; }
 
     #endregion Observable properties
 
     #region Constructors
 
-    public MainViewModel(MainPagesViewModel mainPagesViewModel, IUiThreadDispatcher uiThreadDispatcher)
+    public MainViewModel(
+        MainPagesViewModel mainPagesViewModel,
+        IMobileNavigationShellHost navigationHost,
+        IUiThreadDispatcher uiThreadDispatcher)
         : base(uiThreadDispatcher)
     {
         MainPagesViewModel = mainPagesViewModel;
-        CurrentView = mainPagesViewModel;
+        navigationHost.SetRoot(mainPagesViewModel);
     }
 
     #endregion Constructors
 
-    #region Public mthods
-
-    public void OpenView(ViewModelBase view)
+    public bool TryCloseTransientShellSurface()
     {
-        viewHistory.Push(CurrentView);
-        CurrentView = view;
-    }
+        if (!MainPagesViewModel.IsDrawerOpen)
+        {
+            return false;
+        }
 
-    public void OpenPreviousView()
-    {
-        if (viewHistory.Count <= 0) return;
-        CurrentView = viewHistory.Pop();
-        Debug.Assert(CurrentView != null, nameof(CurrentView) + " != null");
+        MainPagesViewModel.IsDrawerOpen = false;
+        return true;
     }
-
-    #endregion Public mthods
 }

@@ -6,15 +6,15 @@ namespace Sufni.App.Tests.Coordinators;
 
 public class MobileShellCoordinatorTests
 {
-    private readonly IMainViewShellHost host = Substitute.For<IMainViewShellHost>();
+    private readonly IMobileNavigationShellHost host = Substitute.For<IMobileNavigationShellHost>();
     private static readonly InlineUiThreadDispatcher TestDispatcher = new();
 
-    private MobileShellCoordinator CreateCoordinator() => new(() => host);
+    private MobileShellCoordinator CreateCoordinator() => new(host);
 
     /// <summary>
     /// Minimal test-only `ViewModelBase` subclass used as input data
     /// for the shell coordinator under test. Not a substitute for the
-    /// SUT's dependency — the SUT depends on `IMainViewShellHost`,
+    /// SUT's dependency — the SUT depends on `IMobileNavigationShellHost`,
     /// which is substituted separately.
     /// </summary>
     private sealed class TestViewModel : ViewModelBase
@@ -35,7 +35,7 @@ public class MobileShellCoordinatorTests
 
         coordinator.Open(view);
 
-        host.Received(1).OpenView(view);
+        host.Received(1).Push(view);
     }
 
     // ----- OpenOrFocus -----
@@ -56,34 +56,20 @@ public class MobileShellCoordinatorTests
             create: () => newView);
 
         Assert.False(matchInvoked);
-        host.Received(1).OpenView(newView);
+        host.Received(1).Push(newView);
     }
 
     // ----- Close -----
 
     [Fact]
-    public void Close_PopsCurrentView_WhenSuppliedViewIsCurrent()
+    public void Close_ForwardsToHostClose()
     {
         var view = new TestViewModel();
-        host.CurrentView.Returns(view);
         var coordinator = CreateCoordinator();
 
         coordinator.Close(view);
 
-        host.Received(1).OpenPreviousView();
-    }
-
-    [Fact]
-    public void Close_IsNoOp_WhenSuppliedViewIsNotCurrent()
-    {
-        var current = new TestViewModel();
-        var other = new TestViewModel();
-        host.CurrentView.Returns(current);
-        var coordinator = CreateCoordinator();
-
-        coordinator.Close(other);
-
-        host.DidNotReceive().OpenPreviousView();
+        host.Received(1).Close(view);
     }
 
     // ----- CloseIfOpen -----
@@ -95,20 +81,34 @@ public class MobileShellCoordinatorTests
 
         coordinator.CloseIfOpen<TestViewModel>(_ => true);
 
-        host.DidNotReceive().OpenPreviousView();
-        host.DidNotReceiveWithAnyArgs().OpenView(default!);
-        _ = host.DidNotReceive().CurrentView;
+        host.DidNotReceiveWithAnyArgs().Close(default!);
+        host.DidNotReceiveWithAnyArgs().Push(default!);
+        host.DidNotReceive().Pop();
     }
 
     // ----- GoBack -----
 
     [Fact]
-    public void GoBack_ForwardsToOpenPreviousView()
+    public void GoBack_ForwardsToHostPop()
     {
+        host.Pop().Returns(true);
         var coordinator = CreateCoordinator();
 
-        coordinator.GoBack();
+        var handled = coordinator.GoBack();
 
-        host.Received(1).OpenPreviousView();
+        Assert.True(handled);
+        host.Received(1).Pop();
+    }
+
+    [Fact]
+    public void GoBack_ReturnsFalse_WhenHostDoesNotPop()
+    {
+        host.Pop().Returns(false);
+        var coordinator = CreateCoordinator();
+
+        var handled = coordinator.GoBack();
+
+        Assert.False(handled);
+        host.Received(1).Pop();
     }
 }

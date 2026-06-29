@@ -90,7 +90,7 @@ public class SetupCoordinator(
 
             var saved = SetupSnapshot.From(setup, boardId);
             setupStore.Upsert(saved);
-            shell.GoBack();
+            _ = shell.GoBack();
 
             logger.Information("Setup save completed for {SetupId}", setup.Id);
             return new SetupSaveResult.Saved(saved.Updated);

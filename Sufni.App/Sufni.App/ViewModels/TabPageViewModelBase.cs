@@ -41,7 +41,10 @@ public partial class TabPageViewModelBase : ViewModelBase
     #region Navigation helpers
 
     [RelayCommand]
-    protected void OpenPreviousPage() => shell.GoBack();
+    protected void OpenPreviousPage()
+    {
+        _ = shell.GoBack();
+    }
 
     #endregion Navigation helpers
 

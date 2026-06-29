@@ -135,7 +135,10 @@ public partial class PairingClientViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void OpenPreviousPage() => shell.GoBack();
+    private void OpenPreviousPage()
+    {
+        _ = shell.GoBack();
+    }
 
     #endregion Commands
 }

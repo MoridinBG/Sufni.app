@@ -114,7 +114,7 @@ public sealed class SessionCommandService
             }
             var saved = SessionSnapshot.From(fresh);
             sessionStore.Upsert(saved);
-            shell.GoBack();
+            _ = shell.GoBack();
 
             logger.Information("Session save completed for {SessionId}", session.Id);
             return new SessionSaveResult.Saved(saved.Updated);
