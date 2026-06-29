@@ -5,6 +5,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <!-- xUnit1051 wants every CancellationToken-accepting call to pass TestContext.Current.CancellationToken.
+         These unit tests already bound async waits with explicit timeouts, so the token would add boilerplate
+         without practical benefit; suppress the rule for this test project. -->
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

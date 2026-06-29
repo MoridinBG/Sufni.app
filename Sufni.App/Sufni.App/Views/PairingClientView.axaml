@@ -73,7 +73,7 @@ mc:Ignorable="d">
             or the device is already paired — otherwise an edit between
             request and confirm would change what we send on confirm
             and the server would reject the mismatch.  -->
-            <TextBox Name="DisplayNameTextBox" Text="{Binding DisplayName}" Watermark="Display name">
+            <TextBox Name="DisplayNameTextBox" Text="{Binding DisplayName}" PlaceholderText="Display name">
                 <TextBox.IsEnabled>
                     <MultiBinding Converter="{x:Static BoolConverters.And}">
                         <Binding Path="!IsRequestSent" />

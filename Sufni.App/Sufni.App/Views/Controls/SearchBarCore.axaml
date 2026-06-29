@@ -34,7 +34,7 @@ mc:Ignorable="d">
         CornerRadius="{Binding $parent[controls:SearchBarCore].SearchBoxCornerRadius}"
         IsFocused="{Binding SearchBoxIsFocused, Mode=OneWayToSource}"
         Text="{Binding SearchText}"
-        Watermark="Search ...">
+        PlaceholderText="Search ...">
             <TextBox.Styles>
                 <!--  Keep the flat search field borderless while focused. The Fluent
                       TextBox theme otherwise forces a 2px accent border on focus

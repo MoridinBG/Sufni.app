@@ -213,7 +213,7 @@ mc:Ignorable="d">
                 Maximum="5"
                 Minimum="1"
                 Value="{Binding FrontWheelTireWidth}"
-                Watermark="Width" />
+                PlaceholderText="Width" />
                 <NumericUpDown
                 Grid.Column="2"
                 FormatString="0.0"
@@ -221,7 +221,7 @@ mc:Ignorable="d">
                 Maximum="1000"
                 Minimum="400"
                 Value="{Binding FrontWheelDiameter}"
-                Watermark="Ø mm" />
+                PlaceholderText="Ø mm" />
             </Grid>
 
             <!--  Rear Wheel  -->
@@ -293,7 +293,7 @@ mc:Ignorable="d">
                 Maximum="5"
                 Minimum="1"
                 Value="{Binding RearWheelTireWidth}"
-                Watermark="Width" />
+                PlaceholderText="Width" />
                 <NumericUpDown
                 Grid.Column="2"
                 FormatString="0.0"
@@ -301,7 +301,7 @@ mc:Ignorable="d">
                 Maximum="1000"
                 Minimum="400"
                 Value="{Binding RearWheelDiameter}"
-                Watermark="Ø mm" />
+                PlaceholderText="Ø mm" />
             </Grid>
 
             <Grid
