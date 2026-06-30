@@ -1,4 +1,3 @@
-using System;
 using Avalonia.Media;
 using Sufni.App.Plots;
 using AvaloniaColor = Avalonia.Media.Color;
@@ -11,13 +10,6 @@ public static class SufniColorExtensions
 {
     extension(AvaloniaColor color)
     {
-        public AvaloniaColor WithAlpha(double alpha)
-            => AvaloniaColor.FromArgb(
-                (byte)(Math.Clamp(alpha, 0, 1) * byte.MaxValue),
-                color.R,
-                color.G,
-                color.B);
-
         public ScottPlotColor ToScottPlotColor()
         {
             var plotColor = ScottPlotColor.FromHex($"#{color.R:x2}{color.G:x2}{color.B:x2}");

@@ -10,9 +10,10 @@ public static class SufniThemeResourceBridge
     // Populates variant-invariant spacing, typography, and dimension resources.
     public static void PopulateRoot(ResourceDictionary resources)
     {
-        // Root resources are variant-invariant numeric tokens. Both themes
-        // currently share these values, so the fallback theme is the metadata
-        // source for spacing, typography, dimensions, and opacities.
+        // Root resources are variant-invariant numeric tokens. Typography and
+        // spacing come from the single shared SufniThemes source (both themes
+        // reference it), so reading them off the fallback theme here is correct
+        // by construction; the remaining dimensions/opacities are likewise shared.
         var theme = SufniThemes.Fallback;
 
         resources["SufniActionDisabledIconOpacity"] = theme.Action.Disabled.IconOpacity;

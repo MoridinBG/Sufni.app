@@ -36,6 +36,43 @@ public static class SufniThemes
         GpsQuality: C("#D0D6DA"),
         TravelZone: TravelZoneRamp);
 
+    // Typography and spacing are dimensions, not colors, and do not vary by
+    // variant — both themes share these, and SufniThemeResourceBridge.PopulateRoot
+    // writes them once as variant-invariant root resources.
+    public static SufniTypographyTheme Typography { get; } = new(
+        FontFamilyName: string.Empty,
+        Size: new SufniFontSizeTheme(
+            Caption: 11,
+            Small: 12,
+            Body: 13,
+            Label: 14,
+            Heading: 16,
+            Display: 20),
+        Body: new SufniTypographyRole(14, SufniThemeFontWeight.Regular),
+        CompactLabel: new SufniTypographyRole(12, SufniThemeFontWeight.Regular),
+        RowHeader: new SufniTypographyRole(14, SufniThemeFontWeight.SemiBold),
+        AxisLabel: new SufniTypographyRole(14, SufniThemeFontWeight.Regular),
+        AxisTick: new SufniTypographyRole(12, SufniThemeFontWeight.Regular),
+        Legend: new SufniTypographyRole(12, SufniThemeFontWeight.Regular),
+        ReadoutHeader: new SufniTypographyRole(13, SufniThemeFontWeight.SemiBold),
+        ReadoutLine: new SufniTypographyRole(12, SufniThemeFontWeight.Regular),
+        InPlotLabel: new SufniTypographyRole(13, SufniThemeFontWeight.Regular),
+        Tab: new SufniTypographyRole(14, SufniThemeFontWeight.Medium),
+        Action: new SufniTypographyRole(14, SufniThemeFontWeight.SemiBold),
+        Placeholder: new SufniTypographyRole(14, SufniThemeFontWeight.Regular),
+        FieldText: new SufniTypographyRole(14, SufniThemeFontWeight.Regular));
+
+    public static SufniSpacingTheme Spacing { get; } = new(
+        HierarchyIndent: 16,
+        HeaderHorizontalPadding: 8,
+        HeaderGlyphWidth: 20,
+        ConnectorLineWidth: 2,
+        ConnectorStemInsetFromGlyphLeft: 2,
+        ConnectorGlyphGap: 6,
+        ControlHeight: 39,
+        BaseRowDividerHeight: 6,
+        RootDropZoneHeight: 12);
+
     // Used only where static metadata needs a value before a visual has a variant.
     public static SufniTheme Fallback => Dark;
 

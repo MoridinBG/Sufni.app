@@ -20,6 +20,18 @@ public class SufniThemeTests
     }
 
     [Fact]
+    public void SufniThemes_TypographyAndSpacing_AreSharedAcrossVariants()
+    {
+        // Typography and spacing are variant-invariant; both themes must draw
+        // from the single shared source so they cannot silently diverge (and so
+        // PopulateRoot's variant-invariant treatment stays correct).
+        Assert.Same(SufniThemes.Typography, SufniThemes.Dark.Typography);
+        Assert.Same(SufniThemes.Typography, SufniThemes.Light.Typography);
+        Assert.Same(SufniThemes.Spacing, SufniThemes.Dark.Spacing);
+        Assert.Same(SufniThemes.Spacing, SufniThemes.Light.Spacing);
+    }
+
+    [Fact]
     public void SufniThemes_ToVariant_MapsSystemModeToAvaloniaDefault()
     {
         Assert.Equal(ThemeVariant.Dark, SufniThemes.ToVariant(SufniThemeMode.Dark));

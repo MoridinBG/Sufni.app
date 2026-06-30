@@ -52,6 +52,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Sufni.App.Theming\Sufni.App.Theming.csproj" />
     <ProjectReference Include="..\..\Sufni.App.ExtensionHost\Sufni.App.ExtensionHost.csproj" />
     <ProjectReference Include="..\..\Sufni.Telemetry\Sufni.Telemetry.csproj" />
     <ProjectReference Include="..\..\Sufni.Kinematics\Sufni.Kinematics.csproj" />
