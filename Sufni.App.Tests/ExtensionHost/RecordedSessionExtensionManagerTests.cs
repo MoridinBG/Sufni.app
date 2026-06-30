@@ -2,6 +2,7 @@ using System.Reactive.Linq;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.SessionDetails;
@@ -157,6 +158,33 @@ public class RecordedSessionExtensionManagerTests
         Assert.Empty(manager.ExtensionSlots.GraphToolbarViews);
         Assert.Empty(manager.ExtensionSlots.StatisticsMetrics);
         Assert.Empty(manager.ExtensionSlots.StatisticsTabs);
+    }
+
+    [Fact]
+    public async Task ScopeSlotChanges_MirrorAndClearHostedGraphRowWithNeutralSeriesViewModel()
+    {
+        var factory = new TestRecordedSessionExtensionFactory("owner");
+        var manager = CreateManager([factory]);
+        await manager.InitializeAsync(CreateState(isLoaded: true));
+        var contribution = new RecordedSessionHostedGraphRowContribution(
+            "owner",
+            "neutral-series",
+            Order: 1,
+            RecordedSessionBuiltInGraphRow.Travel,
+            RecordedSessionGraphRowTarget.Extension("owner", "neutral-series"),
+            "Matched travel",
+            SurfacePresentationState.Ready,
+            new RecordedSessionSeriesGraphViewModel(
+                [], invertValueAxis: true, durationSeconds: 1, emptyMessage: "none", airtimeSpans: []),
+            IsInitiallyExpanded: false);
+
+        factory.Scope!.Slots.HostedGraphRows.Add(contribution);
+
+        Assert.Equal([contribution], manager.ExtensionSlots.HostedGraphRows);
+
+        await manager.DisposeScopesAsync();
+
+        Assert.Empty(manager.ExtensionSlots.HostedGraphRows);
     }
 
     [Fact]

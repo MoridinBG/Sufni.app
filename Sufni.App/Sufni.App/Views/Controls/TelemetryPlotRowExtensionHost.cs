@@ -317,9 +317,27 @@ public static class TelemetryPlotRowExtensionHost
             hostedRow.Title = contribution.Title;
             hostedRow.TitleToolTip = contribution.TitleToolTip;
             hostedRow.PresentationState = contribution.PresentationState;
-            hostedRow.PlotContent = CreateContributionControl(contribution.ViewModel);
+            hostedRow.PlotContent = CreateOrUpdatePlotContent(hostedRow, contribution.ViewModel);
             hostedRow.PlaceholderContent = new SurfacePlaceholderCard { Title = contribution.Title };
             hostedRow.IsExpanded = contribution.IsInitiallyExpanded;
+        }
+
+        private static Control CreateOrUpdatePlotContent(
+            TelemetryPlotRow hostedRow,
+            IRecordedSessionHostedGraphRowContributionViewModel viewModel)
+        {
+            if (viewModel is RecordedSessionSeriesGraphViewModel data)
+            {
+                if (hostedRow.PlotContent is ExtensionSeriesGraphView existingView)
+                {
+                    existingView.DataContext = data;
+                    return existingView;
+                }
+
+                return new ExtensionSeriesGraphView { DataContext = data };
+            }
+
+            return CreateContributionControl(viewModel);
         }
 
         private static string GetContributionKey(RecordedSessionHostedGraphRowContribution contribution)

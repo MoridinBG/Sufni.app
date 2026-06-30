@@ -102,6 +102,27 @@ public class RecordedSessionExtensionSlotsTests
     }
 
     [Fact]
+    public void HostedGraphRows_AcceptNeutralSeriesGraphViewModel()
+    {
+        var slots = new RecordedSessionExtensionSlots();
+        var contribution = new RecordedSessionHostedGraphRowContribution(
+            "extension",
+            "neutral-series",
+            Order: 1,
+            RecordedSessionBuiltInGraphRow.Travel,
+            RecordedSessionGraphRowTarget.Extension("extension", "neutral-series"),
+            "Matched travel",
+            SurfacePresentationState.Ready,
+            new RecordedSessionSeriesGraphViewModel(
+                [], invertValueAxis: true, durationSeconds: 1, emptyMessage: "none", airtimeSpans: []),
+            IsInitiallyExpanded: false);
+
+        slots.HostedGraphRows.Add(contribution);
+
+        Assert.IsType<RecordedSessionSeriesGraphViewModel>(Assert.Single(slots.HostedGraphRows).ViewModel);
+    }
+
+    [Fact]
     public void SubscribeToChanges_NotifiesForEverySlotFamilyUntilDisposed()
     {
         var slots = new RecordedSessionExtensionSlots();

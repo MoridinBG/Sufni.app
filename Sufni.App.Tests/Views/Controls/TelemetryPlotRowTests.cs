@@ -7,13 +7,16 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
+using Sufni.App.Models;
 using Sufni.App.Presentation;
 using Sufni.App.Tests.Infrastructure;
 using Sufni.App.Theming;
 using Sufni.App.Views.Controls;
 using Sufni.App.Views.Plots;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
 namespace Sufni.App.Tests.Views.Controls;
 
@@ -311,6 +314,34 @@ public class TelemetryPlotRowTests
         Assert.Equal(new Thickness(1), checkedButton.BorderThickness);
     }
 
+    [AvaloniaFact]
+    public void TelemetryPlotRowExtensionHost_ReusesNeutralSeriesGraphView_OnSameHostedRowUpdate()
+    {
+        var slots = new RecordedSessionExtensionSlots();
+        var root = CreateRow("Travel");
+        root.RowId = TelemetryGraphRowIds.Travel;
+        TelemetryPlotRowExtensionHost.SetExtensionSlots(root, slots);
+        slots.HostedGraphRows.Add(CreateNeutralHostedGraphRow(
+            "hosted-row",
+            "Hosted row",
+            CreateSeriesGraphViewModel(durationSeconds: 10)));
+
+        var child = Assert.Single(root.ChildRows);
+        var originalPlotView = Assert.IsType<ExtensionSeriesGraphView>(child.PlotContent);
+        var updatedViewModel = CreateSeriesGraphViewModel(durationSeconds: 20);
+
+        slots.HostedGraphRows[0] = CreateNeutralHostedGraphRow(
+            "hosted-row",
+            "Updated hosted row",
+            updatedViewModel);
+
+        var updatedChild = Assert.Single(root.ChildRows);
+        Assert.Same(child, updatedChild);
+        Assert.Same(originalPlotView, updatedChild.PlotContent);
+        Assert.Same(updatedViewModel, originalPlotView.DataContext);
+        Assert.Equal("Updated hosted row", updatedChild.Title);
+    }
+
     private static TelemetryPlotRow CreateRow(string title)
     {
         return new TelemetryPlotRow
@@ -326,6 +357,34 @@ public class TelemetryPlotRowTests
             ChildRowGap = 4,
         };
     }
+
+    private static RecordedSessionHostedGraphRowContribution CreateNeutralHostedGraphRow(
+        string contributionId,
+        string title,
+        RecordedSessionSeriesGraphViewModel viewModel) =>
+        new(
+            "extension",
+            contributionId,
+            Order: 0,
+            RecordedSessionBuiltInGraphRow.Travel,
+            RecordedSessionGraphRowTarget.Extension("extension", contributionId),
+            title,
+            SurfacePresentationState.Ready,
+            viewModel,
+            IsInitiallyExpanded: true);
+
+    private static RecordedSessionSeriesGraphViewModel CreateSeriesGraphViewModel(double durationSeconds) =>
+        new(
+            [new RecordedSessionGraphSeries(
+                RecordedSessionGraphSeriesRole.SuspensionFront,
+                "Front",
+                "mm",
+                [0, 1],
+                [10, 20])],
+            invertValueAxis: true,
+            durationSeconds,
+            "No data",
+            []);
 
     private static TelemetryPlotRowAction CreateAction(
         string id,

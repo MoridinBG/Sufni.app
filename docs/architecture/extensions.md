@@ -13,6 +13,8 @@ The SDK is split into two top-level namespaces inside the one assembly:
 
 One deliberate cross-reference exists: the `Contracts` scope interface exposes `RecordedSessionExtensionSlots` (a `Runtime` type) — slots *are* part of the scope contract, and the single-assembly split keeps that legal.
 
+The theme model is **not** part of the SDK. It lives in a separate leaf project `Sufni.App.Theming` (assembly and namespace `Sufni.App.Theming`, Avalonia-only) that the app and theme-consuming extensions reference directly; the extension host's contracts and runtime use no theme type. An extension that must style a ScottPlot surface the app cannot render for it references `Sufni.App.Theming` and calls `SufniThemes.FromVariant(...)`. See [theming.md](theming.md).
+
 Accepted-for-now contract dependencies (removing them is a redesign of the extension model, out of scope): `IServiceCollection` in module registration, `Func<Control>` view factories, `AsyncTableQuery<T>`, `IStorageFile`, and `Sufni.Telemetry` types.
 
 There is no assembly scanning. Modules are added explicitly by build-time code through the two-argument partial method `App.RegisterBuildTimeExtensions(App.Extensions, isDesktop)`. Public builds have no implementation of that partial method, so the call is removed by the compiler and `App.Extensions.Modules` remains empty.
@@ -219,6 +221,20 @@ families such as graph toolbar commands, map overlays, statistics
 metrics, plot context actions, row header actions, and time-range
 overlays carry neutral records or command descriptors instead.
 
+A hosted graph row whose plot should match the app's themed time-series
+rows can contribute the SDK's neutral `RecordedSessionSeriesGraphViewModel`
+(namespace `Sufni.App.ExtensionHost.Runtime.RecordedSessions`) as its
+`IRecordedSessionHostedGraphRowContributionViewModel`. The view model carries
+neutral `RecordedSessionGraphSeries` (each tagged with a
+`RecordedSessionGraphSeriesRole` the app maps to a theme-invariant signal
+color), a value-axis inversion flag, duration, empty message, optional airtime
+spans, and observable `ShowAirtime` / `Timeline`. The host recognizes this view
+model type and renders it with the app's `ExtensionSeriesGraphView` (a
+`SufniTimeSeriesPlotView`), so the row gets app theming, the shared cursor and
+visible-range link, and the inherited airtime overlay without the extension
+drawing on a raw plot. Extensions that need rendering the app cannot express
+generically still supply their own view through the view registry.
+
 Recorded-session graph toolbar command and view contributions both carry
 a `RecordedSessionToolbarZone` value. The host renders `Leading`
 contributions at the start of the graph toolbar and `Trailing`
@@ -260,4 +276,4 @@ plot layer converts those descriptors to ScottPlot primitives at render time.
 
 Public code may name the host, app toolbar actions, slots, descriptors, migrations, cascades, sync envelopes, and operation leases. Public code must not name extension-specific entities, database columns, payload fields, platform services, view models, views, assets, or workflows.
 
-`PublicNeutralityTests` (`Sufni.App.Tests/ExtensionHost/`) enforces this: it scans the repository's source, markup, project, and documentation files for known private capability vocabulary. The deny list in that file is the single allowed location for those tokens and must be refreshed when private modules add new vocabulary.
+This is now maintained by convention and code review rather than an automated test. The previous `PublicNeutralityTests` repository-scanning enforcement has been removed.
