@@ -1,0 +1,47 @@
+<UserControl
+    x:Name="Root"
+    x:Class="Sufni.App.LiveDaq.Views.Shared.LiveSessionHeaderFields"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:Sufni.App.LiveDaq.ViewModels.Editors"
+    d:DesignHeight="88"
+    d:DesignWidth="320"
+    x:DataType="vm:LiveSessionDetailViewModel"
+    mc:Ignorable="d">
+
+    <StackPanel>
+        <StackPanel
+            IsVisible="{Binding ControlState.HasSessionHeader}"
+            Spacing="{Binding #Root.FieldSpacing}">
+            <TextBlock
+                x:Name="LiveSessionIdTextBlock"
+                FontSize="{Binding #Root.FieldFontSize}"
+                Opacity="{Binding #Root.FieldOpacity}"
+                Text="{Binding ControlState.SessionIdText}" />
+            <TextBlock
+                x:Name="LiveAcceptedTravelRateTextBlock"
+                FontSize="{Binding #Root.FieldFontSize}"
+                Opacity="{Binding #Root.FieldOpacity}"
+                Text="{Binding ControlState.AcceptedTravelRateText}" />
+            <TextBlock
+                x:Name="LiveAcceptedImuRateTextBlock"
+                FontSize="{Binding #Root.FieldFontSize}"
+                Opacity="{Binding #Root.FieldOpacity}"
+                Text="{Binding ControlState.AcceptedImuRateText}" />
+            <TextBlock
+                x:Name="LiveAcceptedGpsRateTextBlock"
+                FontSize="{Binding #Root.FieldFontSize}"
+                Opacity="{Binding #Root.FieldOpacity}"
+                Text="{Binding ControlState.AcceptedGpsRateText}" />
+        </StackPanel>
+
+        <TextBlock
+            x:Name="LiveWaitingForHeaderTextBlock"
+            FontSize="{Binding #Root.FieldFontSize}"
+            IsVisible="{Binding !ControlState.HasSessionHeader}"
+            Opacity="{Binding #Root.WaitingOpacity}"
+            Text="Waiting for the accepted live session header." />
+    </StackPanel>
+</UserControl>

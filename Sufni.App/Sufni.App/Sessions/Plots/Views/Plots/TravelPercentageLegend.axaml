@@ -1,0 +1,35 @@
+﻿<UserControl
+    x:Class="Sufni.App.Sessions.Plots.Views.Plots.TravelPercentageLegend"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    mc:Ignorable="d">
+
+    <StackPanel>
+        <TextBlock Text="Travel (%)" />
+        <Grid ColumnDefinitions="* * * * * * * * * *">
+            <TextBlock Grid.Column="0" Text="0" />
+            <TextBlock Grid.Column="1" Text="10" />
+            <TextBlock Grid.Column="2" Text="20" />
+            <TextBlock Grid.Column="3" Text="30" />
+            <TextBlock Grid.Column="4" Text="40" />
+            <TextBlock Grid.Column="5" Text="50" />
+            <TextBlock Grid.Column="6" Text="60" />
+            <TextBlock Grid.Column="7" Text="70" />
+            <TextBlock Grid.Column="8" Text="80" />
+            <TextBlock Grid.Column="9" Text="90" />
+            <TextBlock
+                Grid.Column="9"
+                Text="100"
+                TextAlignment="Right" />
+        </Grid>
+        <UniformGrid
+            x:Name="PaletteGrid"
+            Height="10"
+            Columns="10"
+            Rows="1" />
+    </StackPanel>
+</UserControl>

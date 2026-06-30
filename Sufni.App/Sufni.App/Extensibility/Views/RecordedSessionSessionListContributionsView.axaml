@@ -1,0 +1,27 @@
+<UserControl
+x:Class="Sufni.App.Extensibility.Views.RecordedSessionSessionListContributionsView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Extensibility.Views"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+d:DesignHeight="32"
+d:DesignWidth="120"
+x:DataType="controls:RecordedSessionSessionListContributionsView"
+mc:Ignorable="d">
+
+    <StackPanel
+    Name="SessionListContributionsRoot"
+    Orientation="Horizontal"
+    Spacing="6">
+        <StackPanel
+        Name="SessionListIndicatorsHost"
+        Orientation="Horizontal"
+        Spacing="4" />
+
+        <StackPanel
+        Name="SessionListActionsHost"
+        Orientation="Horizontal"
+        Spacing="4" />
+    </StackPanel>
+</UserControl>

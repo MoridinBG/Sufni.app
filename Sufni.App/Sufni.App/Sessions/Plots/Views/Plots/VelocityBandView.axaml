@@ -1,0 +1,191 @@
+<Styles
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Sufni.App.Sessions.Plots.Views.Plots"
+    xmlns:recorded="clr-namespace:Sufni.App.ExtensionHost.Contracts.RecordedSessions;assembly=Sufni.App.ExtensionHost">
+    <Design.PreviewWith>
+        <controls:VelocityBandView />
+    </Design.PreviewWith>
+
+    <Style Selector="controls|VelocityBandView">
+        <!--  Set Defaults  -->
+        <Setter Property="MinWidth" Value="68" />
+        <Setter Property="MaxWidth" Value="84" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid ColumnDefinitions="Auto" RowDefinitions="40 * 55">
+
+                    <!--  Title  -->
+                    <TextBlock
+                        Grid.Row="0"
+                        Margin="0,3,0,5"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Bottom"
+                        FontWeight="Bold"
+                        Foreground="{DynamicResource SufniTextPrimaryBrush}"
+                        Text="Zone %" />
+
+                    <!--  Bands  -->
+                    <Grid Name="PART_BandsGrid" Grid.Row="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="{Binding Path=HsrZoneLength, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <RowDefinition Height="{Binding Path=LsrZoneLength, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <RowDefinition Height="{Binding Path=LscZoneLength, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <RowDefinition Height="{Binding Path=HscZoneLength, RelativeSource={RelativeSource TemplatedParent}}" />
+                        </Grid.RowDefinitions>
+
+                        <Grid.Styles>
+                            <Styles>
+                                <Style Selector="Border">
+                                    <Setter Property="BorderThickness" Value="1,0,1,1" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource SufniLineDefaultBrush}" />
+                                    <Setter Property="Padding" Value="6,2" />
+                                </Style>
+                                <Style Selector="TextBlock">
+                                    <Setter Property="HorizontalAlignment" Value="Center" />
+                                    <Setter Property="VerticalAlignment" Value="Center" />
+                                    <Setter Property="FontSize" Value="10" />
+                                    <Setter Property="FontWeight" Value="Bold" />
+                                    <Setter Property="Foreground" Value="{DynamicResource SufniTextPrimaryBrush}" />
+                                    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                                    <Setter Property="TextWrapping" Value="NoWrap" />
+                                </Style>
+                                <Style Selector="TextBlock.metricAnnotation">
+                                    <Setter Property="FontSize" Value="9" />
+                                    <Setter Property="Foreground" Value="{DynamicResource SufniTextSecondaryBrush}" />
+                                </Style>
+                                <Style Selector="TextBlock.metricAnnotation.positive">
+                                    <Setter Property="Foreground" Value="{DynamicResource SufniAccentColor}" />
+                                </Style>
+                                <Style Selector="TextBlock.metricAnnotation.negative">
+                                    <Setter Property="Foreground" Value="{DynamicResource SufniDangerColor}" />
+                                </Style>
+                                <Style Selector="TextBlock.metricAnnotation.accent">
+                                    <Setter Property="Foreground" Value="{DynamicResource SufniAccentColor}" />
+                                </Style>
+                                <Style Selector="Border.cutoff-handle">
+                                    <Setter Property="Height" Value="8" />
+                                    <Setter Property="Margin" Value="8,0" />
+                                    <Setter Property="Background" Value="{DynamicResource SufniLineDefaultBrush}" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource SufniSurfaceItemHoverBrush}" />
+                                    <Setter Property="BorderThickness" Value="1" />
+                                    <Setter Property="CornerRadius" Value="5" />
+                                    <Setter Property="Cursor" Value="SizeNorthSouth" />
+                                    <Setter Property="Focusable" Value="True" />
+                                    <Setter Property="Opacity" Value="0.72" />
+                                </Style>
+                                <Style Selector="Border.cutoff-handle:pointerover">
+                                    <Setter Property="Opacity" Value="0.9" />
+                                </Style>
+                                <Style Selector="Border.cutoff-handle:disabled">
+                                    <Setter Property="Opacity" Value="0.25" />
+                                </Style>
+                            </Styles>
+                        </Grid.Styles>
+
+                        <Border
+                            Grid.Row="0"
+                            Background="{DynamicResource SufniSurfaceItemHoverBrush}"
+                            BorderThickness="1,1,1,1">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock
+                                Text="{Binding Path=HsrPercentage, RelativeSource={RelativeSource TemplatedParent}, StringFormat='HSR {0:0.00}'}"
+                                TextAlignment="Center" />
+                                <ItemsControl ItemsSource="{Binding Path=HsrMetricAnnotations, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="recorded:RecordedSessionStatisticsMetricContribution">
+                                            <StackPanel>
+                                                <TextBlock
+                                                Classes.accent="{Binding IsAccentTone}"
+                                                Classes.negative="{Binding IsNegativeTone}"
+                                                Classes.positive="{Binding IsPositiveTone}"
+                                                Classes="metricAnnotation"
+                                                Text="{Binding DisplayValue}"
+                                                TextAlignment="Center" />
+                                                <TextBlock
+                                                Classes.accent="{Binding IsAccentTone}"
+                                                Classes.negative="{Binding IsNegativeTone}"
+                                                Classes.positive="{Binding IsPositiveTone}"
+                                                Classes="metricAnnotation"
+                                                IsVisible="{Binding HasDeltaValue}"
+                                                Text="{Binding DeltaValue}"
+                                                TextAlignment="Center" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Row="1" Background="{DynamicResource SufniSurfaceInputBrush}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock
+                                Text="{Binding Path=LsrPercentage, RelativeSource={RelativeSource TemplatedParent}, StringFormat='LSR {0:0.00}'}"
+                                TextAlignment="Center" />
+                                <ItemsControl ItemsSource="{Binding Path=LsrMetricAnnotations, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="recorded:RecordedSessionStatisticsMetricContribution">
+                                            <StackPanel>
+                                                <TextBlock Classes="metricAnnotation" Classes.accent="{Binding IsAccentTone}" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" Text="{Binding DisplayValue}" TextAlignment="Center" />
+                                                <TextBlock Classes="metricAnnotation" Classes.accent="{Binding IsAccentTone}" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" IsVisible="{Binding HasDeltaValue}" Text="{Binding DeltaValue}" TextAlignment="Center" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Row="2" Background="{DynamicResource SufniSurfaceInputBrush}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock
+                                Text="{Binding Path=LscPercentage, RelativeSource={RelativeSource TemplatedParent}, StringFormat='LSC {0:0.00}'}"
+                                TextAlignment="Center" />
+                                <ItemsControl ItemsSource="{Binding Path=LscMetricAnnotations, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="recorded:RecordedSessionStatisticsMetricContribution">
+                                            <StackPanel>
+                                                <TextBlock Classes="metricAnnotation" Classes.accent="{Binding IsAccentTone}" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" Text="{Binding DisplayValue}" TextAlignment="Center" />
+                                                <TextBlock Classes="metricAnnotation" Classes.accent="{Binding IsAccentTone}" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" IsVisible="{Binding HasDeltaValue}" Text="{Binding DeltaValue}" TextAlignment="Center" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Row="3" Background="{DynamicResource SufniSurfaceItemHoverBrush}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock
+                                Text="{Binding Path=HscPercentage, RelativeSource={RelativeSource TemplatedParent}, StringFormat='HSC {0:0.00}'}"
+                                TextAlignment="Center" />
+                                <ItemsControl ItemsSource="{Binding Path=HscMetricAnnotations, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="recorded:RecordedSessionStatisticsMetricContribution">
+                                            <StackPanel>
+                                                <TextBlock Classes="metricAnnotation" Classes.accent="{Binding IsAccentTone}" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" Text="{Binding DisplayValue}" TextAlignment="Center" />
+                                                <TextBlock Classes="metricAnnotation" Classes.accent="{Binding IsAccentTone}" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" IsVisible="{Binding HasDeltaValue}" Text="{Binding DeltaValue}" TextAlignment="Center" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <Border
+                            Name="PART_ReboundHandle"
+                            Grid.Row="0"
+                            Classes="cutoff-handle"
+                            IsEnabled="{Binding Path=CanEditDampingSpeedCutoffs, RelativeSource={RelativeSource TemplatedParent}}"
+                            ToolTip.Tip="{Binding Path=ReboundCutoff, RelativeSource={RelativeSource TemplatedParent}, StringFormat='Rebound cutoff: {0:0} mm/s'}"
+                            VerticalAlignment="Bottom" />
+
+                        <Border
+                            Name="PART_CompressionHandle"
+                            Grid.Row="2"
+                            Classes="cutoff-handle"
+                            IsEnabled="{Binding Path=CanEditDampingSpeedCutoffs, RelativeSource={RelativeSource TemplatedParent}}"
+                            ToolTip.Tip="{Binding Path=CompressionCutoff, RelativeSource={RelativeSource TemplatedParent}, StringFormat='Compression cutoff: {0:0} mm/s'}"
+                            VerticalAlignment="Bottom" />
+                    </Grid>
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+</Styles>

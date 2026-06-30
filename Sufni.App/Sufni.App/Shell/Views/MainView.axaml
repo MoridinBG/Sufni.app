@@ -1,0 +1,32 @@
+<UserControl
+x:Class="Sufni.App.Shell.Views.MainView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:c="clr-namespace:Sufni.App.Shared.Views.Overlays"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.Shell.ViewModels"
+d:DesignHeight="600"
+d:DesignWidth="500"
+x:DataType="vm:MainViewModel"
+Background="{DynamicResource SufniBackgroundDisabled}"
+mc:Ignorable="d">
+    <Panel TopLevel.AutoSafeAreaPadding="True" Background="{DynamicResource SufniRegion}">
+        <NavigationPage Name="RootNavigationPage" />
+        <c:BusyOverlay
+            Name="SyncBusyOverlay"
+            BusyMessageFontWeight="Bold"
+            ConsumesInput="{Binding MainPagesViewModel.SyncInProgress}"
+            IndicatorForeground="{DynamicResource SufniAccentColor}"
+            IsActive="{Binding MainPagesViewModel.SyncInProgress}"
+            IsProgressIndeterminate="{Binding MainPagesViewModel.SyncProgressIsIndeterminate}"
+            IsVisible="{Binding MainPagesViewModel.SyncInProgress}"
+            Message="{Binding MainPagesViewModel.SyncProgressText}"
+            MessageForeground="{DynamicResource SufniAccentColor}"
+            ProgressValue="{Binding MainPagesViewModel.SyncProgressValue}"
+            ShowProgress="{Binding MainPagesViewModel.SyncInProgress}"
+            ShowTint="True"
+            TintBackground="{DynamicResource SufniBackgroundDisabled}"
+            UseStackLayout="True" />
+    </Panel>
+</UserControl>

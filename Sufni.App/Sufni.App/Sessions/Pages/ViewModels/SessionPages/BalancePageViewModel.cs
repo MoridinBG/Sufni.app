@@ -1,0 +1,178 @@
+using Sufni.App.ExtensionHost.Contracts.Presentation;
+﻿using System.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using Sufni.Telemetry;
+
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+namespace Sufni.App.Sessions.Pages.ViewModels.SessionPages;
+
+public partial class BalancePageViewModel : PageViewModelBase
+{
+    public ISessionStatisticsWorkspace? StatisticsWorkspace { get; }
+    public bool HasDynamicStatistics => StatisticsWorkspace?.TelemetryData is not null;
+    public SurfacePresentationState CompressionPresentationState => HasDynamicStatistics
+        ? StatisticsWorkspace!.CompressionBalanceState
+        : CompressionBalanceState;
+    public SurfacePresentationState ReboundPresentationState => HasDynamicStatistics
+        ? StatisticsWorkspace!.ReboundBalanceState
+        : ReboundBalanceState;
+
+    [ObservableProperty] private string? compressionBalance;
+    [ObservableProperty] private string? reboundBalance;
+    [ObservableProperty] private SurfacePresentationState compressionBalanceState = SurfacePresentationState.Hidden;
+    [ObservableProperty] private SurfacePresentationState reboundBalanceState = SurfacePresentationState.Hidden;
+
+    public bool ZenithModeSelected
+    {
+        get => StatisticsWorkspace?.SelectedBalanceDisplacementMode == BalanceDisplacementMode.Zenith;
+        set
+        {
+            if (value)
+            {
+                SelectBalanceDisplacementMode(BalanceDisplacementMode.Zenith);
+            }
+        }
+    }
+
+    public bool TravelModeSelected
+    {
+        get => StatisticsWorkspace?.SelectedBalanceDisplacementMode == BalanceDisplacementMode.Travel;
+        set
+        {
+            if (value)
+            {
+                SelectBalanceDisplacementMode(BalanceDisplacementMode.Travel);
+            }
+        }
+    }
+
+    public bool SpeedModeSelected
+    {
+        get => StatisticsWorkspace?.SelectedBalanceDisplacementMode == BalanceDisplacementMode.Speed;
+        set
+        {
+            if (value)
+            {
+                SelectBalanceDisplacementMode(BalanceDisplacementMode.Speed);
+            }
+        }
+    }
+
+    public bool BothSpeedModeSelected
+    {
+        get => StatisticsWorkspace?.SelectedBalanceSpeedMode == BalanceSpeedMode.Both;
+        set
+        {
+            if (value)
+            {
+                SelectBalanceSpeedMode(BalanceSpeedMode.Both);
+            }
+        }
+    }
+
+    public bool LowSpeedModeSelected
+    {
+        get => StatisticsWorkspace?.SelectedBalanceSpeedMode == BalanceSpeedMode.LowSpeed;
+        set
+        {
+            if (value)
+            {
+                SelectBalanceSpeedMode(BalanceSpeedMode.LowSpeed);
+            }
+        }
+    }
+
+    public bool HighSpeedModeSelected
+    {
+        get => StatisticsWorkspace?.SelectedBalanceSpeedMode == BalanceSpeedMode.HighSpeed;
+        set
+        {
+            if (value)
+            {
+                SelectBalanceSpeedMode(BalanceSpeedMode.HighSpeed);
+            }
+        }
+    }
+
+    public BalancePageViewModel(ISessionStatisticsWorkspace? statisticsWorkspace = null)
+        : base("Balance")
+    {
+        StatisticsWorkspace = statisticsWorkspace;
+        if (statisticsWorkspace is INotifyPropertyChanged observableWorkspace)
+        {
+            observableWorkspace.PropertyChanged += OnWorkspacePropertyChanged;
+        }
+    }
+
+    partial void OnCompressionBalanceStateChanged(SurfacePresentationState value)
+    {
+        OnPropertyChanged(nameof(CompressionPresentationState));
+    }
+
+    partial void OnReboundBalanceStateChanged(SurfacePresentationState value)
+    {
+        OnPropertyChanged(nameof(ReboundPresentationState));
+    }
+
+    private void OnWorkspacePropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName is nameof(ISessionStatisticsWorkspace.TelemetryData))
+        {
+            OnPropertyChanged(nameof(HasDynamicStatistics));
+            OnPropertyChanged(nameof(CompressionPresentationState));
+            OnPropertyChanged(nameof(ReboundPresentationState));
+        }
+        else if (args.PropertyName is nameof(ISessionStatisticsWorkspace.CompressionBalanceState))
+        {
+            OnPropertyChanged(nameof(CompressionPresentationState));
+        }
+        else if (args.PropertyName is nameof(ISessionStatisticsWorkspace.ReboundBalanceState))
+        {
+            OnPropertyChanged(nameof(ReboundPresentationState));
+        }
+        else if (args.PropertyName is nameof(ISessionStatisticsWorkspace.SelectedBalanceDisplacementMode))
+        {
+            RefreshBalanceDisplacementModeSelection();
+        }
+        else if (args.PropertyName is nameof(ISessionStatisticsWorkspace.SelectedBalanceSpeedMode))
+        {
+            RefreshBalanceSpeedModeSelection();
+        }
+    }
+
+    private void SelectBalanceDisplacementMode(BalanceDisplacementMode mode)
+    {
+        if (StatisticsWorkspace is null || StatisticsWorkspace.SelectedBalanceDisplacementMode == mode)
+        {
+            return;
+        }
+
+        StatisticsWorkspace.SelectedBalanceDisplacementMode = mode;
+        RefreshBalanceDisplacementModeSelection();
+    }
+
+    private void SelectBalanceSpeedMode(BalanceSpeedMode mode)
+    {
+        if (StatisticsWorkspace is null || StatisticsWorkspace.SelectedBalanceSpeedMode == mode)
+        {
+            return;
+        }
+
+        StatisticsWorkspace.SelectedBalanceSpeedMode = mode;
+        RefreshBalanceSpeedModeSelection();
+    }
+
+    private void RefreshBalanceDisplacementModeSelection()
+    {
+        OnPropertyChanged(nameof(ZenithModeSelected));
+        OnPropertyChanged(nameof(TravelModeSelected));
+        OnPropertyChanged(nameof(SpeedModeSelected));
+    }
+
+    private void RefreshBalanceSpeedModeSelection()
+    {
+        OnPropertyChanged(nameof(BothSpeedModeSelected));
+        OnPropertyChanged(nameof(LowSpeedModeSelected));
+        OnPropertyChanged(nameof(HighSpeedModeSelected));
+    }
+}

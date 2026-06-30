@@ -1,0 +1,39 @@
+<UserControl
+x:Class="Sufni.App.LiveDaq.DesktopViews.ItemLists.LiveDaqListDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:c="clr-namespace:Sufni.App.LiveDaq.DesktopViews.Controls"
+xmlns:controls="clr-namespace:Sufni.App.Shared.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:shared="clr-namespace:Sufni.App.Shared.Views.Overlays"
+xmlns:vml="clr-namespace:Sufni.App.LiveDaq.ViewModels.ItemLists"
+d:DesignHeight="600"
+d:DesignWidth="500"
+x:DataType="vml:LiveDaqListViewModel"
+Background="{DynamicResource SufniRegion}"
+mc:Ignorable="d">
+
+    <Grid ColumnDefinitions="*" RowDefinitions="auto * auto auto">
+
+        <controls:SearchBar
+        Name="LiveDaqSearchBar"
+        Grid.Row="0"
+        Margin="0,20,20,20" />
+
+        <ScrollViewer Grid.Row="1" Name="Scroll">
+            <ItemsRepeater Name="RowsRepeater" ItemsSource="{Binding Items}">
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate>
+                        <c:LiveDaqListItemButton />
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+        </ScrollViewer>
+
+        <shared:ItemListStatusOverlay
+        Grid.Row="0"
+        Grid.RowSpan="4"
+        ShowUndoDeleteButton="False" />
+    </Grid>
+</UserControl>

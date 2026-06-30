@@ -1,0 +1,24 @@
+<UserControl
+    x:Class="Sufni.App.LiveDaq.Views.Editors.LiveSessionDetailView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:editors="clr-namespace:Sufni.App.LiveDaq.Views.Editors"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:v="clr-namespace:Sufni.App.Sessions.Detail.Views.Editors"
+    xmlns:vm="clr-namespace:Sufni.App.LiveDaq.ViewModels.Editors"
+    d:DesignHeight="600"
+    d:DesignWidth="500"
+    x:DataType="vm:LiveSessionDetailViewModel"
+    Background="{DynamicResource SufniRegion}"
+    Focusable="True"
+    mc:Ignorable="d">
+
+    <v:SessionShellMobileView
+        LoadedCommand="{Binding LoadedCommand}"
+        UnloadedCommand="{Binding UnloadedCommand}">
+        <v:SessionShellMobileView.ControlContent>
+            <editors:LiveSessionControlsMobileView DataContext="{Binding}" />
+        </v:SessionShellMobileView.ControlContent>
+    </v:SessionShellMobileView>
+</UserControl>

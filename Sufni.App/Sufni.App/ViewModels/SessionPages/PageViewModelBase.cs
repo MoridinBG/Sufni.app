@@ -1,8 +1,0 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
-
-namespace Sufni.App.ViewModels.SessionPages;
-
-public partial class PageViewModelBase(string displayName) : ObservableObject
-{
-    public string DisplayName { get; } = displayName;
-}

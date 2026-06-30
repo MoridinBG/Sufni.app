@@ -1,0 +1,16 @@
+using System;
+using DynamicData;
+
+namespace Sufni.App.Bikes.Stores;
+
+/// Read-only view of the bike collection.
+public interface IBikeStore
+{
+    /// DynamicData change stream.
+    IObservable<IChangeSet<BikeSnapshot, Guid>> Connect();
+
+    /// Snapshot lookup by id. Returns null if the bike is not in the
+    /// store (e.g. never loaded, or deleted).
+    BikeSnapshot? Get(Guid id);
+
+}

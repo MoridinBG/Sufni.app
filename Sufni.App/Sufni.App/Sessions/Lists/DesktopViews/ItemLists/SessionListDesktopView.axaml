@@ -1,0 +1,70 @@
+<UserControl
+    x:Class="Sufni.App.Sessions.Lists.DesktopViews.ItemLists.SessionListDesktopView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls2="clr-namespace:Sufni.App.Shared.Views.Controls"
+    xmlns:c="clr-namespace:Sufni.App.Sessions.Lists.DesktopViews.Controls"
+    xmlns:controls="clr-namespace:Sufni.App.Sessions.Lists.Views.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:shared="clr-namespace:Sufni.App.Shared.Views.Overlays"
+    xmlns:v="clr-namespace:Sufni.App.Shell.Views"
+    xmlns:vm="clr-namespace:Sufni.App.Shell.ViewModels"
+    xmlns:vml="clr-namespace:Sufni.App.Sessions.Lists.ViewModels.ItemLists"
+    d:DesignHeight="600"
+    d:DesignWidth="500"
+    x:DataType="vml:SessionListViewModel"
+    Background="{DynamicResource SufniListRowSurface}"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <DataTemplate x:Key="SessionDateGroupDesktopRowTemplate">
+            <c:SessionListItemButton />
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid ColumnDefinitions="* auto" RowDefinitions="auto * auto auto">
+
+        <!--  Search bar  -->
+        <controls2:SearchBarWithDateFilter
+            Grid.Row="0"
+            Grid.Column="0"
+            Margin="0,20,0,20" />
+
+        <!--  Add button  -->
+        <Button
+            Grid.Row="0"
+            Grid.Column="1"
+            Width="20"
+            Margin="10,25,10,0"
+            VerticalAlignment="Top"
+            Classes="embedded"
+            Command="{Binding $parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).OpenImportCommand}">
+            <Image
+                Width="18"
+                Margin="0,0,30,0"
+                Source="{SvgImage /Assets/fa-file-import.svg}" />
+        </Button>
+
+        <!--  List of Sessions  -->
+        <ScrollViewer
+            Name="Scroll"
+            Grid.Row="1"
+            Grid.Column="0"
+            Grid.ColumnSpan="2">
+            <ItemsRepeater ItemsSource="{Binding DateGroups}">
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="vml:SessionDateGroupViewModel">
+                        <controls:SessionDateGroupView RowTemplate="{StaticResource SessionDateGroupDesktopRowTemplate}" />
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+        </ScrollViewer>
+
+        <shared:ItemListStatusOverlay
+            Grid.Row="0"
+            Grid.RowSpan="4"
+            Grid.Column="0"
+            Grid.ColumnSpan="2" />
+    </Grid>
+</UserControl>

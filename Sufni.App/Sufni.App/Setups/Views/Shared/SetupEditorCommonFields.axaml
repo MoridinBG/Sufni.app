@@ -1,0 +1,127 @@
+<UserControl
+    x:Name="Root"
+    x:Class="Sufni.App.Setups.Views.Shared.SetupEditorCommonFields"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:s="clr-namespace:Sufni.App.Bikes.Stores"
+    xmlns:shared="clr-namespace:Sufni.App.Setups.Views.Shared"
+    xmlns:vm="clr-namespace:Sufni.App.Setups.ViewModels.Editors"
+    d:DesignHeight="260"
+    d:DesignWidth="500"
+    x:DataType="vm:SetupEditorViewModel"
+    mc:Ignorable="d">
+
+    <Grid ColumnDefinitions="auto *" RowDefinitions="auto auto auto auto auto auto">
+        <!--  Board ID  -->
+        <Label
+            Grid.Row="0"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            Content="Board ID: " />
+        <TextBox
+            Name="BoardIdTextBox"
+            Grid.Row="0"
+            Grid.Column="1"
+            Margin="2"
+            HorizontalAlignment="Stretch"
+            Text="{Binding BoardId}" />
+
+        <!--  Bike  -->
+        <Label
+            Grid.Row="1"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            Content="Bike: " />
+        <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4">
+            <ComboBox
+                Name="BikeComboBox"
+                Margin="2"
+                HorizontalAlignment="Stretch"
+                ItemsSource="{Binding Bikes}"
+                SelectedItem="{Binding SelectedBike}">
+
+                <ComboBox.DataTemplates>
+                    <DataTemplate DataType="s:BikeSnapshot">
+                        <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                            <TextBlock Text="{Binding Name}" />
+                            <Button
+                                Padding="10,0,0,0"
+                                Classes="embedded"
+                                Command="{Binding $parent[shared:SetupEditorCommonFields].((vm:SetupEditorViewModel)DataContext).EditBikeCommand}"
+                                CommandParameter="{Binding}"
+                                IsVisible="{Binding $parent[shared:SetupEditorCommonFields].ShowBikeEditButton}">
+                                <Image
+                                    Width="12"
+                                    Height="12"
+                                    Source="{SvgImage /Assets/fa-edit.svg}" />
+                            </Button>
+                        </StackPanel>
+                    </DataTemplate>
+                </ComboBox.DataTemplates>
+            </ComboBox>
+
+            <TextBlock Text="{Binding RearSuspensionDescription, StringFormat=Rear suspension: {0}}" />
+        </StackPanel>
+
+        <!--  Fork sensor type  -->
+        <Label
+            Grid.Row="2"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            Content="Fork sensor: " />
+        <ComboBox
+            Name="ForkSensorTypeComboBox"
+            Grid.Row="2"
+            Grid.Column="1"
+            Margin="2"
+            HorizontalAlignment="Stretch"
+            ItemsSource="{Binding ForkSensorTypes}"
+            PlaceholderText=" -- not in use --"
+            SelectedItem="{Binding ForkSensorType}" />
+
+        <!--  Fork sensor configuration  -->
+        <ContentControl
+            Name="ForkSensorConfigContent"
+            Grid.Row="3"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Margin="20,0,0,0"
+            Content="{Binding ForkSensorConfiguration}" />
+
+        <!--  Shock sensor type  -->
+        <Label
+            Grid.Row="4"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            Content="Shock sensor: " />
+        <ComboBox
+            Name="ShockSensorTypeComboBox"
+            Grid.Row="4"
+            Grid.Column="1"
+            Margin="2"
+            HorizontalAlignment="Stretch"
+            ItemsSource="{Binding ShockSensorTypes}"
+            PlaceholderText=" -- not in use --"
+            SelectedItem="{Binding ShockSensorType}" />
+
+        <!--  Shock sensor configuration  -->
+        <StackPanel
+            Grid.Row="5"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Margin="20,0,0,0"
+            Spacing="4">
+            <ContentControl
+                Name="ShockSensorConfigContent"
+                Content="{Binding ShockSensorConfiguration}" />
+
+            <TextBlock
+                Foreground="{DynamicResource SufniDangerColor}"
+                IsVisible="{Binding RearSensorCompatibilityMessage, Converter={x:Static ObjectConverters.IsNotNull}}"
+                Text="{Binding RearSensorCompatibilityMessage}"
+                TextWrapping="Wrap" />
+        </StackPanel>
+    </Grid>
+</UserControl>

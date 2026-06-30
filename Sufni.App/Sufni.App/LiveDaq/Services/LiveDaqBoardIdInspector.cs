@@ -1,0 +1,66 @@
+using System;
+using System.IO;
+using System.Net;
+using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
+using Sufni.App.ExtensionHost.Contracts.Services;
+
+using Sufni.App.LiveDaq.Services.LiveStreaming;
+using Sufni.App.Shared.Common;
+namespace Sufni.App.LiveDaq.Services;
+
+// Sends an IDENTIFY frame over the live protocol and parses the IDENTIFY_ACK
+// response to recover the board's 8-byte serial without starting a session.
+internal sealed class LiveDaqBoardIdInspector : ILiveDaqBoardIdInspector
+{
+    // Caps a single inspection so an accepting-but-unresponsive socket cannot
+    // leak tasks indefinitely when mDNS advertisements flap.
+    private static readonly TimeSpan DefaultInspectionTimeout = TimeSpan.FromSeconds(5);
+
+    private readonly IBackgroundTaskRunner backgroundTaskRunner;
+    private readonly TimeSpan inspectionTimeout;
+
+    public LiveDaqBoardIdInspector(IBackgroundTaskRunner backgroundTaskRunner)
+        : this(backgroundTaskRunner, DefaultInspectionTimeout)
+    {
+    }
+
+    internal LiveDaqBoardIdInspector(IBackgroundTaskRunner backgroundTaskRunner, TimeSpan inspectionTimeout)
+    {
+        this.backgroundTaskRunner = backgroundTaskRunner;
+        this.inspectionTimeout = inspectionTimeout;
+    }
+
+    public Task<Guid?> InspectAsync(IPAddress address, int port, CancellationToken cancellationToken = default) =>
+        backgroundTaskRunner.RunAsync(async () =>
+        {
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            linkedCts.CancelAfter(inspectionTimeout);
+            var token = linkedCts.Token;
+
+            using var tcp = new TcpClient();
+            await tcp.ConnectAsync(address, port, token);
+            await using var stream = tcp.GetStream();
+
+            var frame = LiveProtocolReader.CreateIdentifyFrame(1);
+            await stream.WriteAsync(frame, token);
+            await stream.FlushAsync(token);
+
+            var reader = new LiveProtocolReader();
+            var buffer = new byte[256];
+            while (true)
+            {
+                var read = await stream.ReadAsync(buffer, token);
+                if (read == 0)
+                    throw new IOException("Connection closed before IDENTIFY_ACK was received.");
+
+                reader.Append(buffer.AsSpan(0, read));
+                while (reader.TryReadFrame(out var parsed))
+                {
+                    if (parsed is LiveIdentifyAckFrame ack)
+                        return (Guid?)UuidUtil.CreateDeviceUuid(ack.Payload.BoardSerial);
+                }
+            }
+        }, cancellationToken);
+}

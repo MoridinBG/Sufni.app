@@ -1,0 +1,35 @@
+<UserControl
+x:Class="Sufni.App.LiveDaq.DesktopViews.Items.LiveSessionControlsDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:shared="clr-namespace:Sufni.App.LiveDaq.Views.Shared"
+xmlns:vm="clr-namespace:Sufni.App.LiveDaq.ViewModels.Editors"
+d:DesignHeight="180"
+d:DesignWidth="400"
+x:DataType="vm:LiveSessionDetailViewModel"
+mc:Ignorable="d">
+
+    <Border
+    Padding="14"
+    Background="{DynamicResource SufniBackgroundDisabled}"
+    CornerRadius="8">
+        <StackPanel Spacing="10">
+            <TextBlock FontSize="18" FontWeight="SemiBold" Text="Live Session" />
+            <TextBlock
+            x:Name="LiveConnectionStateTextBlock"
+            Text="{Binding ControlState.ConnectionStateText}" />
+            <TextBlock
+            x:Name="LiveCaptureDurationTextBlock"
+            Text="{Binding ControlState.CaptureDurationText}" />
+            <TextBlock
+            x:Name="LiveLastErrorTextBlock"
+            Foreground="{DynamicResource SufniDangerColor}"
+            IsVisible="{Binding ControlState.HasLastError}"
+            Text="{Binding ControlState.LastError}" />
+
+            <shared:LiveSessionHeaderFields FieldOpacity="1" FieldSpacing="4" />
+        </StackPanel>
+    </Border>
+</UserControl>

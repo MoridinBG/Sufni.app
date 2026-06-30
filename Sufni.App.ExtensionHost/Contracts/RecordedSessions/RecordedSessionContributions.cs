@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Windows.Input;
+using Sufni.App.ExtensionHost.Contracts.Capabilities;
 using Sufni.App.ExtensionHost.Contracts.Plots;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Runtime.Presentation;

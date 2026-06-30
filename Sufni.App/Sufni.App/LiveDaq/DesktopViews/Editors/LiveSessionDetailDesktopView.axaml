@@ -1,0 +1,71 @@
+<UserControl
+x:Class="Sufni.App.LiveDaq.DesktopViews.Editors.LiveSessionDetailDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:items2="clr-namespace:Sufni.App.Sessions.Detail.DesktopViews.Items"
+    xmlns:items3="clr-namespace:Sufni.App.Sessions.Media.DesktopViews.Items"
+    xmlns:items4="clr-namespace:Sufni.App.Sessions.Statistics.DesktopViews.Items"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:editors="clr-namespace:Sufni.App.Sessions.Detail.DesktopViews.Editors"
+xmlns:items="clr-namespace:Sufni.App.LiveDaq.DesktopViews.Items"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
+xmlns:vm="clr-namespace:Sufni.App.LiveDaq.ViewModels.Editors"
+d:DesignHeight="800"
+d:DesignWidth="800"
+x:Name="Root"
+x:DataType="vm:LiveSessionDetailViewModel"
+Background="{DynamicResource SufniRegion}"
+Focusable="True"
+mc:Ignorable="d">
+
+    <Interaction.Behaviors>
+        <EventTriggerBehavior EventName="Loaded">
+            <InvokeCommandAction Command="{Binding LoadedCommand}" />
+        </EventTriggerBehavior>
+        <EventTriggerBehavior EventName="Unloaded">
+            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
+        </EventTriggerBehavior>
+    </Interaction.Behaviors>
+
+    <Grid>
+        <editors:SessionShellDesktopView
+            HasMediaContent="{Binding MediaWorkspace.HasMediaContent}"
+            IsVisible="{Binding ScreenState.IsReady}"
+            MediaColumnWidth="{Binding MediaWorkspace.MediaColumnWidth, TargetNullValue=400}">
+
+            <editors:SessionShellDesktopView.GraphContent>
+                <items:LiveSessionGraphDesktopView DataContext="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext).GraphWorkspace}" />
+            </editors:SessionShellDesktopView.GraphContent>
+
+            <editors:SessionShellDesktopView.MediaContent>
+                <items3:SessionMediaDesktopView DataContext="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext).MediaWorkspace}" />
+            </editors:SessionShellDesktopView.MediaContent>
+
+            <editors:SessionShellDesktopView.StatisticsContent>
+                <items4:SessionStatisticsDesktopView DataContext="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext)}" />
+            </editors:SessionShellDesktopView.StatisticsContent>
+
+            <editors:SessionShellDesktopView.ControlContent>
+                <items:LiveSessionControlsDesktopView DataContext="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext)}" />
+            </editors:SessionShellDesktopView.ControlContent>
+
+            <editors:SessionShellDesktopView.SidebarContent>
+                <items2:SessionSidebarDesktopView DataContext="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext)}" />
+            </editors:SessionShellDesktopView.SidebarContent>
+        </editors:SessionShellDesktopView>
+
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" IsVisible="{Binding ScreenState.IsLoading}">
+            <progRing:ProgressRing Width="40" Height="40" Foreground="{DynamicResource SufniAccentColor}" IsActive="True" />
+            <TextBlock HorizontalAlignment="Center" Text="{Binding ScreenState.Message, TargetNullValue=Loading session data...}" />
+        </StackPanel>
+
+        <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Padding="24" Background="{DynamicResource SufniBackground}" BorderBrush="{DynamicResource SufniBorderBrush}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding ScreenState.IsError}">
+            <StackPanel Spacing="12">
+                <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="Could not load session" />
+                <TextBlock HorizontalAlignment="Center" Text="{Binding ScreenState.Message}" TextAlignment="Center" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+    </Grid>
+
+</UserControl>

@@ -1,0 +1,61 @@
+<UserControl
+    x:Class="Sufni.App.Setups.DesktopViews.ItemLists.SetupListDesktopView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:c="clr-namespace:Sufni.App.Shared.DesktopViews.Controls"
+    xmlns:controls="clr-namespace:Sufni.App.Shared.Views.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:shared="clr-namespace:Sufni.App.Shared.Views.Overlays"
+    xmlns:vml="clr-namespace:Sufni.App.Setups.ViewModels.ItemLists"
+    d:DesignHeight="600"
+    d:DesignWidth="500"
+    x:DataType="vml:SetupListViewModel"
+    Background="{DynamicResource SufniRegion}"
+    mc:Ignorable="d">
+
+    <Grid ColumnDefinitions="* auto" RowDefinitions="auto * auto auto">
+
+        <!--  Search bar  -->
+        <controls:SearchBar
+            Grid.Row="0"
+            Grid.Column="0"
+            Margin="0,20,0,20" />
+
+        <!--  Add button  -->
+        <Button
+            Grid.Row="0"
+            Grid.Column="1"
+            Width="20"
+            Margin="10,25,10,0"
+            VerticalAlignment="Top"
+            Classes="embedded"
+            Command="{Binding AddCommand}">
+            <Image
+                Width="18"
+                Margin="0,0,0,0"
+                Source="{SvgImage /Assets/fa-circle-plus.svg}" />
+        </Button>
+
+        <!--  List of Setups  -->
+        <ScrollViewer
+            Name="Scroll"
+            Grid.Row="1"
+            Grid.Column="0"
+            Grid.ColumnSpan="2">
+            <ItemsRepeater ItemsSource="{Binding Items}">
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate>
+                        <c:DeletableListItemButton />
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+        </ScrollViewer>
+
+        <shared:ItemListStatusOverlay
+            Grid.Row="0"
+            Grid.RowSpan="4"
+            Grid.Column="0"
+            Grid.ColumnSpan="2" />
+    </Grid>
+</UserControl>

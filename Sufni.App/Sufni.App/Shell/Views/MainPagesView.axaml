@@ -1,0 +1,97 @@
+<UserControl
+Name="Root"
+x:Class="Sufni.App.Shell.Views.MainPagesView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:itemlists="clr-namespace:Sufni.App.LiveDaq.ViewModels.ItemLists"
+    xmlns:itemlists2="clr-namespace:Sufni.App.Setups.ViewModels.ItemLists"
+    xmlns:itemlists3="clr-namespace:Sufni.App.Bikes.ViewModels.ItemLists"
+xmlns:controls="clr-namespace:Sufni.App.Shared.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.Shell.ViewModels"
+xmlns:vml="clr-namespace:Sufni.App.Sessions.Lists.ViewModels.ItemLists"
+d:DesignHeight="720"
+d:DesignWidth="500"
+x:DataType="vm:MainPagesViewModel"
+Background="{DynamicResource SufniRegion}"
+mc:Ignorable="d">
+    <DrawerPage
+    Name="MainDrawerPage"
+    DrawerLength="160"
+    IsOpen="{Binding IsDrawerOpen, Mode=TwoWay}">
+        <DrawerPage.Resources>
+            <!--  The Labs DrawerPage header band (PART_TopBar) defaults to 48px and
+                  has 5px padding, leaving ~38px which clips the 39px search field.
+                  Give the band enough height to show the field with breathing room.  -->
+            <x:Double x:Key="NavigationControlNavBarHeight">56</x:Double>
+        </DrawerPage.Resources>
+        <DrawerPage.Header>
+            <ContentControl Content="{Binding SelectedPrimaryPageContent}">
+                <ContentControl.DataTemplates>
+                    <DataTemplate DataType="vml:SessionListViewModel">
+                        <controls:SearchBar Margin="0,0,20,0" ShowDrawerButton="False" />
+                    </DataTemplate>
+                    <DataTemplate DataType="itemlists2:SetupListViewModel">
+                        <controls:SearchBar Margin="0,0,20,0" ShowDrawerButton="False" />
+                    </DataTemplate>
+                    <DataTemplate DataType="itemlists3:BikeListViewModel">
+                        <controls:SearchBar Margin="0,0,20,0" ShowDrawerButton="False" />
+                    </DataTemplate>
+                    <DataTemplate DataType="itemlists:LiveDaqListViewModel">
+                        <controls:SearchBar Margin="0,0,20,0" ShowDrawerButton="False" />
+                    </DataTemplate>
+                </ContentControl.DataTemplates>
+            </ContentControl>
+        </DrawerPage.Header>
+        <DrawerPage.Drawer>
+            <controls:SidePanel
+            Name="MenuPanel"
+            Grid.Row="0"
+            Grid.RowSpan="2"
+            Grid.Column="0" />
+        </DrawerPage.Drawer>
+        <DrawerPage.Content>
+            <TabbedPage
+            Name="PagesTabbedPage"
+            Background="{DynamicResource SufniBackgroundDisabled}"
+            SelectedIndex="{Binding SelectedPrimaryIndex, Mode=TwoWay}"
+            TabPlacement="Bottom">
+                <TabbedPage.Pages>
+                    <ContentPage
+                    Header="Sessions"
+                    Content="{Binding #Root.((vm:MainPagesViewModel)DataContext).SessionsPage}"
+                    AutomaticallyApplySafeAreaPadding="False">
+                        <ContentPage.Icon>
+                            <Image Width="18" Source="{SvgImage /Assets/fa-chart-line.svg}" />
+                        </ContentPage.Icon>
+                    </ContentPage>
+                    <ContentPage
+                    Header="Setups"
+                    Content="{Binding #Root.((vm:MainPagesViewModel)DataContext).SetupsPage}"
+                    AutomaticallyApplySafeAreaPadding="False">
+                        <ContentPage.Icon>
+                            <Image Width="18" Source="{SvgImage /Assets/cog.svg}" />
+                        </ContentPage.Icon>
+                    </ContentPage>
+                    <ContentPage
+                    Header="Bikes"
+                    Content="{Binding #Root.((vm:MainPagesViewModel)DataContext).BikesPage}"
+                    AutomaticallyApplySafeAreaPadding="False">
+                        <ContentPage.Icon>
+                            <Image Width="18" Source="{SvgImage /Assets/fa-person-mountainbiking.svg}" />
+                        </ContentPage.Icon>
+                    </ContentPage>
+                    <ContentPage
+                    Header="Live"
+                    Content="{Binding #Root.((vm:MainPagesViewModel)DataContext).LiveDaqsPage}"
+                    AutomaticallyApplySafeAreaPadding="False">
+                        <ContentPage.Icon>
+                            <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}" />
+                        </ContentPage.Icon>
+                    </ContentPage>
+                </TabbedPage.Pages>
+            </TabbedPage>
+        </DrawerPage.Content>
+    </DrawerPage>
+</UserControl>

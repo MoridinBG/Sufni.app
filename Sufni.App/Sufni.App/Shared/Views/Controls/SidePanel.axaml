@@ -1,0 +1,131 @@
+<UserControl
+x:Class="Sufni.App.Shared.Views.Controls.SidePanel"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:converters="using:Avalonia.Data.Converters"
+xmlns:controls="clr-namespace:Sufni.App.Extensibility.Views"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:theming="clr-namespace:Sufni.App.Theming;assembly=Sufni.App.Theming"
+xmlns:vm="clr-namespace:Sufni.App.Shell.ViewModels"
+d:DesignHeight="450"
+d:DesignWidth="200"
+x:DataType="vm:MainPagesViewModel"
+mc:Ignorable="d">
+
+    <UserControl.Styles>
+        <Style Selector="MenuItem">
+            <Setter Property="Margin" Value="5,10,0,10" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniForeground}" />
+            <Setter Property="Height" Value="30" />
+        </Style>
+        <Style Selector="MenuItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource SufniTextHover}" />
+        </Style>
+        <Style Selector="MenuItem:pressed /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+    </UserControl.Styles>
+
+    <!--  Default background  -->
+    <UserControl.Background>
+        <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <LinearGradientBrush.GradientStops>
+                <GradientStop Offset="0.7" Color="{DynamicResource SufniNavRailBackground}" />
+                <GradientStop Offset="1" Color="{DynamicResource SufniNavRailBackgroundBottom}" />
+            </LinearGradientBrush.GradientStops>
+        </LinearGradientBrush>
+    </UserControl.Background>
+
+    <StackPanel>
+        <MenuItem
+        Command="{Binding OpenImportCommand}"
+        Header="import">
+            <MenuItem.Icon>
+                <Image Width="12" Source="{SvgImage /Assets/fa-file-import.svg}" />
+            </MenuItem.Icon>
+        </MenuItem>
+        <MenuItem
+        Name="ImportGpxMenuItem"
+        Command="{Binding OpenGpsTracksCommand}"
+        Header="GPX import">
+            <MenuItem.Icon>
+                <Image Width="12" Source="{SvgImage /Assets/fa-map.svg}" />
+            </MenuItem.Icon>
+        </MenuItem>
+        <controls:AppToolbarContributionsView
+        Name="SidePanelExtensionToolbarActions"
+        CommandContributions="{Binding ExtensionToolbarCommands}"
+        Presentation="Menu"
+        ViewContributions="{Binding ExtensionToolbarViews}" />
+        <Separator />
+        <MenuItem Command="{Binding BikesPage.AddCommand}" Header="bike">
+            <MenuItem.Icon>
+                <Image
+                Width="12"
+                Margin="0,1,0,0"
+                Source="{SvgImage /Assets/fa-circle-plus.svg}" />
+            </MenuItem.Icon>
+        </MenuItem>
+        <MenuItem Command="{Binding SetupsPage.AddCommand}" Header="setup">
+            <MenuItem.Icon>
+                <Image
+                Width="12"
+                Margin="0,1,0,0"
+                Source="{SvgImage /Assets/fa-circle-plus.svg}" />
+            </MenuItem.Icon>
+        </MenuItem>
+        <Separator />
+        <MenuItem
+        Command="{Binding SyncCommand}"
+        Header="synchronize"
+        IsVisible="{Binding IsPaired, FallbackValue={x:False}}">
+            <MenuItem.Icon>
+                <Image
+                Width="12"
+                Margin="0,3,0,0"
+                Source="{SvgImage /Assets/fa-sync-alt.svg}" />
+            </MenuItem.Icon>
+        </MenuItem>
+        <MenuItem
+        Command="{Binding OpenPageCommand}"
+        CommandParameter="{Binding PairingClientPage}"
+        Header="pair"
+        IsVisible="{Binding !IsPaired}">
+            <MenuItem.Icon>
+                <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}" />
+            </MenuItem.Icon>
+        </MenuItem>
+        <MenuItem
+        Command="{Binding OpenPageCommand}"
+        CommandParameter="{Binding PairingClientPage}"
+        Header="unpair"
+        IsVisible="{Binding IsPaired, FallbackValue={x:False}}">
+            <MenuItem.Icon>
+                <Image Width="18" Source="{SvgImage /Assets/fa-link-slash.svg}" />
+            </MenuItem.Icon>
+        </MenuItem>
+        <Separator />
+        <MenuItem
+        Name="ThemeMenuItem"
+        Command="{Binding ToggleThemeCommand}"
+        Header="theme">
+            <MenuItem.Icon>
+                <Panel>
+                    <Image
+                    Width="12"
+                    IsVisible="{Binding CurrentThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.Light}}"
+                    Source="{SvgImage /Assets/fa-sun.svg}" />
+                    <Image
+                    Width="12"
+                    IsVisible="{Binding CurrentThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.Dark}}"
+                    Source="{SvgImage /Assets/fa-moon.svg}" />
+                    <Image
+                    Width="12"
+                    IsVisible="{Binding CurrentThemeMode, Converter={x:Static converters:ObjectConverters.Equal}, ConverterParameter={x:Static theming:SufniThemeMode.System}}"
+                    Source="{SvgImage /Assets/fa-circle-half-stroke.svg}" />
+                </Panel>
+            </MenuItem.Icon>
+        </MenuItem>
+    </StackPanel>
+</UserControl>

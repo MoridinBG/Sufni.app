@@ -1,0 +1,143 @@
+<UserControl
+x:Class="Sufni.App.Sessions.Detail.DesktopViews.Editors.SessionDetailDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:items2="clr-namespace:Sufni.App.Sessions.Detail.DesktopViews.Items"
+    xmlns:items3="clr-namespace:Sufni.App.Sessions.Graph.DesktopViews.Items"
+    xmlns:items4="clr-namespace:Sufni.App.Sessions.Media.DesktopViews.Items"
+xmlns:controls="using:Sufni.App.Shared.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:editors="clr-namespace:Sufni.App.Sessions.Detail.DesktopViews.Editors"
+xmlns:items="clr-namespace:Sufni.App.Sessions.Statistics.DesktopViews.Items"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
+xmlns:vm="clr-namespace:Sufni.App.Sessions.Detail.ViewModels.Editors"
+d:DesignHeight="800"
+d:DesignWidth="800"
+x:Name="Root"
+x:DataType="vm:SessionDetailViewModel"
+Background="{DynamicResource SufniSurfacePage}"
+Focusable="True"
+mc:Ignorable="d">
+
+    <Interaction.Behaviors>
+        <EventTriggerBehavior EventName="Loaded">
+            <InvokeCommandAction Command="{Binding LoadedCommand}" />
+        </EventTriggerBehavior>
+        <EventTriggerBehavior EventName="Unloaded">
+            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
+        </EventTriggerBehavior>
+    </Interaction.Behaviors>
+
+    <UserControl.Styles>
+        <Style Selector="TabStripItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniTabText}" />
+        </Style>
+        <Style Selector="TabItem">
+            <Setter Property="Foreground" Value="{DynamicResource SufniTabText}" />
+        </Style>
+        <Style Selector="TabStripItem:selected">
+            <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
+        </Style>
+        <Style Selector="TabItem /template/ ContentPresenter">
+            <!--  Adjust text vertical position by selected pipe height  -->
+            <Setter Property="Margin" Value="0,0,0,2" />
+        </Style>
+        <Style Selector="TabItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource SufniTabTextHover}" />
+        </Style>
+        <Style Selector="TabStripItem:pointerover /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceHover}" />
+        </Style>
+        <Style Selector="TabStripItem:pointerover:selected /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
+        </Style>
+        <Style Selector="TabStripItem:selected /template/ Border#PART_SelectedPipe">
+            <Setter Property="Background" Value="{DynamicResource SufniAccentIndicatorTabUnderline}" />
+            <Setter Property="Height" Value="{StaticResource SufniSelectionIndicatorThickness}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid>
+        <editors:SessionShellDesktopView
+            HasMediaContent="{Binding MediaWorkspace.HasMediaContent}"
+            IsVisible="{Binding SessionContext.ScreenState.IsReady}"
+            LayoutPreferences="{Binding LayoutPreferences, Mode=TwoWay}"
+            MediaColumnWidth="{Binding MediaWorkspace.MediaColumnWidth, TargetNullValue=400}">
+
+            <editors:SessionShellDesktopView.GraphContent>
+                <items3:RecordedSessionGraphDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).GraphWorkspace}" />
+            </editors:SessionShellDesktopView.GraphContent>
+
+            <editors:SessionShellDesktopView.MediaContent>
+                <items4:SessionMediaDesktopView
+                    DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).MediaWorkspace}"
+                    LayoutPreferences="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).MediaLayoutPreferences, Mode=TwoWay}" />
+            </editors:SessionShellDesktopView.MediaContent>
+
+            <editors:SessionShellDesktopView.StatisticsContent>
+                <items:SessionStatisticsDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).StatisticsWorkspace}" />
+            </editors:SessionShellDesktopView.StatisticsContent>
+
+            <editors:SessionShellDesktopView.SidebarContent>
+                <items2:SessionSidebarDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).SidebarWorkspace}" />
+            </editors:SessionShellDesktopView.SidebarContent>
+        </editors:SessionShellDesktopView>
+
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" IsVisible="{Binding SessionContext.ScreenState.IsLoading}">
+            <progRing:ProgressRing Width="40" Height="40" Foreground="{DynamicResource SufniAccentSpinner}" IsActive="True" />
+            <TextBlock HorizontalAlignment="Center" Text="{Binding SessionContext.ScreenState.Message, TargetNullValue=Loading session data...}" />
+        </StackPanel>
+
+        <Border
+            Background="{DynamicResource SufniRegion}"
+            IsHitTestVisible="False"
+            IsVisible="{Binding SessionContext.SessionOperationState.IsVisible}"
+            Opacity="0.35" />
+
+        <Border
+            Name="SessionOperationOverlay"
+            MinWidth="180"
+            MaxWidth="260"
+            Padding="16,14"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Background="{DynamicResource SufniFieldSurface}"
+            BorderBrush="{DynamicResource SufniFieldBorder}"
+            BorderThickness="1"
+            CornerRadius="6"
+            IsHitTestVisible="False"
+            IsVisible="{Binding SessionContext.SessionOperationState.IsVisible}">
+            <StackPanel Spacing="10">
+                <ProgressBar
+                    Name="SessionOperationProgressBar"
+                    Minimum="0"
+                    Maximum="100"
+                    Value="{Binding SessionContext.SessionOperationState.Percent}" />
+
+                <TextBlock
+                    Name="SessionOperationOverlayMessage"
+                    HorizontalAlignment="Center"
+                    Text="{Binding SessionContext.SessionOperationState.Message}"
+                    TextAlignment="Center"
+                    TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
+        <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Padding="24" Background="{DynamicResource SufniFieldSurface}" BorderBrush="{DynamicResource SufniFieldBorder}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding SessionContext.ScreenState.IsError}">
+            <StackPanel Spacing="12">
+                <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="Could not load session" />
+                <TextBlock Name="ScreenErrorText" HorizontalAlignment="Center" Text="{Binding SessionContext.ScreenState.Message}" TextAlignment="Center" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
+        <controls:ErrorMessagesBar
+            Name="SessionErrorMessagesBar"
+            Margin="16"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Bottom"
+            MaxWidth="720" />
+    </Grid>
+
+</UserControl>

@@ -1,0 +1,51 @@
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+
+using Sufni.App.Acquisition.Services.Management;
+namespace Sufni.App.Acquisition.Services;
+
+public interface IDaqManagementService
+{
+    Task<DaqListDirectoryResult> ListDirectoryAsync(
+        string host,
+        int port,
+        DaqDirectoryId directoryId,
+        CancellationToken cancellationToken = default);
+
+    Task<DaqGetFileResult> GetFileAsync(
+        string host,
+        int port,
+        DaqFileClass fileClass,
+        int recordId,
+        Stream destination,
+        CancellationToken cancellationToken = default);
+
+    Task<DaqManagementResult> MarkSstUploadedAsync(
+        string host,
+        int port,
+        int recordId,
+        CancellationToken cancellationToken = default);
+
+    Task<DaqManagementResult> TrashFileAsync(
+        string host,
+        int port,
+        int recordId,
+        CancellationToken cancellationToken = default);
+
+    Task<DaqSetTimeResult> SetTimeAsync(
+        string host,
+        int port,
+        CancellationToken cancellationToken = default);
+
+    Task<DaqManagementResult> ReplaceConfigAsync(
+        string host,
+        int port,
+        byte[] configBytes,
+        CancellationToken cancellationToken = default);
+
+    Task<IDaqManagementSession> OpenSessionAsync(
+        string host,
+        int port,
+        CancellationToken cancellationToken = default);
+}

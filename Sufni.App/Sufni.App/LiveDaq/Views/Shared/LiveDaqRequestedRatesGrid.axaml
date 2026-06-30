@@ -1,0 +1,57 @@
+<UserControl
+    x:Class="Sufni.App.LiveDaq.Views.Shared.LiveDaqRequestedRatesGrid"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:Sufni.App.LiveDaq.ViewModels.Editors"
+    d:DesignHeight="112"
+    d:DesignWidth="320"
+    x:DataType="vm:LiveDaqDetailViewModel"
+    mc:Ignorable="d">
+
+    <Grid
+        ColumnDefinitions="auto *"
+        ColumnSpacing="12"
+        RowDefinitions="auto auto auto"
+        RowSpacing="8">
+        <TextBlock
+            Grid.Row="0"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            Text="Travel Hz" />
+        <NumericUpDown
+            Name="RequestedTravelHzUpDown"
+            Grid.Row="0"
+            Grid.Column="1"
+            IsEnabled="{Binding AreRequestedRatesEnabled}"
+            Minimum="0"
+            Value="{Binding RequestedTravelHz}" />
+
+        <TextBlock
+            Grid.Row="1"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            Text="IMU Hz" />
+        <NumericUpDown
+            Name="RequestedImuHzUpDown"
+            Grid.Row="1"
+            Grid.Column="1"
+            IsEnabled="{Binding AreRequestedRatesEnabled}"
+            Minimum="0"
+            Value="{Binding RequestedImuHz}" />
+
+        <TextBlock
+            Grid.Row="2"
+            Grid.Column="0"
+            VerticalAlignment="Center"
+            Text="GPS Hz" />
+        <NumericUpDown
+            Name="RequestedGpsFixHzUpDown"
+            Grid.Row="2"
+            Grid.Column="1"
+            IsEnabled="{Binding AreRequestedRatesEnabled}"
+            Minimum="0"
+            Value="{Binding RequestedGpsFixHz}" />
+    </Grid>
+</UserControl>

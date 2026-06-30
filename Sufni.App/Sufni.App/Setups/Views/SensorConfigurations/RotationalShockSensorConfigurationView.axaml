@@ -1,0 +1,80 @@
+<UserControl
+x:Class="Sufni.App.Setups.Views.SensorConfigurations.RotationalShockSensorConfigurationView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.Setups.ViewModels.SensorConfigurations"
+d:DesignHeight="450"
+d:DesignWidth="800"
+x:DataType="vm:RotationalShockSensorConfigurationViewModel"
+mc:Ignorable="d">
+
+    <Grid ColumnDefinitions="auto *" RowDefinitions="auto auto auto auto">
+        <!--  Sensor joint  -->
+        <TextBlock
+        Grid.Row="0"
+        Grid.Column="0"
+        Margin="5"
+        Text="Sensor position" />
+        <ComboBox
+        Name="SensorJointComboBox"
+        Grid.Row="0"
+        Grid.Column="1"
+        Margin="0,2,2,2"
+        HorizontalAlignment="Stretch"
+        ItemsSource="{Binding JointsForSensor}"
+        SelectedItem="{Binding SensorJoint}">
+
+            <ComboBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <!--  First adjacent joint  -->
+        <TextBlock
+        Grid.Row="1"
+        Grid.Column="0"
+        Margin="5"
+        Text="Adjacent 1" />
+        <ComboBox
+        Name="AdjacentJoint1ComboBox"
+        Grid.Row="1"
+        Grid.Column="1"
+        Margin="0,2,2,2"
+        HorizontalAlignment="Stretch"
+        ItemsSource="{Binding JointsForAdjacent1}"
+        SelectedItem="{Binding AdjacentJoint1}">
+
+            <ComboBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <!--  Second adjacent joint  -->
+        <TextBlock
+        Grid.Row="2"
+        Grid.Column="0"
+        Margin="5"
+        Text="Adjacent 2" />
+        <ComboBox
+        Name="AdjacentJoint2ComboBox"
+        Grid.Row="2"
+        Grid.Column="1"
+        Margin="0,2,2,2"
+        HorizontalAlignment="Stretch"
+        ItemsSource="{Binding JointsForAdjacent2}"
+        SelectedItem="{Binding AdjacentJoint2}">
+
+            <ComboBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+    </Grid>
+</UserControl>

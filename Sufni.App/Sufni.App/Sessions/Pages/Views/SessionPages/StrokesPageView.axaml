@@ -1,0 +1,84 @@
+<UserControl
+x:Class="Sufni.App.Sessions.Pages.Views.SessionPages.StrokesPageView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls2="clr-namespace:Sufni.App.Sessions.Statistics.Views.Controls"
+xmlns:controls="clr-namespace:Sufni.App.Extensibility.Views"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.Sessions.Pages.ViewModels.SessionPages"
+d:DesignHeight="600"
+d:DesignWidth="500"
+x:DataType="vm:StrokesPageViewModel"
+mc:Ignorable="d">
+
+    <ScrollViewer
+    x:Name="PageScrollViewer"
+    Width="{Binding $parent[ScrollViewer].Bounds.Width}"
+    ClipToBounds="True"
+    HorizontalScrollBarVisibility="Disabled"
+    IsScrollChainingEnabled="False">
+        <StackPanel
+        Name="MobileStrokesStatisticsContent"
+        Width="{Binding #PageScrollViewer.Bounds.Width}"
+        ClipToBounds="True"
+        Spacing="8">
+            <controls:RecordedSessionStatisticsContributionsView ExtensionSlots="{Binding Workspace.ExtensionSlots}" />
+
+            <StackPanel
+            Name="MobileStrokesSideRadioButtons"
+            Margin="0,8,0,0"
+            IsVisible="{Binding HasBothStatisticsSides}"
+            Spacing="4">
+                <RadioButton
+                Name="MobileFrontStrokesSideRadioButton"
+                Content="Front"
+                GroupName="MobileStrokesSide"
+                IsChecked="{Binding FrontSideSelected, Mode=TwoWay}" />
+                <RadioButton
+                Name="MobileRearStrokesSideRadioButton"
+                Content="Rear"
+                GroupName="MobileStrokesSide"
+                IsChecked="{Binding RearSideSelected, Mode=TwoWay}" />
+            </StackPanel>
+
+            <Grid Name="FrontStrokesPanel" IsVisible="{Binding ShowFrontStrokes}">
+                <controls2:StrokeStatisticsHost
+                AnalysisRange="{Binding Workspace.AnalysisRange}"
+                CompressionLengthRowHeight="260"
+                CompressionSpeedRowHeight="260"
+                DeepTravelRowHeight="220"
+                ExtensionSlots="{Binding Workspace.ExtensionSlots}"
+                MinCardHeight="260"
+                PresentationState="{Binding Workspace.FrontStatisticsState}"
+                ReboundLengthRowHeight="260"
+                ReboundSpeedRowHeight="260"
+                SelectTelemetryRangeSelectionCommand="{Binding Workspace.SelectTelemetryRangeSelectionCommand}"
+                SelectedFrontRangeSelection="{Binding Workspace.SelectedFrontRangeSelection}"
+                SelectedRearRangeSelection="{Binding Workspace.SelectedRearRangeSelection}"
+                SuspensionType="Front"
+                Telemetry="{Binding Workspace.TelemetryData}"
+                Title="Front strokes" />
+            </Grid>
+
+            <Grid Name="RearStrokesPanel" IsVisible="{Binding ShowRearStrokes}">
+                <controls2:StrokeStatisticsHost
+                AnalysisRange="{Binding Workspace.AnalysisRange}"
+                CompressionLengthRowHeight="260"
+                CompressionSpeedRowHeight="260"
+                DeepTravelRowHeight="220"
+                ExtensionSlots="{Binding Workspace.ExtensionSlots}"
+                MinCardHeight="260"
+                PresentationState="{Binding Workspace.RearStatisticsState}"
+                ReboundLengthRowHeight="260"
+                ReboundSpeedRowHeight="260"
+                SelectTelemetryRangeSelectionCommand="{Binding Workspace.SelectTelemetryRangeSelectionCommand}"
+                SelectedFrontRangeSelection="{Binding Workspace.SelectedFrontRangeSelection}"
+                SelectedRearRangeSelection="{Binding Workspace.SelectedRearRangeSelection}"
+                SuspensionType="Rear"
+                Telemetry="{Binding Workspace.TelemetryData}"
+                Title="Rear strokes" />
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

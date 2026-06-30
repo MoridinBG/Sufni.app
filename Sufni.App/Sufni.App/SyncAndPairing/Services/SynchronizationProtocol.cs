@@ -1,0 +1,18 @@
+namespace Sufni.App.SyncAndPairing.Services;
+
+public static class SynchronizationProtocol
+{
+    public const string ServiceType = "_sstsync._tcp";
+    public const string CertificateSubjectName = "cn=com.sghctoma.sst-api";
+    public const int PinTtlSeconds = 30;
+    public const string EndpointPairRequest = "/pair/request";
+    public const string EndpointPairConfirm = "/pair/confirm";
+    public const string EndpointPairRefresh = "/pair/refresh";
+    public const string EndpointPairUnpair = "/pair/unpair";
+    public const string EndpointSyncPush = "/sync/push";
+    public const string EndpointSyncPull = "/sync/pull";
+    public const string EndpointSessionIncomplete = "/session/incomplete";
+    public const string EndpointSessionData = "/session/data/";
+    public const string EndpointSessionSourceIncomplete = "/session/source/incomplete";
+    public const string EndpointSessionSourceData = "/session/source/data/";
+}

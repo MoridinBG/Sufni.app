@@ -5,6 +5,7 @@ using System;
 using Sufni.App.Desktop;
 using Sufni.App.Services;
 
+using Sufni.App.Infrastructure;
 namespace Sufni.App.Windows
 {
     internal partial class Program

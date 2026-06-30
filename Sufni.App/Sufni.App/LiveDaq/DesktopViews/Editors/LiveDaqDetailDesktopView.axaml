@@ -1,0 +1,198 @@
+<UserControl
+x:Class="Sufni.App.LiveDaq.DesktopViews.Editors.LiveDaqDetailDesktopView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:live="clr-namespace:Sufni.App.LiveDaq.Services.LiveStreaming"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:controls="clr-namespace:Sufni.App.Shared.Views.Controls"
+xmlns:shared="clr-namespace:Sufni.App.LiveDaq.Views.Shared"
+xmlns:vm="clr-namespace:Sufni.App.LiveDaq.ViewModels.Editors"
+d:DesignHeight="800"
+d:DesignWidth="1100"
+x:DataType="vm:LiveDaqDetailViewModel"
+Background="{DynamicResource SufniRegion}"
+mc:Ignorable="d">
+
+    <Interaction.Behaviors>
+        <EventTriggerBehavior EventName="Loaded">
+            <InvokeCommandAction Command="{Binding LoadedCommand}" />
+        </EventTriggerBehavior>
+        <EventTriggerBehavior EventName="Unloaded">
+            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
+        </EventTriggerBehavior>
+    </Interaction.Behaviors>
+
+    <SplitView
+    DisplayMode="Inline"
+    IsPaneOpen="True"
+    OpenPaneLength="340"
+    PanePlacement="Right">
+
+        <SplitView.Pane>
+            <ScrollViewer>
+                <StackPanel Margin="18" Spacing="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock FontSize="22" FontWeight="SemiBold" Text="{Binding Name}" />
+                        <TextBlock Opacity="0.7" Text="{Binding BoardId}" />
+                        <TextBlock Opacity="0.7" Text="{Binding Endpoint}" />
+                        <TextBlock Opacity="0.7" Text="{Binding SetupName, StringFormat='Setup: {0}'}" />
+                        <TextBlock Opacity="0.7" Text="{Binding BikeName, StringFormat='Bike: {0}'}" />
+                    </StackPanel>
+
+                    <Border
+                    Padding="12"
+                    Background="{DynamicResource SufniBackgroundDisabled}"
+                    CornerRadius="8">
+                        <StackPanel Spacing="6">
+                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="Connection" />
+                            <TextBlock x:Name="ConnectionStateTextBlock" Text="{Binding Snapshot.ConnectionStateText}" />
+                            <TextBlock
+                            x:Name="LastErrorTextBlock"
+                            Foreground="{DynamicResource SufniDangerColor}"
+                            IsVisible="{Binding Snapshot.HasLastError}"
+                            Text="{Binding Snapshot.LastError}" />
+                            <TextBlock
+                            x:Name="SessionLengthTextBlock"
+                            Opacity="0.7"
+                            Text="{Binding Snapshot.SessionLengthText}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border
+                    Padding="12"
+                    Background="{DynamicResource SufniBackgroundDisabled}"
+                    CornerRadius="8">
+                        <StackPanel Spacing="10">
+                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="Requested Rates" />
+                            <shared:LiveDaqRequestedRatesGrid x:Name="RequestedRatesGrid" />
+
+                            <Grid ColumnDefinitions="* *" ColumnSpacing="8">
+                                <Border Grid.Column="0" ToolTip.Tip="{Binding ConnectDisabledTooltip}">
+                                    <Button x:Name="ConnectButton" Command="{Binding ConnectCommand}" Content="Connect" IsEnabled="{Binding CanConnect}" />
+                                </Border>
+                                <Button x:Name="DisconnectButton" Grid.Column="1" Command="{Binding DisconnectCommand}" Content="Disconnect" IsEnabled="{Binding CanDisconnect}" />
+                            </Grid>
+
+                            <Button
+                            x:Name="StartSessionButton"
+                            Command="{Binding StartSessionCommand}"
+                            Content="Start Session"
+                            IsEnabled="{Binding CanStartSession}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border
+                    Padding="12"
+                    Background="{DynamicResource SufniBackgroundDisabled}"
+                    CornerRadius="8">
+                        <StackPanel Spacing="6">
+                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="Accepted Session" />
+                            <TextBlock x:Name="AcceptedTravelRateTextBlock" Text="{Binding Snapshot.Session.AcceptedTravelHz, StringFormat='Travel: {0} Hz'}" />
+                            <TextBlock x:Name="AcceptedImuRateTextBlock" Text="{Binding Snapshot.Session.AcceptedImuHz, StringFormat='IMU: {0} Hz'}" />
+                            <TextBlock x:Name="AcceptedGpsRateTextBlock" Text="{Binding Snapshot.Session.AcceptedGpsFixHz, StringFormat='GPS: {0} Hz'}" />
+                        </StackPanel>
+                    </Border>
+
+                    <shared:LiveDaqDeviceManagementCard x:Name="DeviceManagementCard" />
+
+                    <controls:NotificationsBar
+                    x:Name="ManagementNotificationsBar"
+                    Margin="0,-4,0,0" />
+
+                    <controls:ErrorMessagesBar
+                    x:Name="ManagementErrorMessagesBar"
+                    Margin="0,-4,0,0" />
+                </StackPanel>
+            </ScrollViewer>
+        </SplitView.Pane>
+
+        <ScrollViewer>
+            <StackPanel Margin="18" Spacing="16">
+                <Border
+                x:Name="TravelCard"
+                Padding="14"
+                Background="{DynamicResource SufniBackgroundDisabled}"
+                CornerRadius="8">
+                    <StackPanel Spacing="8">
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Travel"
+                                   ToolTip.Tip="{Binding Snapshot.Travel.QueueDepth, StringFormat='Queue depth: {0}'}" />
+                        <TextBlock x:Name="TravelStatusTextBlock" Opacity="0.7" Text="{Binding Snapshot.Travel.SampleDelayText}" />
+                        <Border Padding="10" Background="{DynamicResource SufniRegion}" CornerRadius="6">
+                            <TextBlock x:Name="FrontTravelTextBlock" Text="{Binding FrontTravelText}" />
+                        </Border>
+                        <Border Padding="10" Background="{DynamicResource SufniRegion}" CornerRadius="6">
+                            <TextBlock x:Name="RearTravelTextBlock" Text="{Binding RearTravelText}" />
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <Border
+                x:Name="ImuCard"
+                Padding="14"
+                Background="{DynamicResource SufniBackgroundDisabled}"
+                CornerRadius="8">
+                    <StackPanel Spacing="8">
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="IMU" />
+                        <TextBlock x:Name="ImuSummaryTextBlock" Opacity="0.7" Text="{Binding Snapshot.Imus.Count, StringFormat='IMUs: {0}'}" />
+                        <TextBlock x:Name="ImuEmptyStateTextBlock" IsVisible="{Binding !Snapshot.HasImuData}" Opacity="0.7" Text="No active IMU samples yet." />
+                        <ItemsControl x:Name="ImuItemsControl" ItemsSource="{Binding Snapshot.Imus}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="live:LiveImuUiSnapshot">
+                                    <Border
+                                    Margin="0,0,0,8"
+                                    Padding="10"
+                                    Background="{DynamicResource SufniRegion}"
+                                    CornerRadius="6">
+                                        <StackPanel Spacing="4">
+                                            <TextBlock FontWeight="SemiBold" Text="{Binding Location}"
+                                                       ToolTip.Tip="{Binding QueueDepth, StringFormat='Queue depth: {0}'}" />
+                                            <Grid ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto" RowDefinitions="Auto, Auto" ColumnSpacing="4" RowSpacing="2">
+                                                <Grid.Styles>
+                                                    <Style Selector="TextBlock">
+                                                        <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, Menlo, DejaVu Sans Mono" />
+                                                    </Style>
+                                                </Grid.Styles>
+                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Acc" />
+                                                <TextBlock Grid.Row="0" Grid.Column="1" Text="x:" />
+                                                <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Ax}" HorizontalAlignment="Right" />
+                                                <TextBlock Grid.Row="0" Grid.Column="3" Text="y:" />
+                                                <TextBlock Grid.Row="0" Grid.Column="4" Text="{Binding Ay}" HorizontalAlignment="Right" />
+                                                <TextBlock Grid.Row="0" Grid.Column="5" Text="z:" />
+                                                <TextBlock Grid.Row="0" Grid.Column="6" Text="{Binding Az}" HorizontalAlignment="Right" />
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Gyro" />
+                                                <TextBlock Grid.Row="1" Grid.Column="1" Text="x:" />
+                                                <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Gx}" HorizontalAlignment="Right" />
+                                                <TextBlock Grid.Row="1" Grid.Column="3" Text="y:" />
+                                                <TextBlock Grid.Row="1" Grid.Column="4" Text="{Binding Gy}" HorizontalAlignment="Right" />
+                                                <TextBlock Grid.Row="1" Grid.Column="5" Text="z:" />
+                                                <TextBlock Grid.Row="1" Grid.Column="6" Text="{Binding Gz}" HorizontalAlignment="Right" />
+                                            </Grid>
+                                            <TextBlock Opacity="0.7" Text="{Binding SampleDelayText}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border
+                x:Name="GpsCard"
+                Padding="14"
+                Background="{DynamicResource SufniBackgroundDisabled}"
+                CornerRadius="8">
+                    <StackPanel Spacing="8">
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="GPS"
+                                   ToolTip.Tip="{Binding Snapshot.Gps.QueueDepth, StringFormat='Queue depth: {0}'}" />
+                        <TextBlock x:Name="GpsStatusTextBlock" Text="{Binding Snapshot.Gps.PreviewState.StatusText}" />
+                        <TextBlock x:Name="GpsCoordinatesTextBlock" Text="{Binding Snapshot.Gps.Latitude, StringFormat='Lat: {0:F4}'}" />
+                        <TextBlock x:Name="GpsLongitudeTextBlock" Text="{Binding Snapshot.Gps.Longitude, StringFormat='Lon: {0:F4}'}" />
+                        <TextBlock x:Name="GpsFixTimestampTextBlock" Opacity="0.7" Text="{Binding Snapshot.Gps.FixTimestampUtc, StringFormat='Fix time: {0:HH:mm:ss}'}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </SplitView>
+
+</UserControl>

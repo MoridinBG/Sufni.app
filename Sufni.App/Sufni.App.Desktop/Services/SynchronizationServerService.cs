@@ -27,10 +27,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Sufni.App.ExtensionHost.Contracts.Sync;
-using Sufni.App.Models;
 using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHosting.Sync;
 
+using Sufni.App.Extensibility.Sync;
+using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Services;
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.Sessions.Models;
+using Sufni.App.SyncAndPairing.Models;
 namespace Sufni.App.Services;
 
 public class SynchronizationServerService : ISynchronizationServerService

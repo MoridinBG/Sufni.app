@@ -1,0 +1,108 @@
+<UserControl
+    x:Class="Sufni.App.Sessions.Lists.Views.ItemLists.SessionListView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls2="clr-namespace:Sufni.App.Shell.Views.Controls"
+    xmlns:behaviors="clr-namespace:Sufni.App.Shell.Behaviors"
+    xmlns:controls="clr-namespace:Sufni.App.Sessions.Lists.Views.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:shared="clr-namespace:Sufni.App.Shared.Views.Overlays"
+    xmlns:v="clr-namespace:Sufni.App.Views"
+    xmlns:vm="clr-namespace:Sufni.App.ViewModels"
+    xmlns:vml="clr-namespace:Sufni.App.Sessions.Lists.ViewModels.ItemLists"
+    d:DesignHeight="600"
+    d:DesignWidth="500"
+    x:DataType="vml:SessionListViewModel"
+    Background="{DynamicResource SufniRegion}"
+    behaviors:HapticFeedbackBehavior.IsEnabled="True"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <DataTemplate x:Key="SessionDateGroupMobileRowTemplate">
+            <StackPanel>
+                <controls:SessionSwipeActionButton />
+                <Separator
+                    Height="1"
+                    Margin="0"
+                    Background="{DynamicResource SufniListRowDivider}" />
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid ColumnDefinitions="*" RowDefinitions="auto * auto auto">
+        <Border
+            Name="DatePickers"
+            Grid.Row="0"
+            Grid.Column="0"
+            Padding="20,5,20,5"
+            Background="{DynamicResource SufniRegion}"
+            IsVisible="{Binding DateFilterVisible}">
+            <Grid ColumnDefinitions="* auto *" RowDefinitions="auto">
+                <CalendarDatePicker
+                    Grid.Column="0"
+                    HorizontalAlignment="Stretch"
+                    DisplayDateEnd="{Binding DateFilterTo}"
+                    SelectedDate="{Binding DateFilterFrom}" />
+                <Button
+                    Name="ClearFromDateButton"
+                    Grid.Column="0"
+                    Width="30"
+                    Margin="0,0,20,0"
+                    HorizontalAlignment="Right"
+                    Classes="embedded"
+                    Command="{Binding ClearDateFilterCommand}"
+                    CommandParameter="from"
+                    IsVisible="{Binding DateFilterFrom, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <Image Source="{SvgImage /Assets/fa-xmark.svg}" />
+                </Button>
+
+                <TextBlock
+                    Grid.Column="1"
+                    Margin="8,0"
+                    VerticalAlignment="Center"
+                    Text="→" />
+
+                <CalendarDatePicker
+                    Grid.Column="2"
+                    HorizontalAlignment="Stretch"
+                    DisplayDateStart="{Binding DateFilterFrom}"
+                    SelectedDate="{Binding DateFilterTo}" />
+                <Button
+                    Name="ClearToDateButton"
+                    Grid.Column="2"
+                    Width="30"
+                    Margin="0,0,20,0"
+                    HorizontalAlignment="Right"
+                    Classes="embedded"
+                    Command="{Binding ClearDateFilterCommand}"
+                    CommandParameter="to"
+                    IsVisible="{Binding DateFilterTo, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <Image Source="{SvgImage /Assets/fa-xmark.svg}" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!--  List of Sessions  -->
+        <controls2:PullableMenuScrollViewer
+            Grid.Row="1"
+            Grid.Column="0"
+            Margin="0,15,0,5"
+            Items="{Binding DateGroups}"
+            MenuItems="{Binding MenuItems}">
+            <controls2:PullableMenuScrollViewer.ItemTemplate>
+                <DataTemplate x:DataType="vml:SessionDateGroupViewModel">
+                    <controls:SessionDateGroupView
+                        HeaderMinHeight="42"
+                        HeaderPadding="20,8,12,8"
+                        RowTemplate="{StaticResource SessionDateGroupMobileRowTemplate}" />
+                </DataTemplate>
+            </controls2:PullableMenuScrollViewer.ItemTemplate>
+        </controls2:PullableMenuScrollViewer>
+
+        <shared:ItemListStatusOverlay
+            Grid.Row="0"
+            Grid.RowSpan="4"
+            Grid.Column="0" />
+    </Grid>
+</UserControl>

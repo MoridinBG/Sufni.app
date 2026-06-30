@@ -6,6 +6,7 @@ using System;
 using Sufni.App.Desktop;
 using Sufni.App.Services;
 
+using Sufni.App.Infrastructure;
 namespace Sufni.App.macOS
 {
     internal partial class Program

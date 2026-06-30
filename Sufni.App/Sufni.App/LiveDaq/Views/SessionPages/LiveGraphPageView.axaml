@@ -1,0 +1,46 @@
+<UserControl
+x:Class="Sufni.App.LiveDaq.Views.SessionPages.LiveGraphPageView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls2="clr-namespace:Sufni.App.LiveDaq.Views.Controls"
+xmlns:controls="clr-namespace:Sufni.App.Shared.Views.Overlays"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:v="clr-namespace:Sufni.App.MapsAndTracks.Views"
+xmlns:vm="clr-namespace:Sufni.App.LiveDaq.ViewModels.SessionPages"
+d:DesignHeight="600"
+d:DesignWidth="500"
+x:DataType="vm:LiveGraphPageViewModel"
+mc:Ignorable="d">
+
+    <ScrollViewer
+    x:Name="PageScrollViewer"
+    Width="{Binding $parent[ScrollViewer].Bounds.Width}"
+    IsScrollChainingEnabled="False">
+        <StackPanel Spacing="10">
+            <Grid MinHeight="{Binding #PageScrollViewer.Bounds.Height}">
+                <controls2:LiveSessionGraphRowsView
+                Margin="-8,0,-8,0"
+                DataContext="{Binding Workspace}"
+                HideRightAxis="True" />
+            </Grid>
+
+            <controls:PlaceholderOverlayContainer
+            Name="MapHost"
+            Height="320"
+            IsVisible="{Binding MediaWorkspace.MapState.ReservesLayout}"
+            PresentationState="{Binding MediaWorkspace.MapState}">
+                <controls:PlaceholderOverlayContainer.ReadyContent>
+                    <v:MapView
+                    Name="MobileMapView"
+                    DataContext="{Binding MediaWorkspace.MapViewModel}"
+                    Timeline="{Binding $parent[controls:PlaceholderOverlayContainer].DataContext.MediaWorkspace.Timeline}" />
+                </controls:PlaceholderOverlayContainer.ReadyContent>
+                <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    <controls:SurfacePlaceholderCard Title="Map" />
+                </controls:PlaceholderOverlayContainer.PlaceholderContent>
+            </controls:PlaceholderOverlayContainer>
+        </StackPanel>
+    </ScrollViewer>
+
+</UserControl>

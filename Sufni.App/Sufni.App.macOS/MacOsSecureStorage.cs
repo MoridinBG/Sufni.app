@@ -1,5 +1,5 @@
-using Sufni.App.AppleShared;
 
+using Sufni.App.AppleShared;
 namespace Sufni.App.macOS;
 
 public sealed class MacOsSecureStorage : AppleSecureStorageBase

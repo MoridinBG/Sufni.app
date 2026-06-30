@@ -3,6 +3,8 @@ using System.Threading.Tasks;
 using Sufni.App.Services;
 using Serilog;
 
+using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Coordinators;
 
 /// <summary>

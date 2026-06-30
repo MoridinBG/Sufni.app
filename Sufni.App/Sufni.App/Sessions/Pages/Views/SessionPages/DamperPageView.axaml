@@ -1,0 +1,99 @@
+<UserControl
+x:Class="Sufni.App.Sessions.Pages.Views.SessionPages.DamperPageView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls2="clr-namespace:Sufni.App.Sessions.Statistics.Views.Controls"
+xmlns:controls="clr-namespace:Sufni.App.Extensibility.Views"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.Sessions.Pages.ViewModels.SessionPages"
+d:DesignHeight="600"
+d:DesignWidth="500"
+x:DataType="vm:DamperPageViewModel"
+mc:Ignorable="d">
+
+    <ScrollViewer
+    x:Name="PageScrollViewer"
+    Width="{Binding $parent[ScrollViewer].Bounds.Width}"
+    ClipToBounds="True"
+    HorizontalScrollBarVisibility="Disabled"
+    IsScrollChainingEnabled="False">
+        <StackPanel
+        Name="MobileDamperStatisticsContent"
+        Width="{Binding #PageScrollViewer.Bounds.Width}"
+        ClipToBounds="True"
+        Orientation="Vertical"
+        Spacing="8">
+            <controls:RecordedSessionStatisticsContributionsView ExtensionSlots="{Binding StatisticsWorkspace.ExtensionSlots}" />
+
+            <StackPanel
+            Name="MobileVelocityAverageModeRadioButtons"
+            Margin="0,8,0,0"
+            IsVisible="{Binding HasDynamicStatistics}"
+            Spacing="4">
+                <RadioButton
+                Name="MobileSampleAveragedModeRadioButton"
+                Content="Sample-averaged"
+                GroupName="MobileVelocityAverageMode"
+                IsChecked="{Binding SampleAveragedModeSelected, Mode=TwoWay}"
+                ToolTip.Tip="Counts every sample inside compression and rebound strokes. Best for where the damper spent time." />
+                <RadioButton
+                Name="MobileStrokePeakAveragedModeRadioButton"
+                Content="Stroke-peak average"
+                GroupName="MobileVelocityAverageMode"
+                IsChecked="{Binding StrokePeakAveragedModeSelected, Mode=TwoWay}"
+                ToolTip.Tip="Counts each stroke once by peak velocity and peak travel. Best for what events the damper saw." />
+            </StackPanel>
+
+            <controls2:VelocityStatisticsHost
+            Name="FrontVelocityStatisticsHost"
+            AnalysisRange="{Binding StatisticsWorkspace.AnalysisRange}"
+            DampingSpeedCutoffs="{Binding StatisticsWorkspace.DampingSpeedCutoffs}"
+            ExtensionSlots="{Binding StatisticsWorkspace.ExtensionSlots}"
+            HasDynamicStatistics="{Binding HasDynamicStatistics}"
+            HscPercentage="{Binding FrontHscPercentage}"
+            HsrPercentage="{Binding FrontHsrPercentage}"
+            LscPercentage="{Binding FrontLscPercentage}"
+            LsrPercentage="{Binding FrontLsrPercentage}"
+            MinCardHeight="220"
+            PlaceholderMargin="0,0,0,12"
+            PlotHeight="440"
+            PlotDampingSpeedCutoffs="{Binding StatisticsWorkspace.PlotDampingSpeedCutoffs}"
+            PresentationState="{Binding FrontPresentationState}"
+            SelectTelemetryRangeSelectionCommand="{Binding StatisticsWorkspace.SelectTelemetryRangeSelectionCommand}"
+            SelectedFrontRangeSelection="{Binding StatisticsWorkspace.SelectedFrontRangeSelection}"
+            SelectedRearRangeSelection="{Binding StatisticsWorkspace.SelectedRearRangeSelection}"
+            StaticSource="{Binding FrontVelocityHistogram}"
+            StatisticsWorkspace="{Binding StatisticsWorkspace}"
+            SuspensionType="Front"
+            Telemetry="{Binding StatisticsWorkspace.TelemetryData}"
+            Title="Front damping"
+            VelocityAverageMode="{Binding StatisticsWorkspace.SelectedVelocityAverageMode}" />
+
+            <controls2:VelocityStatisticsHost
+            Name="RearVelocityStatisticsHost"
+            AnalysisRange="{Binding StatisticsWorkspace.AnalysisRange}"
+            DampingSpeedCutoffs="{Binding StatisticsWorkspace.DampingSpeedCutoffs}"
+            ExtensionSlots="{Binding StatisticsWorkspace.ExtensionSlots}"
+            HasDynamicStatistics="{Binding HasDynamicStatistics}"
+            HscPercentage="{Binding RearHscPercentage}"
+            HsrPercentage="{Binding RearHsrPercentage}"
+            LscPercentage="{Binding RearLscPercentage}"
+            LsrPercentage="{Binding RearLsrPercentage}"
+            MinCardHeight="220"
+            PlotHeight="440"
+            PlotDampingSpeedCutoffs="{Binding StatisticsWorkspace.PlotDampingSpeedCutoffs}"
+            PresentationState="{Binding RearPresentationState}"
+            SelectTelemetryRangeSelectionCommand="{Binding StatisticsWorkspace.SelectTelemetryRangeSelectionCommand}"
+            SelectedFrontRangeSelection="{Binding StatisticsWorkspace.SelectedFrontRangeSelection}"
+            SelectedRearRangeSelection="{Binding StatisticsWorkspace.SelectedRearRangeSelection}"
+            StaticSource="{Binding RearVelocityHistogram}"
+            StatisticsWorkspace="{Binding StatisticsWorkspace}"
+            SuspensionType="Rear"
+            Telemetry="{Binding StatisticsWorkspace.TelemetryData}"
+            Title="Rear damping"
+            VelocityAverageMode="{Binding StatisticsWorkspace.SelectedVelocityAverageMode}" />
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

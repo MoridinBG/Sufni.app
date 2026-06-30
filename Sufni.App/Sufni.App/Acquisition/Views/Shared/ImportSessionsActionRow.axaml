@@ -1,0 +1,55 @@
+<UserControl
+    x:Name="Root"
+    x:Class="Sufni.App.Acquisition.Views.Shared.ImportSessionsActionRow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:Sufni.App.Acquisition.ViewModels"
+    d:DesignHeight="39"
+    d:DesignWidth="500"
+    x:DataType="vm:ImportSessionsViewModel"
+    mc:Ignorable="d">
+
+    <Grid ColumnDefinitions="auto *">
+        <Button
+            Grid.Column="0"
+            Width="39"
+            Height="39"
+            Margin="0,0,10,0"
+            HorizontalContentAlignment="Center"
+            VerticalContentAlignment="Center"
+            Command="{Binding OpenPreviousPageCommand}"
+            IsVisible="{Binding #Root.ShowBackButton}">
+            <Image
+                Width="16"
+                Height="16"
+                Source="{SvgImage /Assets/fa-arrow-left.svg}" />
+        </Button>
+
+        <Button
+            Grid.Column="1"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch"
+            HorizontalContentAlignment="Center"
+            VerticalContentAlignment="Center"
+            Command="{Binding ImportSessionsCommand}"
+            Content="process selected" />
+
+        <Button
+            Grid.Column="1"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch"
+            HorizontalContentAlignment="Center"
+            VerticalContentAlignment="Center"
+            Command="{Binding AddSetupCommand}"
+            Content="create setup for this DAQ">
+            <Button.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="SelectedDataStore" />
+                    <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="SelectedSetup" />
+                </MultiBinding>
+            </Button.IsVisible>
+        </Button>
+    </Grid>
+</UserControl>

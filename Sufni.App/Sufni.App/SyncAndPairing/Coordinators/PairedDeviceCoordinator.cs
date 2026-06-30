@@ -1,0 +1,88 @@
+using System;
+using System.Threading.Tasks;
+using Serilog;
+using Sufni.App.ExtensionHost.Contracts.Services;
+
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.SyncAndPairing.Stores;
+using Sufni.App.Infrastructure;
+namespace Sufni.App.SyncAndPairing.Coordinators;
+
+/// <summary>
+/// Owns the paired-device feature workflow. Subscribes to the
+/// synchronization server's <c>PairingConfirmed</c> and <c>Unpaired</c>
+/// events in its constructor and keeps the
+/// <see cref="IPairedDeviceStore"/> in sync. Registered as a singleton;
+/// eagerly resolved at app startup so the constructor's event
+/// subscriptions wire up before any pairing arrives.
+/// </summary>
+public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator
+{
+    private static readonly ILogger logger = Log.ForContext<PairedDeviceCoordinator>();
+
+    private readonly IPairedDeviceStoreWriter pairedDeviceStore;
+    private readonly IPairedDeviceRepository pairedDeviceRepository;
+    private readonly IUiThreadDispatcher uiThreadDispatcher;
+
+    public PairedDeviceCoordinator(
+        IPairedDeviceStoreWriter pairedDeviceStore,
+        IPairedDeviceRepository pairedDeviceRepository,
+        ISynchronizationServerService? synchronizationServer = null,
+        IUiThreadDispatcher? uiThreadDispatcher = null)
+    {
+        this.pairedDeviceStore = pairedDeviceStore;
+        this.pairedDeviceRepository = pairedDeviceRepository;
+        this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
+
+        if (synchronizationServer is not null)
+        {
+            synchronizationServer.PairingConfirmed += OnPairingConfirmed;
+            synchronizationServer.Unpaired += OnUnpaired;
+        }
+    }
+
+    public async Task<PairedDeviceUnpairResult> UnpairAsync(string deviceId)
+    {
+        logger.Information("Starting paired-device unpair for {DeviceId}", deviceId);
+
+        try
+        {
+            await pairedDeviceRepository.DeletePairedDeviceAsync(deviceId);
+            pairedDeviceStore.Remove(deviceId);
+
+            logger.Information("Paired-device unpair completed for {DeviceId}", deviceId);
+            return new PairedDeviceUnpairResult.Unpaired();
+        }
+        catch (Exception e)
+        {
+            logger.Error(e, "Paired-device unpair failed for {DeviceId}", deviceId);
+            return new PairedDeviceUnpairResult.Failed(e.Message);
+        }
+    }
+
+    private void OnPairingConfirmed(object? sender, PairingEventArgs e)
+    {
+        logger.Verbose("Received inbound pairing confirmation for {DeviceId}", e.Device.DeviceId);
+        _ = uiThreadDispatcher.InvokeAsync(() =>
+        {
+            pairedDeviceStore.Upsert(PairedDeviceSnapshot.From(e.Device));
+        });
+    }
+
+    private void OnUnpaired(object? sender, PairingEventArgs e)
+    {
+        logger.Verbose("Received inbound unpair for {DeviceId}", e.Device.DeviceId);
+        _ = uiThreadDispatcher.InvokeAsync(() =>
+        {
+            pairedDeviceStore.Remove(e.Device.DeviceId);
+        });
+    }
+}
+
+public abstract record PairedDeviceUnpairResult
+{
+    private PairedDeviceUnpairResult() { }
+
+    public sealed record Unpaired : PairedDeviceUnpairResult;
+    public sealed record Failed(string ErrorMessage) : PairedDeviceUnpairResult;
+}

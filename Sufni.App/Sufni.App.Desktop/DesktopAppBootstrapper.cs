@@ -5,10 +5,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.Sync;
 using Sufni.App.Services;
-using Sufni.App.ViewModels;
 using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHosting.Sync;
 
+using Sufni.App.Extensibility.Sync;
+using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Services;
+using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.SyncAndPairing.ViewModels;
 namespace Sufni.App.Desktop;
 
 public static class DesktopAppBootstrapper
