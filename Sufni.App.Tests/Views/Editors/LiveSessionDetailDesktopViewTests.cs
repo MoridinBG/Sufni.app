@@ -7,8 +7,6 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using NSubstitute;
-using Sufni.App.Coordinators;
-using Sufni.App.Services;
 using Sufni.App.Tests.TestSupport;
 using Sufni.App.Tests.Services.LiveStreaming;
 using Sufni.Telemetry;

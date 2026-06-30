@@ -1,5 +1,4 @@
 using NSubstitute;
-using Sufni.App.Coordinators;
 
 using Sufni.App.Shared.Base;
 using Sufni.App.Shell.Coordinators;

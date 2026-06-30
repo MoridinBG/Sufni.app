@@ -3,7 +3,6 @@ using Sufni.App.ExtensionHost.Contracts.Services;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using Sufni.App.Desktop;
-using Sufni.App.Services;
 
 using Sufni.App.Infrastructure;
 namespace Sufni.App.Linux

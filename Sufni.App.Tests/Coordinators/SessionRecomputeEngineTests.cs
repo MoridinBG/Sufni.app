@@ -1,9 +1,7 @@
 using System.Threading;
 using NSubstitute;
-using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 using Sufni.App.ExtensionHost.TestSupport;
-using Sufni.App.Services;
 using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 

@@ -4,7 +4,6 @@ using Avalonia.Native;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using Sufni.App.Desktop;
-using Sufni.App.Services;
 
 using Sufni.App.Infrastructure;
 namespace Sufni.App.macOS

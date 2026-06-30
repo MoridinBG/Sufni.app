@@ -2,7 +2,6 @@ using System.Reactive.Linq;
 using System.Reactive.Threading.Tasks;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
-using Sufni.App.Services;
 using Sufni.App.Tests.TestSupport;
 
 using Sufni.App.Infrastructure;

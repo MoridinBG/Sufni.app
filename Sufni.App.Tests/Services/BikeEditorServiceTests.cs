@@ -3,7 +3,6 @@ using System.Text;
 using Avalonia.Headless.XUnit;
 using Avalonia.Platform.Storage;
 using NSubstitute;
-using Sufni.App.Services;
 using Sufni.App.Tests.TestSupport;
 using Sufni.Kinematics;
 using Sufni.App.ExtensionHost.Contracts.Services;

@@ -1,6 +1,5 @@
 using DynamicData;
 using NSubstitute;
-using Sufni.App.Coordinators;
 
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Queries;

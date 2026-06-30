@@ -1,10 +1,8 @@
 using NSubstitute;
-using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.Services;
 using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 

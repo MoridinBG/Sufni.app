@@ -1,8 +1,6 @@
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.Database;
-using Sufni.App.Services;
 using Sufni.App.Tests.TestSupport;
 using Sufni.App.ExtensionHost.Contracts.Services;
 

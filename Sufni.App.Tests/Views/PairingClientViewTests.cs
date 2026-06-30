@@ -5,7 +5,6 @@ using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using AvaloniaProgressRing;
 using NSubstitute;
-using Sufni.App.Coordinators;
 using Sufni.App.Tests.TestSupport;
 
 using Sufni.App.SyncAndPairing.Coordinators;

@@ -4,7 +4,6 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using NSubstitute;
-using Sufni.App.Coordinators;
 using Sufni.App.Tests.TestSupport;
 
 using Sufni.App.LiveDaq.ViewModels.ItemLists;

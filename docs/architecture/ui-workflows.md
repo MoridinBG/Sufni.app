@@ -7,7 +7,9 @@
 Coordinators own feature workflows. They are the only layer that
 writes to stores, the only layer that decides post-save navigation
 (e.g. pop the page on mobile), and the only layer that subscribes to
-synchronization events. They live in `Sufni.App/Sufni.App/Coordinators/`
+synchronization events. They live in each slice's `Coordinators/` folder
+(e.g. `Bikes/Coordinators/`, `SyncAndPairing/Coordinators/`, `Shell/Coordinators/`;
+the Sessions router and its use-case classes live in `Sessions/Coordination/`)
 and are registered as singletons.
 
 | Coordinator                                                               | Lifetime     | Owns                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -26,7 +28,7 @@ and are registered as singletons.
 | `LiveDaqCoordinator`                                                      | shared       | Owns `LiveDaqStore` writes, browse lease lifecycle (activate/deactivate), discovery-to-known-board reconciliation, and detail tab open/focus routing. When it creates a detail tab, it threads shared `IDaqManagementService` and `IFilesService` instances into `LiveDaqDetailViewModel`. Activates lazily when the Live primary page is selected — no constructor event subscriptions, so no eager resolution needed. See [Live DAQ Streaming](live-streaming.md) |
 
 The session workflow itself is split into four use-case classes beside the
-coordinator (all in `Sufni.App/Sufni.App/Coordinators/`, registered as
+coordinator (all in `Sufni.App/Sufni.App/Sessions/Coordination/`, registered as
 singletons):
 
 | Use case            | Owns                                                                                                                                                       |

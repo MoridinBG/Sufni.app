@@ -3,7 +3,6 @@ using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.Services;
 using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 

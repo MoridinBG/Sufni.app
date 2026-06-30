@@ -1,6 +1,5 @@
 using System.Reactive.Linq;
 using NSubstitute;
-using Sufni.App.Services;
 
 using Sufni.App.Infrastructure;
 namespace Sufni.App.Tests.TestSupport;

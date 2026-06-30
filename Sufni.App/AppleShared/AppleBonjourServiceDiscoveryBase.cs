@@ -5,10 +5,9 @@ using System.Net;
 using CoreFoundation;
 using Network;
 using Serilog;
-using Sufni.App.Services;
-
 using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Services;
+
 namespace Sufni.App.AppleShared;
 
 public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery

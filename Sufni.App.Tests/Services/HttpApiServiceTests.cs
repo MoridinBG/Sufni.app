@@ -6,7 +6,6 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using NSubstitute;
-using Sufni.App.Services;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.SyncAndPairing.Services;

@@ -175,7 +175,7 @@ Front and rear max travel for the processing pipeline do **not** live on `BikeCh
 
 Four sensor types convert raw ADC counts to millimeters of travel through the `ISensorConfiguration` strategy pattern.
 
-`ISensorConfiguration` (`Sufni.App/Sufni.App/Models/SensorConfigurations/SensorConfiguration.cs`) defines the front-suspension calibration surface used directly by the telemetry pipeline:
+`ISensorConfiguration` (`Sufni.App/Sufni.App/Setups/Models/SensorConfigurations/SensorConfiguration.cs`) defines the front-suspension calibration surface used directly by the telemetry pipeline:
 
 - `Type` — `SensorType` enum discriminator (`LinearFork`, `RotationalFork`, `LinearShock`, `LinearShockStroke`, `RotationalShock`)
 - `MeasurementToTravel` — `Func<ushort, double>` calibration closure
@@ -208,7 +208,7 @@ The bike context (head angle, fork stroke, shock stroke) is injected at deserial
 
 ### Rear Travel Calibration
 
-`RearTravelCalibrationBuilder` (`Sufni.App/Sufni.App/Services/RearTravelCalibrationBuilder.cs`) extends the `ISensorConfiguration` strategy pattern for the rear shock, where shock-stroke ADC counts have to be converted to wheel travel through either a linkage solve or a leverage-ratio curve. Its single entry point — `TryBuild(Setup, Bike, out RearTravelCalibration?, out string?)` — returns a `RearTravelCalibration(MaxTravel, MeasurementToTravel, MeasurementWraps)` record that `TelemetryBikeData.Create(setup, bike)` (`Sufni.App/Sufni.App/TelemetryBikeData.cs`) feeds into `BikeData` for `TelemetryData.FromRecording(...)`. It is invoked at processing time (recorded session import, recompute, live capture launch) — never at sensor-configuration deserialization time, so the rear `LinearShockSensorConfiguration` / `RotationalShockSensorConfiguration` instances persisted on a `Setup` carry only their JSON parameters.
+`RearTravelCalibrationBuilder` (`Sufni.App/Sufni.App/Bikes/Services/RearTravelCalibrationBuilder.cs`) extends the `ISensorConfiguration` strategy pattern for the rear shock, where shock-stroke ADC counts have to be converted to wheel travel through either a linkage solve or a leverage-ratio curve. Its single entry point — `TryBuild(Setup, Bike, out RearTravelCalibration?, out string?)` — returns a `RearTravelCalibration(MaxTravel, MeasurementToTravel, MeasurementWraps)` record that `TelemetryBikeData.Create(setup, bike)` (`Sufni.App/Sufni.App/Bikes/Services/TelemetryBikeData.cs`) feeds into `BikeData` for `TelemetryData.FromRecording(...)`. It is invoked at processing time (recorded session import, recompute, live capture launch) — never at sensor-configuration deserialization time, so the rear `LinearShockSensorConfiguration` / `RotationalShockSensorConfiguration` instances persisted on a `Setup` carry only their JSON parameters.
 
 The build flow:
 
@@ -225,7 +225,7 @@ The `MeasurementWraps` flag on the produced `RearTravelCalibration` is `true` fo
 
 ### Leverage-Ratio CSV Import
 
-`LeverageRatioCsvParser` (`Sufni.App/Sufni.App/Services/LeverageRatioCsvParser.cs`) parses the leverage-ratio curve a user can attach to a leverage-ratio rear suspension when no full linkage is modelled. The expected CSV format:
+`LeverageRatioCsvParser` (`Sufni.App/Sufni.App/Bikes/Services/LeverageRatioCsvParser.cs`) parses the leverage-ratio curve a user can attach to a leverage-ratio rear suspension when no full linkage is modelled. The expected CSV format:
 
 | Header / column   | Meaning                                       |
 | ----------------- | --------------------------------------------- |
@@ -239,4 +239,4 @@ Other rules: header is required and matched case-insensitively, BOM is stripped,
 - `Parsed(LeverageRatio Value)` — the points were valid; the wrapped `LeverageRatio` (`Sufni.Kinematics/LeverageRatio/LeverageRatio.cs`) exposes `MaxShockStroke`, `MaxWheelTravel`, and `WheelTravelAt(shockStroke)` for downstream consumers.
 - `Invalid(IReadOnlyList<LeverageRatioParseError> Errors)` — one error per offending line; each error carries an optional 1-based line number plus a human-readable message.
 
-The parser is wired into the bike editor flow: `BikeEditorService.ImportLeverageRatioAsync(...)` (`Sufni.App/Sufni.App/Services/BikeEditorService.cs`) opens the CSV picker, runs `LeverageRatioCsvParser.Parse` on a background task, and surfaces the result to `LeverageRatioEditorViewModel.ApplyImportResult` as a `LeverageRatioImportResult` (`Imported` / `Invalid` / `Failed` / `Canceled`). The imported curve is what `RearTravelCalibrationBuilder` later reads off `Bike.LeverageRatio` when building the rear calibration closure.
+The parser is wired into the bike editor flow: `BikeEditorService.ImportLeverageRatioAsync(...)` (`Sufni.App/Sufni.App/Bikes/Services/BikeEditorService.cs`) opens the CSV picker, runs `LeverageRatioCsvParser.Parse` on a background task, and surfaces the result to `LeverageRatioEditorViewModel.ApplyImportResult` as a `LeverageRatioImportResult` (`Imported` / `Invalid` / `Failed` / `Canceled`). The imported curve is what `RearTravelCalibrationBuilder` later reads off `Bike.LeverageRatio` when building the rear calibration closure.

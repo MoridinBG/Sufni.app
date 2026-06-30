@@ -3,8 +3,6 @@ using System.Reactive.Subjects;
 using System.Text;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
-using Sufni.App.Coordinators;
-using Sufni.App.Services;
 using Sufni.App.Tests.Services.LiveStreaming;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;

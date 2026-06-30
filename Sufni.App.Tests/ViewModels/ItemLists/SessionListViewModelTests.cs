@@ -1,7 +1,6 @@
 using System.Globalization;
 using DynamicData;
 using NSubstitute;
-using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 

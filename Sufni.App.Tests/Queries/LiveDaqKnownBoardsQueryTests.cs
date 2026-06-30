@@ -1,7 +1,6 @@
 using System.Linq;
 using DynamicData;
 using NSubstitute;
-using Sufni.App.Services;
 using Sufni.App.Tests.TestSupport;
 
 using Sufni.App.Bikes.Models;

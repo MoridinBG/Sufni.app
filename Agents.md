@@ -51,17 +51,21 @@ The projects that matter most:
 - `Sufni.Kinematics/` — suspension linkage simulation (bike geometry,
   leverage ratio).
 - `Sufni.App/Sufni.App/` — main Avalonia application. Most UI and business
-  logic lives here.
+  logic lives here, organized **domain-slice-first** (top-level folders are
+  slices — `Bikes/`, `Setups/`, `Sessions/`, `LiveDaq/`, `Acquisition/`,
+  `SyncAndPairing/`, `MapsAndTracks/`, `Shell/`, `Shared/`, `Infrastructure/`,
+  `Extensibility/` — with the technical layers nested inside each slice).
 - `Sufni.App/Sufni.App.Desktop/` — desktop-only layer for sync server,
   ASP.NET Core hosting, and other desktop-only infrastructure.
 - `Sufni.App/Sufni.App.{Windows,macOS,Linux}/` — desktop heads that reference
   `Sufni.App.Desktop` and bootstrap Avalonia.
 - `Sufni.App/Sufni.App.{Android,iOS}/` — mobile heads that reference
   `Sufni.App` directly and bootstrap Avalonia.
-- Platform-service abstractions now live in
-  `Sufni.App/Sufni.App/Services/` (`IServiceDiscovery`, `ISecureStorage`,
-  `IHapticFeedback`, `IFriendlyNameProvider`). Their implementations live in
-  the owning platform heads, with socket-based service discovery in shared
+- Platform-service abstractions live in `Sufni.App/Sufni.App/Infrastructure/`
+  (`IServiceDiscovery`, `IHapticFeedback`, `IFriendlyNameProvider`), except
+  `ISecureStorage`, which is an extension-host contract in
+  `Sufni.App/Sufni.App.ExtensionHost/Contracts/Services/`. Their implementations
+  live in the owning platform heads, with socket-based service discovery in shared
   code and Bonjour implementations in the Apple heads.
 
 - `docs/plans/` contains design notes and planning artifacts. Do not read those, unless explicitly asked to. 
@@ -77,62 +81,77 @@ Do not tail or head commands or files unless known that they are >800-1000 lines
 When you need specifics, read the code rather than guessing. Typical
 locations inside `Sufni.App/Sufni.App/`:
 
-- `Views/` and `DesktopViews/` — XAML views, grouped by feature
-  (`ItemLists/`, `Editors/`, `SessionPages/`, etc.).
-- `ViewModels/` — view models grouped by role:
+Top-level folders are domain slices; the technical layers below live *inside* each slice
+(the slice map is in
+[ARCHITECTURE.md § Domain-slice layout](docs/ARCHITECTURE.md#domain-slice-layout-sufniappsufniapp)).
+The layer roles are consistent across slices:
+
+- `<Slice>/Views/` and `<Slice>/DesktopViews/` — XAML views, grouped by feature within the
+  slice (`ItemLists/`, `Editors/`, `SessionPages/`, etc.). Generic reusable controls,
+  dialogs, overlays, and converters live under `Shared/Views/` and `Shared/DesktopViews/`.
+- `<Slice>/ViewModels/` — view models grouped by role:
   - `ItemLists/` — one list view model per entity, projects a store
     into row view models.
   - `Rows/` — cheap, non-editable wrappers around a single store
     snapshot. Implement `IListItemRow` so list controls bind against a
     single shared `x:DataType`.
-  - `Editors/` — `BikeEditorViewModel`, `SetupEditorViewModel`,
-    `SessionDetailViewModel`, `LiveDaqDetailViewModel`. Constructed by
+  - `Editors/` — `BikeEditorViewModel` (`Bikes/ViewModels/Editors/`),
+    `SetupEditorViewModel` (`Setups/ViewModels/Editors/`), `SessionDetailViewModel`
+    (`Sessions/Detail/ViewModels/Editors/`), `LiveDaqDetailViewModel`
+    (`LiveDaq/ViewModels/Editors/`). Constructed by
     `IEditorFactory` from snapshots or live-session contexts, never by
     another view model. Persisted-entity editors implement
     `IEditorActions` for the shared `CommonButtonLine`.
   - The shell view models (`MainViewModel`, `MainWindowViewModel`,
-    `MainPagesViewModel`, `WelcomeScreenViewModel`) live at the top
-    level. Base classes are `ViewModelBase`, `ItemListViewModelBase`,
-    and `TabPageViewModelBase` — look at them before adding new view
-    models.
-- `Coordinators/` — feature workflow owners (`BikeCoordinator`,
-  `SetupCoordinator`, `SessionCoordinator`,
-  `PairedDeviceCoordinator`, `ImportSessionsCoordinator`,
-  `SyncCoordinator`, `LiveDaqCoordinator`, the `IShellCoordinator`
-  desktop/mobile pair, plus the desktop-only
-  `IInboundSyncCoordinator` / `IPairingServerCoordinator` and the
-  mobile-only `IPairingClientCoordinator`). Coordinators are the only
+    `MainPagesViewModel`, `WelcomeScreenViewModel`) live in `Shell/ViewModels/`.
+    The base classes `ViewModelBase`, `ItemListViewModelBase`, and
+    `TabPageViewModelBase` live in `Shared/Base/` — look at them before adding
+    new view models.
+- `<Slice>/Coordinators/` — feature workflow owners: `BikeCoordinator` (`Bikes/`),
+  `SetupCoordinator` (`Setups/`), `SessionCoordinator` (`Sessions/Coordination/`),
+  `LiveDaqCoordinator` (`LiveDaq/`), `ImportSessionsCoordinator` (`Acquisition/`),
+  `PairedDeviceCoordinator` / `SyncCoordinator` plus the desktop-only
+  `IInboundSyncCoordinator` / `IPairingServerCoordinator` and the mobile-only
+  `IPairingClientCoordinator` (`SyncAndPairing/`), and the `IShellCoordinator`
+  desktop/mobile pair (`Shell/Coordinators/`). Coordinators are the only
   writers to stores and the only owners of post-save navigation. They
   construct and open editor view models only through `IEditorFactory` —
   despite the name it is the editor *gateway*: the interface exposes only
   open-or-focus (`Open*`) and close (`Close*`) operations, and view-model
   creation is an implementation detail of the concrete `EditorFactory`.
   No coordinator holds a view-model factory of its own.
-- `Stores/` — shared read state, one per entity family. Each store has
-  an `IXxxStore` (read-only) interface for VMs/queries and an
+- `<Slice>/Stores/` — shared read state, one per entity family (`BikeStore` in
+  `Bikes/Stores/`, `SetupStore` in `Setups/Stores/`, `SessionStore` in `Sessions/`,
+  etc.). Each store has an `IXxxStore` (read-only) interface for VMs/queries and an
   `IXxxStoreWriter` (read+write) interface reserved for coordinators
   and the composition root. Snapshots are immutable records carrying
-  an `Updated` field for optimistic conflict detection.
-- `Queries/` — cross-entity reads (`IBikeDependencyQuery`,
-  `ILiveDaqKnownBoardsQuery`). Backed by services and read-only
+  an `Updated` field for optimistic conflict detection. The shared
+  `SourceCacheStoreBase` lives in `Shared/Base/`.
+- `<Slice>/Queries/` — cross-entity reads (`IBikeDependencyQuery` in `Bikes/`,
+  `ILiveDaqKnownBoardsQuery` in `LiveDaq/`). Backed by services and read-only
   stores, never by view models.
-- `Services/` — infrastructure: SQLite persistence context/repositories,
-  `ISessionTelemetryWriter` (pre-persistence telemetry validation and
-  summary-metric/session-window derivation), `ITelemetryDataStoreService`,
-  `IHttpApiService`, `ISynchronizationServerService` /
-  `ISynchronizationClientService`, `IDialogService` (view models'
-  prompt contract; its `IDialogHost` wiring facet is used only by
-  `App`), `IFilesService`.
-  `Services/LiveStreaming/` contains the live preview transport layer:
-  `LiveDaqClient`, `LiveProtocolReader`, `LiveDaqSessionState`,
-  `LiveDaqUiSnapshot`, and protocol models.
-- `Models/` — domain entities (`Session`, `Bike`, `Setup`, `Board`,
-  `Track`…) and the data-store abstractions (`ITelemetryDataStore` /
-  `ITelemetryFile`).
-- `Models/SensorConfigurations/` — sensor calibration classes,
+- Services are split across slices and `Infrastructure/`:
+  - SQLite persistence (`SqliteConnectionContext`, `DatabaseMigrationRunner`),
+    `IDialogService` (view models' prompt contract; its `IDialogHost` wiring facet is
+    used only by `App`), and `IFilesService` → `Infrastructure/`.
+  - `ISessionTelemetryWriter` (pre-persistence telemetry validation and
+    summary-metric/session-window derivation) → `Sessions/Processing/Services/`;
+    `ISessionRepository` → `Sessions/Services/`.
+  - `ITelemetryDataStoreService` → `Acquisition/Services/`.
+  - `IHttpApiService`, `ISynchronizationClientService` → `SyncAndPairing/Services/`
+    (the desktop-only `ISynchronizationServerService` stays in `Sufni.App.Desktop`).
+  - The live preview transport layer (`LiveDaqClient`, `LiveProtocolReader`,
+    `LiveDaqSessionState`, `LiveDaqUiSnapshot`, protocol models) →
+    `LiveDaq/Services/LiveStreaming/`.
+- `<Slice>/Models/` — domain entities: `Session` (`Sessions/Models/`), `Bike`
+  (`Bikes/Models/`), `Setup` (`Setups/Models/`), `Board` (`SyncAndPairing/Models/`),
+  `Track` (`MapsAndTracks/Models/`). The data-store abstractions
+  (`ITelemetryDataStore` / `ITelemetryFile`) live in `Acquisition/Models/`.
+- `Setups/Models/SensorConfigurations/` — sensor calibration classes,
   polymorphic via a `Type` discriminator.
-- `Plots/` — ScottPlot-based plot classes (travel, velocity,
-  histograms, balance, leverage ratio, etc.).
+- `<Slice>/Plots/` — ScottPlot-based plot classes per slice (e.g. `Sessions/Plots/`,
+  `LiveDaq/Plots/`, `MapsAndTracks/Views/Plots/`). Shared plot bases (`SufniPlot`,
+  `TelemetryPlot`, cursor/airtime layout helpers) live in `Shared/Plots/`.
 
 DI container setup lives in `Sufni.App/Sufni.App/App.axaml.cs`. The
 shared `App.ServiceCollection` is the static composition root —
@@ -248,9 +267,9 @@ including [Database Service](docs/architecture/persistence.md#database-service),
 # Cross-Device Sync
 
 A desktop instance can host an embedded ASP.NET Core HTTP server
-(`Services/SynchronizationServerService.cs`) over TLS with JWT auth,
+(`SyncAndPairing/Services/SynchronizationServerService.cs`) over TLS with JWT auth,
 advertised via mDNS. Mobile clients
-(`Services/SynchronizationClientService.cs`, driving `HttpApiService`) pair
+(`SyncAndPairing/Services/SynchronizationClientService.cs`, driving `HttpApiService`) pair
 with the server, then push and pull entity changes and session data blobs.
 These two services are the source of truth for the endpoints and payloads.
 
@@ -335,7 +354,7 @@ When adding or changing view tests, `docs/VIEW-TESTING.md` is required reading b
 
 - Test one unit through its public interface.
 - Aim for high coverage of meaningful behavior; trivial assignments, constants, and other obvious no-logic code do not need direct tests.
-- Reuse helpers from `Sufni.App.Tests/Infrastructure/` and `Sufni.App.ExtensionHost.TestSupport/` (fixtures shared with extension test projects) before adding local duplicates.
+- Reuse helpers from `Sufni.App.Tests/TestSupport/` and `Sufni.App.ExtensionHost.TestSupport/` (fixtures shared with extension test projects) before adding local duplicates.
 - Cover desktop/mobile branches when behavior differs; use `TestApp.SetIsDesktop(true/false)` only for `ViewLocator` or plot-gesture branches (see `docs/TESTING.md`) — other shell-specific behavior is driven by explicit service configuration. Cover `BaselineUpdated` versus `Updated` optimistic-concurrency flows where relevant.
 - Prefer deterministic async control such as `TaskCompletionSource<T>` and `TestSynchronizationContextScope` over timing-based waits.
 

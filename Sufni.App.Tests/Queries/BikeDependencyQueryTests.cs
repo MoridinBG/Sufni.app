@@ -1,6 +1,5 @@
 using System.Reactive;
 using NSubstitute;
-using Sufni.App.Services;
 
 using Sufni.App.Bikes.Queries;
 using Sufni.App.Setups.Models;

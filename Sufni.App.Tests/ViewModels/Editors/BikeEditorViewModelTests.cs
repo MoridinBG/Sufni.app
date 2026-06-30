@@ -3,8 +3,6 @@ using System.Reactive.Linq;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Sufni.App.Coordinators;
-using Sufni.App.Services;
 using Sufni.App.Tests.TestSupport;
 using Sufni.Kinematics;
 using Sufni.App.ExtensionHost.Contracts.Services;

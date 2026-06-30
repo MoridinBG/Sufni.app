@@ -6,7 +6,6 @@ using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using DynamicData;
 using NSubstitute;
-using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.Tests.TestSupport;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;

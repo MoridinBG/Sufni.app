@@ -194,7 +194,7 @@ There are five kinds of view model in the presentation layer:
 
 ### Session Sub-Pages
 
-`Sufni.App/Sufni.App/ViewModels/SessionPages/` holds the per-page view
+The `ViewModels/SessionPages/` folders within the Sessions areas and `LiveDaq/` (e.g. `Sessions/Graph/ViewModels/SessionPages/`, `Sessions/Pages/ViewModels/SessionPages/`, `LiveDaq/ViewModels/SessionPages/`) hold the per-page view
 models that `SessionDetailViewModel` (recorded sessions) and
 `LiveSessionDetailViewModel` (live captures) compose into the mobile
 session page surface. They share a tiny base, `PageViewModelBase`,

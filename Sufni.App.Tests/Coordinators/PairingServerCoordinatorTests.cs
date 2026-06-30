@@ -1,7 +1,6 @@
 using NSubstitute;
-using Sufni.App.Coordinators;
-using Sufni.App.Services;
 
+using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Models;
 namespace Sufni.App.Tests.Coordinators;

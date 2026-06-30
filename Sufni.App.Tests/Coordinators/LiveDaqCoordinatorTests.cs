@@ -2,8 +2,6 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using DynamicData;
 using NSubstitute;
-using Sufni.App.Coordinators;
-using Sufni.App.Services;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;

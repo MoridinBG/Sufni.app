@@ -2,7 +2,6 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
-using Sufni.App.Services;
 using Sufni.App.Tests.TestSupport;
 
 using Sufni.App.Infrastructure;

@@ -1,4 +1,3 @@
-using Sufni.App.Services;
 using Sufni.App.Tests.TestSupport;
 using Sufni.Kinematics;
 

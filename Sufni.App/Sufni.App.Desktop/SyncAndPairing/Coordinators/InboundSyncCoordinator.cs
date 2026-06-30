@@ -1,5 +1,4 @@
 using System.Linq;
-using Sufni.App.Services;
 using Serilog;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
@@ -7,11 +6,10 @@ using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
-using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Infrastructure;
-namespace Sufni.App.Coordinators;
+namespace Sufni.App.SyncAndPairing.Coordinators;
 
 /// <summary>
 /// Desktop-only singleton owning the bike+setup branch of the

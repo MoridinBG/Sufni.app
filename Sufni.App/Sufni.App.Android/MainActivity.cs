@@ -2,7 +2,7 @@
 using Android.Content.PM;
 using Avalonia;
 using Avalonia.Android;
-using Sufni.App.Services;
+using Sufni.App.Infrastructure;
 
 namespace Sufni.App.Android
 {

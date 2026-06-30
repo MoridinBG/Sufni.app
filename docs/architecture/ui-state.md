@@ -9,7 +9,7 @@ singleton, exposed behind two interfaces: a read-only `IXxxStore`
 injected into list/row/editor view models and queries, and a
 `IXxxStoreWriter` (which extends the read interface) reserved for
 coordinators and the composition root. The implementation lives in
-`Sufni.App/Sufni.App/Stores/`.
+each slice's `Stores/` folder (e.g. `Bikes/Stores/`, `Sessions/Stores/`).
 
 | Store                        | Read interface                  | Writer interface                    | Snapshot type                     | Key      |
 | ---------------------------- | ------------------------------- | ----------------------------------- | --------------------------------- | -------- |
@@ -181,7 +181,7 @@ stream.
 
 Queries answer business questions across entity families without
 going through view models. They are stateless singletons in
-`Sufni.App/Sufni.App/Queries/`.
+each slice's `Queries/` folder (e.g. `Bikes/Queries/`, `LiveDaq/Queries/`).
 
 `IBikeDependencyQuery.IsBikeInUseAsync(Guid)` (backed by
 `BikeDependencyQuery` over `ISynchronizableRepository<Setup>`) reports whether any

@@ -1,5 +1,4 @@
 using NSubstitute;
-using Sufni.App.Coordinators;
 
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Processing.SessionGraph;

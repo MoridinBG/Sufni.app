@@ -1,4 +1,6 @@
 
+using Sufni.App.AppleShared;
+
 namespace Sufni.App.iOS;
 
 public sealed class IosSecureStorage : AppleSecureStorageBase

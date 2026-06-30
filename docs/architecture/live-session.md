@@ -101,7 +101,7 @@ The live-session service holds a configuration lock on the shared stream for the
 
 ## Capture Service
 
-`ILiveSessionService` (`Sufni.App/Sufni.App/Services/LiveStreaming/ILiveSessionService.cs`) is the per-tab recording surface. `LiveSessionServiceFactory` (`ILiveSessionServiceFactory`) builds one instance per `LiveDaqCoordinator.OpenSessionAsync` call, giving it a `LiveDaqSessionContext` (identity, bike data, calibration), the per-identity `ILiveDaqSharedStream`, the shared `ISessionPresentationService`, an `IBackgroundTaskRunner`, and a freshly built `ILiveGraphPipeline`. The implementation in `LiveSessionService` runs three coordinated activities behind one lock plus a separate display-queue lock.
+`ILiveSessionService` (`Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/ILiveSessionService.cs`) is the per-tab recording surface. `LiveSessionServiceFactory` (`ILiveSessionServiceFactory`) builds one instance per `LiveDaqCoordinator.OpenSessionAsync` call, giving it a `LiveDaqSessionContext` (identity, bike data, calibration), the per-identity `ILiveDaqSharedStream`, the shared `ISessionPresentationService`, an `IBackgroundTaskRunner`, and a freshly built `ILiveGraphPipeline`. The implementation in `LiveSessionService` runs three coordinated activities behind one lock plus a separate display-queue lock.
 
 ### Lifecycle and Attachment
 
@@ -127,7 +127,7 @@ The display loop reads `LiveDisplayUpdate` records off the bounded channel, drop
 
 ## Buffers
 
-The capture service uses two specialised collection types. Both are internal sealed classes in `Sufni.App/Sufni.App/Services/LiveStreaming/`.
+The capture service uses two specialised collection types. Both are internal sealed classes in `Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/`.
 
 ### `AppendOnlyChunkBuffer`
 
@@ -147,7 +147,7 @@ This shape is what makes the recording side cheap: each `LiveTravelBatchFrame` a
 
 ## Live Graph Pipeline
 
-`ILiveGraphPipeline` and its `LiveGraphPipeline` implementation (`Sufni.App/Sufni.App/Services/LiveStreaming/LiveGraphPipeline.cs`, `ILiveGraphPipeline.cs`, `LiveGraphPipelineFactory.cs`) bridge per-frame `LiveDisplayUpdate` records into per-row `LiveGraphBatch` deltas the live graph workspace consumes. `LiveGraphPipelineFactory.Create()` constructs one with a flush interval driven by `SessionGraphSettings.LiveGraphRefreshIntervalMs`.
+`ILiveGraphPipeline` and its `LiveGraphPipeline` implementation (`Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/LiveGraphPipeline.cs`, `ILiveGraphPipeline.cs`, `LiveGraphPipelineFactory.cs`) bridge per-frame `LiveDisplayUpdate` records into per-row `LiveGraphBatch` deltas the live graph workspace consumes. `LiveGraphPipelineFactory.Create()` constructs one with a flush interval driven by `SessionGraphSettings.LiveGraphRefreshIntervalMs`.
 
 **Purpose.** The DataStreamer-backed live plots want batches of samples at a steady cadence, not a callback per inbound frame. The pipeline collects appended samples into a `PendingGraphBatch` and flushes once per timer tick, which gives the UI a predictable refresh rate and lets the velocity filter run over a stable window snapshot.
 
@@ -165,7 +165,7 @@ This shape is what makes the recording side cheap: each `LiveTravelBatchFrame` a
 
 ## Stream Configuration
 
-`LiveDaqStreamConfiguration` (`Sufni.App/Sufni.App/Services/LiveStreaming/LiveDaqStreamConfiguration.cs`) is the immutable record the configuration-lock holder sets to ask the DAQ for a particular live stream. It carries:
+`LiveDaqStreamConfiguration` (`Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/LiveDaqStreamConfiguration.cs`) is the immutable record the configuration-lock holder sets to ask the DAQ for a particular live stream. It carries:
 
 - `RequestedSensorMask` (`LiveSensorInstanceMask`) — which individual sensor instances to start (fork travel, shock travel, frame/fork/rear IMU, GPS).
 - `TravelHz`, `ImuHz`, `GpsFixHz` — per-stream rate caps; zero means "do not request this stream" and disables the corresponding bit in the resolved mask.
@@ -187,7 +187,7 @@ The shared stream stores one current `LiveDaqStreamConfiguration` and exposes it
 
 ## Live Session Detail View Model
 
-`LiveSessionDetailViewModel` (`Sufni.App/Sufni.App/ViewModels/Editors/LiveSessionDetailViewModel.cs`) extends `TabPageViewModelBase`, one instance per open live-session tab. It is the only writer of UI state for the tab and the only caller of `SessionCoordinator.SaveLiveCaptureAsync`.
+`LiveSessionDetailViewModel` (`Sufni.App/Sufni.App/LiveDaq/ViewModels/Editors/LiveSessionDetailViewModel.cs`) extends `TabPageViewModelBase`, one instance per open live-session tab. It is the only writer of UI state for the tab and the only caller of `SessionCoordinator.SaveLiveCaptureAsync`.
 
 The view model wires together five things and owns no transport state:
 
@@ -201,7 +201,7 @@ The view model never holds the configuration lock itself — that lives on the s
 
 ## GPS Preview State
 
-`GpsPreviewState` (`Sufni.App/Sufni.App/Services/LiveStreaming/GpsPreviewState.cs`) is a small record interpreting the wire-level `GpsRecord.FixMode` byte. `FromRecord(record)` returns `NoFix` for mode 0 or null, a 2D-fix state for mode 1 (has fix but not ready for full use), a 3D-fix state for mode 2 (has fix and ready), and an "Other" state with the raw fix-mode number for anything else.
+`GpsPreviewState` (`Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/GpsPreviewState.cs`) is a small record interpreting the wire-level `GpsRecord.FixMode` byte. `FromRecord(record)` returns `NoFix` for mode 0 or null, a 2D-fix state for mode 1 (has fix but not ready for full use), a 3D-fix state for mode 2 (has fix and ready), and an "Other" state with the raw fix-mode number for anything else.
 
 It is consumed by the diagnostics tab, where it drives the GPS section's status text in `LiveDaqDetailViewModel`. The live-session media workspace does not consume `GpsPreviewState`; it gates map availability from the accepted session header and then renders projected `TrackPoint[]` values published by the live session service. The capture-side GPS handling that turns `GpsRecord` records into projected `TrackPoint[]` for the live map and the saved track lives in `LiveSessionService.ApplyGpsBatchLocked` (shared `GpsTrackPointProjection.TryProject` / `ProjectAll`).
 

@@ -137,7 +137,7 @@ The mobile solutions deliberately omit `Sufni.App.Desktop` and the test projects
 
 ## Testing
 
-The headless test app (`Sufni.App.Tests/Infrastructure/TestApp.cs`) is a
+The headless test app (`Sufni.App.Tests/TestSupport/TestApp.cs`) is a
 subclass of `App` that skips both XAML loading and the DI bootstrap. Tests that
 exercise `ViewLocator` or plot gesture behavior call
 `TestApp.SetIsDesktop(true)` or `TestApp.SetIsDesktop(false)` from inside an

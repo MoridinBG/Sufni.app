@@ -1,4 +1,3 @@
-using Sufni.App.Services;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 namespace Sufni.App.Tests.TestSupport;

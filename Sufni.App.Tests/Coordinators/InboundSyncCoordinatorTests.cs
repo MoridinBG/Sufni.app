@@ -1,14 +1,13 @@
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using NSubstitute;
-using Sufni.App.Coordinators;
-using Sufni.App.Services;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
 using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Tests.Coordinators;
 

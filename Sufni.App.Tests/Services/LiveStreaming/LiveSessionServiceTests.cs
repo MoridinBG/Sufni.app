@@ -7,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using NSubstitute;
 using Serilog.Core;
-using Sufni.App.Services;
 using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;

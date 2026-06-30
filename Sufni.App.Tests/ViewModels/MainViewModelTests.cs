@@ -1,5 +1,4 @@
 using NSubstitute;
-using Sufni.App.Coordinators;
 using Sufni.App.Tests.Views;
 
 using Sufni.App.Shell.ViewModels;

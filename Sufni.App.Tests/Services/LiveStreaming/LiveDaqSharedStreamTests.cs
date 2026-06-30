@@ -1,7 +1,6 @@
 using System.Reactive.Subjects;
 using System.Reactive.Linq;
 using NSubstitute;
-using Sufni.App.Services;
 
 using Sufni.App.LiveDaq.Services;
 using Sufni.App.LiveDaq.Services.LiveStreaming;

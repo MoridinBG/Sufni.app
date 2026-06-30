@@ -32,7 +32,7 @@ This document is the catalog. Each subsystem is summarized here and the deep det
 | **Sufni.Telemetry**       | `Sufni.Telemetry/`             | Pure C# library: SST parsing, signal processing, stroke detection, histograms                                |
 | **Sufni.Telemetry.Tests** | `Sufni.Telemetry.Tests/`       | Unit tests for telemetry processing                                                                          |
 | **Sufni.Kinematics**      | `Sufni.Kinematics/`            | Suspension linkage simulation, leverage ratio calculation                                                    |
-| **Sufni.App**             | `Sufni.App/Sufni.App/`         | Neutral shared application layer: views, view models, coordinators, stores, queries, services, models, plots |
+| **Sufni.App**             | `Sufni.App/Sufni.App/`         | Neutral shared application layer, organized **domain-slice-first** (see below): each slice keeps its own views, view models, coordinators, stores, queries, services, models, and plots |
 | **Sufni.App.Desktop**     | `Sufni.App/Sufni.App.Desktop/` | Desktop-only layer: sync server, ASP.NET Core hosting, inbound desktop sync infrastructure                   |
 | **Sufni.App.Windows**     | `Sufni.App/Sufni.App.Windows/` | Windows entry point (`Program.cs`)                                                                           |
 | **Sufni.App.macOS**       | `Sufni.App/Sufni.App.macOS/`   | macOS entry point (`Program.cs`)                                                                             |
@@ -47,16 +47,39 @@ Scenario-specific solutions live at the repository root:
 - `Sufni.Android.sln` — Android workflow solution
 - `Sufni.iOS.sln` — iOS workflow solution
 
+### Domain-slice layout (`Sufni.App/Sufni.App/`)
+
+The shared app is organized **domain-slice-first**: top-level folders are feature/domain
+slices, and the technical layers (`ViewModels/`, `Views/`, `DesktopViews/`, `Coordinators/`,
+`Stores/`, `Queries/`, `Services/`, `Models/`, `Plots/`) live *inside* each slice. The
+layering rules are unchanged — only the folder grouping is slice-first instead of layer-first.
+
+| Slice | Folder | Covers |
+| --- | --- | --- |
+| **Bikes** | `Bikes/` | Bike entity: list/editor VMs+views, store, coordinator, linkage/image editing, telemetry-bike factory |
+| **Setups** | `Setups/` | Setup entity + `Models/SensorConfigurations/` calibration strategies, editor workflow |
+| **Sessions** | `Sessions/` | Recorded sessions: store, coordinator + use-case services, processing (`Processing/SessionGraph`, `Processing/SessionDetails`), analysis, detail/graph/statistics/media pages, lists, plots |
+| **LiveDaq** | `LiveDaq/` | Live DAQ streaming: `Services/LiveStreaming`, `Services/Imu`, stores, editor/page VMs+views, live plots |
+| **Acquisition** | `Acquisition/` | Telemetry import + DAQ management (`Services/Management`), data-store models, import UI |
+| **SyncAndPairing** | `SyncAndPairing/` | Client sync + pairing coordinators/services/VMs (desktop sync server stays in `Sufni.App.Desktop`) |
+| **MapsAndTracks** | `MapsAndTracks/` | Map view + interaction/viewport controllers, track geometry, track signal plot |
+| **Shell** | `Shell/` | App shell: `MainViewModel`/`MainWindowViewModel`/`MainPagesViewModel`/`WelcomeScreenViewModel`, shell coordinators, navigation behaviors, keyboard shortcuts |
+| **Shared** | `Shared/` | Cross-slice bases (`Base/`), common helpers, formatting, shared plot bases, shared `Views/` + `DesktopViews/` controls/dialogs/overlays/converters |
+| **Infrastructure** | `Infrastructure/` | Infra services, app JSON/preferences, theming bridge (`Theming/`), and platform-service abstractions (`IServiceDiscovery`, `IHapticFeedback`, `IFriendlyNameProvider`) |
+| **Extensibility** | `Extensibility/` | App-side extension host wiring: capability/view registries, database hooks, sync, recorded-session contributions, notifications (renamed from the old `ExtensionHosting/`) |
+
+`App.axaml(.cs)`, `ViewLocator.cs`, and `MobileAppBootstrapper.cs` stay at the project root.
+
 ---
 
 ## Platform Abstractions
 
 | Interface               | File                                                    | Purpose                                                                 | Implementations                                                                                                |
 | ----------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `IServiceDiscovery`     | `Sufni.App/Sufni.App/Services/IServiceDiscovery.cs`     | mDNS browse for `_gosst._tcp` and `_sstsync._tcp`                       | `SocketServiceDiscovery` (shared / Win / Linux / Android), `BonjourServiceDiscovery` (macOS / iOS)             |
-| `ISecureStorage`        | `Sufni.App/Sufni.App/Services/ISecureStorage.cs`        | Encrypted key-value store for JWT secrets, certificates, refresh tokens | `WindowsSecureStorage`, `LinuxSecureStorage`, `MacOsSecureStorage`, `AndroidSecureStorage`, `IosSecureStorage` |
-| `IHapticFeedback`       | `Sufni.App/Sufni.App/Services/IHapticFeedback.cs`       | Tactile feedback: `Click()`, `LongPress()`                              | `AndroidHapticFeedback`, `IosHapticFeedback`                                                                   |
-| `IFriendlyNameProvider` | `Sufni.App/Sufni.App/Services/IFriendlyNameProvider.cs` | Human-readable device name for sync identification                      | `AndroidFriendlyNameProvider`, `IosFriendlyNameProvider`                                                       |
+| `IServiceDiscovery`     | `Sufni.App/Sufni.App/Infrastructure/IServiceDiscovery.cs`     | mDNS browse for `_gosst._tcp` and `_sstsync._tcp`                       | `SocketServiceDiscovery` (shared / Win / Linux / Android), `BonjourServiceDiscovery` (macOS / iOS)             |
+| `ISecureStorage`        | `Sufni.App/Sufni.App.ExtensionHost/Contracts/Services/ISecureStorage.cs`        | Encrypted key-value store for JWT secrets, certificates, refresh tokens | `WindowsSecureStorage`, `LinuxSecureStorage`, `MacOsSecureStorage`, `AndroidSecureStorage`, `IosSecureStorage` |
+| `IHapticFeedback`       | `Sufni.App/Sufni.App/Infrastructure/IHapticFeedback.cs`       | Tactile feedback: `Click()`, `LongPress()`                              | `AndroidHapticFeedback`, `IosHapticFeedback`                                                                   |
+| `IFriendlyNameProvider` | `Sufni.App/Sufni.App/Infrastructure/IFriendlyNameProvider.cs` | Human-readable device name for sync identification                      | `AndroidFriendlyNameProvider`, `IosFriendlyNameProvider`                                                       |
 
 Each platform entry point registers its implementations before the shared `App.axaml.cs` initialization runs.
 
@@ -158,7 +181,7 @@ Presentation-layer topics:
 - [Navigation](architecture/ui-workflows.md#navigation) — `IShellCoordinator`, mobile back-stack vs desktop tab model
 - [View Models](architecture/ui-view-models.md#view-models) — shell / page / list / row / editor categories, `TabPageViewModelBase`, `ViewModelBase`
   - [Session Sub-Pages](architecture/ui-view-models.md#session-sub-pages) — recorded/live session tab composition and graph-page preferences
-- [Controls Library](architecture/controls.md#controls-library) — reusable controls in `Views/Controls/` and `DesktopViews/Controls/`
+- [Controls Library](architecture/controls.md#controls-library) — reusable controls in `Shared/Views/Controls/` and `Shared/DesktopViews/Controls/`
 - [Theming](architecture/theming.md#theming) — theme snapshots, resource bridge, runtime theme service, and theme ownership
 - [Plot Rendering](architecture/plot-rendering.md) — `SufniPlot` / `TelemetryPlot`, IMU display, desktop/mobile plot hosting
 
@@ -187,7 +210,7 @@ Topics in [architecture/extensions.md](architecture/extensions.md):
 
 ## Plot Rendering
 
-ScottPlot-based plot classes under `Sufni.App/Sufni.App/Plots/`, wrapped by Avalonia controls in `Views/Plots/`. Recorded telemetry plots inherit from `TelemetryPlot`, recorded time-series rows add `RecordedTimeSeriesPlot`, live plots derive through `LiveStreamingPlotBase` and apply incremental batches via ScottPlot's `DataStreamer`, and GPS speed/elevation rows use `TrackSignalPlot` over `TrackPoint` data. `TelemetryDisplaySmoothing` and `TelemetryDisplayDownsampling` shape the displayed signal at load time. Graph row titles, drag/drop hierarchy changes, and base/hosted row plot backgrounds are owned by the Avalonia row controls, while ScottPlot keeps axes, legends, data rendering, readouts, and overlays.
+ScottPlot-based plot classes (shared bases in `Shared/Plots/`, concrete plots in each slice's `Plots/` folder), wrapped by Avalonia plot views in the slices' `Views/Plots/` folders (e.g. `Shared/Views/Plots/`, `Sessions/Plots/Views/Plots/`). Recorded telemetry plots inherit from `TelemetryPlot`, recorded time-series rows add `RecordedTimeSeriesPlot`, live plots derive through `LiveStreamingPlotBase` and apply incremental batches via ScottPlot's `DataStreamer`, and GPS speed/elevation rows use `TrackSignalPlot` over `TrackPoint` data. `TelemetryDisplaySmoothing` and `TelemetryDisplayDownsampling` shape the displayed signal at load time. Graph row titles, drag/drop hierarchy changes, and base/hosted row plot backgrounds are owned by the Avalonia row controls, while ScottPlot keeps axes, legends, data rendering, readouts, and overlays.
 
 Topics in [architecture/plot-rendering.md](architecture/plot-rendering.md):
 

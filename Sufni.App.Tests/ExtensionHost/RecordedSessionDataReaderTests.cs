@@ -1,6 +1,5 @@
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.Services;
 using Sufni.App.Tests.TestSupport;
 
 using Sufni.App.Extensibility.RecordedSessions;

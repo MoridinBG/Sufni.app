@@ -2,8 +2,6 @@ using System.Reactive.Linq;
 using Avalonia.Headless.XUnit;
 using DynamicData;
 using NSubstitute;
-using Sufni.App.Coordinators;
-using Sufni.App.Services;
 using Sufni.App.Tests.TestSupport;
 using Sufni.App.ExtensionHost.Contracts.Services;
 

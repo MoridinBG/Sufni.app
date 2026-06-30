@@ -140,7 +140,7 @@ Use the simplest real data context that can drive the behavior under test.
 - For composed views, use the real view model when the view depends on real binding behavior, real commands, or view-model-managed content switching.
 - Substitute constructor collaborators that are not part of the view contract.
 - Do not over-mock framework-driven data sources. If a view model expects a live `ObservableCollection`, DynamicData stream, or other changing source, back it with a real collection or cache so the binding pipeline behaves as it does in production.
-- When several tests need the same setup, create a small local harness first. Promote it into `Sufni.App.Tests/Infrastructure/` only when the pattern is reused across multiple test classes.
+- When several tests need the same setup, create a small local harness first. Promote it into `Sufni.App.Tests/TestSupport/` only when the pattern is reused across multiple test classes.
 
 The fixture should make the view easy to mount and the assertions easy to read. It should not hide the behavior being tested.
 

@@ -1,5 +1,5 @@
 using System.Net;
-using Sufni.App.Services;
+using Sufni.App.SyncAndPairing.Services;
 
 namespace Sufni.App.Tests.Services;
 

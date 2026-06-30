@@ -1,6 +1,5 @@
 using System.Reactive.Linq;
 using NSubstitute;
-using Sufni.App.Services;
 
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.MapsAndTracks.Models;

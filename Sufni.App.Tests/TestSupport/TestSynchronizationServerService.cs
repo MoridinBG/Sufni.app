@@ -1,4 +1,3 @@
-using Sufni.App.Services;
 
 using Sufni.App.Sessions.Services;
 using Sufni.App.SyncAndPairing.Services;

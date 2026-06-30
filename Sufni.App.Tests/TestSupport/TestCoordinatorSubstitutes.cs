@@ -4,9 +4,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using NSubstitute;
-using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;
-using Sufni.App.Services;
 using Sufni.Kinematics;
 
 using Sufni.App.Acquisition.Coordinators;

@@ -4,7 +4,6 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Serilog;
-using Sufni.App.Services;
 using SecureStorageDictionary = System.Collections.Concurrent.ConcurrentDictionary<string, byte[]>;
 using Sufni.App.ExtensionHost.Contracts.Services;
 

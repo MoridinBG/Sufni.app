@@ -1,6 +1,5 @@
 using DynamicData;
 using NSubstitute;
-using Sufni.App.Coordinators;
 
 using Sufni.App.Setups.Coordinators;
 using Sufni.App.Setups.Stores;

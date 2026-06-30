@@ -5,8 +5,6 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using CommunityToolkit.Mvvm.Input;
 using NSubstitute;
-using Sufni.App.Coordinators;
-using Sufni.App.Services;
 using Sufni.App.Tests.TestSupport;
 
 using Sufni.App.Infrastructure;

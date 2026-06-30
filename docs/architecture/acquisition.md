@@ -33,9 +33,9 @@ graph LR
 
 ### Interfaces
 
-**`ITelemetryDataStore`** (`Sufni.App/Sufni.App/Models/ITelemetryDataStore.cs`) exposes a `Name`, an optional `BoardId` (DAQ device GUID), and `GetFiles()` returning a list of `ITelemetryFile`.
+**`ITelemetryDataStore`** (`Sufni.App/Sufni.App/Acquisition/Models/ITelemetryDataStore.cs`) exposes a `Name`, an optional `BoardId` (DAQ device GUID), and `GetFiles()` returning a list of `ITelemetryFile`.
 
-**`ITelemetryFile`** (`Sufni.App/Sufni.App/Models/ITelemetryFile.cs`) represents a single SST file. Key members:
+**`ITelemetryFile`** (`Sufni.App/Sufni.App/Acquisition/Models/ITelemetryFile.cs`) represents a single SST file. Key members:
 
 - `ShouldBeImported` — tri-state nullable bool driving the per-row import action selector (legacy semantics): `false` (default) "Ignore" / leave alone, `true` "Import", `null` "Trash". `ImportSessionsCoordinator` only imports rows with `ShouldBeImported is true` and only trashes rows with `ShouldBeImported is null`.
 - `CanImport` — set from inspection; `false` for malformed files, which forces the action selector to stay disabled.
@@ -44,7 +44,7 @@ graph LR
 - `OnImported()` / `OnTrashed()` — post-action hooks (move file on local stores; `MARK_SST_UPLOADED` / remote trash over the management protocol on network stores).
 - `StartTime`, `Duration` — resolved eagerly from the SST header for display before import (source varies by implementation)
 
-**`ITelemetryDataStoreService`** (`Sufni.App/Sufni.App/Services/ITelemetryDataStoreService.cs`) owns the live `DataStores` collection plus the browse and registration surfaces the UI uses: `StartBrowse()`, `StopBrowse()`, `LoadFilesAsync(...)`, `TryAddStorageProviderAsync(...)`, and `DetectConnectedBoardIdAsync(...)`. The import screen talks to this service directly, and the welcome create-setup flow reaches it through `SetupCoordinator`; neither screen constructs concrete datastore implementations itself.
+**`ITelemetryDataStoreService`** (`Sufni.App/Sufni.App/Acquisition/Services/ITelemetryDataStoreService.cs`) owns the live `DataStores` collection plus the browse and registration surfaces the UI uses: `StartBrowse()`, `StopBrowse()`, `LoadFilesAsync(...)`, `TryAddStorageProviderAsync(...)`, and `DetectConnectedBoardIdAsync(...)`. The import screen talks to this service directly, and the welcome create-setup flow reaches it through `SetupCoordinator`; neither screen constructs concrete datastore implementations itself.
 
 ### Import Screen Boundaries
 
@@ -58,9 +58,9 @@ The import-sessions feature is the canonical worked example of the current bound
 
 ### Mass Storage
 
-`MassStorageTelemetryDataStore` (`Sufni.App/Sufni.App/Models/MassStorageTelemetryDataStore.cs`) identifies DAQ drives by the presence of a `BOARDID` marker file at the drive root. The file contains the device serial as a hex string, converted to a UUID via `UuidUtil.CreateDeviceUuid()`.
+`MassStorageTelemetryDataStore` (`Sufni.App/Sufni.App/Acquisition/Models/MassStorageTelemetryDataStore.cs`) identifies DAQ drives by the presence of a `BOARDID` marker file at the drive root. The file contains the device serial as a hex string, converted to a UUID via `UuidUtil.CreateDeviceUuid()`.
 
-`TelemetryDataStoreService` (`Sufni.App/Sufni.App/Services/TelemetryDataStoreService.cs`) uses a `DispatcherTimer` for browse cadence, while expensive work runs off the UI thread. Drive probing, removed-storage-provider checks, mass-storage datastore creation, one-shot board detection, and file enumeration cross an explicit background boundary through `IBackgroundTaskRunner`; only `DataStores` mutation is marshaled back to the UI thread. Coordinators that commit import results after background processing use `IUiThreadDispatcher` for store writes and shell/UI-facing state.
+`TelemetryDataStoreService` (`Sufni.App/Sufni.App/Acquisition/Services/TelemetryDataStoreService.cs`) uses a `DispatcherTimer` for browse cadence, while expensive work runs off the UI thread. Drive probing, removed-storage-provider checks, mass-storage datastore creation, one-shot board detection, and file enumeration cross an explicit background boundary through `IBackgroundTaskRunner`; only `DataStores` mutation is marshaled back to the UI thread. Coordinators that commit import results after background processing use `IUiThreadDispatcher` for store writes and shell/UI-facing state.
 
 `MassStorageTelemetryDataStore.CreateAsync()` performs the `BOARDID` read and `uploaded/` directory creation off thread. `LoadFilesAsync()` is the service surface the import view model uses instead of calling `GetFiles()` directly, so the page stays responsive while enumerating files from the device. Mass-storage and picked-folder files both map `SstFileInspection` through `TelemetryFileInspectionMapper`, so local SST sources expose the same importability, malformed, unknown-chunk, start-time, and duration state for the same bytes.
 
@@ -68,7 +68,7 @@ On import, files move to an `uploaded/` subdirectory, which the datastore create
 
 ### Network (WiFi DAQ)
 
-`NetworkTelemetryDataStore` (`Sufni.App/Sufni.App/Models/NetworkTelemetryDataStore.cs`) connects to a DAQ device discovered via mDNS (service type `_gosst._tcp`). Network import goes through `IDaqManagementService`: `TelemetryDataStoreService` constructs the datastore with both `IDaqManagementService` and `ILiveDaqBoardIdInspector`.
+`NetworkTelemetryDataStore` (`Sufni.App/Sufni.App/Acquisition/Models/NetworkTelemetryDataStore.cs`) connects to a DAQ device discovered via mDNS (service type `_gosst._tcp`). Network import goes through `IDaqManagementService`: `TelemetryDataStoreService` constructs the datastore with both `IDaqManagementService` and `ILiveDaqBoardIdInspector`.
 
 - `Initialization` performs only board-ID resolution through `ILiveDaqBoardIdInspector.InspectAsync(...)`, which opens a short-lived LIVE identify handshake and stores the resulting device GUID on the datastore. File listing happens in `GetFiles()`.
 - `GetFiles()` calls `IDaqManagementService.ListDirectoryAsync(host, port, DaqDirectoryId.Root)`, pattern-matches the returned `DaqRootDirectoryRecord`, ignores `DaqConfigFileRecord` entries, maps `DaqSstFileRecord` values into importable `NetworkTelemetryFile` instances, and maps `DaqMalformedSstFileRecord` values into non-importable `NetworkTelemetryFile` instances (`canImport: false`) carrying the malformed message. The combined list is returned sorted by descending `StartTime`.
@@ -81,7 +81,7 @@ Network add / remove handling follows the same split as mass storage: any initia
 
 ### Storage Provider
 
-`StorageProviderTelemetryDataStore` (`Sufni.App/Sufni.App/Models/StorageProviderTelemetryDataStore.cs`) wraps Avalonia's `IStorageFolder` for platform-agnostic file access via the system file picker. All I/O is deferred to an async `Init()` task.
+`StorageProviderTelemetryDataStore` (`Sufni.App/Sufni.App/Acquisition/Models/StorageProviderTelemetryDataStore.cs`) wraps Avalonia's `IStorageFolder` for platform-agnostic file access via the system file picker. All I/O is deferred to an async `Init()` task.
 
 The view model may ask `IFilesService` for a folder, but it does not construct this datastore directly. Registration lives in `ITelemetryDataStoreService.TryAddStorageProviderAsync(...)`, which owns duplicate detection and returns a sealed `StorageProviderRegistrationResult` (`Added` or `AlreadyOpen`) together with the concrete datastore instance the caller should select. This keeps infrastructure creation out of the view model and makes duplicate handling deterministic.
 

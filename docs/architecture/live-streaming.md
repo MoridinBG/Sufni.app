@@ -178,7 +178,7 @@ public abstract record LivePreviewStartResult
 
 ## Transport Layer
 
-All transport types live in `Sufni.App/Sufni.App/Services/LiveStreaming/`.
+All transport types live in `Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/`.
 
 ### Protocol Reader
 
@@ -267,7 +267,7 @@ The live-session tab view model (`LiveSessionDetailViewModel`) is described in [
 
 ## Views
 
-Both desktop and mobile heads add the Live tab and bind to the same view models. Desktop-only views live under `Sufni.App/Sufni.App/DesktopViews/`; mobile/shared views live under `Sufni.App/Sufni.App/Views/`.
+Both desktop and mobile heads add the Live tab and bind to the same view models. Desktop-only live views live under `Sufni.App/Sufni.App/LiveDaq/DesktopViews/`; mobile/shared live views live under `Sufni.App/Sufni.App/LiveDaq/Views/`.
 
 - `MainPagesDesktopView.axaml` / `MainPagesView.axaml` — both add a "Live" tab to the primary page set, bound to `LiveDaqsPage`
 - `LiveDaqListDesktopView.axaml` / `LiveDaqListView.axaml` — list of known and discovered DAQs with search, notifications, and error bars

@@ -1,5 +1,4 @@
 using Avalonia.Headless.XUnit;
-using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.TestSupport;
 using Sufni.App.Tests.TestSupport;
 

@@ -1,7 +1,6 @@
 using System.Reactive.Linq;
 using DynamicData;
 using NSubstitute;
-using Sufni.App.Services;
 
 using Sufni.App.Sessions.Services;
 using Sufni.App.Bikes.Models;

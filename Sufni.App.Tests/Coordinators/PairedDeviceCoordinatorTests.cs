@@ -2,8 +2,6 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Sufni.App.Coordinators;
-using Sufni.App.Services;
 
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;

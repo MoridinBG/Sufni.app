@@ -10,8 +10,6 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DynamicData;
 using NSubstitute;
-using Sufni.App.Coordinators;
-using Sufni.App.Services;
 using Sufni.App.Tests.TestSupport;
 using static Sufni.App.Tests.TestSupport.TestTelemetryData;
 using static Sufni.App.Tests.TestSupport.TestTelemetrySources;

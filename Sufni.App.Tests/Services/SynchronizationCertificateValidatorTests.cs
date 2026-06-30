@@ -1,7 +1,6 @@
 using System;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-using Sufni.App.Services;
 
 using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Tests.Services;

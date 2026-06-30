@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
 using NSubstitute;
-using Sufni.App.Services;
 using Sufni.App.Tests.TestSupport;
 using Sufni.App.Tests.Services.LiveStreaming;
 

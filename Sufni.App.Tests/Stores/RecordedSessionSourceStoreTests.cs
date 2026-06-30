@@ -1,6 +1,5 @@
 using DynamicData;
 using NSubstitute;
-using Sufni.App.Services;
 
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;

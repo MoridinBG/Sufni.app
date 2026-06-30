@@ -4,8 +4,6 @@ using System.Net;
 using System.Threading;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Sufni.App.Coordinators;
-using Sufni.App.Services;
 using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 using static Sufni.App.Tests.TestSupport.TestTelemetryData;

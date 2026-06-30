@@ -33,10 +33,9 @@ using Sufni.App.Extensibility.Sync;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Services;
-using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.SyncAndPairing.Models;
-namespace Sufni.App.Services;
+namespace Sufni.App.SyncAndPairing.Services;
 
 public class SynchronizationServerService : ISynchronizationServerService
 {

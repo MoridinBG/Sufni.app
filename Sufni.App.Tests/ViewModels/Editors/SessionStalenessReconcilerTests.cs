@@ -1,7 +1,5 @@
 using NSubstitute;
-using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;
-using Sufni.App.Services;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Coordination;

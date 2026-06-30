@@ -2,8 +2,6 @@ using System.Net;
 using System.Net.Http;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Sufni.App.Coordinators;
-using Sufni.App.Services;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Infrastructure;
