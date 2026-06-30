@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 using ScottPlot.Avalonia;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 
 namespace Sufni.App.Tests.Views.Plots;
 

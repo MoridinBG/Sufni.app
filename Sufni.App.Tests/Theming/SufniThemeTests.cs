@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Styling;
 using Sufni.App.Theming;
 
+using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Tests.Theming;
 
 public class SufniThemeTests

@@ -1,6 +1,6 @@
-using Sufni.App.Models;
 using Sufni.Telemetry;
 
+using Sufni.App.Acquisition.Models;
 namespace Sufni.App.Tests.Models;
 
 public class TelemetryFileInspectionMapperTests

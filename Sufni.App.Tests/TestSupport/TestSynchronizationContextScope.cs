@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 
-namespace Sufni.App.Tests.Infrastructure;
+namespace Sufni.App.Tests.TestSupport;
 
 public sealed class TestSynchronizationContext : SynchronizationContext
 {

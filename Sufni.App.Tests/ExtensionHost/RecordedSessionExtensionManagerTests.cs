@@ -3,19 +3,15 @@ using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
-using Sufni.App.Models;
-using Sufni.App.Presentation;
-using Sufni.App.SessionDetails;
 using Sufni.App.Services;
-using Sufni.App.Stores;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHosting.RecordedSessions;
 
+using Sufni.App.Extensibility.RecordedSessions;
 namespace Sufni.App.Tests.ExtensionHost;
 
 public class RecordedSessionExtensionManagerTests

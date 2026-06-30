@@ -1,5 +1,5 @@
-using Sufni.App.Services.Management;
 
+using Sufni.App.Acquisition.Services.Management;
 namespace Sufni.App.Tests.Services.Management;
 
 public class DaqConfigDocumentTests

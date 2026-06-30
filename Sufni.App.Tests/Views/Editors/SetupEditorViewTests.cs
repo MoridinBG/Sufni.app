@@ -1,13 +1,12 @@
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Sufni.App.Models.SensorConfigurations;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.SensorConfigurations;
-using Sufni.App.Views.Editors;
-using Sufni.App.Views.SensorConfigurations;
-using Sufni.App.Views.Shared;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Setups.Models.SensorConfigurations;
+using Sufni.App.Setups.ViewModels.SensorConfigurations;
+using Sufni.App.Setups.Views.SensorConfigurations;
+using Sufni.App.Setups.Views.Shared;
 namespace Sufni.App.Tests.Views.Editors;
 
 [Collection("Ui")]

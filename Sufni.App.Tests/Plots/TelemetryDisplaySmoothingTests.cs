@@ -1,7 +1,7 @@
 using System.Linq;
-using Sufni.App.Models;
-using Sufni.App.Plots;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Plots;
 namespace Sufni.App.Tests.Plots;
 
 public class TelemetryDisplaySmoothingTests

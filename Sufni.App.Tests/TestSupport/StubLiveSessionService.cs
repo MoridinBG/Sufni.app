@@ -1,7 +1,7 @@
 using System.Reactive.Subjects;
-using Sufni.App.Services.LiveStreaming;
 
-namespace Sufni.App.Tests.Infrastructure;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
+namespace Sufni.App.Tests.TestSupport;
 
 internal sealed class StubLiveSessionService : ILiveSessionService
 {

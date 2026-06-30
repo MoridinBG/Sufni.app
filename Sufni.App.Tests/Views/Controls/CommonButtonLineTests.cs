@@ -7,10 +7,12 @@ using CommunityToolkit.Mvvm.Input;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.Services;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels;
-using Sufni.App.Views.Controls;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Base;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.Shared.Views.Controls;
 namespace Sufni.App.Tests.Views.Controls;
 
 [Collection("Ui")]

@@ -1,10 +1,10 @@
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.ItemLists;
-using Sufni.App.Views.Controls;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Shared.Base;
+using Sufni.App.Shared.Views.Controls;
 namespace Sufni.App.Tests.Views.Controls;
 
 [Collection("Ui")]

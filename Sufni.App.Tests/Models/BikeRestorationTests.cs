@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Sufni.App.Models;
-using Sufni.App.Stores;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Kinematics;
 
+using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Stores;
 namespace Sufni.App.Tests.Models;
 
 public class BikeRestorationTests

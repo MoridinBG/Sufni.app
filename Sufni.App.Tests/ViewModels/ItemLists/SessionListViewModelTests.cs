@@ -3,10 +3,11 @@ using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.SessionGraph;
-using Sufni.App.ViewModels.ItemLists;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 
+using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Coordination;
+using Sufni.App.Sessions.Lists.ViewModels.ItemLists;
 namespace Sufni.App.Tests.ViewModels.ItemLists;
 
 public class SessionListViewModelTests

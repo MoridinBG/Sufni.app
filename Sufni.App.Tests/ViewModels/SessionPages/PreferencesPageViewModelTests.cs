@@ -1,7 +1,7 @@
-using Sufni.App.Models;
-using Sufni.App.ViewModels.SessionPages;
 using Sufni.Telemetry;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 namespace Sufni.App.Tests.ViewModels.SessionPages;
 
 public class PreferencesPageViewModelTests

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Sufni.Telemetry;
 
-namespace Sufni.App.Tests.Infrastructure;
+namespace Sufni.App.Tests.TestSupport;
 
 public static class TestTelemetryData
 {

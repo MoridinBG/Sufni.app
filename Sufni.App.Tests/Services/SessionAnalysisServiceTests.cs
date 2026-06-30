@@ -1,11 +1,10 @@
-using Sufni.App.Models;
-using Sufni.App.Presentation;
-using Sufni.App.Services.SessionAnalysis;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
-using static Sufni.App.Tests.Infrastructure.AnalysisTelemetryFixture;
+using static Sufni.App.Tests.TestSupport.AnalysisTelemetryFixture;
 
+using Sufni.App.Sessions.Analysis.Services.SessionAnalysis;
+using Sufni.App.Sessions.Models;
 namespace Sufni.App.Tests.Services;
 
 public class SessionAnalysisServiceTests

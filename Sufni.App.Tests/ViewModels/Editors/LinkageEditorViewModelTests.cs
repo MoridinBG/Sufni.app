@@ -1,10 +1,8 @@
 using Avalonia.Headless.XUnit;
-using Sufni.App.Models;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.LinkageEditing;
-using Sufni.App.ViewModels.LinkageParts;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Kinematics;
 
+using Sufni.App.Bikes.ViewModels.LinkageEditing;
 namespace Sufni.App.Tests.ViewModels.Editors;
 
 [Collection("Ui")]

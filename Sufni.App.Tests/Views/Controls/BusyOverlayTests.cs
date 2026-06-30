@@ -1,9 +1,10 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.Views.Controls;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Shared.Views.Overlays;
+using Sufni.App.Shared.Views.Controls;
 namespace Sufni.App.Tests.Views.Controls;
 
 [Collection("Ui")]

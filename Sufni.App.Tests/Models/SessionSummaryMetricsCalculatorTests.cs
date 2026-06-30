@@ -1,7 +1,7 @@
 using Mapsui.Projections;
-using Sufni.App.Models;
 using Sufni.App.ExtensionHost.Contracts.Models;
 
+using Sufni.App.Sessions.Models;
 namespace Sufni.App.Tests.Models;
 
 public class SessionSummaryMetricsCalculatorTests

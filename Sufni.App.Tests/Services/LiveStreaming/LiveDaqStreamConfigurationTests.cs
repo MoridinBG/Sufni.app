@@ -1,5 +1,5 @@
-using Sufni.App.Services.LiveStreaming;
 
+using Sufni.App.LiveDaq.Services.LiveStreaming;
 namespace Sufni.App.Tests.Services.LiveStreaming;
 
 public class LiveDaqStreamConfigurationTests

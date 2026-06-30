@@ -2,11 +2,15 @@ using Avalonia.Platform.Storage;
 using System.Net;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.Models;
 using Sufni.App.Services;
-using Sufni.App.Tests.Infrastructure;
-using static Sufni.App.Tests.Infrastructure.TestStorageItems;
+using Sufni.App.Tests.TestSupport;
+using static Sufni.App.Tests.TestSupport.TestStorageItems;
 
+using Sufni.App.Acquisition.Models;
+using Sufni.App.Acquisition.Services;
+using Sufni.App.Infrastructure;
+using Sufni.App.LiveDaq.Services;
+using Sufni.App.Shared.Common;
 namespace Sufni.App.Tests.Services;
 
 public class TelemetryDataStoreServiceTests

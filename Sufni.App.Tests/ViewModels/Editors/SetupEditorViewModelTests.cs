@@ -3,15 +3,21 @@ using Avalonia.Headless.XUnit;
 using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.Models;
-using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Services;
-using Sufni.App.Stores;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.Editors;
-using Sufni.App.ViewModels.SensorConfigurations;
+using Sufni.App.Tests.TestSupport;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
+using Sufni.App.Bikes.Coordinators;
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Infrastructure;
+using Sufni.App.Setups.Coordinators;
+using Sufni.App.Setups.Stores;
+using Sufni.App.Setups.ViewModels.Editors;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Setups.Models;
+using Sufni.App.Setups.Models.SensorConfigurations;
+using Sufni.App.Setups.ViewModels.SensorConfigurations;
 namespace Sufni.App.Tests.ViewModels.Editors;
 
 [Collection("Ui")]

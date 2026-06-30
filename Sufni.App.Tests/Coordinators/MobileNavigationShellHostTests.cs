@@ -1,9 +1,10 @@
 using Avalonia.Headless.XUnit;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.TestSupport;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Shared.Base;
+using Sufni.App.Shell.Coordinators;
 namespace Sufni.App.Tests.Coordinators;
 
 [Collection("Ui")]

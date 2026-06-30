@@ -1,9 +1,9 @@
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.Stores;
-using Sufni.App.ViewModels.ItemLists;
-using Sufni.App.ViewModels.Rows;
 
+using Sufni.App.LiveDaq.Stores;
+using Sufni.App.LiveDaq.ViewModels.ItemLists;
+using Sufni.App.LiveDaq.ViewModels.Rows;
 namespace Sufni.App.Tests.ViewModels.ItemLists;
 
 public class LiveDaqListViewModelTests

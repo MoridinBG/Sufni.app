@@ -1,7 +1,7 @@
 using System.Text.Json.Nodes;
-using Sufni.App.Models;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Bikes.Models;
 namespace Sufni.App.Tests.Models;
 
 public class BikeSerializationTests

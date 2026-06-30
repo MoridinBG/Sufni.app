@@ -1,8 +1,10 @@
 using Avalonia.Controls;
 using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.ExtensionHost.Contracts;
-using Sufni.App.ExtensionHosting;
 
+using Sufni.App.ExtensionHost.Contracts.Capabilities;
+using Sufni.App.Extensibility.Capabilities;
+using Sufni.App.Extensibility.Views;
 namespace Sufni.App.Tests.ExtensionHost;
 
 public class AppExtensionCollectionTests

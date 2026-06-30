@@ -2,9 +2,10 @@ using System.Reactive.Subjects;
 using System.Reactive.Linq;
 using NSubstitute;
 using Sufni.App.Services;
-using Sufni.App.Services.LiveStreaming;
-using Sufni.App.Stores;
 
+using Sufni.App.LiveDaq.Services;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
+using Sufni.App.LiveDaq.Stores;
 namespace Sufni.App.Tests.Services.LiveStreaming;
 
 public class LiveDaqSharedStreamTests

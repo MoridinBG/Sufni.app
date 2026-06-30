@@ -3,13 +3,15 @@ using System.Text;
 using Avalonia.Headless.XUnit;
 using Avalonia.Platform.Storage;
 using NSubstitute;
-using Sufni.App.BikeEditing;
-using Sufni.App.Models;
 using Sufni.App.Services;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Kinematics;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
+using Sufni.App.Bikes.Services;
+using Sufni.App.Infrastructure;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.ViewModels.Editors;
 namespace Sufni.App.Tests.Services;
 
 [Collection("Ui")]

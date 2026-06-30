@@ -5,9 +5,9 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reactive.Linq;
 using System.Threading;
-using Sufni.App.Services.LiveStreaming;
 using Sufni.Telemetry;
 
+using Sufni.App.LiveDaq.Services.LiveStreaming;
 namespace Sufni.App.Tests.Services.LiveStreaming;
 
 public class LiveDaqClientTests

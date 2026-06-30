@@ -1,9 +1,9 @@
 using System.Reactive.Linq;
 using NSubstitute;
-using Sufni.App.Models;
 using Sufni.App.Services;
 
-namespace Sufni.App.Tests.Infrastructure;
+using Sufni.App.Infrastructure;
+namespace Sufni.App.Tests.TestSupport;
 
 public static class SessionPreferencesTestExtensions
 {

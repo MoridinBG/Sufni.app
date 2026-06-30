@@ -6,11 +6,14 @@ using Avalonia.VisualTree;
 using AvaloniaProgressRing;
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels;
-using Sufni.App.Views;
-using Sufni.App.Views.Controls;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.ViewModels;
+using Sufni.App.SyncAndPairing.Views;
+using Sufni.App.Shared.Views.Controls;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.SyncAndPairing.Views.Controls;
 namespace Sufni.App.Tests.Views;
 
 [Collection("Ui")]

@@ -1,10 +1,13 @@
 using ScottPlot;
 using ScottPlot.Plottables;
-using Sufni.App.Models;
-using Sufni.App.Plots;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
+using static Sufni.App.Tests.TestSupport.TestTelemetryData;
 using Sufni.App.ExtensionHost.Contracts.Models;
 
+using Sufni.App.Acquisition.Models;
+using Sufni.App.Infrastructure;
+using Sufni.App.LiveDaq.Plots;
+using Sufni.App.MapsAndTracks.Plots;
+using Sufni.App.Sessions.Plots;
 namespace Sufni.App.Tests.Plots;
 
 public class RecordedCursorReadoutTests

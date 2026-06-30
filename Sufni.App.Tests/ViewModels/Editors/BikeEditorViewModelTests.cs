@@ -1,21 +1,22 @@
 using System.Reactive;
 using System.Reactive.Linq;
 using Avalonia.Headless.XUnit;
-using Sufni.App.BikeEditing;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Coordinators;
-using Sufni.App.Models;
-using Sufni.App.Queries;
 using Sufni.App.Services;
-using Sufni.App.Stores;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.Editors;
-using Sufni.App.ViewModels.LinkageEditing;
-using Sufni.App.ViewModels.LinkageParts;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Kinematics;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
+using Sufni.App.Bikes.Coordinators;
+using Sufni.App.Bikes.Queries;
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Bikes.ViewModels.Editors;
+using Sufni.App.Infrastructure;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.ViewModels.LinkageEditing;
 namespace Sufni.App.Tests.ViewModels.Editors;
 
 [Collection("Ui")]

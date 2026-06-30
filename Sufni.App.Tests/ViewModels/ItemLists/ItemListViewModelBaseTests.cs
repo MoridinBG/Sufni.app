@@ -1,5 +1,5 @@
-using Sufni.App.ViewModels.ItemLists;
 
+using Sufni.App.Shared.Base;
 namespace Sufni.App.Tests.ViewModels.ItemLists;
 
 public class ItemListViewModelBaseTests

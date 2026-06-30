@@ -3,7 +3,7 @@ using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 using Sufni.App.Tests.ExtensionHost;
 
-namespace Sufni.App.Tests.Infrastructure;
+namespace Sufni.App.Tests.TestSupport;
 
 internal sealed class TestRecordedSessionListExtensionService : IRecordedSessionListExtensionService
 {

@@ -1,10 +1,10 @@
 using Avalonia;
 using Avalonia.Headless;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 
 [assembly: AvaloniaTestApplication(typeof(TestAppBuilder))]
 
-namespace Sufni.App.Tests.Infrastructure;
+namespace Sufni.App.Tests.TestSupport;
 
 /// <summary>
 /// Referenced via the assembly-level

@@ -1,10 +1,13 @@
 using System;
 using System.Text.Json;
-using Sufni.App.Models;
-using Sufni.App.Models.SensorConfigurations;
 using Sufni.Kinematics;
 using Sufni.App.ExtensionHost.Contracts.Models;
 
+using Sufni.App.Bikes.Models;
+using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Setups.Models.SensorConfigurations;
 namespace Sufni.App.Tests.Models;
 
 public class ModelJsonTests

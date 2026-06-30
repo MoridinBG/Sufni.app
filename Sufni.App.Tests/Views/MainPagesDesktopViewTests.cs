@@ -6,14 +6,22 @@ using Avalonia.Svg.Skia;
 using Avalonia.VisualTree;
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.DesktopViews;
 using Sufni.App.ExtensionHost.Contracts;
 using Sufni.App.Services;
-using Sufni.App.Stores;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels;
-using Sufni.App.Views.Controls;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Shell.DesktopViews;
+using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Extensibility.Views;
+using Sufni.App.ExtensionHost.Contracts.Capabilities;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Setups.Stores;
+using Sufni.App.Shared.Views.Controls;
+using Sufni.App.Shared.Views.Overlays;
+using Sufni.App.SyncAndPairing.Stores;
+using Sufni.App.SyncAndPairing.ViewModels;
 namespace Sufni.App.Tests.Views;
 
 [Collection("Ui")]

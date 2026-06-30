@@ -1,5 +1,6 @@
-using Sufni.App.Models;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Models;
 namespace Sufni.App.Tests.Models;
 
 public class SessionGraphPreferenceTreeTests

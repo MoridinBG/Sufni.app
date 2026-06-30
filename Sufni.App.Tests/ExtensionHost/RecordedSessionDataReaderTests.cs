@@ -1,10 +1,13 @@
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHosting.RecordedSessions;
-using Sufni.App.Models;
 using Sufni.App.Services;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Extensibility.RecordedSessions;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Sessions.Services;
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.Sessions.Models;
 namespace Sufni.App.Tests.ExtensionHost;
 
 public class RecordedSessionDataReaderTests

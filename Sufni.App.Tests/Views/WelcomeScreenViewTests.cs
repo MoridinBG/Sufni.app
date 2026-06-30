@@ -4,10 +4,12 @@ using Avalonia.Headless.XUnit;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.Services;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels;
-using Sufni.App.Views;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Shell.ViewModels;
+using Sufni.App.Shell.Views;
+using Sufni.App.Infrastructure;
+using Sufni.App.Shell.Coordinators;
 namespace Sufni.App.Tests.Views;
 
 [Collection("Ui")]

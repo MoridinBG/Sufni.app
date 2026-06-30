@@ -1,10 +1,10 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Sufni.App.Models;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.SessionPages;
-using Sufni.App.Views.SessionPages;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
+using Sufni.App.Sessions.Pages.Views.SessionPages;
+using Sufni.App.Infrastructure;
 namespace Sufni.App.Tests.Views.SessionPages;
 
 [Collection("Ui")]

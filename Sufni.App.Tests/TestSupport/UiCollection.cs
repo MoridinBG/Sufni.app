@@ -1,4 +1,4 @@
-namespace Sufni.App.Tests.Infrastructure;
+namespace Sufni.App.Tests.TestSupport;
 
 /// <summary>
 /// Serializes the UI tier: tests that touch <c>TestApp</c>,

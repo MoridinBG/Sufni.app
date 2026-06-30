@@ -1,8 +1,9 @@
 using ScottPlot;
-using Sufni.App.Plots;
 using Sufni.App.Theming;
 using Sufni.Telemetry;
 
+using Sufni.App.Infrastructure.Theming;
+using Sufni.App.Sessions.Plots;
 namespace Sufni.App.Tests.Plots;
 
 public class SelectableStatisticsPlotTests

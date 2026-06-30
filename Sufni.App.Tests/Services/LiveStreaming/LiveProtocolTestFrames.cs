@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
-using Sufni.App.Services.LiveStreaming;
 using Sufni.Telemetry;
 
+using Sufni.App.LiveDaq.Services.LiveStreaming;
 namespace Sufni.App.Tests.Services.LiveStreaming;
 
 internal static class LiveProtocolTestFrames

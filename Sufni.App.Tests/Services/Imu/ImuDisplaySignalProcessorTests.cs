@@ -1,7 +1,7 @@
-using Sufni.App.Services.Imu;
-using Sufni.App.Services.LiveStreaming;
 using Sufni.Telemetry;
 
+using Sufni.App.LiveDaq.Services.Imu;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
 namespace Sufni.App.Tests.Services.Imu;
 
 public class ImuDisplaySignalProcessorTests

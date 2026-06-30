@@ -2,11 +2,11 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Layout;
 using Avalonia.VisualTree;
-using Sufni.App.DesktopViews.Controls;
-using Sufni.App.DesktopViews.Editors;
-using Sufni.App.Models;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Detail.DesktopViews.Editors;
+using Sufni.App.Shared.DesktopViews.Controls;
 namespace Sufni.App.Tests.Views.Editors;
 
 [Collection("Ui")]

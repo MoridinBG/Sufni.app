@@ -5,19 +5,26 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.DesktopViews.Editors;
-using Sufni.App.Models;
-using Sufni.App.SessionGraph;
-using Sufni.App.SessionDetails;
 using Sufni.App.Services;
-using Sufni.App.Stores;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.Editors;
-using Sufni.App.Views.Editors;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Coordinators;
+using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.Sessions.Analysis.Services;
+using Sufni.App.Sessions.Coordination;
+using Sufni.App.Sessions.Detail.DesktopViews.Editors;
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Detail.Views.Editors;
+using Sufni.App.Sessions.Processing.SessionDetails;
+using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.Sessions.Models;
 namespace Sufni.App.Tests.Views.Editors;
 
 internal sealed class SessionDetailViewTestContext

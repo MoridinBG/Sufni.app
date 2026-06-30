@@ -1,11 +1,13 @@
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.SessionDetails;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.Editors;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 
+using Sufni.App.Bikes.Coordinators;
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Pages.ViewModels.Editors;
+using Sufni.App.Sessions.Processing.SessionDetails;
 namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class DamperCutoffWorkflowTests

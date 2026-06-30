@@ -1,12 +1,12 @@
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.Models;
-using Sufni.App.Stores;
-using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
 
-namespace Sufni.App.Tests.Infrastructure;
+using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Store;
+namespace Sufni.App.Tests.TestSupport;
 
 internal sealed class TestSessionOperationGateway : ISessionOperationGateway
 {

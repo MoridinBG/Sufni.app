@@ -1,11 +1,13 @@
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;
-using Sufni.App.SessionGraph;
 using Sufni.App.Services;
-using Sufni.App.Stores;
-using Sufni.App.ViewModels.Editors;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Coordination;
+using Sufni.App.Sessions.Pages.ViewModels.Editors;
+using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Store;
 namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class SessionStalenessReconcilerTests

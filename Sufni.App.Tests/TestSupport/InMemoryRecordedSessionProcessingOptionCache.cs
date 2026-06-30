@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
-using Sufni.App.SessionGraph;
 using Sufni.Telemetry;
 
-namespace Sufni.App.Tests.Infrastructure;
+using Sufni.App.Sessions.Processing.SessionGraph;
+namespace Sufni.App.Tests.TestSupport;
 
 // Controllable in-memory IRecordedSessionProcessingOptionCache for tests. Get
 // mirrors production (a cache miss is the 25 ms default); Set updates the value

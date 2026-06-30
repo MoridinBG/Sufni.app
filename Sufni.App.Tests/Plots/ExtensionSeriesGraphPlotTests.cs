@@ -2,12 +2,15 @@ using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
 using ScottPlot.Plottables;
-using Sufni.App.Plots;
 using Sufni.App.Theming;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
+using Sufni.App.Extensibility.Views;
+using Sufni.App.Infrastructure.Theming;
+using Sufni.App.LiveDaq.Plots;
+using Sufni.App.Shared.Plots;
 namespace Sufni.App.Tests.Plots;
 
 public class ExtensionSeriesGraphPlotTests

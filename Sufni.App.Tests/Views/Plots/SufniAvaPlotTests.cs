@@ -9,10 +9,10 @@ using Avalonia.Input;
 using Avalonia.Themes.Fluent;
 using ScottPlot;
 using ScottPlot.Interactivity.UserActionResponses;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.Views.Plots;
-using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
+using Sufni.App.Tests.TestSupport;
+using static Sufni.App.Tests.TestSupport.PlotTestHelpers;
 
+using Sufni.App.Shared.Views.Plots;
 namespace Sufni.App.Tests.Views.Plots;
 
 [Collection("Ui")]

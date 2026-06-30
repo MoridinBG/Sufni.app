@@ -1,8 +1,8 @@
 using ScottPlot;
 using ScottPlot.Plottables;
-using Sufni.App.Plots;
 using Sufni.Telemetry;
 
+using Sufni.App.Sessions.Plots;
 namespace Sufni.App.Tests.Plots;
 
 public class StrokeStatisticsHistogramPlotTests

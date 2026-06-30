@@ -2,10 +2,12 @@ using System.Reactive.Linq;
 using System.Reactive.Threading.Tasks;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
-using Sufni.App.Models;
 using Sufni.App.Services;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Services;
 namespace Sufni.App.Tests.Services;
 
 [Collection("Ui")]

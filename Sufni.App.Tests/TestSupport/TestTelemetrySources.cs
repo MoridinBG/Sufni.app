@@ -1,7 +1,7 @@
 using NSubstitute;
-using Sufni.App.Models;
 
-namespace Sufni.App.Tests.Infrastructure;
+using Sufni.App.Acquisition.Models;
+namespace Sufni.App.Tests.TestSupport;
 
 public static class TestTelemetrySources
 {

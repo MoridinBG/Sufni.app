@@ -1,6 +1,8 @@
 using System.Net;
 using Sufni.App.Services;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.LiveDaq.Services;
 namespace Sufni.App.Tests.Services;
 
 public class BonjourBrowseLifecycleTests

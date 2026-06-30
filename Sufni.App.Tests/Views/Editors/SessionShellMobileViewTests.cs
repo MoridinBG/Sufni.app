@@ -9,16 +9,17 @@ using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Sufni.App.Presentation;
 using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels;
-using Sufni.App.ViewModels.Editors;
-using Sufni.App.ViewModels.SessionPages;
-using Sufni.App.Views.Controls;
-using Sufni.App.Views.Editors;
+using Sufni.App.Tests.TestSupport;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Detail.Views.Editors;
+using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
+using Sufni.App.Sessions.Presentation;
+using Sufni.App.Shared.Base;
+using Sufni.App.Shared.Views.Controls;
+using Sufni.App.Shared.Views.Overlays;
 namespace Sufni.App.Tests.Views.Editors;
 
 [Collection("Ui")]

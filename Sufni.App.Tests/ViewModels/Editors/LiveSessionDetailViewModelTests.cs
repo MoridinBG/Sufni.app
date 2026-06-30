@@ -10,22 +10,28 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.Models;
-using Sufni.App.Presentation;
-using Sufni.App.Queries;
 using Sufni.App.Services;
-using Sufni.App.Services.LiveStreaming;
-using Sufni.App.SessionDetails;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.App.Tests.Services.LiveStreaming;
-using Sufni.App.ViewModels.Editors;
-using Sufni.App.ViewModels.SessionPages;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
+using Sufni.App.Bikes.Coordinators;
+using Sufni.App.Infrastructure;
+using Sufni.App.LiveDaq.Queries;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
+using Sufni.App.LiveDaq.ViewModels.Editors;
+using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.Sessions.Coordination;
+using Sufni.App.Sessions.Processing.SessionDetails;
+using Sufni.App.Sessions.Services;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.LiveDaq.ViewModels.SessionPages;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 namespace Sufni.App.Tests.ViewModels.Editors;
 
 [Collection("Ui")]

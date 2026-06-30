@@ -6,6 +6,10 @@ using Sufni.App.Coordinators;
 using Sufni.App.Services;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Tests.Coordinators;
 
 public class PairingClientCoordinatorTests

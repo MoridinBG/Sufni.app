@@ -1,6 +1,8 @@
 using Sufni.App.Services;
 
-namespace Sufni.App.Tests.Infrastructure;
+using Sufni.App.Sessions.Services;
+using Sufni.App.SyncAndPairing.Services;
+namespace Sufni.App.Tests.TestSupport;
 
 #pragma warning disable CS0067
 internal sealed class TestSynchronizationServerService : ISynchronizationServerService

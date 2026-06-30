@@ -3,11 +3,11 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
-using Sufni.App.DesktopViews;
-using Sufni.App.KeyboardShortcuts;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Shell.DesktopViews;
+using Sufni.App.Shell.KeyboardShortcuts;
+using Sufni.App.Shell.ViewModels;
 namespace Sufni.App.Tests.Views;
 
 [Collection("Ui")]

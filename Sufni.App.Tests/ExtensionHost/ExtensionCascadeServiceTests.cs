@@ -1,9 +1,10 @@
 using SQLite;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.Services;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ExtensionHosting.Database;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.Extensibility.Database;
 namespace Sufni.App.Tests.ExtensionHost;
 
 public class ExtensionCascadeServiceTests

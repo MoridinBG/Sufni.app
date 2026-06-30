@@ -1,8 +1,12 @@
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.SessionGraph;
-using Sufni.App.Stores;
 
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Setups.Stores;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.SyncAndPairing.Stores;
 namespace Sufni.App.Tests.Coordinators;
 
 public class AppDataRefresherTests

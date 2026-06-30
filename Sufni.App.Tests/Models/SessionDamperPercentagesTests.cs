@@ -1,4 +1,3 @@
-using Sufni.App.Models;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;
 

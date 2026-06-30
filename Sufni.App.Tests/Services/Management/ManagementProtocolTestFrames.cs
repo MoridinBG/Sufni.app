@@ -1,8 +1,8 @@
 using System;
 using System.Buffers.Binary;
 using System.Text;
-using Sufni.App.Services.Management;
 
+using Sufni.App.Acquisition.Services.Management;
 namespace Sufni.App.Tests.Services.Management;
 
 internal static class ManagementProtocolTestFrames

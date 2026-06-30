@@ -3,14 +3,14 @@ using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
-using Sufni.App.ExtensionHosting.RecordedSessions;
-using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.Tests.ExtensionHost;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.Editors;
-using Sufni.App.ViewModels.SessionPages;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Extensibility.RecordedSessions;
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
+using Sufni.App.Extensibility.Views;
 namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class RecordedSessionExtensionPagesControllerTests

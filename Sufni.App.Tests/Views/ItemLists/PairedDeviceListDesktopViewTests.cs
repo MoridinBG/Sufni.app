@@ -4,13 +4,15 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.DesktopViews.Controls;
-using Sufni.App.DesktopViews.ItemLists;
 using Sufni.App.Services;
-using Sufni.App.Stores;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.ItemLists;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.DesktopViews.ItemLists;
+using Sufni.App.SyncAndPairing.DesktopViews.Controls;
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.SyncAndPairing.Stores;
+using Sufni.App.SyncAndPairing.ViewModels.ItemLists;
 namespace Sufni.App.Tests.Views.ItemLists;
 
 [Collection("Ui")]

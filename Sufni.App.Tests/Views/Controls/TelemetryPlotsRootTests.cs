@@ -3,13 +3,12 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
 using Avalonia.VisualTree;
-using Sufni.App.Models;
-using Sufni.App.Presentation;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.App.Theming;
-using Sufni.App.Views.Controls;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 
+using Sufni.App.Shared.Views.Controls;
+using Sufni.App.Infrastructure;
 namespace Sufni.App.Tests.Views.Controls;
 
 [Collection("Ui")]

@@ -1,7 +1,7 @@
 using System.Text;
 using Sufni.Telemetry;
 
-namespace Sufni.App.Tests.Infrastructure;
+namespace Sufni.App.Tests.TestSupport;
 
 public static class TestSstFiles
 {

@@ -1,7 +1,8 @@
 using Sufni.App.ExtensionHost.Runtime.Presentation;
-using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
 
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Graph.ViewModels.Editors;
 namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class SessionPlotRowActionsControllerTests

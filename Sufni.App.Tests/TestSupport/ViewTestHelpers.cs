@@ -10,7 +10,8 @@ using Avalonia.VisualTree;
 using Sufni.App;
 using Sufni.App.Theming;
 
-namespace Sufni.App.Tests.Infrastructure;
+using Sufni.App.Infrastructure.Theming;
+namespace Sufni.App.Tests.TestSupport;
 
 public static class ViewTestHelpers
 {
@@ -94,7 +95,7 @@ public static class ViewTestHelpers
     {
         var application = Application.Current
             ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
-        var source = new Uri("avares://Sufni.App/Views/Plots/SufniPlotView.axaml");
+        var source = new Uri("avares://Sufni.App/Shared/Views/Plots/SufniPlotView.axaml");
 
         if (application.Styles.OfType<StyleInclude>().Any(style => style.Source?.AbsoluteUri == source.AbsoluteUri))
         {

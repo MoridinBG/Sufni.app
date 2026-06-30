@@ -1,8 +1,8 @@
-using Sufni.App.Presentation;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 
+using Sufni.App.Sessions.Presentation;
 namespace Sufni.App.Tests.Presentation;
 
 public class SessionStatisticsSurfaceStateTests

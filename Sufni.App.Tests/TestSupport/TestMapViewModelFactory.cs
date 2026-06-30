@@ -1,8 +1,10 @@
 using NSubstitute;
 using Sufni.App.Services;
-using Sufni.App.ViewModels;
 
-namespace Sufni.App.Tests.Infrastructure;
+using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.MapsAndTracks.ViewModels;
+using Sufni.App.Infrastructure;
+namespace Sufni.App.Tests.TestSupport;
 
 /// <summary>
 /// Map-factory fixture: creates real <see cref="MapViewModel"/> instances

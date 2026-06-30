@@ -1,10 +1,11 @@
 using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.Queries;
-using Sufni.App.Stores;
-using Sufni.App.ViewModels.ItemLists;
 
+using Sufni.App.Bikes.Coordinators;
+using Sufni.App.Bikes.Queries;
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Bikes.ViewModels.ItemLists;
 namespace Sufni.App.Tests.ViewModels.ItemLists;
 
 public class BikeListViewModelTests

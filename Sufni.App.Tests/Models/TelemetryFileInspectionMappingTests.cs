@@ -1,9 +1,9 @@
 using Avalonia.Platform.Storage;
 using NSubstitute;
-using Sufni.App.Models;
-using Sufni.App.Tests.Infrastructure;
-using static Sufni.App.Tests.Infrastructure.TestStorageItems;
+using Sufni.App.Tests.TestSupport;
+using static Sufni.App.Tests.TestSupport.TestStorageItems;
 
+using Sufni.App.Acquisition.Models;
 namespace Sufni.App.Tests.Models;
 
 public class TelemetryFileInspectionMappingTests

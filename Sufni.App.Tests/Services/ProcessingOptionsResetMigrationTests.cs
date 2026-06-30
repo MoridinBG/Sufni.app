@@ -3,12 +3,16 @@ using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 using Sufni.App.ExtensionHost.TestSupport;
-using Sufni.App.Models;
 using Sufni.App.Services;
-using Sufni.App.SessionGraph;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Coordination;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Services;
+using Sufni.App.Shell.Coordinators;
 namespace Sufni.App.Tests.Services;
 
 // Coverage for the one-time, per-device processing-option reset normalization.

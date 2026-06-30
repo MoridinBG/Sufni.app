@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Sufni.App.Models;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.Telemetry;
 
-namespace Sufni.App.Tests.Infrastructure;
+using Sufni.App.Sessions.Models;
+namespace Sufni.App.Tests.TestSupport;
 
 /// <summary>
 /// Builds analysis-shaped telemetry fixtures: per-side stroke specs become

@@ -4,12 +4,14 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using NSubstitute;
-using Sufni.App.Models;
 using Sufni.App.Services;
-using Sufni.App.Services.Management;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 
+using Sufni.App.LiveDaq.Services;
+using Sufni.App.Acquisition.Models;
+using Sufni.App.Acquisition.Services;
+using Sufni.App.Acquisition.Services.Management;
 namespace Sufni.App.Tests.Models;
 
 public class NetworkTelemetryDataStoreTests

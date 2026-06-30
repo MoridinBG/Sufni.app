@@ -2,13 +2,16 @@ using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
-using Sufni.App.DesktopViews.Editors;
-using Sufni.App.DesktopViews.Items;
-using Sufni.App.Views.Plots;
-using Sufni.App.SessionDetails;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.Views.Controls;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Sessions.Detail.DesktopViews.Editors;
+using Sufni.App.Sessions.Detail.DesktopViews.Items;
+using Sufni.App.Sessions.Graph.DesktopViews.Items;
+using Sufni.App.Sessions.Media.DesktopViews.Items;
+using Sufni.App.Sessions.Processing.SessionDetails;
+using Sufni.App.Sessions.Statistics.DesktopViews.Items;
+using Sufni.App.Shared.Views.Controls;
+using Sufni.App.Shared.Views.Overlays;
 namespace Sufni.App.Tests.Views.Editors;
 
 [Collection("Ui")]

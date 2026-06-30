@@ -1,6 +1,6 @@
 using Avalonia.Media.Imaging;
 
-namespace Sufni.App.Tests.Infrastructure;
+namespace Sufni.App.Tests.TestSupport;
 
 /// <summary>
 /// Tiny embedded PNG decoded into an Avalonia <see cref="Bitmap"/>.

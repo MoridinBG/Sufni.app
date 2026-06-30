@@ -4,11 +4,10 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.LogicalTree;
 using NSubstitute;
-using Sufni.App.DesktopViews.Editors;
-using Sufni.App.Stores;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.Views.Shared;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Setups.Views.Shared;
 namespace Sufni.App.Tests.Views.Editors;
 
 [Collection("Ui")]

@@ -1,6 +1,6 @@
-using Sufni.App.ViewModels;
 
-namespace Sufni.App.Tests.Infrastructure;
+using Sufni.App.Shared.Base;
+namespace Sufni.App.Tests.TestSupport;
 
 public sealed class TestViewModel : ViewModelBase
 {

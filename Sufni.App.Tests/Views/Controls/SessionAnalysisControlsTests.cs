@@ -1,9 +1,9 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Sufni.App.Models;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.Views.Controls;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Sessions.Analysis.Views.Controls;
+using Sufni.App.Sessions.Models;
 namespace Sufni.App.Tests.Views.Controls;
 
 [Collection("Ui")]

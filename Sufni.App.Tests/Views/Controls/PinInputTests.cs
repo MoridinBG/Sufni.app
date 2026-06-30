@@ -2,9 +2,9 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using CommunityToolkit.Mvvm.Input;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.Views.Controls;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.SyncAndPairing.Views.Controls;
 namespace Sufni.App.Tests.Views.Controls;
 
 [Collection("Ui")]

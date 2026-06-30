@@ -1,7 +1,8 @@
 using Sufni.App.ExtensionHost.Contracts.Sync;
 using Sufni.App.Services;
-using Sufni.App.ExtensionHosting.Sync;
 
+using Sufni.App.Extensibility.Sync;
+using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Tests.ExtensionHost;
 
 public class ExtensionSyncServiceTests

@@ -1,5 +1,5 @@
-using Sufni.App.ViewModels;
 
+using Sufni.App.Shared.Base;
 namespace Sufni.App.Tests.ViewModels;
 
 public class TabPageViewModelBaseTests

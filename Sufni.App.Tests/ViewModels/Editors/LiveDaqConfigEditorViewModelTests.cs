@@ -1,7 +1,7 @@
 using System.Text;
-using Sufni.App.Services.Management;
-using Sufni.App.ViewModels.Editors;
 
+using Sufni.App.Acquisition.Services.Management;
+using Sufni.App.LiveDaq.ViewModels.Editors;
 namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class LiveDaqConfigEditorViewModelTests

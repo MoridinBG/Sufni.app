@@ -1,9 +1,9 @@
-using Sufni.App.Models;
-using Sufni.App.Services.SessionAnalysis;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.Telemetry;
-using static Sufni.App.Tests.Infrastructure.AnalysisTelemetryFixture;
+using static Sufni.App.Tests.TestSupport.AnalysisTelemetryFixture;
 
+using Sufni.App.Sessions.Analysis.Services.SessionAnalysis;
+using Sufni.App.Sessions.Models;
 namespace Sufni.App.Tests.Services.SessionAnalysis;
 
 public class SessionDiagnosticsTests

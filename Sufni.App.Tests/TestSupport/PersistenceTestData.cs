@@ -1,13 +1,13 @@
 using SQLite;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHosting.Database;
-using Sufni.App.Models;
-using Sufni.App.SessionDetails;
 using Sufni.App.Services;
 using Sufni.Telemetry;
 
-namespace Sufni.App.Tests.Infrastructure;
+using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Sessions.Models;
+namespace Sufni.App.Tests.TestSupport;
 
 internal static class PersistenceTestData
 {

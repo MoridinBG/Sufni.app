@@ -1,9 +1,10 @@
 using SQLite;
 using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.Models;
-using Sufni.App.SessionGraph;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.SessionGraph;
 namespace Sufni.App.Tests.Services.Persistence;
 
 public class SessionTelemetryWriterTests

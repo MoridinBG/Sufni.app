@@ -6,10 +6,11 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using NSubstitute;
-using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.SyncAndPairing.Models;
 namespace Sufni.App.Tests.Services;
 
 public class HttpApiServiceTests

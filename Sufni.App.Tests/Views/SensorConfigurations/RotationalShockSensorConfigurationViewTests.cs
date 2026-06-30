@@ -2,13 +2,13 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Sufni.App.Models.SensorConfigurations;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.LinkageParts;
-using Sufni.App.ViewModels.SensorConfigurations;
-using Sufni.App.Views.SensorConfigurations;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Kinematics;
 
+using Sufni.App.Setups.Views.SensorConfigurations;
+using Sufni.App.Bikes.ViewModels.LinkageParts;
+using Sufni.App.Setups.Models.SensorConfigurations;
+using Sufni.App.Setups.ViewModels.SensorConfigurations;
 namespace Sufni.App.Tests.Views.SensorConfigurations;
 
 [Collection("Ui")]

@@ -1,10 +1,11 @@
-using Sufni.App.Models;
-using Sufni.App.SessionDetails;
 using Sufni.App.Services;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
+using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.SessionDetails;
 namespace Sufni.App.Tests.Services;
 
 public class SessionPresentationServiceTests

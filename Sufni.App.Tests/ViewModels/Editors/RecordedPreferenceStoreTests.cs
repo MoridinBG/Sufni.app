@@ -1,8 +1,8 @@
 using NSubstitute;
-using Sufni.App.Models;
 using Sufni.App.Services;
-using Sufni.App.ViewModels.Editors;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Pages.ViewModels.Editors;
 namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class RecordedPreferenceStoreTests

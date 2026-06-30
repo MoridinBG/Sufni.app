@@ -1,8 +1,10 @@
-using Sufni.App.Models;
-using Sufni.App.Stores;
 using Sufni.Kinematics;
 
-namespace Sufni.App.Tests.Infrastructure;
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Setups.Stores;
+using Sufni.App.Bikes.Models;
+namespace Sufni.App.Tests.TestSupport;
 
 /// <summary>
 /// Cheap factory helpers for the snapshot records used by coordinators

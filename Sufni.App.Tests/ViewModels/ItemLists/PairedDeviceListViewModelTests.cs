@@ -2,9 +2,11 @@ using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.Services;
-using Sufni.App.Stores;
-using Sufni.App.ViewModels.ItemLists;
 
+using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.SyncAndPairing.Stores;
+using Sufni.App.SyncAndPairing.ViewModels.ItemLists;
 namespace Sufni.App.Tests.ViewModels.ItemLists;
 
 public class PairedDeviceListViewModelTests

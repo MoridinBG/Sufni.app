@@ -1,12 +1,15 @@
 using System.Reactive.Linq;
 using System.Reactive.Threading.Tasks;
 using System.Text.Json;
-using Sufni.App.Models;
 using Sufni.App.Services;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.App.Theming;
 using Sufni.Telemetry;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Sessions.Models;
+using Sufni.App.SyncAndPairing.Models;
 namespace Sufni.App.Tests.Services;
 
 public class AppPreferencesTests

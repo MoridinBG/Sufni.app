@@ -4,8 +4,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net.Sockets;
 using System.Threading.Tasks;
-using Sufni.App.Services.Management;
 
+using Sufni.App.Acquisition.Services.Management;
 namespace Sufni.App.Tests.Services.Management;
 
 public class DaqManagementServiceTests

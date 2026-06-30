@@ -4,8 +4,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using Sufni.App.Services.Management;
 
+using Sufni.App.Acquisition.Services.Management;
 namespace Sufni.App.Tests.Services.Management;
 
 internal sealed class ManagementTestServer : IAsyncDisposable

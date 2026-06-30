@@ -4,17 +4,21 @@ using System.Text;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.Queries;
-using Sufni.App.SessionDetails;
 using Sufni.App.Services;
-using Sufni.App.Services.Management;
-using Sufni.App.Services.LiveStreaming;
-using Sufni.App.Stores;
 using Sufni.App.Tests.Services.LiveStreaming;
-using Sufni.App.ViewModels.Editors;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
+using Sufni.App.Acquisition.Services;
+using Sufni.App.Acquisition.Services.Management;
+using Sufni.App.Infrastructure;
+using Sufni.App.LiveDaq.Coordinators;
+using Sufni.App.LiveDaq.Queries;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
+using Sufni.App.LiveDaq.Stores;
+using Sufni.App.LiveDaq.ViewModels.Editors;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.Sessions.Processing.SessionDetails;
 namespace Sufni.App.Tests.ViewModels.Editors;
 
 [Collection("Ui")]

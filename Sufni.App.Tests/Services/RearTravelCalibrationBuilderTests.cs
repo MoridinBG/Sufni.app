@@ -1,9 +1,11 @@
-using Sufni.App.Models;
-using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Services;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Kinematics;
 
+using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Services;
+using Sufni.App.Setups.Models;
+using Sufni.App.Setups.Models.SensorConfigurations;
 namespace Sufni.App.Tests.Services;
 
 public class RearTravelCalibrationBuilderTests

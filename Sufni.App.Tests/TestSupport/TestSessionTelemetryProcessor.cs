@@ -1,9 +1,11 @@
 using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.Models;
 using Sufni.App.Services;
 using Sufni.Telemetry;
 
-namespace Sufni.App.Tests.Infrastructure;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.Services;
+namespace Sufni.App.Tests.TestSupport;
 
 /// <summary>
 /// Hand-written <see cref="ISessionTelemetryProcessor"/> stand-in for tests.

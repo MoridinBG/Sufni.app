@@ -1,7 +1,7 @@
-using Sufni.App.Models;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;
 
+using Sufni.App.MapsAndTracks.Models;
 namespace Sufni.App.Tests.Models;
 
 public class TrackTests

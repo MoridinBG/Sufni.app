@@ -7,14 +7,14 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using ScottPlot;
 using ScottPlot.Plottables;
-using Sufni.App.Views.Plots;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
-using Sufni.App.Plots;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
+using static Sufni.App.Tests.TestSupport.TestTelemetryData;
 
+using Sufni.App.Sessions.Plots.Views.Plots;
+using Sufni.App.Sessions.Plots;
 namespace Sufni.App.Tests.Views.Plots;
 
 [Collection("Ui")]

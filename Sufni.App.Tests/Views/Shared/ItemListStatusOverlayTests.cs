@@ -1,6 +1,6 @@
 using Avalonia.Headless.XUnit;
-using Sufni.App.Views.Shared;
 
+using Sufni.App.Shared.Views.Overlays;
 namespace Sufni.App.Tests.Views.Shared;
 
 [Collection("Ui")]

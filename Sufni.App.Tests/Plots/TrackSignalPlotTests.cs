@@ -1,11 +1,10 @@
 using ScottPlot;
 using ScottPlot.Plottables;
-using Sufni.App.Models;
-using Sufni.App.Plots;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;
 
+using Sufni.App.MapsAndTracks.Plots;
 namespace Sufni.App.Tests.Plots;
 
 public class TrackSignalPlotTests

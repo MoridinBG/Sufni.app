@@ -1,6 +1,7 @@
 using System.Text;
 using Sufni.App.Services;
 
+using Sufni.App.Bikes.Services;
 namespace Sufni.App.Tests.Services;
 
 public class LeverageRatioCsvParserTests

@@ -7,17 +7,17 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
-using Sufni.App.Models;
-using Sufni.App.Presentation;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.App.Theming;
-using Sufni.App.Views.Controls;
-using Sufni.App.Views.Plots;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
+using Sufni.App.Shared.Views.Controls;
+using Sufni.App.Shared.Views.Plots;
+using Sufni.App.Extensibility.Views;
+using Sufni.App.Infrastructure;
 namespace Sufni.App.Tests.Views.Controls;
 
 [Collection("Ui")]

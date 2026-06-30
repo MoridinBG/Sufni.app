@@ -1,10 +1,10 @@
 using System.Linq;
 using ScottPlot;
 using ScottPlot.Plottables;
-using Sufni.App.Plots;
 using Sufni.Telemetry;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
+using static Sufni.App.Tests.TestSupport.TestTelemetryData;
 
+using Sufni.App.LiveDaq.Plots;
 namespace Sufni.App.Tests.Plots;
 
 public class FramePitchRollPlotTests

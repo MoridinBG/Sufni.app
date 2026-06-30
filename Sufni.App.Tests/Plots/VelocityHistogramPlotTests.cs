@@ -1,11 +1,11 @@
 using System.Linq;
 using ScottPlot;
 using ScottPlot.Plottables;
-using Sufni.App.Plots;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
-using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
+using static Sufni.App.Tests.TestSupport.PlotTestHelpers;
 
+using Sufni.App.Sessions.Plots;
 namespace Sufni.App.Tests.Plots;
 
 public class VelocityHistogramPlotTests

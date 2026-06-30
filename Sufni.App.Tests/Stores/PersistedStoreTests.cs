@@ -1,10 +1,18 @@
 using System.Reactive.Linq;
 using DynamicData;
 using NSubstitute;
-using Sufni.App.Models;
 using Sufni.App.Services;
-using Sufni.App.Stores;
 
+using Sufni.App.Sessions.Services;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Setups.Models;
+using Sufni.App.Setups.Stores;
+using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.SyncAndPairing.Stores;
 namespace Sufni.App.Tests.Stores;
 
 public class PersistedStoreTests

@@ -1,20 +1,26 @@
-global using Sufni.App.Tests.Infrastructure;
+global using Sufni.App.Tests.TestSupport;
 
 using System;
 using System.Threading;
 using System.Threading.Tasks;
 using NSubstitute;
-using Sufni.App.BikeEditing;
 using Sufni.App.Coordinators;
-using Sufni.App.Models;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;
-using Sufni.App.SessionGraph;
 using Sufni.App.Services;
-using Sufni.App.Services.LiveStreaming;
-using Sufni.App.SetupEditing;
 using Sufni.Kinematics;
 
-namespace Sufni.App.Tests.Infrastructure;
+using Sufni.App.Acquisition.Coordinators;
+using Sufni.App.Bikes.Coordinators;
+using Sufni.App.LiveDaq.Coordinators;
+using Sufni.App.MapsAndTracks.Coordinators;
+using Sufni.App.Sessions.Coordination;
+using Sufni.App.Setups.Coordinators;
+using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.ViewModels.Editors;
+using Sufni.App.Setups.Models;
+using Sufni.App.Setups.ViewModels.Editors;
+namespace Sufni.App.Tests.TestSupport;
 
 internal static class TestCoordinatorSubstitutes
 {

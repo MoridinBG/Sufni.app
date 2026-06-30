@@ -6,14 +6,17 @@ using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.Models;
-using Sufni.App.Presentation;
-using Sufni.App.ViewModels.Editors;
-using Sufni.App.ViewModels.SessionPages;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ViewModels;
 
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Statistics.ViewModels.Editors;
+using Sufni.App.Shared.Base;
+using Sufni.App.Sessions.Graph.ViewModels.Editors;
+using Sufni.App.Sessions.Media.ViewModels.Editors;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
+using Sufni.App.Sessions.Presentation;
 namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class SessionWorkspaceViewModelTests

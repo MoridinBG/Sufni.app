@@ -7,21 +7,24 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Layout;
 using Avalonia.VisualTree;
 using NSubstitute;
-using Sufni.App.DesktopViews.Controls;
-using Sufni.App.DesktopViews.Items;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
-using Sufni.App.Models;
-using Sufni.App.Presentation;
 using Sufni.App.Services;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels;
-using Sufni.App.ViewModels.Editors;
-using Sufni.App.Views;
-using Sufni.App.Views.Controls;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.ViewModels;
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Graph.ViewModels.Editors;
+using Sufni.App.Sessions.Media.DesktopViews.Items;
+using Sufni.App.Shared.DesktopViews.Controls;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.MapsAndTracks.Views;
+using Sufni.App.Sessions.Media.Views.Controls;
+using Sufni.App.Shared.Views.Overlays;
 namespace Sufni.App.Tests.Views.Items;
 
 [Collection("Ui")]

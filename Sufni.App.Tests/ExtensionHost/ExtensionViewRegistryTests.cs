@@ -1,10 +1,10 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Sufni.App.ExtensionHost.Contracts;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ExtensionHosting;
-using Sufni.App.ViewModels.SessionPages;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.ExtensionHost.Contracts.Capabilities;
+using Sufni.App.Extensibility.Views;
 namespace Sufni.App.Tests.ExtensionHost;
 
 [Collection("Ui")]

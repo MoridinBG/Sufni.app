@@ -2,12 +2,12 @@ using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
-using Sufni.App.Views.Plots;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.Editors;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
-using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
+using Sufni.App.Tests.TestSupport;
+using static Sufni.App.Tests.TestSupport.TestTelemetryData;
+using static Sufni.App.Tests.TestSupport.PlotTestHelpers;
 
+using Sufni.App.Sessions.Graph.ViewModels.Editors;
+using Sufni.App.Sessions.Plots.Views.Plots;
 namespace Sufni.App.Tests.Views.Plots;
 
 [Collection("Ui")]

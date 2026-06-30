@@ -8,17 +8,19 @@ using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using ScottPlot.Avalonia;
 using ScottPlot.Plottables;
-using Sufni.App.DesktopViews.Items;
-using Sufni.App.Views.Plots;
-using Sufni.App.Models;
-using Sufni.App.Presentation;
-using Sufni.App.Services.LiveStreaming;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.Views.Controls;
-using Sufni.App.ViewModels.Editors;
+using Sufni.App.Tests.TestSupport;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 
+using Sufni.App.Acquisition.Models;
+using Sufni.App.Infrastructure;
+using Sufni.App.LiveDaq.DesktopViews.Items;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
+using Sufni.App.LiveDaq.Views.Plots;
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Graph.ViewModels.Editors;
+using Sufni.App.Shared.Views.Controls;
+using Sufni.App.LiveDaq.Views.Controls;
 namespace Sufni.App.Tests.Views;
 
 [Collection("Ui")]

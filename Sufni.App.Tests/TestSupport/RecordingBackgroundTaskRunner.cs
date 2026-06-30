@@ -1,7 +1,7 @@
 using Sufni.App.Services;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
-namespace Sufni.App.Tests.Infrastructure;
+namespace Sufni.App.Tests.TestSupport;
 
 public sealed class RecordingBackgroundTaskRunner : IBackgroundTaskRunner
 {

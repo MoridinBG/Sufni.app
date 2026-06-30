@@ -1,8 +1,9 @@
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.Tests.Views;
-using Sufni.App.ViewModels;
 
+using Sufni.App.Shell.ViewModels;
+using Sufni.App.Shell.Coordinators;
 namespace Sufni.App.Tests.ViewModels;
 
 public class MainViewModelTests

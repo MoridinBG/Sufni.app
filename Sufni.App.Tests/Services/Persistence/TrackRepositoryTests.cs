@@ -2,12 +2,11 @@ using SQLite;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHosting.Database;
-using Sufni.App.Models;
 using Sufni.App.Services;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 
+using Sufni.App.MapsAndTracks.Models;
 namespace Sufni.App.Tests.Services.Persistence;
 
 public class TrackRepositoryTests

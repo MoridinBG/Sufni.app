@@ -1,10 +1,10 @@
 using System.Globalization;
 using ScottPlot;
 using ScottPlot.Plottables;
-using Sufni.App.Plots;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 
+using Sufni.App.Sessions.Plots;
 namespace Sufni.App.Tests.Plots;
 
 public class StatisticsBarReadoutTests

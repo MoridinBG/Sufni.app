@@ -1,6 +1,6 @@
 using System.Globalization;
-using Sufni.App.Formatting;
 
+using Sufni.App.Shared.Formatting;
 namespace Sufni.App.Tests.Formatting;
 
 public class UnitsFormatterTests

@@ -11,21 +11,19 @@ using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Controls.Shapes;
 using Avalonia.VisualTree;
 using NSubstitute;
-using Sufni.App.Behaviors;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
-using Sufni.App.Models;
-using Sufni.App.Presentation;
-using Sufni.App.SessionDetails;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.Views.Controls;
-using Sufni.App.ViewModels.Editors;
-using Sufni.App.Views.Plots;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Plots.Views.Plots;
+using Sufni.App.Sessions.Processing.SessionDetails;
+using Sufni.App.Sessions.Statistics.Views.Controls;
+using Sufni.App.Shell.Behaviors;
 namespace Sufni.App.Tests.Views.Plots;
 
 [Collection("Ui")]
@@ -408,7 +406,7 @@ public class VelocityBandViewTests
         ViewTestHelpers.EnsureViewTestResources();
         var application = Application.Current
             ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
-        var source = new Uri("avares://Sufni.App/Views/Plots/VelocityBandView.axaml");
+        var source = new Uri("avares://Sufni.App/Sessions/Plots/Views/Plots/VelocityBandView.axaml");
         if (application.Styles.OfType<StyleInclude>().Any(style => style.Source?.AbsoluteUri == source.AbsoluteUri))
         {
             return;

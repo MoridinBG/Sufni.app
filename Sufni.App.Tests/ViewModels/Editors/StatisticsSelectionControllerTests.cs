@@ -1,7 +1,7 @@
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.Editors;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 
+using Sufni.App.Sessions.Statistics.ViewModels.Editors;
 namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class StatisticsSelectionControllerTests

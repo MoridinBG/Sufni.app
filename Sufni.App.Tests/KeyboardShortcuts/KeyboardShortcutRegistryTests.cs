@@ -1,6 +1,6 @@
 using Avalonia.Input;
-using Sufni.App.KeyboardShortcuts;
 
+using Sufni.App.Shell.KeyboardShortcuts;
 namespace Sufni.App.Tests.KeyboardShortcuts;
 
 public class KeyboardShortcutRegistryTests

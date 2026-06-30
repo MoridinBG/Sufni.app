@@ -1,11 +1,11 @@
 using ScottPlot;
 using ScottPlot.Plottables;
-using Sufni.App.Plots;
 using Sufni.Telemetry;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
-using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
+using static Sufni.App.Tests.TestSupport.TestTelemetryData;
+using static Sufni.App.Tests.TestSupport.PlotTestHelpers;
 using Sufni.App.ExtensionHost.Contracts.Plots;
 
+using Sufni.App.Sessions.Plots;
 namespace Sufni.App.Tests.Plots;
 
 public class TravelPlotAirtimeLabelTests

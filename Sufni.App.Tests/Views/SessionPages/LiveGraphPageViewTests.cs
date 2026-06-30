@@ -10,20 +10,23 @@ using Avalonia.VisualTree;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
-using Sufni.App.Models;
-using Sufni.App.Presentation;
 using Sufni.App.Services;
-using Sufni.App.Services.LiveStreaming;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels;
-using Sufni.App.ViewModels.Editors;
-using Sufni.App.ViewModels.SessionPages;
-using Sufni.App.Views;
-using Sufni.App.Views.Controls;
-using Sufni.App.Views.SessionPages;
+using Sufni.App.Tests.TestSupport;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 
+using Sufni.App.LiveDaq.ViewModels.SessionPages;
+using Sufni.App.LiveDaq.Views.SessionPages;
+using Sufni.App.MapsAndTracks.ViewModels;
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Graph.ViewModels.Editors;
+using Sufni.App.Infrastructure;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
+using Sufni.App.LiveDaq.Views.Controls;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.MapsAndTracks.Views;
+using Sufni.App.Shared.Views.Overlays;
 namespace Sufni.App.Tests.Views.SessionPages;
 
 [Collection("Ui")]

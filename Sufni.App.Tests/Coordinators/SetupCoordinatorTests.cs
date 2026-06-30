@@ -2,13 +2,22 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.Database;
-using Sufni.App.Models;
 using Sufni.App.Services;
-using Sufni.App.Stores;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHosting.Database;
 
+using Sufni.App.Acquisition.Services;
+using Sufni.App.Bikes.Coordinators;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Extensibility.Database;
+using Sufni.App.Infrastructure;
+using Sufni.App.Setups.Coordinators;
+using Sufni.App.Setups.Models;
+using Sufni.App.Setups.Stores;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Tests.Coordinators;
 
 public class SetupCoordinatorTests

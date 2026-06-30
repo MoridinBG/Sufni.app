@@ -3,13 +3,20 @@ using SQLite;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHosting.Database;
-using Sufni.App.Models;
 using Sufni.App.Services;
-using Sufni.App.SessionGraph;
 using Sufni.Telemetry;
 
-namespace Sufni.App.Tests.Infrastructure;
+using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Services;
+using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.Extensibility.Database;
+namespace Sufni.App.Tests.TestSupport;
 
 internal sealed class TestPersistenceHarness
 {

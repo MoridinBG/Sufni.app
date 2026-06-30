@@ -3,14 +3,21 @@ using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHosting.Database;
-using Sufni.App.Models;
-using Sufni.App.SessionGraph;
 using Sufni.App.Services;
-using Sufni.App.Stores;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 
+using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Setups.Models;
+using Sufni.App.Extensibility.Database;
+using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Setups.Stores;
+using Sufni.App.SyncAndPairing.Models;
 namespace Sufni.App.Tests.Services.Persistence;
 
 public class DatabaseMigrationRunnerTests

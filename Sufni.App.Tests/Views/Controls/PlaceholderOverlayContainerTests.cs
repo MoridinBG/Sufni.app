@@ -1,11 +1,11 @@
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 using Avalonia.Headless.XUnit;
-using Sufni.App.Presentation;
-using Sufni.App.Views.Controls;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 
+using Sufni.App.Shared.Views.Overlays;
+using Sufni.App.Shared.Views.Controls;
 namespace Sufni.App.Tests.Views.Controls;
 
 [Collection("Ui")]

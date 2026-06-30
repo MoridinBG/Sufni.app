@@ -1,12 +1,12 @@
 using System.Linq;
 using Avalonia.Headless.XUnit;
 using ScottPlot.Plottables;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.Editors;
-using Sufni.App.Views.Plots;
+using Sufni.App.Tests.TestSupport;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
+using Sufni.App.Extensibility.Views;
+using Sufni.App.Sessions.Graph.ViewModels.Editors;
 namespace Sufni.App.Tests.Views.Plots;
 
 [Collection("Ui")]

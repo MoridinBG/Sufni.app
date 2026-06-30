@@ -1,5 +1,6 @@
-using Sufni.App.Models;
 
+using Sufni.App.Acquisition.Models;
+using Sufni.App.Infrastructure;
 namespace Sufni.App.Tests.Models;
 
 public class TelemetrySourceVisibilityStoreTests

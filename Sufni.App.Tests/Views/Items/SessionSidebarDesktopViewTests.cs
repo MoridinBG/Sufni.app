@@ -6,13 +6,13 @@ using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Sufni.App.DesktopViews.Items;
-using Sufni.App.Models;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.Editors;
-using Sufni.App.ViewModels.SessionPages;
-using Sufni.App.Views.SessionPages;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Sessions.Detail.DesktopViews.Items;
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
+using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Pages.Views.SessionPages;
 namespace Sufni.App.Tests.Views.Items;
 
 [Collection("Ui")]

@@ -1,13 +1,12 @@
 using Avalonia.Headless.XUnit;
 using ScottPlot.Plottables;
-using Sufni.App.Views.Plots;
-using Sufni.App.Models;
-using Sufni.App.Plots;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
+using static Sufni.App.Tests.TestSupport.TestTelemetryData;
 using Sufni.App.ExtensionHost.Contracts.Models;
 
+using Sufni.App.MapsAndTracks.Views.Plots;
+using Sufni.App.MapsAndTracks.Plots;
 namespace Sufni.App.Tests.Views.Plots;
 
 [Collection("Ui")]

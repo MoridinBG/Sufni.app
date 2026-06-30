@@ -4,12 +4,12 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
-using Sufni.App.Queries;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.ItemLists;
-using Sufni.App.Views.Controls;
-using Sufni.App.Views.ItemLists;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Bikes.Queries;
+using Sufni.App.Bikes.ViewModels.ItemLists;
+using Sufni.App.Bikes.Views.ItemLists;
+using Sufni.App.Shared.Views.Controls;
 namespace Sufni.App.Tests.Views.ItemLists;
 
 [Collection("Ui")]

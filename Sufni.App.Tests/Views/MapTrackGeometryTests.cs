@@ -1,7 +1,7 @@
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.Views;
 
+using Sufni.App.MapsAndTracks.Views;
 namespace Sufni.App.Tests.Views;
 
 public class MapTrackGeometryTests

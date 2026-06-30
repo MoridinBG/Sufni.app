@@ -1,7 +1,9 @@
 using Avalonia.Controls;
 using Sufni.App.ExtensionHost.Contracts;
-using Sufni.App.ExtensionHosting;
 
+using Sufni.App.Extensibility.Capabilities;
+using Sufni.App.Extensibility.Views;
+using Sufni.App.ExtensionHost.Contracts.Capabilities;
 namespace Sufni.App.ExtensionHost.TestSupport;
 
 /// <summary>

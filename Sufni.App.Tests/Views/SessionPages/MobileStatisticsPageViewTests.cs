@@ -9,19 +9,20 @@ using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
-using Sufni.App.Models;
-using Sufni.App.Presentation;
-using Sufni.App.SessionDetails;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.Editors;
-using Sufni.App.ViewModels.SessionPages;
-using Sufni.App.Views.Controls;
-using Sufni.App.Views.SessionPages;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Extensibility.Views;
+using Sufni.App.Sessions.Analysis.ViewModels.SessionPages;
+using Sufni.App.Sessions.Analysis.Views.SessionPages;
+using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
+using Sufni.App.Sessions.Pages.Views.SessionPages;
+using Sufni.App.Sessions.Statistics.Views.Controls;
 namespace Sufni.App.Tests.Views.SessionPages;
 
 [Collection("Ui")]

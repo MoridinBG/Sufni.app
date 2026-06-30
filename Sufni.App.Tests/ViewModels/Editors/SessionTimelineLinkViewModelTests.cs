@@ -1,5 +1,5 @@
-using Sufni.App.ViewModels.Editors;
 
+using Sufni.App.Sessions.Graph.ViewModels.Editors;
 namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class SessionTimelineLinkViewModelTests

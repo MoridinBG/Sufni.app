@@ -8,24 +8,23 @@ using Avalonia.Input;
 using NSubstitute;
 using ScottPlot;
 using ScottPlot.Plottables;
-using Sufni.App.Behaviors;
-using Sufni.App.Views.Plots;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
-using Sufni.App.Models;
-using Sufni.App.Presentation;
-using Sufni.App.Plots;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.Editors;
-using Sufni.App.Views.Controls;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 using AvaloniaColor = Avalonia.Media.Color;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
-using static Sufni.App.Tests.Infrastructure.PlotTestHelpers;
+using static Sufni.App.Tests.TestSupport.TestTelemetryData;
+using static Sufni.App.Tests.TestSupport.PlotTestHelpers;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 
+using Sufni.App.Acquisition.Models;
+using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Graph.ViewModels.Editors;
+using Sufni.App.Sessions.Plots.Views.Plots;
+using Sufni.App.Shell.Behaviors;
 namespace Sufni.App.Tests.Views.Plots;
 
 [Collection("Ui")]

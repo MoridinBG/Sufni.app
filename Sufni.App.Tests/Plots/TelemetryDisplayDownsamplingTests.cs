@@ -1,5 +1,5 @@
-using Sufni.App.Plots;
 
+using Sufni.App.Shared.Plots;
 namespace Sufni.App.Tests.Plots;
 
 public class TelemetryDisplayDownsamplingTests

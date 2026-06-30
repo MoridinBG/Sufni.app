@@ -1,10 +1,10 @@
 using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels;
-using Sufni.App.Views;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Shell.ViewModels;
+using Sufni.App.Shell.Views;
 namespace Sufni.App.Tests.Views;
 
 internal static class ListHostTestSupport

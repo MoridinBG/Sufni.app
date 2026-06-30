@@ -2,7 +2,7 @@ using Avalonia;
 using ScottPlot;
 using ScottPlot.Plottables;
 
-namespace Sufni.App.Tests.Infrastructure;
+namespace Sufni.App.Tests.TestSupport;
 
 public static class PlotTestHelpers
 {

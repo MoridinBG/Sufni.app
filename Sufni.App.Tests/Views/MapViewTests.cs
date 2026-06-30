@@ -10,14 +10,16 @@ using Mapsui.Widgets.InfoWidgets;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
-using Sufni.App.Models;
 using Sufni.App.Services;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels;
-using Sufni.App.ViewModels.Editors;
-using Sufni.App.Views;
+using Sufni.App.Tests.TestSupport;
 using Sufni.App.ExtensionHost.Contracts.Models;
 
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.ViewModels;
+using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.MapsAndTracks.Views;
+using Sufni.App.Sessions.Graph.ViewModels.Editors;
 namespace Sufni.App.Tests.Views;
 
 [Collection("Ui")]

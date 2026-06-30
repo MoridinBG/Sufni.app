@@ -1,6 +1,6 @@
 using System;
 
-namespace Sufni.App.Tests.Infrastructure;
+namespace Sufni.App.Tests.TestSupport;
 
 /// <summary>
 /// A <see cref="Sufni.App.App"/> subclass used by the headless test

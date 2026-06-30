@@ -1,7 +1,7 @@
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.SessionDetails;
 using Sufni.Telemetry;
 
+using Sufni.App.Sessions.Processing.SessionDetails;
 namespace Sufni.App.Tests.Models;
 
 public class DampingSpeedCutoffsTests

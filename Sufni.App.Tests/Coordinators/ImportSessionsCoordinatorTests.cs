@@ -5,18 +5,26 @@ using System.Threading;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Coordinators;
-using Sufni.App.Models;
-using Sufni.App.SessionGraph;
 using Sufni.App.Services;
-using Sufni.App.Services.Management;
-using Sufni.App.Stores;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
-using static Sufni.App.Tests.Infrastructure.TestTelemetrySources;
+using static Sufni.App.Tests.TestSupport.TestTelemetryData;
+using static Sufni.App.Tests.TestSupport.TestTelemetrySources;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
+using Sufni.App.Acquisition.Coordinators;
+using Sufni.App.Acquisition.Services;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Setups.Models;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.Acquisition.Models;
+using Sufni.App.Acquisition.Services.Management;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Sessions.Models;
 namespace Sufni.App.Tests.Coordinators;
 
 public class ImportSessionsCoordinatorTests

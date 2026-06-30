@@ -6,8 +6,8 @@ using System.Reactive.Threading.Tasks;
 using System.Threading.Tasks;
 using Serilog;
 using Serilog.Core;
-using Sufni.App.Services.LiveStreaming;
 
+using Sufni.App.LiveDaq.Services.LiveStreaming;
 namespace Sufni.App.Tests.Services.LiveStreaming;
 
 public class LiveGraphPipelineTests

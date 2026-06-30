@@ -1,7 +1,7 @@
-using Sufni.App.Models.SensorConfigurations;
-using Sufni.App.ViewModels.SensorConfigurations;
 using Xunit;
 
+using Sufni.App.Setups.Models.SensorConfigurations;
+using Sufni.App.Setups.ViewModels.SensorConfigurations;
 namespace Sufni.App.Tests.ViewModels.SensorConfigurations;
 
 public class LinearSensorConfigurationViewModelTests

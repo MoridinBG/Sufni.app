@@ -7,13 +7,23 @@ using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.Services;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.App.Tests.Views;
-using Sufni.App.Stores;
 using Sufni.App.Theming;
-using Sufni.App.ViewModels;
-using Sufni.App.ViewModels.ItemLists;
 
+using Sufni.App.ExtensionHost.Contracts.Capabilities;
+using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Infrastructure.Theming;
+using Sufni.App.LiveDaq.Stores;
+using Sufni.App.LiveDaq.ViewModels.ItemLists;
+using Sufni.App.MapsAndTracks.Coordinators;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Setups.Stores;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.Shell.ViewModels;
+using Sufni.App.SyncAndPairing.Stores;
 namespace Sufni.App.Tests.ViewModels;
 
 [Collection("Ui")]

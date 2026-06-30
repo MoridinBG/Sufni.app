@@ -1,9 +1,10 @@
 using System.Reactive.Linq;
 using NSubstitute;
-using Sufni.App.Models;
 using Sufni.App.Services;
 
-namespace Sufni.App.Tests.Infrastructure;
+using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.MapsAndTracks.Models;
+namespace Sufni.App.Tests.TestSupport;
 
 public static class TileLayerServiceTestExtensions
 {

@@ -7,16 +7,18 @@ using Avalonia.VisualTree;
 using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.DesktopViews.Controls;
-using Sufni.App.DesktopViews.ItemLists;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.SessionGraph;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.ItemLists;
-using Sufni.App.Views.Controls;
-using Sufni.App.Views.ItemLists;
+using Sufni.App.Tests.TestSupport;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 
+using Sufni.App.Sessions.Coordination;
+using Sufni.App.Sessions.Lists.DesktopViews.Controls;
+using Sufni.App.Sessions.Lists.DesktopViews.ItemLists;
+using Sufni.App.Sessions.Lists.ViewModels.ItemLists;
+using Sufni.App.Sessions.Lists.Views.Controls;
+using Sufni.App.Sessions.Lists.Views.ItemLists;
+using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Shared.Views.Controls;
 namespace Sufni.App.Tests.Views.ItemLists;
 
 [Collection("Ui")]

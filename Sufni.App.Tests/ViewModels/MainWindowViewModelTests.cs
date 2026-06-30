@@ -1,7 +1,8 @@
 using System.Collections.Specialized;
 using Sufni.App.Tests.Views;
-using Sufni.App.ViewModels;
 
+using Sufni.App.Shared.Base;
+using Sufni.App.Shell.ViewModels;
 namespace Sufni.App.Tests.ViewModels;
 
 public class MainWindowViewModelTests

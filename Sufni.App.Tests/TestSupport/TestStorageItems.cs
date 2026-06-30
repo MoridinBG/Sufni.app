@@ -1,6 +1,6 @@
 using Avalonia.Platform.Storage;
 
-namespace Sufni.App.Tests.Infrastructure;
+namespace Sufni.App.Tests.TestSupport;
 
 public static class TestStorageItems
 {

@@ -1,11 +1,13 @@
 using ScottPlot;
 using ScottPlot.Plottables;
-using Sufni.App.Models;
-using Sufni.App.Plots;
 using Sufni.App.Theming;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Plots;
 
+using Sufni.App.Sessions.Plots;
+using Sufni.App.Infrastructure;
+using Sufni.App.Infrastructure.Theming;
+using Sufni.App.Shared.Plots;
 namespace Sufni.App.Tests.Plots;
 
 public class RecordedTimeSeriesPlotTests

@@ -3,12 +3,18 @@ using Avalonia.Headless.XUnit;
 using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.Services;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels;
-using Sufni.App.Stores;
-using Sufni.App.Views;
-using Sufni.App.Views.Controls;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Shell.Views;
+using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Setups.Stores;
+using Sufni.App.Shared.Views.Overlays;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.Shell.ViewModels;
+using Sufni.App.SyncAndPairing.Stores;
 namespace Sufni.App.Tests.Views;
 
 [Collection("Ui")]

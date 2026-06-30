@@ -1,6 +1,6 @@
 using Sufni.App.ExtensionHost.Contracts.Database;
 
-namespace Sufni.App.Tests.Infrastructure;
+namespace Sufni.App.Tests.TestSupport;
 
 internal sealed class TestExtensionMigrator(
     string extensionId,

@@ -5,11 +5,11 @@ using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.Stores;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.ItemLists;
-using Sufni.App.Views.ItemLists;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.LiveDaq.ViewModels.ItemLists;
+using Sufni.App.LiveDaq.Views.ItemLists;
+using Sufni.App.LiveDaq.Stores;
 namespace Sufni.App.Tests.Views;
 
 [Collection("Ui")]

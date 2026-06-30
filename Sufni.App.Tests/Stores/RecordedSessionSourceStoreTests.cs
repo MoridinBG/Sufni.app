@@ -1,9 +1,10 @@
 using DynamicData;
 using NSubstitute;
-using Sufni.App.Models;
 using Sufni.App.Services;
-using Sufni.App.Stores;
 
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Store;
 namespace Sufni.App.Tests.Stores;
 
 public class RecordedSessionSourceStoreTests

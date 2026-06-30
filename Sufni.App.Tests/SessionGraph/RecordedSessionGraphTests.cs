@@ -1,13 +1,16 @@
 using System.Linq;
 using System.Reactive.Linq;
 using DynamicData;
-using Sufni.App.Models;
-using Sufni.App.SessionGraph;
-using Sufni.App.Stores;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Setups.Stores;
+using Sufni.App.Infrastructure;
 namespace Sufni.App.Tests.SessionGraph;
 
 public class RecordedSessionGraphTests

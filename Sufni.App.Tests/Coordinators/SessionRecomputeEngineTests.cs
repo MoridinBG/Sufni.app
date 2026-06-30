@@ -3,13 +3,19 @@ using NSubstitute;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.SessionGraph;
 using Sufni.App.ExtensionHost.TestSupport;
-using Sufni.App.Models;
-using Sufni.App.SessionGraph;
 using Sufni.App.Services;
-using Sufni.App.Stores;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Sessions.Coordination;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Store;
+using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Tests.Coordinators;
 
 // Engine-level coverage for the serialized cancel-and-replace recompute engine and

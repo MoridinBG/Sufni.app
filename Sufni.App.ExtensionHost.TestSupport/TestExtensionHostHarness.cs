@@ -1,7 +1,7 @@
 using SQLite;
 using Sufni.App.ExtensionHost.Contracts.Database;
-using Sufni.App.ExtensionHosting.Database;
 
+using Sufni.App.Extensibility.Database;
 namespace Sufni.App.ExtensionHost.TestSupport;
 
 /// <summary>

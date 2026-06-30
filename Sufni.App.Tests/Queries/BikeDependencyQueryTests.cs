@@ -1,10 +1,12 @@
 using System.Reactive;
 using NSubstitute;
-using Sufni.App.Models;
-using Sufni.App.Queries;
 using Sufni.App.Services;
-using Sufni.App.Stores;
 
+using Sufni.App.Bikes.Queries;
+using Sufni.App.Setups.Models;
+using Sufni.App.Setups.Stores;
+using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Tests.Queries;
 
 public class BikeDependencyQueryTests

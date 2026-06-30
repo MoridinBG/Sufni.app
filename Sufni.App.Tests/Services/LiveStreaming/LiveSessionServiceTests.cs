@@ -7,17 +7,17 @@ using System.Threading;
 using System.Threading.Tasks;
 using NSubstitute;
 using Serilog.Core;
-using Sufni.App.Models;
-using Sufni.App.Queries;
-using Sufni.App.SessionDetails;
 using Sufni.App.Services;
-using Sufni.App.Services.LiveStreaming;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
+using Sufni.App.LiveDaq.Queries;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
+using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Processing.SessionDetails;
 namespace Sufni.App.Tests.Services.LiveStreaming;
 
 public class LiveSessionServiceTests

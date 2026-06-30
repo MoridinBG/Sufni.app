@@ -1,10 +1,12 @@
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.Models;
 using Sufni.App.Services;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.SyncAndPairing.ViewModels;
 namespace Sufni.App.Tests.ViewModels;
 
 public class PairingServerViewModelTests

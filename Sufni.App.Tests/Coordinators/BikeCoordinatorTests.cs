@@ -1,21 +1,25 @@
 using Avalonia.Headless.XUnit;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Sufni.App.BikeEditing;
 using Sufni.App.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.Database;
-using Sufni.App.Models;
-using Sufni.App.Queries;
-using Sufni.App.SessionDetails;
 using Sufni.App.Services;
-using Sufni.App.Stores;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.Kinematics;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHosting.Database;
 
+using Sufni.App.Bikes.Coordinators;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Queries;
+using Sufni.App.Bikes.Services;
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Extensibility.Database;
+using Sufni.App.Infrastructure;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.Bikes.ViewModels.Editors;
 namespace Sufni.App.Tests.Coordinators;
 
 public class BikeCoordinatorTests

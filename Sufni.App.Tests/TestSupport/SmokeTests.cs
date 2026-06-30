@@ -1,7 +1,7 @@
 using Avalonia.Headless.XUnit;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 
-namespace Sufni.App.Tests.Infrastructure;
+namespace Sufni.App.Tests.TestSupport;
 
 [Collection("Ui")]
 public class SmokeTests

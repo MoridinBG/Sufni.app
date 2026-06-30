@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
-using Sufni.App.Plots;
-using Sufni.App.Services.LiveStreaming;
 
+using Sufni.App.LiveDaq.Services.LiveStreaming;
+using Sufni.App.LiveDaq.Plots;
 namespace Sufni.App.Tests.Plots;
 
 public class LiveTravelPlotTests

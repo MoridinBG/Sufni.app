@@ -1,6 +1,6 @@
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHosting.RecordedSessions;
 
+using Sufni.App.Extensibility.RecordedSessions;
 namespace Sufni.App.Tests.ExtensionHost;
 
 public class RecordedSessionOperationCoordinatorTests

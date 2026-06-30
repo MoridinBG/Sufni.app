@@ -2,8 +2,10 @@ using System;
 using System.Linq;
 using System.Reactive.Linq;
 using DynamicData;
-using Sufni.App.Stores;
 
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Setups.Stores;
+using Sufni.App.SyncAndPairing.Stores;
 namespace Sufni.App.Tests.Views.ItemLists;
 
 internal sealed class BikeStoreStub : IBikeStore

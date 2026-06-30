@@ -3,15 +3,20 @@ using Avalonia.Controls;
 using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.DesktopViews.Editors;
-using Sufni.App.Models;
-using Sufni.App.Models.SensorConfigurations;
 using Sufni.App.Services;
-using Sufni.App.Stores;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.Editors;
-using Sufni.App.Views.Editors;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Bikes.Coordinators;
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Infrastructure;
+using Sufni.App.Setups.Coordinators;
+using Sufni.App.Setups.DesktopViews.Editors;
+using Sufni.App.Setups.Stores;
+using Sufni.App.Setups.ViewModels.Editors;
+using Sufni.App.Setups.Views.Editors;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Setups.Models.SensorConfigurations;
 namespace Sufni.App.Tests.Views.Editors;
 
 internal sealed class SetupEditorViewTestContext : IDisposable

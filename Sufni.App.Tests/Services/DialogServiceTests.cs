@@ -4,10 +4,11 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using Sufni.App.Services;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.Views;
+using Sufni.App.Tests.TestSupport;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Views;
 namespace Sufni.App.Tests.Services;
 
 [Collection("Ui")]

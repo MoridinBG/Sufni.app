@@ -6,11 +6,12 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Svg.Skia;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels;
-using Sufni.App.Views;
-using Sufni.App.Views.Controls;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Shell.Views;
+using Sufni.App.Extensibility.Views;
+using Sufni.App.ExtensionHost.Contracts.Capabilities;
+using Sufni.App.Shared.Views.Controls;
 namespace Sufni.App.Tests.Views;
 
 [Collection("Ui")]

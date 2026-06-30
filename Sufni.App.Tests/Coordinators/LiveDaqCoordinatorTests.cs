@@ -3,16 +3,23 @@ using System.Reactive.Subjects;
 using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.Queries;
-using Sufni.App.SessionDetails;
 using Sufni.App.Services;
-using Sufni.App.Services.Management;
-using Sufni.App.Services.LiveStreaming;
-using Sufni.App.Stores;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
+using Sufni.App.Acquisition.Services;
+using Sufni.App.Infrastructure;
+using Sufni.App.LiveDaq.Coordinators;
+using Sufni.App.LiveDaq.Queries;
+using Sufni.App.LiveDaq.Services;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
+using Sufni.App.LiveDaq.Stores;
+using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.Sessions.Coordination;
+using Sufni.App.Sessions.Services;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.Sessions.Processing.SessionDetails;
 namespace Sufni.App.Tests.Coordinators;
 
 public class LiveDaqCoordinatorTests

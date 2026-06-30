@@ -2,10 +2,13 @@ using System.Net;
 using System.Net.Sockets;
 using NSubstitute;
 using Sufni.App.Services;
-using Sufni.App.Services.LiveStreaming;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 using Sufni.App.Tests.Services.LiveStreaming;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.LiveDaq.Services;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
+using Sufni.App.Shared.Common;
 namespace Sufni.App.Tests.Services;
 
 public class LiveDaqCatalogServiceTests

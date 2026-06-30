@@ -3,15 +3,21 @@ using System.Threading;
 using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.Models;
 using Sufni.App.Services;
-using Sufni.App.Stores;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels;
-using static Sufni.App.Tests.Infrastructure.TestTelemetryData;
-using static Sufni.App.Tests.Infrastructure.TestTelemetrySources;
+using Sufni.App.Tests.TestSupport;
+using static Sufni.App.Tests.TestSupport.TestTelemetryData;
+using static Sufni.App.Tests.TestSupport.TestTelemetrySources;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
+using Sufni.App.Acquisition.Coordinators;
+using Sufni.App.Acquisition.Models;
+using Sufni.App.Acquisition.Services;
+using Sufni.App.Acquisition.ViewModels;
+using Sufni.App.Infrastructure;
+using Sufni.App.Setups.Coordinators;
+using Sufni.App.Setups.Stores;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.Sessions.Store;
 namespace Sufni.App.Tests.ViewModels;
 
 public class ImportSessionsViewModelTests

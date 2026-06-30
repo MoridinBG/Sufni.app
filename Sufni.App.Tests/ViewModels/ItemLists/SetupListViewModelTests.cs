@@ -1,9 +1,10 @@
 using DynamicData;
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.Stores;
-using Sufni.App.ViewModels.ItemLists;
 
+using Sufni.App.Setups.Coordinators;
+using Sufni.App.Setups.Stores;
+using Sufni.App.Setups.ViewModels.ItemLists;
 namespace Sufni.App.Tests.ViewModels.ItemLists;
 
 public class SetupListViewModelTests

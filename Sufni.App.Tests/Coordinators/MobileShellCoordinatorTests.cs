@@ -1,7 +1,8 @@
 using NSubstitute;
 using Sufni.App.Coordinators;
-using Sufni.App.ViewModels;
 
+using Sufni.App.Shared.Base;
+using Sufni.App.Shell.Coordinators;
 namespace Sufni.App.Tests.Coordinators;
 
 public class MobileShellCoordinatorTests

@@ -4,11 +4,11 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.Themes.Fluent;
 using Avalonia.VisualTree;
-using Sufni.App.Services.Management;
-using Sufni.App.Tests.Infrastructure;
-using Sufni.App.ViewModels.Editors;
-using Sufni.App.Views.Editors;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Acquisition.Services.Management;
+using Sufni.App.LiveDaq.ViewModels.Editors;
+using Sufni.App.LiveDaq.Views.Editors;
 namespace Sufni.App.Tests.Views.Editors;
 
 [Collection("Ui")]

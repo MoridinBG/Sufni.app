@@ -1,6 +1,7 @@
-using Sufni.App.Models;
-using Sufni.App.Tests.Infrastructure;
+using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Acquisition.Models;
+using Sufni.App.Shared.Common;
 namespace Sufni.App.Tests.Models;
 
 public class MassStorageTelemetryDataStoreTests

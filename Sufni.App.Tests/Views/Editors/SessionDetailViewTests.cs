@@ -3,9 +3,9 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
-using Sufni.App.ViewModels.SessionPages;
-using Sufni.App.Views.Controls;
 
+using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
+using Sufni.App.Shared.Views.Controls;
 namespace Sufni.App.Tests.Views.Editors;
 
 [Collection("Ui")]

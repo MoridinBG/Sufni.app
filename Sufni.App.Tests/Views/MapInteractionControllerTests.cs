@@ -1,5 +1,5 @@
-using Sufni.App.Views;
 
+using Sufni.App.MapsAndTracks.Views;
 namespace Sufni.App.Tests.Views;
 
 public class MapInteractionControllerTests

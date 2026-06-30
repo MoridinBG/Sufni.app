@@ -1,7 +1,8 @@
-using Sufni.App.Models;
 using Sufni.App.Tests.Services.LiveStreaming;
-using Sufni.App.ViewModels.Editors;
 
+using Sufni.App.Acquisition.Models;
+using Sufni.App.Infrastructure;
+using Sufni.App.LiveDaq.ViewModels.Editors;
 namespace Sufni.App.Tests.ViewModels.Editors;
 
 public class LiveSessionGraphWorkspaceViewModelTests

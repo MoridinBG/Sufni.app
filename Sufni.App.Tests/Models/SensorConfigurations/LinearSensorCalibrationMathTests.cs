@@ -1,5 +1,5 @@
-using Sufni.App.Models.SensorConfigurations;
 
+using Sufni.App.Setups.Models.SensorConfigurations;
 namespace Sufni.App.Tests.Models.SensorConfigurations;
 
 public class LinearSensorCalibrationMathTests
