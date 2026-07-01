@@ -30,7 +30,11 @@
   <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="Sufni.App.Tests.ExtensionHost" />
-    <Using Include="Sufni.App.ExtensionHost.TestSupport" />
+    <Using Include="Sufni.App.ExtensionHost.TestSupport.Async" />
+    <Using Include="Sufni.App.ExtensionHost.TestSupport.Doubles" />
+    <Using Include="Sufni.App.ExtensionHost.TestSupport.Fixtures" />
+    <Using Include="Sufni.App.ExtensionHost.TestSupport.Harness" />
+    <Using Include="Sufni.App.ExtensionHost.TestSupport.Io" />
   </ItemGroup>
 
 </Project>

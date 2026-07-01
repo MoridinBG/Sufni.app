@@ -1,0 +1,219 @@
+using NSubstitute;
+using Sufni.App.ExtensionHost.Contracts.SessionGraph;
+using Sufni.Telemetry;
+
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Setups.Stores;
+using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Tests.TestSupport.Fixtures;
+namespace Sufni.App.Tests.Sessions.Processing.SessionGraph;
+
+public class RecordedSessionDomainQueryTests
+{
+    private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
+    private readonly ISetupStore setupStore = Substitute.For<ISetupStore>();
+    private readonly IBikeStore bikeStore = Substitute.For<IBikeStore>();
+    private readonly IRecordedSessionSourceStore sourceStore = Substitute.For<IRecordedSessionSourceStore>();
+    private readonly ProcessingFingerprintService fingerprintService = new();
+    private readonly IRecordedSessionProcessingOptionCache processingOptionCache =
+        Substitute.For<IRecordedSessionProcessingOptionCache>();
+
+    public RecordedSessionDomainQueryTests()
+    {
+        processingOptionCache.Get(Arg.Any<Guid>()).Returns(TelemetryProcessingOptions.Default);
+    }
+
+    [Fact]
+    public void Get_ReturnsNull_WhenSessionIsMissing()
+    {
+        var query = CreateQuery();
+        var sessionId = Guid.NewGuid();
+        sessionStore.Get(sessionId).Returns((SessionSnapshot?)null);
+
+        var domain = query.Get(sessionId);
+
+        Assert.Null(domain);
+    }
+
+    [Fact]
+    public void Get_ReturnsCurrentDomain_WhenSessionDependenciesAndSourceMatch()
+    {
+        var context = CreateCurrentContext();
+        sessionStore.Get(context.Session.Id).Returns(context.Session);
+        setupStore.Get(context.Setup.Id).Returns(context.Setup);
+        bikeStore.Get(context.Bike.Id).Returns(context.Bike);
+        sourceStore.Get(context.Session.Id).Returns(context.Source);
+        var query = CreateQuery();
+
+        var domain = query.Get(context.Session.Id);
+
+        Assert.NotNull(domain);
+        Assert.Equal(context.Session, domain!.Session);
+        Assert.Equal(context.Setup, domain.Setup);
+        Assert.Equal(context.Bike, domain.Bike);
+        Assert.Equal(context.Source, domain.Source);
+        Assert.Equal(DerivedChangeKind.None, domain.ChangeKind);
+        Assert.IsType<SessionStaleness.Current>(domain.Staleness);
+        Assert.NotNull(domain.CurrentFingerprint);
+        Assert.Equal(domain.CurrentFingerprint, domain.PersistedFingerprint);
+    }
+
+    [Fact]
+    public void Get_UsesSingleFingerprintEvaluation()
+    {
+        var context = CreateCurrentContext();
+        var fingerprint = new ProcessingFingerprint(
+            2,
+            1,
+            context.Setup.Id,
+            context.Bike.Id,
+            1,
+            "dependency",
+            context.Source.SourceHash);
+        var fingerprintService = Substitute.For<IProcessingFingerprintService>();
+        var staleness = new SessionStaleness.Current();
+        fingerprintService
+            .EvaluateState(context.Session, context.Setup, context.Bike, context.Source, Arg.Any<TelemetryProcessingOptions?>())
+            .Returns(new ProcessingFingerprintEvaluation(fingerprint, fingerprint, staleness));
+        sessionStore.Get(context.Session.Id).Returns(context.Session);
+        setupStore.Get(context.Setup.Id).Returns(context.Setup);
+        bikeStore.Get(context.Bike.Id).Returns(context.Bike);
+        sourceStore.Get(context.Session.Id).Returns(context.Source);
+        var query = new RecordedSessionDomainQuery(
+            sessionStore,
+            setupStore,
+            bikeStore,
+            sourceStore,
+            fingerprintService,
+            processingOptionCache);
+
+        var domain = query.Get(context.Session.Id);
+
+        Assert.NotNull(domain);
+        Assert.Equal(fingerprint, domain!.CurrentFingerprint);
+        Assert.Equal(fingerprint, domain.PersistedFingerprint);
+        Assert.Equal(staleness, domain.Staleness);
+        fingerprintService.Received(1).EvaluateState(
+            context.Session, context.Setup, context.Bike, context.Source, Arg.Any<TelemetryProcessingOptions?>());
+        fingerprintService.DidNotReceive().CreateCurrent(
+            Arg.Any<SessionSnapshot>(),
+            Arg.Any<SetupSnapshot>(),
+            Arg.Any<BikeSnapshot>(),
+            Arg.Any<RecordedSessionSourceSnapshot>());
+        fingerprintService.DidNotReceive().Evaluate(
+            Arg.Any<SessionSnapshot>(),
+            Arg.Any<SetupSnapshot?>(),
+            Arg.Any<BikeSnapshot?>(),
+            Arg.Any<RecordedSessionSourceSnapshot?>());
+    }
+
+    [Fact]
+    public void Get_ReturnsMissingRawSource_WhenSourceIsMissing()
+    {
+        var context = CreateCurrentContext();
+        sessionStore.Get(context.Session.Id).Returns(context.Session);
+        setupStore.Get(context.Setup.Id).Returns(context.Setup);
+        bikeStore.Get(context.Bike.Id).Returns(context.Bike);
+        sourceStore.Get(context.Session.Id).Returns((RecordedSessionSourceSnapshot?)null);
+        var query = CreateQuery();
+
+        var domain = query.Get(context.Session.Id);
+
+        Assert.NotNull(domain);
+        Assert.Null(domain!.Source);
+        Assert.Null(domain.CurrentFingerprint);
+        Assert.IsType<SessionStaleness.MissingRawSource>(domain.Staleness);
+        Assert.False(domain.Staleness.IsStale);
+    }
+
+    [Fact]
+    public void Get_ReturnsStaleMissingRawSource_WhenSourceAndFingerprintAreMissing()
+    {
+        var context = CreateCurrentContext();
+        var session = context.Session with
+        {
+            ProcessingFingerprintJson = null
+        };
+        sessionStore.Get(session.Id).Returns(session);
+        setupStore.Get(context.Setup.Id).Returns(context.Setup);
+        bikeStore.Get(context.Bike.Id).Returns(context.Bike);
+        sourceStore.Get(session.Id).Returns((RecordedSessionSourceSnapshot?)null);
+        var query = CreateQuery();
+
+        var domain = query.Get(session.Id);
+
+        Assert.NotNull(domain);
+        Assert.Null(domain!.Source);
+        Assert.Null(domain.CurrentFingerprint);
+        Assert.IsType<SessionStaleness.MissingRawSource>(domain.Staleness);
+        Assert.True(domain.Staleness.IsStale);
+        Assert.False(domain.Staleness.CanRecompute);
+    }
+
+    [Fact]
+    public void Get_ReturnsMissingDependencies_WhenSetupIsMissing()
+    {
+        var context = CreateCurrentContext();
+        sessionStore.Get(context.Session.Id).Returns(context.Session);
+        setupStore.Get(context.Setup.Id).Returns((SetupSnapshot?)null);
+        sourceStore.Get(context.Session.Id).Returns(context.Source);
+        var query = CreateQuery();
+
+        var domain = query.Get(context.Session.Id);
+
+        Assert.NotNull(domain);
+        Assert.Null(domain!.Setup);
+        Assert.Null(domain.Bike);
+        Assert.Null(domain.CurrentFingerprint);
+        var staleness = Assert.IsType<SessionStaleness.MissingDependencies>(domain.Staleness);
+        Assert.True(staleness.SetupMissing);
+        Assert.True(staleness.BikeMissing);
+    }
+
+    private RecordedSessionDomainQuery CreateQuery() => new(
+        sessionStore,
+        setupStore,
+        bikeStore,
+        sourceStore,
+        fingerprintService,
+        processingOptionCache);
+
+    private TestContext CreateCurrentContext()
+    {
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid());
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), bikeId: bike.Id);
+        var session = TestSnapshots.Session(
+            id: Guid.NewGuid(),
+            setupId: setup.Id,
+            hasProcessedData: true);
+        var source = CreateSource(session.Id);
+        var fingerprint = fingerprintService.CreateCurrent(session, setup, bike, source);
+        session = session with { ProcessingFingerprintJson = AppJson.Serialize(fingerprint) };
+        return new TestContext(session, setup, bike, source);
+    }
+
+    private static RecordedSessionSourceSnapshot CreateSource(Guid sessionId)
+    {
+        var payload = new byte[] { 1, 9, 2, 8 };
+        var hash = RecordedSessionSourceHash.Compute(
+            RecordedSessionSourceKind.ImportedSst,
+            "domain.SST",
+            1,
+            payload);
+        return new RecordedSessionSourceSnapshot(
+            sessionId,
+            RecordedSessionSourceKind.ImportedSst,
+            "domain.SST",
+            1,
+            hash);
+    }
+
+    private sealed record TestContext(
+        SessionSnapshot Session,
+        SetupSnapshot Setup,
+        BikeSnapshot Bike,
+        RecordedSessionSourceSnapshot Source);
+}

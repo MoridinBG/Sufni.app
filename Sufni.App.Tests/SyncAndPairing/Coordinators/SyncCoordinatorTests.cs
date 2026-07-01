@@ -1,0 +1,481 @@
+using Avalonia.Headless.XUnit;
+using NSubstitute;
+using NSubstitute.ExceptionExtensions;
+using Avalonia.Threading;
+
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Setups.Stores;
+using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.SyncAndPairing.Stores;
+using Sufni.App.Tests.TestSupport.Async;
+using Sufni.App.Tests.TestSupport.Doubles;
+namespace Sufni.App.Tests.SyncAndPairing.Coordinators;
+
+[Collection("Ui")]
+public class SyncCoordinatorTests
+{
+    private readonly IBikeStoreWriter bikeStore = Substitute.For<IBikeStoreWriter>();
+    private readonly ISetupStoreWriter setupStore = Substitute.For<ISetupStoreWriter>();
+    private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
+    private readonly IRecordedSessionSourceStoreWriter recordedSessionSourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
+    private readonly IPairedDeviceStoreWriter pairedDeviceStore = Substitute.For<IPairedDeviceStoreWriter>();
+    private readonly ISynchronizationClientService syncClient = Substitute.For<ISynchronizationClientService>();
+    private readonly IPairingClientCoordinator pairing = Substitute.For<IPairingClientCoordinator>();
+
+    public SyncCoordinatorTests()
+    {
+        pairing.ResolveServerUrlAsync(Arg.Any<TimeSpan>())
+            .Returns(Task.FromResult<string?>("https://sync.test"));
+    }
+
+    private SyncCoordinator CreateCoordinator(
+        ISynchronizationClientService? syncClientOverride = null,
+        IPairingClientCoordinator? pairingOverride = null,
+        ISynchronizationServerService? serverOverride = null) =>
+        new(
+            bikeStore,
+            setupStore,
+            sessionStore,
+            recordedSessionSourceStore,
+            pairedDeviceStore,
+            syncClientOverride ?? syncClient,
+            pairingOverride ?? pairing,
+            serverOverride,
+            new InlineBackgroundTaskRunner(),
+            TimeSpan.Zero);
+
+    // ----- CanSync -----
+
+    [Fact]
+    public void CanSync_IsFalse_WhenPairingReportsNotPaired()
+    {
+        pairing.IsPaired.Returns(false);
+
+        var coordinator = CreateCoordinator();
+
+        Assert.False(coordinator.CanSync);
+        Assert.False(coordinator.IsPaired);
+    }
+
+    [AvaloniaFact]
+    public async Task CanSync_IsFalse_WhileSyncIsRunning()
+    {
+        pairing.IsPaired.Returns(true);
+        var gate = new TaskCompletionSource();
+        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>()).Returns(gate.Task);
+
+        var coordinator = CreateCoordinator();
+        Assert.True(coordinator.CanSync);
+
+        var running = coordinator.SyncAllAsync();
+        Assert.True(coordinator.IsRunning);
+        Assert.False(coordinator.CanSync);
+
+        gate.SetResult();
+        await running;
+
+        Assert.False(coordinator.IsRunning);
+        Assert.True(coordinator.CanSync);
+    }
+
+    // ----- SyncAllAsync no-ops -----
+
+    [Fact]
+    public async Task SyncAllAsync_IsNoOp_WhenCanSyncIsFalse()
+    {
+        pairing.IsPaired.Returns(false);
+        var coordinator = CreateCoordinator();
+
+        await coordinator.SyncAllAsync();
+
+        await syncClient.DidNotReceive().SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>());
+        await bikeStore.DidNotReceive().RefreshAsync();
+    }
+
+    [Fact]
+    public async Task SyncAllAsync_IsNoOp_WhenSynchronizationClientServiceIsNull()
+    {
+        pairing.IsPaired.Returns(true);
+        // Bypass the helper — it uses `??` to fall back to the class-level
+        // substitute, so a null override there wouldn't actually inject null.
+        var coordinator = new SyncCoordinator(
+            bikeStore, setupStore, sessionStore, recordedSessionSourceStore, pairedDeviceStore,
+            synchronizationClientService: null,
+            pairingClientCoordinator: pairing,
+            backgroundTaskRunner: new InlineBackgroundTaskRunner(),
+            inboundActivityIdleGrace: TimeSpan.Zero);
+
+        await coordinator.SyncAllAsync();
+
+        await bikeStore.DidNotReceive().RefreshAsync();
+        await setupStore.DidNotReceive().RefreshAsync();
+        await sessionStore.DidNotReceive().RefreshAsync();
+        await recordedSessionSourceStore.DidNotReceive().RefreshAsync();
+        await pairedDeviceStore.DidNotReceive().RefreshAsync();
+    }
+
+    // ----- SyncAllAsync happy path -----
+
+    [AvaloniaFact]
+    public async Task SyncAllAsync_CallsSyncAll_AndRefreshesStores()
+    {
+        pairing.IsPaired.Returns(true);
+        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>()).Returns(Task.CompletedTask);
+        bikeStore.RefreshAsync().Returns(Task.CompletedTask);
+        setupStore.RefreshAsync().Returns(Task.CompletedTask);
+        sessionStore.RefreshAsync().Returns(Task.CompletedTask);
+        recordedSessionSourceStore.RefreshAsync().Returns(Task.CompletedTask);
+        pairedDeviceStore.RefreshAsync().Returns(Task.CompletedTask);
+
+        var coordinator = CreateCoordinator();
+        await coordinator.SyncAllAsync();
+
+        await syncClient.Received(1).SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>());
+        await bikeStore.Received(1).RefreshAsync();
+        await setupStore.Received(1).RefreshAsync();
+        await sessionStore.Received(1).RefreshAsync();
+        await recordedSessionSourceStore.Received(1).RefreshAsync();
+        await pairedDeviceStore.Received(1).RefreshAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task SyncAllAsync_RaisesEvents_AndLeavesIsRunningFalse()
+    {
+        pairing.IsPaired.Returns(true);
+        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>()).Returns(Task.CompletedTask);
+        bikeStore.RefreshAsync().Returns(Task.CompletedTask);
+        setupStore.RefreshAsync().Returns(Task.CompletedTask);
+        sessionStore.RefreshAsync().Returns(Task.CompletedTask);
+        recordedSessionSourceStore.RefreshAsync().Returns(Task.CompletedTask);
+        pairedDeviceStore.RefreshAsync().Returns(Task.CompletedTask);
+        var coordinator = CreateCoordinator();
+
+        var isRunningChanged = 0;
+        var canSyncChanged = 0;
+        coordinator.IsRunningChanged += (_, _) => isRunningChanged++;
+        coordinator.CanSyncChanged += (_, _) => canSyncChanged++;
+
+        await coordinator.SyncAllAsync();
+
+        Assert.False(coordinator.IsRunning);
+        Assert.True(isRunningChanged > 0);
+        Assert.True(canSyncChanged > 0);
+    }
+
+    [AvaloniaFact]
+    public async Task SyncAllAsync_RaisesSyncCompleted_OnSuccess()
+    {
+        pairing.IsPaired.Returns(true);
+        var coordinator = CreateCoordinator();
+
+        var completed = 0;
+        var failed = 0;
+        coordinator.SyncCompleted += (_, _) => completed++;
+        coordinator.SyncFailed += (_, _) => failed++;
+
+        await coordinator.SyncAllAsync();
+
+        Assert.Equal(1, completed);
+        Assert.Equal(0, failed);
+    }
+
+    [AvaloniaFact]
+    public async Task SyncAllAsync_ReportsOuterAndServiceProgress_AndClearsItAfterSuccess()
+    {
+        pairing.IsPaired.Returns(true);
+        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>())
+            .Returns(callInfo =>
+            {
+                callInfo.ArgAt<IProgress<SynchronizationProgressSnapshot>?>(0)?.Report(
+                    new SynchronizationProgressSnapshot(
+                        SynchronizationPhase.PushingLocalChanges,
+                        "Pushing local changes",
+                        CurrentStep: 1,
+                        TotalSteps: 6,
+                        IsDeterminate: true));
+                return Task.CompletedTask;
+            });
+        bikeStore.RefreshAsync().Returns(Task.CompletedTask);
+        setupStore.RefreshAsync().Returns(Task.CompletedTask);
+        sessionStore.RefreshAsync().Returns(Task.CompletedTask);
+        recordedSessionSourceStore.RefreshAsync().Returns(Task.CompletedTask);
+        pairedDeviceStore.RefreshAsync().Returns(Task.CompletedTask);
+        var coordinator = CreateCoordinator();
+        var events = new List<SynchronizationProgressSnapshot?>();
+        coordinator.ProgressChanged += (_, _) => events.Add(coordinator.Progress);
+
+        await coordinator.SyncAllAsync();
+
+        Assert.Contains(events, e => e?.Phase == SynchronizationPhase.ResolvingServer);
+        Assert.Contains(events, e =>
+            e?.Phase == SynchronizationPhase.PushingLocalChanges &&
+            e.CurrentStep == 2 &&
+            e.TotalSteps == 8);
+        Assert.Contains(events, e => e?.Phase == SynchronizationPhase.RefreshingLocalStores);
+        Assert.Null(events.Last());
+        Assert.Null(coordinator.Progress);
+    }
+
+    [AvaloniaFact]
+    public async Task SyncAllAsync_ClearsProgress_WhenNoServerEndpointIsDiscovered()
+    {
+        pairing.IsPaired.Returns(true);
+        pairing.ResolveServerUrlAsync(Arg.Any<TimeSpan>())
+            .Returns(Task.FromResult<string?>(null));
+        var coordinator = CreateCoordinator();
+        var events = new List<SynchronizationProgressSnapshot?>();
+        coordinator.ProgressChanged += (_, _) => events.Add(coordinator.Progress);
+
+        await coordinator.SyncAllAsync();
+
+        Assert.Contains(events, e => e?.Phase == SynchronizationPhase.ResolvingServer);
+        Assert.Null(events.Last());
+        Assert.Null(coordinator.Progress);
+        Assert.False(coordinator.IsRunning);
+    }
+
+    // ----- SyncAllAsync failure -----
+
+    [AvaloniaFact]
+    public async Task SyncAllAsync_RaisesSyncFailed_AndResetsIsRunning_WhenSyncThrows()
+    {
+        pairing.IsPaired.Returns(true);
+        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>()).ThrowsAsync(new InvalidOperationException("boom"));
+        var coordinator = CreateCoordinator();
+
+        var failed = 0;
+        var completed = 0;
+        coordinator.SyncFailed += (_, _) => failed++;
+        coordinator.SyncCompleted += (_, _) => completed++;
+
+        await coordinator.SyncAllAsync();
+
+        Assert.Equal(1, failed);
+        Assert.Equal(0, completed);
+        Assert.False(coordinator.IsRunning);
+        // Stores should not have been refreshed on failure.
+        await bikeStore.DidNotReceive().RefreshAsync();
+    }
+
+    // ----- Pairing event forwarding -----
+
+    [Fact]
+    public void PairingIsPairedChanged_ReRaisesIsPairedChanged_AndCanSyncChanged()
+    {
+        pairing.IsPaired.Returns(false);
+        var coordinator = CreateCoordinator();
+
+        var isPairedChanged = 0;
+        var canSyncChanged = 0;
+        coordinator.IsPairedChanged += (_, _) => isPairedChanged++;
+        coordinator.CanSyncChanged += (_, _) => canSyncChanged++;
+
+        pairing.IsPairedChanged += Raise.Event();
+
+        Assert.Equal(1, isPairedChanged);
+        Assert.Equal(1, canSyncChanged);
+    }
+
+    [AvaloniaFact]
+    public async Task PairingConfirmed_KicksOffSyncAllAsync_Automatically()
+    {
+        // Pre-seed IsPaired = true so the fire-and-forget SyncAllAsync's
+        // CanSync check passes.
+        pairing.IsPaired.Returns(true);
+        var coordinator = CreateCoordinator();
+
+        var syncCompleted = new TaskCompletionSource();
+        coordinator.SyncCompleted += (_, _) => syncCompleted.TrySetResult();
+
+        pairing.PairingConfirmed += Raise.Event();
+
+        // Wait for the detached SyncAllAsync task to drive SyncCompleted.
+        await syncCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await syncClient.Received(1).SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>());
+        await bikeStore.Received(1).RefreshAsync();
+        await setupStore.Received(1).RefreshAsync();
+        await sessionStore.Received(1).RefreshAsync();
+        await recordedSessionSourceStore.Received(1).RefreshAsync();
+        await pairedDeviceStore.Received(1).RefreshAsync();
+    }
+
+    [Fact]
+    public void PairingConfirmed_DoesNotSync_WhenCanSyncIsFalse()
+    {
+        // IsPaired is false by default — the auto-sync silently no-ops.
+        pairing.IsPaired.Returns(false);
+        var coordinator = CreateCoordinator();
+
+        pairing.PairingConfirmed += Raise.Event();
+
+        _ = syncClient.DidNotReceive().SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>());
+    }
+
+    [AvaloniaFact]
+    public async Task SyncAllAsync_RefreshesStores_OnUiThread()
+    {
+        pairing.IsPaired.Returns(true);
+
+        var refreshedOnUiThread = false;
+        bikeStore.RefreshAsync().Returns(_ =>
+        {
+            refreshedOnUiThread = Dispatcher.UIThread.CheckAccess();
+            return Task.CompletedTask;
+        });
+        setupStore.RefreshAsync().Returns(Task.CompletedTask);
+        sessionStore.RefreshAsync().Returns(Task.CompletedTask);
+        recordedSessionSourceStore.RefreshAsync().Returns(Task.CompletedTask);
+        pairedDeviceStore.RefreshAsync().Returns(Task.CompletedTask);
+
+        await CreateCoordinator().SyncAllAsync();
+
+        Assert.True(refreshedOnUiThread);
+    }
+
+    [AvaloniaFact]
+    public async Task SyncAllAsync_ResolvesCurrentServerEndpoint_BeforeRunningSync()
+    {
+        pairing.IsPaired.Returns(true);
+        var coordinator = CreateCoordinator();
+
+        await coordinator.SyncAllAsync();
+
+        await pairing.Received(1).ResolveServerUrlAsync(Arg.Any<TimeSpan>());
+        await syncClient.Received(1).SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>());
+    }
+
+    [AvaloniaFact]
+    public async Task SyncAllAsync_RunsClientSyncThroughBackgroundRunner()
+    {
+        pairing.IsPaired.Returns(true);
+        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>()).Returns(Task.CompletedTask);
+        var backgroundTaskRunner = new RecordingBackgroundTaskRunner();
+        var coordinator = new SyncCoordinator(
+            bikeStore,
+            setupStore,
+            sessionStore,
+            recordedSessionSourceStore,
+            pairedDeviceStore,
+            syncClient,
+            pairing,
+            backgroundTaskRunner: backgroundTaskRunner,
+            inboundActivityIdleGrace: TimeSpan.Zero);
+
+        await coordinator.SyncAllAsync();
+
+        Assert.Equal(1, backgroundTaskRunner.InvocationCount);
+        await syncClient.Received(1).SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>());
+    }
+
+    [AvaloniaFact]
+    public async Task SyncAllAsync_RaisesSyncFailed_WhenNoServerEndpointIsDiscovered()
+    {
+        pairing.IsPaired.Returns(true);
+        pairing.ResolveServerUrlAsync(Arg.Any<TimeSpan>())
+            .Returns(Task.FromResult<string?>(null));
+        var coordinator = CreateCoordinator();
+
+        var failed = 0;
+        coordinator.SyncFailed += (_, _) => failed++;
+
+        await coordinator.SyncAllAsync();
+
+        Assert.Equal(1, failed);
+        await syncClient.DidNotReceive().SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>());
+        await bikeStore.DidNotReceive().RefreshAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task ServerSyncActivity_DrivesRunningStateAndProgress()
+    {
+        var server = new TestSynchronizationServerService();
+        var coordinator = CreateCoordinator(serverOverride: server);
+        var progress = new SynchronizationProgressSnapshot(
+            SynchronizationPhase.ReceivingChanges,
+            "Receiving remote changes",
+            CurrentStep: 0,
+            TotalSteps: 0,
+            IsDeterminate: false);
+
+        server.RaiseSyncActivityStarted(progress);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        Assert.True(coordinator.IsRunning);
+        var currentProgress = coordinator.Progress;
+        Assert.NotNull(currentProgress);
+        Assert.Equal(SynchronizationPhase.ReceivingChanges, currentProgress.Phase);
+        Assert.Equal("Receiving remote changes", currentProgress.Message);
+        Assert.Equal(1, currentProgress.CurrentStep);
+        Assert.Equal(6, currentProgress.TotalSteps);
+        Assert.True(currentProgress.IsDeterminate);
+
+        server.RaiseSyncActivityEnded(progress);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        Assert.False(coordinator.IsRunning);
+        Assert.Null(coordinator.Progress);
+    }
+
+    [AvaloniaFact]
+    public async Task ServerSyncActivity_RemainsRunningDuringInboundIdleGrace()
+    {
+        var server = new TestSynchronizationServerService();
+        var coordinator = new SyncCoordinator(
+            bikeStore,
+            setupStore,
+            sessionStore,
+            recordedSessionSourceStore,
+            pairedDeviceStore,
+            synchronizationServerService: server,
+            backgroundTaskRunner: new InlineBackgroundTaskRunner(),
+            inboundActivityIdleGrace: TimeSpan.FromMilliseconds(100));
+        var firstProgress = new SynchronizationProgressSnapshot(
+            SynchronizationPhase.ReceivingChanges,
+            "Receiving remote changes",
+            CurrentStep: 0,
+            TotalSteps: 0,
+            IsDeterminate: false);
+        var secondProgress = new SynchronizationProgressSnapshot(
+            SynchronizationPhase.ServingSessionData,
+            "Serving session data",
+            CurrentStep: 0,
+            TotalSteps: 0,
+            IsDeterminate: false);
+
+        server.RaiseSyncActivityStarted(firstProgress);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        server.RaiseSyncActivityEnded(firstProgress);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        Assert.True(coordinator.IsRunning);
+        var currentProgress = coordinator.Progress;
+        Assert.NotNull(currentProgress);
+        Assert.Equal(SynchronizationPhase.ReceivingChanges, currentProgress.Phase);
+        Assert.Equal(1, currentProgress.CurrentStep);
+        Assert.Equal(6, currentProgress.TotalSteps);
+        Assert.True(currentProgress.IsDeterminate);
+
+        server.RaiseSyncActivityStarted(secondProgress);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        Assert.True(coordinator.IsRunning);
+        currentProgress = coordinator.Progress;
+        Assert.NotNull(currentProgress);
+        Assert.Equal(SynchronizationPhase.ServingSessionData, currentProgress.Phase);
+        Assert.Equal("Serving session data", currentProgress.Message);
+        Assert.Equal(4, currentProgress.CurrentStep);
+        Assert.Equal(6, currentProgress.TotalSteps);
+        Assert.True(currentProgress.IsDeterminate);
+
+        server.RaiseSyncActivityEnded(secondProgress);
+        await Task.Delay(150);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        Assert.False(coordinator.IsRunning);
+        Assert.Null(coordinator.Progress);
+    }
+
+}

@@ -1,0 +1,636 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
+using CommunityToolkit.Mvvm.Input;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
+using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Statistics.DesktopViews.Items;
+using Sufni.App.Extensibility.Views;
+using Sufni.App.Sessions.Analysis.Views.Items;
+using Sufni.App.Sessions.Plots.Views.Plots;
+using Sufni.App.Sessions.Statistics.Views.Controls;
+using Sufni.App.Tests.TestSupport.Doubles;
+using Sufni.App.Tests.TestSupport.Harness;
+using Sufni.App.Tests.TestSupport.Fixtures;
+namespace Sufni.App.Tests.Sessions.Statistics.DesktopViews.Items;
+
+[Collection("Ui")]
+public class SessionStatisticsDesktopViewTests
+{
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_ShowsSpringSectionInitially_WhenFrontAndRearStatisticsAreAvailable()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+
+        await using var mounted = await MountAsync(workspace);
+
+        var springRate = mounted.View.FindControl<Grid>("SpringRate");
+        var damping = mounted.View.FindControl<Grid>("Damping");
+        var balance = mounted.View.FindControl<Grid>("Balance");
+        var analysis = mounted.View.FindControl<Grid>("Analysis");
+
+        Assert.NotNull(springRate);
+        Assert.NotNull(damping);
+        Assert.NotNull(balance);
+        Assert.NotNull(analysis);
+
+        Assert.True(springRate!.IsVisible);
+        Assert.False(damping!.IsVisible);
+        Assert.False(balance!.IsVisible);
+        Assert.False(analysis!.IsVisible);
+        Assert.Equal(
+            2,
+            springRate.GetVisualDescendants()
+                .OfType<TravelStatisticsHost>()
+                .Count(host => host.PresentationState.ReservesLayout && host.ShowFrequencyHistogram));
+    }
+
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_RendersStatisticsBannerContributions()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+        workspace.ExtensionSlots.StatisticsBanners.Add(new RecordedSessionStatisticsBannerContribution(
+            "extension",
+            "statistics-banner",
+            Order: 0,
+            new TestContributionViewModel
+            {
+                Content = new TextBlock { Name = "DesktopStatisticsBanner", Text = "Statistics banner" },
+            }));
+
+        await using var mounted = await MountAsync(workspace);
+
+        var contributionHost = Assert.Single(
+            mounted.View.GetVisualDescendants().OfType<RecordedSessionStatisticsContributionsView>());
+        Assert.NotNull(contributionHost);
+        AssertContributionText(mounted.View, "DesktopStatisticsBanner", "Statistics banner");
+    }
+
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_RendersContributedStatisticsTabBeforeMatchingBuiltInTab()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+        workspace.ExtensionSlots.StatisticsTabs.Add(CreateStatisticsTabContribution("extension-tab"));
+
+        await using var mounted = await MountAsync(workspace);
+
+        Assert.Equal(
+            [
+                "Spring rate",
+                "Strokes",
+                "Damping",
+                "Extension tab",
+                "Balance",
+                "Vibration",
+                "Analysis",
+            ],
+            GetTabHeaders(mounted.View));
+    }
+
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_SelectingContributedStatisticsTab_ShowsExtensionContentOnly()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+        workspace.ExtensionSlots.StatisticsTabs.Add(CreateStatisticsTabContribution("extension-tab"));
+
+        await using var mounted = await MountAsync(workspace);
+        await SelectTabAsync(mounted.View, "Extension tab");
+
+        var extensionContent = GetExtensionStatisticsTabContent(mounted.View);
+        Assert.True(extensionContent.IsVisible);
+        Assert.False(mounted.View.FindControl<Grid>("SpringRate")!.IsVisible);
+        Assert.False(mounted.View.FindControl<Grid>("Strokes")!.IsVisible);
+        Assert.False(mounted.View.FindControl<Grid>("Damping")!.IsVisible);
+        Assert.False(mounted.View.FindControl<Grid>("Balance")!.IsVisible);
+        Assert.False(mounted.View.FindControl<Grid>("Vibration")!.IsVisible);
+        Assert.False(mounted.View.FindControl<Grid>("Analysis")!.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_RemovingSelectedContributedStatisticsTab_FallsBackToSpring()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+        workspace.ExtensionSlots.StatisticsTabs.Add(CreateStatisticsTabContribution("extension-tab"));
+
+        await using var mounted = await MountAsync(workspace);
+        await SelectTabAsync(mounted.View, "Extension tab");
+
+        workspace.ExtensionSlots.StatisticsTabs.Clear();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(
+            ["Spring rate", "Strokes", "Damping", "Balance", "Vibration", "Analysis"],
+            GetTabHeaders(mounted.View));
+        Assert.True(mounted.View.FindControl<Grid>("SpringRate")!.IsVisible);
+        var statisticsContentHost = mounted.View.FindControl<ItemsControl>("StatisticsContentHost")!;
+        Assert.DoesNotContain(
+            statisticsContentHost.Items.OfType<TestContributionViewModel>(),
+            view => view.Name == "ExtensionStatisticsTabContent");
+    }
+
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_SelectingBuiltInTab_StillDisplaysBuiltInPane_WhenExtensionTabsExist()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+        workspace.ExtensionSlots.StatisticsTabs.Add(CreateStatisticsTabContribution("extension-tab"));
+
+        await using var mounted = await MountAsync(workspace);
+        await SelectTabAsync(mounted.View, "Balance");
+
+        Assert.False(mounted.View.FindControl<Grid>("SpringRate")!.IsVisible);
+        Assert.False(mounted.View.FindControl<Grid>("Damping")!.IsVisible);
+        Assert.True(mounted.View.FindControl<Grid>("Balance")!.IsVisible);
+        Assert.False(GetExtensionStatisticsTabContent(mounted.View).IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_ReusesContributedStatisticsTabContentAcrossRebuilds()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+        workspace.ExtensionSlots.StatisticsTabs.Add(CreateStatisticsTabContribution("extension-tab"));
+
+        await using var mounted = await MountAsync(workspace);
+        var firstContent = GetExtensionStatisticsTabContent(mounted.View);
+
+        workspace.ExtensionSlots.StatisticsTabs.Add(CreateStatisticsTabContribution(
+            "later-extension-tab",
+            "Later extension tab",
+            "LaterExtensionStatisticsTabContent"));
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Same(firstContent, GetExtensionStatisticsTabContent(mounted.View));
+        Assert.NotNull(GetExtensionStatisticsTabContent(mounted.View, "LaterExtensionStatisticsTabContent"));
+    }
+
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_UsesSingleScrollableStatisticsPanel()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+
+        await using var mounted = await MountAsync(workspace);
+
+        var scrollViewer = mounted.View.FindControl<ScrollViewer>("StatisticsPaneScrollViewer");
+        var scrollablePanel = mounted.View.FindControl<StackPanel>("StatisticsScrollablePanel");
+        var strokes = mounted.View.FindControl<Grid>("Strokes");
+
+        Assert.NotNull(scrollViewer);
+        Assert.NotNull(scrollablePanel);
+        Assert.NotNull(strokes);
+        Assert.Equal(ScrollBarVisibility.Disabled, scrollViewer!.HorizontalScrollBarVisibility);
+        Assert.Equal(ScrollBarVisibility.Auto, scrollViewer.VerticalScrollBarVisibility);
+        Assert.Same(scrollablePanel, scrollViewer.Content);
+        Assert.DoesNotContain(strokes!.GetVisualDescendants(), control => control is ScrollViewer);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_UsesNaturalPlotHeights_ForStatisticsTabs()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true,
+            hasFrontForkVibration: true,
+            hasFrontFrameVibration: true,
+            hasRearForkVibration: true,
+            hasRearFrameVibration: true);
+
+        await using var mounted = await MountAsync(workspace);
+
+        var tabControl = mounted.View.FindControl<TabStrip>("TabControl")!;
+        var springRate = mounted.View.FindControl<Grid>("SpringRate")!;
+        var damping = mounted.View.FindControl<Grid>("Damping")!;
+        var balance = mounted.View.FindControl<Grid>("Balance")!;
+        var vibration = mounted.View.FindControl<Grid>("Vibration")!;
+
+        tabControl.SelectedIndex = 0;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        var springHosts = springRate.GetVisualDescendants()
+            .OfType<TravelStatisticsHost>()
+            .Where(host => host.ShowFrequencyHistogram)
+            .ToArray();
+        Assert.Equal(2, springHosts.Length);
+        Assert.All(springHosts, host =>
+        {
+            Assert.Equal(320, host.TravelHistogramRowHeight.Value);
+            Assert.Equal(GridUnitType.Pixel, host.TravelHistogramRowHeight.GridUnitType);
+            Assert.Equal(240, host.TravelFrequencyHistogramRowHeight.Value);
+            Assert.Equal(GridUnitType.Pixel, host.TravelFrequencyHistogramRowHeight.GridUnitType);
+        });
+
+        tabControl.SelectedIndex = 2;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        var dampingHosts = damping.GetVisualDescendants()
+            .OfType<VelocityStatisticsHost>()
+            .Where(host => host.PresentationState.ReservesLayout)
+            .ToArray();
+        Assert.Equal(2, dampingHosts.Length);
+        Assert.All(dampingHosts, host => Assert.Equal(440, host.PlotHeight));
+
+        tabControl.SelectedIndex = 3;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        var balanceHosts = balance.GetVisualDescendants()
+            .OfType<BalanceStatisticsHost>()
+            .Where(host => host.PresentationState.ReservesLayout)
+            .ToArray();
+        Assert.Equal(2, balanceHosts.Length);
+        Assert.All(balanceHosts, host => Assert.Equal(380, host.PlotHeight));
+
+        tabControl.SelectedIndex = 4;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        var vibrationHosts = vibration.GetVisualDescendants()
+            .OfType<VibrationStatisticsHost>()
+            .Where(host => host.PresentationState.ReservesLayout)
+            .ToArray();
+        Assert.Equal(4, vibrationHosts.Length);
+        Assert.All(vibrationHosts, host =>
+        {
+            Assert.Equal(260, host.PlotRowHeight.Value);
+            Assert.Equal(GridUnitType.Pixel, host.PlotRowHeight.GridUnitType);
+        });
+    }
+
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_ShowsOnlyFrontDampingHosts_WhenOnlyFrontStatisticsAreAvailable()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: false,
+            hasCompressionBalanceTelemetry: false,
+            hasReboundBalanceTelemetry: false);
+
+        await using var mounted = await MountAsync(workspace);
+
+        var tabControl = mounted.View.FindControl<TabStrip>("TabControl");
+        var springRate = mounted.View.FindControl<Grid>("SpringRate");
+        var strokes = mounted.View.FindControl<Grid>("Strokes");
+        var damping = mounted.View.FindControl<Grid>("Damping");
+        var balance = mounted.View.FindControl<Grid>("Balance");
+        var vibration = mounted.View.FindControl<Grid>("Vibration");
+
+        Assert.NotNull(tabControl);
+        Assert.NotNull(springRate);
+        Assert.NotNull(strokes);
+        Assert.NotNull(damping);
+        Assert.NotNull(balance);
+        Assert.NotNull(vibration);
+
+        tabControl!.SelectedIndex = 2;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.False(springRate!.IsVisible);
+        Assert.False(strokes!.IsVisible);
+        Assert.True(damping!.IsVisible);
+        Assert.False(balance!.IsVisible);
+        Assert.False(vibration!.IsVisible);
+        var readyDampingHosts = damping.GetVisualDescendants()
+            .OfType<VelocityStatisticsHost>()
+            .Where(host => host.PresentationState.ReservesLayout)
+            .ToArray();
+        var frontDampingHost = Assert.Single(readyDampingHosts);
+        Assert.False(frontDampingHost.ShowTravelLegend);
+        Assert.Single(
+            damping.GetVisualDescendants().OfType<TravelPercentageLegend>(),
+            legend => legend.IsVisible);
+        Assert.Equal(workspace.DamperPercentages.FrontHscPercentage, frontDampingHost.HscPercentage);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_AnalysisTab_BindsFindingsAndTargetProfile()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+
+        await using var mounted = await MountAsync(workspace);
+
+        var tabControl = mounted.View.FindControl<TabStrip>("TabControl");
+        tabControl!.SelectedIndex = 5;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var analysis = mounted.View.FindControl<Grid>("Analysis");
+        var springRate = mounted.View.FindControl<Grid>("SpringRate");
+        var strokes = mounted.View.FindControl<Grid>("Strokes");
+        var damping = mounted.View.FindControl<Grid>("Damping");
+        var balance = mounted.View.FindControl<Grid>("Balance");
+        var vibration = mounted.View.FindControl<Grid>("Vibration");
+        var analysisView = analysis!.GetVisualDescendants().OfType<SessionAnalysisView>().Single();
+        var profileComboBox = analysisView.FindControl<ComboBox>("SessionAnalysisTargetProfileComboBox");
+
+        Assert.False(springRate!.IsVisible);
+        Assert.False(strokes!.IsVisible);
+        Assert.False(damping!.IsVisible);
+        Assert.False(balance!.IsVisible);
+        Assert.False(vibration!.IsVisible);
+        Assert.True(analysis!.IsVisible);
+        Assert.NotNull(profileComboBox);
+        Assert.Equal(SessionAnalysisTargetProfile.Trail, profileComboBox!.SelectedValue);
+
+        profileComboBox.SelectedValue = SessionAnalysisTargetProfile.Enduro;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(SessionAnalysisTargetProfile.Enduro, workspace.SelectedSessionAnalysisTargetProfile);
+        var stepsItemsControl = analysisView.FindControl<ItemsControl>("SessionAnalysisStepsItemsControl");
+        Assert.NotNull(stepsItemsControl);
+        var step = Assert.IsType<SessionAnalysisStep>(Assert.Single(stepsItemsControl!.Items));
+        Assert.Equal(SessionAnalysisStepId.Sag, step.Id);
+        var finding = Assert.Single(step.Findings);
+        Assert.Equal("Travel use watch", finding.Title);
+        Assert.Equal("The fork is not using much travel.", finding.Observation);
+        Assert.Contains(step.Metrics, metric => metric.Label == "Max travel");
+    }
+
+    [AvaloniaFact]
+    public async Task SessionStatisticsDesktopView_BindsStatisticsModeSelectors()
+    {
+        var workspace = new SessionStatisticsWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontStatistics: true,
+            hasRearStatistics: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+
+        await using var mounted = await MountAsync(workspace);
+
+        var travelMode = mounted.View.FindControl<ComboBox>("TravelHistogramModeComboBox");
+        var balanceDisplacementMode = mounted.View.FindControl<ComboBox>("BalanceDisplacementModeComboBox");
+        var balanceSpeedMode = mounted.View.FindControl<ComboBox>("BalanceSpeedModeComboBox");
+
+        Assert.NotNull(travelMode);
+        Assert.NotNull(balanceDisplacementMode);
+        Assert.NotNull(balanceSpeedMode);
+
+        Assert.Equal(TravelHistogramMode.ActiveSuspension, travelMode!.SelectedValue);
+        Assert.Equal(BalanceDisplacementMode.Zenith, balanceDisplacementMode!.SelectedValue);
+        Assert.Equal(BalanceSpeedMode.Both, balanceSpeedMode!.SelectedValue);
+
+        travelMode.SelectedValue = TravelHistogramMode.DynamicSag;
+        balanceDisplacementMode.SelectedValue = BalanceDisplacementMode.Travel;
+        balanceSpeedMode.SelectedValue = BalanceSpeedMode.HighSpeed;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(TravelHistogramMode.DynamicSag, workspace.SelectedTravelHistogramMode);
+        Assert.Equal(BalanceDisplacementMode.Travel, workspace.SelectedBalanceDisplacementMode);
+        Assert.Equal(BalanceSpeedMode.HighSpeed, workspace.SelectedBalanceSpeedMode);
+    }
+
+    private static async Task<MountedSessionStatisticsDesktopView> MountAsync(SessionStatisticsWorkspaceStub workspace)
+    {
+        ViewTestHelpers.EnsureSessionDetailViewSetup(isDesktop: true);
+
+        var view = new SessionStatisticsDesktopView
+        {
+            DataContext = workspace,
+        };
+
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+        return new MountedSessionStatisticsDesktopView(host, view);
+    }
+
+    private static RecordedSessionStatisticsTabContribution CreateStatisticsTabContribution(
+        string contributionId,
+        string displayName = "Extension tab",
+        string contentName = "ExtensionStatisticsTabContent")
+    {
+        return new RecordedSessionStatisticsTabContribution(
+            "extension",
+            contributionId,
+            Order: 0,
+            displayName,
+            RequestedIndex: 3,
+            new TestContributionViewModel
+            {
+                Name = contentName,
+                Content = new TextBlock { Text = contentName },
+            });
+    }
+
+    private static IReadOnlyList<string> GetTabHeaders(SessionStatisticsDesktopView view)
+    {
+        var tabControl = view.FindControl<TabStrip>("TabControl")!;
+        return tabControl.Items
+            .OfType<TabItem>()
+            .Select(item => item.Header?.ToString() ?? "")
+            .ToArray();
+    }
+
+    private static async Task SelectTabAsync(SessionStatisticsDesktopView view, string header)
+    {
+        var tabControl = view.FindControl<TabStrip>("TabControl")!;
+        var index = tabControl.Items
+            .OfType<TabItem>()
+            .Select((item, itemIndex) => (item, itemIndex))
+            .Single(entry => string.Equals(entry.item.Header?.ToString(), header, StringComparison.Ordinal))
+            .itemIndex;
+
+        tabControl.SelectedIndex = index;
+        await ViewTestHelpers.FlushDispatcherAsync();
+    }
+
+    private static TestContributionViewModel GetExtensionStatisticsTabContent(
+        SessionStatisticsDesktopView view,
+        string name = "ExtensionStatisticsTabContent")
+    {
+        var statisticsContentHost = view.FindControl<ItemsControl>("StatisticsContentHost")!;
+        return statisticsContentHost.Items
+            .OfType<TestContributionViewModel>()
+            .Single(view => view.Name == name);
+    }
+
+    private static void AssertContributionText(Control root, string name, string text)
+    {
+        var textBlocks = root.GetVisualDescendants()
+            .OfType<TextBlock>()
+            .ToArray();
+        var textBlock = textBlocks.SingleOrDefault(textBlock => textBlock.Name == name);
+        Assert.True(
+            textBlock is not null,
+            $"Expected contribution text '{name}'. Actual text blocks: {string.Join(", ", textBlocks.Select(block => $"{block.Name}:{block.Text}"))}");
+        Assert.Equal(text, textBlock!.Text);
+    }
+
+    private sealed class SessionStatisticsWorkspaceStub(
+        TelemetryData telemetryData,
+        bool hasFrontStatistics,
+        bool hasRearStatistics,
+        bool hasCompressionBalanceTelemetry,
+        bool hasReboundBalanceTelemetry,
+        bool hasFrontForkVibration = false,
+        bool hasFrontFrameVibration = false,
+        bool hasRearForkVibration = false,
+        bool hasRearFrameVibration = false) : ISessionStatisticsWorkspace
+    {
+        public TelemetryData? TelemetryData { get; } = telemetryData;
+        public TelemetryTimeRange? AnalysisRange => null;
+        public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
+        public TravelHistogramMode SelectedTravelHistogramMode { get; set; } = TravelHistogramMode.ActiveSuspension;
+        public BalanceDisplacementMode SelectedBalanceDisplacementMode { get; set; } = BalanceDisplacementMode.Zenith;
+        public BalanceSpeedMode SelectedBalanceSpeedMode { get; set; } = BalanceSpeedMode.Both;
+        public VelocityAverageMode SelectedVelocityAverageMode { get; set; } = VelocityAverageMode.SampleAveraged;
+        public SessionAnalysisTargetProfile SelectedSessionAnalysisTargetProfile { get; set; } = SessionAnalysisTargetProfile.Trail;
+        public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } =
+        [
+            new(TravelHistogramMode.ActiveSuspension, "Active suspension", "Uses only compression and rebound stroke samples. Best for travel use while the suspension is actively moving."),
+            new(TravelHistogramMode.DynamicSag, "Dynamic sag", "Uses every selected travel sample. Best for ride height over the segment, including quiet or steady sections."),
+        ];
+        public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } =
+        [
+            new(BalanceDisplacementMode.Zenith, "Zenith", "Plots each stroke at its deepest travel."),
+            new(BalanceDisplacementMode.Travel, "Travel", "Plots each stroke by start-to-end travel distance."),
+            new(BalanceDisplacementMode.Speed, "Speed", "Plots each stroke at the travel position where peak speed occurs."),
+        ];
+        public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } =
+        [
+            new(BalanceSpeedMode.Both, "Both", "Uses all matching compression or rebound strokes."),
+            new(BalanceSpeedMode.LowSpeed, "Low speed", "Uses strokes below the high-speed threshold."),
+            new(BalanceSpeedMode.HighSpeed, "High speed", "Uses strokes at or above the high-speed threshold."),
+        ];
+        public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } =
+        [
+            new(VelocityAverageMode.SampleAveraged, "Sample-averaged", "Counts every sample inside compression and rebound strokes. Best for where the damper spent time."),
+            new(VelocityAverageMode.StrokePeakAveraged, "Stroke-peak average", "Counts each stroke once by peak velocity and peak travel. Best for what events the damper saw."),
+        ];
+        public IReadOnlyList<SessionAnalysisTargetProfileOption> SessionAnalysisTargetProfileOptions { get; } =
+        [
+            new(SessionAnalysisTargetProfile.Weekend, "Weekend", "Uses conservative speed context for recreational pace and mixed terrain."),
+            new(SessionAnalysisTargetProfile.Trail, "Trail", "Uses general trail-riding speed context."),
+            new(SessionAnalysisTargetProfile.Enduro, "Enduro", "Uses faster rough-descending speed context."),
+            new(SessionAnalysisTargetProfile.DH, "DH", "Uses downhill-race speed context."),
+        ];
+        public string SessionAnalysisRangeText => "Full session";
+        public string SessionAnalysisModesText => "Travel: Active suspension  Velocity: Sample-averaged  Balance: Zenith / Both";
+        public SurfacePresentationState FrontStatisticsState { get; } = hasFrontStatistics
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SurfacePresentationState RearStatisticsState { get; } = hasRearStatistics
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SurfacePresentationState CompressionBalanceState { get; } = hasCompressionBalanceTelemetry
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SurfacePresentationState ReboundBalanceState { get; } = hasReboundBalanceTelemetry
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SurfacePresentationState FrontForkVibrationState { get; } = hasFrontForkVibration
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SurfacePresentationState FrontFrameVibrationState { get; } = hasFrontFrameVibration
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SurfacePresentationState RearForkVibrationState { get; } = hasRearForkVibration
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SurfacePresentationState RearFrameVibrationState { get; } = hasRearFrameVibration
+            ? SurfacePresentationState.Ready
+            : SurfacePresentationState.Hidden;
+        public SessionDamperPercentages DamperPercentages { get; } = new(10, 20, 30, 40, 50, 60, 70, 80);
+        public DampingSpeedCutoffs DampingSpeedCutoffs { get; } = DampingSpeedCutoffs.Default;
+        public DampingSpeedCutoffs PlotDampingSpeedCutoffs => DampingSpeedCutoffs;
+        public bool CanEditDampingSpeedCutoffs => true;
+        public IRelayCommand<TelemetryRangeSelection?> SelectTelemetryRangeSelectionCommand { get; } =
+            new RelayCommand<TelemetryRangeSelection?>(_ => { });
+        public TelemetryRangeSelection? SelectedFrontRangeSelection => null;
+        public TelemetryRangeSelection? SelectedRearRangeSelection => null;
+        public void PreviewDampingSpeedCutoff(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond) { }
+        public void CancelDampingSpeedCutoffPreview() { }
+        public Task CommitDampingSpeedCutoffAsync(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond) =>
+            Task.CompletedTask;
+        public SessionAnalysisResult SessionAnalysis { get; } = new(
+            SurfacePresentationState.Ready,
+            [new SessionAnalysisStep(
+                SessionAnalysisStepId.Sag,
+                "Sag & travel use",
+                SessionAnalysisSeverity.Watch,
+                true,
+                [new SessionAnalysisMetric("Max travel", "52.0", "%", "Fork", ">= 85 % on hard terrain")],
+                null,
+                [],
+                [new SessionAnalysisFinding(
+                    SessionAnalysisCategory.TravelUse,
+                    SessionAnalysisSeverity.Watch,
+                    SessionAnalysisConfidence.Medium,
+                    "Travel use watch",
+                    "The fork is not using much travel.",
+                    "Try a small pressure experiment and rerun the same section.",
+                    [new SessionAnalysisEvidence("Max travel", "52.0", "%", "Fork", "Active suspension travel stats")])])],
+            [],
+            null,
+            [new SessionAnalysisFinding(
+                SessionAnalysisCategory.TravelUse,
+                SessionAnalysisSeverity.Watch,
+                SessionAnalysisConfidence.Medium,
+                "Travel use watch",
+                "The fork is not using much travel.",
+                "Try a small pressure experiment and rerun the same section.",
+                [new SessionAnalysisEvidence("Max travel", "52.0", "%", "Fork", "Active suspension travel stats")])]);
+    }
+}
+
+internal sealed class MountedSessionStatisticsDesktopView(Window host, SessionStatisticsDesktopView view) : IAsyncDisposable
+{
+    public Window Host { get; } = host;
+    public SessionStatisticsDesktopView View { get; } = view;
+
+    public async ValueTask DisposeAsync()
+    {
+        Host.Close();
+        await ViewTestHelpers.FlushDispatcherAsync();
+    }
+}
