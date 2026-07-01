@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 
 using Sufni.App.Infrastructure;
@@ -16,6 +17,12 @@ namespace Sufni.App.Sessions.Pages.ViewModels.Editors;
 /// </summary>
 internal sealed class SessionStalenessReconciler
 {
+    // Recompute-specific prompt choice ids. The dialog service stays generic; this
+    // reconciler owns what the buttons mean.
+    private const string RecomputeThisChoiceId = "recompute-this";
+    private const string RecomputeAllChoiceId = "recompute-all";
+    private const string CancelChoiceId = "cancel";
+
     private readonly ISessionCoordinator sessionCoordinator;
     private readonly IDialogService dialogService;
     private readonly ISessionOperationGateway gateway;
@@ -81,12 +88,33 @@ internal sealed class SessionStalenessReconciler
         recomputePromptRunning = true;
         try
         {
-            var confirmed = await dialogService.ShowConfirmationAsync(
+            var choice = await dialogService.ShowChoiceAsync(
                 RecomputePromptTitle(domain),
-                RecomputePromptMessage(gateway.IsDirty));
-            if (!confirmed || !gateway.IsViewLoaded)
+                RecomputePromptMessage(gateway.IsDirty),
+                new[]
+                {
+                    new DialogChoice(CancelChoiceId, "Cancel"),
+                    new DialogChoice(RecomputeAllChoiceId, "Recompute all"),
+                    // Recomputing just the prompted session is the primary/default action.
+                    new DialogChoice(RecomputeThisChoiceId, "Recompute", IsDefault: true)
+                });
+            if (!gateway.IsViewLoaded)
             {
                 return;
+            }
+
+            switch (choice)
+            {
+                case RecomputeAllChoiceId:
+                    await RecomputeAllAsync();
+                    return;
+
+                case RecomputeThisChoiceId:
+                    break;
+
+                default:
+                    // Cancel or dismissed: nothing to recompute.
+                    return;
             }
 
             var result = await sessionCoordinator.RequestRecomputeAsync(gateway.SessionId, reason);
@@ -108,6 +136,29 @@ internal sealed class SessionStalenessReconciler
         finally
         {
             recomputePromptRunning = false;
+        }
+    }
+
+    private async Task RecomputeAllAsync()
+    {
+        // Run the parallel bulk recompute behind a modal progress dialog, relaying
+        // the engine's completed/total progress to the dialog's bar and status.
+        var summary = await dialogService.ShowProgressAsync(
+            "Recomputing all sessions",
+            progress =>
+            {
+                var relay = new Progress<SessionRecomputeAllProgress>(report =>
+                    progress.Report(new DialogProgress(
+                        report.Total == 0 ? 1 : (double)report.Completed / report.Total,
+                        $"{report.Completed} of {report.Total} sessions")));
+                return sessionCoordinator.RequestRecomputeAllAsync(relay);
+            });
+
+        // Skipped (not-recomputable) sessions are an expected outcome of a bulk
+        // recompute, so only hard failures are surfaced to the user.
+        if (gateway.IsViewLoaded && summary.Failed > 0)
+        {
+            gateway.AddError($"{summary.Failed} of {summary.Total} sessions could not be recomputed.");
         }
     }
 

@@ -91,6 +91,11 @@ public sealed class SessionCommandService
     public Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, RecomputeReason reason) =>
         recomputeEngine.RequestRecomputeAsync(sessionId, reason);
 
+    public Task<SessionRecomputeAllResult> RequestRecomputeAllAsync(
+        RecomputeReason reason,
+        IProgress<SessionRecomputeAllProgress>? progress = null) =>
+        recomputeEngine.RequestRecomputeAllAsync(reason, progress);
+
     public bool IsRecomputeActive(Guid sessionId) => recomputeEngine.IsActive(sessionId);
 
     public async Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated)

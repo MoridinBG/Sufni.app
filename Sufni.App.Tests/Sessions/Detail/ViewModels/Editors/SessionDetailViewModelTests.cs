@@ -2273,10 +2273,11 @@ public class SessionDetailViewModelTests
         sessionStore.Get(snapshot.Id).Returns(snapshot, snapshot);
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(new SessionDesktopLoadResult.TelemetryPending());
-        dialogService.ShowConfirmationAsync(
+        dialogService.ShowChoiceAsync(
                 Arg.Any<string>(),
-                Arg.Any<string>())
-            .Returns(true);
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<DialogChoice>>())
+            .Returns(call => call.Arg<IReadOnlyList<DialogChoice>>().First(c => c.Label == "Recompute").Id);
         sessionCoordinator.RequestRecomputeAsync(snapshot.Id, Arg.Any<RecomputeReason>())
             .Returns(_ =>
             {
@@ -2298,7 +2299,7 @@ public class SessionDetailViewModelTests
         // The reconciler prompts for the stale-on-open domain and requests a
         // recompute. The resulting baseline advance is driven by the watch reaction,
         // which other tests cover; here we assert the forward-only prompt-and-request.
-        await dialogService.Received(1).ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+        await dialogService.Received(1).ShowChoiceAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<DialogChoice>>());
         await sessionCoordinator.Received(1).RequestRecomputeAsync(snapshot.Id, RecomputeReason.StaleOnOpen);
     }
 
@@ -2317,10 +2318,11 @@ public class SessionDetailViewModelTests
 
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(new SessionDesktopLoadResult.TelemetryPending());
-        dialogService.ShowConfirmationAsync(
+        dialogService.ShowChoiceAsync(
                 Arg.Any<string>(),
-                Arg.Any<string>())
-            .Returns(true);
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<DialogChoice>>())
+            .Returns(call => call.Arg<IReadOnlyList<DialogChoice>>().First(c => c.Label == "Recompute").Id);
         sessionCoordinator.RequestRecomputeAsync(snapshot.Id, Arg.Any<RecomputeReason>())
             .Returns(_ =>
             {
@@ -2348,9 +2350,10 @@ public class SessionDetailViewModelTests
         watch.OnNext(staleDomain);
         await Task.Yield();
 
-        await dialogService.Received(1).ShowConfirmationAsync(
+        await dialogService.Received(1).ShowChoiceAsync(
             Arg.Any<string>(),
-            Arg.Any<string>());
+            Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<DialogChoice>>());
         await sessionCoordinator.Received(1).RequestRecomputeAsync(snapshot.Id, Arg.Any<RecomputeReason>());
     }
 
@@ -2374,10 +2377,11 @@ public class SessionDetailViewModelTests
                     ? LoadedDesktopResult(oldTelemetry)
                     : LoadedDesktopResult(freshTelemetry);
             });
-        dialogService.ShowConfirmationAsync(
+        dialogService.ShowChoiceAsync(
                 Arg.Any<string>(),
-                Arg.Any<string>())
-            .Returns(true);
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<DialogChoice>>())
+            .Returns(call => call.Arg<IReadOnlyList<DialogChoice>>().First(c => c.Label == "Recompute").Id);
         var recomputeRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         sessionCoordinator.RequestRecomputeAsync(snapshot.Id, Arg.Any<RecomputeReason>())
             .Returns(_ =>
@@ -2423,10 +2427,11 @@ public class SessionDetailViewModelTests
         var watch = new Subject<RecordedSessionDomainSnapshot>();
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(new SessionDesktopLoadResult.TelemetryPending());
-        dialogService.ShowConfirmationAsync(
+        dialogService.ShowChoiceAsync(
                 Arg.Any<string>(),
-                Arg.Any<string>())
-            .Returns(false);
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<DialogChoice>>())
+            .Returns(call => call.Arg<IReadOnlyList<DialogChoice>>().First(c => c.Label == "Cancel").Id);
 
         var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
         await editor.LoadedCommand.ExecuteAsync(null);
@@ -2437,9 +2442,10 @@ public class SessionDetailViewModelTests
             new SessionStaleness.DependencyHashChanged()));
         await Task.Yield();
 
-        await dialogService.Received(1).ShowConfirmationAsync(
+        await dialogService.Received(1).ShowChoiceAsync(
             Arg.Any<string>(),
-            Arg.Any<string>());
+            Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<DialogChoice>>());
 
         await editor.CloseCommand.ExecuteAsync(null);
         shell.Received(1).Close(editor);
@@ -2450,9 +2456,10 @@ public class SessionDetailViewModelTests
             new SessionStaleness.DependencyHashChanged()));
         await Task.Yield();
 
-        await dialogService.Received(1).ShowConfirmationAsync(
+        await dialogService.Received(1).ShowChoiceAsync(
             Arg.Any<string>(),
-            Arg.Any<string>());
+            Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<DialogChoice>>());
         await sessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
     }
 
@@ -2555,7 +2562,7 @@ public class SessionDetailViewModelTests
         await Task.Yield();
 
         Assert.Empty(editor.ErrorMessages);
-        await dialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+        await dialogService.DidNotReceive().ShowChoiceAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<DialogChoice>>());
         await sessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
     }
 
@@ -2568,10 +2575,11 @@ public class SessionDetailViewModelTests
         var recomputeCalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(new SessionDesktopLoadResult.TelemetryPending());
-        dialogService.ShowConfirmationAsync(
+        dialogService.ShowChoiceAsync(
                 Arg.Any<string>(),
-                Arg.Any<string>())
-            .Returns(true);
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<DialogChoice>>())
+            .Returns(call => call.Arg<IReadOnlyList<DialogChoice>>().First(c => c.Label == "Recompute").Id);
         sessionCoordinator.RequestRecomputeAsync(snapshot.Id, Arg.Any<RecomputeReason>())
             .Returns(_ =>
             {
@@ -2610,7 +2618,8 @@ public class SessionDetailViewModelTests
         var watch = new Subject<RecordedSessionDomainSnapshot>();
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(new SessionDesktopLoadResult.TelemetryPending());
-        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
+        dialogService.ShowChoiceAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<DialogChoice>>())
+            .Returns(call => call.Arg<IReadOnlyList<DialogChoice>>().First(c => c.Label == "Cancel").Id);
 
         var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
         await editor.LoadedCommand.ExecuteAsync(null);
@@ -2636,13 +2645,14 @@ public class SessionDetailViewModelTests
         var promptShown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(new SessionDesktopLoadResult.TelemetryPending());
-        dialogService.ShowConfirmationAsync(
+        dialogService.ShowChoiceAsync(
                 Arg.Any<string>(),
-                Arg.Any<string>())
-            .Returns(_ =>
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<DialogChoice>>())
+            .Returns(call =>
             {
                 promptShown.TrySetResult();
-                return Task.FromResult(false);
+                return call.Arg<IReadOnlyList<DialogChoice>>().First(c => c.Label == "Cancel").Id;
             });
 
         var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
@@ -2657,14 +2667,15 @@ public class SessionDetailViewModelTests
             new SessionStaleness.DependencyHashChanged()));
         await Task.Yield();
 
-        await dialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+        await dialogService.DidNotReceive().ShowChoiceAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<DialogChoice>>());
 
         editor.SetTabActive(true);
         await promptShown.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
-        await dialogService.Received(1).ShowConfirmationAsync(
+        await dialogService.Received(1).ShowChoiceAsync(
             Arg.Any<string>(),
-            Arg.Any<string>());
+            Arg.Any<string>(),
+            Arg.Any<IReadOnlyList<DialogChoice>>());
         await sessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
     }
 

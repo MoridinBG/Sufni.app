@@ -69,6 +69,10 @@ public class SessionCoordinator : ISessionCoordinator
     public Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, RecomputeReason reason) =>
         commandService.RequestRecomputeAsync(sessionId, reason);
 
+    public Task<SessionRecomputeAllResult> RequestRecomputeAllAsync(
+        IProgress<SessionRecomputeAllProgress>? progress = null) =>
+        commandService.RequestRecomputeAllAsync(RecomputeReason.RecomputeAll, progress);
+
     public bool IsRecomputeActive(Guid sessionId) => commandService.IsRecomputeActive(sessionId);
 
     public Task<SessionDeleteResult> DeleteAsync(Guid sessionId) =>
@@ -112,6 +116,23 @@ public abstract record SessionRecomputeResult
     public sealed record NotRecomputable(SessionStaleness Reason) : SessionRecomputeResult;
     public sealed record Failed(string ErrorMessage) : SessionRecomputeResult;
 }
+
+/// <summary>
+/// Aggregate outcome of a recompute-all request. The counts are disjoint and
+/// sum to <see cref="Total"/>, the number of live sessions considered.
+/// </summary>
+public sealed record SessionRecomputeAllResult(
+    int Total,
+    int Recomputed,
+    int Superseded,
+    int NotRecomputable,
+    int Failed);
+
+/// <summary>
+/// Incremental progress for a recompute-all run: how many of the considered
+/// sessions have finished so far.
+/// </summary>
+public sealed record SessionRecomputeAllProgress(int Completed, int Total);
 
 public sealed record SessionDeleteResult(SessionDeleteOutcome Outcome, string? ErrorMessage = null);
 

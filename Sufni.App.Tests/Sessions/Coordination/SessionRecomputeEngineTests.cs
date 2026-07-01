@@ -224,4 +224,114 @@ public class SessionRecomputeEngineTests
             Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<ProcessingFingerprint>());
         Assert.False(engine.IsActive(sessionId));
     }
+
+    [Fact]
+    public async Task RequestRecomputeAllAsync_RecomputesEveryRecomputableSession_AndCountsSkips()
+    {
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+        var skippedId = Guid.NewGuid();
+        var firstPersisted = ConfigureRecomputable(firstId);
+        var secondPersisted = ConfigureRecomputable(secondId);
+
+        // A session whose current staleness cannot be recomputed is enumerated but
+        // skipped by the engine's guard, not surfaced as a failure.
+        var skipped = TestSnapshots.Session(id: skippedId, hasProcessedData: true);
+        domainQuery.Get(skippedId).Returns(new RecordedSessionDomainSnapshot(
+            skipped,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new SessionStaleness.MissingDependencies(SetupMissing: true, BikeMissing: false),
+            DerivedChangeKind.None));
+        var skippedPersisted = new Session(skippedId, "skipped", "desc", Guid.NewGuid(), 100);
+
+        sessionEntityRepository.GetAllAsync().Returns([firstPersisted, secondPersisted, skippedPersisted]);
+        sessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(SessionPreferences.Default);
+        reprocessor
+            .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<TelemetryProcessingOptions>(2))));
+
+        var engine = CreateEngine();
+        var summary = await engine
+            .RequestRecomputeAllAsync(RecomputeReason.RecomputeAll)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(3, summary.Total);
+        Assert.Equal(2, summary.Recomputed);
+        Assert.Equal(1, summary.NotRecomputable);
+        Assert.Equal(0, summary.Failed);
+        Assert.Equal(0, summary.Superseded);
+        await sessionTelemetryWriter.Received(2).UpdateProcessedDerivedDataAsync(
+            Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<ProcessingFingerprint>());
+        Assert.False(engine.IsActive(firstId));
+        Assert.False(engine.IsActive(secondId));
+    }
+
+    [Fact]
+    public async Task RequestRecomputeAllAsync_ExcludesSoftDeletedSessions()
+    {
+        var liveId = Guid.NewGuid();
+        var livePersisted = ConfigureRecomputable(liveId);
+        var deletedPersisted = new Session(Guid.NewGuid(), "deleted", "desc", Guid.NewGuid(), 100)
+        {
+            Deleted = 123
+        };
+        sessionEntityRepository.GetAllAsync().Returns([livePersisted, deletedPersisted]);
+        sessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(SessionPreferences.Default);
+        reprocessor
+            .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<TelemetryProcessingOptions>(2))));
+
+        var summary = await CreateEngine()
+            .RequestRecomputeAllAsync(RecomputeReason.RecomputeAll)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(1, summary.Total);
+        Assert.Equal(1, summary.Recomputed);
+        domainQuery.DidNotReceive().Get(deletedPersisted.Id);
+    }
+
+    [Fact]
+    public async Task RequestRecomputeAllAsync_ReportsProgress_FromZeroToTotal()
+    {
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+        var firstPersisted = ConfigureRecomputable(firstId);
+        var secondPersisted = ConfigureRecomputable(secondId);
+        sessionEntityRepository.GetAllAsync().Returns([firstPersisted, secondPersisted]);
+        sessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(SessionPreferences.Default);
+        reprocessor
+            .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<TelemetryProcessingOptions>(2))));
+
+        // A synchronous sink records every report deterministically: the engine
+        // reports before each parallel body returns, and ForEachAsync awaits them all.
+        var collector = new RecordingProgress();
+
+        var summary = await CreateEngine()
+            .RequestRecomputeAllAsync(RecomputeReason.RecomputeAll, collector)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(2, summary.Total);
+        Assert.Contains(new SessionRecomputeAllProgress(0, 2), collector.Reports);
+        Assert.Contains(collector.Reports, report => report is { Completed: 2, Total: 2 });
+        Assert.All(collector.Reports, report => Assert.Equal(2, report.Total));
+    }
+
+    private sealed class RecordingProgress : IProgress<SessionRecomputeAllProgress>
+    {
+        private readonly object gate = new();
+        public List<SessionRecomputeAllProgress> Reports { get; } = [];
+
+        public void Report(SessionRecomputeAllProgress value)
+        {
+            lock (gate)
+            {
+                Reports.Add(value);
+            }
+        }
+    }
 }

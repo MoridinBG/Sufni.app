@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Avalonia;
@@ -520,6 +521,239 @@ public class DialogService : IDialogService, IDialogHost, IExtensionDialogServic
         var dialog = new OkCancelDialogWindow(title, message);
         var result = await dialog.ShowDialogAsync(owner);
         return result == PromptResult.Ok;
+    }
+
+    public async Task<string?> ShowChoiceAsync(string title, string message, IReadOnlyList<DialogChoice> choices)
+    {
+        ArgumentNullException.ThrowIfNull(choices);
+
+        if (presentationMode == DialogPresentationMode.Overlay)
+        {
+            return await ShowChoiceOverlayAsync(title, message, choices);
+        }
+
+        Debug.Assert(owner != null, nameof(owner) + " != null");
+
+        var dialog = new ChoiceDialogWindow(title, message, choices);
+        return await dialog.ShowDialogAsync(owner!);
+    }
+
+    private Task<string?> ShowChoiceOverlayAsync(string title, string message, IReadOnlyList<DialogChoice> choices)
+    {
+        var host = overlayHost ?? TryGetSingleViewOverlayHost();
+        Debug.Assert(host != null, nameof(overlayHost) + " != null");
+
+        if (host is null)
+        {
+            throw new InvalidOperationException("Dialog overlay host has not been set.");
+        }
+
+        var panel = TryGetOverlayPanel(host);
+        if (panel is null)
+        {
+            throw new InvalidOperationException("Dialog overlay host does not expose a panel surface.");
+        }
+
+        var tcs = new TaskCompletionSource<string?>();
+        Control? overlay = null;
+        overlay = CreateChoiceOverlay(title, message, choices, Complete);
+        overlay.DetachedFromVisualTree += OverlayDetached;
+        panel.Children.Add(overlay);
+        return tcs.Task;
+
+        void OverlayDetached(object? sender, VisualTreeAttachmentEventArgs args)
+        {
+            overlay = null;
+            tcs.TrySetResult(null);
+        }
+
+        void Complete(string? result)
+        {
+            if (overlay is { } currentOverlay)
+            {
+                currentOverlay.DetachedFromVisualTree -= OverlayDetached;
+                panel.Children.Remove(currentOverlay);
+                overlay = null;
+            }
+
+            tcs.TrySetResult(result);
+        }
+    }
+
+    private static Control CreateChoiceOverlay(
+        string title,
+        string message,
+        IReadOnlyList<DialogChoice> choices,
+        Action<string?> complete)
+    {
+        var buttons = new StackPanel
+        {
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Orientation = Orientation.Horizontal,
+            Spacing = 10
+        };
+
+        foreach (var choice in choices)
+        {
+            var button = new Button
+            {
+                Content = choice.Label
+            };
+            if (choice.IsDefault)
+            {
+                button.Classes.Add("accent");
+            }
+
+            // Capture the id per iteration so every button reports its own choice.
+            var id = choice.Id;
+            button.Click += (_, _) => complete(id);
+            buttons.Children.Add(button);
+        }
+
+        return new Grid
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Children =
+            {
+                new Border
+                {
+                    Background = SufniBrushes.OverlayScrim()
+                },
+                new Border
+                {
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    MaxWidth = 420,
+                    Margin = new Thickness(12),
+                    Padding = new Thickness(16),
+                    Background = SufniBrushes.DialogSurface(),
+                    CornerRadius = new CornerRadius(6),
+                    Child = new StackPanel
+                    {
+                        Spacing = 12,
+                        Children =
+                        {
+                            new TextBlock
+                            {
+                                Text = title,
+                                FontWeight = FontWeight.SemiBold,
+                                TextWrapping = TextWrapping.Wrap
+                            },
+                            new TextBlock
+                            {
+                                Text = message,
+                                TextWrapping = TextWrapping.Wrap
+                            },
+                            buttons
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    public async Task<T> ShowProgressAsync<T>(string title, Func<IProgress<DialogProgress>, Task<T>> work)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+
+        if (presentationMode == DialogPresentationMode.Overlay)
+        {
+            return await ShowProgressOverlayAsync(title, work);
+        }
+
+        Debug.Assert(owner != null, nameof(owner) + " != null");
+
+        var window = new ProgressDialogWindow(title);
+        var progress = new Progress<DialogProgress>(window.Update);
+        // Show the modal dialog without awaiting it: its task completes only on
+        // close, which we do ourselves once the reported work finishes.
+        _ = window.ShowDialog(owner!);
+        try
+        {
+            return await work(progress);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    private async Task<T> ShowProgressOverlayAsync<T>(string title, Func<IProgress<DialogProgress>, Task<T>> work)
+    {
+        var host = overlayHost ?? TryGetSingleViewOverlayHost();
+        Debug.Assert(host != null, nameof(overlayHost) + " != null");
+
+        if (host is null)
+        {
+            throw new InvalidOperationException("Dialog overlay host has not been set.");
+        }
+
+        var panel = TryGetOverlayPanel(host);
+        if (panel is null)
+        {
+            throw new InvalidOperationException("Dialog overlay host does not expose a panel surface.");
+        }
+
+        var bar = new ProgressBar { Minimum = 0, Maximum = 1 };
+        var status = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        var overlay = CreateProgressOverlay(title, bar, status);
+        var progress = new Progress<DialogProgress>(report =>
+        {
+            bar.Value = double.IsFinite(report.Fraction) ? Math.Clamp(report.Fraction, 0, 1) : 0;
+            status.Text = report.Status;
+        });
+
+        panel.Children.Add(overlay);
+        try
+        {
+            return await work(progress);
+        }
+        finally
+        {
+            panel.Children.Remove(overlay);
+        }
+    }
+
+    private static Control CreateProgressOverlay(string title, ProgressBar bar, TextBlock status)
+    {
+        return new Grid
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Children =
+            {
+                new Border
+                {
+                    Background = SufniBrushes.OverlayScrim()
+                },
+                new Border
+                {
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    MaxWidth = 420,
+                    Margin = new Thickness(12),
+                    Padding = new Thickness(16),
+                    Background = SufniBrushes.DialogSurface(),
+                    CornerRadius = new CornerRadius(6),
+                    Child = new StackPanel
+                    {
+                        Spacing = 12,
+                        Children =
+                        {
+                            new TextBlock
+                            {
+                                Text = title,
+                                FontWeight = FontWeight.SemiBold,
+                                TextWrapping = TextWrapping.Wrap
+                            },
+                            bar,
+                            status
+                        }
+                    }
+                }
+            }
+        };
     }
 
     private Task<bool> ShowConfirmationOverlayAsync(string title, string message)

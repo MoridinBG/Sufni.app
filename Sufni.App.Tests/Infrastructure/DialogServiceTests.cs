@@ -326,6 +326,99 @@ public class DialogServiceTests
         }
     }
 
+    [AvaloniaTheory]
+    [InlineData("Recompute", "recompute-this")]
+    [InlineData("Recompute all", "recompute-all")]
+    [InlineData("Cancel", "cancel")]
+    public async Task ShowChoiceAsync_MobileMode_ReturnsChosenId_ForClickedButton(
+        string buttonContent,
+        string expectedId)
+    {
+        var service = CreateService(DialogPresentationMode.Overlay);
+        var overlayHost = new Grid();
+        var owner = ViewTestHelpers.ShowView(overlayHost);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        service.SetOwner(owner);
+        service.SetOverlayHost(overlayHost);
+
+        var choices = new[]
+        {
+            new DialogChoice("cancel", "Cancel"),
+            new DialogChoice("recompute-all", "Recompute all"),
+            new DialogChoice("recompute-this", "Recompute", IsDefault: true)
+        };
+
+        try
+        {
+            var resultTask = service.ShowChoiceAsync("Recompute session", "Recompute this session now?", choices);
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.Empty(owner.OwnedWindows);
+            Assert.Contains(overlayHost.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "Recompute session");
+
+            ClickConfirmationButton(overlayHost, buttonContent);
+
+            var result = await resultTask;
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.Equal(expectedId, result);
+            Assert.DoesNotContain(overlayHost.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "Recompute session");
+            Assert.Empty(owner.OwnedWindows);
+        }
+        finally
+        {
+            owner.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task ShowProgressAsync_MobileMode_ShowsOverlayWithProgress_AndReturnsWorkResult()
+    {
+        var service = CreateService(DialogPresentationMode.Overlay);
+        var overlayHost = new Grid();
+        var owner = ViewTestHelpers.ShowView(overlayHost);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        service.SetOwner(owner);
+        service.SetOverlayHost(overlayHost);
+
+        var release = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        try
+        {
+            var resultTask = service.ShowProgressAsync<int>("Recomputing all sessions", async progress =>
+            {
+                progress.Report(new DialogProgress(0.5, "1 of 2 sessions"));
+                return await release.Task;
+            });
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            // The overlay is present (no owned window) and shows a progress bar that
+            // reflects the reported fraction and status.
+            Assert.Empty(owner.OwnedWindows);
+            Assert.Contains(overlayHost.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "Recomputing all sessions");
+            var bar = Assert.Single(overlayHost.GetVisualDescendants().OfType<ProgressBar>());
+            Assert.Equal(0.5, bar.Value, 3);
+            Assert.Contains(overlayHost.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "1 of 2 sessions");
+
+            release.SetResult(42);
+            var result = await resultTask;
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            // Work result flows back and the overlay is torn down on completion.
+            Assert.Equal(42, result);
+            Assert.Empty(overlayHost.GetVisualDescendants().OfType<ProgressBar>());
+            Assert.Empty(owner.OwnedWindows);
+        }
+        finally
+        {
+            owner.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
     [AvaloniaFact]
     public async Task ShowAddTileLayerDialogAsync_DesktopMode_UsesOwnedWindow()
     {

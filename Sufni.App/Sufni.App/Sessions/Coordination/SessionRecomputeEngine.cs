@@ -31,7 +31,8 @@ public enum RecomputeReason
     DependencyChanged,
     ManualFromList,
     GpsOffsetChanged,
-    Migration
+    Migration,
+    RecomputeAll
 }
 
 /// <summary>
@@ -45,6 +46,19 @@ public enum RecomputeReason
 public interface ISessionRecomputeEngine
 {
     Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, RecomputeReason reason);
+
+    /// <summary>
+    /// Rebuilds every live recorded session, fanning the per-session requests out
+    /// with a degree of parallelism scaled to the available CPU cores. Each
+    /// session goes through <see cref="RequestRecomputeAsync"/>, so per-session
+    /// cancel-and-replace and the not-recomputable guard still apply; sessions
+    /// that cannot be recomputed are counted and skipped rather than surfaced as
+    /// failures. When supplied, <paramref name="progress"/> is reported after each
+    /// session finishes so a caller can drive a progress indicator.
+    /// </summary>
+    Task<SessionRecomputeAllResult> RequestRecomputeAllAsync(
+        RecomputeReason reason,
+        IProgress<SessionRecomputeAllProgress>? progress = null);
 
     /// <summary>
     /// True from the moment a request is accepted (synchronously, before any
@@ -74,7 +88,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
     // run map and the monotonic sequence; there is deliberately no per-id
     // SemaphoreSlim. The map is the source of truth for both currency (which run
     // may commit) and IsActive.
-    private readonly object stateGate = new();
+    private readonly System.Threading.Lock stateGate = new();
     private readonly Dictionary<Guid, Run> runs = new();
     private long sequence;
 
@@ -175,6 +189,66 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
                 cts.Dispose();
             }
         }
+    }
+
+    public async Task<SessionRecomputeAllResult> RequestRecomputeAllAsync(
+        RecomputeReason reason,
+        IProgress<SessionRecomputeAllProgress>? progress = null)
+    {
+        // The store's writer surface has no bulk enumeration, so the entity
+        // repository is the source of "which sessions exist"; skip soft-deleted
+        // rows the same way the orphaned-track cleanup does.
+        var sessions = await sessionEntityRepository.GetAllAsync();
+        var ids = sessions
+            .Where(session => session.Deleted is null)
+            .Select(session => session.Id)
+            .ToList();
+
+        logger.Information("Starting recompute-all for {SessionCount} sessions ({Reason})", ids.Count, reason);
+
+        var recomputed = 0;
+        var superseded = 0;
+        var notRecomputable = 0;
+        var failed = 0;
+        var completed = 0;
+
+        progress?.Report(new SessionRecomputeAllProgress(0, ids.Count));
+
+        // Scale the fan-out to the available hardware. Each RequestRecomputeAsync
+        // offloads its heavy reprocessing to the background task runner, so
+        // bounding concurrency to the processor count keeps the cores busy
+        // without oversubscribing them or flooding the shared DB connection.
+        var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+        await Parallel.ForEachAsync(ids, options, async (id, _) =>
+        {
+            var result = await RequestRecomputeAsync(id, reason);
+            switch (result)
+            {
+                case SessionRecomputeResult.Recomputed:
+                    Interlocked.Increment(ref recomputed);
+                    break;
+                case SessionRecomputeResult.Superseded:
+                    Interlocked.Increment(ref superseded);
+                    break;
+                case SessionRecomputeResult.NotRecomputable:
+                    Interlocked.Increment(ref notRecomputable);
+                    break;
+                case SessionRecomputeResult.Failed:
+                    Interlocked.Increment(ref failed);
+                    break;
+            }
+
+            progress?.Report(new SessionRecomputeAllProgress(Interlocked.Increment(ref completed), ids.Count));
+        });
+
+        logger.Information(
+            "Recompute-all completed: {Recomputed} recomputed, {NotRecomputable} skipped, {Failed} failed, {Superseded} superseded",
+            recomputed,
+            notRecomputable,
+            failed,
+            superseded);
+
+        return new SessionRecomputeAllResult(ids.Count, recomputed, superseded, notRecomputable, failed);
     }
 
     private async Task<SessionRecomputeResult> RecomputeAsync(

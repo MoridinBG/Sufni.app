@@ -32,6 +32,14 @@ public interface ISessionCoordinator
     Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, RecomputeReason reason);
 
     /// <summary>
+    /// Rebuilds every recomputable recorded session in parallel, scaled to the
+    /// available hardware. Sessions that cannot be recomputed are skipped. When
+    /// supplied, <paramref name="progress"/> is reported as sessions finish.
+    /// </summary>
+    Task<SessionRecomputeAllResult> RequestRecomputeAllAsync(
+        IProgress<SessionRecomputeAllProgress>? progress = null);
+
+    /// <summary>
     /// True while a recompute for this session is in flight. The staleness
     /// prompter reads it to avoid prompting for a recompute the user just
     /// triggered (the request flips this true synchronously, before any await).

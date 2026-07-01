@@ -1,0 +1,27 @@
+<Window
+x:Class="Sufni.App.Shared.Views.Dialogs.ChoiceDialogWindow"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+Width="400"
+Height="110"
+d:DesignHeight="450"
+d:DesignWidth="800"
+mc:Ignorable="d">
+    <Grid Margin="10" RowDefinitions="auto * auto">
+        <TextBlock
+        Name="MessageText"
+        Grid.Row="0"
+        Margin="0,0,0,10"
+        TextWrapping="Wrap" />
+        <Border Grid.Row="1" Background="Transparent" />
+        <!-- Buttons are populated in code-behind, one per supplied DialogChoice. -->
+        <StackPanel
+        Name="ButtonPanel"
+        Grid.Row="2"
+        HorizontalAlignment="Right"
+        Orientation="Horizontal"
+        Spacing="5" />
+    </Grid>
+</Window>
