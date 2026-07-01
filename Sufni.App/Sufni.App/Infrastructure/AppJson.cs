@@ -21,9 +21,16 @@ namespace Sufni.App.Infrastructure;
 
 internal static class AppJson
 {
-    public static JsonSerializerOptions Options { get; } = CreateOptions();
+    // LENIENT — local round-trips (DB, files, fingerprint hashing) AND the client.
+    // Output must remain byte-stable (ProcessingDependencyHash depends on it).
+    public static JsonSerializerOptions Options { get; } = CreateLenientOptions();
 
-    public static AppJsonContext Context { get; } = new(CreateOptions());
+    public static AppJsonContext Context { get; } = new(CreateLenientOptions());
+
+    // HARDENED — network-inbound deserialization on the sync server only.
+    public static JsonSerializerOptions InboundOptions { get; } = CreateInboundOptions();
+
+    public static AppJsonContext InboundContext { get; } = new(CreateInboundOptions());
 
     public static string Serialize<T>(T? value)
     {
@@ -54,12 +61,23 @@ internal static class AppJson
         return Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    private static JsonSerializerOptions CreateOptions()
+    private static JsonSerializerOptions CreateLenientOptions()
     {
         JsonSerializerOptions options = new()
         {
             PropertyNameCaseInsensitive = true
         };
+        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
+        return options;
+    }
+
+    private static JsonSerializerOptions CreateInboundOptions()
+    {
+        // .NET 10 Strict preset enables: JsonUnmappedMemberHandling.Disallow,
+        // AllowDuplicateProperties=false, case-sensitive binding,
+        // RespectNullableAnnotations=true, RespectRequiredConstructorParameters=true.
+        // Keep the snake_case enum converter (Strict does not add it).
+        JsonSerializerOptions options = new(JsonSerializerDefaults.Strict);
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
         return options;
     }

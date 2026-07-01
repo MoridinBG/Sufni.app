@@ -15,14 +15,15 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using System.Threading.Tasks;
 using Makaretu.Dns;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
@@ -56,8 +57,8 @@ public class SynchronizationServerService : ISynchronizationServerService
     private readonly ISessionBlobSwapRequestStore swapRequestStore;
     private readonly IExtensionSyncService? extensionSyncService;
     private readonly ISecureStorage secureStorage;
-    private readonly object advertisingGate = new();
-    private readonly object startGate = new();
+    private readonly System.Threading.Lock advertisingGate = new();
+    private readonly System.Threading.Lock startGate = new();
 
     private readonly ConcurrentDictionary<string, (string deviceId, string? displayName, DateTime expiresAt)> pendingPairings = new();
 
@@ -318,13 +319,20 @@ public class SynchronizationServerService : ISynchronizationServerService
             });
         });
 
-        // Matches the client's AppJsonContext options so snake_case enum
-        // strings (e.g. "active_suspension") round-trip through the minimal
-        // API [FromBody] / Results.Ok pipeline.
+        // Keeps the client's AppJsonContext snake_case enum strings while hardening
+        // inbound [FromBody] binding. These five fields mirror the .NET 10 Strict
+        // preset exactly; they are set individually rather than assigning the preset
+        // because this same options instance also serializes every Results.Ok(...)
+        // response.
         builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(jsonOptions =>
         {
-            jsonOptions.SerializerOptions.PropertyNameCaseInsensitive = true;
-            jsonOptions.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
+            var o = jsonOptions.SerializerOptions;
+            o.AllowDuplicateProperties = false;                    // reject duplicate JSON keys
+            o.RespectNullableAnnotations = true;                   // non-nullable members required
+            o.RespectRequiredConstructorParameters = true;         // non-nullable positional-record ctor params required
+            o.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
+            o.PropertyNameCaseInsensitive = false;                 // case-sensitive binding
+            o.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
         });
 
         var key = Encoding.UTF8.GetBytes(jwtSecret);
@@ -341,6 +349,45 @@ public class SynchronizationServerService : ISynchronizationServerService
             };
         });
         builder.Services.AddAuthorization();
+        builder.Services.AddProblemDetails();
+
+        builder.Services.AddRateLimiter(rateLimiterOptions =>
+        {
+            rateLimiterOptions.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            // Fixed window keyed by real peer IP; window == the 6-digit PIN's 30 s TTL so
+            // total guesses per source per PIN lifetime are bounded. No queue: excess
+            // pairing attempts are rejected immediately, not pipelined.
+            rateLimiterOptions.AddPolicy("pairing", httpContext =>
+            {
+                var remoteIp = httpContext.Connection.RemoteIpAddress;
+                if (remoteIp is not null && remoteIp.IsIPv4MappedToIPv6)
+                {
+                    remoteIp = remoteIp.MapToIPv4();   // one client == one bucket on dual-stack
+                }
+                var partitionKey = remoteIp?.ToString() ?? "unknown";   // fail closed
+
+                return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 10,
+                        Window = TimeSpan.FromSeconds(SynchronizationProtocol.PinTtlSeconds),
+                        QueueLimit = 0,
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                        AutoReplenishment = true,
+                    });
+            });
+
+            rateLimiterOptions.OnRejected = (context, _) =>
+            {
+                context.HttpContext.Response.Headers.RetryAfter =
+                    ((int)TimeSpan.FromSeconds(SynchronizationProtocol.PinTtlSeconds).TotalSeconds)
+                        .ToString(System.Globalization.CultureInfo.InvariantCulture);
+                logger.Warning("Pairing request from {RemoteIp} rejected by rate limiter",
+                    context.HttpContext.Connection.RemoteIpAddress);
+                return ValueTask.CompletedTask;
+            };
+        });
 
         return builder.Build();
     }
@@ -419,6 +466,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             app.Lifetime.ApplicationStopped.Register(StopAdvertising);
             app.UseAuthentication();
             app.UseAuthorization();
+            app.UseRateLimiter();
             app.Use(async (context, next) =>
             {
                 var stopwatch = Stopwatch.StartNew();
@@ -437,7 +485,10 @@ public class SynchronizationServerService : ISynchronizationServerService
                 }
             });
 
-            app.MapPost(SynchronizationProtocol.EndpointPairRequest, ([FromBody] PairingRequest req) =>
+            // Anonymous, rate-limited pairing surface.
+            var pairing = app.MapGroup("").RequireRateLimiting("pairing");
+
+            pairing.MapPost(SynchronizationProtocol.EndpointPairRequest, ([FromBody] PairingRequest req) =>
             {
                 logger.Verbose("Pairing request received for {DeviceId}", req.DeviceId);
 
@@ -448,7 +499,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                 return Results.Ok();
             });
 
-            app.MapPost(SynchronizationProtocol.EndpointPairConfirm, async ([FromBody] PairingConfirm req) =>
+            pairing.MapPost(SynchronizationProtocol.EndpointPairConfirm, async ([FromBody] PairingConfirm req) =>
             {
                 if (!pendingPairings.TryRemove(req.Pin, out var record))
                 {
@@ -474,7 +525,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                 return Results.Ok(new TokenResponse(accessToken, pairedDevice.Token));
             });
 
-            app.MapPost(SynchronizationProtocol.EndpointPairRefresh, async ([FromBody] RefreshRequest req) =>
+            pairing.MapPost(SynchronizationProtocol.EndpointPairRefresh, async ([FromBody] RefreshRequest req) =>
             {
                 var pairedDevice = await pairedDeviceRepository.GetPairedDeviceByTokenAsync(req.RefreshToken);
                 if (pairedDevice is null || pairedDevice.Expires < DateTime.UtcNow)
@@ -491,7 +542,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                 return Results.Ok(new TokenResponse(newAccessToken, newPairedDevice.Token));
             });
 
-            app.MapPost(SynchronizationProtocol.EndpointPairUnpair, async ([FromBody] UnpairRequest req) =>
+            pairing.MapPost(SynchronizationProtocol.EndpointPairUnpair, async ([FromBody] UnpairRequest req) =>
             {
                 var device = await pairedDeviceRepository.GetPairedDeviceAsync(req.DeviceId);
                 if (device is null)
@@ -513,7 +564,10 @@ public class SynchronizationServerService : ISynchronizationServerService
                 return Results.Ok();
             });
 
-            app.MapGet(SynchronizationProtocol.EndpointSyncPull, [Authorize] ([FromQuery] long since, ClaimsPrincipal user) =>
+            // Authenticated sync surface — one RequireAuthorization for the whole group.
+            var authorized = app.MapGroup("").RequireAuthorization();
+
+            authorized.MapGet(SynchronizationProtocol.EndpointSyncPull, ([FromQuery] long since, ClaimsPrincipal user) =>
             {
                 return RunSyncActivity(
                     SyncActivity(SynchronizationPhase.ServingChanges, "Serving remote changes"),
@@ -541,7 +595,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                     });
             });
 
-            app.MapPut(SynchronizationProtocol.EndpointSyncPush, [Authorize] ([FromBody] SynchronizationData data, ClaimsPrincipal user) =>
+            authorized.MapPut(SynchronizationProtocol.EndpointSyncPush, ([FromBody] SynchronizationData data, ClaimsPrincipal user) =>
             {
                 return RunSyncActivity(
                     SyncActivity(SynchronizationPhase.ReceivingChanges, "Receiving remote changes"),
@@ -573,7 +627,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                     });
             });
 
-            app.MapGet(SynchronizationProtocol.EndpointSessionIncomplete, [Authorize] (ClaimsPrincipal user) =>
+            authorized.MapGet(SynchronizationProtocol.EndpointSessionIncomplete, (ClaimsPrincipal user) =>
             {
                 return RunSyncActivity(
                     SyncActivity(SynchronizationPhase.CheckingIncompleteSessions, "Checking missing session data"),
@@ -594,7 +648,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                     });
             });
 
-            app.MapGet($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", [Authorize] ([FromRoute] Guid id, ClaimsPrincipal user) =>
+            authorized.MapGet($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", ([FromRoute] Guid id, ClaimsPrincipal user) =>
             {
                 return RunSyncActivity(
                     SyncActivity(SynchronizationPhase.ServingSessionData, "Serving session data"),
@@ -604,7 +658,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                         if (blob is null)
                         {
                             logger.Warning("Session data download failed because session {SessionId} was not found", id);
-                            return Results.NotFound(new { msg = "Session does not exist!" });
+                            return Results.Problem(statusCode: StatusCodes.Status404NotFound, detail: "Session does not exist.");
                         }
 
                         logger.Verbose("Serving session data for {SessionId} with {ByteCount} bytes", id, blob.Value.Data.Length);
@@ -616,13 +670,23 @@ public class SynchronizationServerService : ISynchronizationServerService
                     });
             });
 
-            app.MapPatch($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", [Authorize] ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
+            authorized.MapPatch($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
             {
                 return RunSyncActivity(
                     SyncActivity(SynchronizationPhase.ReceivingSessionData, "Receiving session data"),
                     async () =>
                     {
-                        var transfer = await request.ReadFromJsonAsync(AppJson.Context.SessionDataTransfer);
+                        SessionDataTransfer? transfer;
+                        try
+                        {
+                            transfer = await request.ReadFromJsonAsync(AppJson.InboundContext.SessionDataTransfer);
+                        }
+                        catch (JsonException ex)
+                        {
+                            logger.Warning(ex, "Session data patch rejected because request JSON was malformed for {SessionId}", id);
+                            return Results.BadRequest();
+                        }
+
                         if (transfer is null)
                         {
                             logger.Warning("Session data patch failed because request JSON was empty for {SessionId}", id);
@@ -671,7 +735,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                     });
             });
 
-            app.MapGet(SynchronizationProtocol.EndpointSessionSourceIncomplete, [Authorize] (ClaimsPrincipal user) =>
+            authorized.MapGet(SynchronizationProtocol.EndpointSessionSourceIncomplete, (ClaimsPrincipal user) =>
             {
                 return RunSyncActivity(
                     SyncActivity(SynchronizationPhase.CheckingIncompleteSessionSources, "Checking missing recorded sources"),
@@ -683,7 +747,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                     });
             });
 
-            app.MapGet($"{SynchronizationProtocol.EndpointSessionSourceData}{{id:guid}}", [Authorize] ([FromRoute] Guid id, ClaimsPrincipal user) =>
+            authorized.MapGet($"{SynchronizationProtocol.EndpointSessionSourceData}{{id:guid}}", ([FromRoute] Guid id, ClaimsPrincipal user) =>
             {
                 return RunSyncActivity(
                     SyncActivity(SynchronizationPhase.ServingSessionSourceData, "Serving recorded source data"),
@@ -693,7 +757,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                         if (source is null)
                         {
                             logger.Warning("Recorded source download failed because source {SessionId} was not found", id);
-                            return Results.NotFound(new { msg = "Recorded source does not exist!" });
+                            return Results.Problem(statusCode: StatusCodes.Status404NotFound, detail: "Recorded source does not exist.");
                         }
 
                         logger.Verbose("Serving recorded source for {SessionId} with {ByteCount} bytes", id, source.Payload.Length);
@@ -707,13 +771,23 @@ public class SynchronizationServerService : ISynchronizationServerService
                     });
             });
 
-            app.MapPatch($"{SynchronizationProtocol.EndpointSessionSourceData}{{id:guid}}", [Authorize] ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
+            authorized.MapPatch($"{SynchronizationProtocol.EndpointSessionSourceData}{{id:guid}}", ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
             {
                 return RunSyncActivity(
                     SyncActivity(SynchronizationPhase.ReceivingSessionSourceData, "Receiving recorded source data"),
                     async () =>
                     {
-                        var transfer = await request.ReadFromJsonAsync(AppJson.Context.RecordedSessionSourceTransfer);
+                        RecordedSessionSourceTransfer? transfer;
+                        try
+                        {
+                            transfer = await request.ReadFromJsonAsync(AppJson.InboundContext.RecordedSessionSourceTransfer);
+                        }
+                        catch (JsonException ex)
+                        {
+                            logger.Warning(ex, "Recorded source patch rejected because request JSON was malformed for {SessionId}", id);
+                            return Results.BadRequest();
+                        }
+
                         if (transfer is null)
                         {
                             logger.Warning("Recorded source patch failed because request JSON was empty for {SessionId}", id);

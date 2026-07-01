@@ -23,6 +23,7 @@ public interface ISensorConfiguration
     [JsonIgnore] public double MaxTravel { get; }
 }
 
+[JsonConverter(typeof(SensorConfigurationJsonConverter))]
 public class SensorConfiguration
 {
     [JsonPropertyName("type")] public virtual SensorType Type { get; set; }
@@ -42,18 +43,8 @@ public class SensorConfiguration
 
     public static SensorConfiguration? FromJson(string json)
     {
-        var s = AppJson.Deserialize<SensorConfiguration>(json);
-        if (s is null) return null;
-
-        return s.Type switch
-        {
-            SensorType.LinearFork => AppJson.Deserialize<LinearForkSensorConfiguration>(json),
-            SensorType.RotationalFork => AppJson.Deserialize<RotationalForkSensorConfiguration>(json),
-            SensorType.LinearShock => AppJson.Deserialize<LinearShockSensorConfiguration>(json),
-            SensorType.LinearShockStroke => AppJson.Deserialize<LinearShockSensorConfiguration>(json),
-            SensorType.RotationalShock => AppJson.Deserialize<RotationalShockSensorConfiguration>(json),
-            _ => null
-        };
+        // Single parse: the polymorphic converter peeks "type" and returns the concrete type.
+        return AppJson.Deserialize<SensorConfiguration>(json);
     }
 
     public static string ToJson(SensorConfiguration configuration)
