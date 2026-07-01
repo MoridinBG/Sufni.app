@@ -32,7 +32,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
     private readonly IFriendlyNameProvider friendlyNameProvider;
     private readonly IShellCoordinator shell;
     private readonly List<string> discoveredServerUrls = [];
-    private readonly object browseGate = new();
+    private readonly System.Threading.Lock browseGate = new();
 
     private string? deviceId;
     private string? displayName;

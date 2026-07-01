@@ -13,7 +13,7 @@ internal sealed class DaqBrowseOwner([FromKeyedServices("gosst")] IServiceDiscov
     private const string ServiceType = "_gosst._tcp";
     private static readonly ILogger logger = Log.ForContext<DaqBrowseOwner>();
 
-    private readonly object gate = new();
+    private readonly System.Threading.Lock gate = new();
     private int leaseCount;
     private bool isBrowseStarted;
 

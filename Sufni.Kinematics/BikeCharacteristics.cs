@@ -1,3 +1,5 @@
+using System.Collections.Frozen;
+
 namespace Sufni.Kinematics;
 
 public class JointNameMapping
@@ -28,7 +30,7 @@ public class BikeCharacteristics
 
     #region Private fields
 
-    private readonly Dictionary<string, CoordinateList> solution;
+    private readonly FrozenDictionary<string, CoordinateList> solution;
     private readonly JointNameMapping mapping;
     private CoordinateList? leverageRatioData;
 
@@ -38,7 +40,7 @@ public class BikeCharacteristics
 
     public BikeCharacteristics(Dictionary<string, CoordinateList> solution, JointNameMapping? mapping = null)
     {
-        this.solution = solution;
+        this.solution = solution.ToFrozenDictionary();
         this.mapping = mapping ?? new JointNameMapping();
     }
 
@@ -101,7 +103,7 @@ public class BikeCharacteristics
         var y0 = solution[mapping.RearWheel].Y[0];
         return solution[mapping.RearWheel].X
             .Zip(solution[mapping.RearWheel].Y, (x, y) =>
-                Math.Sqrt((x - x0) * (x - x0) + (y - y0) * (y - y0)))
+                double.Hypot(x - x0, y - y0))
             .ToList();
     }
 
@@ -126,7 +128,7 @@ public class BikeCharacteristics
             dy = solution[mapping.ShockEye2].Y.Select(y => y - solution[mapping.ShockEye1].Y[0]);
         }
 
-        var shockLengths = dx.Zip(dy, (a, b) => Math.Sqrt(a * a + b * b)).ToArray();
+        var shockLengths = dx.Zip(dy, (a, b) => double.Hypot(a, b)).ToArray();
         var initialShockLength = shockLengths[0];
         return shockLengths.Select(length => initialShockLength - length).ToList();
     }

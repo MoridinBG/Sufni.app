@@ -43,7 +43,7 @@ internal sealed class RecordedSessionProcessingOptionCache : IRecordedSessionPro
 
     private readonly ISessionPreferences sessionPreferences;
     private readonly Dictionary<Guid, int> clampedWindowsBySession = [];
-    private readonly object gate = new();
+    private readonly System.Threading.Lock gate = new();
     private readonly Subject<Guid> optionChanged = new();
     private readonly IDisposable syncSubscription;
     private bool hydrated;

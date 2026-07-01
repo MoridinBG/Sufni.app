@@ -7,7 +7,7 @@ namespace Sufni.App.Extensibility.RecordedSessions;
 
 internal sealed class RecordedSessionOperationCoordinator : IAsyncDisposable
 {
-    private readonly object gate = new();
+    private readonly System.Threading.Lock gate = new();
     private readonly Action<string, double> reportOperation;
     private readonly Action completeOperation;
     private long currentOperationId;

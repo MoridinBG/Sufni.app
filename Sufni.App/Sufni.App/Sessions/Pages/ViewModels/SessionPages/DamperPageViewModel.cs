@@ -18,18 +18,18 @@ public partial class DamperPageViewModel : PageViewModelBase
         ? StatisticsWorkspace!.RearStatisticsState
         : RearHistogramState;
 
-    [ObservableProperty] private string? frontVelocityHistogram;
-    [ObservableProperty] private string? rearVelocityHistogram;
-    [ObservableProperty] private SurfacePresentationState frontHistogramState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SurfacePresentationState rearHistogramState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private double? frontHscPercentage;
-    [ObservableProperty] private double? rearHscPercentage;
-    [ObservableProperty] private double? frontLscPercentage;
-    [ObservableProperty] private double? rearLscPercentage;
-    [ObservableProperty] private double? frontLsrPercentage;
-    [ObservableProperty] private double? rearLsrPercentage;
-    [ObservableProperty] private double? frontHsrPercentage;
-    [ObservableProperty] private double? rearHsrPercentage;
+    [ObservableProperty] public partial string? FrontVelocityHistogram { get; set; }
+    [ObservableProperty] public partial string? RearVelocityHistogram { get; set; }
+    [ObservableProperty] public partial SurfacePresentationState FrontHistogramState { get; set; } = SurfacePresentationState.Hidden;
+    [ObservableProperty] public partial SurfacePresentationState RearHistogramState { get; set; } = SurfacePresentationState.Hidden;
+    [ObservableProperty] public partial double? FrontHscPercentage { get; set; }
+    [ObservableProperty] public partial double? RearHscPercentage { get; set; }
+    [ObservableProperty] public partial double? FrontLscPercentage { get; set; }
+    [ObservableProperty] public partial double? RearLscPercentage { get; set; }
+    [ObservableProperty] public partial double? FrontLsrPercentage { get; set; }
+    [ObservableProperty] public partial double? RearLsrPercentage { get; set; }
+    [ObservableProperty] public partial double? FrontHsrPercentage { get; set; }
+    [ObservableProperty] public partial double? RearHsrPercentage { get; set; }
 
     public bool SampleAveragedModeSelected
     {

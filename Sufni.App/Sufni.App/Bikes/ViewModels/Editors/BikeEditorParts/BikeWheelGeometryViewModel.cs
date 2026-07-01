@@ -22,27 +22,27 @@ public partial class BikeWheelGeometryViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RemoveFrontWheelCommand))]
-    private EtrtoRimSize? frontWheelRimSize;
+    public partial EtrtoRimSize? FrontWheelRimSize { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RemoveFrontWheelCommand))]
-    private double? frontWheelTireWidth;
+    public partial double? FrontWheelTireWidth { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RemoveFrontWheelCommand))]
-    private double? frontWheelDiameter;
+    public partial double? FrontWheelDiameter { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RemoveRearWheelCommand))]
-    private EtrtoRimSize? rearWheelRimSize;
+    public partial EtrtoRimSize? RearWheelRimSize { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RemoveRearWheelCommand))]
-    private double? rearWheelTireWidth;
+    public partial double? RearWheelTireWidth { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RemoveRearWheelCommand))]
-    private double? rearWheelDiameter;
+    public partial double? RearWheelDiameter { get; set; }
 
     public bool HasWheels =>
         FrontWheelDiameter.HasValue &&

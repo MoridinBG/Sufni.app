@@ -18,15 +18,15 @@ public sealed partial class LiveDaqConfigEditorViewModel : ObservableObject, ICo
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    private bool isSaving;
+    public partial bool IsSaving { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    private bool isCompleted;
+    public partial bool IsCompleted { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSaveError))]
-    private string? saveErrorMessage;
+    public partial string? SaveErrorMessage { get; set; }
 
     public LiveDaqConfigEditorViewModel(
         DaqConfigDocument document,

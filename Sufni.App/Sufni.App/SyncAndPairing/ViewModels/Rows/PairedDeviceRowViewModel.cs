@@ -15,15 +15,14 @@ namespace Sufni.App.SyncAndPairing.ViewModels.Rows;
 public sealed class PairedDeviceRowViewModel : ListItemRowViewModelBase
 {
     private readonly Action<PairedDeviceRowViewModel> requestDelete;
-    private DateTime expires;
 
     public string DeviceId { get; private set; }
     public string? DisplayName { get; private set; }
 
     public DateTime Expires
     {
-        get => expires;
-        private set => SetProperty(ref expires, value);
+        get => field;
+        private set => SetProperty(ref field, value);
     }
 
     public PairedDeviceRowViewModel(

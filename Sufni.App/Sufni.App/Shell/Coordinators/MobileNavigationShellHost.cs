@@ -16,7 +16,7 @@ public sealed class MobileNavigationShellHost(IUiThreadDispatcher uiThreadDispat
 {
     private readonly List<MobileNavigationEntry> logicalStack = [];
     private readonly SemaphoreSlim navigationGate = new(1, 1);
-    private readonly object syncRoot = new();
+    private readonly System.Threading.Lock syncRoot = new();
     private NavigationPage? attachedNavigationPage;
     private Task queuedOperation = Task.CompletedTask;
 

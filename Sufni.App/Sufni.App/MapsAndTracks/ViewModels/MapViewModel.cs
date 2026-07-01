@@ -22,17 +22,17 @@ public partial class MapViewModel : ViewModelBase, IDisposable
     private readonly CompositeDisposable subscriptions = new();
 
     [ObservableProperty]
-    private TileLayerConfig? selectedLayer;
+    public partial TileLayerConfig? SelectedLayer { get; set; }
 
     [ObservableProperty]
-    private List<TrackPoint>? fullTrackPoints;
+    public partial List<TrackPoint>? FullTrackPoints { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSessionTrackPoints))]
-    private List<TrackPoint>? sessionTrackPoints;
+    public partial List<TrackPoint>? SessionTrackPoints { get; set; }
 
     [ObservableProperty]
-    private TrackTimeRange? timelineContext;
+    public partial TrackTimeRange? TimelineContext { get; set; }
 
     public bool HasSessionTrackPoints => SessionTrackPoints?.Count > 0;
 

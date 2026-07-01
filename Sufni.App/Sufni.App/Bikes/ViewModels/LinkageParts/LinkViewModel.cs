@@ -17,14 +17,14 @@ public partial class LinkViewModel : ObservableObject
 
     #region Observable properties
 
-    [ObservableProperty] private JointViewModel? a;
-    [ObservableProperty] private JointViewModel? b;
-    [ObservableProperty] private Point startPoint;
-    [ObservableProperty] private Point endPoint;
-    [ObservableProperty] private string? name;
-    [ObservableProperty] private double length;
-    [ObservableProperty] private bool isSelected;
-    [ObservableProperty] private Brush brush = new SolidColorBrush(Colors.CornflowerBlue);
+    [ObservableProperty] public partial JointViewModel? A { get; set; }
+    [ObservableProperty] public partial JointViewModel? B { get; set; }
+    [ObservableProperty] public partial Point StartPoint { get; set; }
+    [ObservableProperty] public partial Point EndPoint { get; set; }
+    [ObservableProperty] public partial string? Name { get; set; }
+    [ObservableProperty] public partial double Length { get; set; }
+    [ObservableProperty] public partial bool IsSelected { get; set; }
+    [ObservableProperty] public partial Brush Brush { get; set; } = new SolidColorBrush(Colors.CornflowerBlue);
 
     #endregion Observable properties
 
@@ -139,7 +139,7 @@ public partial class LinkViewModel : ObservableObject
         {
             var dx = B.X - A.X;
             var dy = B.Y - A.Y;
-            Length = PixelsToMillimeters.Value * Math.Sqrt(dx * dx + dy * dy);
+            Length = PixelsToMillimeters.Value * double.Hypot(dx, dy);
         }
     }
 

@@ -73,27 +73,27 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
     [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private double? headAngle;
+    public partial double? HeadAngle { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
     [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private double? forksStroke;
+    public partial double? ForksStroke { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
     [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private double? shockStroke;
+    public partial double? ShockStroke { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
     [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private double? chainstay;
+    public partial double? Chainstay { get; set; }
 
-    [ObservableProperty] private double? pixelsToMillimeters;
+    [ObservableProperty] public partial double? PixelsToMillimeters { get; set; }
 
     #endregion Bike geometry properties
 
@@ -114,8 +114,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     public LinkageEditorViewModel LinkageEditor { get; } = new();
     public LeverageRatioBikeEditorViewModel LeverageRatioEditor { get; }
 
-    [ObservableProperty] private bool canChangeRearSuspensionMode;
-    [ObservableProperty] private BikeRearSuspensionMode rearSuspensionMode;
+    [ObservableProperty] public partial bool CanChangeRearSuspensionMode { get; set; }
+    [ObservableProperty] public partial BikeRearSuspensionMode RearSuspensionMode { get; set; }
 
     public bool HasRearSuspension => RearSuspensionMode != BikeRearSuspensionMode.None;
     public bool IsHardtailMode => RearSuspensionMode == BikeRearSuspensionMode.None;
@@ -133,8 +133,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     #region Analysis properties
 
-    [ObservableProperty] private CoordinateList? leverageRatioData;
-    [ObservableProperty] private bool isPlotBusy;
+    [ObservableProperty] public partial CoordinateList? LeverageRatioData { get; set; }
+    [ObservableProperty] public partial bool IsPlotBusy { get; set; }
 
     #endregion Analysis properties
 

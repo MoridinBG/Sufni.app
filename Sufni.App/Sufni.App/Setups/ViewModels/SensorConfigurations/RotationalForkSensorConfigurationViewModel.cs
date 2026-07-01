@@ -11,8 +11,8 @@ public partial class RotationalForkSensorConfigurationViewModel : SensorConfigur
 
     #region Observable properties
 
-    [ObservableProperty] private double? maxLength;
-    [ObservableProperty] private double? armLength;
+    [ObservableProperty] public partial double? MaxLength { get; set; }
+    [ObservableProperty] public partial double? ArmLength { get; set; }
 
     #endregion Observable properties
 

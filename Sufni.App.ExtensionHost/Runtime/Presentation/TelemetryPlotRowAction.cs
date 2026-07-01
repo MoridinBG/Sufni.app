@@ -18,14 +18,14 @@ public enum TelemetryPlotRowActionTone
 
 public sealed partial class TelemetryPlotRowAction : ObservableObject
 {
-    [ObservableProperty] private string id = string.Empty;
-    [ObservableProperty] private TelemetryPlotRowActionKind kind;
-    [ObservableProperty] private string? iconPathData;
-    [ObservableProperty] private object? toolTip;
-    [ObservableProperty] private ICommand? command;
-    [ObservableProperty] private bool isVisible = true;
-    [ObservableProperty] private bool isEnabled = true;
-    [ObservableProperty] private bool isChecked;
-    [ObservableProperty] private bool isHighlighted;
-    [ObservableProperty] private TelemetryPlotRowActionTone tone;
+    [ObservableProperty] public partial string Id { get; set; } = string.Empty;
+    [ObservableProperty] public partial TelemetryPlotRowActionKind Kind { get; set; }
+    [ObservableProperty] public partial string? IconPathData { get; set; }
+    [ObservableProperty] public partial object? ToolTip { get; set; }
+    [ObservableProperty] public partial ICommand? Command { get; set; }
+    [ObservableProperty] public partial bool IsVisible { get; set; } = true;
+    [ObservableProperty] public partial bool IsEnabled { get; set; } = true;
+    [ObservableProperty] public partial bool IsChecked { get; set; }
+    [ObservableProperty] public partial bool IsHighlighted { get; set; }
+    [ObservableProperty] public partial TelemetryPlotRowActionTone Tone { get; set; }
 }

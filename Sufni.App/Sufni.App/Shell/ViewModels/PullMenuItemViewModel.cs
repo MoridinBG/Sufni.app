@@ -8,7 +8,7 @@ public partial class PullMenuItemViewModel(string name, IRelayCommand command, o
     public string Name { get; set; } = name;
     public object? CommandParameter { get; set; } = parameter;
 
-    [ObservableProperty] private bool selected;
+    [ObservableProperty] public partial bool Selected { get; set; }
 
     public IRelayCommand Command { get; set; } = command;
 }

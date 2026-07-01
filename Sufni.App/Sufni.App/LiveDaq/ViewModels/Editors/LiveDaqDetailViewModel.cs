@@ -29,16 +29,16 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     public string IdentityKey { get; }
 
     [ObservableProperty]
-    private string? boardId;
+    public partial string? BoardId { get; set; }
 
     [ObservableProperty]
-    private string? endpoint;
+    public partial string? Endpoint { get; set; }
 
     [ObservableProperty]
-    private string? setupName;
+    public partial string? SetupName { get; set; }
 
     [ObservableProperty]
-    private string? bikeName;
+    public partial string? BikeName { get; set; }
 
     private readonly ILiveDaqSharedStream sharedStream;
     private readonly ILiveDaqCoordinator liveDaqCoordinator;
@@ -59,40 +59,40 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private bool hasLoaded;
 
     [ObservableProperty]
-    private uint? requestedTravelHz;
+    public partial uint? RequestedTravelHz { get; set; }
 
     [ObservableProperty]
-    private uint? requestedImuHz;
+    public partial uint? RequestedImuHz { get; set; }
 
     [ObservableProperty]
-    private uint? requestedGpsFixHz;
+    public partial uint? RequestedGpsFixHz { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FrontTravelText))]
     [NotifyPropertyChangedFor(nameof(RearTravelText))]
-    private LiveDaqUiSnapshot snapshot = LiveDaqUiSnapshot.Empty;
+    public partial LiveDaqUiSnapshot Snapshot { get; set; } = LiveDaqUiSnapshot.Empty;
 
     [ObservableProperty]
-    private bool canConnect = true;
+    public partial bool CanConnect { get; set; } = true;
 
     [ObservableProperty]
-    private bool canDisconnect;
+    public partial bool CanDisconnect { get; set; }
 
     [ObservableProperty]
-    private bool areRequestedRatesEnabled = true;
+    public partial bool AreRequestedRatesEnabled { get; set; } = true;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(StartSessionCommand))]
-    private bool canStartSession;
+    public partial bool CanStartSession { get; set; }
 
     [ObservableProperty]
-    private bool isManagementBusy;
+    public partial bool IsManagementBusy { get; set; }
 
     [ObservableProperty]
-    private bool hasPendingConfig;
+    public partial bool HasPendingConfig { get; set; }
 
     [ObservableProperty]
-    private string? pendingConfigFileName;
+    public partial string? PendingConfigFileName { get; set; }
 
     public string FrontTravelText => FormatTravelText("Front", Snapshot.HasAcceptedSession, Snapshot.Travel.FrontIsActive, Snapshot.Travel.FrontMeasurement, travelCalibration?.Front);
 

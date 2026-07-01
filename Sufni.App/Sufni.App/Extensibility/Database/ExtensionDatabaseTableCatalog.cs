@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -14,7 +15,7 @@ namespace Sufni.App.Extensibility.Database;
 
 internal sealed class ExtensionDatabaseTableCatalog
 {
-    private static readonly IReadOnlySet<string> ReservedTableNames = new HashSet<string>(
+    private static readonly FrozenSet<string> ReservedTableNames = new HashSet<string>(
         [
             GetTableName(typeof(Board)),
             GetTableName(typeof(Setup)),
@@ -27,14 +28,14 @@ internal sealed class ExtensionDatabaseTableCatalog
             GetTableName(typeof(Track)),
             GetTableName(typeof(ExtensionSchemaVersion)),
         ],
-        StringComparer.Ordinal);
+        StringComparer.Ordinal).ToFrozenSet(StringComparer.Ordinal);
 
-    private readonly IReadOnlyDictionary<string, ExtensionDatabaseTableRegistration> registrationsByTableName;
+    private readonly FrozenDictionary<string, ExtensionDatabaseTableRegistration> registrationsByTableName;
 
     private ExtensionDatabaseTableCatalog(
         IReadOnlyDictionary<string, ExtensionDatabaseTableRegistration> registrationsByTableName)
     {
-        this.registrationsByTableName = registrationsByTableName;
+        this.registrationsByTableName = registrationsByTableName.ToFrozenDictionary(StringComparer.Ordinal);
     }
 
     public Type[] TableTypes => registrationsByTableName

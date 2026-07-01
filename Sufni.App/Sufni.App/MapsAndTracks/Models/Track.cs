@@ -256,7 +256,7 @@ public class Track : Synchronizable
         Func<TrackPoint, double?> valueSelector)
     {
         var samples = points
-            .Select((point, index) => (Time: times[index], Value: valueSelector(point)))
+            .Index().Select(item => (Time: times[item.Index], Value: valueSelector(item.Item)))
             .Where(sample => double.IsFinite(sample.Time)
                              && sample.Value is { } value
                              && double.IsFinite(value))

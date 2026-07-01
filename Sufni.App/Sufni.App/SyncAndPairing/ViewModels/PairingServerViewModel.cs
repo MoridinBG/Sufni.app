@@ -18,15 +18,15 @@ public partial class PairingServerViewModel : ViewModelBase
 
     #region Observable properties
 
-    [ObservableProperty] private string? pairingPin;
+    [ObservableProperty] public partial string? PairingPin { get; set; }
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RequestingName))]
-    private string? requestingId;
+    public partial string? RequestingId { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RequestingName))]
-    private string? requestingDisplayName;
-    [ObservableProperty] private double remaining;
+    public partial string? RequestingDisplayName { get; set; }
+    [ObservableProperty] public partial double Remaining { get; set; }
 
     /// <summary>
     /// Human-readable label for the pairing prompt: prefer the

@@ -206,7 +206,7 @@ internal static class TrackContentHash
             writer.WriteEndObject();
         }
 
-        return Convert.ToHexString(SHA256.HashData(stream.GetBuffer().AsSpan(0, checked((int)stream.Length)))).ToLowerInvariant();
+        return Convert.ToHexStringLower(SHA256.HashData(stream.GetBuffer().AsSpan(0, checked((int)stream.Length))));
     }
 
     public static bool PointsEqual(Track? left, Track? right)

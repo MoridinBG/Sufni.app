@@ -226,8 +226,8 @@ internal sealed class DatabaseMigrationRunner(
             """);
         var sessionReferenceCounts = sessionReferences
             .Where(reference => reference.FullTrackId.HasValue)
-            .GroupBy(reference => reference.FullTrackId!.Value)
-            .ToDictionary(group => group.Key, group => group.Count());
+            .CountBy(reference => reference.FullTrackId!.Value)
+            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var removed = 0;

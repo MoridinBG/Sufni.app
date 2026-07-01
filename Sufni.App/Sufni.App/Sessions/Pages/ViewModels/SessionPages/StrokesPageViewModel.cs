@@ -11,13 +11,13 @@ public sealed partial class StrokesPageViewModel : PageViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasBothStatisticsSides))]
-    private bool frontSelectionAvailable;
+    public partial bool FrontSelectionAvailable { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasBothStatisticsSides))]
-    private bool rearSelectionAvailable;
+    public partial bool RearSelectionAvailable { get; set; }
 
-    [ObservableProperty] private SuspensionType selectedSuspensionType = SuspensionType.Front;
+    [ObservableProperty] public partial SuspensionType SelectedSuspensionType { get; set; } = SuspensionType.Front;
 
     public bool ShowFrontStrokes => SelectedSuspensionType == SuspensionType.Front;
     public bool ShowRearStrokes => SelectedSuspensionType == SuspensionType.Rear;

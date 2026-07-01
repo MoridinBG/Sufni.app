@@ -10,11 +10,11 @@ namespace Sufni.App.Bikes.ViewModels.Editors.Bike;
 
 public sealed partial class LeverageRatioEditorViewModel : ObservableObject
 {
-    [ObservableProperty] private LeverageRatio? value;
-    [ObservableProperty] private ObservableCollection<LeverageRatioPoint> pointsView = [];
-    [ObservableProperty] private string[] validationErrors = [];
-    [ObservableProperty] private CoordinateList? leverageRatioPlotData;
-    [ObservableProperty] private bool canEdit;
+    [ObservableProperty] public partial LeverageRatio? Value { get; set; }
+    [ObservableProperty] public partial ObservableCollection<LeverageRatioPoint> PointsView { get; set; } = [];
+    [ObservableProperty] public partial string[] ValidationErrors { get; set; } = [];
+    [ObservableProperty] public partial CoordinateList? LeverageRatioPlotData { get; set; }
+    [ObservableProperty] public partial bool CanEdit { get; set; }
 
     public event EventHandler? Changed;
 

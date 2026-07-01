@@ -120,9 +120,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private bool metadataConflictPending;
     private bool viewLoaded;
     private bool hasBeenActivated;
-    private SessionPlotPreferences plotPreferences = SessionPreferences.Default.Plots;
-    private SessionGraphPreferences graphPreferences = SessionPreferences.Default.Graph;
-    private SessionLayoutPreferences layoutPreferences = SessionPreferences.Default.Layout;
     private readonly SessionPlotRowActionsController plotRowActions;
     private readonly PlotAutozoomController plotAutozoomController;
     private readonly IRelayCommand<TelemetryPlotContextMenuContext?> markGpsEventCommand;
@@ -138,22 +135,22 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public NotesPageViewModel NotesPage { get; } = new();
     public SessionPlotPreferences PlotPreferences
     {
-        get => plotPreferences;
+        get => field;
         private set
         {
-            if (SetProperty(ref plotPreferences, value))
+            if (SetProperty(ref field, value))
             {
                 SessionContext.PlotPreferences = value;
             }
         }
-    }
+    } = SessionPreferences.Default.Plots;
 
     public SessionGraphPreferences GraphPreferences
     {
-        get => graphPreferences;
+        get => field;
         set
         {
-            if (!SetProperty(ref graphPreferences, value))
+            if (!SetProperty(ref field, value))
             {
                 return;
             }
@@ -162,14 +159,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             SessionContext.GraphPreferences = value;
             recordedPreferenceStore.PersistChangeIfEnabled(current => current with { Graph = value });
         }
-    }
+    } = SessionPreferences.Default.Graph;
 
     public SessionLayoutPreferences LayoutPreferences
     {
-        get => layoutPreferences;
+        get => field;
         set
         {
-            if (!SetProperty(ref layoutPreferences, value))
+            if (!SetProperty(ref field, value))
             {
                 return;
             }
@@ -179,7 +176,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             OnPropertyChanged(nameof(MediaLayoutPreferences));
             recordedPreferenceStore.PersistChangeIfEnabled(current => current with { Layout = value });
         }
-    }
+    } = SessionPreferences.Default.Layout;
 
     public SessionPaneGroupPreferences? MediaLayoutPreferences
     {
@@ -206,7 +203,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     #region Observable properties
 
-    [ObservableProperty] private bool isComplete;
+    [ObservableProperty] public partial bool IsComplete { get; set; }
     public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } = SessionAnalysisPresentation.TravelHistogramModeOptions;
     public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } = SessionAnalysisPresentation.BalanceDisplacementModeOptions;
     public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } = SessionAnalysisPresentation.BalanceSpeedModeOptions;
@@ -1130,17 +1127,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 UpdateRecordedSessionExtensionHostState();
                 break;
             case nameof(RecordedSessionContext.FullTrackPoints):
-                if (MapViewModel is not null)
-                {
-                    MapViewModel.FullTrackPoints = SessionContext.FullTrackPoints;
-                }
+                MapViewModel?.FullTrackPoints = SessionContext.FullTrackPoints;
 
                 break;
             case nameof(RecordedSessionContext.TrackPoints):
-                if (MapViewModel is not null)
-                {
-                    MapViewModel.SessionTrackPoints = SessionContext.TrackPoints;
-                }
+                MapViewModel?.SessionTrackPoints = SessionContext.TrackPoints;
 
                 RefreshTrackTimelineContext();
                 NotifyTimelineAlignmentCommandsCanExecuteChanged();
@@ -1151,10 +1142,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
                 break;
             case nameof(RecordedSessionContext.TrackTimelineContext):
-                if (MapViewModel is not null)
-                {
-                    MapViewModel.TimelineContext = SessionContext.TrackTimelineContext;
-                }
+                MapViewModel?.TimelineContext = SessionContext.TrackTimelineContext;
 
                 UpdateRecordedSessionExtensionHostState();
                 break;

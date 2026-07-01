@@ -23,7 +23,7 @@ public abstract class LiveGraphPlotViewBase : SufniPlotView
     private const int PendingSampleMarginStep = 128;
 
     private IDisposable? uiRefreshTimer;
-    private readonly object pendingGraphBatchesGate = new();
+    private readonly System.Threading.Lock pendingGraphBatchesGate = new();
     private IDisposable? graphBatchesSubscription;
     private bool applyingTimelineRange;
     private long lastRevision;
@@ -38,10 +38,7 @@ public abstract class LiveGraphPlotViewBase : SufniPlotView
         protected set
         {
             plot = value;
-            if (plot is not null)
-            {
-                plot.SourceVisibility = SourceVisibility;
-            }
+            plot?.SourceVisibility = SourceVisibility;
 
             ApplyPlotBackgroundColors(refresh: false);
         }

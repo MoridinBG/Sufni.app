@@ -143,7 +143,7 @@ public class ImportSessionsCoordinatorTests
         var file = CreateTelemetryFile(shouldBeImported: true);
 
         var coordinator = CreateCoordinator();
-        await coordinator.ImportAsync(new[] { file }, setup.Id);
+        await coordinator.ImportAsync([file], setup.Id);
 
         await reprocessor.Received(1).ReprocessAsync(
             Arg.Is<RecordedSessionDomainSnapshot>(domain =>
@@ -171,7 +171,7 @@ public class ImportSessionsCoordinatorTests
         var progress = new ProgressCapture(progressEvents);
 
         var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync(new[] { file }, setup.Id, progress);
+        var result = await coordinator.ImportAsync([file], setup.Id, progress);
 
         // Session persisted with the expected metadata.
         var expectedTimestamp = new DateTimeOffset(startTime).ToUnixTimeSeconds();
@@ -217,7 +217,7 @@ public class ImportSessionsCoordinatorTests
         uiThreadDispatcher = dispatcher;
 
         var coordinator = CreateCoordinator();
-        await coordinator.ImportAsync(new[] { file }, setup.Id);
+        await coordinator.ImportAsync([file], setup.Id);
 
         Assert.Equal(1, dispatcher.InvokeCount);
         sessionStore.Received(1).Upsert(Arg.Any<SessionSnapshot>());
@@ -228,11 +228,11 @@ public class ImportSessionsCoordinatorTests
     public async Task ImportAsync_WithGpsData_PersistsTrackAndAssociatesSession()
     {
         var (setup, _) = SeedSetupAndBike();
-        var gpsRecords = new[]
-        {
+        GpsRecord[] gpsRecords =
+        [
             new GpsRecord(new DateTime(2025, 6, 1, 12, 34, 56, DateTimeKind.Utc), 42.6977, 23.3219, 590f, 5f, 180f, 3, 10, 1f, 2f),
             new GpsRecord(new DateTime(2025, 6, 1, 12, 34, 57, DateTimeKind.Utc), 42.6978, 23.3220, 591f, 5.5f, 182f, 3, 10, 1f, 2f)
-        };
+        ];
 
         var telemetryData = CreateMinimal();
         telemetryData.GpsData = gpsRecords;
@@ -254,7 +254,7 @@ public class ImportSessionsCoordinatorTests
             });
 
         var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync(new[] { file }, setup.Id);
+        var result = await coordinator.ImportAsync([file], setup.Id);
 
         await sessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
             Arg.Is<Session>(s =>
@@ -283,7 +283,7 @@ public class ImportSessionsCoordinatorTests
         var file = CreateTelemetryFile(shouldBeImported: null);
 
         var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync(new[] { file }, setup.Id);
+        var result = await coordinator.ImportAsync([file], setup.Id);
 
         await file.Received(1).OnTrashed();
         await file.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
@@ -303,7 +303,7 @@ public class ImportSessionsCoordinatorTests
         var file = CreateTelemetryFile(shouldBeImported: false);
 
         var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync(new[] { file }, setup.Id);
+        var result = await coordinator.ImportAsync([file], setup.Id);
 
         await file.DidNotReceive().OnTrashed();
         await file.DidNotReceive().OnImported();
@@ -330,7 +330,7 @@ public class ImportSessionsCoordinatorTests
         var progress = new ProgressCapture(progressEvents);
 
         var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync(new[] { file }, setup.Id, progress);
+        var result = await coordinator.ImportAsync([file], setup.Id, progress);
 
         Assert.Empty(result.Imported);
         var failure = Assert.Single(result.Failures);
@@ -361,7 +361,7 @@ public class ImportSessionsCoordinatorTests
             .ThrowsAsync(new InvalidOperationException("db"));
 
         var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync(new[] { file }, setup.Id);
+        var result = await coordinator.ImportAsync([file], setup.Id);
 
         Assert.Empty(result.Imported);
         var failure = Assert.Single(result.Failures);
@@ -379,7 +379,7 @@ public class ImportSessionsCoordinatorTests
         file.OnImported().ThrowsAsync(new InvalidOperationException("post"));
 
         var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync(new[] { file }, setup.Id);
+        var result = await coordinator.ImportAsync([file], setup.Id);
 
         Assert.Empty(result.Imported);
         var failure = Assert.Single(result.Failures);
@@ -399,7 +399,7 @@ public class ImportSessionsCoordinatorTests
         var progress = new ProgressCapture(progressEvents);
 
         var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync(new[] { file }, setup.Id, progress);
+        var result = await coordinator.ImportAsync([file], setup.Id, progress);
 
         var failure = Assert.Single(result.Failures);
         Assert.Equal("trash-fail", failure.FileName);
@@ -422,7 +422,7 @@ public class ImportSessionsCoordinatorTests
         var goodFile = CreateTelemetryFile(name: "ok", shouldBeImported: true);
 
         var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync(new[] { brokenFile, goodFile }, setup.Id);
+        var result = await coordinator.ImportAsync([brokenFile, goodFile], setup.Id);
 
         Assert.Single(result.Failures);
         Assert.Single(result.Imported);
@@ -447,7 +447,7 @@ public class ImportSessionsCoordinatorTests
         var progress = new ProgressCapture(progressEvents);
 
         var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync(new[] { file }, setup.Id, progress);
+        var result = await coordinator.ImportAsync([file], setup.Id, progress);
 
         Assert.Empty(result.Imported);
         var failure = Assert.Single(result.Failures);
@@ -473,7 +473,7 @@ public class ImportSessionsCoordinatorTests
             canImport: true);
 
         var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync(new[] { file }, setup.Id);
+        var result = await coordinator.ImportAsync([file], setup.Id);
 
         Assert.Single(result.Imported);
         Assert.Empty(result.Failures);
@@ -495,7 +495,7 @@ public class ImportSessionsCoordinatorTests
 
         var coordinator = CreateCoordinator();
         await coordinator.ImportAsync(
-            new[] { importedFile, ignoredFile, trashedFile },
+            [importedFile, ignoredFile, trashedFile],
             setup.Id,
             progress);
 
@@ -551,7 +551,7 @@ public class ImportSessionsCoordinatorTests
         { ShouldBeImported = null };
 
         var coordinator = CreateCoordinator();
-        await coordinator.ImportAsync(new ITelemetryFile[] { fileA1, fileA2, fileB }, setup.Id);
+        await coordinator.ImportAsync([fileA1, fileA2, fileB], setup.Id);
 
         await daqManagementService.Received(1)
             .OpenSessionAsync("10.0.0.1", 1557, Arg.Any<CancellationToken>());
@@ -588,7 +588,7 @@ public class ImportSessionsCoordinatorTests
         { ShouldBeImported = true };
 
         var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync(new ITelemetryFile[] { file }, setup.Id);
+        var result = await coordinator.ImportAsync([file], setup.Id);
 
         await session.Received(1)
             .GetFileAsync(DaqFileClass.RootSst, 1, Arg.Any<Stream>(), Arg.Any<CancellationToken>());
@@ -617,7 +617,7 @@ public class ImportSessionsCoordinatorTests
         { ShouldBeImported = true };
 
         var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync(new ITelemetryFile[] { file }, setup.Id);
+        var result = await coordinator.ImportAsync([file], setup.Id);
 
         Assert.Single(result.Failures);
         await session.Received(1).DisposeAsync();

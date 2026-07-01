@@ -83,8 +83,8 @@ internal sealed class LiveSessionService : ILiveSessionService
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ILiveGraphPipeline graphPipeline;
     private readonly LiveImuDisplaySignalProcessor imuDisplaySignalProcessor = new();
-    private readonly object gate = new();
-    private readonly object displayQueueGate = new();
+    private readonly System.Threading.Lock gate = new();
+    private readonly System.Threading.Lock displayQueueGate = new();
     private readonly BehaviorSubject<LiveSessionPresentationSnapshot> snapshotsSubject = new(LiveSessionPresentationSnapshot.Empty);
     private readonly CancellationTokenSource disposalCts = new();
     private readonly Channel<LiveDisplayUpdate> displayUpdates = Channel.CreateBounded<LiveDisplayUpdate>(

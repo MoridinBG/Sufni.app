@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,14 +9,14 @@ namespace Sufni.App.Acquisition.Services.Management;
 public sealed class DaqConfigDocument
 {
     private readonly IReadOnlyList<DaqConfigLine> lines;
-    private readonly IReadOnlyDictionary<string, string> effectiveValues;
+    private readonly FrozenDictionary<string, string> effectiveValues;
 
     private DaqConfigDocument(
         IReadOnlyList<DaqConfigLine> lines,
         IReadOnlyDictionary<string, string> effectiveValues)
     {
         this.lines = lines;
-        this.effectiveValues = effectiveValues;
+        this.effectiveValues = effectiveValues.ToFrozenDictionary(StringComparer.Ordinal);
     }
 
     public static DaqConfigDocument Parse(byte[] bytes) =>

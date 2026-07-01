@@ -8,10 +8,10 @@ public sealed partial class SessionTimelineLinkViewModel : ObservableObject, IRe
 {
     private const double Epsilon = 0.000001;
 
-    [ObservableProperty] private double? normalizedCursorPosition;
-    [ObservableProperty] private bool isPlaybackActive;
-    [ObservableProperty] private double visibleRangeStart;
-    [ObservableProperty] private double visibleRangeEnd = 1;
+    [ObservableProperty] public partial double? NormalizedCursorPosition { get; set; }
+    [ObservableProperty] public partial bool IsPlaybackActive { get; set; }
+    [ObservableProperty] public partial double VisibleRangeStart { get; set; }
+    [ObservableProperty] public partial double VisibleRangeEnd { get; set; } = 1;
 
     public event EventHandler? VisibleRangeChanged;
     public event EventHandler? PlaybackToggleRequested;

@@ -41,7 +41,7 @@ public class StorageProviderTelemetryDataStore : ITelemetryDataStore
         var items = Folder.GetItemsAsync();
         await foreach (var item in items)
         {
-            if (item.Name.EndsWith(".SST") && item is IStorageFile file)
+            if (item.Name.EndsWith(".SST", StringComparison.Ordinal) && item is IStorageFile file)
             {
                 try
                 {
@@ -64,13 +64,13 @@ public class StorageProviderTelemetryDataStore : ITelemetryDataStore
         var items = Folder.GetItemsAsync();
         await foreach (var item in items)
         {
-            if (item.Name.Equals("BOARDID") && item is IStorageFile file)
+            if (item.Name.Equals("BOARDID", StringComparison.Ordinal) && item is IStorageFile file)
             {
                 boardIdFile = file;
                 if (uploadedFolder is not null) break;
             }
 
-            if (item.Name.Equals("uploaded") && item is IStorageFolder folder)
+            if (item.Name.Equals("uploaded", StringComparison.Ordinal) && item is IStorageFolder folder)
             {
                 uploadedFolder = folder;
                 if (boardIdFile is not null) break;

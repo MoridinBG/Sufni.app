@@ -60,15 +60,15 @@ public class StrokeSpeedHistogramPlot(Plot plot, SuspensionType type, BalanceTyp
 
         var step = data.Bins[1] - data.Bins[0];
         var color = type == SuspensionType.Front ? FrontColor : RearColor;
-        var bars = data.Values.Select((value, index) => (Value: value, Index: index))
-            .Where(entry => entry.Value > 0)
+        var bars = data.Values.Index()
+            .Where(entry => entry.Item > 0)
             .Select(entry =>
             {
                 var bin = TelemetryRangeSelection.BinRange.FromBins(data.Bins, entry.Index);
                 var bar = new Bar
                 {
                     Position = data.Bins[entry.Index],
-                    Value = entry.Value,
+                    Value = entry.Item,
                     FillColor = color.WithOpacity(),
                     LineColor = color,
                     LineWidth = 1.5f,
@@ -76,12 +76,12 @@ public class StrokeSpeedHistogramPlot(Plot plot, SuspensionType type, BalanceTyp
                     Size = step * 0.65f,
                 };
                 SelectableStatisticsBarSelection.ApplyPrimaryBarOutline(bar, color, PlotTheme, IsSelectedBin(bin));
-                hitTester.Register(bar, bin, entry.Value, entry.Index);
+                hitTester.Register(bar, bin, entry.Item, entry.Index);
 
                 AddBarReadout(
                     bar,
                     FormatReadoutRange("Peak speed", data.Bins, entry.Index, "mm/s", "0"),
-                    new CursorReadoutLine("Strokes", entry.Value, "%", color));
+                    new CursorReadoutLine("Strokes", entry.Item, "%", color));
 
                 return bar;
             })

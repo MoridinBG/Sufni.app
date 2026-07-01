@@ -13,7 +13,7 @@ public static class LoggingBootstrapper
 {
     public const string OutputTemplate = "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}";
 
-    private static readonly object gate = new();
+    private static readonly System.Threading.Lock gate = new();
     private static bool isInitialized;
     private static bool hooksInstalled;
     private static string? currentPlatformName;

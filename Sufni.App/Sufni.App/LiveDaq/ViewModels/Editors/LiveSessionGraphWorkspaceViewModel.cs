@@ -16,12 +16,6 @@ namespace Sufni.App.LiveDaq.ViewModels.Editors;
 
 public sealed class LiveSessionGraphWorkspaceViewModel : ObservableObject, ILiveSessionGraphWorkspace
 {
-    private SurfacePresentationState travelGraphState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState velocityGraphState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState imuGraphState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState pitchRollGraphState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState speedGraphState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState elevationGraphState = SurfacePresentationState.Hidden;
     private uint? sessionId;
     private bool travelExpected;
     private bool imuExpected;
@@ -30,24 +24,21 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ObservableObject, ILive
     private bool hasTravelData;
     private bool hasImuData;
     private bool hasPitchRollData;
-    private IReadOnlyList<TrackPoint> trackPoints = [];
-    private TrackTimeRange? trackTimelineContext;
     private SessionPlotPreferences plotPreferences = new();
-    private SessionGraphPreferences graphPreferences = SessionGraphPreferences.Default;
 
     public IObservable<LiveGraphBatch> GraphBatches { get; }
     public LiveSessionPlotRanges PlotRanges { get; }
     public SessionTimelineLinkViewModel Timeline { get; }
     public IReadOnlyList<TrackPoint> TrackPoints
     {
-        get => trackPoints;
-        private set => SetProperty(ref trackPoints, value);
-    }
+        get => field;
+        private set => SetProperty(ref field, value);
+    } = [];
 
     public TrackTimeRange? TrackTimelineContext
     {
-        get => trackTimelineContext;
-        private set => SetProperty(ref trackTimelineContext, value);
+        get => field;
+        private set => SetProperty(ref field, value);
     }
 
     public SessionPlotPreferences PlotPreferences
@@ -58,47 +49,47 @@ public sealed class LiveSessionGraphWorkspaceViewModel : ObservableObject, ILive
 
     public SessionGraphPreferences GraphPreferences
     {
-        get => graphPreferences;
-        set => SetProperty(ref graphPreferences, value);
-    }
+        get => field;
+        set => SetProperty(ref field, value);
+    } = SessionGraphPreferences.Default;
 
     public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
 
     public SurfacePresentationState TravelGraphState
     {
-        get => travelGraphState;
-        private set => SetProperty(ref travelGraphState, value);
-    }
+        get => field;
+        private set => SetProperty(ref field, value);
+    } = SurfacePresentationState.Hidden;
 
     public SurfacePresentationState ImuGraphState
     {
-        get => imuGraphState;
-        private set => SetProperty(ref imuGraphState, value);
-    }
+        get => field;
+        private set => SetProperty(ref field, value);
+    } = SurfacePresentationState.Hidden;
 
     public SurfacePresentationState PitchRollGraphState
     {
-        get => pitchRollGraphState;
-        private set => SetProperty(ref pitchRollGraphState, value);
-    }
+        get => field;
+        private set => SetProperty(ref field, value);
+    } = SurfacePresentationState.Hidden;
 
     public SurfacePresentationState VelocityGraphState
     {
-        get => velocityGraphState;
-        private set => SetProperty(ref velocityGraphState, value);
-    }
+        get => field;
+        private set => SetProperty(ref field, value);
+    } = SurfacePresentationState.Hidden;
 
     public SurfacePresentationState SpeedGraphState
     {
-        get => speedGraphState;
-        private set => SetProperty(ref speedGraphState, value);
-    }
+        get => field;
+        private set => SetProperty(ref field, value);
+    } = SurfacePresentationState.Hidden;
 
     public SurfacePresentationState ElevationGraphState
     {
-        get => elevationGraphState;
-        private set => SetProperty(ref elevationGraphState, value);
-    }
+        get => field;
+        private set => SetProperty(ref field, value);
+    } = SurfacePresentationState.Hidden;
 
     public LiveSessionGraphWorkspaceViewModel()
         : this(new SessionTimelineLinkViewModel(), LiveSessionPlotRanges.Default, Observable.Empty<LiveGraphBatch>())

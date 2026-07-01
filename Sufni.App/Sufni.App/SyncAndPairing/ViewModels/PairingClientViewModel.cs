@@ -14,11 +14,11 @@ public partial class PairingClientViewModel : ViewModelBase
 {
     #region Observable properties
 
-    [ObservableProperty] private string? serverUrl;
-    [ObservableProperty] private string? displayName;
-    [ObservableProperty] private string? pin;
-    [ObservableProperty] private bool isRequestSent;
-    [ObservableProperty] private bool isPaired;
+    [ObservableProperty] public partial string? ServerUrl { get; set; }
+    [ObservableProperty] public partial string? DisplayName { get; set; }
+    [ObservableProperty] public partial string? Pin { get; set; }
+    [ObservableProperty] public partial bool IsRequestSent { get; set; }
+    [ObservableProperty] public partial bool IsPaired { get; set; }
 
     #endregion
 

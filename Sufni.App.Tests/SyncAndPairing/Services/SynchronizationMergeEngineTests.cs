@@ -150,7 +150,7 @@ public class SynchronizationMergeEngineTests
         var sessionId = Guid.NewGuid();
         var setupId = Guid.NewGuid();
         var trackId = Guid.NewGuid();
-        var originalPsst = new byte[] { 1, 2, 3, 4 };
+        byte[] originalPsst = [1, 2, 3, 4];
 
         var database = new TestPersistenceHarness(databasePath);
         _ = await database.GetSessionsAsync();
@@ -242,7 +242,7 @@ public class SynchronizationMergeEngineTests
         var sessionId = Guid.NewGuid();
         var setupId = Guid.NewGuid();
         var trackId = Guid.NewGuid();
-        var originalPsst = new byte[] { 1, 2, 3, 4 };
+        byte[] originalPsst = [1, 2, 3, 4];
 
         var database = new TestPersistenceHarness(databasePath);
         _ = await database.GetSessionsAsync();
@@ -346,7 +346,7 @@ public class SynchronizationMergeEngineTests
         {
             connection.Insert(new Session(sessionId, "hub", "desc", setupId, 100)
             {
-                ProcessedData = new byte[] { 1, 2, 3 },
+                ProcessedData = [1, 2, 3],
                 ProcessingFingerprintJson = heldFingerprint,
                 Updated = 1,
                 ClientUpdated = 1
@@ -410,7 +410,7 @@ public class SynchronizationMergeEngineTests
         {
             connection.Insert(new Session(sessionId, "hub", "desc", setupId, 100)
             {
-                ProcessedData = new byte[] { 1, 2, 3 },
+                ProcessedData = [1, 2, 3],
                 ProcessingFingerprintJson = heldFingerprint,
                 Updated = 1,
                 ClientUpdated = 1
@@ -475,7 +475,7 @@ public class SynchronizationMergeEngineTests
         {
             connection.Insert(new Session(sessionId, "hub", "desc", setupId, 100)
             {
-                ProcessedData = new byte[] { 1, 2, 3 },
+                ProcessedData = [1, 2, 3],
                 ProcessingFingerprintJson = heldFingerprint,
                 Updated = 1,
                 ClientUpdated = 1
@@ -505,7 +505,7 @@ public class SynchronizationMergeEngineTests
         using var tempDatabase = new TempDatabase("interrupted-sync.db");
         var databasePath = tempDatabase.DatabasePath;
         var sessionId = Guid.NewGuid();
-        var originalPsst = new byte[] { 9, 8, 7, 6 };
+        byte[] originalPsst = [9, 8, 7, 6];
 
         var database = new TestPersistenceHarness(databasePath);
         _ = await database.GetSessionsAsync();
@@ -603,7 +603,7 @@ public class SynchronizationMergeEngineTests
         var databasePath = tempDatabase.DatabasePath;
         var existingSessionId = Guid.NewGuid();
         var insertedSessionId = Guid.NewGuid();
-        var originalPsst = new byte[] { 4, 3, 2, 1 };
+        byte[] originalPsst = [4, 3, 2, 1];
 
         var database = new TestPersistenceHarness(databasePath);
         _ = await database.GetSessionsAsync();

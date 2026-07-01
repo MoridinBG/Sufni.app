@@ -20,14 +20,13 @@ public sealed class SetupRowViewModel : ListItemRowViewModelBase
 {
     private readonly ISetupCoordinator setupCoordinator;
     private readonly Action<SetupRowViewModel> requestDelete;
-    private Guid? boardId;
 
     public Guid Id { get; private set; }
 
     public Guid? BoardId
     {
-        get => boardId;
-        private set => SetProperty(ref boardId, value);
+        get => field;
+        private set => SetProperty(ref field, value);
     }
 
     public SetupRowViewModel(

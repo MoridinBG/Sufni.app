@@ -588,10 +588,7 @@ public class TelemetryPlot : SufniPlot
 
     public void HideCursorReadout()
     {
-        if (cursorTooltip is not null)
-        {
-            cursorTooltip.IsVisible = false;
-        }
+        cursorTooltip?.IsVisible = false;
     }
 
     protected virtual void SetCursorLinePosition(double position) { }

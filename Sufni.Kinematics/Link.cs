@@ -61,7 +61,7 @@ public class Link
     {
         var dx = a.X - b.X;
         var dy = a.Y - b.Y;
-        return Math.Sqrt(dx * dx + dy * dy);
+        return double.Hypot(dx, dy);
     }
 
     #endregion Public mehods

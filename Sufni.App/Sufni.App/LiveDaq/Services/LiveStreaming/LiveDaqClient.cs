@@ -38,8 +38,8 @@ internal sealed class LiveDaqClient : ILiveDaqClient
     private readonly Func<TcpClient> tcpClientFactory;
     private readonly Func<NetworkStream, byte[], CancellationToken, Task> sendFrameAsync;
     private readonly Subject<LiveDaqClientEvent> events = new();
-    private readonly object eventsGate = new();
-    private readonly object dropCountersGate = new();
+    private readonly System.Threading.Lock eventsGate = new();
+    private readonly System.Threading.Lock dropCountersGate = new();
     // Serializes all public lifecycle methods (Connect, Start, Stop, Disconnect, Dispose) and
     // the background receive loop's frame/disconnect handlers so that state mutations (pending TCS
     // completions, stream/CTS swaps, disposed flag) never interleave.

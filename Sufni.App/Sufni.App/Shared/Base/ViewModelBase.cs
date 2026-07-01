@@ -17,7 +17,7 @@ namespace Sufni.App.Shared.Base
 
         #region Observable properties
 
-        [ObservableProperty] private bool isPointerOverNotifications;
+        [ObservableProperty] public partial bool IsPointerOverNotifications { get; set; }
 
         public ObservableCollection<string> ErrorMessages { get; } = [];
         public ObservableCollection<string> Notifications { get; } = [];

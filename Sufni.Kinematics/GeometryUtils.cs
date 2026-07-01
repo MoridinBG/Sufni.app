@@ -4,7 +4,7 @@ public static class GeometryUtils
 {
     public static double CalculateDistance(IPoint p1, IPoint p2)
     {
-        return Math.Sqrt(Math.Pow(p2.X - p1.X, 2) + Math.Pow(p2.Y - p1.Y, 2));
+        return double.Hypot(p2.X - p1.X, p2.Y - p1.Y);
     }
 
     public static double? CalculatePixelsToMillimetersFromChainstay(
@@ -61,8 +61,8 @@ public static class GeometryUtils
         var dxHeadTube = top.X - bottom.X;
         var dyHeadTube = top.Y - bottom.Y;
 
-        var magnitudeGround = Math.Sqrt(dxGround * dxGround + dyGround * dyGround);
-        var magnitudeHeadTube = Math.Sqrt(dxHeadTube * dxHeadTube + dyHeadTube * dyHeadTube);
+        var magnitudeGround = double.Hypot(dxGround, dyGround);
+        var magnitudeHeadTube = double.Hypot(dxHeadTube, dyHeadTube);
         if (magnitudeGround < 0.001 || magnitudeHeadTube < 0.001)
         {
             return null;
@@ -89,8 +89,8 @@ public static class GeometryUtils
 
         // Compute the dot product and magnitudes
         var dotProduct = x1 * x2 + y1 * y2;
-        var magnitude1 = Math.Sqrt(x1 * x1 + y1 * y1);
-        var magnitude2 = Math.Sqrt(x2 * x2 + y2 * y2);
+        var magnitude1 = double.Hypot(x1, y1);
+        var magnitude2 = double.Hypot(x2, y2);
         var magnitudeProduct = magnitude1 * magnitude2;
 
         if (magnitudeProduct == 0 || !double.IsFinite(magnitudeProduct))

@@ -31,6 +31,6 @@ public sealed partial class RecordedSessionSeriesGraphViewModel
     public string EmptyMessage { get; }
     public IReadOnlyList<RecordedSessionGraphSpan> AirtimeSpans { get; }
 
-    [ObservableProperty] private bool showAirtime;
-    [ObservableProperty] private IRecordedSessionTimeline? timeline;
+    [ObservableProperty] public partial bool ShowAirtime { get; set; }
+    [ObservableProperty] public partial IRecordedSessionTimeline? Timeline { get; set; }
 }

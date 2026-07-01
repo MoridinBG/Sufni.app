@@ -38,7 +38,7 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
     private readonly SemaphoreSlim refreshGate = new(1, 1);
     private readonly IDisposable setupSubscription;
     private readonly IDisposable bikeSubscription;
-    private readonly object coalesceGate = new();
+    private readonly System.Threading.Lock coalesceGate = new();
     private bool refreshInProgress;
     private bool refreshPending;
 

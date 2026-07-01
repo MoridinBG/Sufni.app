@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Input;
@@ -26,7 +27,7 @@ public static class KeyboardShortcutRegistry
             ? KeyModifiers.Meta
             : KeyModifiers.Control;
 
-    public static IReadOnlyDictionary<string, IReadOnlyDictionary<string, IReadOnlyList<KeyGesture>>> GesturesBySource { get; } =
+    public static FrozenDictionary<string, IReadOnlyDictionary<string, IReadOnlyList<KeyGesture>>> GesturesBySource { get; } =
         new Dictionary<string, IReadOnlyDictionary<string, IReadOnlyList<KeyGesture>>>
         {
             [ShortcutConfiguration.MainWindow] = new Dictionary<string, IReadOnlyList<KeyGesture>>
@@ -52,7 +53,7 @@ public static class KeyboardShortcutRegistry
             {
                 [ShortcutConfiguration.DeleteSelection] = [Gesture(Key.Delete, KeyModifiers.None)],
             },
-        };
+        }.ToFrozenDictionary();
 
     public static IReadOnlyList<KeyGesture> All { get; } =
         GesturesBySource.Values

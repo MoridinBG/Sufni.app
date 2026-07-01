@@ -814,7 +814,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     private sealed class BufferedFrameStream : IObservable<LiveProtocolFrame>
     {
-        private readonly object gate = new();
+        private readonly System.Threading.Lock gate = new();
         private readonly List<BufferedFrameSubscriber> subscribers = [];
         private readonly int capacity;
         private long epoch;

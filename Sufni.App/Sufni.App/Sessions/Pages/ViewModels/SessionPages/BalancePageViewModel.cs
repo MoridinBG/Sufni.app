@@ -17,10 +17,10 @@ public partial class BalancePageViewModel : PageViewModelBase
         ? StatisticsWorkspace!.ReboundBalanceState
         : ReboundBalanceState;
 
-    [ObservableProperty] private string? compressionBalance;
-    [ObservableProperty] private string? reboundBalance;
-    [ObservableProperty] private SurfacePresentationState compressionBalanceState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SurfacePresentationState reboundBalanceState = SurfacePresentationState.Hidden;
+    [ObservableProperty] public partial string? CompressionBalance { get; set; }
+    [ObservableProperty] public partial string? ReboundBalance { get; set; }
+    [ObservableProperty] public partial SurfacePresentationState CompressionBalanceState { get; set; } = SurfacePresentationState.Hidden;
+    [ObservableProperty] public partial SurfacePresentationState ReboundBalanceState { get; set; } = SurfacePresentationState.Hidden;
 
     public bool ZenithModeSelected
     {

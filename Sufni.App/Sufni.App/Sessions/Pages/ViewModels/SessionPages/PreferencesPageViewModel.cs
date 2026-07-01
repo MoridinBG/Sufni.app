@@ -12,14 +12,13 @@ public sealed partial class PlotPreferenceItemViewModel(string displayName) : Ob
 {
     public string DisplayName { get; } = displayName;
 
-    [ObservableProperty] private bool selected = true;
-    [ObservableProperty] private bool available;
-    [ObservableProperty] private PlotSmoothingLevel selectedSmoothing = PlotSmoothingLevel.Off;
+    [ObservableProperty] public partial bool Selected { get; set; } = true;
+    [ObservableProperty] public partial bool Available { get; set; }
+    [ObservableProperty] public partial PlotSmoothingLevel SelectedSmoothing { get; set; } = PlotSmoothingLevel.Off;
 }
 
 public sealed class PreferencesPageViewModel : PageViewModelBase
 {
-    private double velocityFilterWindowMilliseconds = TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds;
     private int committedVelocityFilterWindowMilliseconds = TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds;
 
     public PlotPreferenceItemViewModel TravelPlot { get; } = new("Travel");
@@ -42,19 +41,19 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
 
     public double VelocityFilterWindowMilliseconds
     {
-        get => velocityFilterWindowMilliseconds;
+        get => field;
         set
         {
             var clamped = Math.Clamp(
                 Math.Round(value),
                 TelemetryProcessingOptions.MinVelocityFilterWindowMilliseconds,
                 TelemetryProcessingOptions.MaxVelocityFilterWindowMilliseconds);
-            if (SetProperty(ref velocityFilterWindowMilliseconds, clamped))
+            if (SetProperty(ref field, clamped))
             {
                 OnPropertyChanged(nameof(VelocityFilterWindowDisplay));
             }
         }
-    }
+    } = TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds;
 
     public string VelocityFilterWindowDisplay
     {

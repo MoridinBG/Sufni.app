@@ -53,8 +53,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private IDisposable? uiRefreshTimer;
-    private readonly object presentationGate = new();
-    private readonly object graphBatchRefreshGate = new();
+    private readonly System.Threading.Lock presentationGate = new();
+    private readonly System.Threading.Lock graphBatchRefreshGate = new();
     private bool hasLoaded;
     private long? blockedSavedCaptureRevision;
     private LiveSessionPresentationSnapshot pendingPresentation = LiveSessionPresentationSnapshot.Empty;
@@ -117,77 +117,75 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     [NotifyPropertyChangedFor(nameof(RearStatisticsState))]
     [NotifyPropertyChangedFor(nameof(CompressionBalanceState))]
     [NotifyPropertyChangedFor(nameof(ReboundBalanceState))]
-    private TelemetryData? telemetryData;
+    public partial TelemetryData? TelemetryData { get; set; }
 
     [ObservableProperty]
-    private SessionDamperPercentages damperPercentages = SessionDamperPercentages.Empty;
+    public partial SessionDamperPercentages DamperPercentages { get; set; } = SessionDamperPercentages.Empty;
 
+    // Kept in field form: the constructor writes the backing field directly to seed the
+    // initial value WITHOUT firing OnDampingSpeedCutoffsChanged, which recomputes damper
+    // percentages against state not yet initialized at construction time (NRE otherwise).
+    // All runtime writes still go through the generated DampingSpeedCutoffs property.
     [ObservableProperty]
     private DampingSpeedCutoffs dampingSpeedCutoffs = DampingSpeedCutoffs.Default;
 
     [ObservableProperty]
     private DampingSpeedCutoffs plotDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
 
-    private TravelHistogramMode selectedTravelHistogramMode = TravelHistogramMode.ActiveSuspension;
-    private BalanceDisplacementMode selectedBalanceDisplacementMode = BalanceDisplacementMode.Zenith;
-    private BalanceSpeedMode selectedBalanceSpeedMode = BalanceSpeedMode.Both;
-    private VelocityAverageMode selectedVelocityAverageMode = VelocityAverageMode.SampleAveraged;
-    private SessionAnalysisTargetProfile selectedSessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Trail;
-
     public TravelHistogramMode SelectedTravelHistogramMode
     {
-        get => selectedTravelHistogramMode;
+        get => field;
         set
         {
-            if (SetProperty(ref selectedTravelHistogramMode, value))
+            if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
             }
         }
-    }
+    } = TravelHistogramMode.ActiveSuspension;
 
     public BalanceDisplacementMode SelectedBalanceDisplacementMode
     {
-        get => selectedBalanceDisplacementMode;
+        get => field;
         set
         {
-            if (SetProperty(ref selectedBalanceDisplacementMode, value))
+            if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
             }
         }
-    }
+    } = BalanceDisplacementMode.Zenith;
 
     public BalanceSpeedMode SelectedBalanceSpeedMode
     {
-        get => selectedBalanceSpeedMode;
+        get => field;
         set
         {
-            if (SetProperty(ref selectedBalanceSpeedMode, value))
+            if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
             }
         }
-    }
+    } = BalanceSpeedMode.Both;
 
     public VelocityAverageMode SelectedVelocityAverageMode
     {
-        get => selectedVelocityAverageMode;
+        get => field;
         set
         {
-            if (SetProperty(ref selectedVelocityAverageMode, value))
+            if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
                 RecomputeDamperPercentagesForSelectedVelocityAverageMode();
             }
         }
-    }
+    } = VelocityAverageMode.SampleAveraged;
 
     public SessionAnalysisTargetProfile SelectedSessionAnalysisTargetProfile
     {
-        get => selectedSessionAnalysisTargetProfile;
-        set => SetProperty(ref selectedSessionAnalysisTargetProfile, value);
-    }
+        get => field;
+        set => SetProperty(ref field, value);
+    } = SessionAnalysisTargetProfile.Trail;
 
     public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } = SessionAnalysisPresentation.TravelHistogramModeOptions;
     public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } = SessionAnalysisPresentation.BalanceDisplacementModeOptions;
@@ -200,10 +198,10 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     [NotifyPropertyChangedFor(nameof(RearStatisticsState))]
     [NotifyPropertyChangedFor(nameof(CompressionBalanceState))]
     [NotifyPropertyChangedFor(nameof(ReboundBalanceState))]
-    private LiveSessionControlState controlState = LiveSessionControlState.Empty;
+    public partial LiveSessionControlState ControlState { get; set; } = LiveSessionControlState.Empty;
 
     [ObservableProperty]
-    private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
+    public partial SessionScreenPresentationState ScreenState { get; set; } = SessionScreenPresentationState.Ready;
 
     public SessionOperationPresentationState SessionOperationState => SessionOperationPresentationState.Hidden;
 

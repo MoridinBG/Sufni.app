@@ -17,11 +17,11 @@ public sealed partial class LiveDaqConfigFieldRowViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PasswordChar))]
     [NotifyPropertyChangedFor(nameof(RevealText))]
-    private bool isSecretRevealed;
+    public partial bool IsSecretRevealed { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasValidationMessage))]
-    private string? validationMessage;
+    public partial string? ValidationMessage { get; set; }
 
     public LiveDaqConfigFieldRowViewModel(DaqConfigFieldValue fieldValue, Action valueChanged)
     {

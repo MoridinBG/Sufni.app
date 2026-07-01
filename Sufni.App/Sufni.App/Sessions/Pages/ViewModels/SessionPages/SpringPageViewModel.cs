@@ -17,10 +17,10 @@ public partial class SpringPageViewModel : PageViewModelBase
         ? StatisticsWorkspace!.RearStatisticsState
         : RearHistogramState;
 
-    [ObservableProperty] private string? frontTravelHistogram;
-    [ObservableProperty] private string? rearTravelHistogram;
-    [ObservableProperty] private SurfacePresentationState frontHistogramState = SurfacePresentationState.Hidden;
-    [ObservableProperty] private SurfacePresentationState rearHistogramState = SurfacePresentationState.Hidden;
+    [ObservableProperty] public partial string? FrontTravelHistogram { get; set; }
+    [ObservableProperty] public partial string? RearTravelHistogram { get; set; }
+    [ObservableProperty] public partial SurfacePresentationState FrontHistogramState { get; set; } = SurfacePresentationState.Hidden;
+    [ObservableProperty] public partial SurfacePresentationState RearHistogramState { get; set; } = SurfacePresentationState.Hidden;
 
     public bool ActiveSuspensionModeSelected
     {

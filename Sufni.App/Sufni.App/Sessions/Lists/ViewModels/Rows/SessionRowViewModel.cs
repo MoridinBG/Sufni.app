@@ -28,76 +28,67 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
 
     public Guid Id { get; private set; }
     public long Updated { get; private set; }
-    private string baseName = string.Empty;
-    private string titleText = string.Empty;
-    private string timestampText = string.Empty;
-    private string subtitleText = string.Empty;
-    private SessionDateGroupKey dateGroupKey = SessionDateGroupKey.NoDate;
-    private bool hasSubtitleText;
-    private bool isStale;
-    private bool hasNoRawSource;
-    private bool canRecalculate;
 
     public string BaseName
     {
-        get => baseName;
-        private set => SetProperty(ref baseName, value);
-    }
+        get => field;
+        private set => SetProperty(ref field, value);
+    } = string.Empty;
 
     public string TitleText
     {
-        get => titleText;
-        private set => SetProperty(ref titleText, value);
-    }
+        get => field;
+        private set => SetProperty(ref field, value);
+    } = string.Empty;
 
     public string TimestampText
     {
-        get => timestampText;
-        private set => SetProperty(ref timestampText, value);
-    }
+        get => field;
+        private set => SetProperty(ref field, value);
+    } = string.Empty;
 
     public string SubtitleText
     {
-        get => subtitleText;
+        get => field;
         private set
         {
-            if (SetProperty(ref subtitleText, value))
+            if (SetProperty(ref field, value))
             {
                 HasSubtitleText = !string.IsNullOrWhiteSpace(value);
             }
         }
-    }
+    } = string.Empty;
 
     public bool HasSubtitleText
     {
-        get => hasSubtitleText;
-        private set => SetProperty(ref hasSubtitleText, value);
+        get => field;
+        private set => SetProperty(ref field, value);
     }
 
     public SessionDateGroupKey DateGroupKey
     {
-        get => dateGroupKey;
-        private set => SetProperty(ref dateGroupKey, value);
-    }
+        get => field;
+        private set => SetProperty(ref field, value);
+    } = SessionDateGroupKey.NoDate;
 
     public bool IsStale
     {
-        get => isStale;
-        private set => SetProperty(ref isStale, value);
+        get => field;
+        private set => SetProperty(ref field, value);
     }
 
     public bool HasNoRawSource
     {
-        get => hasNoRawSource;
-        private set => SetProperty(ref hasNoRawSource, value);
+        get => field;
+        private set => SetProperty(ref field, value);
     }
 
     public bool CanRecalculate
     {
-        get => canRecalculate;
+        get => field;
         private set
         {
-            if (SetProperty(ref canRecalculate, value))
+            if (SetProperty(ref field, value))
             {
                 RecalculateCommand.NotifyCanExecuteChanged();
             }

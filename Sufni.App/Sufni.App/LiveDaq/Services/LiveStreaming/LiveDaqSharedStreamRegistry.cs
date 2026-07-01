@@ -13,7 +13,7 @@ internal sealed class LiveDaqSharedStreamRegistry : ILiveDaqSharedStreamRegistry
 
     private readonly Func<ILiveDaqClient> createLiveDaqClient;
     private readonly ILiveDaqCatalogService liveDaqCatalogService;
-    private readonly object gate = new();
+    private readonly System.Threading.Lock gate = new();
     private readonly IDisposable catalogSubscription;
 
     private readonly Dictionary<string, LiveDaqSharedStream> streams = new(StringComparer.OrdinalIgnoreCase);

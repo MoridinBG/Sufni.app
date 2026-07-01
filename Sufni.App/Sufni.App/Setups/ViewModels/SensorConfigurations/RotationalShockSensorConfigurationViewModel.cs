@@ -14,9 +14,9 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
 
     #region Observable properties
 
-    [ObservableProperty] private JointViewModel? sensorJoint;
-    [ObservableProperty] private JointViewModel? adjacentJoint1;
-    [ObservableProperty] private JointViewModel? adjacentJoint2;
+    [ObservableProperty] public partial JointViewModel? SensorJoint { get; set; }
+    [ObservableProperty] public partial JointViewModel? AdjacentJoint1 { get; set; }
+    [ObservableProperty] public partial JointViewModel? AdjacentJoint2 { get; set; }
 
     private IReadOnlyList<JointViewModel> jointViewModels = [];
     private bool initialResolutionDone;

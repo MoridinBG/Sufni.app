@@ -33,7 +33,7 @@ public sealed class RecordedSessionGraph : IRecordedSessionGraph, IDisposable
     private readonly Dictionary<Guid, RecordedSessionDomainSnapshot> domains = [];
     private readonly Dictionary<Guid, ReplaySubject<RecordedSessionDomainSnapshot>> watches = [];
     private readonly CompositeDisposable subscriptions = [];
-    private readonly object stateGate = new();
+    private readonly System.Threading.Lock stateGate = new();
     private readonly HashSet<Guid> pendingRecomputeIds = [];
     private bool recomputeFlushScheduled;
     private bool disposed;

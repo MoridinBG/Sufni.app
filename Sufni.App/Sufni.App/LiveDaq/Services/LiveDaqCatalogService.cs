@@ -18,7 +18,7 @@ public sealed class LiveDaqCatalogService : ILiveDaqCatalogService, IDisposable
     private readonly IServiceDiscovery serviceDiscovery;
     private readonly IDaqBrowseOwner browseOwner;
     private readonly ILiveDaqBoardIdInspector boardIdInspector;
-    private readonly object gate = new();
+    private readonly System.Threading.Lock gate = new();
     private readonly HashSet<string> announcedEndpoints = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, LiveDaqCatalogEntry> entries = new(StringComparer.OrdinalIgnoreCase);
     private readonly BehaviorSubject<IReadOnlyList<LiveDaqCatalogEntry>> entriesSubject = new([]);

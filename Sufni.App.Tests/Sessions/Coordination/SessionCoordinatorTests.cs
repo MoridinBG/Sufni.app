@@ -973,7 +973,7 @@ public class SessionCoordinatorTests
 
     private static RecordedSessionSource CreateRecordedSource(Guid sessionId)
     {
-        var payload = new byte[] { 1, 2, 3, 4 };
+        byte[] payload = [1, 2, 3, 4];
         return new RecordedSessionSource
         {
             SessionId = sessionId,

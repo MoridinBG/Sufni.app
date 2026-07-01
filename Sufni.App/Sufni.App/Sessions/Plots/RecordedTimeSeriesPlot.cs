@@ -160,10 +160,7 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
 
     protected override void SetCursorLinePosition(double position)
     {
-        if (CursorLine is not null)
-        {
-            CursorLine.Position = position;
-        }
+        CursorLine?.Position = position;
     }
 
     protected override CursorReadout? GetCursorReadout(double position)

@@ -32,11 +32,11 @@ public partial class ItemListViewModelBase : ViewModelBase
 
     #region Observable properties
 
-    [ObservableProperty] private string? searchText;
-    [ObservableProperty] private bool searchBoxIsFocused;
-    [ObservableProperty] private DateTime? dateFilterFrom;
-    [ObservableProperty] private DateTime? dateFilterTo;
-    [ObservableProperty] private bool dateFilterVisible;
+    [ObservableProperty] public partial string? SearchText { get; set; }
+    [ObservableProperty] public partial bool SearchBoxIsFocused { get; set; }
+    [ObservableProperty] public partial DateTime? DateFilterFrom { get; set; }
+    [ObservableProperty] public partial DateTime? DateFilterTo { get; set; }
+    [ObservableProperty] public partial bool DateFilterVisible { get; set; }
 
     public ObservableCollection<PullMenuItemViewModel> MenuItems { get; set; } = [];
 

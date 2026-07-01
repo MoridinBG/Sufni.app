@@ -11,8 +11,8 @@ public abstract partial class LinearSensorConfigurationViewModelBase
 
     #region Observable properties
 
-    [ObservableProperty] private double? length;
-    [ObservableProperty] private int? resolution;
+    [ObservableProperty] public partial double? Length { get; set; }
+    [ObservableProperty] public partial int? Resolution { get; set; }
 
     #endregion Observable properties
 

@@ -10,18 +10,18 @@ namespace Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 
 public partial class SuspensionSettings : ObservableObject
 {
-    [ObservableProperty] private string? springRate;
-    [ObservableProperty] private uint? highSpeedCompression;
-    [ObservableProperty] private uint? lowSpeedCompression;
-    [ObservableProperty] private uint? lowSpeedRebound;
-    [ObservableProperty] private uint? highSpeedRebound;
+    [ObservableProperty] public partial string? SpringRate { get; set; }
+    [ObservableProperty] public partial uint? HighSpeedCompression { get; set; }
+    [ObservableProperty] public partial uint? LowSpeedCompression { get; set; }
+    [ObservableProperty] public partial uint? LowSpeedRebound { get; set; }
+    [ObservableProperty] public partial uint? HighSpeedRebound { get; set; }
 }
 
 public record TemperatureAverageRowViewModel(string SensorName, string TemperatureText);
 
 public partial class NotesPageViewModel() : PageViewModelBase("Notes")
 {
-    [ObservableProperty] private string? description;
+    [ObservableProperty] public partial string? Description { get; set; }
 
     public SuspensionSettings ForkSettings { get; } = new();
     public SuspensionSettings ShockSettings { get; } = new();

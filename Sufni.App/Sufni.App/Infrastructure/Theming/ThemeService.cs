@@ -115,10 +115,7 @@ public sealed class ThemeService : IThemeService, IDisposable
         Mode = mode;
 
         var app = Application.Current;
-        if (app is not null)
-        {
-            app.RequestedThemeVariant = SufniThemes.ToVariant(mode);
-        }
+        app?.RequestedThemeVariant = SufniThemes.ToVariant(mode);
 
         ThemeChanged?.Invoke(this, EventArgs.Empty);
     }

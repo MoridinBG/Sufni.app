@@ -26,7 +26,7 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
     private readonly ILiveSessionServiceFactory liveSessionServiceFactory;
     private readonly Func<IEditorFactory> editorFactory;
 
-    private readonly object reconcileGate = new();
+    private readonly System.Threading.Lock reconcileGate = new();
     private IReadOnlyDictionary<string, KnownLiveDaqRecord> knownBoards = new Dictionary<string, KnownLiveDaqRecord>();
     private IReadOnlyList<LiveDaqCatalogEntry> catalogEntries = [];
     private CompositeDisposable? activeSubscriptions;

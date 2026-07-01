@@ -27,21 +27,21 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     public ObservableCollection<ITelemetryDataStore> TelemetryDataStores { get; }
     public ObservableCollection<ITelemetryFile> TelemetryFiles { get; } = [];
 
-    [ObservableProperty] private ITelemetryDataStore? selectedDataStore;
-    [ObservableProperty] private bool newDataStoresAvailable;
-    [ObservableProperty] private bool isLoadingFiles;
+    [ObservableProperty] public partial ITelemetryDataStore? SelectedDataStore { get; set; }
+    [ObservableProperty] public partial bool NewDataStoresAvailable { get; set; }
+    [ObservableProperty] public partial bool IsLoadingFiles { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ImportSessionsCommand))]
-    private Guid? selectedSetup;
+    public partial Guid? SelectedSetup { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ImportProgressText))]
-    private int currentFileIndex;
+    public partial int CurrentFileIndex { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ImportProgressText))]
-    private int totalFiles;
+    public partial int TotalFiles { get; set; }
 
     public string ImportProgressText =>
         TotalFiles > 0 ? $"File {CurrentFileIndex}/{TotalFiles}" : string.Empty;

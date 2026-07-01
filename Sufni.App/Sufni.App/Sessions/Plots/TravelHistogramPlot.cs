@@ -53,12 +53,12 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type, SufniTheme? the
 
         var step = data.Bins[1] - data.Bins[0];
         var color = type == SuspensionType.Front ? FrontColor : RearColor;
-        var bars = data.Values.Select((value, index) =>
+        var bars = data.Values.Index().Select(item =>
             {
                 var bar = new Bar
                 {
-                    Position = data.Bins[index],
-                    Value = value,
+                    Position = data.Bins[item.Index],
+                    Value = item.Item,
                     FillColor = color.WithOpacity(),
                     LineColor = color,
                     LineWidth = 1.5f,
@@ -68,8 +68,8 @@ public class TravelHistogramPlot(Plot plot, SuspensionType type, SufniTheme? the
 
                 AddBarReadout(
                     bar,
-                    FormatReadoutRange("Axle position", data.Bins, index, "mm"),
-                    new CursorReadoutLine("Time", value, "%", color));
+                    FormatReadoutRange("Axle position", data.Bins, item.Index, "mm"),
+                    new CursorReadoutLine("Time", item.Item, "%", color));
 
                 return bar;
             })

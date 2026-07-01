@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 
 using Sufni.App.Extensibility.Views;
@@ -32,7 +33,7 @@ public class ViewLocator : IDataTemplate
     private readonly IExtensionViewRegistry extensionViewRegistry;
     private readonly IServiceProvider serviceProvider;
 
-    private static readonly IReadOnlyDictionary<Type, Func<Control>> ViewFactories = new Dictionary<Type, Func<Control>>
+    private static readonly FrozenDictionary<Type, Func<Control>> ViewFactories = new Dictionary<Type, Func<Control>>
     {
         [typeof(MainViewModel)] = static () => new global::Sufni.App.Shell.Views.MainView(),
         [typeof(MainPagesViewModel)] = static () => new global::Sufni.App.Shell.Views.MainPagesView(),
@@ -65,9 +66,9 @@ public class ViewLocator : IDataTemplate
         [typeof(SpringPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.SpringPageView(),
         [typeof(StrokesPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.StrokesPageView(),
         [typeof(VibrationPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.VibrationPageView(),
-    };
+    }.ToFrozenDictionary();
 
-    private static readonly IReadOnlyDictionary<Type, Func<Control>> DesktopViewFactories = new Dictionary<Type, Func<Control>>
+    private static readonly FrozenDictionary<Type, Func<Control>> DesktopViewFactories = new Dictionary<Type, Func<Control>>
     {
         [typeof(MainPagesViewModel)] = static () => new global::Sufni.App.Shell.DesktopViews.MainPagesDesktopView(),
         [typeof(ImportSessionsViewModel)] = static () => new global::Sufni.App.Acquisition.DesktopViews.ImportSessionsDesktopView(),
@@ -81,7 +82,7 @@ public class ViewLocator : IDataTemplate
         [typeof(LiveSessionDetailViewModel)] = static () => new global::Sufni.App.LiveDaq.DesktopViews.Editors.LiveSessionDetailDesktopView(),
         [typeof(SessionDetailViewModel)] = static () => new global::Sufni.App.Sessions.Detail.DesktopViews.Editors.SessionDetailDesktopView(),
         [typeof(SetupEditorViewModel)] = static () => new global::Sufni.App.Setups.DesktopViews.Editors.SetupEditorDesktopView(),
-    };
+    }.ToFrozenDictionary();
 
     public ViewLocator()
         : this(new ExtensionViewRegistry(), EmptyServiceProvider.Instance)

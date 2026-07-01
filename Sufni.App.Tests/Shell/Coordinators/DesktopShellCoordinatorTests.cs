@@ -57,7 +57,7 @@ public class DesktopShellCoordinatorTests
     public void OpenOrFocus_ReusesExistingMatchingTab_AndDoesNotInvokeFactory()
     {
         var existing = new TestTabPageViewModel();
-        host.Tabs.Returns(new TabPageViewModelBase[] { existing });
+        host.Tabs.Returns([existing]);
         var factoryInvoked = false;
         var coordinator = CreateCoordinator();
 
@@ -115,7 +115,7 @@ public class DesktopShellCoordinatorTests
     {
         var firstTab = new TestTabPageViewModel();
         var secondTab = new TestTabPageViewModel();
-        host.Tabs.Returns(new TabPageViewModelBase[] { firstTab, secondTab });
+        host.Tabs.Returns([firstTab, secondTab]);
         var coordinator = CreateCoordinator();
 
         coordinator.OpenOrFocus<TestTabPageViewModel>(
@@ -155,7 +155,7 @@ public class DesktopShellCoordinatorTests
     public void CloseIfOpen_ClosesMatchingTab_WhenPresent()
     {
         var tab = new TestTabPageViewModel();
-        host.Tabs.Returns(new TabPageViewModelBase[] { tab });
+        host.Tabs.Returns([tab]);
         var coordinator = CreateCoordinator();
 
         coordinator.CloseIfOpen<TestTabPageViewModel>(_ => true);
@@ -167,7 +167,7 @@ public class DesktopShellCoordinatorTests
     public void CloseIfOpen_ForgetsRestoreHistory_WhenRequested()
     {
         var tab = new TestTabPageViewModel();
-        host.Tabs.Returns(new TabPageViewModelBase[] { tab });
+        host.Tabs.Returns([tab]);
         var coordinator = CreateCoordinator();
 
         coordinator.CloseIfOpen<TestTabPageViewModel>(_ => true, forgetRestoreHistory: true);

@@ -69,7 +69,7 @@ public sealed class RecordedSessionExtensionSlotPublisher
 {
     private readonly RecordedSessionExtensionSlots slots;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
-    private readonly object gate = new();
+    private readonly System.Threading.Lock gate = new();
     private Action<RecordedSessionExtensionSlotBuilder>? pendingBuild;
     private bool publishQueued;
 

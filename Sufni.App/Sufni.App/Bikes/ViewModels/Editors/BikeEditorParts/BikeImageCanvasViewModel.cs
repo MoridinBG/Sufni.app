@@ -21,10 +21,10 @@ public partial class BikeImageCanvasViewModel : ObservableObject
     private Rect? jointBounds;
     private Rect? wheelBounds;
 
-    [ObservableProperty] private Bitmap? image;
-    [ObservableProperty] private double imageRotationDegrees;
-    [ObservableProperty] private bool overlayVisible;
-    [ObservableProperty] private List<Point> rearAxlePath = [];
+    [ObservableProperty] public partial Bitmap? Image { get; set; }
+    [ObservableProperty] public partial double ImageRotationDegrees { get; set; }
+    [ObservableProperty] public partial bool OverlayVisible { get; set; }
+    [ObservableProperty] public partial List<Point> RearAxlePath { get; set; } = [];
 
     public byte[] ImageBytes => imageBytes;
 

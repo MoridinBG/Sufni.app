@@ -35,14 +35,14 @@ public partial class JointViewModel : ObservableObject, IPoint
 
     #region Observable properties
 
-    [ObservableProperty] private double x;
-    [ObservableProperty] private double y;
-    [ObservableProperty] private string name;
-    [ObservableProperty] private JointType type;
+    [ObservableProperty] public partial double X { get; set; }
+    [ObservableProperty] public partial double Y { get; set; }
+    [ObservableProperty] public partial string Name { get; set; }
+    [ObservableProperty] public partial JointType Type { get; set; }
     public static ObservableCollection<JointType> PointTypes { get; } = [JointType.Fixed, JointType.Floating, JointType.HeadTube];
-    [ObservableProperty] private Brush brush;
-    [ObservableProperty] private bool isSelected;
-    [ObservableProperty] private bool wasPossiblyDragged;
+    [ObservableProperty] public partial Brush Brush { get; set; }
+    [ObservableProperty] public partial bool IsSelected { get; set; }
+    [ObservableProperty] public partial bool WasPossiblyDragged { get; set; }
 
     #endregion Observable properties
 

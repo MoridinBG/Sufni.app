@@ -12,7 +12,7 @@ public abstract partial class SensorConfigurationViewModel : ObservableObject
 
     #region Observable properties
 
-    [ObservableProperty] private bool isDirty;
+    [ObservableProperty] public partial bool IsDirty { get; set; }
 
     #endregion
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using Avalonia.Logging;
 using Serilog;
@@ -8,9 +9,9 @@ namespace Sufni.App.Infrastructure;
 
 public sealed class AvaloniaSerilogSink(AvaloniaLevel minimumLevel = AvaloniaLevel.Warning, params string[] areas) : ILogSink
 {
-    private readonly HashSet<string>? enabledAreas = areas.Length == 0
+    private readonly FrozenSet<string>? enabledAreas = areas.Length == 0
         ? null
-        : new HashSet<string>(areas, StringComparer.OrdinalIgnoreCase);
+        : areas.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
     public bool IsEnabled(AvaloniaLevel level, string area) =>
         level >= minimumLevel &&

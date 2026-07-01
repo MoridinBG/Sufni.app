@@ -276,7 +276,7 @@ public class Bike : Synchronizable
 
         var dx = rearWheel.X - bottomBracket.X;
         var dy = rearWheel.Y - bottomBracket.Y;
-        return Math.Sqrt(dx * dx + dy * dy);
+        return double.Hypot(dx, dy);
     }
 }
 

@@ -59,28 +59,28 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    private Guid? boardId;
+    public partial Guid? BoardId { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    private BikeSnapshot? selectedBike;
+    public partial BikeSnapshot? SelectedBike { get; set; }
 
-    [ObservableProperty] private SensorType? forkSensorType;
-    [ObservableProperty] private SensorType? shockSensorType;
-    [ObservableProperty] private IReadOnlyList<SensorType?> shockSensorTypes = [null];
-    [ObservableProperty] private string rearSuspensionDescription = "Hardtail";
-    [ObservableProperty] private string? rearSensorCompatibilityMessage;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    private SensorConfigurationViewModel? forkSensorConfiguration;
+    [ObservableProperty] public partial SensorType? ForkSensorType { get; set; }
+    [ObservableProperty] public partial SensorType? ShockSensorType { get; set; }
+    [ObservableProperty] public partial IReadOnlyList<SensorType?> ShockSensorTypes { get; set; } = [null];
+    [ObservableProperty] public partial string RearSuspensionDescription { get; set; } = "Hardtail";
+    [ObservableProperty] public partial string? RearSensorCompatibilityMessage { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    private SensorConfigurationViewModel? shockSensorConfiguration;
+    public partial SensorConfigurationViewModel? ForkSensorConfiguration { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    public partial SensorConfigurationViewModel? ShockSensorConfiguration { get; set; }
 
     public ReadOnlyObservableCollection<BikeSnapshot> Bikes { get; }
     public List<SensorType?> ForkSensorTypes { get; } = [null, .. Enum.GetValues<SensorType>().Where(t => t.ToString().EndsWith("Fork"))];

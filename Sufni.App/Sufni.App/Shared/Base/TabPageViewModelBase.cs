@@ -54,21 +54,21 @@ public partial class TabPageViewModelBase : ViewModelBase
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
     [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private bool isDirty;
+    public partial bool IsDirty { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
     [NotifyCanExecuteChangedFor(nameof(ExportCommand))]
-    private string? name;
+    public partial string? Name { get; set; }
 
-    [ObservableProperty] private bool isTabActive;
+    [ObservableProperty] public partial bool IsTabActive { get; set; }
 
     // Used by the EditableTitle control as the optional subtitle. Bike
     // and setup editors leave this null (and the subtitle hides);
     // SessionDetailViewModel sets it to the recording's local-time
     // timestamp after Loaded.
-    [ObservableProperty] private DateTime? timestamp;
+    [ObservableProperty] public partial DateTime? Timestamp { get; set; }
 
     #endregion Observable properties
 

@@ -18,7 +18,7 @@ internal sealed class LiveGraphPipeline : ILiveGraphPipeline
 
     private readonly TimeSpan flushInterval;
     private readonly ILogger logger;
-    private readonly object gate = new();
+    private readonly System.Threading.Lock gate = new();
     private readonly Subject<LiveGraphBatch> graphBatchesSubject = new();
     private PendingGraphBatch pendingGraphBatch = new();
     private readonly List<double> recentTravelTimes = new();

@@ -135,7 +135,7 @@ public class DaqManagementServiceTests
     public async Task GetFileAsync_StreamsBytesToDestination_OnSuccess()
     {
         await using var server = new ManagementTestServer();
-        var expectedBytes = new byte[] { 1, 2, 3, 4, 5, 6 };
+        byte[] expectedBytes = [1, 2, 3, 4, 5, 6];
         var serverTask = server.RunSessionAsync(async stream =>
         {
             var reader = new ManagementProtocolReader();
@@ -187,7 +187,7 @@ public class DaqManagementServiceTests
                     maxChunkPayload: 2,
                     name: "99999.SST"));
             await ManagementTestServer.WriteFrameAsync(stream,
-                ManagementProtocolTestFrames.CreateFileChunkFrame(request.RequestId, new byte[] { 1, 2, 3 }));
+                ManagementProtocolTestFrames.CreateFileChunkFrame(request.RequestId, [1, 2, 3]));
         });
 
         using var destination = new MemoryStream();
@@ -261,14 +261,14 @@ public class DaqManagementServiceTests
         });
 
         var baseInstant = DateTimeOffset.FromUnixTimeSeconds(1_700_000_000);
-        var roundTrips = new[]
-        {
+        TimeSpan[] roundTrips =
+        [
             TimeSpan.FromMilliseconds(10),
             TimeSpan.FromMilliseconds(50),
             TimeSpan.FromMilliseconds(20),
             TimeSpan.FromMilliseconds(30),
             TimeSpan.FromMilliseconds(40)
-        };
+        ];
         var timestampValues = new List<long>();
         long cursor = 0;
         foreach (var roundTrip in roundTrips)

@@ -36,10 +36,10 @@ public partial class LinkageEditorViewModel : ObservableObject
     public ReadOnlyObservableCollection<JointViewModel> JointViewModels { get; }
     public ReadOnlyObservableCollection<LinkViewModel> LinkViewModels { get; }
 
-    [ObservableProperty] private JointViewModel? selectedPoint;
-    [ObservableProperty] private LinkViewModel? selectedLink;
-    [ObservableProperty] private double linkStrokeThickness = 10.0;
-    [ObservableProperty] private double jointFontSize = 24.0;
+    [ObservableProperty] public partial JointViewModel? SelectedPoint { get; set; }
+    [ObservableProperty] public partial LinkViewModel? SelectedLink { get; set; }
+    [ObservableProperty] public partial double LinkStrokeThickness { get; set; } = 10.0;
+    [ObservableProperty] public partial double JointFontSize { get; set; } = 24.0;
 
     public LinkageEditorViewModel()
     {
@@ -470,10 +470,7 @@ public partial class LinkageEditorViewModel : ObservableObject
         ClearSelections();
         SelectedLink = null;
         SelectedPoint = visual.DataContext as JointViewModel;
-        if (SelectedPoint is not null)
-        {
-            SelectedPoint.IsSelected = true;
-        }
+        SelectedPoint?.IsSelected = true;
 
         args.Handled = true;
     }
@@ -486,10 +483,7 @@ public partial class LinkageEditorViewModel : ObservableObject
         ClearSelections();
         SelectedPoint = null;
         SelectedLink = line.DataContext as LinkViewModel;
-        if (SelectedLink is not null)
-        {
-            SelectedLink.IsSelected = true;
-        }
+        SelectedLink?.IsSelected = true;
 
         args.Handled = true;
     }

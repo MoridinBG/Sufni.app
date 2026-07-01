@@ -329,19 +329,19 @@ internal sealed partial class FakeShellHostViewModel : ViewModelBase, ISessionSh
         : TabPageViewModelBase(uiThreadDispatcher);
 
     [ObservableProperty]
-    private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
+    public partial SessionScreenPresentationState ScreenState { get; set; } = SessionScreenPresentationState.Ready;
 
     [ObservableProperty]
-    private SessionOperationPresentationState sessionOperationState = SessionOperationPresentationState.Hidden;
+    public partial SessionOperationPresentationState SessionOperationState { get; set; } = SessionOperationPresentationState.Hidden;
 
     [ObservableProperty]
-    private string? name;
+    public partial string? Name { get; set; }
 
     [ObservableProperty]
-    private DateTime? timestamp;
+    public partial DateTime? Timestamp { get; set; }
 
     [ObservableProperty]
-    private bool isDirty;
+    public partial bool IsDirty { get; set; }
 
     public Rect? LoadedRect { get; private set; }
     public bool UnloadedFired { get; private set; }

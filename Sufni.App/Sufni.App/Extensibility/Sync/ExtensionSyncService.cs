@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -11,7 +12,7 @@ namespace Sufni.App.Extensibility.Sync;
 internal sealed class ExtensionSyncService : IExtensionSyncService
 {
     private readonly IReadOnlyList<IExtensionSyncParticipant> participants;
-    private readonly IReadOnlyDictionary<string, IExtensionSyncParticipant> participantsById;
+    private readonly FrozenDictionary<string, IExtensionSyncParticipant> participantsById;
 
     public ExtensionSyncService(IEnumerable<IExtensionSyncParticipant> participants)
     {
@@ -85,7 +86,7 @@ internal sealed class ExtensionSyncService : IExtensionSyncService
         }
     }
 
-    private static IReadOnlyDictionary<string, IExtensionSyncParticipant> CreateParticipantMap(
+    private static FrozenDictionary<string, IExtensionSyncParticipant> CreateParticipantMap(
         IReadOnlyList<IExtensionSyncParticipant> participants)
     {
         var participantMap = new Dictionary<string, IExtensionSyncParticipant>(StringComparer.Ordinal);
@@ -103,6 +104,6 @@ internal sealed class ExtensionSyncService : IExtensionSyncService
             }
         }
 
-        return participantMap;
+        return participantMap.ToFrozenDictionary(StringComparer.Ordinal);
     }
 }

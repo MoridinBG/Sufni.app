@@ -32,26 +32,26 @@ public class TravelFrequencyHistogramPlot(Plot plot, SuspensionType type, SufniT
             return;
         }
         var color = type == SuspensionType.Front ? FrontColor : RearColor;
-        var bars = data.Values.Select((value, index) =>
+        var bars = data.Values.Index().Select(item =>
             {
                 var bar = new Bar
                 {
-                    Position = data.Bins[index],
-                    Value = value,
+                    Position = data.Bins[item.Index],
+                    Value = item.Item,
                     FillColor = color.WithOpacity(),
                     LineColor = color,
                     LineWidth = 1.5f,
                     Orientation = Orientation.Vertical,
                     Size = 4.9 / data.Bins.Count
                 };
-                var powerDb = value > 0 ? 20 * Math.Log10(value) : double.NaN;
+                var powerDb = item.Item > 0 ? 20 * Math.Log10(item.Item) : double.NaN;
                 var powerLine = double.IsFinite(powerDb)
                     ? new CursorReadoutLine("Power", powerDb, "dB", color, "0.#")
-                    : new CursorReadoutLine("Power", value, string.Empty, color, "0.###");
+                    : new CursorReadoutLine("Power", item.Item, string.Empty, color, "0.###");
 
                 AddBarReadout(
                     bar,
-                    $"Frequency: {FormatReadoutValue(data.Bins[index], "Hz", "0.##")}",
+                    $"Frequency: {FormatReadoutValue(data.Bins[item.Index], "Hz", "0.##")}",
                     powerLine);
 
                 return bar;

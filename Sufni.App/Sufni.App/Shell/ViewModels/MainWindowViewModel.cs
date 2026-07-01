@@ -18,8 +18,8 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
 
     #region Observable properties
 
-    [ObservableProperty] private TabPageViewModelBase? currentView;
-    [ObservableProperty] private MainPagesViewModel mainPagesViewModel;
+    [ObservableProperty] public partial TabPageViewModelBase? CurrentView { get; set; }
+    [ObservableProperty] public partial MainPagesViewModel MainPagesViewModel { get; set; }
     public ObservableCollection<TabPageViewModelBase> Tabs { get; set; } = [];
 
     // The shell host interface exposes Tabs as a plain enumerable to keep

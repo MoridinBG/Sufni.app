@@ -36,8 +36,8 @@ internal class HttpApiService : IHttpApiService
     #region Private fields
 
     private readonly HttpClient client;
-    private readonly object certificateStateGate = new();
-    private readonly object tokenRefreshStateGate = new();
+    private readonly System.Threading.Lock certificateStateGate = new();
+    private readonly System.Threading.Lock tokenRefreshStateGate = new();
     private Task Initialization { get; }
     private readonly ISecureStorage secureStorage;
     private Task? inFlightTokenRefreshTask;

@@ -7,10 +7,6 @@ namespace Sufni.App.Shared.Base;
 
 public class ListItemRowViewModelBase : ObservableObject
 {
-    private string? name;
-    private DateTime? timestamp;
-    private bool isComplete = true;
-
     protected ListItemRowViewModelBase()
     {
         OpenPageCommand = new AsyncRelayCommand(OpenPageAsync);
@@ -19,21 +15,21 @@ public class ListItemRowViewModelBase : ObservableObject
 
     public string? Name
     {
-        get => name;
-        protected set => SetProperty(ref name, value);
+        get => field;
+        protected set => SetProperty(ref field, value);
     }
 
     public DateTime? Timestamp
     {
-        get => timestamp;
-        protected set => SetProperty(ref timestamp, value);
+        get => field;
+        protected set => SetProperty(ref field, value);
     }
 
     public bool IsComplete
     {
-        get => isComplete;
-        protected set => SetProperty(ref isComplete, value);
-    }
+        get => field;
+        protected set => SetProperty(ref field, value);
+    } = true;
 
     public IRelayCommand OpenPageCommand { get; }
 

@@ -6,7 +6,7 @@ namespace Sufni.App.LiveDaq.Services;
 
 internal sealed class BonjourBrowseLifecycle<TPending>
 {
-    private readonly object gate = new();
+    private readonly System.Threading.Lock gate = new();
     private readonly Dictionary<string, PendingResolution> pendingByKey = [];
     private readonly Dictionary<string, ServiceAnnouncement> resolvedByKey = [];
     private long nextResolutionId;

@@ -39,19 +39,19 @@ public partial class MainPagesViewModel : ViewModelBase
 
     #region Observable properties
 
-    [ObservableProperty] private bool databaseLoaded;
-    [ObservableProperty] private int selectedPrimaryIndex;
-    [ObservableProperty] private bool syncInProgress;
-    [ObservableProperty] private string syncProgressText = string.Empty;
-    [ObservableProperty] private double syncProgressValue;
-    [ObservableProperty] private bool syncProgressIsIndeterminate = true;
-    [ObservableProperty] private bool isPaired;
-    [ObservableProperty] private bool isDrawerOpen;
-    [ObservableProperty] private bool isPairedDevicesListOpen;
-    [ObservableProperty] private SufniThemeMode currentThemeMode;
-    [ObservableProperty] private SufniThemeMode effectiveThemeMode;
-    [ObservableProperty] private SufniThemeMode nextThemeMode;
-    [ObservableProperty] private bool isSystemThemeAvailable;
+    [ObservableProperty] public partial bool DatabaseLoaded { get; set; }
+    [ObservableProperty] public partial int SelectedPrimaryIndex { get; set; }
+    [ObservableProperty] public partial bool SyncInProgress { get; set; }
+    [ObservableProperty] public partial string SyncProgressText { get; set; } = string.Empty;
+    [ObservableProperty] public partial double SyncProgressValue { get; set; }
+    [ObservableProperty] public partial bool SyncProgressIsIndeterminate { get; set; } = true;
+    [ObservableProperty] public partial bool IsPaired { get; set; }
+    [ObservableProperty] public partial bool IsDrawerOpen { get; set; }
+    [ObservableProperty] public partial bool IsPairedDevicesListOpen { get; set; }
+    [ObservableProperty] public partial SufniThemeMode CurrentThemeMode { get; set; }
+    [ObservableProperty] public partial SufniThemeMode EffectiveThemeMode { get; set; }
+    [ObservableProperty] public partial SufniThemeMode NextThemeMode { get; set; }
+    [ObservableProperty] public partial bool IsSystemThemeAvailable { get; set; }
 
     #endregion
 

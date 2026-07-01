@@ -52,7 +52,7 @@ public static class ProcessingDependencyHash
 
         using var stream = new MemoryStream();
         JsonSerializer.Serialize(stream, payload, jsonOptions);
-        return Convert.ToHexString(SHA256.HashData(stream.GetBuffer().AsSpan(0, checked((int)stream.Length)))).ToLowerInvariant();
+        return Convert.ToHexStringLower(SHA256.HashData(stream.GetBuffer().AsSpan(0, checked((int)stream.Length))));
     }
 
     private static JsonSerializerOptions CreateLegacySnakeCaseJsonOptions()

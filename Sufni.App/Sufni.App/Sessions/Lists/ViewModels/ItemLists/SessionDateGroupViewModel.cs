@@ -23,13 +23,13 @@ public readonly record struct SessionDateGroupKey(DateOnly? Date)
 
 public sealed partial class SessionDateGroupViewModel : ObservableObject
 {
-    [ObservableProperty] private bool isExpanded;
+    [ObservableProperty] public partial bool IsExpanded { get; set; }
 
     public SessionDateGroupViewModel(SessionDateGroupKey key, bool isExpanded)
     {
         Key = key;
         HeaderText = key.ToDisplayText(CultureInfo.CurrentCulture);
-        this.isExpanded = isExpanded;
+        IsExpanded = isExpanded;
         ToggleExpandedCommand = new RelayCommand(ToggleExpanded);
     }
 

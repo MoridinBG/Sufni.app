@@ -72,7 +72,7 @@ public class LiveProtocolReaderTests
     [Fact]
     public void ParseFrame_ReturnsIdentifyAckFrame_WithBoardSerial()
     {
-        var boardSerial = new byte[] { 0xAA, 0xBB, 0xCC, 0xDD, 0x11, 0x22, 0x33, 0x44 };
+        byte[] boardSerial = [0xAA, 0xBB, 0xCC, 0xDD, 0x11, 0x22, 0x33, 0x44];
         var frameBytes = LiveProtocolTestFrames.CreateIdentifyAckFrame(sequence: 3, boardSerial: boardSerial);
 
         var frame = Assert.IsType<LiveIdentifyAckFrame>(LiveProtocolReader.ParseFrame(frameBytes));

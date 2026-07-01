@@ -43,14 +43,14 @@ public class MassStorageTelemetryFile : ITelemetryFile
     {
         Imported = true;
         File.Move(fileInfo.FullName,
-            $"{Path.GetDirectoryName(fileInfo.FullName)}/uploaded/{fileInfo.Name}");
+            Path.Combine(Path.GetDirectoryName(fileInfo.FullName)!, "uploaded", fileInfo.Name));
         return Task.CompletedTask;
     }
 
     public Task OnTrashed()
     {
         File.Move(fileInfo.FullName,
-            $"{Path.GetDirectoryName(fileInfo.FullName)}/trash/{fileInfo.Name}");
+            Path.Combine(Path.GetDirectoryName(fileInfo.FullName)!, "trash", fileInfo.Name));
         return Task.CompletedTask;
     }
 

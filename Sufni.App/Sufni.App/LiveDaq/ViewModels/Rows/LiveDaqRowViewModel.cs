@@ -12,18 +12,18 @@ public partial class LiveDaqRowViewModel : ObservableObject
 {
     public string IdentityKey { get; private set; } = string.Empty;
 
-    [ObservableProperty] private string displayName = string.Empty;
-    [ObservableProperty] private string? boardId;
-    [ObservableProperty] private string? endpoint;
-    [ObservableProperty] private bool isOnline;
-    [ObservableProperty] private string? setupName;
-    [ObservableProperty] private string? bikeName;
+    [ObservableProperty] public partial string DisplayName { get; set; } = string.Empty;
+    [ObservableProperty] public partial string? BoardId { get; set; }
+    [ObservableProperty] public partial string? Endpoint { get; set; }
+    [ObservableProperty] public partial bool IsOnline { get; set; }
+    [ObservableProperty] public partial string? SetupName { get; set; }
+    [ObservableProperty] public partial string? BikeName { get; set; }
 
     // Show BoardId only when it differs from the display name.
-    [ObservableProperty] private bool showBoardId;
+    [ObservableProperty] public partial bool ShowBoardId { get; set; }
 
     // Show Endpoint only when it differs from the display name.
-    [ObservableProperty] private bool showEndpoint;
+    [ObservableProperty] public partial bool ShowEndpoint { get; set; }
 
     public LiveDaqRowViewModel(LiveDaqSnapshot snapshot)
     {

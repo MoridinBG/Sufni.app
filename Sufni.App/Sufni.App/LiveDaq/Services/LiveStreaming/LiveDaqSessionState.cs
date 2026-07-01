@@ -8,7 +8,7 @@ namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 // and link-health counters. The view model reads it as snapshot state on a timer.
 public sealed class LiveDaqSessionState
 {
-    private readonly object gate = new();
+    private readonly System.Threading.Lock gate = new();
     private readonly Dictionary<LiveImuLocation, LiveImuReading> latestImuReadings = [];
 
     private LiveSensorMask selectedSensorMask;
