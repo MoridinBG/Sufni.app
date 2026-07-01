@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Avalonia.Controls;
-using Sufni.App.ExtensionHost.Contracts;
 
 using Sufni.App.Extensibility.Views;
 using Sufni.App.ExtensionHost.Contracts.Capabilities;

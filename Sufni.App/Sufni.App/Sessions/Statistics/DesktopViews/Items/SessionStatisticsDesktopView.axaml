@@ -3,7 +3,6 @@ x:Class="Sufni.App.Sessions.Statistics.DesktopViews.Items.SessionStatisticsDeskt
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:views="clr-namespace:Sufni.App.Extensibility.Views"
-xmlns:commonplots="clr-namespace:Sufni.App.Views.Plots"
 xmlns:converters="clr-namespace:Sufni.App.Shared.Views.Converters"
 xmlns:controls="clr-namespace:Sufni.App.Sessions.Statistics.Views.Controls"
 xmlns:itemviews="clr-namespace:Sufni.App.Sessions.Analysis.Views.Items"

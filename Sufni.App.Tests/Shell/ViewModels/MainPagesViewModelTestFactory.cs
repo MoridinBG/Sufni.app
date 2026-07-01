@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using DynamicData;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.Theming;
 using Sufni.App.ExtensionHost.Contracts.Services;

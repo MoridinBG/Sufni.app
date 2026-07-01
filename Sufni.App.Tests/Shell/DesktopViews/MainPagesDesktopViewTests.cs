@@ -5,7 +5,6 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Svg.Skia;
 using Avalonia.VisualTree;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts;
 
 using Sufni.App.Shell.DesktopViews;
 using Sufni.App.SyncAndPairing.Coordinators;

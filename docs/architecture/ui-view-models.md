@@ -350,7 +350,7 @@ Two pages diverge from that pattern:
   `SessionCoordinator.SaveLiveCaptureAsync(...)` because there is no
   persisted entity to write back to until the capture is saved.
 
-`TabPageViewModelBase` (`ViewModels/TabPageViewModelBase.cs`) is the
+`TabPageViewModelBase` (`Shared/Base/TabPageViewModelBase.cs`) is the
 shared base for everything that opens as a top-level tab or stacked
 view (editors, the import view, the welcome screen). It takes
 `IShellCoordinator` and `IDialogService` via its constructor and
@@ -361,7 +361,7 @@ implementation, and the `OpenPreviousPageCommand` that delegates to
 `IDialogService.ShowCloseConfirmationAsync` to prompt for save / discard
 / cancel before letting the shell close the tab.
 
-`ViewModelBase` (`ViewModels/ViewModelBase.cs`) extends
+`ViewModelBase` (`Shared/Base/ViewModelBase.cs`) extends
 `ObservableObject` and contributes the notification / error-message
 collections plus the 3-second auto-hide timer that pauses on pointer
 hover. Navigation surface belongs to `IShellCoordinator`, not

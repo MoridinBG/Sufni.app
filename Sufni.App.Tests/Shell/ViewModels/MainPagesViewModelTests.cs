@@ -3,7 +3,6 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.Theming;
 

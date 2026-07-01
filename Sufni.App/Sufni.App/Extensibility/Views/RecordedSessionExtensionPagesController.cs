@@ -1,4 +1,3 @@
-using Sufni.App.ExtensionHost.Contracts;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using System.Collections.Generic;
 using System.Collections.Specialized;

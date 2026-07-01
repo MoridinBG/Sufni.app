@@ -5,7 +5,6 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Svg.Skia;
-using Sufni.App.ExtensionHost.Contracts;
 
 using Sufni.App.ExtensionHost.Contracts.Capabilities;
 namespace Sufni.App.Extensibility.Views;

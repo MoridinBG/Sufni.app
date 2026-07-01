@@ -9,7 +9,7 @@ singleton, exposed behind two interfaces: a read-only `IXxxStore`
 injected into list/row/editor view models and queries, and a
 `IXxxStoreWriter` (which extends the read interface) reserved for
 coordinators and the composition root. The implementation lives in
-each slice's `Stores/` folder (e.g. `Bikes/Stores/`, `Sessions/Stores/`).
+each slice's store folder (e.g. `Bikes/Stores/`, `Sessions/Store/`).
 
 | Store                        | Read interface                  | Writer interface                    | Snapshot type                     | Key      |
 | ---------------------------- | ------------------------------- | ----------------------------------- | --------------------------------- | -------- |

@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Sufni.App.ExtensionHost.Contracts;
 
 using Sufni.App.ExtensionHost.Contracts.Capabilities;
 using Sufni.App.Extensibility.Views;

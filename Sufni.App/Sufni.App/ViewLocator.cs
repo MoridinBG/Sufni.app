@@ -2,7 +2,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using System;
 using System.Collections.Generic;
-using Sufni.App.ExtensionHost.Contracts;
 
 using Sufni.App.Extensibility.Views;
 using Sufni.App.Acquisition.ViewModels;

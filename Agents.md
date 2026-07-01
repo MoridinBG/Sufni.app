@@ -64,7 +64,7 @@ The projects that matter most:
 - Platform-service abstractions live in `Sufni.App/Sufni.App/Infrastructure/`
   (`IServiceDiscovery`, `IHapticFeedback`, `IFriendlyNameProvider`), except
   `ISecureStorage`, which is an extension-host contract in
-  `Sufni.App/Sufni.App.ExtensionHost/Contracts/Services/`. Their implementations
+  `Sufni.App.ExtensionHost/Contracts/Services/`. Their implementations
   live in the owning platform heads, with socket-based service discovery in shared
   code and Bonjour implementations in the Apple heads.
 

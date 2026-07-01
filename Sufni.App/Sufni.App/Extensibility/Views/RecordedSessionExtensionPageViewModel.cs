@@ -1,4 +1,3 @@
-using Sufni.App.ExtensionHost.Contracts;
 
 using Sufni.App.ExtensionHost.Contracts.Capabilities;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;

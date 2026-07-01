@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts;
 
 using Sufni.App.ExtensionHost.Contracts.Capabilities;
 namespace Sufni.App.Extensibility.Capabilities;

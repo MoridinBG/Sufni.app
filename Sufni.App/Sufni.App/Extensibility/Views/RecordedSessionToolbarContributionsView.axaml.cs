@@ -4,7 +4,6 @@ using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Svg.Skia;
-using Sufni.App.ExtensionHost.Contracts;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 

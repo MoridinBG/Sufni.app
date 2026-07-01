@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Microsoft.Extensions.DependencyInjection;
-using Sufni.App.ExtensionHost.Contracts;
 
 using Sufni.App.ExtensionHost.Contracts.Capabilities;
 using Sufni.App.Extensibility.Capabilities;

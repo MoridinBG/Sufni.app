@@ -5,7 +5,6 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Svg.Skia;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts;
 
 using Sufni.App.Shell.Views;
 using Sufni.App.Extensibility.Views;

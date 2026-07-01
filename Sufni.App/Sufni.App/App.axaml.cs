@@ -7,7 +7,6 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using Avalonia.Controls;
-using Sufni.App.ExtensionHost.Contracts;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.Sync;

@@ -9,7 +9,6 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Svg.Skia;
 using Avalonia.VisualTree;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.Telemetry;
