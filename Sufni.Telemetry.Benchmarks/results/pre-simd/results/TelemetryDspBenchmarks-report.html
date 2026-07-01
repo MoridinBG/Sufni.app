@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>TelemetryDspBenchmarks-20260701-115140</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, macOS Tahoe 26.5.1 (25F80) [Darwin 25.5.0]
+Apple M2 Pro, 1 CPU, 12 logical and 12 physical cores
+.NET SDK 10.0.301
+  [Host]     : .NET 10.0.9 (10.0.9, 10.0.926.27113), Arm64 RyuJIT armv8.0-a
+  DefaultJob : .NET 10.0.9 (10.0.9, 10.0.926.27113), Arm64 RyuJIT armv8.0-a
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method          </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Gen0</th><th>Gen1</th><th>Gen2</th><th>Allocated</th>
+</tr>
+</thead><tbody><tr><td>FromRecording_EndToEnd</td><td>73.602 ms</td><td>0.5803 ms</td><td>0.5428 ms</td><td>2000.0000</td><td>1428.5714</td><td>857.1429</td><td>41.44 MB</td>
+</tr><tr><td>SavitzkyGolay_Process</td><td>23.469 ms</td><td>0.0909 ms</td><td>0.0850 ms</td><td>125.0000</td><td>125.0000</td><td>125.0000</td><td>2.29 MB</td>
+</tr><tr><td>StrokeReductions</td><td>1.515 ms</td><td>0.0296 ms</td><td>0.0416 ms</td><td>1150.3906</td><td>-</td><td>-</td><td>9.19 MB</td>
+</tr></tbody></table>
+</body>
+</html>

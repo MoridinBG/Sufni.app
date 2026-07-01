@@ -974,7 +974,7 @@ public class SstV5Parser : ISstParser
         }
 
         context.ImuData.HasGaps = !dense ||
-            context.ImuData.Segments.GroupBy(segment => segment.LocationId).Any(group => group.Count() > 1);
+            context.ImuData.Segments.CountBy(segment => segment.LocationId).Any(kvp => kvp.Value > 1);
 
         return context.ImuData;
     }

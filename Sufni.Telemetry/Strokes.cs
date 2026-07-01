@@ -1,3 +1,4 @@
+using System.Numerics.Tensors;
 using MessagePack;
 
 #pragma warning disable CS8618
@@ -50,7 +51,10 @@ public class Stroke
         Length = travel[end] - travel[start];
         Duration = duration;
 
-        var mv = Length < 0 ? velocity[start..(end + 1)].Min() : velocity[start..(end + 1)].Max();
+        var travelSpan = travel.AsSpan(start, end - start + 1);     // [start, end] inclusive
+        var velocitySpan = velocity.AsSpan(start, end - start + 1);
+
+        var mv = Length < 0 ? TensorPrimitives.Min(velocitySpan) : TensorPrimitives.Max(velocitySpan);
         var bo = 0;
         for (var i = start; i < end; i++)
         {
@@ -61,9 +65,9 @@ public class Stroke
 
         Stat = new StrokeStat
         {
-            SumTravel = travel[start..(end + 1)].Sum(),
-            MaxTravel = travel[start..(end + 1)].Max(),
-            SumVelocity = velocity[start..(end + 1)].Sum(),
+            SumTravel = TensorPrimitives.Sum(travelSpan),
+            MaxTravel = TensorPrimitives.Max(travelSpan),
+            SumVelocity = TensorPrimitives.Sum(velocitySpan),
             MaxVelocity = mv,
             Bottomouts = bo,
             Count = end - start + 1,

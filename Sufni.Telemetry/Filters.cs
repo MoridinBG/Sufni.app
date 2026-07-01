@@ -1,3 +1,5 @@
+using System.Numerics.Tensors;
+
 namespace Sufni.Telemetry;
 
 public class SavitzkyGolay
@@ -28,15 +30,9 @@ public class SavitzkyGolay
             throw new ArgumentException($"Window size [{windowSize}] must be odd and equal to or greater than 5");
         }
 
-        if (derivative < 0)
-        {
-            throw new ArgumentException($"Derivative [{derivative}] must be equal or greater than 0");
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(derivative);
 
-        if (polynomial < 0)
-        {
-            throw new ArgumentException($"Polynomial [{polynomial}] must be equal or greater than 0");
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(polynomial);
 
         return new SavitzkyGolay(windowSize, derivative, polynomial);
     }
@@ -137,18 +133,14 @@ public class SavitzkyGolay
         double hs;
 
         // For the borders
+        var head = data.AsSpan(0, windowSize);                       // fixed left window
+        var tail = data.AsSpan(numPoints - windowSize, windowSize);  // fixed right window
         for (var i = 0; i < halfWindow; i++)
         {
-            var wg1 = weights[halfWindow - i - 1];
-            var wg2 = weights[halfWindow + i + 1];
-            var d1 = 0.0;
-            var d2 = 0.0;
-
-            for (var l = 0; l < windowSize; l++)
-            {
-                d1 += wg1[l] * data[l];
-                d2 += wg2[l] * data[numPoints - windowSize + l];
-            }
+            var wg1 = weights[halfWindow - i - 1].AsSpan();
+            var wg2 = weights[halfWindow + i + 1].AsSpan();
+            var d1 = TensorPrimitives.Dot(wg1, head);
+            var d2 = TensorPrimitives.Dot(wg2, tail);
 
             hs = GetHs(h, halfWindow - i - 1, halfWindow);
             results[halfWindow - i - 1] = d1 / hs;
@@ -159,14 +151,11 @@ public class SavitzkyGolay
 
         // For the internal points
         var wg = weights[halfWindow];
+        var wgSpan = wg.AsSpan();                                   // hoist coefficient row once
         for (var i = windowSize; i <= numPoints; i++)
         {
-            var d = 0.0;
-            for (var l = 0; l < windowSize; l++)
-            {
-                d += wg[l] * data[l + i - windowSize];
-            }
-
+            var window = data.AsSpan(i - windowSize, windowSize);  // zero-alloc sliding window
+            var d = TensorPrimitives.Dot(wgSpan, window);           // both spans length == windowSize
             hs = GetHs(h, i - halfWindow - 1, halfWindow);
             results[i - halfWindow - 1] = d / hs;
         }

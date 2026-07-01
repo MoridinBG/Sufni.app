@@ -27,10 +27,7 @@ public static class SpikeElimination
         int[] signal,
         int sampleRate)
     {
-        if (sampleRate <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(sampleRate), "Sample rate must be positive.");
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleRate);
 
         var maxCandidateSamples = ScaleDurationMilliseconds(MaxSuddenChangeDurationMilliseconds, sampleRate);
         var continuationLookaheadSamples = ScaleDurationMilliseconds(ContinuationLookaheadDurationMilliseconds, sampleRate);

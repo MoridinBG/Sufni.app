@@ -16,13 +16,13 @@ public class FiltersTests
     [Fact]
     public void Create_WithNegativeDerivative_ThrowsArgumentException()
     {
-        Assert.Throws<ArgumentException>(() => SavitzkyGolay.Create(5, -1, 2));
+        Assert.Throws<ArgumentOutOfRangeException>(() => SavitzkyGolay.Create(5, -1, 2));
     }
 
     [Fact]
     public void Create_WithNegativePolynomial_ThrowsArgumentException()
     {
-        Assert.Throws<ArgumentException>(() => SavitzkyGolay.Create(5, 0, -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => SavitzkyGolay.Create(5, 0, -1));
     }
 
     [Fact]

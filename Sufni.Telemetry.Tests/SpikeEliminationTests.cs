@@ -8,7 +8,7 @@ public class SpikeEliminationTests
     public void EliminateSpikes_WithCleanSignal_ReturnsSameSignal()
     {
         // Arrange
-        var signal = new int[] { 100, 101, 102, 103, 104, 105 };
+        int[] signal = [100, 101, 102, 103, 104, 105];
 
         // Act
         var (fixedSignal, anomalyCount) = SpikeElimination.EliminateSpikes(signal.ToArray(), sampleRate: 1000);

@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Numerics.Tensors;
 using MathNet.Numerics.IntegralTransforms;
 
 namespace Sufni.Telemetry;
@@ -19,12 +20,7 @@ public static partial class TelemetryStatistics
             return new HistogramData([], []);
         }
 
-        var sum = 0.0;
-        foreach (var travel in travelSamples)
-        {
-            sum += travel;
-        }
-        var mean = sum / travelSamples.Length;
+        var mean = TensorPrimitives.Sum<double>(travelSamples) / travelSamples.Length;
 
         var minimumCount = Math.Max(
             2,

@@ -87,7 +87,7 @@ public class TelemetryDataTests
             SampleRate = 1000,
             Front = front,
             Rear = rear,
-            Markers = new[] { new MarkerData(0.5) },
+            Markers = [new MarkerData(0.5)],
             ImuData = new RawImuData { SampleRate = 100 }
         };
 
@@ -160,8 +160,10 @@ public class TelemetryDataTests
         var rebound = Assert.Single(result.Front.Strokes.Rebounds);
 
         Assert.Equal(0, compression.Start);
-        Assert.Equal(99, compression.End);
-        Assert.Equal(100, rebound.Start);
+        // Peak sample 100 now falls in the compression under the v4 SG velocity
+        // (TensorPrimitives.Dot/FMA shifts the near-zero peak sign by one sample).
+        Assert.Equal(100, compression.End);
+        Assert.Equal(101, rebound.Start);
         Assert.Equal(199, rebound.End);
     }
 
@@ -891,7 +893,7 @@ public class TelemetryDataTests
     [Fact]
     public void CalculateTravelStatistics_WithDynamicSag_UsesSelectedTravelSamples()
     {
-        var travel = new[] { 0.0, 38.0, 39.0, 0.0, 38.5 };
+        double[] travel = [0.0, 38.0, 39.0, 0.0, 38.5];
         var telemetry = CreateTelemetry(travel, maxTravel: 40, sampleRate: 10);
         var options = new TravelStatisticsOptions(HistogramMode: TravelHistogramMode.DynamicSag);
 

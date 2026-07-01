@@ -21,7 +21,7 @@ public static class HistogramBuilder
         return bins;
     }
 
-    public static int[] Digitize(double[] values, double[] bins)
+    public static int[] Digitize(ReadOnlySpan<double> values, ReadOnlySpan<double> bins)
     {
         var indexes = new int[values.Length];
         if (bins.Length < 2)
@@ -44,7 +44,7 @@ public static class HistogramBuilder
     /// assigned to the upper bin, and the final edge is included in the last bin.
     /// Values outside the bin range are clamped to the first or last bin.
     /// </summary>
-    public static int DigitizeValue(double value, double[] bins)
+    public static int DigitizeValue(double value, ReadOnlySpan<double> bins)
     {
         if (bins.Length < 2)
         {
@@ -62,9 +62,9 @@ public static class HistogramBuilder
         return new DigitizedSeries(bins, Digitize(velocity, bins));
     }
 
-    private static int DigitizeValue(double value, double[] bins, int maxBinIndex)
+    private static int DigitizeValue(double value, ReadOnlySpan<double> bins, int maxBinIndex)
     {
-        var binIndex = Array.BinarySearch(bins, value);
+        var binIndex = bins.BinarySearch(value);
         if (binIndex < 0)
         {
             binIndex = ~binIndex;
