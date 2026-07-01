@@ -319,9 +319,8 @@ public sealed class CollapsibleSplitView : UserControl
 
     internal void DragToFirstRatioForTests(double firstRatio)
     {
-        var normalizedFirstRatio = Math.Clamp(firstRatio, 0, 1);
-        var firstDelta = normalizedFirstRatio - currentFirstRatio;
-        ApplyDragCandidate(normalizedFirstRatio, 1 - normalizedFirstRatio, firstDelta);
+        var firstDelta = firstRatio - currentFirstRatio;
+        ApplyDragCandidate(firstRatio, 1 - firstRatio, firstDelta);
     }
 
     internal void CompleteDragForTests()
@@ -724,10 +723,9 @@ public sealed class CollapsibleSplitView : UserControl
             return;
         }
 
-        var (normalizedFirst, normalizedSecond) = NormalizeRatios(firstRatio, secondRatio);
         var threshold = GetCollapseThresholdRatio();
-        var firstCanCollapse = CanCollapseFirstPane && IsAtOrBelowCollapseThreshold(normalizedFirst, threshold);
-        var secondCanCollapse = CanCollapseSecondPane && IsAtOrBelowCollapseThreshold(normalizedSecond, threshold);
+        var firstCanCollapse = CanCollapseFirstPane && IsAtOrBelowCollapseThreshold(firstRatio, threshold);
+        var secondCanCollapse = CanCollapseSecondPane && IsAtOrBelowCollapseThreshold(secondRatio, threshold);
 
         if (firstCanCollapse && secondCanCollapse)
         {
@@ -747,6 +745,7 @@ public sealed class CollapsibleSplitView : UserControl
             return;
         }
 
+        var (normalizedFirst, normalizedSecond) = NormalizeRatios(firstRatio, secondRatio);
         ApplyPaneState(normalizedFirst, normalizedSecond, firstCollapsed: false, secondCollapsed: false);
     }
 

@@ -242,6 +242,46 @@ public class CollapsibleSplitViewTests
     }
 
     [AvaloniaFact]
+    public async Task CollapsibleSplitView_DragPastPaneBounds_KeepsCollapsedState()
+    {
+        var view = CreateView();
+        await using var mounted = await MountAsync(view);
+
+        mounted.View.BeginDragForTests();
+        mounted.View.DragToFirstRatioForTests(0.04);
+        Assert.True(mounted.View.IsFirstPaneCollapsed);
+
+        mounted.View.DragToFirstRatioForTests(-0.2);
+        Assert.True(mounted.View.IsFirstPaneCollapsed);
+
+        mounted.View.CompleteDragForTests();
+
+        Assert.NotNull(mounted.View.Preferences);
+        AssertPane(mounted.View.Preferences!, "first", 0.5, isCollapsed: true);
+        AssertPane(mounted.View.Preferences!, "second", 0.5, isCollapsed: false);
+    }
+
+    [AvaloniaFact]
+    public async Task CollapsibleSplitView_DragPastSecondPaneBounds_KeepsCollapsedState()
+    {
+        var view = CreateView();
+        await using var mounted = await MountAsync(view);
+
+        mounted.View.BeginDragForTests();
+        mounted.View.DragToFirstRatioForTests(0.96);
+        Assert.True(mounted.View.IsSecondPaneCollapsed);
+
+        mounted.View.DragToFirstRatioForTests(1.2);
+        Assert.True(mounted.View.IsSecondPaneCollapsed);
+
+        mounted.View.CompleteDragForTests();
+
+        Assert.NotNull(mounted.View.Preferences);
+        AssertPane(mounted.View.Preferences!, "first", 0.5, isCollapsed: false);
+        AssertPane(mounted.View.Preferences!, "second", 0.5, isCollapsed: true);
+    }
+
+    [AvaloniaFact]
     public async Task CollapsibleSplitView_ClickingCollapsedHeader_AfterDragCollapseRestoresDragStartRatio()
     {
         var view = CreateView();
