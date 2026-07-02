@@ -310,115 +310,13 @@ internal static class BikeImportDocumentParser
     public static Bike? Parse(string json)
     {
         var document = AppJson.Deserialize<BikeExportDocument>(json);
+        return Parse(document);
+    }
+
+    public static Bike? Parse(BikeExportDocument? document)
+    {
         return document?.SchemaVersion == BikeExportDocument.CurrentSchemaVersion
             ? document.ToBike()
             : null;
-    }
-}
-
-internal sealed class BikeExportModel
-{
-    [JsonPropertyName("name")]
-    public string Name { get; init; } = null!;
-
-    [JsonPropertyName("rear_suspension")]
-    public RearSuspensionSpec RearSuspension { get; init; } = new RearSuspensionSpec.Hardtail();
-
-    [JsonPropertyName("head_angle")]
-    public double HeadAngle { get; init; }
-
-    [JsonPropertyName("fork_stroke")]
-    public double? ForkStroke { get; init; }
-
-    [JsonPropertyName("shock_stroke")]
-    public double? ShockStroke { get; init; }
-
-    [JsonPropertyName("front_compression_damping_cutoff_mm_per_second")]
-    public double FrontCompressionDampingCutoffMmPerSecond { get; init; } = DampingSpeedCutoffs.DefaultMmPerSecond;
-
-    [JsonPropertyName("front_rebound_damping_cutoff_mm_per_second")]
-    public double FrontReboundDampingCutoffMmPerSecond { get; init; } = DampingSpeedCutoffs.DefaultMmPerSecond;
-
-    [JsonPropertyName("rear_compression_damping_cutoff_mm_per_second")]
-    public double RearCompressionDampingCutoffMmPerSecond { get; init; } = DampingSpeedCutoffs.DefaultMmPerSecond;
-
-    [JsonPropertyName("rear_rebound_damping_cutoff_mm_per_second")]
-    public double RearReboundDampingCutoffMmPerSecond { get; init; } = DampingSpeedCutoffs.DefaultMmPerSecond;
-
-    [JsonPropertyName("pixels_to_millimeters")]
-    public double PixelsToMillimeters { get; init; }
-
-    [JsonPropertyName("front_wheel_diameter")]
-    public double? FrontWheelDiameterMm { get; init; }
-
-    [JsonPropertyName("rear_wheel_diameter")]
-    public double? RearWheelDiameterMm { get; init; }
-
-    [JsonPropertyName("front_wheel_rim_size")]
-    public EtrtoRimSize? FrontWheelRimSize { get; init; }
-
-    [JsonPropertyName("front_wheel_tire_width")]
-    public double? FrontWheelTireWidth { get; init; }
-
-    [JsonPropertyName("rear_wheel_rim_size")]
-    public EtrtoRimSize? RearWheelRimSize { get; init; }
-
-    [JsonPropertyName("rear_wheel_tire_width")]
-    public double? RearWheelTireWidth { get; init; }
-
-    [JsonPropertyName("image_rotation_degrees")]
-    public double ImageRotationDegrees { get; init; }
-
-    [JsonPropertyName("image")]
-    public byte[] ImageBytes { get; init; } = [];
-
-    public static BikeExportModel FromBike(Bike bike)
-    {
-        return new BikeExportModel
-        {
-            Name = bike.Name,
-            RearSuspension = bike.RearSuspension,
-            HeadAngle = bike.HeadAngle,
-            ForkStroke = bike.ForkStroke,
-            ShockStroke = bike.ShockStroke,
-            FrontCompressionDampingCutoffMmPerSecond = bike.FrontCompressionDampingCutoffMmPerSecond,
-            FrontReboundDampingCutoffMmPerSecond = bike.FrontReboundDampingCutoffMmPerSecond,
-            RearCompressionDampingCutoffMmPerSecond = bike.RearCompressionDampingCutoffMmPerSecond,
-            RearReboundDampingCutoffMmPerSecond = bike.RearReboundDampingCutoffMmPerSecond,
-            PixelsToMillimeters = bike.PixelsToMillimeters,
-            FrontWheelDiameterMm = bike.FrontWheelDiameterMm,
-            RearWheelDiameterMm = bike.RearWheelDiameterMm,
-            FrontWheelRimSize = bike.FrontWheelRimSize,
-            FrontWheelTireWidth = bike.FrontWheelTireWidth,
-            RearWheelRimSize = bike.RearWheelRimSize,
-            RearWheelTireWidth = bike.RearWheelTireWidth,
-            ImageRotationDegrees = bike.ImageRotationDegrees,
-            ImageBytes = bike.ImageBytes
-        };
-    }
-
-    public Bike ToBike()
-    {
-        var bike = new Bike(Guid.NewGuid(), Name)
-        {
-            RearSuspension = RearSuspension,
-            HeadAngle = HeadAngle,
-            ForkStroke = ForkStroke,
-            ShockStroke = ShockStroke,
-            FrontCompressionDampingCutoffMmPerSecond = FrontCompressionDampingCutoffMmPerSecond,
-            FrontReboundDampingCutoffMmPerSecond = FrontReboundDampingCutoffMmPerSecond,
-            RearCompressionDampingCutoffMmPerSecond = RearCompressionDampingCutoffMmPerSecond,
-            RearReboundDampingCutoffMmPerSecond = RearReboundDampingCutoffMmPerSecond,
-            PixelsToMillimeters = PixelsToMillimeters,
-            FrontWheelDiameterMm = FrontWheelDiameterMm,
-            RearWheelDiameterMm = RearWheelDiameterMm,
-            FrontWheelRimSize = FrontWheelRimSize,
-            FrontWheelTireWidth = FrontWheelTireWidth,
-            RearWheelRimSize = RearWheelRimSize,
-            RearWheelTireWidth = RearWheelTireWidth,
-            ImageRotationDegrees = ImageRotationDegrees,
-            ImageBytes = ImageBytes
-        };
-        return bike;
     }
 }

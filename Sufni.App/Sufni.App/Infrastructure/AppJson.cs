@@ -109,7 +109,6 @@ internal static class AppJson
 [JsonSourceGenerationOptions(GenerationMode = JsonSourceGenerationMode.Metadata)]
 [JsonSerializable(typeof(Bike))]
 [JsonSerializable(typeof(BikeExportDocument))]
-[JsonSerializable(typeof(BikeExportModel))]
 [JsonSerializable(typeof(Board))]
 [JsonSerializable(typeof(Setup))]
 [JsonSerializable(typeof(SetupExportModel))]

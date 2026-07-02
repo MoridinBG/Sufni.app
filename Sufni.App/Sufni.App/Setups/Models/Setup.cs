@@ -81,7 +81,7 @@ internal sealed class SetupExportModel
     public string? RearSensorConfigurationJson { get; init; }
 
     [JsonPropertyName("bike")]
-    public BikeExportModel Bike { get; init; } = null!;
+    public BikeExportDocument Bike { get; init; } = null!;
 
     public static SetupExportModel FromSetup(Setup setup, Bike bike, Guid? boardId)
     {
@@ -91,13 +91,14 @@ internal sealed class SetupExportModel
             BoardId = boardId,
             FrontSensorConfigurationJson = setup.FrontSensorConfigurationJson,
             RearSensorConfigurationJson = setup.RearSensorConfigurationJson,
-            Bike = BikeExportModel.FromBike(bike)
+            Bike = BikeExportDocument.FromBike(bike)
         };
     }
 
     public SetupImportPayload ToPayload()
     {
-        var bike = Bike.ToBike();
+        var bike = BikeImportDocumentParser.Parse(Bike)
+                   ?? throw new JsonException("Unsupported bike export document schema version.");
         var setup = new Setup(Guid.NewGuid(), Name)
         {
             BikeId = bike.Id,
