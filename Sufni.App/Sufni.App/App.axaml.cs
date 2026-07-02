@@ -178,6 +178,8 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IRecordedSessionSourceRepository, RecordedSessionSourceRepository>();
         ServiceCollection.AddSingleton<ISessionCacheStore, SessionCacheStore>();
         ServiceCollection.AddSingleton<ITrackRepository, TrackRepository>();
+        ServiceCollection.AddSingleton<ISessionTrackReader, SessionTrackReader>();
+        ServiceCollection.AddSingleton<IFullTrackPointReader, FullTrackPointReader>();
         ServiceCollection.AddSingleton<ISessionRepository, SessionRepository>();
         ServiceCollection.AddSingleton<ISessionTelemetryWriter, SessionTelemetryWriter>();
         ServiceCollection.AddSingleton<ISessionBlobSwapRequestStore, SessionBlobSwapRequestStore>();

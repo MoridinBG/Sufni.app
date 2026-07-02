@@ -26,8 +26,19 @@ public class TrackCoordinatorTests
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly IFilesService filesService = Substitute.For<IFilesService>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
+    private readonly ISessionTrackReader sessionTrackReader = Substitute.For<ISessionTrackReader>();
+    private readonly IFullTrackPointReader fullTrackPointReader = Substitute.For<IFullTrackPointReader>();
 
-    private TrackCoordinator CreateCoordinator() => new(trackRepository, trackEntityRepository, sessionRepository, sessionTelemetryWriter, sessionStore, filesService, backgroundTaskRunner);
+    private TrackCoordinator CreateCoordinator() => new(
+        trackRepository,
+        trackEntityRepository,
+        sessionRepository,
+        sessionTelemetryWriter,
+        sessionStore,
+        filesService,
+        backgroundTaskRunner,
+        sessionTrackReader,
+        fullTrackPointReader);
 
     [Fact]
     public async Task ImportGpxAsync_ImportsSelectedFiles()
@@ -104,8 +115,20 @@ public class TrackCoordinatorTests
                 new TrackPoint(telemetry.Metadata.Timestamp + 2, 3, 3, 0),
             ]
         };
-        trackEntityRepository.GetAsync(fullTrackId).Returns(fullTrack);
-        sessionRepository.GetSessionTrackAsync(sessionId).Returns(existingTrack);
+        sessionRepository.GetSessionAsync(sessionId).Returns(new Session(
+            sessionId,
+            "session",
+            "",
+            setup: null,
+            timestamp: telemetry.Metadata.Timestamp)
+        {
+            FullTrack = fullTrackId,
+            Updated = 99,
+        });
+        fullTrackPointReader.GetTrackPointsAsync(fullTrackId, Arg.Any<CancellationToken>())
+            .Returns(fullTrack.Points);
+        sessionTrackReader.GetSessionTrackAsync(sessionId, 99, Arg.Any<CancellationToken>())
+            .Returns(existingTrack);
 
         var result = await CreateCoordinator().LoadSessionTrackAsync(sessionId, fullTrackId, telemetry);
 
@@ -113,6 +136,8 @@ public class TrackCoordinatorTests
         Assert.Same(fullTrack.Points, result.FullTrackPoints);
         Assert.Same(existingTrack, result.TrackPoints);
         Assert.Equal(400.0, result.MediaColumnWidth);
+        await trackEntityRepository.DidNotReceive().GetAsync(fullTrackId);
+        await sessionRepository.DidNotReceive().GetSessionTrackAsync(sessionId);
         await sessionTelemetryWriter.DidNotReceive().PatchSessionTrackAsync(Arg.Any<Guid>(), Arg.Any<List<TrackPoint>>());
     }
 

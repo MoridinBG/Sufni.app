@@ -168,6 +168,12 @@ internal sealed class TestPersistenceHarness
     public Task<Guid?> FindTrackContainingTimestampAsync(long? timestamp) =>
         trackRepository.FindTrackContainingTimestampAsync(timestamp);
 
+    public Task<TrackPayloadMetadata?> GetTrackPayloadMetadataAsync(Guid trackId) =>
+        trackRepository.GetTrackPayloadMetadataAsync(trackId);
+
+    public Task<TrackPayload?> GetTrackPayloadAsync(Guid trackId, long updated) =>
+        trackRepository.GetTrackPayloadAsync(trackId, updated);
+
     public Task<long> GetLastSyncTimeAsync(string? serverUrl) =>
         syncDataStore.GetLastSyncTimeAsync(serverUrl);
 

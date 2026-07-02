@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.Telemetry;
@@ -25,7 +26,9 @@ public class TrackCoordinator(
     ISessionTelemetryWriter sessionTelemetryWriter,
     ISessionStoreWriter sessionStore,
     IFilesService filesService,
-    IBackgroundTaskRunner backgroundTaskRunner) : ITrackCoordinator
+    IBackgroundTaskRunner backgroundTaskRunner,
+    ISessionTrackReader sessionTrackReader,
+    IFullTrackPointReader fullTrackPointReader) : ITrackCoordinator
 {
     private const double DefaultMediaColumnWidth = 400.0;
 
@@ -121,21 +124,35 @@ public class TrackCoordinator(
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var fullTrack = (await trackEntityRepository.GetAsync(resolvedFullTrackId.Value))!;
-        var trackPoints = await sessionRepository.GetSessionTrackAsync(sessionId);
+        var fullTrackPoints = await fullTrackPointReader.GetTrackPointsAsync(resolvedFullTrackId.Value, cancellationToken);
+        if (fullTrackPoints is null)
+        {
+            return new SessionTrackPresentationData(resolvedFullTrackId, null, null, null);
+        }
+
+        var fullTrackPointList = AsList(fullTrackPoints);
+        var trackPoints = await sessionTrackReader.GetSessionTrackAsync(
+            sessionId,
+            session?.Updated ?? 0,
+            cancellationToken);
 
         // When the cached session-window polyline is missing or no longer aligned
         // with the current GPS offset, regenerate it in memory for display only.
         // Persisting the cached polyline is the processed-write path's job.
         if (!SessionTrackProjection.IsSessionTrackAligned(trackPoints, telemetryData, gpsOffsetSeconds))
         {
+            var fullTrack = new Track
+            {
+                Id = resolvedFullTrackId.Value,
+                Points = fullTrackPointList,
+            };
             trackPoints = SessionTrackProjection.GenerateSessionTrack(fullTrack, telemetryData, gpsOffsetSeconds);
         }
 
         return new SessionTrackPresentationData(
             resolvedFullTrackId,
-            fullTrack.Points,
-            trackPoints,
+            fullTrackPointList,
+            AsNullableList(trackPoints),
             DefaultMediaColumnWidth);
     }
 
@@ -187,6 +204,24 @@ public class TrackCoordinator(
         return true;
     }
 
+    private static List<TrackPoint> AsList(IReadOnlyList<TrackPoint> points)
+    {
+        return points switch
+        {
+            List<TrackPoint> list => list,
+            _ => points.ToList(),
+        };
+    }
+
+    private static List<TrackPoint>? AsNullableList(IReadOnlyList<TrackPoint>? points)
+    {
+        return points switch
+        {
+            null => null,
+            List<TrackPoint> list => list,
+            _ => points.ToList(),
+        };
+    }
 }
 
 public sealed record GpxImportResult(int ImportedCount, int AlreadyImportedCount);

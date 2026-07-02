@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using SQLite;
+using Sufni.App.ExtensionHost.Contracts.Models;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
@@ -14,7 +15,15 @@ public interface ITrackRepository
     Task<Guid?> FindTrackContainingTimestampAsync(long? timestamp);
 
     Task<List<Track>> GetTracksByIdsAsync(IReadOnlyCollection<Guid> trackIds);
+
+    Task<TrackPayloadMetadata?> GetTrackPayloadMetadataAsync(Guid trackId);
+
+    Task<TrackPayload?> GetTrackPayloadAsync(Guid trackId, long updated);
 }
+
+public sealed record TrackPayloadMetadata(Guid Id, long Updated);
+
+public sealed record TrackPayload(Guid Id, long Updated, IReadOnlyList<TrackPoint> Points);
 
 internal sealed class TrackRepository(SqliteConnectionContext connectionContext) : ITrackRepository
 {
@@ -75,9 +84,65 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext)
         return tracks;
     }
 
+    public async Task<TrackPayloadMetadata?> GetTrackPayloadMetadataAsync(Guid trackId)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        var rows = await connection.QueryAsync<TrackPayloadMetadataRow>(
+            """
+            SELECT id, updated
+            FROM track
+            WHERE deleted IS NULL AND id = ?
+            """,
+            trackId);
+        return rows.Count == 1 ? rows[0].ToMetadata() : null;
+    }
+
+    public async Task<TrackPayload?> GetTrackPayloadAsync(Guid trackId, long updated)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        var rows = await connection.QueryAsync<TrackPayloadRow>(
+            """
+            SELECT id, updated, points
+            FROM track
+            WHERE deleted IS NULL AND id = ? AND updated = ?
+            """,
+            trackId,
+            updated);
+        return rows.Count == 1 ? rows[0].ToPayload() : null;
+    }
+
     private sealed class TrackIdRow
     {
         [Column("id")]
         public Guid Id { get; set; }
+    }
+
+    private sealed class TrackPayloadMetadataRow
+    {
+        [Column("id")]
+        public Guid Id { get; set; }
+
+        [Column("updated")]
+        public long Updated { get; set; }
+
+        public TrackPayloadMetadata ToMetadata() => new(Id, Updated);
+    }
+
+    private sealed class TrackPayloadRow
+    {
+        [Column("id")]
+        public Guid Id { get; set; }
+
+        [Column("updated")]
+        public long Updated { get; set; }
+
+        [Column("points")]
+        public string PointsJson { get; set; } = null!;
+
+        public TrackPayload? ToPayload()
+        {
+            var points = AppJson.Deserialize<List<TrackPoint>>(PointsJson);
+            return points is null ? null : new TrackPayload(Id, Updated, points);
+        }
     }
 }

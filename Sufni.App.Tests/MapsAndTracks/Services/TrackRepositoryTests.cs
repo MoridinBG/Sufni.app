@@ -89,4 +89,55 @@ public class TrackRepositoryTests
 
         Assert.Null(await database.FindTrackContainingTimestampAsync(null));
     }
+
+    [Fact]
+    public async Task GetTrackPayloadAsync_ReturnsPointsForMatchingUpdatedTimestamp()
+    {
+        using var tempDatabase = new TempDatabase("track-payload.db");
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var trackId = Guid.NewGuid();
+        var points = new List<TrackPoint>
+        {
+            new(100, 1, 1, 10),
+            new(101, 2, 2, 11),
+        };
+        await database.PutAsync(new Track
+        {
+            Id = trackId,
+            Points = points,
+        });
+
+        var metadata = await database.GetTrackPayloadMetadataAsync(trackId);
+        Assert.NotNull(metadata);
+
+        var payload = await database.GetTrackPayloadAsync(trackId, metadata!.Updated);
+        var stalePayload = await database.GetTrackPayloadAsync(trackId, metadata.Updated + 1);
+
+        Assert.NotNull(payload);
+        Assert.Equal(trackId, payload!.Id);
+        Assert.Equal(metadata.Updated, payload.Updated);
+        Assert.Equal(points.Select(point => point.Time), payload.Points.Select(point => point.Time));
+        Assert.Null(stalePayload);
+    }
+
+    [Fact]
+    public async Task GetTrackPayloadMetadataAsync_ReturnsNullForDeletedTrack()
+    {
+        using var tempDatabase = new TempDatabase("track-payload-deleted.db");
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var track = new Track
+        {
+            Id = Guid.NewGuid(),
+            Points =
+            [
+                new TrackPoint(100, 1, 1, 10),
+                new TrackPoint(101, 2, 2, 11),
+            ],
+        };
+        await database.PutAsync(track);
+        await database.DeleteAsync(track);
+
+        Assert.Null(await database.GetTrackPayloadMetadataAsync(track.Id));
+        Assert.Null(await database.GetTrackPayloadAsync(track.Id, track.Updated));
+    }
 }
