@@ -444,6 +444,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     private void RecalculateHeadAngle()
     {
+        if (ImageCanvas.Image is null) return;
+
         var mapping = new JointNameMapping();
         var headTube1 = LinkageEditor.JointViewModels.FirstOrDefault(joint => joint.Name == mapping.HeadTube1);
         var headTube2 = LinkageEditor.JointViewModels.FirstOrDefault(joint => joint.Name == mapping.HeadTube2);
