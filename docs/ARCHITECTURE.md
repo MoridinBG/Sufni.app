@@ -76,7 +76,7 @@ layering rules are unchanged — only the folder grouping is slice-first instead
 
 | Interface               | File                                                    | Purpose                                                                 | Implementations                                                                                                |
 | ----------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `IServiceDiscovery`     | `Sufni.App/Sufni.App/Infrastructure/IServiceDiscovery.cs`     | mDNS browse for `_gosst._tcp` and `_sstsync._tcp`                       | `SocketServiceDiscovery` (shared / Win / Linux / Android), `BonjourServiceDiscovery` (macOS / iOS)             |
+| `IServiceDiscovery`     | `Sufni.App/Sufni.App/Infrastructure/IServiceDiscovery.cs`     | mDNS browse for `_sufni._tcp` DAQ announcements and `_sstsync._tcp` sync | `SocketServiceDiscovery` (shared / Win / Linux / Android), `BonjourServiceDiscovery` (macOS / iOS)             |
 | `ISecureStorage`        | `Sufni.App.ExtensionHost/Contracts/Services/ISecureStorage.cs`        | Encrypted key-value store for JWT secrets, certificates, refresh tokens | `WindowsSecureStorage`, `LinuxSecureStorage`, `MacOsSecureStorage`, `AndroidSecureStorage`, `IosSecureStorage` |
 | `IHapticFeedback`       | `Sufni.App/Sufni.App/Infrastructure/IHapticFeedback.cs`       | Tactile feedback: `Click()`, `LongPress()`                              | `AndroidHapticFeedback`, `IosHapticFeedback`                                                                   |
 | `IFriendlyNameProvider` | `Sufni.App/Sufni.App/Infrastructure/IFriendlyNameProvider.cs` | Human-readable device name for sync identification                      | `AndroidFriendlyNameProvider`, `IosFriendlyNameProvider`                                                       |
@@ -106,7 +106,7 @@ Topics in [architecture/desktop-vs-mobile.md](architecture/desktop-vs-mobile.md)
 
 ## Data Acquisition & File Format
 
-Telemetry reaches the app through three `ITelemetryDataStore` implementations behind a single interface, and SST files come in two binary versions (V3 fixed-record, V4 TLV with IMU/GPS/markers/temperature). Import captures the original SST bytes as a recorded-session source, then derives processed telemetry and a processing fingerprint from that source plus the selected setup/bike calibration.
+Telemetry reaches the app through three `ITelemetryDataStore` implementations behind a single interface, and SST files come in three binary versions (V3 fixed-record, V4 TLV with IMU/GPS/markers/temperature, V5 chunked/segment-aware recordings). Import captures the original SST bytes as a recorded-session source, then derives processed telemetry and a processing fingerprint from that source plus the selected setup/bike calibration.
 
 Topics in [architecture/acquisition.md](architecture/acquisition.md):
 
@@ -119,8 +119,9 @@ Topics in [architecture/acquisition.md](architecture/acquisition.md):
 - [File Format & Parsing](architecture/acquisition.md#file-format--parsing) — version dispatch
   - [SST V3 Format](architecture/acquisition.md#sst-v3-format) — legacy fixed-record layout
   - [SST V4 TLV Format](architecture/acquisition.md#sst-v4-tlv-format) — TLV chunks (Rates, Telemetry, Marker, IMU, IMU Meta, GPS, Temperature)
+  - [SST V5 Chunked Format](architecture/acquisition.md#sst-v5-chunked-format) — stream/source descriptors, fixed-rate segments, gaps, and final status/backlog metadata
   - [Spike Elimination](architecture/acquisition.md#spike-elimination) — four-stage anomaly correction
-  - [V4 Data Structures](architecture/acquisition.md#v4-data-structures) — `GpsRecord`, `ImuRecord`, `ImuMetaEntry`, `RawImuData`, `MarkerData`, `TemperatureSample`, `TemperatureAverage`
+  - [Parsed Telemetry Data Structures](architecture/acquisition.md#parsed-telemetry-data-structures) — `GpsRecord`, `ImuRecord`, `ImuMetaEntry`, `RawImuData`, `RawStreamGap`, `SstFinalStatus`, `MarkerData`, `TemperatureSample`, `TemperatureAverage`
 
 ---
 
@@ -242,11 +243,11 @@ Topics in [architecture/maps-and-tracks.md](architecture/maps-and-tracks.md):
 
 ## Live DAQ Streaming
 
-The live preview feature streams real-time telemetry from a connected DAQ over a framed TCP protocol. It owns the transport: discovery catalog, browse ownership, runtime-only store, per-identity shared stream, and the diagnostics tab. The feature activates only when the user selects the Live primary page; diagnostics and live-session tabs for the same DAQ attach to the shared stream through leases. The recording / capture / save side that turns a live stream into a recorded session with source data lives in [Live Session Recording](#live-session-recording).
+The live preview feature streams real-time telemetry from a connected DAQ over framed TCP protocols. It owns the transport: discovery catalog, browse ownership, runtime-only store, per-identity shared stream, protocol-specific v2/v3 clients behind `ILiveDaqClientFactory`, and the diagnostics tab. V3 connections validate the server hello against the discovered board ID when one is available, then use descriptor-based SST v5 stream metadata for telemetry and final-status reporting. The feature activates only when the user selects the Live primary page; diagnostics and live-session tabs for the same DAQ attach to the shared stream through leases. The recording / capture / save side that turns a live stream into a recorded session with source data lives in [Live Session Recording](#live-session-recording).
 
 ```
 mDNS announcement
-  -> LiveDaqCatalogService (probe board ID)
+  -> LiveDaqCatalogService (requires TXT live_proto=2|3, reads TXT bid when present)
     -> LiveDaqCoordinator.Reconcile (merge with known boards)
       -> LiveDaqStore.ReplaceAll
         -> DynamicData -> LiveDaqListViewModel -> UI
@@ -258,7 +259,8 @@ User selects row
         -> LiveDaqSharedStream.AcquireLease
 
 Diagnostics tab attaches
-  -> shared stream ensures LiveDaqClient.ConnectAsync + StartPreviewAsync
+  -> shared stream uses ILiveDaqClientFactory for LiveDaqV2Client or LiveDaqV3Client
+  -> client ConnectAsync + StartPreviewAsync
   -> receive loop handles control frames and queues telemetry
     -> parse loop -> publish loop -> shared stream fan-out
       -> LiveDaqSessionState.ApplyFrame
@@ -272,9 +274,9 @@ Topics in [architecture/live-streaming.md](architecture/live-streaming.md):
 
 - [Overview](architecture/live-streaming.md#overview) — feature scope, architecture diagram
 - [Data Flow](architecture/live-streaming.md#data-flow) — discovery → list → diagnostics tab attach
-- [Live Wire Protocol](architecture/live-streaming.md#live-wire-protocol) — 16-byte frame header, frame types, start handshake, result codes
-- [Transport Layer](architecture/live-streaming.md#transport-layer) — protocol reader, client lifecycle, session state accumulator
-- [Discovery & Catalog](architecture/live-streaming.md#discovery--catalog) — browse ownership, board-ID inspector, catalog service
+- [Live Wire Protocol](architecture/live-streaming.md#live-wire-protocol) — v2 and v3 wire shapes mapped into canonical live frames
+- [Transport Layer](architecture/live-streaming.md#transport-layer) — protocol readers, client factory, client lifecycle, session state accumulator
+- [Discovery & Catalog](architecture/live-streaming.md#discovery--catalog) — browse ownership, `_sufni._tcp`, TXT protocol and board identity, catalog service
 - [Known-Board Query](architecture/live-streaming.md#known-board-query) — board + setup + bike enrichment
 - [Runtime Store](architecture/live-streaming.md#runtime-store) — in-memory `LiveDaqStore`, no persistence
 - [Coordinator](architecture/live-streaming.md#coordinator) — activate/deactivate, reconcile, tab routing
@@ -286,7 +288,7 @@ Topics in [architecture/live-streaming.md](architecture/live-streaming.md):
 
 ## Live Session Recording
 
-The recording / capture / save side of the Live DAQ feature. Once the user opens a live-session tab, `LiveSessionService` attaches to the shared transport (acquiring the configuration lock), accumulates raw frames into `AppendOnlyChunkBuffer` for save, feeds duration-bounded display context through `LiveGraphPipeline`, and surfaces statistics. On save, `SessionCoordinator.SaveLiveCaptureAsync` creates a live-capture recorded source, then delegates telemetry, generated-track, and processing-fingerprint derivation to `IRecordedSessionReprocessor` before persisting the processed `Session` row atomically with the source and optional generated `Track`.
+The recording / capture / save side of the Live DAQ feature. Once the user opens a live-session tab, `LiveSessionService` attaches to the shared transport (acquiring the configuration lock), accumulates fixed-rate travel/IMU samples into segment builders plus GPS into an append-only buffer, feeds duration-bounded display context through `LiveGraphPipeline`, and surfaces statistics. On save, `SessionCoordinator.SaveLiveCaptureAsync` creates a segment-aware live-capture recorded source, then delegates telemetry, generated-track, and processing-fingerprint derivation to `IRecordedSessionReprocessor` before persisting the processed `Session` row atomically with the source and optional generated `Track`.
 
 Topics in [architecture/live-session.md](architecture/live-session.md):
 
@@ -294,7 +296,7 @@ Topics in [architecture/live-session.md](architecture/live-session.md):
 - [Data Flow](architecture/live-session.md#data-flow) — attach → capture → save sequence
 - [Configuration Lock](architecture/live-session.md#configuration-lock) — exclusive control of stream parameters
 - [Capture Service](architecture/live-session.md#capture-service) — `LiveSessionService` lifecycle and frame handlers
-- [Buffers](architecture/live-session.md#buffers) — `AppendOnlyChunkBuffer` for saved samples and duration-bounded recent display context
+- [Capture Stores](architecture/live-session.md#capture-stores) — fixed-rate travel/IMU segments, GPS append buffer, and duration-bounded recent display context
 - [Live Graph Pipeline](architecture/live-session.md#live-graph-pipeline) — `ILiveGraphPipeline`, `LiveGraphPipelineFactory`, per-row batches
 - [Stream Configuration](architecture/live-session.md#stream-configuration) — `LiveDaqStreamConfiguration` knobs
 - [Presentation Records](architecture/live-session.md#presentation-records) — `LiveSessionPresentation`, `LiveSessionControlState`
