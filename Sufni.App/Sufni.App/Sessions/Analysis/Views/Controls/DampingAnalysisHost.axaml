@@ -26,6 +26,7 @@ mc:Ignorable="d">
                 <Grid Grid.Row="1" Grid.Column="0">
                     <plots:AnalysisPlotView
                     AnalysisRange="{Binding #Root.AnalysisRange}"
+                    AnalysisResultState="{Binding #Root.AnalysisResultState}"
                     DampingSpeedCutoffs="{Binding #Root.PlotDampingSpeedCutoffs}"
                     ExtensionSlots="{Binding #Root.ExtensionSlots}"
                     Height="{Binding #Root.PlotHeight}"

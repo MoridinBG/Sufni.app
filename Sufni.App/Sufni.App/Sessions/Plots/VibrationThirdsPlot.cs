@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using ScottPlot;
 using Sufni.Telemetry;
 
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Shared.Plots;
 using Sufni.App.Theming;
 namespace Sufni.App.Sessions.Plots;
@@ -14,13 +15,18 @@ public class VibrationThirdsPlot(Plot plot, SuspensionType type, ImuLocation loc
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        var stats = TelemetryStatistics.CalculateVibration(telemetryData, location, type, AnalysisRange);
-        if (stats is null)
+        LoadAnalysisData(new VibrationDistributionAnalysisResult(
+            TelemetryStatistics.CalculateVibration(telemetryData, location, type, AnalysisRange)));
+    }
+
+    public void LoadAnalysisData(VibrationDistributionAnalysisResult data)
+    {
+        if (data.Stats is not { } stats)
         {
             return;
         }
 
-        base.LoadTelemetryData(telemetryData);
+        ResetTelemetryReadouts();
 
         SetTitle(AnalysisPlotTitles.VibrationDistribution(type, location));
         SetAxisLabels("Stroke group", "Vibration (%)");

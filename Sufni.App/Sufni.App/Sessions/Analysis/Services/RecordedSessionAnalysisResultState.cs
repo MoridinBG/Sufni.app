@@ -11,6 +11,7 @@ namespace Sufni.App.Sessions.Analysis.Services;
 
 public interface IRecordedSessionAnalysisResultState : IDisposable
 {
+    RecordedSessionAnalysisInputs? CurrentInputs { get; }
     IObservable<RecordedSessionAnalysisResultChanged> Connect();
     RecordedSessionAnalysisResult? Get(RecordedSessionAnalysisKey key);
     Task RequestAsync(RecordedSessionAnalysisKey key, CancellationToken cancellationToken = default);
@@ -49,6 +50,17 @@ internal sealed class RecordedSessionAnalysisResultState(
     private CancellationTokenSource staleWorkCancellation = new();
     private long version;
     private bool disposed;
+
+    public RecordedSessionAnalysisInputs? CurrentInputs
+    {
+        get
+        {
+            lock (gate)
+            {
+                return currentInputs;
+            }
+        }
+    }
 
     public IObservable<RecordedSessionAnalysisResultChanged> Connect() => changes.AsObservable();
 

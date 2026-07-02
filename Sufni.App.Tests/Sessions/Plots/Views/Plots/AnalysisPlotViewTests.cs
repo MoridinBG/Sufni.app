@@ -1,17 +1,24 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Subjects;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using ScottPlot;
 using ScottPlot.Plottables;
+using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.Telemetry;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
 
+using Sufni.App.Sessions.Analysis.Services;
+using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Sessions.Plots;
 using Sufni.App.Tests.TestSupport.Harness;
@@ -98,6 +105,39 @@ public class AnalysisPlotViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(range, mounted.View.PlotAnalysisRange);
+    }
+
+    [AvaloniaFact]
+    public async Task AnalysisPlotView_RendersPublishedStateAnalysisResult()
+    {
+        var telemetry = CreateProcessed();
+        var inputs = CreateAnalysisInputs();
+        var key = inputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
+        using var state = new TestAnalysisResultState(inputs);
+        var view = new TestableAnalysisPlotView
+        {
+            AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
+            AnalysisResultState = state,
+            SuspensionType = SuspensionType.Front,
+            Telemetry = telemetry,
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(key, Assert.Single(state.Requests));
+        Assert.Empty(GetBars(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot));
+
+        var options = new TravelStatisticsOptions(null, TravelDistributionMode.ActiveSuspension);
+        state.Publish(key, new TravelDistributionAnalysisResult(
+            TelemetryStatistics.CalculateTravelHistogram(telemetry, SuspensionType.Front, options),
+            TelemetryStatistics.CalculateTravelStatistics(telemetry, SuspensionType.Front, options),
+            telemetry.Front.MaxTravel,
+            HasStrokeData: true));
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.NotEmpty(GetBars(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot));
+        Assert.Single(state.Requests);
     }
 
     [AvaloniaFact]
@@ -333,6 +373,55 @@ public class AnalysisPlotViewTests
         }
 
         return [.. bars];
+    }
+
+    private static RecordedSessionAnalysisInputs CreateAnalysisInputs() =>
+        new(
+            TelemetryGeneration: 1,
+            AnalysisRange: null,
+            TravelDistributionMode: TravelDistributionMode.ActiveSuspension,
+            VelocityAverageMode: VelocityAverageMode.SampleAveraged,
+            BalanceDisplacementMode: BalanceDisplacementMode.Zenith,
+            BalanceSpeedMode: BalanceSpeedMode.Both,
+            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
+            DampingPercentages: SessionDampingPercentages.Empty,
+            SessionInsightsTargetProfile: SessionInsightsTargetProfile.Trail);
+
+    private sealed class TestAnalysisResultState(RecordedSessionAnalysisInputs inputs) : IRecordedSessionAnalysisResultState
+    {
+        private readonly Subject<RecordedSessionAnalysisResultChanged> changes = new();
+        private readonly Dictionary<RecordedSessionAnalysisKey, RecordedSessionAnalysisResult> results = [];
+
+        public RecordedSessionAnalysisInputs? CurrentInputs { get; private set; } = inputs;
+        public List<RecordedSessionAnalysisKey> Requests { get; } = [];
+
+        public IObservable<RecordedSessionAnalysisResultChanged> Connect() => changes;
+
+        public RecordedSessionAnalysisResult? Get(RecordedSessionAnalysisKey key) =>
+            results.GetValueOrDefault(key);
+
+        public Task RequestAsync(RecordedSessionAnalysisKey key, CancellationToken cancellationToken = default)
+        {
+            Requests.Add(key);
+            return Task.CompletedTask;
+        }
+
+        public void Invalidate(RecordedSessionAnalysisInputs nextInputs)
+        {
+            CurrentInputs = nextInputs;
+            results.Clear();
+        }
+
+        public void Publish(RecordedSessionAnalysisKey key, RecordedSessionAnalysisResult result)
+        {
+            results[key] = result;
+            changes.OnNext(new RecordedSessionAnalysisResultChanged(key, result));
+        }
+
+        public void Dispose()
+        {
+            changes.Dispose();
+        }
     }
 
     private sealed class TestableAnalysisPlotView : AnalysisPlotView

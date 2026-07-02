@@ -5,6 +5,7 @@ using ScottPlot;
 using ScottPlot.TickGenerators;
 using Sufni.Telemetry;
 
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Shared.Plots;
 using Sufni.App.Theming;
 namespace Sufni.App.Sessions.Plots;
@@ -38,29 +39,39 @@ public class DeepTravelDistributionPlot(Plot plot, SuspensionType type, SufniThe
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
+        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange);
+        LoadAnalysisData(new DeepTravelDistributionAnalysisResult(
+            hasStrokeData
+                ? TelemetryStatistics.CalculateDeepTravelHistogram(telemetryData, type, AnalysisRange)
+                : new HistogramData([], []),
+            hasStrokeData));
+    }
+
+    public void LoadAnalysisData(DeepTravelDistributionAnalysisResult data)
+    {
         hitTester.Clear();
-        if (!TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange))
+        if (!data.HasStrokeData || data.Histogram.Bins.Count == 0)
         {
             return;
         }
 
-        base.LoadTelemetryData(telemetryData);
+        ResetTelemetryReadouts();
 
         SetTitle(AnalysisPlotTitles.DeepTravelDistribution(type));
         SetAxisLabels("Axle position (mm)", "Strokes");
         Plot.Layout.Fixed(CreateAnalysisPlotPadding());
 
-        var data = TelemetryStatistics.CalculateDeepTravelHistogram(telemetryData, type, AnalysisRange);
-        var step = data.Bins[1] - data.Bins[0];
+        var histogram = data.Histogram;
+        var step = histogram.Bins[1] - histogram.Bins[0];
         var color = type == SuspensionType.Front ? FrontColor : RearColor;
-        var bars = data.Values.Index()
+        var bars = histogram.Values.Index()
             .Where(entry => entry.Item > 0)
             .Select(entry =>
             {
-                var bin = TelemetryRangeSelection.BinRange.FromBins(data.Bins, entry.Index);
+                var bin = TelemetryRangeSelection.BinRange.FromBins(histogram.Bins, entry.Index);
                 var bar = new Bar
                 {
-                    Position = data.Bins[entry.Index],
+                    Position = histogram.Bins[entry.Index],
                     Value = entry.Item,
                     FillColor = color.WithOpacity(),
                     LineColor = color,
@@ -73,7 +84,7 @@ public class DeepTravelDistributionPlot(Plot plot, SuspensionType type, SufniThe
 
                 AddBarReadout(
                     bar,
-                    FormatReadoutRange("Axle position", data.Bins, entry.Index, "mm"),
+                    FormatReadoutRange("Axle position", histogram.Bins, entry.Index, "mm"),
                     new CursorReadoutLine("Strokes", entry.Item, string.Empty, color, "0"));
 
                 return bar;
@@ -85,11 +96,11 @@ public class DeepTravelDistributionPlot(Plot plot, SuspensionType type, SufniThe
             Plot.Add.Bars(bars);
         }
 
-        var maxValue = Math.Max(1, data.Values.Max());
+        var maxValue = Math.Max(1, histogram.Values.Max());
         var top = maxValue / 0.9;
-        Plot.Axes.SetLimits(left: data.Bins[0], right: data.Bins[^1], bottom: 0, top: top);
+        Plot.Axes.SetLimits(left: histogram.Bins[0], right: histogram.Bins[^1], bottom: 0, top: top);
         Plot.Axes.Rules.Add(new BoundedZoomRule(Plot.Axes.Bottom, Plot.Axes.Left,
-            data.Bins[0], data.Bins[^1], 0, top, ZoomFractions.Analysis));
+            histogram.Bins[0], histogram.Bins[^1], 0, top, ZoomFractions.Analysis));
         Plot.Axes.Bottom.TickGenerator = new NumericFixedInterval(step)
         {
             LabelFormatter = value => $"{value:0.0}"

@@ -82,6 +82,7 @@ mc:Ignorable="d">
 
             <controls:BalanceAnalysisHost
             AnalysisRange="{Binding AnalysisWorkspace.AnalysisRange}"
+            AnalysisResultState="{Binding AnalysisWorkspace.AnalysisResultState}"
             BalanceDisplacementMode="{Binding AnalysisWorkspace.SelectedBalanceDisplacementMode}"
             BalanceSpeedMode="{Binding AnalysisWorkspace.SelectedBalanceSpeedMode}"
             BalanceType="Compression"
@@ -101,6 +102,7 @@ mc:Ignorable="d">
 
             <controls:BalanceAnalysisHost
             AnalysisRange="{Binding AnalysisWorkspace.AnalysisRange}"
+            AnalysisResultState="{Binding AnalysisWorkspace.AnalysisResultState}"
             BalanceDisplacementMode="{Binding AnalysisWorkspace.SelectedBalanceDisplacementMode}"
             BalanceSpeedMode="{Binding AnalysisWorkspace.SelectedBalanceSpeedMode}"
             BalanceType="Rebound"

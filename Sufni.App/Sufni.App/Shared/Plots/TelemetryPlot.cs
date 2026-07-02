@@ -710,6 +710,11 @@ public class TelemetryPlot : SufniPlot
         ResetReadouts();
     }
 
+    protected void ResetTelemetryReadouts()
+    {
+        ResetReadouts();
+    }
+
     private void ResetReadouts()
     {
         ResetCursorReadout();

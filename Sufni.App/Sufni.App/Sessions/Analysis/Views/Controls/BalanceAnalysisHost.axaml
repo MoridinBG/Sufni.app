@@ -19,6 +19,7 @@ mc:Ignorable="d">
                 <plots:AnalysisPlotView
                 Name="{Binding #Root.PlotName}"
                 AnalysisRange="{Binding #Root.AnalysisRange}"
+                AnalysisResultState="{Binding #Root.AnalysisResultState}"
                 BalanceDisplacementMode="{Binding #Root.BalanceDisplacementMode}"
                 BalanceSpeedMode="{Binding #Root.BalanceSpeedMode}"
                 BalanceType="{Binding #Root.BalanceType}"

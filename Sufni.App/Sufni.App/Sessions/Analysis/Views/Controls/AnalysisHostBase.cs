@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Analysis.Views.Controls;
@@ -20,6 +21,10 @@ public class AnalysisHostBase : UserControl
 
     public static readonly StyledProperty<TelemetryData?> TelemetryProperty =
         AvaloniaProperty.Register<AnalysisHostBase, TelemetryData?>(nameof(Telemetry));
+
+    public static readonly StyledProperty<IRecordedSessionAnalysisResultState?> AnalysisResultStateProperty =
+        AvaloniaProperty.Register<AnalysisHostBase, IRecordedSessionAnalysisResultState?>(
+            nameof(AnalysisResultState));
 
     public static readonly StyledProperty<SuspensionType> SuspensionTypeProperty =
         AvaloniaProperty.Register<AnalysisHostBase, SuspensionType>(nameof(SuspensionType));
@@ -140,6 +145,12 @@ public class AnalysisHostBase : UserControl
     {
         get => GetValue(TelemetryProperty);
         set => SetValue(TelemetryProperty, value);
+    }
+
+    public IRecordedSessionAnalysisResultState? AnalysisResultState
+    {
+        get => GetValue(AnalysisResultStateProperty);
+        set => SetValue(AnalysisResultStateProperty, value);
     }
 
     public SuspensionType SuspensionType

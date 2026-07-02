@@ -4,6 +4,7 @@ using ScottPlot.AxisRules;
 using ScottPlot.TickGenerators;
 using Sufni.Telemetry;
 
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Shared.Plots;
 using Sufni.App.Theming;
 namespace Sufni.App.Sessions.Plots;
@@ -12,15 +13,16 @@ public class TravelDistributionPlot(Plot plot, SuspensionType type, SufniTheme? 
 {
     public TravelDistributionMode HistogramMode { get; set; } = TravelDistributionMode.ActiveSuspension;
 
-    private void AddStatistics(TelemetryData telemetryData)
+    private void AddStatistics(TravelDistributionAnalysisResult data)
     {
-        var statistics = TelemetryStatistics.CalculateTravelStatistics(telemetryData, type, CreateOptions());
+        var statistics = data.Statistics;
 
-        var mx = type == SuspensionType.Front
-            ? telemetryData.Front.MaxTravel
-            : telemetryData.Rear.MaxTravel;
-        var avgPercentage = statistics.Average / mx * 100.0;
-        var maxPercentage = statistics.Max / mx * 100.0;
+        var avgPercentage = data.MaxTravel is > 0
+            ? statistics.Average / data.MaxTravel.Value * 100.0
+            : 0;
+        var maxPercentage = data.MaxTravel is > 0
+            ? statistics.Max / data.MaxTravel.Value * 100.0
+            : 0;
 
         var avgString = $"{statistics.Average:F1} mm ({avgPercentage:F1}%)";
         var bottomoutLabel = HistogramMode == TravelDistributionMode.DynamicSag
@@ -34,30 +36,52 @@ public class TravelDistributionPlot(Plot plot, SuspensionType type, SufniTheme? 
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        if (HistogramMode == TravelDistributionMode.ActiveSuspension && !TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange))
+        var suspension = type == SuspensionType.Front ? telemetryData.Front : telemetryData.Rear;
+        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange);
+        if (HistogramMode == TravelDistributionMode.ActiveSuspension && !hasStrokeData)
+        {
+            LoadAnalysisData(new TravelDistributionAnalysisResult(
+                new HistogramData([], []),
+                new TravelStatistics(0, 0, 0),
+                suspension.MaxTravel,
+                HasStrokeData: false));
+            return;
+        }
+
+        var options = CreateOptions();
+        LoadAnalysisData(new TravelDistributionAnalysisResult(
+            TelemetryStatistics.CalculateTravelHistogram(telemetryData, type, options),
+            TelemetryStatistics.CalculateTravelStatistics(telemetryData, type, options),
+            suspension.MaxTravel,
+            hasStrokeData));
+    }
+
+    public void LoadAnalysisData(TravelDistributionAnalysisResult data)
+    {
+        if (HistogramMode == TravelDistributionMode.ActiveSuspension && !data.HasStrokeData)
         {
             return;
         }
 
-        var data = TelemetryStatistics.CalculateTravelHistogram(telemetryData, type, CreateOptions());
-        if (data.Values.Sum() <= 0)
+        if (data.Histogram.Values.Sum() <= 0)
         {
             return;
         }
 
-        base.LoadTelemetryData(telemetryData);
+        ResetTelemetryReadouts();
 
         SetTitle(AnalysisPlotTitles.TravelDistribution(type, HistogramMode));
         SetAxisLabels("Time (%)", "Axle position (mm)");
         Plot.Layout.Fixed(CreateAnalysisPlotPadding());
 
-        var step = data.Bins[1] - data.Bins[0];
+        var histogram = data.Histogram;
+        var step = histogram.Bins[1] - histogram.Bins[0];
         var color = type == SuspensionType.Front ? FrontColor : RearColor;
-        var bars = data.Values.Index().Select(item =>
+        var bars = histogram.Values.Index().Select(item =>
             {
                 var bar = new Bar
                 {
-                    Position = data.Bins[item.Index],
+                    Position = histogram.Bins[item.Index],
                     Value = item.Item,
                     FillColor = color.WithOpacity(),
                     LineColor = color,
@@ -68,7 +92,7 @@ public class TravelDistributionPlot(Plot plot, SuspensionType type, SufniTheme? 
 
                 AddBarReadout(
                     bar,
-                    FormatReadoutRange("Axle position", data.Bins, item.Index, "mm"),
+                    FormatReadoutRange("Axle position", histogram.Bins, item.Index, "mm"),
                     new CursorReadoutLine("Time", item.Item, "%", color));
 
                 return bar;
@@ -80,15 +104,15 @@ public class TravelDistributionPlot(Plot plot, SuspensionType type, SufniTheme? 
         Plot.Axes.Bottom.TickGenerator = new NumericFixedInterval(2);
 
         // Lock horizontal axis, bound vertical zoom (X is already locked, so X args here are inert).
-        Plot.Axes.Rules.Add(new LockedHorizontal(Plot.Axes.Bottom, 0.05, data.Values.Max() / 0.9));
+        Plot.Axes.Rules.Add(new LockedHorizontal(Plot.Axes.Bottom, 0.05, histogram.Values.Max() / 0.9));
         Plot.Axes.Rules.Add(new BoundedZoomRule(Plot.Axes.Bottom, Plot.Axes.Left,
-            0.05, data.Values.Max() / 0.9, data.Bins[0], data.Bins[^1], ZoomFractions.Analysis));
+            0.05, histogram.Values.Max() / 0.9, histogram.Bins[0], histogram.Bins[^1], ZoomFractions.Analysis));
 
         // Set to 0.05 to hide the border line at 0 values. Otherwise it would
         // seem that there are actual measure travel data there too.
         Plot.Axes.SetLimits(left: 0.05);
 
-        AddStatistics(telemetryData);
+        AddStatistics(data);
     }
 
     private TravelStatisticsOptions CreateOptions() => new(AnalysisRange, HistogramMode);

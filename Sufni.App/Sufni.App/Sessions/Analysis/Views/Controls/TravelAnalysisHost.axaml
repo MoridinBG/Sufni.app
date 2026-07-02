@@ -25,6 +25,7 @@ mc:Ignorable="d">
 
                     <plots:AnalysisPlotView
                     AnalysisRange="{Binding #Root.AnalysisRange}"
+                    AnalysisResultState="{Binding #Root.AnalysisResultState}"
                     ExtensionSlots="{Binding #Root.ExtensionSlots}"
                     HeaderContent="{Binding #Root.HeaderContent}"
                     AnalysisPlotKind="TravelDistribution"
@@ -36,6 +37,7 @@ mc:Ignorable="d">
 
                     <plots:AnalysisPlotView
                     AnalysisRange="{Binding #Root.AnalysisRange}"
+                    AnalysisResultState="{Binding #Root.AnalysisResultState}"
                     ExtensionSlots="{Binding #Root.ExtensionSlots}"
                     Grid.Row="2"
                     AnalysisPlotKind="TravelFrequencyDistribution"
@@ -46,6 +48,7 @@ mc:Ignorable="d">
                 <Grid IsVisible="{Binding !#Root.ShowFrequencyDistribution}">
                     <plots:AnalysisPlotView
                     AnalysisRange="{Binding #Root.AnalysisRange}"
+                    AnalysisResultState="{Binding #Root.AnalysisResultState}"
                     ExtensionSlots="{Binding #Root.ExtensionSlots}"
                     Height="{Binding #Root.PlotHeight}"
                     HeaderContent="{Binding #Root.HeaderContent}"

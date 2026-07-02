@@ -25,12 +25,14 @@ mc:Ignorable="d">
 
                 <plots:VibrationSummaryView
                 AnalysisRange="{Binding #Root.AnalysisRange}"
+                AnalysisResultState="{Binding #Root.AnalysisResultState}"
                 ImuLocation="{Binding #Root.ImuLocation}"
                 SuspensionType="{Binding #Root.SuspensionType}"
                 Telemetry="{Binding #Root.Telemetry}" />
 
                 <plots:AnalysisPlotView
                 AnalysisRange="{Binding #Root.AnalysisRange}"
+                AnalysisResultState="{Binding #Root.AnalysisResultState}"
                 ExtensionSlots="{Binding #Root.ExtensionSlots}"
                 Grid.Row="1"
                 ImuLocation="{Binding #Root.ImuLocation}"

@@ -5,6 +5,7 @@ using ScottPlot;
 using ScottPlot.TickGenerators;
 using Sufni.Telemetry;
 
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Shared.Plots;
 using Sufni.App.Theming;
 namespace Sufni.App.Sessions.Plots;
@@ -38,36 +39,46 @@ public class StrokeLengthDistributionPlot(Plot plot, SuspensionType type, Balanc
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
+        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange);
+        LoadAnalysisData(new StrokeLengthDistributionAnalysisResult(
+            hasStrokeData
+                ? TelemetryStatistics.CalculateStrokeLengthHistogram(telemetryData, type, strokeKind, AnalysisRange)
+                : new HistogramData([], []),
+            hasStrokeData));
+    }
+
+    public void LoadAnalysisData(StrokeLengthDistributionAnalysisResult data)
+    {
         hitTester.Clear();
-        if (!TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange))
+        if (!data.HasStrokeData || data.Histogram.Bins.Count == 0)
         {
             return;
         }
 
-        base.LoadTelemetryData(telemetryData);
+        ResetTelemetryReadouts();
 
         var strokeName = strokeKind == BalanceType.Compression ? "compression" : "rebound";
         SetTitle(AnalysisPlotTitles.StrokeLengthDistribution(type, strokeKind));
         SetAxisLabels("Stroke length (mm)", "Strokes (%)");
         Plot.Layout.Fixed(CreateAnalysisPlotPadding());
 
-        var data = TelemetryStatistics.CalculateStrokeLengthHistogram(telemetryData, type, strokeKind, AnalysisRange);
-        if (data.Values.Sum() <= 0)
+        var histogram = data.Histogram;
+        if (histogram.Values.Sum() <= 0)
         {
             ShowEmptyState(strokeName);
             return;
         }
 
-        var step = data.Bins[1] - data.Bins[0];
+        var step = histogram.Bins[1] - histogram.Bins[0];
         var color = type == SuspensionType.Front ? FrontColor : RearColor;
-        var bars = data.Values.Index()
+        var bars = histogram.Values.Index()
             .Where(entry => entry.Item > 0)
             .Select(entry =>
             {
-                var bin = TelemetryRangeSelection.BinRange.FromBins(data.Bins, entry.Index);
+                var bin = TelemetryRangeSelection.BinRange.FromBins(histogram.Bins, entry.Index);
                 var bar = new Bar
                 {
-                    Position = data.Bins[entry.Index],
+                    Position = histogram.Bins[entry.Index],
                     Value = entry.Item,
                     FillColor = color.WithOpacity(),
                     LineColor = color,
@@ -80,7 +91,7 @@ public class StrokeLengthDistributionPlot(Plot plot, SuspensionType type, Balanc
 
                 AddBarReadout(
                     bar,
-                    FormatReadoutRange("Stroke length", data.Bins, entry.Index, "mm"),
+                    FormatReadoutRange("Stroke length", histogram.Bins, entry.Index, "mm"),
                     new CursorReadoutLine("Strokes", entry.Item, "%", color));
 
                 return bar;
@@ -92,11 +103,11 @@ public class StrokeLengthDistributionPlot(Plot plot, SuspensionType type, Balanc
             Plot.Add.Bars(bars);
         }
 
-        var maxValue = Math.Max(1, data.Values.Max());
+        var maxValue = Math.Max(1, histogram.Values.Max());
         var top = maxValue / 0.9;
-        Plot.Axes.SetLimits(left: data.Bins[0], right: data.Bins[^1], bottom: 0, top: top);
+        Plot.Axes.SetLimits(left: histogram.Bins[0], right: histogram.Bins[^1], bottom: 0, top: top);
         Plot.Axes.Rules.Add(new BoundedZoomRule(Plot.Axes.Bottom, Plot.Axes.Left,
-            data.Bins[0], data.Bins[^1], 0, top, ZoomFractions.Analysis));
+            histogram.Bins[0], histogram.Bins[^1], 0, top, ZoomFractions.Analysis));
         Plot.Axes.Bottom.TickGenerator = new NumericFixedInterval(step * 2)
         {
             LabelFormatter = value => $"{value:0.0}"

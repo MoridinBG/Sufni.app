@@ -8,6 +8,7 @@ using ScottPlot.TickGenerators;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Shared.Plots;
 using Sufni.App.Theming;
 using Sufni.App.Sessions.Processing.SessionDetails;
@@ -109,15 +110,38 @@ public class VelocityDistributionPlot(Plot plot, SuspensionType type, SufniTheme
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
+        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange);
+        if (!hasStrokeData)
+        {
+            LoadAnalysisData(new VelocityDistributionAnalysisResult(
+                new StackedHistogramData([], []),
+                new VelocityStatistics(0, 0, 0, 0),
+                new NormalDistributionData([], []),
+                HasStrokeData: false));
+            return;
+        }
+
+        var options = CreateOptions();
+        LoadAnalysisData(new VelocityDistributionAnalysisResult(
+            TelemetryStatistics.CalculateVelocityHistogram(telemetryData, type, options),
+            TelemetryStatistics.CalculateVelocityStatistics(telemetryData, type, options),
+            AverageMode == VelocityAverageMode.SampleAveraged
+                ? TelemetryStatistics.CalculateNormalDistribution(telemetryData, type, AnalysisRange)
+                : new NormalDistributionData([], []),
+            hasStrokeData));
+    }
+
+    public void LoadAnalysisData(VelocityDistributionAnalysisResult data)
+    {
         selectableSegments.Clear();
         selectableVelocityBins = [];
 
-        if (!TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange))
+        if (!data.HasStrokeData || data.Histogram.Bins.Count == 0 || data.Histogram.Values.Count == 0)
         {
             return;
         }
 
-        base.LoadTelemetryData(telemetryData);
+        ResetTelemetryReadouts();
 
         var isStrokePeakMode = AverageMode == VelocityAverageMode.StrokePeakAveraged;
         var percentageLabel = isStrokePeakMode ? "Strokes" : "Time";
@@ -125,25 +149,25 @@ public class VelocityDistributionPlot(Plot plot, SuspensionType type, SufniTheme
         SetAxisLabels(isStrokePeakMode ? "Strokes (%)" : "Time (%)", "Velocity (mm/s)");
         Plot.Layout.Fixed(CreateAnalysisPlotPadding(right: 5));
 
-        var data = TelemetryStatistics.CalculateVelocityHistogram(telemetryData, type, CreateOptions());
-        var step = data.Bins[1] - data.Bins[0];
-        selectableVelocityBins = data.Bins;
+        var histogram = data.Histogram;
+        var step = histogram.Bins[1] - histogram.Bins[0];
+        selectableVelocityBins = histogram.Bins;
 
-        for (var i = 0; i < data.Values.Count; ++i)
+        for (var i = 0; i < histogram.Values.Count; ++i)
         {
             double nextBarBase = 0;
 
             for (var j = 0; j < TelemetryData.TravelBinsForVelocityHistogram; j++)
             {
-                if (data.Values[i][j] == 0)
+                if (histogram.Values[i][j] == 0)
                 {
                     continue;
                 }
 
-                var value = data.Values[i][j];
+                var value = histogram.Values[i][j];
                 var bar = new Bar
                 {
-                    Position = data.Bins[i],
+                    Position = histogram.Bins[i],
                     ValueBase = nextBarBase,
                     Value = nextBarBase + value,
                     FillColor = palette[j].WithOpacity(0.8),
@@ -165,7 +189,7 @@ public class VelocityDistributionPlot(Plot plot, SuspensionType type, SufniTheme
                     bar.Position + bar.Size / 2.0));
                 AddBarReadout(
                     bar,
-                    $"{FormatReadoutRange("Velocity", data.Bins, i, "mm/s", "0")}{Environment.NewLine}Travel: {j * 10}-{(j + 1) * 10} %",
+                    $"{FormatReadoutRange("Velocity", histogram.Bins, i, "mm/s", "0")}{Environment.NewLine}Travel: {j * 10}-{(j + 1) * 10} %",
                     new CursorReadoutLine(percentageLabel, value, "%", palette[j]));
 
                 nextBarBase += value;
@@ -178,7 +202,7 @@ public class VelocityDistributionPlot(Plot plot, SuspensionType type, SufniTheme
 
         // Y bounds must include the max-compression/-rebound stats labels, which can sit
         // outside the hardcoded ±VelocityLimit display window.
-        var velocityStats = TelemetryStatistics.CalculateVelocityStatistics(telemetryData, type, CreateOptions());
+        var velocityStats = data.Statistics;
         var yLow = Math.Min(-VelocityLimit, velocityStats.MaxRebound);
         if (velocityStats.ReboundStrokeCount > 0)
         {
@@ -207,9 +231,7 @@ public class VelocityDistributionPlot(Plot plot, SuspensionType type, SufniTheme
         Plot.Axes.Left.TickGenerator = new NumericFixedInterval(500);
         Plot.Axes.Bottom.TickGenerator = new NumericFixedInterval(2);
 
-        var normalData = AverageMode == VelocityAverageMode.SampleAveraged
-            ? TelemetryStatistics.CalculateNormalDistribution(telemetryData, type, AnalysisRange)
-            : new NormalDistributionData([], []);
+        var normalData = data.NormalDistribution;
         if (normalData.Pdf.Count > 0 && normalData.Y.Count > 0)
         {
             var normal = Plot.Add.Scatter(

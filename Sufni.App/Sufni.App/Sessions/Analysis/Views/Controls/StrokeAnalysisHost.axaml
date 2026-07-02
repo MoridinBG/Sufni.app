@@ -26,6 +26,7 @@ mc:Ignorable="d">
 
                 <plots:AnalysisPlotView
                 AnalysisRange="{Binding #Root.AnalysisRange}"
+                AnalysisResultState="{Binding #Root.AnalysisResultState}"
                 BalanceType="Compression"
                 ExtensionSlots="{Binding #Root.ExtensionSlots}"
                 AnalysisPlotKind="StrokeLengthDistribution"
@@ -36,6 +37,7 @@ mc:Ignorable="d">
 
                 <plots:AnalysisPlotView
                 AnalysisRange="{Binding #Root.AnalysisRange}"
+                AnalysisResultState="{Binding #Root.AnalysisResultState}"
                 Grid.Row="1"
                 BalanceType="Compression"
                 ExtensionSlots="{Binding #Root.ExtensionSlots}"
@@ -47,6 +49,7 @@ mc:Ignorable="d">
 
                 <plots:AnalysisPlotView
                 AnalysisRange="{Binding #Root.AnalysisRange}"
+                AnalysisResultState="{Binding #Root.AnalysisResultState}"
                 Grid.Row="2"
                 BalanceType="Rebound"
                 ExtensionSlots="{Binding #Root.ExtensionSlots}"
@@ -58,6 +61,7 @@ mc:Ignorable="d">
 
                 <plots:AnalysisPlotView
                 AnalysisRange="{Binding #Root.AnalysisRange}"
+                AnalysisResultState="{Binding #Root.AnalysisResultState}"
                 Grid.Row="3"
                 BalanceType="Rebound"
                 ExtensionSlots="{Binding #Root.ExtensionSlots}"
@@ -69,6 +73,7 @@ mc:Ignorable="d">
 
                 <plots:AnalysisPlotView
                 AnalysisRange="{Binding #Root.AnalysisRange}"
+                AnalysisResultState="{Binding #Root.AnalysisResultState}"
                 ExtensionSlots="{Binding #Root.ExtensionSlots}"
                 Grid.Row="4"
                 AnalysisPlotKind="DeepTravelDistribution"

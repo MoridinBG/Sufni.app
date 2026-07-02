@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Input;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
@@ -28,6 +29,8 @@ public enum AnalysisPlotKind
 public class AnalysisPlotView : SufniTelemetryPlotView
 {
     private RecordedSessionExtensionSlots? subscribedSlots;
+    private IRecordedSessionAnalysisResultState? subscribedAnalysisResultState;
+    private IDisposable? analysisResultSubscription;
 
     public static readonly StyledProperty<AnalysisPlotKind> AnalysisPlotKindProperty =
         AvaloniaProperty.Register<AnalysisPlotView, AnalysisPlotKind>(nameof(AnalysisPlotKind));
@@ -81,6 +84,10 @@ public class AnalysisPlotView : SufniTelemetryPlotView
 
     public static readonly StyledProperty<TelemetryRangeSelection?> ActiveAnalysisSelectionProperty =
         AvaloniaProperty.Register<AnalysisPlotView, TelemetryRangeSelection?>(nameof(ActiveAnalysisSelection));
+
+    public static readonly StyledProperty<IRecordedSessionAnalysisResultState?> AnalysisResultStateProperty =
+        AvaloniaProperty.Register<AnalysisPlotView, IRecordedSessionAnalysisResultState?>(
+            nameof(AnalysisResultState));
 
     public AnalysisPlotKind AnalysisPlotKind
     {
@@ -166,10 +173,22 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         set => SetValue(ActiveAnalysisSelectionProperty, value);
     }
 
+    public IRecordedSessionAnalysisResultState? AnalysisResultState
+    {
+        get => GetValue(AnalysisResultStateProperty);
+        set => SetValue(AnalysisResultStateProperty, value);
+    }
+
     public AnalysisPlotView()
     {
         PropertyChanged += (_, e) =>
         {
+            if (e.Property == AnalysisResultStateProperty)
+            {
+                SubscribeToAnalysisResultState(AnalysisResultState);
+                ReloadTelemetry();
+            }
+
             if (IsTitleProperty(e.Property.Name))
             {
                 UpdateAnalysisTitle();
@@ -212,12 +231,14 @@ public class AnalysisPlotView : SufniTelemetryPlotView
     {
         base.OnAttachedToVisualTree(e);
         SubscribeToSlots(ExtensionSlots);
+        SubscribeToAnalysisResultState(AnalysisResultState);
         ApplyAnalysisOverlayDescriptor(refresh: false);
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         SubscribeToSlots(null);
+        SubscribeToAnalysisResultState(null);
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -252,6 +273,24 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         ApplyAnalysisOverlayDescriptor(refresh: false);
     }
 
+    protected override void LoadPlotData(TelemetryPlot plotModel)
+    {
+        var key = CreateAnalysisKey();
+        if (key is null || AnalysisResultState is not { } state)
+        {
+            base.LoadPlotData(plotModel);
+            return;
+        }
+
+        if (state.Get(key) is { } cached)
+        {
+            LoadAnalysisResult(plotModel, cached);
+            return;
+        }
+
+        _ = state.RequestAsync(key);
+    }
+
     private static bool IsTitleProperty(string? propertyName) =>
         propertyName is nameof(AnalysisPlotKind) or
             nameof(SuspensionType) or
@@ -268,6 +307,98 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             nameof(SuspensionType) or
             nameof(BalanceType) or
             nameof(ImuLocation);
+
+    private void SubscribeToAnalysisResultState(IRecordedSessionAnalysisResultState? state)
+    {
+        if (ReferenceEquals(subscribedAnalysisResultState, state))
+        {
+            return;
+        }
+
+        analysisResultSubscription?.Dispose();
+        analysisResultSubscription = null;
+        subscribedAnalysisResultState = state;
+
+        if (subscribedAnalysisResultState is not null)
+        {
+            analysisResultSubscription = subscribedAnalysisResultState.Connect().Subscribe(OnAnalysisResultChanged);
+        }
+    }
+
+    private void OnAnalysisResultChanged(RecordedSessionAnalysisResultChanged change)
+    {
+        var key = CreateAnalysisKey();
+        if (key is null || change.Key != key || change.Result is null)
+        {
+            return;
+        }
+
+        ReloadPlot();
+    }
+
+    private RecordedSessionAnalysisKey? CreateAnalysisKey()
+    {
+        if (AnalysisResultState?.CurrentInputs is not { } inputs)
+        {
+            return null;
+        }
+
+        return inputs.CreateKey(
+            ResolveAnalysisFamily(),
+            SuspensionType,
+            BalanceType,
+            ImuLocation);
+    }
+
+    private RecordedSessionAnalysisFamily ResolveAnalysisFamily()
+    {
+        return AnalysisPlotKind switch
+        {
+            AnalysisPlotKind.TravelDistribution => RecordedSessionAnalysisFamily.TravelDistribution,
+            AnalysisPlotKind.TravelFrequencyDistribution => RecordedSessionAnalysisFamily.TravelFrequencyDistribution,
+            AnalysisPlotKind.VelocityDistribution => RecordedSessionAnalysisFamily.VelocityDistribution,
+            AnalysisPlotKind.Balance => RecordedSessionAnalysisFamily.Balance,
+            AnalysisPlotKind.StrokeLengthDistribution => RecordedSessionAnalysisFamily.StrokeLengthDistribution,
+            AnalysisPlotKind.StrokeSpeedDistribution => RecordedSessionAnalysisFamily.StrokeSpeedDistribution,
+            AnalysisPlotKind.DeepTravelDistribution => RecordedSessionAnalysisFamily.DeepTravelDistribution,
+            AnalysisPlotKind.VibrationDistribution => RecordedSessionAnalysisFamily.VibrationDistribution,
+            _ => throw new ArgumentOutOfRangeException()
+        };
+    }
+
+    private void LoadAnalysisResult(TelemetryPlot plotModel, RecordedSessionAnalysisResult result)
+    {
+        switch (plotModel, result)
+        {
+            case (TravelDistributionPlot plot, TravelDistributionAnalysisResult data):
+                plot.LoadAnalysisData(data);
+                break;
+            case (TravelFrequencyDistributionPlot plot, TravelFrequencyDistributionAnalysisResult data):
+                plot.LoadAnalysisData(data);
+                break;
+            case (VelocityDistributionPlot plot, VelocityDistributionAnalysisResult data):
+                plot.LoadAnalysisData(data);
+                break;
+            case (BalancePlot plot, BalanceAnalysisResult data):
+                plot.LoadAnalysisData(data);
+                break;
+            case (StrokeLengthDistributionPlot plot, StrokeLengthDistributionAnalysisResult data):
+                plot.LoadAnalysisData(data);
+                break;
+            case (StrokeSpeedDistributionPlot plot, StrokeSpeedDistributionAnalysisResult data):
+                plot.LoadAnalysisData(data);
+                break;
+            case (DeepTravelDistributionPlot plot, DeepTravelDistributionAnalysisResult data):
+                plot.LoadAnalysisData(data);
+                break;
+            case (VibrationThirdsPlot plot, VibrationDistributionAnalysisResult data):
+                plot.LoadAnalysisData(data);
+                break;
+            default:
+                base.LoadPlotData(plotModel);
+                break;
+        }
+    }
 
     private void SubscribeToSlots(RecordedSessionExtensionSlots? slots)
     {

@@ -5,6 +5,7 @@ using ScottPlot.TickGenerators;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Shared.Plots;
 using Sufni.App.Theming;
 using Sufni.App.Shared.Formatting;
@@ -33,10 +34,15 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
 
     public override void LoadTelemetryData(TelemetryData telemetryData)
     {
-        var balance = TelemetryStatistics.CalculateBalance(telemetryData, type, CreateOptions());
+        LoadAnalysisData(new BalanceAnalysisResult(TelemetryStatistics.CalculateBalance(telemetryData, type, CreateOptions())));
+    }
+
+    public void LoadAnalysisData(BalanceAnalysisResult data)
+    {
+        var balance = data.Balance;
         if (!HasRenderableBalanceData(balance)) return;
 
-        base.LoadTelemetryData(telemetryData);
+        ResetTelemetryReadouts();
 
         var xAxisLabel = DisplacementMode switch
         {
