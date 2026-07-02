@@ -90,6 +90,21 @@ public class BikeRestorationTests
     }
 
     [Fact]
+    public void WithRearSuspension_RecomputesChainstayFromReplacementLinkage()
+    {
+        var source = new Bike(Guid.NewGuid(), "linkage bike")
+        {
+            Chainstay = 440,
+            RearSuspension = new RearSuspensionSpec.Linkage(LinkageWithChainstay(4)),
+        };
+
+        var updated = source.WithRearSuspension(
+            new RearSuspensionSpec.Linkage(LinkageWithChainstay(10)));
+
+        Assert.Equal(10, updated.Chainstay);
+    }
+
+    [Fact]
     public void WithShockStroke_OnLinkageBike_RebuildsLinkageSpecWithoutMutatingOriginal()
     {
         var linkage = TestSnapshots.FullSuspensionLinkageSpec();

@@ -211,6 +211,7 @@ public class Bike : Synchronizable
         var snapshot = BikeSnapshot.From(this) with
         {
             RearSuspension = rearSuspension,
+            Chainstay = null,
         };
         return FromSnapshot(snapshot);
     }
