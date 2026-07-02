@@ -6,6 +6,11 @@ public class SavitzkyGolay
 {
     #region Private fields
 
+    private const int CacheCapacity = 64;
+    private static readonly System.Threading.Lock cacheGate = new();
+    private static readonly Dictionary<CacheKey, CacheEntry> cache = [];
+    private static readonly LinkedList<CacheKey> cacheRecency = [];
+
     private readonly int windowSize;
     private readonly int derivative;
     private readonly int polynomial;
@@ -23,6 +28,15 @@ public class SavitzkyGolay
         weights = ComputeWeights();
     }
 
+    private readonly record struct CacheKey(int WindowSize, int Derivative, int Polynomial);
+
+    private sealed class CacheEntry(SavitzkyGolay filter, LinkedListNode<CacheKey> recencyNode)
+    {
+        public SavitzkyGolay Filter { get; } = filter;
+
+        public LinkedListNode<CacheKey> RecencyNode { get; } = recencyNode;
+    }
+
     public static SavitzkyGolay Create(int windowSize, int derivative, int polynomial)
     {
         if (windowSize % 2 == 0 || windowSize < 5)
@@ -34,7 +48,29 @@ public class SavitzkyGolay
 
         ArgumentOutOfRangeException.ThrowIfNegative(polynomial);
 
-        return new SavitzkyGolay(windowSize, derivative, polynomial);
+        var key = new CacheKey(windowSize, derivative, polynomial);
+        lock (cacheGate)
+        {
+            if (cache.TryGetValue(key, out var entry))
+            {
+                cacheRecency.Remove(entry.RecencyNode);
+                cacheRecency.AddFirst(entry.RecencyNode);
+                return entry.Filter;
+            }
+
+            var filter = new SavitzkyGolay(windowSize, derivative, polynomial);
+            var node = new LinkedListNode<CacheKey>(key);
+            cacheRecency.AddFirst(node);
+            cache[key] = new CacheEntry(filter, node);
+
+            if (cache.Count > CacheCapacity && cacheRecency.Last is { } leastRecent)
+            {
+                cacheRecency.RemoveLast();
+                cache.Remove(leastRecent.Value);
+            }
+
+            return filter;
+        }
     }
 
     #endregion Constructors / Initializers

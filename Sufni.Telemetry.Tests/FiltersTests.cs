@@ -26,6 +26,24 @@ public class FiltersTests
     }
 
     [Fact]
+    public void Create_WithSameParameters_ReturnsCachedInstance()
+    {
+        var first = SavitzkyGolay.Create(51, 1, 3);
+        var second = SavitzkyGolay.Create(51, 1, 3);
+
+        Assert.Same(first, second);
+    }
+
+    [Fact]
+    public void Create_WithDifferentParameters_ReturnsDifferentInstances()
+    {
+        var first = SavitzkyGolay.Create(51, 1, 3);
+        var second = SavitzkyGolay.Create(49, 1, 3);
+
+        Assert.NotSame(first, second);
+    }
+
+    [Fact]
     public void Process_WithDataShorterThanWindow_ThrowsArgumentException()
     {
         var filter = SavitzkyGolay.Create(11, 0, 2);
@@ -116,6 +134,27 @@ public class FiltersTests
         {
             Assert.Equal(data[i], result[i], 1e-9);
         }
+    }
+
+    [Fact]
+    public void Process_CachedInstance_ProducesIdenticalOutput()
+    {
+        var count = 32;
+        var data = new double[count];
+        var time = new double[count];
+        for (var i = 0; i < count; i++)
+        {
+            time[i] = i / 100.0;
+            data[i] = Math.Sin(i / 5.0) * 100.0;
+        }
+
+        var first = SavitzkyGolay.Create(11, 1, 3);
+        var firstResult = first.Process(data, time);
+        var second = SavitzkyGolay.Create(11, 1, 3);
+        var secondResult = second.Process(data, time);
+
+        Assert.Same(first, second);
+        Assert.Equal(firstResult, secondResult);
     }
 
     [Fact]
