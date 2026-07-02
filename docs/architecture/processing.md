@@ -162,7 +162,7 @@ Output: `KinematicSolution`, a deeply immutable set of `JointPath` values mappin
 - **`AngleToShockStrokeDataset(...)`** — the same angle paired with shock stroke instead of wheel travel.
 - **`ShockStrokeToWheelTravelDataset()`** — used by `RearTravelCalibrationBuilder` to derive rear max travel from a linkage solve.
 
-Front and rear max travel for the processing pipeline do **not** live on `BikeCharacteristics`. Front max travel is computed inside the front sensor configuration itself (e.g., `LinearForkSensorConfiguration.MaxTravel = bike.ForkStroke * sin(headAngle)` — see [Sensor Calibration](#sensor-calibration)). Rear max travel is produced by `RearTravelCalibrationBuilder` from either the linkage solve (`ShockStrokeToWheelTravelDataset.Y[^1]`) or the leverage-ratio curve (`LeverageRatio.WheelTravelAt(maxShockStroke)`).
+Front and rear max travel for the processing pipeline do **not** live on `BikeCharacteristics`. Front max travel is computed inside the front sensor configuration itself (e.g., `LinearForkSensorConfiguration.MaxTravel = bike.ForkStroke * sin(headAngle)` — see [Sensor Calibration](#sensor-calibration)). Rear max travel is produced by `RearTravelCalibrationBuilder` from either the linkage solve (`ShockStrokeToWheelTravelDataset.Y[^1]`) or the leverage-ratio curve (`LeverageRatioSpec.WheelTravelAt(maxShockStroke)`).
 
 ### Utilities
 
@@ -205,7 +205,7 @@ The bike context (head angle, fork stroke, shock stroke) is injected at deserial
 | ------------------------------------ | -------------------------------------------- | ---------------------------------------------------------------------- |
 | `LinearForkSensorConfiguration`      | Length, Resolution                           | Linear potentiometer on fork, projected by head angle                  |
 | `RotationalForkSensorConfiguration`  | MaxLength, ArmLength                         | Rotary encoder on fork, cosine-based rigid-arm geometric projection    |
-| `LinearShockSensorConfiguration`     | Length, Resolution                           | Rear shock payload (`SensorType.LinearShock` for linkage bikes, `SensorType.LinearShockStroke` for leverage-ratio bikes) consumed by `RearTravelCalibrationBuilder`; maps shock stroke to wheel travel via linkage interpolation or `LeverageRatio.WheelTravelAt(...)` |
+| `LinearShockSensorConfiguration`     | Length, Resolution                           | Rear shock payload (`SensorType.LinearShock` for linkage bikes, `SensorType.LinearShockStroke` for leverage-ratio bikes) consumed by `RearTravelCalibrationBuilder`; maps shock stroke to wheel travel via linkage interpolation or `LeverageRatioSpec.WheelTravelAt(...)` |
 | `RotationalShockSensorConfiguration` | CentralJoint, AdjacentJoint1, AdjacentJoint2 | Rear shock payload consumed by `RearTravelCalibrationBuilder`; resolves angle-to-shock-stroke from linkage motion, then converts to wheel travel |
 
 ### Rear Travel Calibration
@@ -216,11 +216,11 @@ The build flow:
 
 1. Pattern-match `BikeSnapshot.RearSuspension`. A hardtail returns success with no calibration; linkage and leverage-ratio drafts fail with "Rear suspension is incomplete."; unknown values fail with "Unknown rear suspension."
 2. Deserialize `SetupSnapshot.RearSensorConfigurationJson` as a data-only `SensorConfiguration` payload and pattern-match it against the suspension spec:
-   - `LinearShockSensorConfiguration` with `SensorType.LinearShock` + `Linkage`, or `SensorType.LinearShockStroke` + `LeverageRatio` — compatible.
+   - `LinearShockSensorConfiguration` with `SensorType.LinearShock` + `RearSuspensionSpec.Linkage`, or `SensorType.LinearShockStroke` + `RearSuspensionSpec.LeverageRatio` — compatible.
    - `RotationalShockSensorConfiguration` + `Linkage` — compatible.
    - Any other combination — incompatible, returns a setup-level error.
 3. Compute the per-sample shock stroke from the payload (linear: `Length / (2^Resolution - 1)`; rotational: `2π / 4096` rad per ADC count, then a cubic polynomial fit of the linkage's angle-to-shock-stroke dataset).
-4. Convert shock stroke to wheel travel through the suspension spec: linkage suspensions solve `LinkageSpec` and interpolate `BikeCharacteristics.ShockStrokeToWheelTravelDataset()`, leverage-ratio suspensions call `LeverageRatio.WheelTravelAt(...)`.
+4. Convert shock stroke to wheel travel through the suspension spec: linkage suspensions solve `LinkageSpec` and interpolate `BikeCharacteristics.ShockStrokeToWheelTravelDataset()`, leverage-ratio suspensions call `LeverageRatioSpec.WheelTravelAt(...)`.
 5. For leverage-ratio bikes, `LeverageRatioShockStrokeRules.TryValidate` checks that the bike's configured shock stroke matches the curve's `MaxShockStroke` within tolerance before the calibration is accepted; the resulting `MaxTravel` is the wheel travel at that validated stroke, not a separately configured number.
 
 The `MeasurementWraps` flag on the produced `RearTravelCalibration` is `true` for the rotational-shock path (the rotary encoder reports modulo-4096 angles) and `false` for the linear-shock paths; `TelemetryBikeData.Create` copies it onto `BikeData.RearMeasurementWraps`, which selects the [Measurement Preprocessing](#measurement-preprocessing) path for the rear samples.
