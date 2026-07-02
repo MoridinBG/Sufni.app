@@ -45,11 +45,11 @@ public class BikeRearSuspensionValidatorTests
     [Fact]
     public void ValidateForSave_ReturnsValidLinkage_WhenPayloadAndCalibrationAreComplete()
     {
-        var linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
         var snapshot = TestSnapshots.Bike() with
         {
-            ShockStroke = 0.5,
-            RearSuspension = new RearSuspensionSpec.Linkage(linkage.ToSpec()),
+            ShockStroke = linkage.ShockStroke,
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage),
             Chainstay = 440,
             PixelsToMillimeters = 1,
             ImageBytes = TestImages.SmallPngBytes(),
@@ -59,7 +59,7 @@ public class BikeRearSuspensionValidatorTests
 
         var valid = Assert.IsType<BikeRearSuspensionValidationResult.Valid>(result);
         var validLinkage = Assert.IsType<RearSuspensionSpec.Linkage>(valid.RearSuspension);
-        Assert.Equal(linkage.ToSpec(), validLinkage.Spec);
+        Assert.Equal(linkage, validLinkage.Spec);
     }
 
     [Fact]

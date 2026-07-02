@@ -9,20 +9,20 @@ public class BikeSerializationTests
     [Fact]
     public void BikeToJson_RoundTripsLinkageBike()
     {
-        var linkage = TestSnapshots.FullSuspensionLinkage();
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec();
         var bike = new Bike(Guid.NewGuid(), "legacy linkage bike")
         {
             HeadAngle = 64,
             ForkStroke = 150,
-            RearSuspension = new RearSuspensionSpec.Linkage(linkage.ToSpec()),
-            ShockStroke = 0.5,
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage),
+            ShockStroke = linkage.ShockStroke,
         };
 
         var imported = Bike.FromJson(bike.ToJson());
 
         Assert.NotNull(imported);
         var importedLinkage = Assert.IsType<RearSuspensionSpec.Linkage>(imported!.RearSuspension);
-        Assert.Equal(linkage.ToSpec(), importedLinkage.Spec);
+        Assert.Equal(linkage, importedLinkage.Spec);
     }
 
     [Fact]

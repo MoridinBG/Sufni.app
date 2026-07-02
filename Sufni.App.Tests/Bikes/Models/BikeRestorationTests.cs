@@ -26,9 +26,9 @@ public class BikeRestorationTests
             RearReboundDampingCutoffMmPerSecond = 245,
             Updated = 7,
         };
-        var linkage = TestSnapshots.FullSuspensionLinkage();
-        source.RearSuspension = new RearSuspensionSpec.Linkage(linkage.ToSpec());
-        source.ShockStroke = 0.5;
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec();
+        source.RearSuspension = new RearSuspensionSpec.Linkage(linkage);
+        source.ShockStroke = linkage.ShockStroke;
 
         var snapshot = BikeSnapshot.From(source);
         var restored = Bike.FromSnapshot(snapshot);
