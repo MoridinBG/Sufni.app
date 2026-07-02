@@ -824,6 +824,26 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Save_AfterSwitchingToIncompleteLeverageRatio_RoutesLeverageRatioDraftToCoordinator()
+    {
+        var snapshot = TestSnapshots.Bike(updated: 5);
+        var editor = CreateEditor(snapshot);
+        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
+            .Returns(new BikeSaveResult.InvalidRearSuspension("Leverage ratio data is required for leverage ratio bikes."));
+
+        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.LeverageRatio);
+        await Task.Yield();
+
+        Assert.True(editor.SaveCommand.CanExecute(null));
+
+        await editor.SaveCommand.ExecuteAsync(null);
+
+        await bikeCoordinator.Received(1).SaveAsync(
+            Arg.Is<Bike>(bike => bike.RearSuspension is RearSuspensionSpec.LeverageRatioDraft),
+            5);
+    }
+
+    [AvaloniaFact]
     public async Task Save_OnDesktop_AppliesAnalysisFromSavedResult_WithoutReloadingAnalysis()
     {
         var snapshot = TestSnapshots.Bike(updated: 5);
