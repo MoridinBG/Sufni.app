@@ -453,13 +453,18 @@ public class BikeEditorViewModelTests
         var editor = CreateEditor(snapshot);
         var initialPixelsToMillimeters = Assert.IsType<double>(editor.PixelsToMillimeters);
         var initialFrontWheelCircleLeft = editor.WheelGeometry.FrontWheelCircleLeft;
-        var modifiedLinkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
-        var modifiedFrontWheel = Assert.Single(modifiedLinkage.Joints, joint => joint.Type == JointType.FrontWheel);
-        var modifiedBottomBracket = Assert.Single(modifiedLinkage.Joints, joint => joint.Type == JointType.BottomBracket);
-
-        modifiedFrontWheel.X += 30;
-        modifiedBottomBracket.Y += 20;
-        editor.LinkageEditor.Load(modifiedLinkage.ToSpec(), editor.ImageCanvas.Image!.Size.Height, snapshot.PixelsToMillimeters);
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
+        var modifiedLinkage = new LinkageSpec(
+            [.. linkage.Joints.Select(joint => joint.Type switch
+            {
+                JointType.FrontWheel => joint with { X = joint.X + 30 },
+                JointType.BottomBracket => joint with { Y = joint.Y + 20 },
+                _ => joint,
+            })],
+            linkage.Links,
+            linkage.Shock,
+            linkage.ShockStroke);
+        editor.LinkageEditor.Load(modifiedLinkage, editor.ImageCanvas.Image!.Size.Height, snapshot.PixelsToMillimeters);
 
         Assert.Equal(initialPixelsToMillimeters, Assert.IsType<double>(editor.PixelsToMillimeters), 10);
         Assert.Equal(initialFrontWheelCircleLeft, editor.WheelGeometry.FrontWheelCircleLeft, 10);
