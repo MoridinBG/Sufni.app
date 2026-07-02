@@ -13,6 +13,7 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.Telemetry;
 
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Insights.ViewModels.Editors;
@@ -26,11 +27,13 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
     public SessionAnalysisWorkspaceViewModel(
         RecordedSessionContext context,
         ISessionOperationGateway gateway,
-        IRelayCommand<TelemetryRangeSelection?> selectAnalysisRangeCommand)
+        IRelayCommand<TelemetryRangeSelection?> selectAnalysisRangeCommand,
+        IRecordedSessionAnalysisResultState analysisResultState)
     {
         this.context = context;
         this.gateway = gateway;
         SelectAnalysisRangeCommand = selectAnalysisRangeCommand;
+        AnalysisResultState = analysisResultState;
         context.PropertyChanged += OnContextPropertyChanged;
     }
 
@@ -118,6 +121,8 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
     public DampingSpeedCutoffs PlotDampingSpeedCutoffs => context.PlotDampingSpeedCutoffs;
 
     public bool CanEditDampingSpeedCutoffs => context.CanEditDampingSpeedCutoffs;
+
+    public IRecordedSessionAnalysisResultState AnalysisResultState { get; }
 
     public SessionInsightsResult SessionInsights => context.SessionInsights;
 

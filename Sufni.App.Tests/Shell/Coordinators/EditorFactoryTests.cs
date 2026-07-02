@@ -18,6 +18,7 @@ using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.LiveDaq.ViewModels.Editors;
 using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Insights.Services;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Processing.SessionDetails;
@@ -255,8 +256,18 @@ public class EditorFactoryTests
             DampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(bikeId, 0));
     }
 
-    private static EditorFactory CreateFactory(CapturingShellCoordinator shell) =>
-        new(
+    private static EditorFactory CreateFactory(CapturingShellCoordinator shell)
+    {
+        var sessionPresentationService = Substitute.For<ISessionPresentationService>();
+        var sessionAnalysisService = Substitute.For<ISessionInsightsService>();
+        var uiThreadDispatcher = new InlineUiThreadDispatcher();
+        var backgroundTaskRunner = new InlineBackgroundTaskRunner();
+        var analysisResultStateFactory = new RecordedSessionAnalysisResultStateFactory(
+            new RecordedSessionAnalysisComputer(sessionPresentationService, sessionAnalysisService),
+            backgroundTaskRunner,
+            uiThreadDispatcher);
+
+        return new EditorFactory(
             TestCoordinatorSubstitutes.Bike(),
             Substitute.For<IBikeDependencyQuery>(),
             Substitute.For<IBikeStore>(),
@@ -265,8 +276,8 @@ public class EditorFactoryTests
             TestCoordinatorSubstitutes.Track(),
             Substitute.For<ISessionStore>(),
             Substitute.For<IRecordedSessionProjection>(),
-            Substitute.For<ISessionPresentationService>(),
-            Substitute.For<ISessionInsightsService>(),
+            sessionPresentationService,
+            analysisResultStateFactory,
             new TestMapViewModelFactory(Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges()),
             Substitute.For<ISessionPreferences>(),
             Substitute.For<IRecordedSessionProcessingOptionCache>(),
@@ -278,13 +289,14 @@ public class EditorFactoryTests
             Substitute.For<ILiveDaqStore>(),
             shell,
             Substitute.For<IDialogService>(),
-            new InlineUiThreadDispatcher(),
+            uiThreadDispatcher,
             new DesktopSessionLayoutStrategy(),
             Array.Empty<IRecordedSessionExtensionFactory>(),
             Substitute.For<IExtensionDatabaseConnection>(),
             Substitute.For<IRecordedSessionDataReader>(),
-            new InlineBackgroundTaskRunner(),
+            backgroundTaskRunner,
             () => throw new InvalidOperationException("The import-sessions resolver should not run in these tests."));
+    }
 
     private sealed class CapturingShellCoordinator : IShellCoordinator
     {

@@ -41,6 +41,7 @@ using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.MapsAndTracks.ViewModels;
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Insights.Services;
 using Sufni.App.Sessions.Insights.Services.SessionInsights;
 using Sufni.App.Sessions.Coordination;
@@ -159,6 +160,8 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IBikeEditorService, BikeEditorService>();
         ServiceCollection.AddSingleton<ISessionPresentationService, SessionPresentationService>();
         ServiceCollection.AddSingleton<ISessionInsightsService, SessionInsightsService>();
+        ServiceCollection.AddSingleton<IRecordedSessionAnalysisComputer, RecordedSessionAnalysisComputer>();
+        ServiceCollection.AddSingleton<IRecordedSessionAnalysisResultStateFactory, RecordedSessionAnalysisResultStateFactory>();
         ServiceCollection.AddSingleton<ISessionTelemetryProcessor, SessionTelemetryProcessor>();
         ServiceCollection.AddSingleton<ISessionProcessedTelemetryReader, SessionProcessedTelemetryReader>();
         ServiceCollection.AddSingleton<IDaqManagementService, DaqManagementService>();

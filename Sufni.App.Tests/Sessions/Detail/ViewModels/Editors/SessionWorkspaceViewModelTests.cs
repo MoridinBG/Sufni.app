@@ -10,6 +10,7 @@ using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Analysis.ViewModels.Editors;
 using Sufni.App.Shared.Base;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
@@ -157,7 +158,8 @@ public class SessionWorkspaceViewModelTests
         var workspace = new SessionAnalysisWorkspaceViewModel(
             context,
             gateway,
-            new RelayCommand<TelemetryRangeSelection?>(_ => { }));
+            new RelayCommand<TelemetryRangeSelection?>(_ => { }),
+            Substitute.For<IRecordedSessionAnalysisResultState>());
         return (context, gateway, workspace);
     }
 

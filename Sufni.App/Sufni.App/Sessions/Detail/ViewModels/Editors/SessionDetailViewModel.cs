@@ -29,7 +29,7 @@ using Sufni.App.Extensibility.Views;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.ViewModels;
-using Sufni.App.Sessions.Insights.Services;
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Insights.ViewModels.SessionPages;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
@@ -40,7 +40,6 @@ using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
-using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Analysis.ViewModels.Editors;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Shared.Base;
@@ -86,14 +85,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IBikeCoordinator? bikeCoordinator;
     private readonly ISessionStore sessionStore;
     private readonly IRecordedSessionProjection recordedSessionProjection;
-    private readonly ISessionPresentationService sessionPresentationService;
-    private readonly ISessionInsightsService sessionAnalysisService;
     private readonly ISessionProcessedTelemetryReader processedTelemetryReader;
     private readonly RecordedSessionExtensionSlots emptyExtensionSlots = new();
     private readonly RecordedSessionExtensionManager? recordedSessionExtensions;
     private readonly RecordedSessionOperationCoordinator? recordedSessionOperationCoordinator;
     private readonly SessionStalenessReconciler stalenessReconciler;
     private readonly IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache;
+    private readonly IRecordedSessionAnalysisResultState analysisResultState;
+    private readonly IDisposable analysisResultSubscription;
     private bool observedInitialDomain;
     private RecordedSessionDomainSnapshot? deferredDomain;
     private readonly AnalysisSelectionController analysisSelectionController = new();
@@ -113,6 +112,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private SessionPresentationDimensions? lastPresentationDimensions;
     private double? pendingAnalysisRangeBoundary;
     private RecordedSessionTimelineAlignmentMark? pendingTimelineAlignmentMark;
+    private RecordedSessionAnalysisInputs analysisInputs;
+    private int telemetryGeneration;
+    private bool requestInsightsAfterDamping;
     private bool suppressDirtinessEvaluation;
     private bool suppressInsightsRecompute;
     // Set when the user declines to reload after an external metadata edit landed
@@ -270,19 +272,130 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         ApplyDampingPercentages(SessionDampingPercentages.Empty);
     }
 
-    private void RecomputeDampingPercentagesForAnalysisRange()
+    private RecordedSessionAnalysisInputs CreateCurrentAnalysisInputs() =>
+        new(
+            telemetryGeneration,
+            SessionContext.AnalysisRange,
+            SessionContext.SelectedTravelDistributionMode,
+            SessionContext.SelectedVelocityAverageMode,
+            SessionContext.SelectedBalanceDisplacementMode,
+            SessionContext.SelectedBalanceSpeedMode,
+            SessionContext.DampingSpeedCutoffs,
+            SessionContext.DampingPercentages,
+            SessionContext.SelectedSessionInsightsTargetProfile);
+
+    private void InvalidateAnalysisInputs()
     {
+        var currentInputs = CreateCurrentAnalysisInputs();
+        if (currentInputs == analysisInputs)
+        {
+            return;
+        }
+
+        analysisInputs = currentInputs;
+        analysisResultState.Invalidate(currentInputs);
+        requestInsightsAfterDamping = false;
+    }
+
+    private void RequestAnalysisResult(RecordedSessionAnalysisKey key)
+    {
+        if (analysisResultState.Get(key) is { } cached)
+        {
+            ApplyAnalysisResult(key, cached);
+            return;
+        }
+
+        _ = analysisResultState.RequestAsync(key);
+    }
+
+    private void RequestCurrentDampingPercentages()
+    {
+        InvalidateAnalysisInputs();
+        requestInsightsAfterDamping = false;
         if (SessionContext.TelemetryData is null)
         {
             ClearDampingPercentages();
             return;
         }
 
-        ApplyDampingPercentages(sessionPresentationService.CalculateDampingPercentages(
-            SessionContext.TelemetryData,
-            SessionContext.AnalysisRange,
-            SessionContext.SelectedVelocityAverageMode,
-            SessionContext.DampingSpeedCutoffs));
+        RequestAnalysisResult(analysisInputs.DampingPercentagesKey);
+    }
+
+    private void RequestCurrentSessionInsights()
+    {
+        InvalidateAnalysisInputs();
+        requestInsightsAfterDamping = false;
+        if (SessionContext.TelemetryData is null)
+        {
+            SessionContext.SessionInsights = SessionInsightsResult.Hidden;
+            return;
+        }
+
+        RequestAnalysisResult(analysisInputs.SessionInsightsKey);
+    }
+
+    private void RequestCurrentAnalysisResults(bool includeInsights)
+    {
+        InvalidateAnalysisInputs();
+        if (SessionContext.TelemetryData is null)
+        {
+            requestInsightsAfterDamping = false;
+            ClearDampingPercentages();
+            if (includeInsights)
+            {
+                SessionContext.SessionInsights = SessionInsightsResult.Hidden;
+            }
+
+            return;
+        }
+
+        requestInsightsAfterDamping = includeInsights;
+        RequestAnalysisResult(analysisInputs.DampingPercentagesKey);
+    }
+
+    private void OnAnalysisResultChanged(RecordedSessionAnalysisResultChanged change)
+    {
+        if (!change.Key.Matches(analysisInputs))
+        {
+            return;
+        }
+
+        if (change.Error is not null)
+        {
+            ErrorMessages.Add($"Failed to update session analysis: {change.Error.Message}");
+            return;
+        }
+
+        if (change.Result is not null)
+        {
+            ApplyAnalysisResult(change.Key, change.Result);
+        }
+    }
+
+    private void ApplyAnalysisResult(
+        RecordedSessionAnalysisKey key,
+        RecordedSessionAnalysisResult result)
+    {
+        if (!key.Matches(analysisInputs))
+        {
+            return;
+        }
+
+        switch (result)
+        {
+            case DampingPercentagesAnalysisResult damping:
+                ApplyDampingPercentages(damping.Percentages);
+                if (requestInsightsAfterDamping)
+                {
+                    requestInsightsAfterDamping = false;
+                    RequestCurrentSessionInsights();
+                }
+
+                break;
+            case SessionInsightsAnalysisResult insights:
+                SessionContext.SessionInsights = insights.Insights;
+                break;
+        }
     }
 
     internal void ApplyModeAwareDampingPercentages(SessionDampingPercentages sampleAveragedPercentages)
@@ -299,33 +412,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        RecomputeDampingPercentagesForAnalysisRange();
-    }
-
-    private void RecomputeSessionInsightsIfAllowed()
-    {
-        if (suppressInsightsRecompute)
-        {
-            return;
-        }
-
-        RecomputeSessionInsights();
+        RequestCurrentDampingPercentages();
     }
 
     internal void RecomputeSessionInsights()
     {
-        SessionContext.SessionInsights = sessionAnalysisService.Analyze(new SessionInsightsRequest(
-            SessionContext.TelemetryData,
-            SessionContext.AnalysisRange,
-            SessionContext.SelectedTravelDistributionMode,
-            SessionContext.SelectedVelocityAverageMode,
-            SessionContext.SelectedBalanceDisplacementMode,
-            SessionContext.SelectedBalanceSpeedMode,
-            SessionContext.DampingPercentages,
-            SessionContext.SelectedSessionInsightsTargetProfile)
-        {
-            DampingSpeedCutoffs = SessionContext.DampingSpeedCutoffs,
-        });
+        RequestCurrentSessionInsights();
     }
 
     internal Guid? CurrentSessionFullTrack => session.FullTrack;
@@ -867,8 +959,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         ITrackCoordinator trackCoordinator,
         ISessionStore sessionStore,
         IRecordedSessionProjection recordedSessionProjection,
-        ISessionPresentationService sessionPresentationService,
-        ISessionInsightsService sessionAnalysisService,
         IMapViewModelFactory mapViewModelFactory,
         IShellCoordinator shell,
         IDialogService dialogService,
@@ -877,6 +967,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         ISessionLayoutStrategy layoutStrategy,
         IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache,
         ISessionProcessedTelemetryReader processedTelemetryReader,
+        IRecordedSessionAnalysisResultStateFactory analysisResultStateFactory,
         IBikeCoordinator? bikeCoordinator = null,
         ExtensionHostDependencies? extensionHost = null)
         : base(shell, dialogService, uiThreadDispatcher)
@@ -889,10 +980,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         this.bikeCoordinator = bikeCoordinator;
         this.sessionStore = sessionStore;
         this.recordedSessionProjection = recordedSessionProjection;
-        this.sessionPresentationService = sessionPresentationService;
-        this.sessionAnalysisService = sessionAnalysisService;
         this.processedTelemetryReader = processedTelemetryReader;
         this.recordedSessionProcessingOptionCache = recordedSessionProcessingOptionCache;
+        analysisResultState = analysisResultStateFactory.Create(() => SessionContext.TelemetryData);
+        analysisInputs = CreateCurrentAnalysisInputs();
+        analysisResultState.Invalidate(analysisInputs);
+        analysisResultSubscription = analysisResultState.Connect().Subscribe(OnAnalysisResultChanged);
         recordedPreferenceStore = new RecordedPreferenceStore(
             sessionPreferences,
             () => Id,
@@ -922,7 +1015,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         AnalysisWorkspace = new SessionAnalysisWorkspaceViewModel(
             SessionContext,
             this,
-            SelectAnalysisRangeCommand);
+            SelectAnalysisRangeCommand,
+            analysisResultState);
         SidebarWorkspace = new SessionSidebarWorkspaceViewModel(
             this,
             () => Name,
@@ -1077,6 +1171,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         switch (args.PropertyName)
         {
             case nameof(RecordedSessionContext.TelemetryData):
+                telemetryGeneration++;
                 IsComplete = SessionContext.TelemetryData != null;
                 NotesPage.SetTemperatureAverages(SessionContext.TelemetryData?.TemperatureAverages ?? []);
                 pendingAnalysisRangeBoundary = null;
@@ -1096,16 +1191,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                     break;
                 }
 
-                RecomputeDampingPercentagesForAnalysisRange();
-                RecomputeSessionInsightsIfAllowed();
+                RequestCurrentAnalysisResults(!suppressInsightsRecompute);
                 UpdateRecordedSessionExtensionHostState();
                 break;
             case nameof(RecordedSessionContext.AnalysisRange):
                 OnPropertyChanged(nameof(SessionAnalysisRangeText));
                 ClearAnalysisSelections();
                 presentationApplier.RefreshAnalysisRangeStates();
-                RecomputeDampingPercentagesForAnalysisRange();
-                RecomputeSessionInsightsIfAllowed();
+                RequestCurrentAnalysisResults(!suppressInsightsRecompute);
                 UpdateRecordedSessionExtensionHostState();
                 break;
             case nameof(RecordedSessionContext.SelectedTravelDistributionMode):
@@ -1123,8 +1216,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             case nameof(RecordedSessionContext.SelectedVelocityAverageMode):
                 ClearDampingRangeSelections();
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
-                RecomputeDampingPercentagesForAnalysisRange();
-                RecomputeSessionInsights();
+                RequestCurrentAnalysisResults(includeInsights: true);
                 PersistRecordedAnalysisPreferencesIfEnabled();
                 UpdateRecordedSessionExtensionHostState();
                 break;
@@ -1133,8 +1225,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 PersistRecordedAnalysisPreferencesIfEnabled();
                 break;
             case nameof(RecordedSessionContext.DampingSpeedCutoffs):
-                RecomputeDampingPercentagesForAnalysisRange();
-                RecomputeSessionInsightsIfAllowed();
+                RequestCurrentAnalysisResults(!suppressInsightsRecompute);
                 UpdateRecordedSessionExtensionHostState();
                 break;
             case nameof(RecordedSessionContext.FullTrackPoints):
@@ -1341,6 +1432,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     protected override async Task CloseImplementation()
     {
         await StopLoadedSessionAsync();
+        analysisResultSubscription.Dispose();
+        analysisResultState.Dispose();
         MapViewModel?.Dispose();
     }
 

@@ -15,6 +15,7 @@ using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.MapsAndTracks.ViewModels;
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
@@ -129,6 +130,7 @@ public interface ISessionAnalysisWorkspace
     DampingSpeedCutoffs DampingSpeedCutoffs { get; }
     DampingSpeedCutoffs PlotDampingSpeedCutoffs { get; }
     bool CanEditDampingSpeedCutoffs { get; }
+    IRecordedSessionAnalysisResultState? AnalysisResultState => null;
     SessionInsightsResult SessionInsights { get; }
     IRelayCommand<TelemetryRangeSelection?> SelectAnalysisRangeCommand { get; }
     TelemetryRangeSelection? ActiveFrontAnalysisSelection { get; }

@@ -20,6 +20,7 @@ using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Insights.Services;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
@@ -88,22 +89,26 @@ public class SessionDetailViewModelTests
         recordedSessionProjection.WatchSession(snapshot.Id).Returns(watch ?? Observable.Empty<RecordedSessionDomainSnapshot>());
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         var preferencesService = sessionPreferences ?? CreateSessionPreferences();
+        var dispatcher = uiThreadDispatcher ?? new InlineUiThreadDispatcher();
+        var analysisResultStateFactory = new RecordedSessionAnalysisResultStateFactory(
+            new RecordedSessionAnalysisComputer(sessionPresentationService, sessionAnalysisService),
+            new InlineBackgroundTaskRunner(),
+            dispatcher);
         return new SessionDetailViewModel(
             snapshot,
             sessionCoordinator,
             trackCoordinator,
             sessionStore,
             recordedSessionProjection,
-            sessionPresentationService,
-            sessionAnalysisService,
             new TestMapViewModelFactory(tileLayerService),
             shell,
             dialogService,
             preferencesService,
-            uiThreadDispatcher ?? new InlineUiThreadDispatcher(),
+            dispatcher,
             layoutStrategy ?? new DesktopSessionLayoutStrategy(),
             processingOptionCache ?? new InMemoryRecordedSessionProcessingOptionCache(),
             processedTelemetryReader ?? new TestSessionProcessedTelemetryReader(),
+            analysisResultStateFactory,
             bikeCoordinator,
             new ExtensionHostDependencies(
                 recordedSessionExtensionFactories ?? [],
@@ -1516,7 +1521,7 @@ public class SessionDetailViewModelTests
         };
         syncStream.OnNext(synced);
 
-        Assert.Equal(beforeInvokeCount + 1, dispatcher.InvokeCount);
+        Assert.Equal(beforeInvokeCount + 2, dispatcher.InvokeCount);
         Assert.Equal(TravelDistributionMode.DynamicSag, editor.SessionContext.SelectedTravelDistributionMode);
         await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
     }
@@ -1676,21 +1681,19 @@ public class SessionDetailViewModelTests
         sessionPresentationService
             .CalculateDampingPercentages(
                 telemetry,
-                Arg.Is<TelemetryTimeRange?>(range => range.HasValue),
+                Arg.Any<TelemetryTimeRange?>(),
                 Arg.Any<VelocityAverageMode>(),
                 Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(rangePercentages);
-        sessionPresentationService
-            .CalculateDampingPercentages(
-                telemetry,
-                Arg.Is<TelemetryTimeRange?>(range => !range.HasValue),
-                Arg.Any<VelocityAverageMode>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(fullSessionPercentages);
+            .Returns(call =>
+            {
+                var range = (TelemetryTimeRange?)call[1];
+                return range.HasValue ? rangePercentages : fullSessionPercentages;
+            });
 
         var editor = CreateEditor(snapshot);
         editor.SessionContext.TelemetryData = telemetry;
         editor.SetAnalysisRange(0.02, 0.16);
+        Assert.NotNull(editor.SessionContext.AnalysisRange);
 
         editor.ClearAnalysisRange();
 

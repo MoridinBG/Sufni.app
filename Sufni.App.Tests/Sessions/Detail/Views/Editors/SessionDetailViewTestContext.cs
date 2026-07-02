@@ -11,6 +11,7 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Insights.Services;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Detail.DesktopViews.Editors;
@@ -170,24 +171,28 @@ internal sealed class SessionDetailViewTestContext
 
     private SessionDetailViewModel CreateEditor(SessionSnapshot snapshot, bool isDesktopLayout = true)
     {
+        var dispatcher = new InlineUiThreadDispatcher();
+        var analysisResultStateFactory = new RecordedSessionAnalysisResultStateFactory(
+            new RecordedSessionAnalysisComputer(sessionPresentationService, sessionAnalysisService),
+            new InlineBackgroundTaskRunner(),
+            dispatcher);
         return new SessionDetailViewModel(
             snapshot,
             sessionCoordinator,
             trackCoordinator,
             sessionStore,
             recordedSessionProjection,
-            sessionPresentationService,
-            sessionAnalysisService,
             new TestMapViewModelFactory(tileLayerService),
             shell,
             dialogService,
             sessionPreferences,
-            new InlineUiThreadDispatcher(),
+            dispatcher,
             isDesktopLayout
                 ? new DesktopSessionLayoutStrategy()
                 : new MobileSessionLayoutStrategy(),
             new InMemoryRecordedSessionProcessingOptionCache(),
-            new TestSessionProcessedTelemetryReader());
+            new TestSessionProcessedTelemetryReader(),
+            analysisResultStateFactory);
     }
 }
 
