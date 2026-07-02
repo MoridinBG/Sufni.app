@@ -38,13 +38,13 @@ public class ModelJsonTests
     [Fact]
     public void BikeFromJson_RoundTripsLinkageSpec()
     {
-        var linkage = CreateSimpleLinkage();
+        var linkage = CreateSimpleLinkageSpec();
         var bike = new Bike(Guid.NewGuid(), "linkage bike")
         {
             HeadAngle = 64,
             ForkStroke = 150,
             ShockStroke = linkage.ShockStroke,
-            RearSuspension = new RearSuspensionSpec.Linkage(linkage.ToSpec()),
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage),
         };
 
         var imported = Bike.FromJson(bike.ToJson());
@@ -52,7 +52,7 @@ public class ModelJsonTests
         Assert.NotNull(imported);
         var importedLinkage = Assert.IsType<RearSuspensionSpec.Linkage>(imported!.RearSuspension);
         Assert.Equal(0.5, imported.ShockStroke);
-        Assert.Equal(linkage.ToSpec(), importedLinkage.Spec);
+        Assert.Equal(linkage, importedLinkage.Spec);
     }
 
     [Fact]
@@ -131,26 +131,21 @@ public class ModelJsonTests
         Assert.Null(point.Epe3d);
     }
 
-    private static Linkage CreateSimpleLinkage()
+    private static LinkageSpec CreateSimpleLinkageSpec()
     {
         var mapping = new JointNameMapping();
-        var bottomBracket = new Joint(mapping.BottomBracket, JointType.BottomBracket, 0, 0);
-        var rearWheel = new Joint(mapping.RearWheel, JointType.RearWheel, 4, 0);
-        var shockEye1 = new Joint(mapping.ShockEye1, JointType.Floating, 4, 3);
-        var shockEye2 = new Joint(mapping.ShockEye2, JointType.Fixed, 0, 3);
-
-        var linkage = new Linkage
-        {
-            Joints = [bottomBracket, rearWheel, shockEye1, shockEye2],
-            Links =
+        return new LinkageSpec(
             [
-                new Link(bottomBracket, rearWheel),
-                new Link(rearWheel, shockEye1),
+                new JointSpec(mapping.BottomBracket, JointType.BottomBracket, 0, 0),
+                new JointSpec(mapping.RearWheel, JointType.RearWheel, 4, 0),
+                new JointSpec(mapping.ShockEye1, JointType.Floating, 4, 3),
+                new JointSpec(mapping.ShockEye2, JointType.Fixed, 0, 3)
             ],
-            Shock = new Link(shockEye1, shockEye2),
-            ShockStroke = 0.5,
-        };
-        linkage.ResolveJoints();
-        return linkage;
+            [
+                new LinkSpec(mapping.BottomBracket, mapping.RearWheel),
+                new LinkSpec(mapping.RearWheel, mapping.ShockEye1)
+            ],
+            new LinkSpec(mapping.ShockEye1, mapping.ShockEye2),
+            0.5);
     }
 }
