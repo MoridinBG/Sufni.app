@@ -241,6 +241,41 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
+    public async Task NewBikeRows_WriteRearSuspensionColumn()
+    {
+        using var tempDatabase = new TempDatabase("new-bike-rear-suspension.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec();
+        var bike = new Bike(Guid.NewGuid(), "new linkage bike")
+        {
+            HeadAngle = 64,
+            ForkStroke = 150,
+            ShockStroke = linkage.ShockStroke,
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage),
+            Updated = 1,
+            ClientUpdated = 1,
+        };
+        var database = new TestPersistenceHarness(databasePath);
+
+        await database.PutAsync(bike);
+
+        using var connection = new SQLiteConnection(databasePath);
+        var columns = connection.Query<TableColumnInfo>("PRAGMA table_info(bike)");
+        Assert.Contains(columns, column => column.Name == "rear_suspension");
+        Assert.DoesNotContain(columns, column => column.Name == "rear_suspension_kind");
+        Assert.DoesNotContain(columns, column => column.Name == "linkage");
+        Assert.DoesNotContain(columns, column => column.Name == "leverage_ratio");
+
+        var rearSuspensionJson = connection.ExecuteScalar<string>(
+            "SELECT rear_suspension FROM bike WHERE id = ?",
+            bike.Id.ToString());
+        var persistedRearSuspension = RearSuspensionJsonCodec.Deserialize(rearSuspensionJson);
+
+        var persistedLinkage = Assert.IsType<RearSuspensionSpec.Linkage>(persistedRearSuspension);
+        Assert.Equal(linkage, persistedLinkage.Spec);
+    }
+
+    [Fact]
     public async Task Initialization_CreatesReactiveSessionPersistenceSchema()
     {
         using var tempDatabase = new TempDatabase("reactive-schema.db");
