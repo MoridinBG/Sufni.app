@@ -369,10 +369,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
             ForksStroke,
             ShockStroke,
             rearSuspension,
-            acceptedSnapshot.FrontCompressionDampingCutoffMmPerSecond,
-            acceptedSnapshot.FrontReboundDampingCutoffMmPerSecond,
-            acceptedSnapshot.RearCompressionDampingCutoffMmPerSecond,
-            acceptedSnapshot.RearReboundDampingCutoffMmPerSecond,
+            acceptedSnapshot.DampingSpeedCutoffs,
             RearSuspensionMode == BikeRearSuspensionMode.Linkage ? Chainstay : null,
             pixelsToMillimeters,
             WheelSpec.FromValues(

@@ -17,10 +17,7 @@ public sealed record BikeSnapshot(
     double? ForkStroke,
     double? ShockStroke,
     RearSuspensionSpec RearSuspension,
-    double FrontCompressionDampingCutoffMmPerSecond,
-    double FrontReboundDampingCutoffMmPerSecond,
-    double RearCompressionDampingCutoffMmPerSecond,
-    double RearReboundDampingCutoffMmPerSecond,
+    DampingSpeedCutoffs DampingSpeedCutoffs,
     double? Chainstay,
     double PixelsToMillimeters,
     WheelSpec? FrontWheel,
@@ -34,6 +31,46 @@ public sealed record BikeSnapshot(
     public LinkageSpec? Linkage => (RearSuspension as RearSuspensionSpec.Linkage)?.Spec;
 
     public LeverageRatioSpec? LeverageRatio => (RearSuspension as RearSuspensionSpec.LeverageRatio)?.Spec;
+
+    public double FrontCompressionDampingCutoffMmPerSecond
+    {
+        get => DampingSpeedCutoffs.Front.CompressionMmPerSecond;
+        init => DampingSpeedCutoffs = DampingSpeedCutoffs.FromValues(
+            value,
+            DampingSpeedCutoffs.Front.ReboundMmPerSecond,
+            DampingSpeedCutoffs.Rear.CompressionMmPerSecond,
+            DampingSpeedCutoffs.Rear.ReboundMmPerSecond);
+    }
+
+    public double FrontReboundDampingCutoffMmPerSecond
+    {
+        get => DampingSpeedCutoffs.Front.ReboundMmPerSecond;
+        init => DampingSpeedCutoffs = DampingSpeedCutoffs.FromValues(
+            DampingSpeedCutoffs.Front.CompressionMmPerSecond,
+            value,
+            DampingSpeedCutoffs.Rear.CompressionMmPerSecond,
+            DampingSpeedCutoffs.Rear.ReboundMmPerSecond);
+    }
+
+    public double RearCompressionDampingCutoffMmPerSecond
+    {
+        get => DampingSpeedCutoffs.Rear.CompressionMmPerSecond;
+        init => DampingSpeedCutoffs = DampingSpeedCutoffs.FromValues(
+            DampingSpeedCutoffs.Front.CompressionMmPerSecond,
+            DampingSpeedCutoffs.Front.ReboundMmPerSecond,
+            value,
+            DampingSpeedCutoffs.Rear.ReboundMmPerSecond);
+    }
+
+    public double RearReboundDampingCutoffMmPerSecond
+    {
+        get => DampingSpeedCutoffs.Rear.ReboundMmPerSecond;
+        init => DampingSpeedCutoffs = DampingSpeedCutoffs.FromValues(
+            DampingSpeedCutoffs.Front.CompressionMmPerSecond,
+            DampingSpeedCutoffs.Front.ReboundMmPerSecond,
+            DampingSpeedCutoffs.Rear.CompressionMmPerSecond,
+            value);
+    }
 
     public double? FrontWheelDiameterMm
     {
@@ -71,12 +108,6 @@ public sealed record BikeSnapshot(
         init => RearWheel = WheelSpec.FromValues(RearWheel?.DiameterMm, RearWheel?.RimSize, value);
     }
 
-    public DampingSpeedCutoffs DampingSpeedCutoffs => DampingSpeedCutoffs.FromValues(
-        FrontCompressionDampingCutoffMmPerSecond,
-        FrontReboundDampingCutoffMmPerSecond,
-        RearCompressionDampingCutoffMmPerSecond,
-        RearReboundDampingCutoffMmPerSecond);
-
     public static BikeSnapshot From(Bike bike) => new(
         bike.Id,
         bike.Name,
@@ -84,10 +115,7 @@ public sealed record BikeSnapshot(
         bike.ForkStroke,
         bike.ShockStroke,
         bike.RearSuspension,
-        bike.FrontCompressionDampingCutoffMmPerSecond,
-        bike.FrontReboundDampingCutoffMmPerSecond,
-        bike.RearCompressionDampingCutoffMmPerSecond,
-        bike.RearReboundDampingCutoffMmPerSecond,
+        bike.DampingSpeedCutoffs,
         bike.Chainstay,
         bike.PixelsToMillimeters,
         WheelSpec.FromValues(bike.FrontWheelDiameterMm, bike.FrontWheelRimSize, bike.FrontWheelTireWidth),

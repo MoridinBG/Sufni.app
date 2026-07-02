@@ -1,5 +1,6 @@
 using System;
 
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Tests.TestSupport.Fixtures;
@@ -39,6 +40,7 @@ public class BikeSnapshotTests
 
         var snapshot = BikeSnapshot.From(bike);
 
+        Assert.Equal(DampingSpeedCutoffs.FromValues(120, 130, 240, 250), snapshot.DampingSpeedCutoffs);
         Assert.Equal(120, snapshot.FrontCompressionDampingCutoffMmPerSecond);
         Assert.Equal(130, snapshot.FrontReboundDampingCutoffMmPerSecond);
         Assert.Equal(240, snapshot.RearCompressionDampingCutoffMmPerSecond);

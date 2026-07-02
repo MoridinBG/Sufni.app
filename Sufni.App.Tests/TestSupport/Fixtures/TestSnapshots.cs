@@ -1,5 +1,6 @@
 using Sufni.Kinematics;
 
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
@@ -23,10 +24,7 @@ public static class TestSnapshots
         ForkStroke: 160,
         ShockStroke: null,
         RearSuspension: new RearSuspensionSpec.Hardtail(),
-        FrontCompressionDampingCutoffMmPerSecond: 200,
-        FrontReboundDampingCutoffMmPerSecond: 200,
-        RearCompressionDampingCutoffMmPerSecond: 200,
-        RearReboundDampingCutoffMmPerSecond: 200,
+        DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
         Chainstay: null,
         PixelsToMillimeters: 0,
         FrontWheel: null,
