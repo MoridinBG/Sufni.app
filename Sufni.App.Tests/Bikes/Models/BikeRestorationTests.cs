@@ -47,6 +47,20 @@ public class BikeRestorationTests
     }
 
     [Fact]
+    public void FromSnapshot_CopiesImageBytes()
+    {
+        var snapshot = TestSnapshots.Bike() with
+        {
+            ImageBytes = [1, 2, 3],
+        };
+
+        var restored = Bike.FromSnapshot(snapshot);
+        restored.ImageBytes[0] = 9;
+
+        Assert.Equal([1, 2, 3], snapshot.ImageBytes);
+    }
+
+    [Fact]
     public void WithShockStroke_OnLinkageBike_RebuildsLinkageSpecWithoutMutatingOriginal()
     {
         var linkage = TestSnapshots.FullSuspensionLinkageSpec();

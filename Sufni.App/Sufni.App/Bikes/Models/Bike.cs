@@ -175,7 +175,7 @@ public class Bike : Synchronizable
         RearWheelRimSize = snapshot.RearWheelRimSize,
         RearWheelTireWidth = snapshot.RearWheelTireWidth,
         ImageRotationDegrees = snapshot.ImageRotationDegrees,
-        ImageBytes = snapshot.ImageBytes,
+        ImageBytes = [.. snapshot.ImageBytes],
         Updated = snapshot.Updated,
     };
 
@@ -276,7 +276,7 @@ internal sealed record BikeExportDocument(
             WheelSpec.FromValues(bike.FrontWheelDiameterMm, bike.FrontWheelRimSize, bike.FrontWheelTireWidth),
             WheelSpec.FromValues(bike.RearWheelDiameterMm, bike.RearWheelRimSize, bike.RearWheelTireWidth),
             bike.ImageRotationDegrees,
-            bike.ImageBytes);
+            [.. bike.ImageBytes]);
     }
 
     public Bike ToBike()
@@ -296,7 +296,7 @@ internal sealed record BikeExportDocument(
             RearWheelRimSize = RearWheel?.RimSize,
             RearWheelTireWidth = RearWheel?.TireWidth,
             ImageRotationDegrees = ImageRotationDegrees,
-            ImageBytes = ImageBytes
+            ImageBytes = [.. ImageBytes]
         };
         return bike;
     }
