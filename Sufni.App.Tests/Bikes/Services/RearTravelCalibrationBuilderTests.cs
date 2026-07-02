@@ -131,8 +131,9 @@ public class RearTravelCalibrationBuilderTests
                 Resolution = 4,
             })
         };
+        var kinematicSolutionCache = new TrackingKinematicSolutionCache();
 
-        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var success = TryBuild(setup, bike, out var calibration, out var errorMessage, kinematicSolutionCache);
 
         Assert.True(success);
         Assert.Null(errorMessage);
@@ -141,6 +142,26 @@ public class RearTravelCalibrationBuilderTests
         Assert.False(calibration.MeasurementWraps);
         Assert.True(calibration.MeasurementToTravel(5) > 0);
         Assert.Equal(calibration.MaxTravel, calibration.MeasurementToTravel(15), 6);
+        Assert.Equal(1, kinematicSolutionCache.GetOrSolveCount);
+    }
+
+    [Fact]
+    public void TryBuild_ReturnsSuccessfulNullCalibration_ForHardtail()
+    {
+        var bike = new Bike(Guid.NewGuid(), "hardtail")
+        {
+            RearSuspension = new RearSuspensionSpec.Hardtail(),
+        };
+        var setup = new Setup(Guid.NewGuid(), "hardtail setup")
+        {
+            BikeId = bike.Id,
+        };
+
+        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
+
+        Assert.True(success);
+        Assert.Null(calibration);
+        Assert.Null(errorMessage);
     }
 
     public static TheoryData<RearSuspensionSpec> DraftRearSuspensions => new()
@@ -214,8 +235,9 @@ public class RearTravelCalibrationBuilderTests
                 AdjacentJoint2 = mapping.ShockEye1,
             })
         };
+        var kinematicSolutionCache = new TrackingKinematicSolutionCache();
 
-        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var success = TryBuild(setup, bike, out var calibration, out var errorMessage, kinematicSolutionCache);
 
         Assert.True(success);
         Assert.Null(errorMessage);
@@ -225,6 +247,7 @@ public class RearTravelCalibrationBuilderTests
         Assert.True(double.IsFinite(calibration.MeasurementToTravel(0)));
         Assert.True(double.IsFinite(calibration.MeasurementToTravel(128)));
         Assert.NotEqual(calibration.MeasurementToTravel(0), calibration.MeasurementToTravel(128));
+        Assert.Equal(1, kinematicSolutionCache.GetOrSolveCount);
     }
 
     [Fact]
@@ -284,10 +307,27 @@ public class RearTravelCalibrationBuilderTests
         Setup setup,
         Bike bike,
         out RearTravelCalibration? calibration,
-        out string? errorMessage) =>
-        RearTravelCalibrationBuilder.TryBuild(
+        out string? errorMessage,
+        IKinematicSolutionCache? kinematicSolutionCache = null)
+    {
+        var builder = new RearTravelCalibrationBuilder(kinematicSolutionCache ?? new KinematicSolutionCache());
+        var result = builder.TryBuild(
             SetupSnapshot.From(setup, boardId: null),
-            BikeSnapshot.From(bike),
-            out calibration,
-            out errorMessage);
+            BikeSnapshot.From(bike));
+
+        calibration = result.Calibration;
+        errorMessage = result.ErrorMessage;
+        return result.Succeeded;
+    }
+
+    private sealed class TrackingKinematicSolutionCache : IKinematicSolutionCache
+    {
+        public int GetOrSolveCount { get; private set; }
+
+        public KinematicSolution GetOrSolve(LinkageSpec linkage, int steps = 200, int iterations = 1000)
+        {
+            GetOrSolveCount++;
+            return new KinematicSolver(linkage, steps, iterations).SolveSuspensionMotion();
+        }
+    }
 }
