@@ -775,6 +775,50 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Save_OnDraftLinkage_RoutesDraftToCoordinator_AndAppendsValidationMessage()
+    {
+        var snapshot = TestSnapshots.Bike(updated: 5) with
+        {
+            RearSuspension = new RearSuspensionSpec.LinkageDraft(),
+        };
+        var editor = CreateEditor(snapshot);
+        editor.Name = "renamed";
+        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
+            .Returns(new BikeSaveResult.InvalidRearSuspension("Linkage data is required for linkage bikes."));
+
+        Assert.True(editor.SaveCommand.CanExecute(null));
+
+        await editor.SaveCommand.ExecuteAsync(null);
+
+        await bikeCoordinator.Received(1).SaveAsync(
+            Arg.Is<Bike>(bike => bike.RearSuspension is RearSuspensionSpec.LinkageDraft),
+            5);
+        Assert.Contains("Linkage data is required for linkage bikes.", editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public async Task Save_OnDraftLeverageRatio_RoutesDraftToCoordinator_AndAppendsValidationMessage()
+    {
+        var snapshot = TestSnapshots.Bike(updated: 5) with
+        {
+            RearSuspension = new RearSuspensionSpec.LeverageRatioDraft(),
+        };
+        var editor = CreateEditor(snapshot);
+        editor.Name = "renamed";
+        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
+            .Returns(new BikeSaveResult.InvalidRearSuspension("Leverage ratio data is required for leverage ratio bikes."));
+
+        Assert.True(editor.SaveCommand.CanExecute(null));
+
+        await editor.SaveCommand.ExecuteAsync(null);
+
+        await bikeCoordinator.Received(1).SaveAsync(
+            Arg.Is<Bike>(bike => bike.RearSuspension is RearSuspensionSpec.LeverageRatioDraft),
+            5);
+        Assert.Contains("Leverage ratio data is required for leverage ratio bikes.", editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
     public async Task Save_OnDesktop_AppliesAnalysisFromSavedResult_WithoutReloadingAnalysis()
     {
         var snapshot = TestSnapshots.Bike(updated: 5);

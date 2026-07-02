@@ -901,25 +901,11 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         var frontHasDiameter = WheelGeometry.FrontWheelDiameter.HasValue;
         var rearHasDiameter = WheelGeometry.RearWheelDiameter.HasValue;
         var wheelsValid = RearSuspensionMode == BikeRearSuspensionMode.LeverageRatio || frontHasDiameter == rearHasDiameter;
-        var rearSuspensionValid = RearSuspensionMode switch
-        {
-            BikeRearSuspensionMode.None => true,
-            BikeRearSuspensionMode.Linkage =>
-                ShockStroke is not null &&
-                ImageCanvas.Image is not null &&
-                Chainstay is not null &&
-                CreateCurrentLinkageSpec() is not null,
-            BikeRearSuspensionMode.LeverageRatio =>
-                ShockStroke is not null &&
-                LeverageRatioEditor.BuildCurrent() is not null,
-            _ => false,
-        };
 
         return IsDirty &&
                rearSuspensionLoadError is null &&
                HeadAngle is not null &&
                ForksStroke is not null &&
-               rearSuspensionValid &&
                wheelsValid;
     }
 
