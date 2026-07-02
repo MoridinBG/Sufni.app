@@ -461,7 +461,7 @@ public class SessionTelemetryWriterTests
     }
 
     [Fact]
-    public async Task PatchSessionTrackAsync_ReadsProcessedDurationOnlyWhenStoredDurationIsMissing()
+    public async Task PatchSessionTrackAsync_DoesNotReadProcessedDuration_WhenStoredDurationIsMissing()
     {
         var sessionRepository = Substitute.For<ISessionRepository>();
         var trackRepository = Substitute.For<ITrackRepository>();
@@ -469,9 +469,6 @@ public class SessionTelemetryWriterTests
         var cacheStore = Substitute.For<ISessionCacheStore>();
         var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor, cacheStore);
         var sessionId = Guid.NewGuid();
-        var raw = new byte[] { 9, 8, 7 };
-        var telemetryData = TestTelemetryData.CreateMinimal(duration: 42);
-        telemetryProcessor.Map(raw, telemetryData);
         var points = new List<TrackPoint>
         {
             new(100, 0, 0, 10),
@@ -479,7 +476,6 @@ public class SessionTelemetryWriterTests
         };
         sessionRepository.GetSessionAsync(sessionId)
             .Returns(new Session(sessionId, "session", "desc", null, 100));
-        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
         sessionRepository
             .UpdateSessionTrackAsync(
                 Arg.Any<Guid>(),
@@ -491,12 +487,12 @@ public class SessionTelemetryWriterTests
 
         await writer.PatchSessionTrackAsync(sessionId, points);
 
-        await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId);
-        Assert.Equal(1, telemetryProcessor.ReadProcessedDurationSecondsCallCount);
+        await sessionRepository.DidNotReceive().GetSessionRawPsstAsync(sessionId);
+        Assert.Equal(0, telemetryProcessor.ReadProcessedDurationSecondsCallCount);
         await sessionRepository.Received(1).UpdateSessionTrackAsync(
             sessionId,
             points,
-            Arg.Is<SessionSummaryMetrics>(metrics => metrics.DurationSeconds == 42),
+            Arg.Is<SessionSummaryMetrics>(metrics => metrics.DurationSeconds == null),
             null);
     }
 }

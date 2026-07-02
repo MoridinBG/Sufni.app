@@ -757,6 +757,67 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
+    public async Task LoadMobileDetailAsync_DownloadsMissingTelemetry_ThenReloadsThroughProcessedReader()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: false);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var transfer = new SessionDataTransfer(
+            Fingerprint: """{"schemaVersion":3}""",
+            Data: [1, 2, 3]);
+        var trackData = new SessionTrackPresentationData(null, null, null, null);
+        var cacheData = new SessionCachePresentationData(
+            "front-travel",
+            null,
+            "front-velocity",
+            null,
+            null,
+            null,
+            new SessionDampingPercentages(1, null, 2, null, 3, null, 4, null),
+            DampingSpeedCutoffs.Default,
+            false);
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
+        SetLocalTelemetry(snapshot.Id, null);
+        http.GetSessionPsstAsync(snapshot.Id).Returns(transfer);
+        sessionTelemetryWriter
+            .SwapSessionPsstAsync(snapshot.Id, transfer.Data, transfer.Fingerprint)
+            .Returns(_ =>
+            {
+                processedTelemetryReader.Set(snapshot.Id, telemetry);
+                return Task.CompletedTask;
+            });
+        sessionRepository.GetSessionAsync(snapshot.Id).Returns(new Session(
+            snapshot.Id,
+            snapshot.Name,
+            snapshot.Description,
+            snapshot.SetupId,
+            snapshot.Timestamp)
+        {
+            HasProcessedData = true,
+            Updated = snapshot.Updated,
+        });
+        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
+            .Returns(trackData);
+        sessionPresentationService.BuildCachePresentation(
+                telemetry,
+                new SessionPresentationDimensions(320, 180),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<DampingSpeedCutoffs?>())
+            .Returns(cacheData);
+
+        var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+
+        var built = Assert.IsType<SessionMobileLoadResult.BuiltCache>(result);
+        Assert.Same(telemetry, built.Telemetry);
+        Assert.Same(trackData, built.TrackData);
+        Assert.Equal(2, processedTelemetryReader.GetCallCount(snapshot.Id));
+        await sessionTelemetryWriter.Received(1).SwapSessionPsstAsync(snapshot.Id, transfer.Data, transfer.Fingerprint);
+        sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(value =>
+            value.Id == snapshot.Id &&
+            value.HasProcessedData));
+    }
+
+    [Fact]
     public async Task LoadMobileDetailAsync_ReturnsFailed_WhenSnapshotClaimsTelemetryButBlobMissing()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);

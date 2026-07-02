@@ -154,14 +154,7 @@ internal sealed class SessionTelemetryWriter(
         var current = await sessionRepository.GetSessionAsync(id)
                        ?? throw new Exception($"Session {id} does not exist.");
 
-        var durationSeconds = current.DurationSeconds;
-        if (durationSeconds is null)
-        {
-            var raw = await sessionRepository.GetSessionRawPsstAsync(id);
-            durationSeconds = sessionTelemetryProcessor.ReadProcessedDurationSeconds(raw);
-        }
-
-        var metrics = sessionTelemetryProcessor.ComputeSummaryMetrics(durationSeconds, points);
+        var metrics = sessionTelemetryProcessor.ComputeSummaryMetrics(current.DurationSeconds, points);
 
         await sessionRepository.UpdateSessionTrackAsync(id, points, metrics, gpsOffsetSeconds);
 
