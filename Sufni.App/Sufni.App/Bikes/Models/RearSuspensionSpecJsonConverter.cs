@@ -155,7 +155,16 @@ public sealed class RearSuspensionSpecJsonConverter : JsonConverter<RearSuspensi
             throw new JsonException("Linkage rear suspension requires a linkage payload.");
         }
 
-        var linkage = JsonSerializer.Deserialize<LinkageSpec>(linkageElement.GetRawText(), options);
+        LinkageSpec? linkage;
+        try
+        {
+            linkage = JsonSerializer.Deserialize<LinkageSpec>(linkageElement.GetRawText(), options);
+        }
+        catch (Exception exception) when (exception is JsonException or ArgumentException)
+        {
+            throw new JsonException("Linkage rear suspension payload is invalid.", exception);
+        }
+
         return linkage is null
             ? throw new JsonException("Linkage rear suspension requires a linkage payload.")
             : new RearSuspensionSpec.Linkage(linkage);
@@ -177,7 +186,16 @@ public sealed class RearSuspensionSpecJsonConverter : JsonConverter<RearSuspensi
             throw new JsonException("Leverage ratio rear suspension requires a leverage ratio payload.");
         }
 
-        var leverageRatio = JsonSerializer.Deserialize<LeverageRatioSpec>(leverageRatioElement.GetRawText(), options);
+        LeverageRatioSpec? leverageRatio;
+        try
+        {
+            leverageRatio = JsonSerializer.Deserialize<LeverageRatioSpec>(leverageRatioElement.GetRawText(), options);
+        }
+        catch (Exception exception) when (exception is JsonException or ArgumentException or LeverageRatioValidationException)
+        {
+            throw new JsonException("Leverage ratio rear suspension payload is invalid.", exception);
+        }
+
         return leverageRatio is null
             ? throw new JsonException("Leverage ratio rear suspension requires a leverage ratio payload.")
             : new RearSuspensionSpec.LeverageRatio(leverageRatio);

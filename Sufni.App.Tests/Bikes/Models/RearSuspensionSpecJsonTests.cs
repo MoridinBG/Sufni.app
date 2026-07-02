@@ -48,6 +48,7 @@ public class RearSuspensionSpecJsonTests
     [InlineData("""{ "kind": "hardtail", "unexpected": true }""")]
     [InlineData("""{ "kind": "hardtail", "kind": "linkage_draft" }""")]
     [InlineData("""{ "kind": "hardtail", "linkage": null, "linkage": null }""")]
+    [InlineData("""{ "kind": "leverage_ratio", "leverage_ratio": { "points": [{ "shock_travel_mm": 0, "wheel_travel_mm": 0 }] } }""")]
     public void Deserialize_RejectsMalformedUnion(string json)
     {
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<RearSuspensionSpec>(json, Options));
