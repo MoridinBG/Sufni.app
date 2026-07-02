@@ -34,6 +34,7 @@ or feature wording evolve:
 - A query answers a business question that crosses domains or requires derived reasoning; it does not own the shared collection.
 - A coordinator owns workflows with side effects, store writes, navigation decisions, and long-lived event subscriptions.
 - A service or factory owns infrastructure-facing work such as datastore construction, file-picker lifetime, platform integration, and explicit background execution.
+- Screen-scoped caches belong to the screen that owns their lifecycle. Recorded-session analysis uses a per-open-session result state for cancellation and cached records, backed by a shared stateless analysis computer.
 
 ## Layered Architecture
 
@@ -149,6 +150,12 @@ displaced by a newer explicit request resolves to `Superseded`, a run whose DB
 inputs change underneath it re-enqueues itself until it converges, and the
 refreshed result reaches the editor through the recorded-session projection rather
 than this return value (see [recompute flow](ui-state.md#recorded-session-projection)).
+
+Recorded-session analysis requests use the same stale-result discipline on the
+read side. Analysis inputs are versioned by the open editor; result computation
+runs off the UI thread, publishes back through the UI dispatcher, and is ignored
+if the range, mode, cutoffs, telemetry generation, or editor lifecycle changed
+before completion.
 
 The same convention is used for infrastructure-facing service outcomes
 such as `StorageProviderRegistrationResult` (`Added` / `AlreadyOpen`)

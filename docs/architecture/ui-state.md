@@ -88,9 +88,10 @@ architecture.
 
 `IRecordedSessionProjection` is the read-side projection for recorded
 session screens. It subscribes to `ISessionStore`, `ISetupStore`,
-`IBikeStore`, and `IRecordedSessionSourceStore`, joins their current
-snapshots, evaluates processing staleness, and publishes two reactive
-surfaces:
+`IBikeStore`, `IRecordedSessionSourceStore`,
+`IProcessingDependencyHashIndex`, and
+`IRecordedSessionProcessingOptionCache`, joins their current snapshots,
+evaluates processing staleness, and publishes two reactive surfaces:
 
 - `ConnectSessions()` — a DynamicData stream of `RecordedSessionSummary`
   records for the session list. `SessionListViewModel` filters and
@@ -137,6 +138,18 @@ recomputable session it confirms and requests a recompute (suppressed
 while a recompute the user just triggered is in flight), surfacing only
 the unrecomputable/failed outcomes.
 
+Recorded-session analysis result state is scoped to an open
+`SessionDetailViewModel`. The editor creates one
+`IRecordedSessionAnalysisResultState` through a transient factory and exposes it
+through `SessionAnalysisWorkspaceViewModel`; the heavy work is delegated to the
+singleton `IRecordedSessionAnalysisComputer`. The state is invalidated when the
+telemetry generation, selected analysis range, analysis modes, damping cutoffs,
+damping percentages, or insights target changes. Visible analysis surfaces then
+request keyed results on demand: the editor eagerly requests the shared damping
+percentages and optional insights records, while selected/visible analysis tabs
+and plot controls request only the result records they render. Cached records are
+reused within the open editor until the inputs change or the editor is disposed.
+
 Projection recomputes are coalesced through an injected
 `IRecordedSessionProjectionScheduler`; the default
 `UiThreadRecordedSessionProjectionScheduler` posts to
@@ -144,16 +157,17 @@ Projection recomputes are coalesced through an injected
 ambient synchronization context of the thread that queued the change.
 This lets a batch of session/setup/bike/source updates produce
 coherent summaries and domain snapshots instead of a cascade of
-partial UI states. Dependency changes recompute all sessions because a
-setup or bike update can affect any recorded session linked through
-that dependency.
+partial UI states. Setup or bike changes first update
+`IProcessingDependencyHashIndex`; only setup hashes whose processing-relevant
+inputs actually changed queue affected sessions for staleness recomputation.
 
 `ProcessingFingerprintService` is the pure derivation service behind
 the projection. It parses the persisted fingerprint JSON from
 `SessionSnapshot`, computes the current fingerprint from session,
-setup, bike, and source snapshots plus the session's clamped
-velocity-filter processing option (read from an app-wide cache that
-re-hydrates after each sync apply), and classifies staleness as:
+setup, bike, recorded-source snapshots, a cached setup/bike dependency hash
+from `IProcessingDependencyHashIndex`, and the session's clamped
+velocity-filter processing option (read from an app-wide cache that re-hydrates
+after each sync apply), and classifies staleness as:
 
 - `Current` — processed data matches the recorded source and current
   processing inputs.

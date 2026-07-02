@@ -235,7 +235,9 @@ that tab is first selected, retains the created content for the open
 recorded session, and drops it if the contribution is removed or
 re-published. Mobile projects analysis tabs into normal recorded-session
 pages and creates the view model during page projection, matching the
-mobile page lifecycle.
+mobile page lifecycle. This lazy view-model creation does not change scope
+ownership: the recorded-session manager still owns scope creation, host-state
+updates, slot mirroring, and disposal on unload/final close.
 
 A hosted signal row whose plot should match the app's themed time-series
 rows can contribute the SDK's neutral `RecordedSessionSignalPlotViewModel`

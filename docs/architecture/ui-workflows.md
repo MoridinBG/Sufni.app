@@ -24,7 +24,7 @@ and are registered as singletons.
 | `IPairingClientCoordinator` (`PairingClientCoordinator`)                  | mobile only  | `DeviceId` / `DisplayName` / `ServerUrl` / `IsPaired` source of truth, mDNS browse lifecycle, request/confirm/unpair HTTP plumbing                                                                                                                                                                                                                                                                                                                                  |
 | `IPairingServerCoordinator` (`PairingServerCoordinator`)                  | desktop only | Re-exposes `ISynchronizationServerService` pairing events as plain .NET events for `PairingServerViewModel`, plus `StartServerAsync()` passthrough                                                                                                                                                                                                                                                                                                                  |
 | `IInboundSyncCoordinator` (`InboundSyncCoordinator`)                      | desktop only | Marker interface; constructor subscribes to `SynchronizationDataArrived` and writes incoming bikes/setups into their stores. Sessions and paired devices have their own coordinators, so each entity family has exactly one inbound writer                                                                                                                                                                                                                          |
-| `TrackCoordinator`                                                        | shared       | GPX import and **read-only** session-track loading: it resolves the cached session-window polyline from the snapshot's `full_track_id` (regenerating it in memory for display when missing or misaligned, never persisting) — track association is owned by the processed-write path. The GPS-offset adjustment is its one remaining write, persisted one-way — it upserts the session store and the editor refreshes through the session watch like a recompute, with no pushed result                                                                                                                            |
+| `TrackCoordinator`                                                        | shared       | GPX import and **read-only** session-track loading: it resolves the linked full-track points through `IFullTrackPointReader` and the cached session-window polyline through `ISessionTrackReader`, both keyed by the row `updated` values. When the cached session-window track is missing or misaligned it regenerates points in memory for display only — track association and cached-track persistence are owned by the processed-write path. The GPS-offset adjustment is its one remaining write, persisted one-way — it upserts the session store and the editor refreshes through the session watch like a recompute, with no pushed result                                                                                                                            |
 | `LiveDaqCoordinator`                                                      | shared       | Owns `LiveDaqStore` writes, browse lease lifecycle (activate/deactivate), discovery-to-known-board reconciliation, and detail tab open/focus routing. When it creates a detail tab, it threads shared `IDaqManagementService` and `IFilesService` instances into `LiveDaqDetailViewModel`. Activates lazily when the Live primary page is selected — no constructor event subscriptions, so no eager resolution needed. See [Live DAQ Streaming](live-streaming.md) |
 
 The session workflow itself is split into four use-case classes beside the
@@ -35,7 +35,7 @@ singletons):
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SessionLoader`     | Desktop/mobile detail loads; mobile `LoadMobileDetailAsync` transparently fetches missing processed telemetry from the server before returning              |
 | `SessionCommandService` | Every store-writing session command: `SaveAsync` (metadata save with in-memory store-snapshot optimistic-concurrency conflict detection; preserves processing fingerprints on metadata-only saves), `DeleteAsync` (clears the session's stored preferences and recorded source, deletes through repositories whose soft delete applies extension cascades atomically, and cleans up orphaned generated tracks), create-only `SaveLiveCaptureAsync` (persists live captures as processed session + raw source + optional generated track), and `RequestRecomputeAsync` / `RequestRecomputeAllAsync` (both delegated to `SessionRecomputeEngine`) |
-| `SessionRecomputeEngine` | Serialized, per-session **cancel-and-replace** recompute engine and the single owner of recompute liveness. `RequestRecomputeAsync` rebuilds processed telemetry from the raw source against the current setup/bike inputs and processing option; the reprocessor returns a `ProcessedTelemetryPayload` carrying the decoded telemetry, serialized bytes, and fingerprint JSON, and `SessionTelemetryWriter.UpdateProcessedDerivedDataAsync` commits that payload after the in-transaction DB-input fingerprint check. A newer request for the same session cancels and replaces the in-flight one (which resolves to `Superseded`), and a run whose DB inputs change underneath it re-enqueues itself until it converges. `IsActive` reports an in-flight run. Cancellation bounds correctness (no stale commit), not CPU — an in-flight reprocess is not interrupted, only prevented from committing. `RequestRecomputeAllAsync` enumerates every live session and fans them through `RequestRecomputeAsync` with a degree of parallelism scaled to `Environment.ProcessorCount`, returning a `SessionRecomputeAllResult` tally and reporting per-session progress through an optional `IProgress<SessionRecomputeAllProgress>` so the caller can drive a determinate progress dialog; sessions that cannot be recomputed are counted and skipped, not surfaced as failures. The staleness prompt (`SessionStalenessReconciler`) offers "Recompute all" alongside "Recompute" — it builds those buttons through the dialog service's generic `ShowChoiceAsync` prompt (the service stays recompute-agnostic; the reconciler owns the choice ids and what they mean) and runs the bulk recompute behind a modal, equally generic `ShowProgressAsync` loading dialog |
+| `SessionRecomputeEngine` | Serialized, per-session **cancel-and-replace** recompute engine and the single owner of recompute liveness. `RequestRecomputeAsync` rebuilds processed telemetry from the raw source against the current setup/bike inputs and the hydrated `IRecordedSessionProcessingOptionCache`; the reprocessor returns a `ProcessedTelemetryPayload` carrying the decoded telemetry, serialized bytes, and fingerprint JSON, and `SessionTelemetryWriter.UpdateProcessedDerivedDataAsync` commits that payload after the in-transaction DB-input fingerprint check. A newer request for the same session cancels and replaces the in-flight one (which resolves to `Superseded`), and a run whose DB inputs change underneath it re-enqueues itself until it converges. `IsActive` reports an in-flight run. Cancellation bounds correctness (no stale commit), not CPU — an in-flight reprocess is not interrupted, only prevented from committing. `RequestRecomputeAllAsync` hydrates the processing-option cache, enumerates active ids through the session-id projection (`ISessionRepository.GetActiveSessionIdsAsync()`), and fans them through `RequestRecomputeAsync` with a degree of parallelism scaled to `Environment.ProcessorCount`, returning a `SessionRecomputeAllResult` tally and reporting per-session progress through an optional `IProgress<SessionRecomputeAllProgress>` so the caller can drive a determinate progress dialog; sessions that cannot be recomputed are counted and skipped, not surfaced as failures. The staleness prompt (`SessionStalenessReconciler`) offers "Recompute all" alongside "Recompute" — it builds those buttons through the dialog service's generic `ShowChoiceAsync` prompt (the service stays recompute-agnostic; the reconciler owns the choice ids and what they mean) and runs the bulk recompute behind a modal, equally generic `ShowProgressAsync` loading dialog |
 | `SessionSyncApplier`| Subscribes to the desktop server's `SynchronizationDataArrived`, `SessionDataArrived`, and `SessionSourceDataArrived`, applying inbound session data to the stores |
 
 `InboundSyncCoordinator`, `SessionSyncApplier`, `PairedDeviceCoordinator`,
@@ -84,7 +84,8 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   `IUiThreadDispatcher`, `IDaqManagementService`, `ITelemetryDataStoreService`,
   SQLite repository interfaces, `ISyncDataStore`, `IExtensionDatabaseConnection`,
   `IFilesService`, `IFilePickerService`, `ITileLayerService`,
-  `IMapViewModelFactory`, plus `IAppPreferences` and the two facets
+  `IMapViewModelFactory`, `ISessionTrackReader`, `IFullTrackPointReader`,
+  plus `IAppPreferences` and the two facets
   it exposes — `IMapPreferences` and `ISessionPreferences` —
   registered as singletons via factory delegates that resolve the
   same `IAppPreferences` instance. The concrete `DialogService`
@@ -94,9 +95,11 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   used only by `App`), and `IExtensionDialogService` via factory
   delegates that resolve the same instance. Recorded-session derivation
   services (`IProcessingFingerprintService`,
-  `IRecordedSessionReprocessor`) are also singleton services. The
-  recorded-source factory is static and stays in `RecordedSessionProjection/`
-  beside the reprocessor.
+  `IRecordedSessionReprocessor`, `IRecordedSessionAnalysisComputer`) are
+  also singleton services. `IRecordedSessionAnalysisResultStateFactory` is
+  transient because each open recorded-session editor owns its own result
+  cache and cancellation scope. The recorded-source factory is static and
+  stays in `RecordedSessionProjection/` beside the reprocessor.
 - **Stores**: each concrete store registered as a singleton, then
   re-registered behind both its read and writer interfaces via
   factory delegates that resolve the same instance. This includes
@@ -108,9 +111,9 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   `IBackgroundTaskRunner` and a `Func<ImportSessionsViewModel>` so it
   can open / focus the singleton import page while keeping the import
   workflow itself view-model-free).
-- **Queries and read graphs**: `IBikeDependencyQuery`,
-  `ILiveDaqKnownBoardsQuery`, `IRecordedSessionDomainQuery`, and
-  `IRecordedSessionProjection`.
+- **Queries, indexes, and read graphs**: `IBikeDependencyQuery`,
+  `ILiveDaqKnownBoardsQuery`, `IRecordedSessionDomainQuery`,
+  `IProcessingDependencyHashIndex`, and `IRecordedSessionProjection`.
 - **Live DAQ**: `LiveDaqStore` (singleton behind both
   `ILiveDaqStore` and `ILiveDaqStoreWriter`),
   `IDaqBrowseOwner`, `ILiveDaqBoardIdInspector`,
@@ -155,6 +158,7 @@ as overlay host with `DialogPresentationMode.Overlay`. View models
 never see this contract — they consume `IDialogService` only.
 
 `App` also eagerly resolves
+`IProcessingDependencyHashIndex`, `ISessionTrackReader`,
 `SessionSyncApplier`, `PairedDeviceCoordinator`,
 `SyncCoordinator`, plus the desktop-only
 `IPairingServerCoordinator` and `IInboundSyncCoordinator` (or the
