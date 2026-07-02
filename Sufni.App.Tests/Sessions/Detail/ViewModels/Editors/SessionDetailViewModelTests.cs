@@ -77,7 +77,8 @@ public class SessionDetailViewModelTests
         IReadOnlyList<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories = null,
         IUiThreadDispatcher? uiThreadDispatcher = null,
         ISessionLayoutStrategy? layoutStrategy = null,
-        IRecordedSessionProcessingOptionCache? processingOptionCache = null)
+        IRecordedSessionProcessingOptionCache? processingOptionCache = null,
+        TestSessionProcessedTelemetryReader? processedTelemetryReader = null)
     {
         if (isDesktop.HasValue)
         {
@@ -102,6 +103,7 @@ public class SessionDetailViewModelTests
             uiThreadDispatcher ?? new InlineUiThreadDispatcher(),
             layoutStrategy ?? new DesktopSessionLayoutStrategy(),
             processingOptionCache ?? new InMemoryRecordedSessionProcessingOptionCache(),
+            processedTelemetryReader ?? new TestSessionProcessedTelemetryReader(),
             bikeCoordinator,
             new ExtensionHostDependencies(
                 recordedSessionExtensionFactories ?? [],
@@ -848,6 +850,28 @@ public class SessionDetailViewModelTests
 
         Assert.True(factory.Scope.Disposed);
         Assert.False(factory.Scope.UpdatedStates.Last().Identity.IsLoaded);
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_RetainsProcessedTelemetry_AndUnloadedReleasesIt()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: false);
+        var processedTelemetryReader = new TestSessionProcessedTelemetryReader();
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        SetDesktop(true);
+
+        var editor = CreateEditor(
+            snapshot,
+            processedTelemetryReader: processedTelemetryReader);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.Equal([snapshot.Id], processedTelemetryReader.RetainedSessionIds);
+        Assert.Empty(processedTelemetryReader.ReleasedSessionIds);
+
+        await editor.UnloadedCommand.ExecuteAsync(null);
+
+        Assert.Equal([snapshot.Id], processedTelemetryReader.ReleasedSessionIds);
     }
 
     [AvaloniaFact]

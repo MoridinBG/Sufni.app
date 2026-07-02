@@ -24,7 +24,7 @@ public sealed class SessionLoader
     private readonly ISessionStoreWriter sessionStore;
     private readonly ISessionRepository sessionRepository;
     private readonly ISessionTelemetryWriter sessionTelemetryWriter;
-    private readonly ISessionTelemetryProcessor sessionTelemetryProcessor;
+    private readonly ISessionProcessedTelemetryReader processedTelemetryReader;
     private readonly ISessionCacheStore sessionCacheStore;
     private readonly IHttpApiService httpApiService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
@@ -36,7 +36,7 @@ public sealed class SessionLoader
         ISessionStoreWriter sessionStore,
         ISessionRepository sessionRepository,
         ISessionTelemetryWriter sessionTelemetryWriter,
-        ISessionTelemetryProcessor sessionTelemetryProcessor,
+        ISessionProcessedTelemetryReader processedTelemetryReader,
         ISessionCacheStore sessionCacheStore,
         IHttpApiService httpApiService,
         IBackgroundTaskRunner backgroundTaskRunner,
@@ -47,7 +47,7 @@ public sealed class SessionLoader
         this.sessionStore = sessionStore;
         this.sessionRepository = sessionRepository;
         this.sessionTelemetryWriter = sessionTelemetryWriter;
-        this.sessionTelemetryProcessor = sessionTelemetryProcessor;
+        this.processedTelemetryReader = processedTelemetryReader;
         this.sessionCacheStore = sessionCacheStore;
         this.httpApiService = httpApiService;
         this.backgroundTaskRunner = backgroundTaskRunner;
@@ -244,16 +244,8 @@ public sealed class SessionLoader
             : (bike.DampingSpeedCutoffs, new DampingSpeedCutoffOwner(bike.Id, bike.Updated));
     }
 
-    private Task<TelemetryData?> LoadTelemetryDataAsync(Guid sessionId, CancellationToken cancellationToken)
-    {
-        return backgroundTaskRunner.RunAsync<TelemetryData?>(
-            async () =>
-            {
-                var raw = await sessionRepository.GetSessionRawPsstAsync(sessionId);
-                return raw is null ? null : sessionTelemetryProcessor.ReadProcessedTelemetryData(raw);
-            },
-            cancellationToken);
-    }
+    private Task<TelemetryData?> LoadTelemetryDataAsync(Guid sessionId, CancellationToken cancellationToken) =>
+        processedTelemetryReader.GetAsync(sessionId, cancellationToken);
 
     private async Task<TelemetryData?> EnsureTelemetryDataAvailableForLoadAsync(
         Guid sessionId,

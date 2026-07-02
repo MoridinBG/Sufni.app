@@ -7,6 +7,7 @@ using Sufni.App.Sessions.Services;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Tests.TestSupport.Doubles;
+using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Extensibility.RecordedSessions;
 
 public class RecordedSessionDataReaderTests
@@ -14,9 +15,24 @@ public class RecordedSessionDataReaderTests
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
     private readonly ISynchronizableRepository<Track> trackEntityRepository = Substitute.For<ISynchronizableRepository<Track>>();
     private readonly TestSessionTelemetryProcessor telemetryProcessor = new();
+    private readonly TestSessionProcessedTelemetryReader processedTelemetryReader = new();
 
     private RecordedSessionDataReader CreateReader() =>
-        new(sessionRepository, trackEntityRepository, telemetryProcessor);
+        new(sessionRepository, trackEntityRepository, telemetryProcessor, processedTelemetryReader);
+
+    [Fact]
+    public async Task GetProcessedTelemetryAsync_UsesProcessedTelemetryReader()
+    {
+        var sessionId = Guid.NewGuid();
+        var telemetry = TestTelemetryData.CreateProcessed();
+        processedTelemetryReader.Set(sessionId, telemetry);
+
+        var result = await CreateReader().GetProcessedTelemetryAsync(sessionId, TestContext.Current.CancellationToken);
+
+        Assert.Same(telemetry, result);
+        Assert.Equal(1, processedTelemetryReader.GetCallCount(sessionId));
+        await sessionRepository.DidNotReceive().GetSessionRawPsstAsync(Arg.Any<Guid>());
+    }
 
     [Fact]
     public async Task GetTrackAsync_ReturnsCachedTrack_WhenAlignedWithSessionTimestamp()

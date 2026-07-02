@@ -23,6 +23,7 @@ using Sufni.App.MapsAndTracks.ViewModels;
 using Sufni.App.Sessions.Insights.Services;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
@@ -45,6 +46,7 @@ internal sealed class EditorFactory(
     IMapViewModelFactory mapViewModelFactory,
     ISessionPreferences sessionPreferences,
     IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache,
+    ISessionProcessedTelemetryReader processedTelemetryReader,
     ILiveDaqCoordinator liveDaqCoordinator,
     IDaqManagementService daqManagementService,
     IFilesService filesService,
@@ -154,6 +156,7 @@ internal sealed class EditorFactory(
             uiThreadDispatcher,
             sessionLayoutStrategy,
             recordedSessionProcessingOptionCache,
+            processedTelemetryReader,
             bikeCoordinator,
             new ExtensionHostDependencies(
                 recordedSessionExtensionFactories.ToArray(),

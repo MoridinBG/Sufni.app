@@ -17,7 +17,8 @@ namespace Sufni.App.Extensibility.RecordedSessions;
 internal sealed class RecordedSessionDataReader(
     ISessionRepository sessionRepository,
     ISynchronizableRepository<Track> trackEntityRepository,
-    ISessionTelemetryProcessor sessionTelemetryProcessor) : IRecordedSessionDataReader
+    ISessionTelemetryProcessor sessionTelemetryProcessor,
+    ISessionProcessedTelemetryReader processedTelemetryReader) : IRecordedSessionDataReader
 {
     public async Task<IReadOnlyList<RecordedSessionCatalogItem>> GetSessionsAsync(
         CancellationToken cancellationToken = default)
@@ -54,10 +55,7 @@ internal sealed class RecordedSessionDataReader(
         Guid sessionId,
         CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        var raw = await sessionRepository.GetSessionRawPsstAsync(sessionId);
-        cancellationToken.ThrowIfCancellationRequested();
-        return raw is null ? null : sessionTelemetryProcessor.ReadProcessedTelemetryData(raw);
+        return await processedTelemetryReader.GetAsync(sessionId, cancellationToken);
     }
 
     public async Task<IReadOnlyList<TrackPoint>?> GetTrackAsync(

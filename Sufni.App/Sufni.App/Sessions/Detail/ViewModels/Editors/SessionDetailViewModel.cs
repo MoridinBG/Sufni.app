@@ -37,6 +37,7 @@ using Sufni.App.Sessions.Signals.ViewModels.SessionPages;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Pages.ViewModels.Editors;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
+using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
@@ -87,6 +88,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IRecordedSessionProjection recordedSessionProjection;
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly ISessionInsightsService sessionAnalysisService;
+    private readonly ISessionProcessedTelemetryReader processedTelemetryReader;
     private readonly RecordedSessionExtensionSlots emptyExtensionSlots = new();
     private readonly RecordedSessionExtensionManager? recordedSessionExtensions;
     private readonly RecordedSessionOperationCoordinator? recordedSessionOperationCoordinator;
@@ -126,6 +128,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markGpsTelemetryEventCommand;
     private readonly DampingCutoffWorkflow dampingCutoffWorkflow;
     private readonly ISessionLayoutStrategy layoutStrategy;
+    private IDisposable? processedTelemetryRetention;
 
     #endregion Private fields
 
@@ -645,6 +648,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         await recordedSessionExtensions.DisposeScopesAsync();
     }
 
+    private void DisposeProcessedTelemetryRetention()
+    {
+        processedTelemetryRetention?.Dispose();
+        processedTelemetryRetention = null;
+    }
+
     private void ReportRecordedSessionExtensionOperation(string message, double percent)
     {
         SessionContext.SessionOperationState = SessionOperationPresentationState.Progress(message, percent);
@@ -867,6 +876,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         IUiThreadDispatcher uiThreadDispatcher,
         ISessionLayoutStrategy layoutStrategy,
         IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache,
+        ISessionProcessedTelemetryReader processedTelemetryReader,
         IBikeCoordinator? bikeCoordinator = null,
         ExtensionHostDependencies? extensionHost = null)
         : base(shell, dialogService, uiThreadDispatcher)
@@ -881,6 +891,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         this.recordedSessionProjection = recordedSessionProjection;
         this.sessionPresentationService = sessionPresentationService;
         this.sessionAnalysisService = sessionAnalysisService;
+        this.processedTelemetryReader = processedTelemetryReader;
         this.recordedSessionProcessingOptionCache = recordedSessionProcessingOptionCache;
         recordedPreferenceStore = new RecordedPreferenceStore(
             sessionPreferences,
@@ -1434,6 +1445,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private async Task Loaded(Rect? bounds = null)
     {
         viewLoaded = true;
+        processedTelemetryRetention ??= processedTelemetryReader.Retain(Id);
         var dimensions = CreatePresentationDimensions(bounds);
         if (dimensions is not null)
         {
@@ -1509,6 +1521,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         stalenessReconciler.ResetForUnload();
         UpdateRecordedSessionExtensionHostState();
         await DisposeRecordedSessionExtensionScopesAsync();
+        DisposeProcessedTelemetryRetention();
         DisposeScopedSubscriptions();
     }
 

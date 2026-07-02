@@ -186,7 +186,8 @@ internal sealed class SessionDetailViewTestContext
             isDesktopLayout
                 ? new DesktopSessionLayoutStrategy()
                 : new MobileSessionLayoutStrategy(),
-            new InMemoryRecordedSessionProcessingOptionCache());
+            new InMemoryRecordedSessionProcessingOptionCache(),
+            new TestSessionProcessedTelemetryReader());
     }
 }
 

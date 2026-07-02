@@ -160,6 +160,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISessionPresentationService, SessionPresentationService>();
         ServiceCollection.AddSingleton<ISessionInsightsService, SessionInsightsService>();
         ServiceCollection.AddSingleton<ISessionTelemetryProcessor, SessionTelemetryProcessor>();
+        ServiceCollection.AddSingleton<ISessionProcessedTelemetryReader, SessionProcessedTelemetryReader>();
         ServiceCollection.AddSingleton<IDaqManagementService, DaqManagementService>();
         ServiceCollection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         ServiceCollection.AddSingleton<SqliteConnectionContext>(sp =>
@@ -231,7 +232,7 @@ public partial class App : Application
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<ISessionRepository>(),
             sp.GetRequiredService<ISessionTelemetryWriter>(),
-            sp.GetRequiredService<ISessionTelemetryProcessor>(),
+            sp.GetRequiredService<ISessionProcessedTelemetryReader>(),
             sp.GetRequiredService<ISessionCacheStore>(),
             sp.GetRequiredService<IHttpApiService>(),
             sp.GetRequiredService<IBackgroundTaskRunner>(),

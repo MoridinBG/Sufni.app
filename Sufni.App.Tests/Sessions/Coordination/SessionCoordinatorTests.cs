@@ -40,7 +40,7 @@ public class SessionCoordinatorTests
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
     private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
-    private readonly TestSessionTelemetryProcessor sessionTelemetryProcessor = new();
+    private readonly TestSessionProcessedTelemetryReader processedTelemetryReader = new();
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
     private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
     private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
@@ -80,7 +80,7 @@ public class SessionCoordinatorTests
             sessionStore,
             sessionRepository,
             sessionTelemetryWriter,
-            sessionTelemetryProcessor,
+            processedTelemetryReader,
             sessionCacheStore,
             http,
             backgroundTaskRunner,
@@ -92,13 +92,11 @@ public class SessionCoordinatorTests
     {
         if (telemetry is null)
         {
-            sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(Task.FromResult<byte[]?>(null));
+            processedTelemetryReader.Set(sessionId, null);
             return;
         }
 
-        var raw = sessionId.ToByteArray();
-        sessionTelemetryProcessor.Map(raw, telemetry);
-        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
+        processedTelemetryReader.Set(sessionId, telemetry);
     }
 
     private SessionCommandService CreateCommandService() =>
@@ -600,7 +598,7 @@ public class SessionCoordinatorTests
         Assert.Equal("cached", loaded.Data.FrontTravelDistribution);
         Assert.Same(telemetry, loaded.Telemetry);
         Assert.Same(trackData, loaded.TrackData);
-        await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId);
+        Assert.Equal(1, processedTelemetryReader.GetCallCount(sessionId));
         await http.DidNotReceive().GetSessionPsstAsync(Arg.Any<Guid>());
     }
 
@@ -618,7 +616,7 @@ public class SessionCoordinatorTests
         Assert.Equal("cached", loaded.Data.FrontTravelDistribution);
         Assert.Null(loaded.Telemetry);
         Assert.Null(loaded.TrackData);
-        await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId);
+        Assert.Equal(1, processedTelemetryReader.GetCallCount(sessionId));
         await http.DidNotReceive().GetSessionPsstAsync(Arg.Any<Guid>());
     }
 
