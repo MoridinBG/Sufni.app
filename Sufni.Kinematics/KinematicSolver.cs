@@ -8,7 +8,7 @@ public readonly record struct CoordinateList(List<double> X, List<double> Y)
     public int Count => X.Count;
 }
 
-public class KinematicSolver
+public sealed class KinematicSolver
 {
     private static readonly ILogger logger = Log.ForContext<KinematicSolver>();
 

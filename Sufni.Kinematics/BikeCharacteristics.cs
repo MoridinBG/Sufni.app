@@ -11,7 +11,7 @@ public class JointNameMapping
     public string HeadTube2 = "Head tube 2";
 }
 
-public class BikeCharacteristics
+public sealed class BikeCharacteristics
 {
     #region Public properties
 
