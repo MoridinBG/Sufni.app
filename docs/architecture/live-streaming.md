@@ -247,7 +247,7 @@ Entries are emitted through a `BehaviorSubject<IReadOnlyList<LiveDaqCatalogEntry
 
 ## Known-Board Query
 
-`LiveDaqKnownBoardsQuery` merges three data sources to produce enriched board records: `Board` rows from the database, `ISetupStore` for setup names, and `IBikeStore` for bike names. For each board, it attempts two setup lookups: direct `board.SetupId` first, then fallback via `SetupStore.FindByBoardId()`. It exposes a `Changes` observable that fires when setup or bike stores change, keyed lookup by identity key, and a travel-calibration answer for a specific DAQ identity so the detail view model can format calibrated travel without depending directly on setup or bike stores.
+`LiveDaqKnownBoardsQuery` merges three data sources to produce enriched board records: `Board` rows from the database, `ISetupStore` for setup names, and `IBikeStore` for bike names. For each board, it attempts two setup lookups: direct `board.SetupId` first, then fallback via `SetupStore.FindByBoardId()`. For known setup+bike pairs it resolves the shared `ITelemetryBikeProcessingContextFactory` context and builds the live travel-calibration answer from the same `BikeData` delegates that live-session capture passes into telemetry processing. The query no longer performs its own rear-calibration build. It exposes a `Changes` observable that fires when setup or bike stores change, keyed lookup by identity key, and a travel-calibration answer for a specific DAQ identity so the detail view model can format calibrated travel without depending directly on setup or bike stores.
 
 ## Runtime Store
 

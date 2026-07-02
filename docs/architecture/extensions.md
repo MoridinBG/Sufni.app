@@ -164,6 +164,13 @@ without a long positional constructor. It exposes constrained host operations:
 - run a cancellable operation through `RecordedSessionOperationCoordinator`
 - read processed telemetry and track points through `IRecordedSessionDataReader`
 
+`IRecordedSessionDataReader.GetProcessedTelemetryAsync` delegates to
+`ISessionProcessedTelemetryReader`. While the recorded-session editor is loaded,
+the session is retained so extension readers, plots, and mobile detail generation
+share one decoded `TelemetryData` instance for the current processed BLOB hash.
+That instance is shared infrastructure state and must be treated as read-only by
+extensions.
+
 `IRecordedSessionDataReader.GetTrackAsync` returns the session-window track
 projection used by the recorded-session view: cached points when the cache is
 current, or a read-only projection from the linked full track when the cache is
