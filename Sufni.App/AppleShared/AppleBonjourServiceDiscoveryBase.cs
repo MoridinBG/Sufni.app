@@ -119,7 +119,9 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
                 return;
             }
 
-            var announcement = new ServiceAnnouncement(address, port.Value);
+            var instanceName = ServiceAnnouncementMetadataReader.ReadInstanceName(result) ?? key;
+            var txtRecords = ServiceAnnouncementMetadataReader.ReadTxtRecords(result);
+            var announcement = new ServiceAnnouncement(address, port.Value, instanceName, txtRecords);
             if (!browseLifecycle.TryResolve(key, resolutionId, announcement))
             {
                 logger.Verbose(

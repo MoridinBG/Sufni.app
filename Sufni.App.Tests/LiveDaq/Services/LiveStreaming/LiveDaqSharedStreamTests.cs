@@ -36,6 +36,49 @@ public class LiveDaqSharedStreamTests
     }
 
     [Fact]
+    public async Task CurrentState_UsesSnapshotProtocolVersion_AndUpdatesFromCatalog()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557, LiveProtocolVersion.V3);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+
+        var stream = registry.GetOrCreate(snapshot);
+
+        Assert.Equal(LiveProtocolVersion.V3, stream.CurrentState.ProtocolVersion);
+
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot with { ProtocolVersion = LiveProtocolVersion.V2 })]);
+
+        await AssertEventuallyAsync(() => stream.CurrentState.ProtocolVersion == LiveProtocolVersion.V2);
+    }
+
+    [Fact]
+    public async Task CatalogProtocolChange_ClosesAndEvictsActiveStream()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557, LiveProtocolVersion.V2);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+
+        var stream = registry.GetOrCreate(snapshot);
+        var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = stream.States.Subscribe(state =>
+        {
+            if (state.IsClosed)
+            {
+                closed.TrySetResult();
+            }
+        });
+
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot with { ProtocolVersion = LiveProtocolVersion.V3 })]);
+
+        await closed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.True(stream.CurrentState.IsClosed);
+        Assert.Equal("DAQ protocol changed. Reopen the live tab.", stream.CurrentState.LastError);
+
+        var replacement = registry.GetOrCreate(snapshot with { ProtocolVersion = LiveProtocolVersion.V3 });
+        Assert.NotSame(stream, replacement);
+    }
+
+    [Fact]
     public async Task DisposingLastObserverLease_DisposesClient_AndEvictsStream()
     {
         using var registry = CreateRegistry();
@@ -47,6 +90,7 @@ public class LiveDaqSharedStreamTests
         await stream.EnsureStartedAsync();
 
         var firstClient = clientFactory.CreatedClients.Single();
+        Assert.Equal(LiveProtocolVersion.V2, clientFactory.CreatedForSnapshots.Single().ProtocolVersion);
 
         await lease.DisposeAsync();
 
@@ -148,11 +192,7 @@ public class LiveDaqSharedStreamTests
         var client = clientFactory.CreatedClients.Single();
         client.FailNextStartPreview = true;
 
-        await stream.ApplyConfigurationAsync(new LiveDaqStreamConfiguration(
-            RequestedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Gps,
-            TravelHz: 100,
-            ImuHz: 0,
-            GpsFixHz: 5));
+        await stream.ApplyConfigurationAsync(LiveDaqStreamConfiguration.FromRequestedRates(100, 0, 5));
 
         await Task.Yield();
 
@@ -190,11 +230,7 @@ public class LiveDaqSharedStreamTests
             }
         });
 
-        await stream.ApplyConfigurationAsync(new LiveDaqStreamConfiguration(
-            RequestedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Gps,
-            TravelHz: 100,
-            ImuHz: 0,
-            GpsFixHz: 5));
+        await stream.ApplyConfigurationAsync(LiveDaqStreamConfiguration.FromRequestedRates(100, 0, 5));
 
         client.ReleasePendingDisconnectEvents();
         await markerObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
@@ -261,11 +297,7 @@ public class LiveDaqSharedStreamTests
         var client = clientFactory.CreatedClients.Single();
         client.ThrowCanceledOnDisconnect = true;
 
-        await stream.ApplyConfigurationAsync(new LiveDaqStreamConfiguration(
-            RequestedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Gps,
-            TravelHz: 100,
-            ImuHz: 0,
-            GpsFixHz: 5));
+        await stream.ApplyConfigurationAsync(LiveDaqStreamConfiguration.FromRequestedRates(100, 0, 5));
 
         Assert.Null(stream.CurrentState.LastError);
         Assert.False(stream.CurrentState.IsClosed);
@@ -284,11 +316,7 @@ public class LiveDaqSharedStreamTests
 
         var stream = registry.GetOrCreate(snapshot);
         await using var lease = stream.AcquireLease();
-        await stream.ApplyConfigurationAsync(new LiveDaqStreamConfiguration(
-            RequestedSensorMask: LiveSensorInstanceMask.Travel,
-            TravelHz: 100,
-            ImuHz: 0,
-            GpsFixHz: 0));
+        await stream.ApplyConfigurationAsync(LiveDaqStreamConfiguration.FromRequestedRates(100, 0, 0));
 
         var result = await stream.EnsureStartedAsync();
 
@@ -455,9 +483,13 @@ public class LiveDaqSharedStreamTests
     }
 
     private LiveDaqSharedStreamRegistry CreateRegistry() =>
-        new(clientFactory.CreateClient, catalogService);
+        new(clientFactory, catalogService);
 
-    private static LiveDaqSnapshot CreateSnapshot(string identityKey, string host, int port) =>
+    private static LiveDaqSnapshot CreateSnapshot(
+        string identityKey,
+        string host,
+        int port,
+        LiveProtocolVersion protocolVersion = LiveProtocolVersion.V2) =>
         new(
             IdentityKey: identityKey,
             DisplayName: identityKey,
@@ -466,7 +498,8 @@ public class LiveDaqSharedStreamTests
             Port: port,
             IsOnline: true,
             SetupName: "setup",
-            BikeName: "bike");
+            BikeName: "bike",
+            ProtocolVersion: protocolVersion);
 
     private static LiveDaqCatalogEntry CreateCatalogEntry(LiveDaqSnapshot snapshot) =>
         new(
@@ -474,11 +507,12 @@ public class LiveDaqSharedStreamTests
             snapshot.DisplayName,
             snapshot.BoardId,
             snapshot.Host!,
-            snapshot.Port!.Value);
+            snapshot.Port!.Value,
+            snapshot.ProtocolVersion);
 
     private static LiveTravelBatchFrame CreateTravelBatchFrame(ulong firstMonotonicUs) =>
         new(
-            new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.TravelBatch, 0, 0),
+            new LiveFrameMetadata(0),
             new LiveBatchHeader(901, 0, 0, firstMonotonicUs, 1),
             [new LiveTravelRecord((ushort)firstMonotonicUs, (ushort)firstMonotonicUs)]);
 
@@ -492,17 +526,19 @@ public class LiveDaqSharedStreamTests
         }
     }
 
-    private sealed class FakeLiveDaqClientFactory
+    private sealed class FakeLiveDaqClientFactory : ILiveDaqClientFactory
     {
         public List<FakeLiveDaqClient> CreatedClients { get; } = [];
+        public List<LiveDaqSnapshot> CreatedForSnapshots { get; } = [];
 
         public Action<FakeLiveDaqClient>? ConfigureBeforeReturn { get; set; }
 
-        public ILiveDaqClient CreateClient()
+        public ILiveDaqClient Create(LiveDaqSnapshot snapshot)
         {
             var client = new FakeLiveDaqClient();
             ConfigureBeforeReturn?.Invoke(client);
             CreatedClients.Add(client);
+            CreatedForSnapshots.Add(snapshot);
             return client;
         }
     }
@@ -587,11 +623,11 @@ public class LiveDaqSharedStreamTests
                 acceptedSensorMask: acceptedSensorMask);
             events.OnNext(new LiveDaqClientEvent.FrameReceived(
                 new LiveStartAckFrame(
-                    new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.StartLiveAck, 0, 0),
+                    new LiveFrameMetadata(0),
                     new LiveStartAck(LiveStartErrorCode.Ok, header.SessionId, acceptedSensorMask.StreamMask))));
             events.OnNext(new LiveDaqClientEvent.FrameReceived(
                 new LiveSessionHeaderFrame(
-                    new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.SessionHeader, 0, 0),
+                    new LiveFrameMetadata(0),
                     header)));
 
             return Task.FromResult<LivePreviewStartResult>(new LivePreviewStartResult.Started(header));
@@ -655,8 +691,8 @@ public class LiveDaqSharedStreamTests
 
             events.OnNext(new LiveDaqClientEvent.FrameReceived(
                 new LiveStartAckFrame(
-                    new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.StartLiveAck, 0, 0),
-                    new LiveStartAck(LiveStartErrorCode.Ok, DisconnectFlushMarkerSessionId, LiveSensorMask.None))));
+                    new LiveFrameMetadata(0),
+                    new LiveStartAck(LiveStartErrorCode.Ok, DisconnectFlushMarkerSessionId, LiveStreamMask.None))));
         }
 
         private void PublishDisconnected()

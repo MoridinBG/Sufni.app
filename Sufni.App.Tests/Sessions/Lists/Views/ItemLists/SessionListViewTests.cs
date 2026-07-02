@@ -13,9 +13,11 @@ using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Lists.DesktopViews.Controls;
 using Sufni.App.Sessions.Lists.DesktopViews.ItemLists;
 using Sufni.App.Sessions.Lists.ViewModels.ItemLists;
+using Sufni.App.Sessions.Lists.ViewModels.Rows;
 using Sufni.App.Sessions.Lists.Views.Controls;
 using Sufni.App.Sessions.Lists.Views.ItemLists;
 using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Shell.Views.Controls;
 using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Harness;
@@ -53,16 +55,17 @@ public class SessionListViewTests
 
         await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(view);
 
-        Assert.NotNull(mounted.Control.FindFirstVisual<SearchBarWithDateFilter>());
+        Assert.NotNull(mounted.Control.FindFirstVisual<PullableMenuScrollViewer>());
+        Assert.NotNull(mounted.Control.FindNamedVisual<Border>("DatePickers"));
         var row = Assert.Single(mounted.Control.FindAllVisual<SessionSwipeActionButton>());
         var header = Assert.Single(
             mounted.Control.FindAllVisual<TextBlock>(),
             text => text.Name == "DateGroupHeaderText");
-        var openButton = row.FindControl<Button>("OpenButton");
+        var rowViewModel = Assert.IsType<SessionRowViewModel>(row.DataContext);
 
-        Assert.NotNull(openButton);
+        Assert.Equal("Morning Ride", rowViewModel.BaseName);
         Assert.Equal(viewModel.DateGroups[0].HeaderText, header.Text);
-        openButton!.Command!.Execute(openButton.CommandParameter);
+        rowViewModel.OpenPageCommand.Execute(null);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         await coordinator.Received(1).OpenEditAsync(snapshot.Id);

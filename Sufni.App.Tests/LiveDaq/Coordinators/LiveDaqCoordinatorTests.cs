@@ -95,6 +95,7 @@ public class LiveDaqCoordinatorTests
         Assert.Equal("park setup", snapshot.SetupName);
         Assert.Equal("demo bike", snapshot.BikeName);
         Assert.Null(snapshot.Endpoint);
+        Assert.Equal(LiveProtocolVersion.V2, snapshot.ProtocolVersion);
     }
 
     [Fact]
@@ -118,7 +119,13 @@ public class LiveDaqCoordinatorTests
 
         catalogEntries.OnNext(
         [
-            new LiveDaqCatalogEntry(boardId.ToString(), boardId.ToString(), boardId.ToString(), "192.168.0.20", 5555),
+            new LiveDaqCatalogEntry(
+                boardId.ToString(),
+                boardId.ToString(),
+                boardId.ToString(),
+                "192.168.0.20",
+                5555,
+                LiveProtocolVersion.V3),
             new LiveDaqCatalogEntry("192.168.0.21:6666", "192.168.0.21:6666", null, "192.168.0.21", 6666)
         ]);
 
@@ -128,12 +135,14 @@ public class LiveDaqCoordinatorTests
         Assert.Equal("192.168.0.20:5555", knownSnapshot.Endpoint);
         Assert.Equal("old setup", knownSnapshot.SetupName);
         Assert.Equal("old bike", knownSnapshot.BikeName);
+        Assert.Equal(LiveProtocolVersion.V3, knownSnapshot.ProtocolVersion);
 
         var discoveredOnly = liveDaqStore.Get("192.168.0.21:6666");
         Assert.NotNull(discoveredOnly);
         Assert.True(discoveredOnly.IsOnline);
         Assert.Null(discoveredOnly.SetupName);
         Assert.Null(discoveredOnly.BikeName);
+        Assert.Equal(LiveProtocolVersion.V2, discoveredOnly.ProtocolVersion);
 
         knownBoardsChanges.OnNext(
         [
@@ -153,6 +162,7 @@ public class LiveDaqCoordinatorTests
         Assert.Equal("new setup", knownSnapshot.SetupName);
         Assert.Equal("new bike", knownSnapshot.BikeName);
         Assert.Equal("192.168.0.20:5555", knownSnapshot.Endpoint);
+        Assert.Equal(LiveProtocolVersion.V3, knownSnapshot.ProtocolVersion);
     }
 
     [Fact]

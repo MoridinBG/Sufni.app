@@ -7,7 +7,9 @@ using NSubstitute;
 
 using Sufni.App.Bikes.Queries;
 using Sufni.App.Bikes.ViewModels.ItemLists;
+using Sufni.App.Bikes.ViewModels.Rows;
 using Sufni.App.Bikes.Views.ItemLists;
+using Sufni.App.Shell.Views.Controls;
 using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.Tests.TestSupport.Fixtures;
@@ -38,12 +40,12 @@ public class BikeListViewTests
 
         await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(view);
 
-        Assert.NotNull(mounted.Control.FindFirstVisual<SearchBar>());
+        Assert.NotNull(mounted.Control.FindFirstVisual<PullableMenuScrollViewer>());
         var row = Assert.Single(mounted.Control.FindAllVisual<SwipeToDeleteButton>());
-        var openButton = row.FindControl<Button>("OpenButton");
+        var rowViewModel = Assert.IsType<BikeRowViewModel>(row.DataContext);
 
-        Assert.NotNull(openButton);
-        openButton!.Command!.Execute(openButton.CommandParameter);
+        Assert.Equal("Trail Bike", rowViewModel.Name);
+        rowViewModel.OpenPageCommand.Execute(null);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         await coordinator.Received(1).OpenEditAsync(snapshot.Id);

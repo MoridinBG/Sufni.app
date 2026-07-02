@@ -190,7 +190,7 @@ public class RecordedGraphPageViewTests
         Assert.NotNull(toolbarHost);
         var leadingCommandBar = toolbarHost.FindControl<CommandBar>("LeadingGraphToolbarCommandBar");
         Assert.NotNull(leadingCommandBar);
-        var button = Assert.Single(toolbarHost.GetVisualDescendants().OfType<CommandBarButton>(), button => button.Label == "Match");
+        var button = Assert.Single(leadingCommandBar!.PrimaryCommands.OfType<CommandBarButton>(), button => button.Label == "Match");
         Assert.Equal("Match", button.Label);
         Assert.Same(command, button.Command);
         var icon = Assert.IsType<Image>(button.Icon);

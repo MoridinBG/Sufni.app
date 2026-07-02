@@ -89,10 +89,13 @@ public class LiveDaqDetailViewModelTests
         streamLease.DisposeAsync().Returns(ValueTask.CompletedTask);
     }
 
-    private LiveDaqDetailViewModel CreateEditor(LivePreviewStartResult? startResult = null)
+    private LiveDaqDetailViewModel CreateEditor(
+        LivePreviewStartResult? startResult = null,
+        LiveProtocolVersion protocolVersion = LiveProtocolVersion.V2)
     {
         var result = startResult ?? new LivePreviewStartResult.Started(
             LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808));
+        currentCatalogSnapshot = currentCatalogSnapshot with { ProtocolVersion = protocolVersion };
 
         sharedStream.EnsureStartedAsync(Arg.Any<CancellationToken>())
             .Returns(_ =>
@@ -104,7 +107,7 @@ public class LiveDaqDetailViewModelTests
                         ConnectionState = LiveConnectionState.Connected,
                         LastError = null,
                         SessionHeader = started.Header,
-                        SelectedSensorMask = started.Header.AcceptedSensorMask.StreamMask,
+                        SelectedStreamMask = started.Header.AcceptedSensorMask.StreamMask,
                     };
                     streamStates.OnNext(currentStreamState);
                 }
@@ -115,7 +118,7 @@ public class LiveDaqDetailViewModelTests
                         ConnectionState = LiveConnectionState.Disconnected,
                         LastError = rejected.UserMessage,
                         SessionHeader = null,
-                        SelectedSensorMask = LiveSensorMask.None,
+                        SelectedStreamMask = LiveStreamMask.None,
                     };
                     streamStates.OnNext(currentStreamState);
                 }
@@ -132,7 +135,8 @@ public class LiveDaqDetailViewModelTests
                 Port: 1557,
                 IsOnline: true,
                 SetupName: "race",
-                BikeName: "demo"),
+                BikeName: "demo",
+                ProtocolVersion: protocolVersion),
             sharedStream,
             liveDaqCoordinator,
             daqManagementService,
@@ -394,7 +398,7 @@ public class LiveDaqDetailViewModelTests
                 {
                     ConnectionState = LiveConnectionState.Connected,
                     SessionHeader = ((LivePreviewStartResult.Started)result1).Header,
-                    SelectedSensorMask = ((LivePreviewStartResult.Started)result1).Header.AcceptedSensorMask.StreamMask,
+                    SelectedStreamMask = ((LivePreviewStartResult.Started)result1).Header.AcceptedSensorMask.StreamMask,
                 };
                 states1.OnNext(state1);
                 return Task.FromResult<LivePreviewStartResult?>(result1);
@@ -406,7 +410,7 @@ public class LiveDaqDetailViewModelTests
                 {
                     ConnectionState = LiveConnectionState.Connected,
                     SessionHeader = ((LivePreviewStartResult.Started)result2).Header,
-                    SelectedSensorMask = ((LivePreviewStartResult.Started)result2).Header.AcceptedSensorMask.StreamMask,
+                    SelectedStreamMask = ((LivePreviewStartResult.Started)result2).Header.AcceptedSensorMask.StreamMask,
                 };
                 states2.OnNext(state2);
                 return Task.FromResult<LivePreviewStartResult?>(result2);
@@ -469,6 +473,19 @@ public class LiveDaqDetailViewModelTests
 
         Assert.False(editor.CanManage);
         Assert.False(editor.EditConfigCommand.CanExecute(null));
+    }
+
+    [AvaloniaFact]
+    public void CanManage_IsFalse_ForV3Endpoint()
+    {
+        var editor = CreateEditor(protocolVersion: LiveProtocolVersion.V3);
+
+        Assert.False(editor.CanManage);
+        Assert.False(editor.SetTimeCommand.CanExecute(null));
+        Assert.False(editor.SelectConfigFileCommand.CanExecute(null));
+        Assert.False(editor.EditConfigCommand.CanExecute(null));
+        Assert.False(editor.UploadConfigCommand.CanExecute(null));
+        Assert.Null(editor.ManagementDisabledTooltip);
     }
 
     [AvaloniaFact]
@@ -896,7 +913,7 @@ public class LiveDaqDetailViewModelTests
     {
         var header = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808);
         return new LiveTravelBatchFrame(
-            Header: new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.TravelBatch, 0, 1),
+            Header: new LiveFrameMetadata(1),
             Batch: new LiveBatchHeader(header.SessionId, 1, 0, header.SessionStartMonotonicUs, 5),
             Records:
             [

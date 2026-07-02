@@ -95,7 +95,7 @@ public class TelemetryDataStoreServiceTests
         service.StartBrowse();
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
-            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Loopback, 5555)));
+            new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, "2")));
 
         var store = Assert.Single(service.DataStores);
         Assert.Equal("gosst://127.0.0.1:5555", store.Name);
@@ -108,7 +108,7 @@ public class TelemetryDataStoreServiceTests
         var serviceDiscovery = Substitute.For<IServiceDiscovery>();
         var service = CreateService(serviceDiscovery: serviceDiscovery);
         service.StartBrowse();
-        var announcement = new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Loopback, 5555));
+        var announcement = new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, "2"));
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(announcement);
         serviceDiscovery.ServiceAdded += Raise.EventWith(announcement);
@@ -129,7 +129,7 @@ public class TelemetryDataStoreServiceTests
         service.StartBrowse();
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
-            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Loopback, 5555)));
+            new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, "2")));
 
         Assert.Empty(service.DataStores);
         Assert.Single(errors);
@@ -142,9 +142,9 @@ public class TelemetryDataStoreServiceTests
         var service = CreateService(serviceDiscovery: serviceDiscovery);
         service.StartBrowse();
         serviceDiscovery.ServiceAdded += Raise.EventWith(
-            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Loopback, 5555)));
+            new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, "2")));
         serviceDiscovery.ServiceAdded += Raise.EventWith(
-            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Loopback, 6666)));
+            new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 6666, "2")));
 
         serviceDiscovery.ServiceRemoved += Raise.EventWith(
             new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Loopback, 5555)));
@@ -162,9 +162,28 @@ public class TelemetryDataStoreServiceTests
         service.StopBrowse();
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
-            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Loopback, 5555)));
+            new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, "2")));
 
         Assert.Empty(service.DataStores);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("3")]
+    [InlineData("4")]
+    public void ServiceAdded_IgnoresAnnouncementsWithoutV2Protocol(string? liveProto)
+    {
+        var serviceDiscovery = Substitute.For<IServiceDiscovery>();
+        var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
+        var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
+        service.StartBrowse();
+
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, liveProto)));
+
+        Assert.Empty(service.DataStores);
+        boardIdInspector.DidNotReceive().InspectAsync(Arg.Any<IPAddress>(), Arg.Any<int>());
     }
 
     private static TelemetryDataStoreService CreateService(
@@ -193,6 +212,17 @@ public class TelemetryDataStoreServiceTests
         var dataStore = Substitute.For<ITelemetryDataStore>();
         dataStore.Name.Returns(name);
         return dataStore;
+    }
+
+    private static ServiceAnnouncement CreateDaqAnnouncement(IPAddress address, ushort port, string? liveProto)
+    {
+        var txtRecords = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (liveProto is not null)
+        {
+            txtRecords.Add("live_proto", liveProto);
+        }
+
+        return new ServiceAnnouncement(address, port, instanceName: null, txtRecords);
     }
 
     private static IStorageFolder CreateStorageProviderFolder(string localPath, string boardId)

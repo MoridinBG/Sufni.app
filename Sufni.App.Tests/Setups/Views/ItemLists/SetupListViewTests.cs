@@ -4,7 +4,9 @@ using Avalonia.Headless.XUnit;
 using NSubstitute;
 
 using Sufni.App.Setups.ViewModels.ItemLists;
+using Sufni.App.Setups.ViewModels.Rows;
 using Sufni.App.Setups.Views.ItemLists;
+using Sufni.App.Shell.Views.Controls;
 using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Harness;
@@ -32,12 +34,12 @@ public class SetupListViewTests
 
         await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(view);
 
-        Assert.NotNull(mounted.Control.FindFirstVisual<SearchBar>());
+        Assert.NotNull(mounted.Control.FindFirstVisual<PullableMenuScrollViewer>());
         var row = Assert.Single(mounted.Control.FindAllVisual<SwipeToDeleteButton>());
-        var openButton = row.FindControl<Button>("OpenButton");
+        var rowViewModel = Assert.IsType<SetupRowViewModel>(row.DataContext);
 
-        Assert.NotNull(openButton);
-        openButton!.Command!.Execute(openButton.CommandParameter);
+        Assert.Equal("Race Setup", rowViewModel.Name);
+        rowViewModel.OpenPageCommand.Execute(null);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         await coordinator.Received(1).OpenEditAsync(snapshot.Id);

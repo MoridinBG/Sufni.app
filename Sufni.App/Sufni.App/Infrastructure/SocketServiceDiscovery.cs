@@ -31,18 +31,22 @@ public class SocketServiceDiscovery : IServiceDiscovery
                 return;
             }
 
-            endpointCache.Add(announcedAddresses, args.Announcement.Port, connectableAddress);
-            var announcement = new ServiceAnnouncement(connectableAddress, args.Announcement.Port);
+            var instanceName = ServiceAnnouncementMetadataReader.ReadInstanceName(args.Announcement);
+            var txtRecords = ServiceAnnouncementMetadataReader.ReadTxtRecords(args.Announcement);
+            endpointCache.Add(instanceName, announcedAddresses, args.Announcement.Port, connectableAddress);
+            var announcement = new ServiceAnnouncement(connectableAddress, args.Announcement.Port, instanceName, txtRecords);
             logger.Verbose(
-                "Discovered socket service endpoint {Address}:{Port}",
+                "Discovered socket service endpoint {Address}:{Port} instance {InstanceName}",
                 connectableAddress,
-                args.Announcement.Port);
+                args.Announcement.Port,
+                instanceName);
             ServiceAdded?.Invoke(sender, new ServiceAnnouncementEventArgs(announcement));
         };
 
         browser.ServiceRemoved += (sender, args) =>
         {
-            if (!endpointCache.TryRemove(args.Announcement.Addresses, args.Announcement.Port, out var removedAddress))
+            var instanceName = ServiceAnnouncementMetadataReader.ReadInstanceName(args.Announcement);
+            if (!endpointCache.TryRemove(instanceName, args.Announcement.Addresses, args.Announcement.Port, out var removedAddress))
             {
                 logger.Verbose(
                     "Ignoring removed socket service on port {Port} because no matching added endpoint was emitted",
@@ -50,11 +54,13 @@ public class SocketServiceDiscovery : IServiceDiscovery
                 return;
             }
 
-            var announcement = new ServiceAnnouncement(removedAddress, args.Announcement.Port);
+            var txtRecords = ServiceAnnouncementMetadataReader.ReadTxtRecords(args.Announcement);
+            var announcement = new ServiceAnnouncement(removedAddress, args.Announcement.Port, instanceName, txtRecords);
             logger.Verbose(
-                "Removed socket service endpoint {Address}:{Port}",
+                "Removed socket service endpoint {Address}:{Port} instance {InstanceName}",
                 removedAddress,
-                args.Announcement.Port);
+                args.Announcement.Port,
+                instanceName);
             ServiceRemoved?.Invoke(sender, new ServiceAnnouncementEventArgs(announcement));
         };
     }

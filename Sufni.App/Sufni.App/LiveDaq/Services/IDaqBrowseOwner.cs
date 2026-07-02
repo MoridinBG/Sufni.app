@@ -2,7 +2,7 @@ using System;
 
 namespace Sufni.App.LiveDaq.Services;
 
-// Reference-counted owner for the shared `_gosst._tcp` DAQ browse session.
+// Reference-counted owner for the shared `_sufni._tcp` DAQ browse session.
 public interface IDaqBrowseOwner
 {
     // Returns a lease for one caller. Dispose it when that caller no longer needs

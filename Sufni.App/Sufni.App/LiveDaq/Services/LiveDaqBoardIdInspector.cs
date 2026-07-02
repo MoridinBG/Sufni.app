@@ -43,11 +43,11 @@ internal sealed class LiveDaqBoardIdInspector : ILiveDaqBoardIdInspector
             await tcp.ConnectAsync(address, port, token);
             await using var stream = tcp.GetStream();
 
-            var frame = LiveProtocolReader.CreateIdentifyFrame(1);
+            var frame = LiveV2ProtocolReader.CreateIdentifyFrame(1);
             await stream.WriteAsync(frame, token);
             await stream.FlushAsync(token);
 
-            var reader = new LiveProtocolReader();
+            var reader = new LiveV2ProtocolReader();
             var buffer = new byte[256];
             while (true)
             {

@@ -1,5 +1,5 @@
 using Sufni.App.ExtensionHost.Contracts.Services;
-﻿using Avalonia;
+using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using Sufni.App.Desktop;
@@ -20,7 +20,7 @@ namespace Sufni.App.Linux
         public static AppBuilder BuildAvaloniaApp()
         {
             App.ServiceCollection.AddSingleton<ISecureStorage, LinuxSecureStorage>();
-            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, SocketServiceDiscovery>("gosst");
+            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, SocketServiceDiscovery>("daq");
             DesktopAppBootstrapper.RegisterDesktopSync(App.ServiceCollection);
             RegisterPlatformExtensions(App.ServiceCollection);
             return DesktopAppBootstrapper.ConfigureAvaloniaApp(

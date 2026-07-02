@@ -10,13 +10,17 @@ internal static class LiveProtocolTestFrames
         uint sessionId = 77,
         LiveImuLocationMask imuMask = LiveImuLocationMask.Frame | LiveImuLocationMask.Rear,
         LiveSensorInstanceMask requestedSensorMask = LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.RearImu | LiveSensorInstanceMask.Gps,
-        LiveSensorInstanceMask acceptedSensorMask = LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.RearImu | LiveSensorInstanceMask.Gps)
+        LiveSensorInstanceMask acceptedSensorMask = LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.RearImu | LiveSensorInstanceMask.Gps,
+        uint acceptedTravelRateMhz = 200_000,
+        uint acceptedImuRateMhz = 100_000,
+        uint acceptedGpsRateMhz = 10_000,
+        LiveProtocolVersion protocolVersion = LiveProtocolVersion.V2)
     {
         return new LiveSessionHeader(
             SessionId: sessionId,
-            AcceptedTravelHz: 200,
-            AcceptedImuHz: 100,
-            AcceptedGpsFixHz: 10,
+            AcceptedTravelRateMhz: acceptedTravelRateMhz,
+            AcceptedImuRateMhz: acceptedImuRateMhz,
+            AcceptedGpsRateMhz: acceptedGpsRateMhz,
             SessionStartUtc: new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
             SessionStartMonotonicUs: 123456789,
             ActiveImuMask: imuMask,
@@ -29,48 +33,49 @@ internal static class LiveProtocolTestFrames
                 RearGyroLsbPerDps: 65.5f),
             Flags: LiveSessionFlags.CalibratedOnly | LiveSessionFlags.MutuallyExclusiveWithRecording,
             RequestedSensorMask: requestedSensorMask,
-            AcceptedSensorMask: acceptedSensorMask);
+            AcceptedSensorMask: acceptedSensorMask,
+            ProtocolVersion: protocolVersion);
     }
 
     public static byte[] CreateStartAckFrame(
         uint sequence,
         LiveStartErrorCode result = LiveStartErrorCode.Ok,
         uint sessionId = 77,
-        LiveSensorMask selectedSensorMask = LiveSensorMask.Travel | LiveSensorMask.Imu)
+        LiveStreamMask selectedStreamMask = LiveStreamMask.Travel | LiveStreamMask.Imu)
     {
-        var payload = new byte[LiveProtocolConstants.StartAckPayloadSize];
+        var payload = new byte[LiveV2ProtocolConstants.StartAckPayloadSize];
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(0, 4), (int)result);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4, 4), sessionId);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8, 4), (uint)selectedSensorMask);
-        return LiveProtocolReader.CreateFrame(LiveFrameType.StartLiveAck, sequence, payload);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8, 4), (uint)LiveProtocolHelpers.ToV2StreamMask(selectedStreamMask));
+        return LiveV2ProtocolReader.CreateFrame(LiveV2FrameType.StartLiveAck, sequence, payload);
     }
 
     public static byte[] CreateIdentifyAckFrame(uint sequence, byte[] boardSerial)
     {
-        var payload = new byte[LiveProtocolConstants.IdentifyAckPayloadSize];
+        var payload = new byte[LiveV2ProtocolConstants.IdentifyAckPayloadSize];
         boardSerial.AsSpan(0, 8).CopyTo(payload);
-        return LiveProtocolReader.CreateFrame(LiveFrameType.IdentifyAck, sequence, payload);
+        return LiveV2ProtocolReader.CreateFrame(LiveV2FrameType.IdentifyAck, sequence, payload);
     }
 
     public static byte[] CreateErrorFrame(uint sequence, LiveStartErrorCode errorCode)
     {
-        var payload = new byte[LiveProtocolConstants.ErrorPayloadSize];
+        var payload = new byte[LiveV2ProtocolConstants.ErrorPayloadSize];
         BinaryPrimitives.WriteInt32LittleEndian(payload, (int)errorCode);
-        return LiveProtocolReader.CreateFrame(LiveFrameType.Error, sequence, payload);
+        return LiveV2ProtocolReader.CreateFrame(LiveV2FrameType.Error, sequence, payload);
     }
 
     public static byte[] CreateStopAckFrame(uint sequence, uint sessionId)
     {
-        var payload = new byte[LiveProtocolConstants.StopAckPayloadSize];
+        var payload = new byte[LiveV2ProtocolConstants.StopAckPayloadSize];
         BinaryPrimitives.WriteUInt32LittleEndian(payload, sessionId);
-        return LiveProtocolReader.CreateFrame(LiveFrameType.StopLiveAck, sequence, payload);
+        return LiveV2ProtocolReader.CreateFrame(LiveV2FrameType.StopLiveAck, sequence, payload);
     }
 
     public static byte[] CreateSessionHeaderFrame(uint sequence, LiveSessionHeader? header = null)
     {
         header ??= CreateSessionHeaderModel();
 
-        var payload = new byte[LiveProtocolConstants.SessionHeaderPayloadSize];
+        var payload = new byte[LiveV2ProtocolConstants.SessionHeaderPayloadSize];
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(0, 4), header.SessionId);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4, 4), header.AcceptedTravelHz);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8, 4), header.AcceptedImuHz);
@@ -87,7 +92,7 @@ internal static class LiveProtocolTestFrames
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(60, 4), (uint)header.Flags);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(64, 4), (uint)header.RequestedSensorMask);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(68, 4), (uint)header.AcceptedSensorMask);
-        return LiveProtocolReader.CreateFrame(LiveFrameType.SessionHeader, sequence, payload);
+        return LiveV2ProtocolReader.CreateFrame(LiveV2FrameType.SessionHeader, sequence, payload);
     }
 
     public static byte[] CreateGpsBatchFrame(
@@ -95,7 +100,7 @@ internal static class LiveProtocolTestFrames
         uint sessionId,
         GpsRecord record)
     {
-        var payload = new byte[LiveProtocolConstants.BatchHeaderSize + LiveProtocolConstants.GpsRecordSize];
+        var payload = new byte[LiveV2ProtocolConstants.BatchHeaderSize + LiveV2ProtocolConstants.GpsRecordSize];
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(0, 4), sessionId);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4, 4), 3);
         BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(8, 8), 42);
@@ -106,7 +111,7 @@ internal static class LiveProtocolTestFrames
         var date = (uint)(timestamp.Year * 10000 + timestamp.Month * 100 + timestamp.Day);
         var timeOfDay = timestamp.TimeOfDay;
         var timeMs = (uint)timeOfDay.TotalMilliseconds;
-        var recordOffset = LiveProtocolConstants.BatchHeaderSize;
+        var recordOffset = LiveV2ProtocolConstants.BatchHeaderSize;
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(recordOffset + 0, 4), date);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(recordOffset + 4, 4), timeMs);
         WriteDoubleLittleEndian(payload.AsSpan(recordOffset + 8, 8), record.Latitude);
@@ -118,7 +123,7 @@ internal static class LiveProtocolTestFrames
         payload[recordOffset + 37] = record.Satellites;
         WriteSingleLittleEndian(payload.AsSpan(recordOffset + 38, 4), record.Epe2d);
         WriteSingleLittleEndian(payload.AsSpan(recordOffset + 42, 4), record.Epe3d);
-        return LiveProtocolReader.CreateFrame(LiveFrameType.GpsBatch, sequence, payload);
+        return LiveV2ProtocolReader.CreateFrame(LiveV2FrameType.GpsBatch, sequence, payload);
     }
 
     private static void WriteSingleLittleEndian(Span<byte> destination, float value)

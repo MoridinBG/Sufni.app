@@ -11,7 +11,7 @@ public sealed class LiveDaqSessionState
     private readonly System.Threading.Lock gate = new();
     private readonly Dictionary<LiveImuLocation, LiveImuReading> latestImuReadings = [];
 
-    private LiveSensorMask selectedSensorMask;
+    private LiveStreamMask selectedStreamMask;
     private LiveSessionHeader? sessionHeader;
     private LiveTravelRecord? latestTravel;
     private ulong? latestTravelMonotonicUs;
@@ -31,7 +31,7 @@ public sealed class LiveDaqSessionState
     {
         lock (gate)
         {
-            selectedSensorMask = LiveSensorMask.None;
+            selectedStreamMask = LiveStreamMask.None;
             sessionHeader = null;
             latestTravel = null;
             latestTravelMonotonicUs = null;
@@ -49,12 +49,12 @@ public sealed class LiveDaqSessionState
         }
     }
 
-    public void ApplySharedSessionState(LiveSessionHeader? nextSessionHeader, LiveSensorMask nextSelectedSensorMask)
+    public void ApplySharedSessionState(LiveSessionHeader? nextSessionHeader, LiveStreamMask nextSelectedStreamMask)
     {
         lock (gate)
         {
             sessionHeader = nextSessionHeader;
-            selectedSensorMask = nextSelectedSensorMask;
+            selectedStreamMask = nextSelectedStreamMask;
         }
     }
 
@@ -80,12 +80,14 @@ public sealed class LiveDaqSessionState
                     break;
 
                 case LiveSessionStatsFrame sessionStatsFrame:
-                    travelQueueDepth = sessionStatsFrame.Payload.TravelQueueDepth;
-                    imuQueueDepth = sessionStatsFrame.Payload.ImuQueueDepth;
-                    gpsQueueDepth = sessionStatsFrame.Payload.GpsQueueDepth;
-                    travelDroppedBatches = sessionStatsFrame.Payload.TravelDroppedBatches;
-                    imuDroppedBatches = sessionStatsFrame.Payload.ImuDroppedBatches;
-                    gpsDroppedBatches = sessionStatsFrame.Payload.GpsDroppedBatches;
+                    ApplySessionStats(sessionStatsFrame.Payload);
+                    break;
+
+                case LiveStatusFrame statusFrame:
+                    ApplySessionStats(LiveProtocolHelpers.CreateSessionStatsFromStatus(statusFrame.Streams));
+                    break;
+
+                case LiveBatteryBatchFrame:
                     break;
             }
         }
@@ -155,6 +157,16 @@ public sealed class LiveDaqSessionState
         latestGps = frame.Records[^1];
     }
 
+    private void ApplySessionStats(LiveSessionStats stats)
+    {
+        travelQueueDepth = stats.TravelQueueDepth;
+        imuQueueDepth = stats.ImuQueueDepth;
+        gpsQueueDepth = stats.GpsQueueDepth;
+        travelDroppedBatches = stats.TravelDroppedBatches;
+        imuDroppedBatches = stats.ImuDroppedBatches;
+        gpsDroppedBatches = stats.GpsDroppedBatches;
+    }
+
     private LiveSessionContractSnapshot CreateSessionSnapshot()
     {
         if (sessionHeader is null)
@@ -164,7 +176,7 @@ public sealed class LiveDaqSessionState
 
         return new LiveSessionContractSnapshot(
             SessionId: sessionHeader.SessionId,
-            SelectedSensorMask: selectedSensorMask,
+            SelectedStreamMask: selectedStreamMask,
             RequestedSensorMask: sessionHeader.RequestedSensorMask,
             AcceptedSensorMask: sessionHeader.AcceptedSensorMask,
             AcceptedTravelHz: sessionHeader.AcceptedTravelHz,
@@ -172,7 +184,10 @@ public sealed class LiveDaqSessionState
             AcceptedGpsFixHz: sessionHeader.AcceptedGpsFixHz,
             SessionStartUtc: sessionHeader.SessionStartUtc,
             Flags: sessionHeader.Flags,
-            ActiveImuLocations: sessionHeader.GetActiveImuLocations());
+            ActiveImuLocations: sessionHeader.GetActiveImuLocations(),
+            AcceptedTravelRateMhz: sessionHeader.AcceptedTravelRateMhz,
+            AcceptedImuRateMhz: sessionHeader.AcceptedImuRateMhz,
+            AcceptedGpsRateMhz: sessionHeader.AcceptedGpsRateMhz);
     }
 
     private LiveTravelUiSnapshot CreateTravelSnapshot(LiveSessionContractSnapshot session, DateTimeOffset now)

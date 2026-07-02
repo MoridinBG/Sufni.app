@@ -17,18 +17,18 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     private static readonly ILogger logger = Log.ForContext<LiveDaqSharedStream>();
 
-    private readonly Func<ILiveDaqClient> createLiveDaqClient;
+    private readonly ILiveDaqClientFactory liveDaqClientFactory;
     private readonly Func<LiveDaqSharedStream, Task> evictAsync;
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly BufferedFrameStream frames;
-    private readonly BehaviorSubject<LiveDaqSharedStreamState> statesSubject = new(LiveDaqSharedStreamState.Empty);
+    private readonly BehaviorSubject<LiveDaqSharedStreamState> statesSubject;
     private readonly EventLoopScheduler clientEventScheduler = new();
 
     private LiveDaqSnapshot snapshot;
     private ILiveDaqClient? liveDaqClient;
     private IDisposable? liveDaqClientSubscription;
     private LiveDaqStreamConfiguration requestedConfiguration = LiveDaqStreamConfiguration.Default;
-    private LiveDaqSharedStreamState currentState = LiveDaqSharedStreamState.Empty;
+    private LiveDaqSharedStreamState currentState;
     private int observerCount;
     private int configurationLockCount;
     private int pendingDeliberateDisconnectCount;
@@ -39,12 +39,17 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     public LiveDaqSharedStream(
         LiveDaqSnapshot snapshot,
-        Func<ILiveDaqClient> createLiveDaqClient,
+        ILiveDaqClientFactory liveDaqClientFactory,
         Func<LiveDaqSharedStream, Task> evictAsync)
     {
         this.snapshot = snapshot;
-        this.createLiveDaqClient = createLiveDaqClient;
+        this.liveDaqClientFactory = liveDaqClientFactory;
         this.evictAsync = evictAsync;
+        currentState = LiveDaqSharedStreamState.Empty with
+        {
+            ProtocolVersion = snapshot.ProtocolVersion,
+        };
+        statesSubject = new BehaviorSubject<LiveDaqSharedStreamState>(currentState);
         frames = new BufferedFrameStream(FrameBufferCapacity);
     }
 
@@ -90,7 +95,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     ConnectionState = LiveConnectionState.Disconnected,
                     LastError = "DAQ is offline.",
                     SessionHeader = null,
-                    SelectedSensorMask = LiveSensorMask.None,
+                    SelectedStreamMask = LiveStreamMask.None,
                 });
                 return new LivePreviewStartResult.Failed("DAQ is offline.");
             }
@@ -105,7 +110,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 ConnectionState = LiveConnectionState.Connecting,
                 LastError = null,
                 SessionHeader = null,
-                SelectedSensorMask = LiveSensorMask.None,
+                SelectedStreamMask = LiveStreamMask.None,
             });
 
             var client = EnsureClientCreated();
@@ -128,7 +133,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                         ConnectionState = LiveConnectionState.Connected,
                         LastError = null,
                         SessionHeader = started.Header,
-                        SelectedSensorMask = started.Header.AcceptedSensorMask.StreamMask,
+                        SelectedStreamMask = started.Header.AcceptedSensorMask.StreamMask,
                         ClientDropCounters = LiveDaqClientDropCounters.Empty,
                     });
                     break;
@@ -145,7 +150,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                         ConnectionState = LiveConnectionState.Disconnected,
                         LastError = rejected.UserMessage,
                         SessionHeader = null,
-                        SelectedSensorMask = LiveSensorMask.None,
+                        SelectedStreamMask = LiveStreamMask.None,
                     });
                     BeginDeliberateDisconnect();
                     await client.DisconnectAsync(cancellationToken);
@@ -162,7 +167,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                         ConnectionState = LiveConnectionState.Disconnected,
                         LastError = failed.ErrorMessage,
                         SessionHeader = null,
-                        SelectedSensorMask = LiveSensorMask.None,
+                        SelectedStreamMask = LiveStreamMask.None,
                     });
                     break;
             }
@@ -183,7 +188,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 ConnectionState = LiveConnectionState.Disconnected,
                 LastError = ex.Message,
                 SessionHeader = null,
-                SelectedSensorMask = LiveSensorMask.None,
+                SelectedStreamMask = LiveStreamMask.None,
             });
             startResult = new LivePreviewStartResult.Failed(ex.Message);
         }
@@ -213,7 +218,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     ConnectionState = LiveConnectionState.Disconnected,
                     LastError = null,
                     SessionHeader = null,
-                    SelectedSensorMask = LiveSensorMask.None,
+                    SelectedStreamMask = LiveStreamMask.None,
                 });
                 return;
             }
@@ -224,7 +229,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 {
                     LastError = null,
                     SessionHeader = null,
-                    SelectedSensorMask = LiveSensorMask.None,
+                    SelectedStreamMask = LiveStreamMask.None,
                 });
                 return;
             }
@@ -247,7 +252,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 ConnectionState = LiveConnectionState.Disconnected,
                 LastError = null,
                 SessionHeader = null,
-                SelectedSensorMask = LiveSensorMask.None,
+                SelectedStreamMask = LiveStreamMask.None,
             });
         }
         catch (OperationCanceledException)
@@ -265,7 +270,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 ConnectionState = LiveConnectionState.Disconnected,
                 LastError = ex.Message,
                 SessionHeader = null,
-                SelectedSensorMask = LiveSensorMask.None,
+                SelectedStreamMask = LiveStreamMask.None,
             });
         }
         finally
@@ -314,7 +319,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 ConnectionState = LiveConnectionState.Disconnected,
                 LastError = null,
                 SessionHeader = null,
-                SelectedSensorMask = LiveSensorMask.None,
+                SelectedStreamMask = LiveStreamMask.None,
             });
 
             if (!TryGetEndpoint(out var host, out var port))
@@ -347,7 +352,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                         ConnectionState = LiveConnectionState.Connected,
                         LastError = null,
                         SessionHeader = started.Header,
-                        SelectedSensorMask = started.Header.AcceptedSensorMask.StreamMask,
+                        SelectedStreamMask = started.Header.AcceptedSensorMask.StreamMask,
                         ClientDropCounters = LiveDaqClientDropCounters.Empty,
                     });
                     break;
@@ -358,7 +363,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                         ConnectionState = LiveConnectionState.Disconnected,
                         LastError = rejected.UserMessage,
                         SessionHeader = null,
-                        SelectedSensorMask = LiveSensorMask.None,
+                        SelectedStreamMask = LiveStreamMask.None,
                     });
                     BeginDeliberateDisconnect();
                     await client.DisconnectAsync(cancellationToken);
@@ -370,7 +375,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                         ConnectionState = LiveConnectionState.Disconnected,
                         LastError = failed.ErrorMessage,
                         SessionHeader = null,
-                        SelectedSensorMask = LiveSensorMask.None,
+                        SelectedStreamMask = LiveStreamMask.None,
                     });
                     break;
             }
@@ -390,7 +395,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 ConnectionState = LiveConnectionState.Disconnected,
                 LastError = ex.Message,
                 SessionHeader = null,
-                SelectedSensorMask = LiveSensorMask.None,
+                SelectedStreamMask = LiveStreamMask.None,
             });
         }
         finally
@@ -401,6 +406,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     public async Task UpdateCatalogSnapshotAsync(LiveDaqSnapshot nextSnapshot, CancellationToken cancellationToken = default)
     {
+        var protocolChanged = false;
         await gate.WaitAsync(cancellationToken);
         try
         {
@@ -409,11 +415,21 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 return;
             }
 
+            protocolChanged = nextSnapshot.ProtocolVersion != snapshot.ProtocolVersion;
             snapshot = nextSnapshot;
+            if (!protocolChanged)
+            {
+                PublishState(currentState);
+            }
         }
         finally
         {
             gate.Release();
+        }
+
+        if (protocolChanged)
+        {
+            await CloseAsync("DAQ protocol changed. Reopen the live tab.", cancellationToken);
         }
     }
 
@@ -544,7 +560,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             return liveDaqClient;
         }
 
-        liveDaqClient = createLiveDaqClient();
+        liveDaqClient = liveDaqClientFactory.Create(snapshot);
         liveDaqClientSubscription = liveDaqClient.Events
             .ObserveOn(clientEventScheduler)
             .Subscribe(clientEvent => _ = HandleClientEventAsync(clientEvent));
@@ -613,7 +629,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                             ConnectionState = LiveConnectionState.Disconnected,
                             LastError = errorFrame.Payload.ErrorCode.UserMessage,
                             SessionHeader = null,
-                            SelectedSensorMask = LiveSensorMask.None,
+                            SelectedStreamMask = LiveStreamMask.None,
                         });
                     }
 
@@ -664,6 +680,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         currentState = nextState with
         {
             IsConfigurationLocked = configurationLockCount > 0,
+            ProtocolVersion = snapshot.ProtocolVersion,
         };
         statesSubject.OnNext(currentState);
     }

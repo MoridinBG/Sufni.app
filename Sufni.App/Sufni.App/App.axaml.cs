@@ -286,7 +286,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IDaqBrowseOwner, DaqBrowseOwner>();
         ServiceCollection.AddSingleton<ILiveDaqBoardIdInspector, LiveDaqBoardIdInspector>();
         ServiceCollection.AddSingleton<ILiveDaqCatalogService, LiveDaqCatalogService>();
-        ServiceCollection.AddSingleton<Func<ILiveDaqClient>>(_ => static () => new LiveDaqClient());
+        ServiceCollection.AddSingleton<ILiveDaqClientFactory, LiveDaqClientFactory>();
         ServiceCollection.AddSingleton<ILiveDaqSharedStreamRegistry, LiveDaqSharedStreamRegistry>();
         ServiceCollection.AddSingleton<LiveGraphPipelineFactory>();
         ServiceCollection.AddSingleton<ILiveSessionServiceFactory, LiveSessionServiceFactory>();

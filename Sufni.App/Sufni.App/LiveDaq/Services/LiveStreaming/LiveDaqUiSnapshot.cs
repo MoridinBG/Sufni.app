@@ -14,7 +14,7 @@ public enum LiveConnectionState
 
 public sealed record LiveSessionContractSnapshot(
     uint? SessionId,
-    LiveSensorMask SelectedSensorMask,
+    LiveStreamMask SelectedStreamMask,
     LiveSensorInstanceMask RequestedSensorMask,
     LiveSensorInstanceMask AcceptedSensorMask,
     uint? AcceptedTravelHz,
@@ -22,11 +22,14 @@ public sealed record LiveSessionContractSnapshot(
     uint? AcceptedGpsFixHz,
     DateTimeOffset? SessionStartUtc,
     LiveSessionFlags Flags,
-    IReadOnlyList<LiveImuLocation> ActiveImuLocations)
+    IReadOnlyList<LiveImuLocation> ActiveImuLocations,
+    uint? AcceptedTravelRateMhz = null,
+    uint? AcceptedImuRateMhz = null,
+    uint? AcceptedGpsRateMhz = null)
 {
     public static readonly LiveSessionContractSnapshot Empty = new(
         SessionId: null,
-        SelectedSensorMask: LiveSensorMask.None,
+        SelectedStreamMask: LiveStreamMask.None,
         RequestedSensorMask: LiveSensorInstanceMask.None,
         AcceptedSensorMask: LiveSensorInstanceMask.None,
         AcceptedTravelHz: null,
@@ -34,9 +37,18 @@ public sealed record LiveSessionContractSnapshot(
         AcceptedGpsFixHz: null,
         SessionStartUtc: null,
         Flags: LiveSessionFlags.None,
-        ActiveImuLocations: []);
+        ActiveImuLocations: [],
+        AcceptedTravelRateMhz: null,
+        AcceptedImuRateMhz: null,
+        AcceptedGpsRateMhz: null);
 
     public LiveSensorInstanceMask MissingSensorMask => RequestedSensorMask & ~AcceptedSensorMask;
+
+    public string AcceptedTravelRateText => LiveProtocolHelpers.FormatRateText("Travel", AcceptedTravelRateMhz);
+
+    public string AcceptedImuRateText => LiveProtocolHelpers.FormatRateText("IMU", AcceptedImuRateMhz);
+
+    public string AcceptedGpsRateText => LiveProtocolHelpers.FormatRateText("GPS", AcceptedGpsRateMhz);
 }
 
 public sealed record LiveTravelUiSnapshot(

@@ -177,7 +177,8 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
                 Port: null,
                 IsOnline: false,
                 SetupName: knownBoard.SetupName,
-                BikeName: knownBoard.BikeName);
+                BikeName: knownBoard.BikeName,
+                ProtocolVersion: LiveProtocolVersion.V2);
         }
 
         foreach (var entry in catalogEntries)
@@ -191,7 +192,8 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
                     Port: entry.Port,
                     IsOnline: true,
                     SetupName: knownBoard.SetupName,
-                    BikeName: knownBoard.BikeName)
+                    BikeName: knownBoard.BikeName,
+                    ProtocolVersion: entry.ProtocolVersion)
                 : new LiveDaqSnapshot(
                     IdentityKey: entry.IdentityKey,
                     DisplayName: entry.DisplayName,
@@ -200,7 +202,8 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
                     Port: entry.Port,
                     IsOnline: true,
                     SetupName: null,
-                    BikeName: null);
+                    BikeName: null,
+                    ProtocolVersion: entry.ProtocolVersion);
 
             snapshots[entry.IdentityKey] = merged;
         }
