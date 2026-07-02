@@ -1,11 +1,14 @@
 using Sufni.App.ExtensionHost.Contracts.Services;
 
+using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Base;
 using Sufni.App.Shell.Coordinators;
 namespace Sufni.App.Shell.ViewModels;
 
 public partial class MainViewModel : ViewModelBase
 {
+    private readonly IPlotZoomState plotZoomState;
+
     #region Observable properties
 
     public MainPagesViewModel MainPagesViewModel { get; }
@@ -17,10 +20,12 @@ public partial class MainViewModel : ViewModelBase
     public MainViewModel(
         MainPagesViewModel mainPagesViewModel,
         IMobileNavigationShellHost navigationHost,
+        IPlotZoomState plotZoomState,
         IUiThreadDispatcher uiThreadDispatcher)
         : base(uiThreadDispatcher)
     {
         MainPagesViewModel = mainPagesViewModel;
+        this.plotZoomState = plotZoomState;
         navigationHost.SetRoot(mainPagesViewModel);
     }
 
@@ -28,6 +33,11 @@ public partial class MainViewModel : ViewModelBase
 
     public bool TryCloseTransientShellSurface()
     {
+        if (plotZoomState.TryCollapse())
+        {
+            return true;
+        }
+
         if (!MainPagesViewModel.IsDrawerOpen)
         {
             return false;
