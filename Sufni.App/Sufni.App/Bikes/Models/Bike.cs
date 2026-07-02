@@ -42,6 +42,7 @@ public class Bike : Synchronizable
     public double? ShockStroke { get; set; }
 
     [JsonPropertyName("rear_suspension")]
+    [JsonRequired]
     [Ignore]
     public RearSuspensionSpec RearSuspension { get; set; } = new RearSuspensionSpec.Hardtail();
 

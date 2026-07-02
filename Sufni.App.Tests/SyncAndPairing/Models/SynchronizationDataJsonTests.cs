@@ -45,42 +45,30 @@ public class SynchronizationDataJsonTests
     [Fact]
     public void InboundContext_RejectsSynchronizationDataBikeWithMalformedRearSuspension()
     {
-        const string json = """
-                            {
-                              "board": [],
-                              "bike": [
-                                {
-                                  "id": "11111111-1111-1111-1111-111111111111",
-                                  "updated": 1,
-                                  "client_updated": 1,
-                                  "deleted": null,
-                                  "name": "bad bike",
-                                  "head_angle": 65,
-                                  "fork_stroke": 160,
-                                  "shock_stroke": null,
-                                  "rear_suspension": { "kind": "linkage" },
-                                  "front_compression_damping_cutoff_mm_per_second": 200,
-                                  "front_rebound_damping_cutoff_mm_per_second": 200,
-                                  "rear_compression_damping_cutoff_mm_per_second": 200,
-                                  "rear_rebound_damping_cutoff_mm_per_second": 200,
-                                  "pixels_to_millimeters": 0,
-                                  "front_wheel_diameter": null,
-                                  "rear_wheel_diameter": null,
-                                  "front_wheel_rim_size": null,
-                                  "front_wheel_tire_width": null,
-                                  "rear_wheel_rim_size": null,
-                                  "rear_wheel_tire_width": null,
-                                  "image_rotation_degrees": 0,
-                                  "image": ""
-                                }
-                              ],
-                              "setup": [],
-                              "session": [],
-                              "track": [],
-                              "app_preferences": null,
-                              "extension": []
-                            }
-                            """;
+        var json = SyncDataJson(""" "rear_suspension": { "kind": "linkage" } """);
+
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize(json, AppJson.InboundContext.SynchronizationData));
+    }
+
+    [Fact]
+    public void InboundContext_RejectsSynchronizationDataBikeWithoutRearSuspension()
+    {
+        var json = SyncDataJson("");
+
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize(json, AppJson.InboundContext.SynchronizationData));
+    }
+
+    [Fact]
+    public void InboundContext_RejectsSynchronizationDataBikeWithLegacyRearSuspensionTriple()
+    {
+        var json = SyncDataJson(
+            """
+            "rear_suspension_kind": "none",
+            "linkage": null,
+            "leverage_ratio": null
+            """);
 
         Assert.Throws<JsonException>(() =>
             JsonSerializer.Deserialize(json, AppJson.InboundContext.SynchronizationData));
@@ -95,4 +83,49 @@ public class SynchronizationDataJsonTests
             Updated = 1,
             ClientUpdated = 1,
         };
+
+    private static string SyncDataJson(string rearSuspensionMembers)
+    {
+        var rearSuspensionMemberText = string.IsNullOrWhiteSpace(rearSuspensionMembers)
+            ? string.Empty
+            : $"""
+                                      {rearSuspensionMembers},
+            """;
+
+        return $$"""
+                 {
+                   "board": [],
+                   "bike": [
+                     {
+                       "id": "11111111-1111-1111-1111-111111111111",
+                       "updated": 1,
+                       "client_updated": 1,
+                       "deleted": null,
+                       "name": "bad bike",
+                       "head_angle": 65,
+                       "fork_stroke": 160,
+                       "shock_stroke": null,
+                 {{rearSuspensionMemberText}}      "front_compression_damping_cutoff_mm_per_second": 200,
+                       "front_rebound_damping_cutoff_mm_per_second": 200,
+                       "rear_compression_damping_cutoff_mm_per_second": 200,
+                       "rear_rebound_damping_cutoff_mm_per_second": 200,
+                       "pixels_to_millimeters": 0,
+                       "front_wheel_diameter": null,
+                       "rear_wheel_diameter": null,
+                       "front_wheel_rim_size": null,
+                       "front_wheel_tire_width": null,
+                       "rear_wheel_rim_size": null,
+                       "rear_wheel_tire_width": null,
+                       "image_rotation_degrees": 0,
+                       "image": ""
+                     }
+                   ],
+                   "setup": [],
+                   "session": [],
+                   "track": [],
+                   "app_preferences": null,
+                   "extension": []
+                 }
+                 """;
+    }
 }
