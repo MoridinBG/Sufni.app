@@ -67,7 +67,7 @@ public partial class LinkageEditorViewModel : ObservableObject
         SelectedLink = null;
     }
 
-    public void Load(Linkage? linkage, double? imageHeight, double? pixelsToMillimeters)
+    public void Load(LinkageSpec? linkage, double? imageHeight, double? pixelsToMillimeters)
     {
         RunWithoutNotifications(() =>
         {
@@ -84,19 +84,19 @@ public partial class LinkageEditorViewModel : ObservableObject
             }
 
             var loadedJointViewModels = linkage.Joints.Select(joint =>
-                JointViewModel.FromJoint(joint, imageHeight.Value, pixelsToMillimeters.Value));
+                JointViewModel.FromSpec(joint, imageHeight.Value, pixelsToMillimeters.Value));
             foreach (var jointViewModel in loadedJointViewModels)
             {
                 this.jointViewModels.Add(jointViewModel);
             }
 
-            var loadedLinkViewModels = linkage.Links.Select(link => LinkViewModel.FromLink(link, JointViewModels));
+            var loadedLinkViewModels = linkage.Links.Select(link => LinkViewModel.FromSpec(link, JointViewModels));
             foreach (var linkViewModel in loadedLinkViewModels)
             {
                 this.linkViewModels.Add(linkViewModel);
             }
 
-            shockViewModel = LinkViewModel.FromLink(linkage.Shock, JointViewModels);
+            shockViewModel = LinkViewModel.FromSpec(linkage.Shock, JointViewModels);
             this.linkViewModels.Add(shockViewModel);
         });
 
@@ -196,21 +196,26 @@ public partial class LinkageEditorViewModel : ObservableObject
         });
     }
 
-    public Linkage? BuildCurrentLinkage(double? imageHeight, double? pixelsToMillimeters, double? shockStroke)
+    public LinkageSpec? BuildCurrentLinkageSpec(double? imageHeight, double? pixelsToMillimeters, double? shockStroke)
     {
-        if (shockStroke is null || imageHeight is null || pixelsToMillimeters is null || shockViewModel is null)
+        if (shockStroke is null ||
+            imageHeight is null ||
+            pixelsToMillimeters is null ||
+            shockViewModel?.A is null ||
+            shockViewModel.B is null ||
+            LinkViewModels.Any(link => link.A is null || link.B is null))
         {
             return null;
         }
 
-        return Linkage.CreateResolved(
-            JointViewModels.Select(joint => joint.ToJoint(imageHeight.Value, pixelsToMillimeters.Value)),
-            LinkViewModels.Where(link => link != shockViewModel).Select(link => link.ToLink(imageHeight.Value, pixelsToMillimeters.Value)),
-            shockViewModel.ToLink(imageHeight.Value, pixelsToMillimeters.Value),
+        return new LinkageSpec(
+            [.. JointViewModels.Select(joint => joint.ToSpec(imageHeight.Value, pixelsToMillimeters.Value))],
+            [.. LinkViewModels.Where(link => link != shockViewModel).Select(link => link.ToSpec())],
+            shockViewModel.ToSpec(),
             shockStroke.Value);
     }
 
-    public bool HasChangesComparedTo(Linkage? baseline, double? imageHeight, double? pixelsToMillimeters)
+    public bool HasChangesComparedTo(LinkageSpec? baseline, double? imageHeight, double? pixelsToMillimeters)
     {
         if (baseline is null)
         {
@@ -227,15 +232,16 @@ public partial class LinkageEditorViewModel : ObservableObject
             return true;
         }
 
-        var joints = JointViewModels.Select(joint => joint.ToJoint(imageHeight.Value, pixelsToMillimeters.Value)).ToList();
-        if (baseline.Joints.Count != joints.Count || !baseline.Joints.All(joint => joints.Contains(joint)))
+        var joints = JointViewModels.Select(joint => joint.ToSpec(imageHeight.Value, pixelsToMillimeters.Value)).ToList();
+        if (baseline.Joints.Count != joints.Count ||
+            !baseline.Joints.All(joint => joints.Any(candidate => JointsEquivalent(joint, candidate))))
         {
             return true;
         }
 
         var links = LinkViewModels
             .Where(link => link != shockViewModel && link.A is not null && link.B is not null)
-            .Select(link => link.ToLink(imageHeight.Value, pixelsToMillimeters.Value))
+            .Select(link => link.ToSpec())
             .ToList();
 
         if (baseline.Links.Count != links.Count || !baseline.Links.All(link => links.Contains(link)))
@@ -243,8 +249,14 @@ public partial class LinkageEditorViewModel : ObservableObject
             return true;
         }
 
-        return baseline.Shock != shockViewModel.ToLink(imageHeight.Value, pixelsToMillimeters.Value);
+        return baseline.Shock != shockViewModel.ToSpec();
     }
+
+    private static bool JointsEquivalent(JointSpec left, JointSpec right) =>
+        left.Name == right.Name &&
+        left.Type == right.Type &&
+        Math.Abs(left.X - right.X) < 0.001 &&
+        Math.Abs(left.Y - right.Y) < 0.001;
 
     private void RunWithoutNotifications(Action action)
     {

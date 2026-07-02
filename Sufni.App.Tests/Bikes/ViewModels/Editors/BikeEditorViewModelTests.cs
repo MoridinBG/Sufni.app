@@ -103,13 +103,13 @@ public class BikeEditorViewModelTests
         return BikeSnapshot.From(bike);
     }
 
-    private static IReadOnlyList<(string Name, JointType? Type, double X, double Y)> DescribeJoints(IEnumerable<Joint> joints) =>
+    private static IReadOnlyList<(string Name, JointType? Type, double X, double Y)> DescribeJoints(IEnumerable<JointSpec> joints) =>
         joints
             .OrderBy(joint => joint.Name)
-            .Select(joint => (joint.Name ?? string.Empty, joint.Type, Math.Round(joint.X, 3), Math.Round(joint.Y, 3)))
+            .Select(joint => (joint.Name, joint.Type, Math.Round(joint.X, 3), Math.Round(joint.Y, 3)))
             .ToList();
 
-    private static IReadOnlyList<string> DescribeLinks(IEnumerable<Link> links) =>
+    private static IReadOnlyList<string> DescribeLinks(IEnumerable<LinkSpec> links) =>
         links
             .Select(DescribeLink)
             .OrderBy(link => link)
@@ -121,9 +121,9 @@ public class BikeEditorViewModelTests
         Assert.True(editor.PixelsToMillimeters.HasValue);
 
         return editor.LinkageEditor.JointViewModels
-            .Select(joint => joint.ToJoint(editor.ImageCanvas.Image!.Size.Height, editor.PixelsToMillimeters!.Value))
+            .Select(joint => joint.ToSpec(editor.ImageCanvas.Image!.Size.Height, editor.PixelsToMillimeters!.Value))
             .OrderBy(joint => joint.Name)
-            .Select(joint => (joint.Name ?? string.Empty, joint.Type, Math.Round(joint.X, 3), Math.Round(joint.Y, 3)))
+            .Select(joint => (joint.Name, joint.Type, Math.Round(joint.X, 3), Math.Round(joint.Y, 3)))
             .ToList();
     }
 
@@ -133,20 +133,17 @@ public class BikeEditorViewModelTests
         Assert.True(editor.PixelsToMillimeters.HasValue);
 
         return editor.LinkageEditor.LinkViewModels
-            .Select(link => link.ToLink(editor.ImageCanvas.Image!.Size.Height, editor.PixelsToMillimeters!.Value))
+            .Where(link => link.A is not null && link.B is not null)
+            .Select(link => link.ToSpec())
             .Select(DescribeLink)
             .OrderBy(link => link)
             .ToList();
     }
 
-    private static string DescribeLink(Link link)
-    {
-        var a = Assert.IsType<Joint>(link.A);
-        var b = Assert.IsType<Joint>(link.B);
-        return string.CompareOrdinal(a.Name, b.Name) <= 0
-            ? $"{a.Name}->{b.Name}"
-            : $"{b.Name}->{a.Name}";
-    }
+    private static string DescribeLink(LinkSpec link) =>
+        string.CompareOrdinal(link.A, link.B) <= 0
+            ? $"{link.A}->{link.B}"
+            : $"{link.B}->{link.A}";
 
     private void AssertOpeningPreservesState(BikeSnapshot snapshot)
     {
@@ -173,11 +170,10 @@ public class BikeEditorViewModelTests
         Assert.Equal(snapshot.ImageRotationDegrees, editor.ImageCanvas.ImageRotationDegrees);
         Assert.Equal(snapshot.ImageBytes.Length > 0, editor.ImageCanvas.Image is not null);
 
-        var mutableLinkage = Linkage.FromSpec(snapshot.Linkage);
-        Assert.Equal(mutableLinkage.Joints.Count, editor.LinkageEditor.JointViewModels.Count);
-        Assert.Equal(mutableLinkage.Links.Count + 1, editor.LinkageEditor.LinkViewModels.Count);
-        Assert.Equal(DescribeJoints(mutableLinkage.Joints), DescribeEditorJoints(editor));
-        Assert.Equal(DescribeLinks(mutableLinkage.Links.Append(mutableLinkage.Shock)), DescribeEditorLinks(editor));
+        Assert.Equal(snapshot.Linkage.Joints.Count, editor.LinkageEditor.JointViewModels.Count);
+        Assert.Equal(snapshot.Linkage.Links.Count + 1, editor.LinkageEditor.LinkViewModels.Count);
+        Assert.Equal(DescribeJoints(snapshot.Linkage.Joints), DescribeEditorJoints(editor));
+        Assert.Equal(DescribeLinks(snapshot.Linkage.Links.Append(snapshot.Linkage.Shock)), DescribeEditorLinks(editor));
     }
 
     // ----- Construction -----
@@ -459,7 +455,7 @@ public class BikeEditorViewModelTests
 
         modifiedFrontWheel.X += 30;
         modifiedBottomBracket.Y += 20;
-        editor.LinkageEditor.Load(modifiedLinkage, editor.ImageCanvas.Image!.Size.Height, snapshot.PixelsToMillimeters);
+        editor.LinkageEditor.Load(modifiedLinkage.ToSpec(), editor.ImageCanvas.Image!.Size.Height, snapshot.PixelsToMillimeters);
 
         Assert.Equal(initialPixelsToMillimeters, Assert.IsType<double>(editor.PixelsToMillimeters), 10);
         Assert.Equal(initialFrontWheelCircleLeft, editor.WheelGeometry.FrontWheelCircleLeft, 10);

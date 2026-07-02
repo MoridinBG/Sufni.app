@@ -38,8 +38,8 @@ public partial class JointViewModel : ObservableObject, IPoint
     [ObservableProperty] public partial double X { get; set; }
     [ObservableProperty] public partial double Y { get; set; }
     [ObservableProperty] public partial string Name { get; set; }
-    [ObservableProperty] public partial JointType Type { get; set; }
-    public static ObservableCollection<JointType> PointTypes { get; } = [JointType.Fixed, JointType.Floating, JointType.HeadTube];
+    [ObservableProperty] public partial JointType? Type { get; set; }
+    public static ObservableCollection<JointType?> PointTypes { get; } = [null, JointType.Fixed, JointType.Floating, JointType.HeadTube];
     [ObservableProperty] public partial Brush Brush { get; set; }
     [ObservableProperty] public partial bool IsSelected { get; set; }
     [ObservableProperty] public partial bool WasPossiblyDragged { get; set; }
@@ -48,22 +48,22 @@ public partial class JointViewModel : ObservableObject, IPoint
 
     #region Property change handlers
 
-    partial void OnTypeChanged(JointType value)
+    partial void OnTypeChanged(JointType? value)
     {
-        Brush = TypeToBrushMapping[value];
+        Brush = BrushFor(value);
     }
 
     #endregion Property change handlers
 
     #region Constructors / Initializers
 
-    public JointViewModel(string name, JointType type, double x, double y, bool showFlyout = false)
+    public JointViewModel(string name, JointType? type, double x, double y, bool showFlyout = false)
     {
         X = x;
         Y = y;
         Name = name;
         Type = type;
-        Brush = TypeToBrushMapping[type];
+        Brush = BrushFor(type);
         ShowFlyout = showFlyout;
 
         if (Type is JointType.FrontWheel or JointType.RearWheel or JointType.BottomBracket or JointType.HeadTube)
@@ -80,24 +80,26 @@ public partial class JointViewModel : ObservableObject, IPoint
         }
     }
 
-    public static JointViewModel FromJoint(Joint joint, double imageHeight, double pixelsToMillimeters)
+    public static JointViewModel FromSpec(JointSpec joint, double imageHeight, double pixelsToMillimeters)
     {
-        Debug.Assert(joint.Name is not null);
-        Debug.Assert(joint.Type is not null);
-
         var x = joint.X / pixelsToMillimeters;
         var y = imageHeight - joint.Y / pixelsToMillimeters;
-        return new JointViewModel(joint.Name, joint.Type.Value, x, y);
+        return new JointViewModel(joint.Name, joint.Type, x, y);
     }
 
     #endregion Constructors / Initializers
 
     #region Public methods
 
-    public Joint ToJoint(double imageHeight, double pixelsToMillimeters)
+    public JointSpec ToSpec(double imageHeight, double pixelsToMillimeters)
     {
-        return new Joint(Name, Type, X * pixelsToMillimeters, (imageHeight - Y) * pixelsToMillimeters);
+        return new JointSpec(Name, Type, X * pixelsToMillimeters, (imageHeight - Y) * pixelsToMillimeters);
     }
+
+    private static Brush BrushFor(JointType? type) =>
+        type is null
+            ? TypeToBrushMapping[JointType.Floating]
+            : TypeToBrushMapping[type.Value];
 
     #endregion Public methods
 }

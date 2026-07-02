@@ -143,30 +143,25 @@ public partial class LinkViewModel : ObservableObject
         }
     }
 
-    public static LinkViewModel FromLink(Link link, IEnumerable<JointViewModel> jointViewModels)
+    public static LinkViewModel FromSpec(LinkSpec link, IEnumerable<JointViewModel> jointViewModels)
     {
-        Debug.Assert(link.A is not null);
-        Debug.Assert(link.B is not null);
-
         var jvms = jointViewModels as JointViewModel[] ?? jointViewModels.ToArray();
-        var a = jvms.FirstOrDefault(j => j.Name == link.A.Name);
-        var b = jvms.FirstOrDefault(j => j.Name == link.B.Name);
+        var a = jvms.FirstOrDefault(j => j.Name == link.A);
+        var b = jvms.FirstOrDefault(j => j.Name == link.B);
 
         var lvm = new LinkViewModel(a, b);
         lvm.UpdateLength();
         return lvm;
     }
 
-    public Link ToLink(double imageHeight, double pixelsToMillimeters)
+    public LinkSpec ToSpec()
     {
         Debug.Assert(A is not null);
         Debug.Assert(B is not null);
         Debug.Assert(A.Name is not null);
         Debug.Assert(B.Name is not null);
 
-        return new Link(
-            A.ToJoint(imageHeight, pixelsToMillimeters),
-            B.ToJoint(imageHeight, pixelsToMillimeters));
+        return new LinkSpec(A.Name, B.Name);
     }
 
     #endregion Public methods

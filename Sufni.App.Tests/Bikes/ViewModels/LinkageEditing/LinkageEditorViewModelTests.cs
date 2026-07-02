@@ -12,15 +12,16 @@ public class LinkageEditorViewModelTests
     public void Load_RoundTripsBaselineLinkage_WithoutJointOrLinkDifferences()
     {
         var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
+        var baselineSpec = baseline.ToSpec();
         var viewModel = new LinkageEditorViewModel();
 
-        viewModel.Load(baseline, imageHeight: 100, pixelsToMillimeters: 1);
+        viewModel.Load(baselineSpec, imageHeight: 100, pixelsToMillimeters: 1);
 
         Assert.Equal(baseline.Joints.Count, viewModel.JointViewModels.Count);
         Assert.Equal(baseline.Links.Count + 1, viewModel.LinkViewModels.Count);
-        Assert.False(viewModel.HasChangesComparedTo(baseline, 100, 1));
+        Assert.False(viewModel.HasChangesComparedTo(baselineSpec, 100, 1));
 
-        var rebuilt = viewModel.BuildCurrentLinkage(100, 1, baseline.ShockStroke);
+        var rebuilt = viewModel.BuildCurrentLinkageSpec(100, 1, baseline.ShockStroke);
 
         Assert.NotNull(rebuilt);
         Assert.Equal(baseline.Joints.Count, rebuilt.Joints.Count);
@@ -117,6 +118,7 @@ public class LinkageEditorViewModelTests
         var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
         baseline.Joints.Add(new Joint("Detached point", JointType.Floating, 6, 6));
         baseline.ResolveJoints();
+        var baselineSpec = baseline.ToSpec();
 
         var viewModel = new LinkageEditorViewModel();
         var previewChanges = 0;
@@ -124,7 +126,7 @@ public class LinkageEditorViewModelTests
         viewModel.PreviewChanged += (_, _) => previewChanges++;
         viewModel.StateChanged += (_, _) => stateChanges++;
 
-        viewModel.Load(baseline, imageHeight: 100, pixelsToMillimeters: 1);
+        viewModel.Load(baselineSpec, imageHeight: 100, pixelsToMillimeters: 1);
         var removedJoint = Assert.Single(viewModel.JointViewModels, joint => joint.Name == "Detached point");
         viewModel.SelectedPoint = removedJoint;
         viewModel.DeleteSelectedItemCommand.Execute(null);
@@ -145,6 +147,7 @@ public class LinkageEditorViewModelTests
         baseline.Joints.Add(detachedPoint);
         baseline.Links.Add(new Link(baseline.Joints[0], detachedPoint));
         baseline.ResolveJoints();
+        var baselineSpec = baseline.ToSpec();
 
         var viewModel = new LinkageEditorViewModel();
         var previewChanges = 0;
@@ -152,7 +155,7 @@ public class LinkageEditorViewModelTests
         viewModel.PreviewChanged += (_, _) => previewChanges++;
         viewModel.StateChanged += (_, _) => stateChanges++;
 
-        viewModel.Load(baseline, imageHeight: 100, pixelsToMillimeters: 1);
+        viewModel.Load(baselineSpec, imageHeight: 100, pixelsToMillimeters: 1);
         var removedLink = Assert.Single(
             viewModel.LinkViewModels,
             link => link.A?.Name == baseline.Joints[0].Name && link.B?.Name == detachedPoint.Name);
@@ -171,13 +174,14 @@ public class LinkageEditorViewModelTests
     public void MovingJoint_RaisesPreviewChanged_WithMovedJoint()
     {
         var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
+        var baselineSpec = baseline.ToSpec();
         var viewModel = new LinkageEditorViewModel();
         LinkagePreviewChangedEventArgs? previewArgs = null;
         var stateChanges = 0;
         viewModel.PreviewChanged += (_, args) => previewArgs = args;
         viewModel.StateChanged += (_, _) => stateChanges++;
 
-        viewModel.Load(baseline, imageHeight: 100, pixelsToMillimeters: 1);
+        viewModel.Load(baselineSpec, imageHeight: 100, pixelsToMillimeters: 1);
         previewArgs = null;
         stateChanges = 0;
 
@@ -193,13 +197,14 @@ public class LinkageEditorViewModelTests
     public void WasPossiblyDragged_RaisesStateChanged_WithoutPreviewChanged()
     {
         var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
+        var baselineSpec = baseline.ToSpec();
         var viewModel = new LinkageEditorViewModel();
         var previewChanges = 0;
         var stateChanges = 0;
         viewModel.PreviewChanged += (_, _) => previewChanges++;
         viewModel.StateChanged += (_, _) => stateChanges++;
 
-        viewModel.Load(baseline, imageHeight: 100, pixelsToMillimeters: 1);
+        viewModel.Load(baselineSpec, imageHeight: 100, pixelsToMillimeters: 1);
         previewChanges = 0;
         stateChanges = 0;
 
@@ -238,9 +243,10 @@ public class LinkageEditorViewModelTests
         baseline.Joints.Add(detachedPoint);
         baseline.Links.Add(new Link(baseline.Joints[0], detachedPoint));
         baseline.ResolveJoints();
+        var baselineSpec = baseline.ToSpec();
         var viewModel = new LinkageEditorViewModel();
 
-        viewModel.Load(baseline, imageHeight: 100, pixelsToMillimeters: 1);
+        viewModel.Load(baselineSpec, imageHeight: 100, pixelsToMillimeters: 1);
         var point = Assert.Single(viewModel.JointViewModels, joint => joint.Name == detachedPoint.Name);
 
         viewModel.SelectedPoint = point;
@@ -254,14 +260,15 @@ public class LinkageEditorViewModelTests
     public void HasChangesComparedTo_ReturnsTrue_WhenShockEndpointsChange()
     {
         var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
+        var baselineSpec = baseline.ToSpec();
         var viewModel = new LinkageEditorViewModel();
 
-        viewModel.Load(baseline, imageHeight: 100, pixelsToMillimeters: 1);
+        viewModel.Load(baselineSpec, imageHeight: 100, pixelsToMillimeters: 1);
         var shockLink = Assert.Single(
             viewModel.LinkViewModels,
             link => link.A?.Name == baseline.Shock.A_Name && link.B?.Name == baseline.Shock.B_Name);
         shockLink.A = Assert.Single(viewModel.JointViewModels, joint => joint.Type == JointType.BottomBracket);
 
-        Assert.True(viewModel.HasChangesComparedTo(baseline, 100, 1));
+        Assert.True(viewModel.HasChangesComparedTo(baselineSpec, 100, 1));
     }
 }

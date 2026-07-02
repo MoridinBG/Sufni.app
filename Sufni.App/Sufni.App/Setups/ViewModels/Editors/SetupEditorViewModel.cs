@@ -195,9 +195,8 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
             return [];
         }
 
-        var mutableLinkage = Linkage.FromSpec(linkage.Spec);
-        var jvms = mutableLinkage.Joints
-            .Select(j => JointViewModel.FromJoint(j, imageHeight.Value, snapshot.PixelsToMillimeters));
+        var jvms = linkage.Spec.Joints
+            .Select(j => JointViewModel.FromSpec(j, imageHeight.Value, snapshot.PixelsToMillimeters));
         return [.. jvms];
     }
 
