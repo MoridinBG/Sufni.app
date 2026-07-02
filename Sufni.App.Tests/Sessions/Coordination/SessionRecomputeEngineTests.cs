@@ -73,15 +73,32 @@ public class SessionRecomputeEngineTests
         sessionRepository.GetSessionAsync(sessionId).Returns(persisted);
         sessionEntityRepository.GetAllAsync().Returns([persisted]);
         sessionTelemetryWriter
-            .UpdateProcessedDerivedDataAsync(Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<ProcessingFingerprint>())
+            .UpdateProcessedDerivedDataAsync(
+                Arg.Any<Session>(),
+                Arg.Any<ProcessedTelemetryPayload>(),
+                Arg.Any<Track?>(),
+                Arg.Any<ProcessingFingerprint>())
             .Returns(callInfo => callInfo.Arg<Session>());
         return persisted;
     }
 
-    private static RecordedSessionReprocessResult ReprocessResult(TelemetryProcessingOptions options) => new(
-        TestTelemetryData.CreateProcessed(),
-        GeneratedFullTrack: null,
-        new ProcessingFingerprint(3, 3, Guid.NewGuid(), Guid.NewGuid(), 1, "dep", "src", options.ClampedVelocityFilterWindowMilliseconds));
+    private static RecordedSessionReprocessResult ReprocessResult(TelemetryProcessingOptions options)
+    {
+        var telemetryData = TestTelemetryData.CreateProcessed();
+        var fingerprint = new ProcessingFingerprint(
+            3,
+            3,
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            1,
+            "dep",
+            "src",
+            options.ClampedVelocityFilterWindowMilliseconds);
+        return new RecordedSessionReprocessResult(
+            new ProcessedTelemetryPayload(telemetryData, telemetryData.BinaryForm, AppJson.Serialize(fingerprint)),
+            GeneratedFullTrack: null,
+            fingerprint);
+    }
 
     [Fact]
     public async Task RequestRecomputeAsync_CancelAndReplace_SupersedesFirst_CommitsOnce_WithLaterOption()
@@ -94,7 +111,11 @@ public class SessionRecomputeEngineTests
 
         ProcessingFingerprint? committedFingerprint = null;
         sessionTelemetryWriter
-            .UpdateProcessedDerivedDataAsync(Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<ProcessingFingerprint>())
+            .UpdateProcessedDerivedDataAsync(
+                Arg.Any<Session>(),
+                Arg.Any<ProcessedTelemetryPayload>(),
+                Arg.Any<Track?>(),
+                Arg.Any<ProcessingFingerprint>())
             .Returns(callInfo =>
             {
                 committedFingerprint = callInfo.Arg<ProcessingFingerprint>();
@@ -144,7 +165,10 @@ public class SessionRecomputeEngineTests
         Assert.IsType<SessionRecomputeResult.Superseded>(firstResult);
         // Exactly one committer, and it committed the LATER option's fingerprint.
         await sessionTelemetryWriter.Received(1).UpdateProcessedDerivedDataAsync(
-            Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<ProcessingFingerprint>());
+            Arg.Any<Session>(),
+            Arg.Any<ProcessedTelemetryPayload>(),
+            Arg.Any<Track?>(),
+            Arg.Any<ProcessingFingerprint>());
         Assert.NotNull(committedFingerprint);
         Assert.Equal(250, committedFingerprint!.VelocityFilterWindowMilliseconds);
         Assert.False(engine.IsActive(sessionId));
@@ -185,7 +209,11 @@ public class SessionRecomputeEngineTests
         // change), then succeeds: the engine self-heals by looping, not by surfacing a
         // neutral result.
         sessionTelemetryWriter
-            .UpdateProcessedDerivedDataAsync(Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<ProcessingFingerprint>())
+            .UpdateProcessedDerivedDataAsync(
+                Arg.Any<Session>(),
+                Arg.Any<ProcessedTelemetryPayload>(),
+                Arg.Any<Track?>(),
+                Arg.Any<ProcessingFingerprint>())
             .Returns((Session?)null, persisted);
 
         var result = await CreateEngine()
@@ -194,7 +222,10 @@ public class SessionRecomputeEngineTests
 
         Assert.IsType<SessionRecomputeResult.Recomputed>(result);
         await sessionTelemetryWriter.Received(2).UpdateProcessedDerivedDataAsync(
-            Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<ProcessingFingerprint>());
+            Arg.Any<Session>(),
+            Arg.Any<ProcessedTelemetryPayload>(),
+            Arg.Any<Track?>(),
+            Arg.Any<ProcessingFingerprint>());
         await reprocessor.Received(2).ReprocessAsync(
             Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>());
     }
@@ -221,7 +252,10 @@ public class SessionRecomputeEngineTests
 
         Assert.IsType<SessionRecomputeResult.NotRecomputable>(result);
         await sessionTelemetryWriter.DidNotReceive().UpdateProcessedDerivedDataAsync(
-            Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<ProcessingFingerprint>());
+            Arg.Any<Session>(),
+            Arg.Any<ProcessedTelemetryPayload>(),
+            Arg.Any<Track?>(),
+            Arg.Any<ProcessingFingerprint>());
         Assert.False(engine.IsActive(sessionId));
     }
 
@@ -265,7 +299,10 @@ public class SessionRecomputeEngineTests
         Assert.Equal(0, summary.Failed);
         Assert.Equal(0, summary.Superseded);
         await sessionTelemetryWriter.Received(2).UpdateProcessedDerivedDataAsync(
-            Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<ProcessingFingerprint>());
+            Arg.Any<Session>(),
+            Arg.Any<ProcessedTelemetryPayload>(),
+            Arg.Any<Track?>(),
+            Arg.Any<ProcessingFingerprint>());
         Assert.False(engine.IsActive(firstId));
         Assert.False(engine.IsActive(secondId));
     }

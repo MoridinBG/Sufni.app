@@ -120,13 +120,13 @@ internal sealed class TestPersistenceHarness
         Session session,
         Track? newFullTrack,
         RecordedSessionSource? source) =>
-        sessionTelemetryWriter.PutProcessedSessionAsync(session, newFullTrack, source);
+        sessionTelemetryWriter.PutProcessedSessionAsync(session, CreatePayload(session), newFullTrack, source);
 
     public Task<Session?> UpdateProcessedDerivedDataAsync(
         Session session,
         Track? newFullTrack,
         ProcessingFingerprint expectedInputFingerprint) =>
-        sessionTelemetryWriter.UpdateProcessedDerivedDataAsync(session, newFullTrack, expectedInputFingerprint);
+        sessionTelemetryWriter.UpdateProcessedDerivedDataAsync(session, CreatePayload(session), newFullTrack, expectedInputFingerprint);
 
     public Task PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint = null) =>
         sessionTelemetryWriter.PatchSessionPsstAsync(id, data, fingerprint);
@@ -172,6 +172,15 @@ internal sealed class TestPersistenceHarness
 
     public Task MergeAllAsync(SynchronizationData data) =>
         syncDataStore.MergeAllAsync(data);
+
+    private ProcessedTelemetryPayload CreatePayload(Session session)
+    {
+        var data = session.ProcessedData ?? throw new InvalidDataException("Processed session data is required.");
+        return new ProcessedTelemetryPayload(
+            sessionTelemetryProcessor.ReadProcessedTelemetryData(data),
+            data,
+            session.ProcessingFingerprintJson);
+    }
 
     private static SqliteConnectionContext CreateConnectionContext(
         string databasePath,

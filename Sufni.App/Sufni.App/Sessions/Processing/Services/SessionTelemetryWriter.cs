@@ -20,7 +20,11 @@ namespace Sufni.App.Sessions.Processing.Services;
 /// </summary>
 public interface ISessionTelemetryWriter
 {
-    Task<Session> PutProcessedSessionAsync(Session session, Track? newFullTrack, RecordedSessionSource? source);
+    Task<Session> PutProcessedSessionAsync(
+        Session session,
+        ProcessedTelemetryPayload payload,
+        Track? newFullTrack,
+        RecordedSessionSource? source);
 
     /// <summary>
     /// Derived-only processed write used by the recompute engine. Prepares the
@@ -33,6 +37,7 @@ public interface ISessionTelemetryWriter
     /// </summary>
     Task<Session?> UpdateProcessedDerivedDataAsync(
         Session session,
+        ProcessedTelemetryPayload payload,
         Track? newFullTrack,
         ProcessingFingerprint expectedInputFingerprint);
 
@@ -68,19 +73,21 @@ internal sealed class SessionTelemetryWriter(
 {
     public async Task<Session> PutProcessedSessionAsync(
         Session session,
+        ProcessedTelemetryPayload payload,
         Track? newFullTrack,
         RecordedSessionSource? source)
     {
-        await PrepareProcessedSessionAsync(session, newFullTrack);
+        await PrepareProcessedSessionAsync(session, payload, newFullTrack);
         return await sessionRepository.PutProcessedSessionAsync(session, newFullTrack, source);
     }
 
     public async Task<Session?> UpdateProcessedDerivedDataAsync(
         Session session,
+        ProcessedTelemetryPayload payload,
         Track? newFullTrack,
         ProcessingFingerprint expectedInputFingerprint)
     {
-        await PrepareProcessedSessionAsync(session, newFullTrack);
+        await PrepareProcessedSessionAsync(session, payload, newFullTrack);
         var fresh = await sessionRepository.UpdateProcessedDerivedDataAsync(session, newFullTrack, expectedInputFingerprint);
         if (fresh is not null)
         {
@@ -146,9 +153,14 @@ internal sealed class SessionTelemetryWriter(
     {
         var current = await sessionRepository.GetSessionAsync(id)
                        ?? throw new Exception($"Session {id} does not exist.");
-        var raw = await sessionRepository.GetSessionRawPsstAsync(id);
 
-        var durationSeconds = sessionTelemetryProcessor.ReadProcessedDurationSeconds(raw) ?? current.DurationSeconds;
+        var durationSeconds = current.DurationSeconds;
+        if (durationSeconds is null)
+        {
+            var raw = await sessionRepository.GetSessionRawPsstAsync(id);
+            durationSeconds = sessionTelemetryProcessor.ReadProcessedDurationSeconds(raw);
+        }
+
         var metrics = sessionTelemetryProcessor.ComputeSummaryMetrics(durationSeconds, points);
 
         await sessionRepository.UpdateSessionTrackAsync(id, points, metrics, gpsOffsetSeconds);
@@ -159,11 +171,14 @@ internal sealed class SessionTelemetryWriter(
         await sessionCacheStore.DeleteSessionCacheAsync(id);
     }
 
-    private async Task PrepareProcessedSessionAsync(Session session, Track? newFullTrack)
+    private async Task PrepareProcessedSessionAsync(
+        Session session,
+        ProcessedTelemetryPayload payload,
+        Track? newFullTrack)
     {
-        var telemetryData = session.ProcessedData is { } processedData
-            ? sessionTelemetryProcessor.ReadProcessedTelemetryData(processedData)
-            : throw new InvalidDataException("Processed session data is required.");
+        var telemetryData = payload.TelemetryData;
+        session.ProcessedData = payload.Data;
+        session.ProcessingFingerprintJson = payload.FingerprintJson;
 
         if (newFullTrack is null && session.FullTrack is null && session.Timestamp.HasValue)
         {

@@ -20,6 +20,7 @@ using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Acquisition.Services.Management;
+using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Tests.TestSupport.Async;
@@ -50,28 +51,31 @@ public class ImportSessionsCoordinatorTests
             {
                 var domain = callInfo.ArgAt<RecordedSessionDomainSnapshot>(0);
                 var source = callInfo.ArgAt<RecordedSessionSource>(1);
-                return Task.FromResult(new RecordedSessionReprocessResult(
-                    CreateMinimal(),
-                    GeneratedFullTrack: null,
-                    new ProcessingFingerprint(
-                        SchemaVersion: 2,
-                        ProcessingVersion: 1,
-                        SetupId: domain.Setup!.Id,
-                        BikeId: domain.Bike!.Id,
-                        TrackProjectionVersion: 1,
-                        DependencyHash: "dependency",
-                        SourceHash: source.SourceHash)));
+                var telemetryData = CreateMinimal();
+                var fingerprint = new ProcessingFingerprint(
+                    SchemaVersion: 2,
+                    ProcessingVersion: 1,
+                    SetupId: domain.Setup!.Id,
+                    BikeId: domain.Bike!.Id,
+                    TrackProjectionVersion: 1,
+                    DependencyHash: "dependency",
+                    SourceHash: source.SourceHash);
+                return Task.FromResult(ReprocessResult(telemetryData, GeneratedFullTrack: null, fingerprint));
             });
 
         sessionTelemetryWriter
             .PutProcessedSessionAsync(
                 Arg.Any<Session>(),
+                Arg.Any<ProcessedTelemetryPayload>(),
                 Arg.Any<Track?>(),
                 Arg.Any<RecordedSessionSource?>())
             .Returns(callInfo =>
             {
                 var session = callInfo.ArgAt<Session>(0);
-                var track = callInfo.ArgAt<Track?>(1);
+                var payload = callInfo.ArgAt<ProcessedTelemetryPayload>(1);
+                var track = callInfo.ArgAt<Track?>(2);
+                session.ProcessedData = payload.Data;
+                session.ProcessingFingerprintJson = payload.FingerprintJson;
                 session.FullTrack = track?.Id;
                 session.HasProcessedData = session.ProcessedData is not null;
                 session.Updated = 10;
@@ -90,6 +94,18 @@ public class ImportSessionsCoordinatorTests
         daqManagementService,
         reprocessor,
         editorFactory);
+
+    private static RecordedSessionReprocessResult ReprocessResult(
+        TelemetryData telemetryData,
+        Track? GeneratedFullTrack,
+        ProcessingFingerprint fingerprint) =>
+        new(
+            new ProcessedTelemetryPayload(
+                telemetryData,
+                telemetryData.BinaryForm,
+                AppJson.Serialize(fingerprint)),
+            GeneratedFullTrack,
+            fingerprint);
 
     // ----- OpenAsync -----
 
@@ -183,6 +199,7 @@ public class ImportSessionsCoordinatorTests
                 s.Timestamp == expectedTimestamp &&
                 s.ProcessedData != null &&
                 s.ProcessingFingerprintJson != null),
+            Arg.Any<ProcessedTelemetryPayload>(),
             null,
             Arg.Is<RecordedSessionSource>(source =>
                 source.SourceKind == RecordedSessionSourceKind.ImportedSst &&
@@ -247,10 +264,11 @@ public class ImportSessionsCoordinatorTests
             {
                 var domain = callInfo.ArgAt<RecordedSessionDomainSnapshot>(0);
                 var source = callInfo.ArgAt<RecordedSessionSource>(1);
-                return Task.FromResult(new RecordedSessionReprocessResult(
+                var fingerprint = new ProcessingFingerprint(2, 1, domain.Setup!.Id, domain.Bike!.Id, 1, "dependency", source.SourceHash);
+                return Task.FromResult(ReprocessResult(
                     telemetryData,
                     generatedTrack,
-                    new ProcessingFingerprint(2, 1, domain.Setup!.Id, domain.Bike!.Id, 1, "dependency", source.SourceHash)));
+                    fingerprint));
             });
 
         var coordinator = CreateCoordinator();
@@ -261,6 +279,8 @@ public class ImportSessionsCoordinatorTests
                 s.Name == "ride-gps" &&
                 s.ProcessedData != null &&
                 s.ProcessedData.SequenceEqual(telemetryData.BinaryForm)),
+            Arg.Is<ProcessedTelemetryPayload>(payload =>
+                payload.Data.SequenceEqual(telemetryData.BinaryForm)),
             Arg.Is<Track>(track =>
                 track.Points.Count == 2 &&
                 track.Points[0].FixMode == 3 &&
@@ -289,6 +309,7 @@ public class ImportSessionsCoordinatorTests
         await file.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
         await sessionTelemetryWriter.DidNotReceive().PutProcessedSessionAsync(
             Arg.Any<Session>(),
+            Arg.Any<ProcessedTelemetryPayload>(),
             Arg.Any<Track?>(),
             Arg.Any<RecordedSessionSource?>());
         sessionStore.DidNotReceiveWithAnyArgs().Upsert(default!);
@@ -310,6 +331,7 @@ public class ImportSessionsCoordinatorTests
         await file.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
         await sessionTelemetryWriter.DidNotReceive().PutProcessedSessionAsync(
             Arg.Any<Session>(),
+            Arg.Any<ProcessedTelemetryPayload>(),
             Arg.Any<Track?>(),
             Arg.Any<RecordedSessionSource?>());
         Assert.Empty(result.Imported);
@@ -338,6 +360,7 @@ public class ImportSessionsCoordinatorTests
         Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
         await sessionTelemetryWriter.DidNotReceive().PutProcessedSessionAsync(
             Arg.Any<Session>(),
+            Arg.Any<ProcessedTelemetryPayload>(),
             Arg.Any<Track?>(),
             Arg.Any<RecordedSessionSource?>());
         sessionStore.DidNotReceiveWithAnyArgs().Upsert(default!);
@@ -356,6 +379,7 @@ public class ImportSessionsCoordinatorTests
         sessionTelemetryWriter
             .PutProcessedSessionAsync(
                 Arg.Any<Session>(),
+                Arg.Any<ProcessedTelemetryPayload>(),
                 Arg.Any<Track?>(),
                 Arg.Any<RecordedSessionSource?>())
             .ThrowsAsync(new InvalidOperationException("db"));
@@ -429,6 +453,7 @@ public class ImportSessionsCoordinatorTests
         Assert.Equal("ok", result.Imported[0].Name);
         await sessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
             Arg.Is<Session>(s => s.Name == "ok"),
+            Arg.Any<ProcessedTelemetryPayload>(),
             Arg.Any<Track?>(),
             Arg.Any<RecordedSessionSource?>());
         sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s => s.Name == "ok"));

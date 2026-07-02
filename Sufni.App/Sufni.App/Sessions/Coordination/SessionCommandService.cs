@@ -173,10 +173,11 @@ public sealed class SessionCommandService
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            session.ProcessedData = reprocessResult.TelemetryData.BinaryForm;
-            session.ProcessingFingerprintJson = AppJson.Serialize(reprocessResult.Fingerprint);
-
-            var fresh = await sessionTelemetryWriter.PutProcessedSessionAsync(session, reprocessResult.GeneratedFullTrack, source);
+            var fresh = await sessionTelemetryWriter.PutProcessedSessionAsync(
+                session,
+                reprocessResult.ProcessedTelemetry,
+                reprocessResult.GeneratedFullTrack,
+                source);
 
             var snapshot = SessionSnapshot.From(fresh);
             await sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences);

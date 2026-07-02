@@ -351,9 +351,6 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
                 persisted.Track = null;
             }
 
-            persisted.ProcessedData = reprocessResult.TelemetryData.BinaryForm;
-            persisted.ProcessingFingerprintJson = AppJson.Serialize(reprocessResult.Fingerprint);
-
             // Commit guard (i): a newer explicit request supersedes this run. The
             // option lives in ISessionPreferences (not a DB column), so this
             // still-current / cancellation check — not the transaction — is what
@@ -370,6 +367,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
             // with freshly read inputs rather than surfacing a neutral result.
             var fresh = await sessionTelemetryWriter.UpdateProcessedDerivedDataAsync(
                 persisted,
+                reprocessResult.ProcessedTelemetry,
                 newFullTrack,
                 reprocessResult.Fingerprint);
             if (fresh is null)

@@ -18,17 +18,27 @@ internal sealed class TestSessionTelemetryProcessor : ISessionTelemetryProcessor
     private readonly SessionTelemetryProcessor real = new();
     private readonly Dictionary<byte[], TelemetryData> mappedTelemetry = new(ReferenceEqualityComparer.Instance);
 
+    public int ReadProcessedDurationSecondsCallCount { get; private set; }
+
+    public int ReadProcessedTelemetryDataCallCount { get; private set; }
+
     public void Map(byte[] raw, TelemetryData telemetry) => mappedTelemetry[raw] = telemetry;
 
-    public double? ReadProcessedDurationSeconds(byte[]? processedData) =>
-        processedData is not null && mappedTelemetry.TryGetValue(processedData, out var telemetry)
+    public double? ReadProcessedDurationSeconds(byte[]? processedData)
+    {
+        ReadProcessedDurationSecondsCallCount++;
+        return processedData is not null && mappedTelemetry.TryGetValue(processedData, out var telemetry)
             ? telemetry.Metadata?.Duration
             : real.ReadProcessedDurationSeconds(processedData);
+    }
 
-    public TelemetryData ReadProcessedTelemetryData(byte[] processedData) =>
-        mappedTelemetry.TryGetValue(processedData, out var telemetry)
+    public TelemetryData ReadProcessedTelemetryData(byte[] processedData)
+    {
+        ReadProcessedTelemetryDataCallCount++;
+        return mappedTelemetry.TryGetValue(processedData, out var telemetry)
             ? telemetry
             : real.ReadProcessedTelemetryData(processedData);
+    }
 
     public SessionSummaryMetrics ComputeSummaryMetrics(double? durationSeconds, IReadOnlyList<TrackPoint>? points) =>
         real.ComputeSummaryMetrics(durationSeconds, points);

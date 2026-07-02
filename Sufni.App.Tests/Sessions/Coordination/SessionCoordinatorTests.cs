@@ -248,11 +248,12 @@ public class SessionCoordinatorTests
         sessionTelemetryWriter
             .PutProcessedSessionAsync(
                 Arg.Any<Session>(),
+                Arg.Any<ProcessedTelemetryPayload>(),
                 Arg.Any<Track?>(),
                 Arg.Any<RecordedSessionSource?>())
             .Returns(callInfo =>
             {
-                var savedTrack = callInfo.ArgAt<Track?>(1);
+                var savedTrack = callInfo.ArgAt<Track?>(2);
                 fresh.FullTrack = savedTrack?.Id;
                 return Task.FromResult(fresh);
             });
@@ -274,10 +275,10 @@ public class SessionCoordinatorTests
             Arg.Any<CancellationToken>());
         await sessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
             Arg.Is<Session>(saved =>
-                saved.Id == session.Id
-                && saved.ProcessedData != null
-                && saved.ProcessedData.Length > 0
-                && saved.ProcessingFingerprintJson != null),
+                saved.Id == session.Id),
+            Arg.Is<ProcessedTelemetryPayload>(payload =>
+                payload.Data.Length > 0
+                && payload.FingerprintJson != null),
             Arg.Is<Track>(track =>
                 track.Points.Count == 1 &&
                 track.Points[0].FixMode == 3 &&
@@ -321,6 +322,7 @@ public class SessionCoordinatorTests
         sessionTelemetryWriter
             .PutProcessedSessionAsync(
                 Arg.Any<Session>(),
+                Arg.Any<ProcessedTelemetryPayload>(),
                 Arg.Any<Track?>(),
                 Arg.Any<RecordedSessionSource?>())
             .Returns(Task.FromResult(fresh));
@@ -346,6 +348,7 @@ public class SessionCoordinatorTests
         sessionTelemetryWriter
             .PutProcessedSessionAsync(
                 Arg.Any<Session>(),
+                Arg.Any<ProcessedTelemetryPayload>(),
                 Arg.Any<Track?>(),
                 Arg.Any<RecordedSessionSource?>())
             .ThrowsAsync(new InvalidOperationException("disk full"));
@@ -371,6 +374,7 @@ public class SessionCoordinatorTests
 
         await sessionTelemetryWriter.DidNotReceive().PutProcessedSessionAsync(
             Arg.Any<Session>(),
+            Arg.Any<ProcessedTelemetryPayload>(),
             Arg.Any<Track?>(),
             Arg.Any<RecordedSessionSource?>());
         sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
@@ -1075,7 +1079,13 @@ public class SessionCoordinatorTests
                     TrackProjectionVersion: 1,
                     DependencyHash: "dependency",
                     SourceHash: source.SourceHash);
-                return Task.FromResult(new RecordedSessionReprocessResult(telemetryData, fullTrack, fingerprint));
+                return Task.FromResult(new RecordedSessionReprocessResult(
+                    new ProcessedTelemetryPayload(
+                        telemetryData,
+                        telemetryData.BinaryForm,
+                        AppJson.Serialize(fingerprint)),
+                    fullTrack,
+                    fingerprint));
             });
     }
 }

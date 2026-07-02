@@ -24,7 +24,12 @@ public interface IRecordedSessionReprocessor
 
 // Result of a reprocess pass: processed telemetry, an optional regenerated
 // track, and the fingerprint for the exact inputs that produced the cache.
-public sealed record RecordedSessionReprocessResult(
+public sealed record ProcessedTelemetryPayload(
     TelemetryData TelemetryData,
+    byte[] Data,
+    string? FingerprintJson);
+
+public sealed record RecordedSessionReprocessResult(
+    ProcessedTelemetryPayload ProcessedTelemetry,
     Track? GeneratedFullTrack,
     ProcessingFingerprint Fingerprint);

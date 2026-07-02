@@ -55,9 +55,12 @@ public class RecordedSessionReprocessorTests
 
         var result = await reprocessor.ReprocessAsync(domain, source);
 
-        Assert.Equal("compressed-source.SST", result.TelemetryData.Metadata.SourceName);
-        Assert.Equal(3, result.TelemetryData.Metadata.Version);
-        Assert.NotEmpty(result.TelemetryData.Front.Travel);
+        var telemetryData = result.ProcessedTelemetry.TelemetryData;
+        Assert.Equal("compressed-source.SST", telemetryData.Metadata.SourceName);
+        Assert.Equal(3, telemetryData.Metadata.Version);
+        Assert.NotEmpty(telemetryData.Front.Travel);
+        Assert.Equal(telemetryData.BinaryForm, result.ProcessedTelemetry.Data);
+        Assert.Equal(AppJson.Serialize(result.Fingerprint), result.ProcessedTelemetry.FingerprintJson);
     }
 
     [Fact]
@@ -119,8 +122,9 @@ public class RecordedSessionReprocessorTests
 
         var result = await reprocessor.ReprocessAsync(domain, source);
 
-        Assert.Equal("live", result.TelemetryData.Metadata.SourceName);
-        Assert.NotEmpty(result.TelemetryData.Front.Travel);
+        var telemetryData = result.ProcessedTelemetry.TelemetryData;
+        Assert.Equal("live", telemetryData.Metadata.SourceName);
+        Assert.NotEmpty(telemetryData.Front.Travel);
         Assert.NotNull(result.GeneratedFullTrack);
         Assert.Single(result.GeneratedFullTrack.Points);
         Assert.Equal(source.SourceHash, result.Fingerprint.SourceHash);
@@ -182,10 +186,11 @@ public class RecordedSessionReprocessorTests
 
         Assert.Contains("\"front_segments\"", sourceJson);
         Assert.DoesNotContain("\"front_measurements\"", sourceJson);
-        Assert.Equal(5, result.TelemetryData.Metadata.Version);
-        Assert.True(result.TelemetryData.Front.HasGaps);
-        Assert.Single(result.TelemetryData.StreamGaps);
-        Assert.True(result.TelemetryData.MissingFinalStatus);
+        var telemetryData = result.ProcessedTelemetry.TelemetryData;
+        Assert.Equal(5, telemetryData.Metadata.Version);
+        Assert.True(telemetryData.Front.HasGaps);
+        Assert.Single(telemetryData.StreamGaps);
+        Assert.True(telemetryData.MissingFinalStatus);
     }
 
     [Fact]
@@ -215,10 +220,11 @@ public class RecordedSessionReprocessorTests
 
         var result = await reprocessor.ReprocessAsync(domain, source);
 
-        Assert.Equal(4, result.TelemetryData.Metadata.Version);
-        Assert.NotEmpty(result.TelemetryData.Front.Travel);
-        Assert.False(result.TelemetryData.Front.HasGaps);
-        Assert.Empty(result.TelemetryData.StreamGaps);
+        var telemetryData = result.ProcessedTelemetry.TelemetryData;
+        Assert.Equal(4, telemetryData.Metadata.Version);
+        Assert.NotEmpty(telemetryData.Front.Travel);
+        Assert.False(telemetryData.Front.HasGaps);
+        Assert.Empty(telemetryData.StreamGaps);
     }
 
     [Fact]

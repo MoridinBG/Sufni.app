@@ -158,12 +158,11 @@ public class ImportSessionsCoordinator(
                         var domain = CreateImportDomain(session, setupSnapshot, bikeSnapshot, source);
                         logger.Verbose("Reprocessing imported source for {FileName}", telemetryFile.Name);
                         var reprocessResult = await reprocessor.ReprocessAsync(domain, source);
-                        session.ProcessedData = reprocessResult.TelemetryData.BinaryForm;
-                        session.ProcessingFingerprintJson = AppJson.Serialize(reprocessResult.Fingerprint);
 
                         logger.Verbose("Persisting imported session for {FileName}", telemetryFile.Name);
                         var persisted = await sessionTelemetryWriter.PutProcessedSessionAsync(
                             session,
+                            reprocessResult.ProcessedTelemetry,
                             reprocessResult.GeneratedFullTrack,
                             source);
                         await telemetryFile.OnImported();

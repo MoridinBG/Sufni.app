@@ -1,14 +1,77 @@
+using NSubstitute;
 using SQLite;
 using Sufni.App.ExtensionHost.Contracts.Models;
 
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
+using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Services;
+using Sufni.App.Tests.TestSupport.Doubles;
+using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Persistence;
 namespace Sufni.App.Tests.Sessions.Processing.Services;
 
 public class SessionTelemetryWriterTests
 {
+    [Fact]
+    public async Task PutProcessedSessionAsync_UsesPayloadTelemetry_WithoutDecodingPayloadBytes()
+    {
+        var sessionRepository = Substitute.For<ISessionRepository>();
+        var trackRepository = Substitute.For<ITrackRepository>();
+        var telemetryProcessor = new TestSessionTelemetryProcessor();
+        var cacheStore = Substitute.For<ISessionCacheStore>();
+        var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor, cacheStore);
+        var session = new Session(Guid.NewGuid(), "processed", "desc", null);
+        var telemetryData = TestTelemetryData.CreateMinimal(duration: 65);
+        var payloadData = telemetryData.BinaryForm;
+        var payload = new ProcessedTelemetryPayload(telemetryData, payloadData, """{"schemaVersion":3}""");
+        sessionRepository
+            .PutProcessedSessionAsync(Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource?>())
+            .Returns(callInfo => Task.FromResult(callInfo.Arg<Session>()));
+
+        var persisted = await writer.PutProcessedSessionAsync(session, payload, newFullTrack: null, source: null);
+
+        Assert.Same(session, persisted);
+        Assert.Same(payloadData, session.ProcessedData);
+        Assert.Equal("""{"schemaVersion":3}""", session.ProcessingFingerprintJson);
+        Assert.Equal(65, session.DurationSeconds);
+        Assert.Equal(0, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
+        Assert.Equal(0, telemetryProcessor.ReadProcessedDurationSecondsCallCount);
+    }
+
+    [Fact]
+    public async Task UpdateProcessedDerivedDataAsync_UsesPayloadTelemetry_WithoutDecodingPayloadBytes()
+    {
+        var sessionRepository = Substitute.For<ISessionRepository>();
+        var trackRepository = Substitute.For<ITrackRepository>();
+        var telemetryProcessor = new TestSessionTelemetryProcessor();
+        var cacheStore = Substitute.For<ISessionCacheStore>();
+        var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor, cacheStore);
+        var session = new Session(Guid.NewGuid(), "recomputed", "desc", null);
+        var telemetryData = TestTelemetryData.CreateMinimal(duration: 66);
+        var payload = new ProcessedTelemetryPayload(telemetryData, telemetryData.BinaryForm, """{"schemaVersion":3}""");
+        var fingerprint = new ProcessingFingerprint(3, 1, Guid.NewGuid(), Guid.NewGuid(), 1, "dependency", "source");
+        sessionRepository
+            .UpdateProcessedDerivedDataAsync(
+                Arg.Any<Session>(),
+                Arg.Any<Track?>(),
+                Arg.Any<ProcessingFingerprint>())
+            .Returns(callInfo => Task.FromResult<Session?>(callInfo.Arg<Session>()));
+        cacheStore.DeleteSessionCacheAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
+
+        var result = await writer.UpdateProcessedDerivedDataAsync(session, payload, newFullTrack: null, fingerprint);
+
+        Assert.Same(session, result);
+        Assert.Equal(payload.Data, session.ProcessedData);
+        Assert.Equal("""{"schemaVersion":3}""", session.ProcessingFingerprintJson);
+        Assert.Equal(66, session.DurationSeconds);
+        Assert.Equal(0, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
+        Assert.Equal(0, telemetryProcessor.ReadProcessedDurationSecondsCallCount);
+        await cacheStore.Received(1).DeleteSessionCacheAsync(session.Id);
+    }
+
     [Fact]
     public async Task PutProcessedSessionAsync_ComputesMetricsFromSessionTrack()
     {
@@ -356,5 +419,84 @@ public class SessionTelemetryWriterTests
         Assert.Equal(2.5, after.GpsOffsetSeconds);
         Assert.True(after!.Updated > before!.Updated);
 
+    }
+
+    [Fact]
+    public async Task PatchSessionTrackAsync_UsesStoredDuration_WithoutReadingProcessedBytes()
+    {
+        var sessionRepository = Substitute.For<ISessionRepository>();
+        var trackRepository = Substitute.For<ITrackRepository>();
+        var telemetryProcessor = new TestSessionTelemetryProcessor();
+        var cacheStore = Substitute.For<ISessionCacheStore>();
+        var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor, cacheStore);
+        var sessionId = Guid.NewGuid();
+        var points = new List<TrackPoint>
+        {
+            new(100, 0, 0, 10),
+            new(101, 3, 4, 14)
+        };
+        sessionRepository.GetSessionAsync(sessionId)
+            .Returns(new Session(sessionId, "session", "desc", null, 100)
+            {
+                DurationSeconds = 65
+            });
+        sessionRepository
+            .UpdateSessionTrackAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<List<TrackPoint>>(),
+                Arg.Any<SessionSummaryMetrics>(),
+                Arg.Any<double?>())
+            .Returns(Task.CompletedTask);
+        cacheStore.DeleteSessionCacheAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
+
+        await writer.PatchSessionTrackAsync(sessionId, points);
+
+        await sessionRepository.DidNotReceive().GetSessionRawPsstAsync(sessionId);
+        Assert.Equal(0, telemetryProcessor.ReadProcessedDurationSecondsCallCount);
+        await sessionRepository.Received(1).UpdateSessionTrackAsync(
+            sessionId,
+            points,
+            Arg.Is<SessionSummaryMetrics>(metrics => metrics.DurationSeconds == 65),
+            null);
+    }
+
+    [Fact]
+    public async Task PatchSessionTrackAsync_ReadsProcessedDurationOnlyWhenStoredDurationIsMissing()
+    {
+        var sessionRepository = Substitute.For<ISessionRepository>();
+        var trackRepository = Substitute.For<ITrackRepository>();
+        var telemetryProcessor = new TestSessionTelemetryProcessor();
+        var cacheStore = Substitute.For<ISessionCacheStore>();
+        var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor, cacheStore);
+        var sessionId = Guid.NewGuid();
+        var raw = new byte[] { 9, 8, 7 };
+        var telemetryData = TestTelemetryData.CreateMinimal(duration: 42);
+        telemetryProcessor.Map(raw, telemetryData);
+        var points = new List<TrackPoint>
+        {
+            new(100, 0, 0, 10),
+            new(101, 3, 4, 14)
+        };
+        sessionRepository.GetSessionAsync(sessionId)
+            .Returns(new Session(sessionId, "session", "desc", null, 100));
+        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
+        sessionRepository
+            .UpdateSessionTrackAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<List<TrackPoint>>(),
+                Arg.Any<SessionSummaryMetrics>(),
+                Arg.Any<double?>())
+            .Returns(Task.CompletedTask);
+        cacheStore.DeleteSessionCacheAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
+
+        await writer.PatchSessionTrackAsync(sessionId, points);
+
+        await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId);
+        Assert.Equal(1, telemetryProcessor.ReadProcessedDurationSecondsCallCount);
+        await sessionRepository.Received(1).UpdateSessionTrackAsync(
+            sessionId,
+            points,
+            Arg.Is<SessionSummaryMetrics>(metrics => metrics.DurationSeconds == 42),
+            null);
     }
 }

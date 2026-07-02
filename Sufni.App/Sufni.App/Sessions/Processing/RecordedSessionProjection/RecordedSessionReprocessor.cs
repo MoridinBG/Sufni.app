@@ -63,8 +63,13 @@ internal sealed class RecordedSessionReprocessor(
             ? Track.FromGpsRecords(telemetryData.GpsData)
             : null;
         var fingerprint = fingerprintService.CreateCurrent(domain.Session, domain.Setup, domain.Bike, domain.Source, processingOptions);
+        var fingerprintJson = AppJson.Serialize(fingerprint);
+        var processedTelemetry = new ProcessedTelemetryPayload(
+            telemetryData,
+            telemetryData.BinaryForm,
+            fingerprintJson);
 
-        return Task.FromResult(new RecordedSessionReprocessResult(telemetryData, fullTrack, fingerprint));
+        return Task.FromResult(new RecordedSessionReprocessResult(processedTelemetry, fullTrack, fingerprint));
     }
 
     private static TelemetryData ReprocessImportedSst(
