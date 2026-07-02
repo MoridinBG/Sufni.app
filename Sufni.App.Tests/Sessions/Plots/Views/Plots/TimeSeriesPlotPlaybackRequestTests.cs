@@ -2,9 +2,12 @@ using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using NSubstitute;
+using Sufni.Telemetry;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
 using static Sufni.App.Tests.TestSupport.Fixtures.PlotTestHelpers;
 
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Tests.TestSupport.Harness;
@@ -63,7 +66,7 @@ public class TimeSeriesPlotPlaybackRequestTests
         var timeline = new SessionTimelineLinkViewModel();
         var stopRequests = 0;
         timeline.PlaybackStopRequested += (_, _) => stopRequests++;
-        var view = new TravelPlotView { Timeline = timeline };
+        var view = new DeferredClickTravelPlotView { Timeline = timeline };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
         view.Telemetry = CreateMinimal();
@@ -76,6 +79,9 @@ public class TimeSeriesPlotPlaybackRequestTests
         mounted.Host.MouseDown(overPlot.Value, MouseButton.Left, RawInputModifiers.None);
         mounted.Host.MouseUp(overPlot.Value, MouseButton.Left, RawInputModifiers.None);
         await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.Equal(0, stopRequests);
+
+        view.RunPendingClickEffects();
 
         Assert.Equal(1, stopRequests);
     }
@@ -135,7 +141,7 @@ public class TimeSeriesPlotPlaybackRequestTests
         // Mimic the playback owner: a stop request deactivates playback, so
         // the same click may place the cursor again.
         timeline.PlaybackStopRequested += (_, _) => timeline.SetPlaybackActive(false);
-        var view = new TravelPlotView { Timeline = timeline };
+        var view = new DeferredClickTravelPlotView { Timeline = timeline };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
         view.Telemetry = CreateMinimal();
@@ -151,9 +157,75 @@ public class TimeSeriesPlotPlaybackRequestTests
         mounted.Host.MouseDown(overPlot.Value, MouseButton.Left, RawInputModifiers.None);
         mounted.Host.MouseUp(overPlot.Value, MouseButton.Left, RawInputModifiers.None);
         await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.True(timeline.IsPlaybackActive);
+
+        view.RunPendingClickEffects();
 
         Assert.False(timeline.IsPlaybackActive);
         Assert.NotNull(timeline.NormalizedCursorPosition);
         Assert.NotEqual(0.95, timeline.NormalizedCursorPosition!.Value, precision: 2);
+    }
+
+    [AvaloniaFact]
+    public async Task TravelPlotView_DoubleClick_CancelsPendingStopAndAnalysisClear()
+    {
+        var timeline = new SessionTimelineLinkViewModel();
+        var stopRequests = 0;
+        timeline.PlaybackStopRequested += (_, _) => stopRequests++;
+        var workspace = Substitute.For<IRecordedSessionSignalsWorkspace>();
+        workspace.AnalysisRange.Returns(new TelemetryTimeRange(1, 2));
+        var view = new DeferredClickTravelPlotView
+        {
+            Timeline = timeline,
+            SignalsWorkspace = workspace,
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+        view.Telemetry = CreateMinimal(duration: 10);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+        RenderPlotInMemory(plot);
+        var overPlot = plot.TranslatePoint(GetDataAreaCenterPoint(plot), mounted.Host);
+        Assert.NotNull(overPlot);
+        mounted.Host.MouseDown(overPlot.Value, MouseButton.Left, RawInputModifiers.None);
+        mounted.Host.MouseUp(overPlot.Value, MouseButton.Left, RawInputModifiers.None);
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.True(view.HasPendingClickEffects);
+
+        mounted.Host.MouseDown(overPlot.Value, MouseButton.Left, RawInputModifiers.None);
+        await ViewTestHelpers.FlushDispatcherAsync();
+        mounted.Host.MouseUp(overPlot.Value, MouseButton.Left, RawInputModifiers.None);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.False(view.HasPendingClickEffects);
+        Assert.Equal(0, stopRequests);
+        workspace.DidNotReceive().ClearAnalysisRange();
+    }
+
+    private sealed class DeferredClickTravelPlotView : TravelPlotView
+    {
+        private Action? pendingClickEffects;
+
+        public bool HasPendingClickEffects => pendingClickEffects is not null;
+
+        public void RunPendingClickEffects()
+        {
+            var callback = pendingClickEffects
+                ?? throw new InvalidOperationException("No deferred click effects were scheduled.");
+            pendingClickEffects = null;
+            callback();
+        }
+
+        protected override IDisposable ScheduleDeferredPlotClickEffects(TimeSpan delay, Action callback)
+        {
+            pendingClickEffects = callback;
+            return new TestSubscription(() => pendingClickEffects = null);
+        }
+    }
+
+    private sealed class TestSubscription(Action dispose) : IDisposable
+    {
+        public void Dispose() => dispose();
     }
 }

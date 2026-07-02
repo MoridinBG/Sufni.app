@@ -677,6 +677,18 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         CancelPendingPlotClickEffects();
         var timeline = Timeline;
         var workspace = SignalsWorkspace;
+        var deferredCursorSeconds = default(double?);
+        var deferredCursorPosition = default(double?);
+        if (stopPlayback
+            && timeline?.IsPlaybackActive == true
+            && TimelineDurationSeconds is { } duration
+            && duration > 0
+            && TryGetTimelineSeconds(args, out var seconds))
+        {
+            deferredCursorSeconds = seconds;
+            deferredCursorPosition = seconds / duration;
+        }
+
         pendingPlotClickEffects = ScheduleDeferredPlotClickEffects(
             GetDoubleTapCancelWindow(args),
             () =>
@@ -685,6 +697,14 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                 if (stopPlayback)
                 {
                     timeline?.RequestPlaybackStop();
+                    if (timeline?.IsPlaybackActive == false
+                        && deferredCursorSeconds is { } cursorSeconds
+                        && deferredCursorPosition is { } cursorPosition)
+                    {
+                        timeline.SetCursorPosition(cursorPosition);
+                        plot?.SetCursorPositionWithReadout(cursorSeconds);
+                        RefreshPlot();
+                    }
                 }
 
                 if (clearAnalysisRange)

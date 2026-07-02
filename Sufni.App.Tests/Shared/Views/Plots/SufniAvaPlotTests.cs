@@ -110,6 +110,14 @@ public class SufniAvaPlotTests
     }
 
     [AvaloniaFact]
+    public void SufniAvaPlot_DisablesDoubleClickBenchmarkResponse()
+    {
+        var plot = CreatePlot();
+
+        Assert.Empty(plot.UserInputProcessor.UserActionResponses.OfType<DoubleClickBenchmark>());
+    }
+
+    [AvaloniaFact]
     public async Task ToScottPlotPixel_ScalesAvaloniaPoint_ToLastRenderPixelSpace()
     {
         var plot = CreatePlot();
