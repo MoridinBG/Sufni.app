@@ -185,19 +185,10 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
     private static ObservableCollection<JointViewModel> JointsFromSnapshot(BikeSnapshot? snapshot)
     {
-        if (snapshot is null || snapshot.ImageBytes.Length == 0) return [];
+        if (snapshot?.RearSuspension is not RearSuspensionSpec.Linkage linkage) return [];
 
-        if (snapshot.RearSuspension is not RearSuspensionSpec.Linkage linkage) return [];
-
-        var imageHeight = BikeImageData.Decode(snapshot.ImageBytes)?.Size.Height;
-        if (!imageHeight.HasValue)
-        {
-            return [];
-        }
-
-        var jvms = linkage.Spec.Joints
-            .Select(j => JointViewModel.FromSpec(j, imageHeight.Value, snapshot.PixelsToMillimeters));
-        return [.. jvms];
+        return [.. linkage.Spec.Joints.Select(joint =>
+            new JointViewModel(joint.Name, joint.Type, joint.X, joint.Y))];
     }
 
     private static IReadOnlyList<SensorType?> AllowedShockSensorTypes(BikeSnapshot? bike) => bike?.RearSuspension switch

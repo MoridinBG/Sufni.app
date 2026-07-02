@@ -241,6 +241,29 @@ public class SetupEditorViewModelTests
         Assert.Equal(SensorType.LinearShockStroke, configuration.Type);
     }
 
+    [AvaloniaFact]
+    public void SettingShockSensorType_ToRotationalShock_UsesLinkageSpecJointsWithoutBikeImage()
+    {
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
+        var linkageBike = TestSnapshots.Bike() with
+        {
+            ShockStroke = linkage.ShockStroke,
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage),
+            ImageBytes = [],
+        };
+        bikesCache.AddOrUpdate(linkageBike);
+
+        var editor = CreateEditor(TestSnapshots.Setup(bikeId: linkageBike.Id));
+        editor.LoadedCommand.Execute(null);
+
+        editor.ShockSensorType = SensorType.RotationalShock;
+
+        var configuration = Assert.IsType<RotationalShockSensorConfigurationViewModel>(editor.ShockSensorConfiguration);
+        Assert.Equal(
+            linkage.Joints.Select(joint => joint.Name),
+            configuration.JointViewModels.Select(joint => joint.Name));
+    }
+
     // ----- CanSave -----
 
     [AvaloniaFact]
