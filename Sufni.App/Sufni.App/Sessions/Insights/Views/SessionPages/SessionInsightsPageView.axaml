@@ -71,11 +71,10 @@ mc:Ignorable="d">
                                                 FontWeight="SemiBold"
                                                 Text="{Binding Title}"
                                                 TextWrapping="Wrap" />
-                                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding Severity}" />
-                                                <TextBlock FontSize="12" Opacity="0.7" Text="{Binding Confidence}" />
+                                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding SeverityText}" />
                                             </StackPanel>
 
-                                            <TextBlock FontSize="12" Opacity="0.75" Text="{Binding Category}" />
+                                            <TextBlock FontSize="12" Opacity="0.75" Text="{Binding CategoryText}" />
                                             <TextBlock Margin="0,8,0,0" Text="{Binding Observation}" TextWrapping="Wrap" />
                                             <TextBlock Margin="0,6,0,0" Text="{Binding Recommendation}" TextWrapping="Wrap" />
                                         </StackPanel>
@@ -83,6 +82,17 @@ mc:Ignorable="d">
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+
+                        <ContentControl
+                        Name="MobileSessionInsightsNextStepCard"
+                        Content="{Binding Workspace.SessionInsights.NextStep}"
+                        IsVisible="{Binding Workspace.SessionInsights.HasNextStep}">
+                            <ContentControl.ContentTemplate>
+                                <DataTemplate x:DataType="models:SessionInsightsNextStep">
+                                    <controls2:SessionInsightsNextStepCard />
+                                </DataTemplate>
+                            </ContentControl.ContentTemplate>
+                        </ContentControl>
 
                         <ItemsControl
                         Name="MobileSessionInsightsStepsItemsControl"

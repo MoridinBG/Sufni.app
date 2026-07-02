@@ -600,8 +600,6 @@ public class SessionAnalysisDesktopViewTests
                 SessionInsightsSeverity.Watch,
                 true,
                 [new SessionInsightsMetric("Max travel", "52.0", "%", "Fork", ">= 85 % on hard terrain")],
-                null,
-                [],
                 [new SessionInsightsFinding(
                     SessionInsightsCategory.TravelUse,
                     SessionInsightsSeverity.Watch,

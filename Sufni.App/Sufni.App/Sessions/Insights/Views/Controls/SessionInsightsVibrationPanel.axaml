@@ -36,7 +36,8 @@ mc:Ignorable="d">
                         Padding="6,4"
                         BorderBrush="{DynamicResource SufniLineSubtleBrush}"
                         BorderThickness="1"
-                        CornerRadius="4">
+                        CornerRadius="4"
+                        ToolTip.Tip="{Binding Tooltip}">
                             <StackPanel>
                                 <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding Label}" />
                                 <TextBlock FontSize="12" Text="{Binding DisplayValue}" />

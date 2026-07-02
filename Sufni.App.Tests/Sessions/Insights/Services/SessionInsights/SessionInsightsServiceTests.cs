@@ -87,7 +87,7 @@ public class SessionInsightsServiceTests
         Assert.Contains(result.DataQualityFindings, finding => finding.Id == SessionInsightsFindingId.FullSessionInsights);
         var sag = Assert.Single(result.Steps, step => step.Id == SessionInsightsStepId.Sag);
         Assert.True(sag.HasIssue);
-        Assert.NotNull(sag.PrimaryAdjustment);
+        Assert.Contains(sag.Findings, finding => finding.HasSuggestion);
         Assert.Contains(sag.Metrics, metric => metric.Label == "Fork max");
     }
 
@@ -284,7 +284,7 @@ public class SessionInsightsServiceTests
             balanceSpeedMode: BalanceSpeedMode.HighSpeed));
 
         var balance = Assert.Single(result.Steps, step => step.Id == SessionInsightsStepId.Balance);
-        Assert.NotNull(balance.PrimaryAdjustment);
+        Assert.Contains(balance.Findings, finding => finding.HasSuggestion);
         Assert.Contains(
             balance.Findings.SelectMany(finding => finding.Adjustments),
             adjustment => adjustment.Component is AdjustmentComponent.HighSpeedCompression or AdjustmentComponent.HighSpeedRebound);
@@ -363,7 +363,9 @@ public class SessionInsightsServiceTests
             finding.Category == SessionInsightsCategory.Balance &&
             finding.Severity == SessionInsightsSeverity.Info &&
             finding.Evidence.Any(evidence => evidence.Label == "Context limit"));
-        Assert.Null(Assert.Single(result.Steps, step => step.Id == SessionInsightsStepId.Balance).PrimaryAdjustment);
+        Assert.DoesNotContain(
+            Assert.Single(result.Steps, step => step.Id == SessionInsightsStepId.Balance).Findings,
+            finding => finding.HasSuggestion);
     }
 
     [Fact]
@@ -391,6 +393,79 @@ public class SessionInsightsServiceTests
         Assert.Contains(result.Vibration!.Metrics, metric => metric.Label == "Magic carpet ratio" && metric.Side == "Fork");
         Assert.Contains(result.Vibration.Metrics, metric => metric.Label == "Magic carpet ratio" && metric.Side == "Rear");
         Assert.DoesNotContain(result.Steps.SelectMany(step => step.Findings), finding => finding.Category == SessionInsightsCategory.Vibration);
+    }
+
+    [Fact]
+    public void Analyze_BuildsNextStep_PreferringHighestSeverityThenEarliestStep()
+    {
+        // Rear rides deep with chronic bottomouts: an Action shows up both as a
+        // Sag travel-use finding and as a Rear packing finding. The headline
+        // should take the earliest step (Sag) among the equal-severity options.
+        var telemetry = CreateTelemetry(
+            front: BuildSide(),
+            rear: BuildSide(maxTravelPercent: 98, averageTravelPercent: 62, bottomouts: 6));
+
+        var result = service.Analyze(CreateRequest(telemetry, SelectedRange));
+
+        Assert.NotNull(result.NextStep);
+        var sagTitle = Assert.Single(result.Steps, step => step.Id == SessionInsightsStepId.Sag).Title;
+        Assert.Equal(sagTitle, result.NextStep!.Area);
+        Assert.Equal(AdjustmentComponent.Tokens, result.NextStep.Adjustment.Component);
+        Assert.Equal("Rear", result.NextStep.Adjustment.Side);
+    }
+
+    [Fact]
+    public void Analyze_OmitsNextStep_WhenNoAdjustableFindingsExist()
+    {
+        var telemetry = CreateTelemetry(front: BuildSide(), rear: BuildSide());
+
+        var result = service.Analyze(CreateRequest(telemetry, SelectedRange));
+
+        Assert.Null(result.NextStep);
+        Assert.False(result.HasNextStep);
+    }
+
+    [Fact]
+    public void Analyze_GatesLaterStep_WhenEarlierStepHasUnresolvedIssue()
+    {
+        // Fork travel use is shallow (Sag issue) and the rear rebound is slow
+        // (Rear issue); the Rear step should be gated behind the earlier Sag
+        // issue, while Sag itself and the clean Fork step are not gated.
+        var telemetry = CreateTelemetry(
+            front: BuildSide(maxTravelPercent: 52, averageTravelPercent: 30),
+            rear: BuildSide(reboundBaseSpeed: 900, reboundSlope: 5));
+
+        var result = service.Analyze(CreateRequest(telemetry, SelectedRange));
+
+        var sag = Assert.Single(result.Steps, step => step.Id == SessionInsightsStepId.Sag);
+        var fork = Assert.Single(result.Steps, step => step.Id == SessionInsightsStepId.Fork);
+        var rear = Assert.Single(result.Steps, step => step.Id == SessionInsightsStepId.Rear);
+
+        Assert.True(sag.HasIssue);
+        Assert.False(sag.HasGatingMessage);
+        Assert.False(fork.HasGatingMessage);
+        Assert.True(rear.HasIssue);
+        Assert.True(rear.HasGatingMessage);
+    }
+
+    [Fact]
+    public void Analyze_MarksTravelMetricStatus_RelativeToTargets()
+    {
+        var telemetry = CreateTelemetry(
+            front: BuildSide(maxTravelPercent: 52),
+            rear: BuildSide(maxTravelPercent: 90));
+
+        var result = service.Analyze(CreateRequest(telemetry, SelectedRange));
+
+        var forkMaxTravel = Assert.Single(
+            Assert.Single(result.Steps, step => step.Id == SessionInsightsStepId.Fork).Metrics,
+            metric => metric.Label == "Max travel");
+        Assert.Equal(SessionInsightsMetricStatus.BelowTarget, forkMaxTravel.Status);
+
+        var rearMaxTravel = Assert.Single(
+            Assert.Single(result.Steps, step => step.Id == SessionInsightsStepId.Rear).Metrics,
+            metric => metric.Label == "Max travel");
+        Assert.Equal(SessionInsightsMetricStatus.Good, rearMaxTravel.Status);
     }
 
     private static readonly TelemetryTimeRange SelectedRange = new(0.1, 8.0);

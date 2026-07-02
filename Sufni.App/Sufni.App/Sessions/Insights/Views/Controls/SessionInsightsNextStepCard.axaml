@@ -1,0 +1,59 @@
+<UserControl
+x:Class="Sufni.App.Sessions.Insights.Views.Controls.SessionInsightsNextStepCard"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:models="clr-namespace:Sufni.App.Sessions.Models"
+d:DesignHeight="180"
+d:DesignWidth="720"
+x:DataType="models:SessionInsightsNextStep"
+mc:Ignorable="d">
+
+    <Border
+    Margin="0,0,0,12"
+    Padding="12"
+    Background="{DynamicResource SufniSurfaceElevatedBrush}"
+    BorderBrush="{DynamicResource SufniAccentPrimaryBrush}"
+    BorderThickness="1"
+    CornerRadius="6">
+        <StackPanel Spacing="6">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock
+                Grid.Column="0"
+                FontSize="15"
+                FontWeight="SemiBold"
+                Text="Try this next"
+                VerticalAlignment="Center" />
+                <Border
+                Grid.Column="1"
+                Padding="8,3"
+                VerticalAlignment="Center"
+                BorderBrush="{DynamicResource SufniLineDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="4">
+                    <TextBlock FontSize="12" Opacity="0.85" Text="{Binding Area}" />
+                </Border>
+            </Grid>
+
+            <TextBlock
+            Name="NextStepExperimentTextBlock"
+            FontSize="14"
+            FontWeight="SemiBold"
+            Text="{Binding Adjustment.ExperimentText}"
+            TextWrapping="Wrap" />
+
+            <TextBlock
+            FontSize="12"
+            Opacity="0.85"
+            Text="{Binding Rationale}"
+            TextWrapping="Wrap" />
+
+            <TextBlock
+            FontSize="12"
+            Opacity="0.85"
+            Text="{Binding Adjustment.ExpectedEffect, StringFormat='What to expect: {0}'}"
+            TextWrapping="Wrap" />
+        </StackPanel>
+    </Border>
+</UserControl>

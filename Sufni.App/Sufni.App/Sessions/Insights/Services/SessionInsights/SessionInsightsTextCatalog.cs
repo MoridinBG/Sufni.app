@@ -24,22 +24,22 @@ internal static class SessionInsightsTextCatalog
             SessionInsightsFindingId.NoStrokeStatistics => "No stroke statistics",
             SessionInsightsFindingId.OneEndMissingStrokeData => "One end is missing stroke data",
             SessionInsightsFindingId.BalanceUnavailable => "Balance unavailable",
-            SessionInsightsFindingId.LowStrokeCount => $"{FindingSideName(finding)} stroke count is low",
-            SessionInsightsFindingId.ShallowTravelUse => $"{FindingSideName(finding)} travel use is shallow",
-            SessionInsightsFindingId.RepeatedBottomouts => $"{FindingSideName(finding)} bottomed repeatedly",
-            SessionInsightsFindingId.DeepTravelUse => $"{FindingSideName(finding)} is riding deep",
-            SessionInsightsFindingId.DynamicSagMismatch => "Dynamic sag mismatch",
-            SessionInsightsFindingId.ReboundPacking => $"{FindingSideName(finding)} rebound packing is plausible",
+            SessionInsightsFindingId.LowStrokeCount => $"Not many {FindingSideName(finding).ToLowerInvariant()} strokes yet",
+            SessionInsightsFindingId.ShallowTravelUse => $"{FindingSideName(finding)} isn't using its travel",
+            SessionInsightsFindingId.RepeatedBottomouts => $"{FindingSideName(finding)} is bottoming out",
+            SessionInsightsFindingId.DeepTravelUse => $"{FindingSideName(finding)} rides deep",
+            SessionInsightsFindingId.DynamicSagMismatch => "Front and rear sit at different heights",
+            SessionInsightsFindingId.ReboundPacking => $"{FindingSideName(finding)} may be packing up",
             SessionInsightsFindingId.SupportBeforeReboundDiagnosis => finding.Severity == SessionInsightsSeverity.Action
-                ? $"{FindingSideName(finding)} needs support before rebound diagnosis"
-                : $"{FindingSideName(finding)} support needs context before rebound diagnosis",
-            SessionInsightsFindingId.ResistingImpacts => $"{FindingSideName(finding)} may be resisting impacts",
-            SessionInsightsFindingId.ReboundSlowForProfileContext => $"{FindingSideName(finding)} rebound is slow for profile context",
-            SessionInsightsFindingId.ReboundFastForProfileContext => $"{FindingSideName(finding)} rebound is fast for profile context",
-            SessionInsightsFindingId.CompressionSpeedsSubdued => $"{FindingSideName(finding)} compression speeds are subdued",
-            SessionInsightsFindingId.CompressionSpeedsHigh => $"{FindingSideName(finding)} compression speeds are high",
-            SessionInsightsFindingId.BalanceContextLimited => "Balance context is limited",
-            SessionInsightsFindingId.BalanceSlopesDiverge => $"{Capitalize(BalanceTypeLabel(finding))} balance slopes diverge",
+                ? $"{FindingSideName(finding)} needs more support"
+                : $"{FindingSideName(finding)} support needs a closer look",
+            SessionInsightsFindingId.ResistingImpacts => $"{FindingSideName(finding)} is resisting impacts",
+            SessionInsightsFindingId.ReboundSlowForProfileContext => $"{FindingSideName(finding)} rebound is slow",
+            SessionInsightsFindingId.ReboundFastForProfileContext => $"{FindingSideName(finding)} rebound is fast",
+            SessionInsightsFindingId.CompressionSpeedsSubdued => $"{FindingSideName(finding)} is firm over impacts",
+            SessionInsightsFindingId.CompressionSpeedsHigh => $"{FindingSideName(finding)} moves fast over impacts",
+            SessionInsightsFindingId.BalanceContextLimited => "Balance reading is only rough here",
+            SessionInsightsFindingId.BalanceSlopesDiverge => $"{Capitalize(BalanceTypeLabel(finding))} balance is off",
             SessionInsightsFindingId.VibrationNotUsedForRecommendations => "Vibration not used for recommendations",
             SessionInsightsFindingId.VibrationContext => $"{FindingSideName(finding)} vibration context",
             _ => string.Empty,
@@ -63,29 +63,29 @@ internal static class SessionInsightsTextCatalog
             SessionInsightsFindingId.LowStrokeCount =>
                 $"Only {FormatCount(GetValue(finding, DiagnosticMeasurement.StrokeCount))} {FindingSideName(finding).ToLowerInvariant()} strokes are available in the selected data.",
             SessionInsightsFindingId.ShallowTravelUse =>
-                $"The {FindingSideName(finding).ToLowerInvariant()} only reached {FormatPercent(GetValue(finding, DiagnosticMeasurement.MaxTravelPercent)!.Value)} of available travel in the selected {TravelModeDescription(context.Request.TravelDistributionMode)} data.",
+                $"The {FindingSideName(finding).ToLowerInvariant()} only reached {FormatPercent(GetValue(finding, DiagnosticMeasurement.MaxTravelPercent)!.Value)} of its travel on the hardest part of the run.",
             SessionInsightsFindingId.RepeatedBottomouts =>
-                $"The selected data contains {FormatCount(GetValue(finding, DiagnosticMeasurement.Bottomouts))} {BottomoutObservationName(context.Request.TravelDistributionMode)} on the {FindingSideName(finding).ToLowerInvariant()} side.",
+                $"The {FindingSideName(finding).ToLowerInvariant()} hit the bottom of its travel {FormatCount(GetValue(finding, DiagnosticMeasurement.Bottomouts))} times.",
             SessionInsightsFindingId.DeepTravelUse =>
-                $"The {FindingSideName(finding).ToLowerInvariant()} average position is {FormatPercent(GetValue(finding, DiagnosticMeasurement.AverageTravelPercent)!.Value)} in the selected {TravelModeDescription(context.Request.TravelDistributionMode)} data.",
+                $"The {FindingSideName(finding).ToLowerInvariant()} is sitting deep in its travel ({FormatPercent(GetValue(finding, DiagnosticMeasurement.AverageTravelPercent)!.Value)} on average).",
             SessionInsightsFindingId.DynamicSagMismatch =>
                 GetDynamicSagMismatchObservation(finding),
             SessionInsightsFindingId.ReboundPacking =>
-                $"The {FindingSideName(finding).ToLowerInvariant()} is riding deep while rebound speed is below the {ProfileLabel(context.Request.TargetProfile)} reference band.",
+                $"The {FindingSideName(finding).ToLowerInvariant()} is riding deep and springing back slowly, so it may not recover between hits.",
             SessionInsightsFindingId.SupportBeforeReboundDiagnosis =>
-                $"The {FindingSideName(finding).ToLowerInvariant()} is riding deep and has {FormatCount(GetValue(finding, DiagnosticMeasurement.Bottomouts))} {BottomoutObservationName(context.Request.TravelDistributionMode)}, so support evidence should be separated from rebound packing before changing rebound.",
+                $"The {FindingSideName(finding).ToLowerInvariant()} is riding deep and bottoming out, so sort out support before touching rebound.",
             SessionInsightsFindingId.ResistingImpacts =>
-                $"The {FindingSideName(finding).ToLowerInvariant()} is not using much travel and compression speed is below the {ProfileLabel(context.Request.TargetProfile)} reference band.",
+                $"The {FindingSideName(finding).ToLowerInvariant()} isn't using much travel and isn't moving quickly over impacts.",
             SessionInsightsFindingId.ReboundSlowForProfileContext =>
-                $"The {FindingSideName(finding).ToLowerInvariant()} rebound 95th percentile speed is below the {ProfileLabel(context.Request.TargetProfile)} reference band.",
+                $"The {FindingSideName(finding).ToLowerInvariant()} springs back slower than {ProfileRidingName(context.Request.TargetProfile)} riding usually wants.",
             SessionInsightsFindingId.ReboundFastForProfileContext =>
-                $"The {FindingSideName(finding).ToLowerInvariant()} rebound 95th percentile speed is well above the {ProfileLabel(context.Request.TargetProfile)} reference band.",
+                $"The {FindingSideName(finding).ToLowerInvariant()} springs back faster than {ProfileRidingName(context.Request.TargetProfile)} riding usually wants.",
             SessionInsightsFindingId.CompressionSpeedsSubdued =>
-                $"The {FindingSideName(finding).ToLowerInvariant()} compression 95th percentile speed is below the {ProfileLabel(context.Request.TargetProfile)} context band.",
+                $"The {FindingSideName(finding).ToLowerInvariant()} isn't moving over impacts as quickly as {ProfileRidingName(context.Request.TargetProfile)} riding usually needs.",
             SessionInsightsFindingId.CompressionSpeedsHigh =>
-                $"The {FindingSideName(finding).ToLowerInvariant()} compression 95th percentile speed is above the {ProfileLabel(context.Request.TargetProfile)} context band.",
+                $"The {FindingSideName(finding).ToLowerInvariant()} is moving very quickly over impacts for {ProfileRidingName(context.Request.TargetProfile)} riding.",
             SessionInsightsFindingId.BalanceContextLimited =>
-                "The selected data has shallow travel use or low speed context, so any balance reading should be treated as supporting context rather than a tuning verdict.",
+                "Travel use is shallow or speeds are low here, so treat the balance reading as a rough hint, not a verdict.",
             SessionInsightsFindingId.BalanceSlopesDiverge =>
                 GetBalanceSlopesDivergeObservation(finding, context),
             SessionInsightsFindingId.VibrationNotUsedForRecommendations =>
@@ -154,65 +154,54 @@ internal static class SessionInsightsTextCatalog
         DiagnosticAdjustment adjustment,
         AnalysisContext context)
     {
+        // Expected effects are directional and iterative on purpose: we do not
+        // know how much any one click moves a given damper, so they describe the
+        // trend to look for and tell the rider to re-check, not a target to hit.
         return findingId switch
         {
             SessionInsightsFindingId.ShallowTravelUse => adjustment.Component switch
             {
                 AdjustmentComponent.AirPressure =>
-                    (SmallPressureMagnitude, "Max travel should rise toward 80-90 % on the same hard section."),
+                    (SmallPressureMagnitude, "It should start using more of its travel. Re-check the same section and adjust again if needed."),
                 _ =>
-                    (OneClickMagnitude, "Max travel should rise toward 80-90 % on the same hard section."),
+                    (OneClickMagnitude, "It should start using more of its travel. Re-check the same section and adjust again if needed."),
             },
             SessionInsightsFindingId.RepeatedBottomouts or SessionInsightsFindingId.SupportBeforeReboundDiagnosis =>
                 adjustment.Component switch
                 {
-                    // The Tokens/Add effect differs between the Action variant
-                    // (priority 1) and the Watch variant (priority 2).
-                    AdjustmentComponent.Tokens when adjustment.Priority == 1 =>
-                        ("1 token", "End-stroke ramp should resist deep travel; 100 % hits become rare."),
                     AdjustmentComponent.Tokens =>
-                        ("1 token", "Repeated bottomouts should reduce; max settles near 90-95 %."),
+                        ("1 token", "Hard hits should stop slamming through. Add one, then re-check."),
                     _ =>
-                        (SmallPressureMagnitude, "Repeated bottomouts should reduce; max settles near 90-95 %."),
+                        (SmallPressureMagnitude, "Bottom-outs should ease off. Change a little at a time and re-check."),
                 },
             SessionInsightsFindingId.DeepTravelUse => adjustment.Component switch
             {
                 AdjustmentComponent.AirPressure =>
-                    (SmallPressureMagnitude, "Average travel should ride 5-10 % shallower; rebound 95th should rise."),
+                    (SmallPressureMagnitude, "It should sit a little higher and recover a bit sooner. Adjust gradually and re-check."),
                 _ =>
-                    (OneClickMagnitude, "Average travel should ride 5-10 % shallower; rebound 95th should rise."),
+                    (OneClickMagnitude, "It should sit a little higher and recover a bit sooner. Adjust gradually and re-check."),
             },
             SessionInsightsFindingId.DynamicSagMismatch =>
-                (SmallPressureMagnitude, "Front and rear average position should move closer together on the same steep section."),
-            SessionInsightsFindingId.ReboundPacking => adjustment.Component switch
-            {
-                AdjustmentComponent.HighSpeedRebound =>
-                    ("1-2 clicks", $"Rebound 95th should rise toward {FormatBand(context.Profile.Rebound)} mm/s and average position should ride shallower."),
-                _ =>
-                    (OneClickMagnitude, $"Rebound 95th should rise toward {FormatBand(context.Profile.Rebound)} mm/s and average position should ride shallower."),
-            },
+                (SmallPressureMagnitude, "Front and rear should sit closer to the same height. Adjust a little and re-check."),
+            SessionInsightsFindingId.ReboundPacking =>
+                (OneClickMagnitude, "It should start recovering between hits. Open gradually and re-check — it may take a few clicks."),
             SessionInsightsFindingId.ResistingImpacts => adjustment.Component switch
             {
                 AdjustmentComponent.AirPressure =>
-                    (SmallPressureMagnitude, "Compression 95th rises into reference and max travel reaches 80-90 %."),
+                    (SmallPressureMagnitude, "It should move more freely over impacts. Change a little at a time and re-check."),
                 _ =>
-                    ("1-2 clicks", "Compression 95th rises into reference and max travel reaches 80-90 %."),
+                    (OneClickMagnitude, "It should move more freely over impacts. Change a little at a time and re-check."),
             },
             SessionInsightsFindingId.ReboundSlowForProfileContext =>
-                (OneClickMagnitude, $"Rebound 95th should rise into {FormatBand(context.Profile.Rebound)} mm/s."),
+                (OneClickMagnitude, "The wheel should return to the ground a bit sooner. Open gradually and re-check — it may take more than one click."),
             SessionInsightsFindingId.ReboundFastForProfileContext =>
-                (OneClickMagnitude, $"Rebound 95th should fall back into {FormatBand(context.Profile.Rebound)} mm/s; the bike should feel less nervous."),
+                (OneClickMagnitude, "The bike should feel a bit calmer. Close gradually and re-check."),
             SessionInsightsFindingId.CompressionSpeedsSubdued =>
-                (OneClickMagnitude, "Compression 95th should rise; max travel should rise with it."),
+                (OneClickMagnitude, "It should react a bit more to impacts. Open gradually and re-check."),
             SessionInsightsFindingId.CompressionSpeedsHigh =>
-                (OneClickMagnitude, "Compression 95th should drop into reference; check that max travel still reaches 80-90 %."),
-            SessionInsightsFindingId.BalanceSlopesDiverge => adjustment.Component switch
-            {
-                AdjustmentComponent.HighSpeedRebound or AdjustmentComponent.LowSpeedRebound =>
-                    (OneClickMagnitude, "Rebound slope delta should drop under 20 % without making travel use worse."),
-                _ =>
-                    (OneClickMagnitude, "Compression slope delta should drop under 10 % without increasing bottomouts."),
-            },
+                (OneClickMagnitude, "Big impacts should feel a bit more controlled. Close gradually and re-check, keeping an eye on travel use."),
+            SessionInsightsFindingId.BalanceSlopesDiverge =>
+                (OneClickMagnitude, "Front and rear should start moving more alike. Adjust gradually and re-check."),
             _ => (string.Empty, string.Empty),
         };
     }
@@ -282,11 +271,6 @@ internal static class SessionInsightsTextCatalog
         return side == SuspensionType.Front ? "Fork" : "Rear";
     }
 
-    public static string TravelModeDescription(TravelDistributionMode mode)
-    {
-        return mode == TravelDistributionMode.DynamicSag ? "dynamic-sag" : "active-stroke";
-    }
-
     public static string ModeLabel(TravelDistributionMode mode)
     {
         return mode == TravelDistributionMode.DynamicSag ? "Dynamic sag travel stats" : "Active suspension travel stats";
@@ -327,11 +311,6 @@ internal static class SessionInsightsTextCatalog
         return mode == TravelDistributionMode.DynamicSag ? "Dynamic sag bottomout windows" : "Active suspension stroke bottomouts";
     }
 
-    public static string BottomoutObservationName(TravelDistributionMode mode)
-    {
-        return mode == TravelDistributionMode.DynamicSag ? "bottomout windows" : "stroke bottomouts";
-    }
-
     public static string ProfileLabel(SessionInsightsTargetProfile profile)
     {
         return profile switch
@@ -339,6 +318,15 @@ internal static class SessionInsightsTextCatalog
             SessionInsightsTargetProfile.DH => "DH profile",
             _ => $"{profile} profile",
         };
+    }
+
+    // Plain riding-style word for inline sentences ("enduro riding"), as opposed
+    // to the evidence source-mode label ("Enduro profile").
+    public static string ProfileRidingName(SessionInsightsTargetProfile profile)
+    {
+        return profile == SessionInsightsTargetProfile.DH
+            ? "DH"
+            : profile.ToString().ToLowerInvariant();
     }
 
     public static string FormatBand(SpeedBand band)
@@ -375,8 +363,11 @@ internal static class SessionInsightsTextCatalog
             : char.ToUpperInvariant(value[0]) + value[1..];
     }
 
-    private const string SmallPressureMagnitude = "small (~2-5 PSI)";
-    private const string OneClickMagnitude = "1 click";
+    // Magnitudes are framed as small starting steps, not prescriptions: the
+    // per-click effect on any given damper is unknown, so the guidance is to
+    // change gradually and re-check.
+    private const string SmallPressureMagnitude = "a little (~2-5 PSI)";
+    private const string OneClickMagnitude = "a click at a time";
     private const string DampingBandSourceMode = "Current damping band percentages";
     private const string ComparableVibrationSourceMode = "Comparable vibration";
 
@@ -416,7 +407,7 @@ internal static class SessionInsightsTextCatalog
         var delta = frontAverage - rearAverage;
         var higherSide = delta > 0 ? SideName(SuspensionType.Front) : SideName(SuspensionType.Rear);
         var lowerSide = delta > 0 ? SideName(SuspensionType.Rear) : SideName(SuspensionType.Front);
-        return $"The {higherSide.ToLowerInvariant()} is averaging deeper than the {lowerSide.ToLowerInvariant()} by {FormatPercent(Math.Abs(delta))} in the selected travel mode.";
+        return $"The {higherSide.ToLowerInvariant()} is sitting about {FormatPercent(Math.Abs(delta))} deeper than the {lowerSide.ToLowerInvariant()}.";
     }
 
     private static string GetBalanceSlopesDivergeObservation(DiagnosticFinding finding, AnalysisContext context)
@@ -428,7 +419,7 @@ internal static class SessionInsightsTextCatalog
         var fasterSide = frontMagnitude >= rearMagnitude ? "front" : "rear";
         var slowerSide = frontMagnitude >= rearMagnitude ? "rear" : "front";
         var typeLabel = BalanceTypeLabel(finding);
-        return $"The {fasterSide} {typeLabel} trend is steeper than the {slowerSide} trend by {FormatPercent(delta)} using the selected {ModeLabel(context.Request.BalanceDisplacementMode).ToLowerInvariant()} balance mode.";
+        return $"The {fasterSide} and {slowerSide} aren't moving alike on {typeLabel} — about {FormatPercent(delta)} apart.";
     }
 
     private static string BalanceTypeLabel(DiagnosticFinding finding)
