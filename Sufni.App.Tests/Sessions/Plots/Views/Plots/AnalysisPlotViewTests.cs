@@ -238,12 +238,12 @@ public class AnalysisPlotViewTests
                 ])));
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        AssertStatisticsOverlay(plot);
+        AssertAnalysisOverlay(plot);
 
         view.Telemetry = CreateProcessed();
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        AssertStatisticsOverlay(plot);
+        AssertAnalysisOverlay(plot);
     }
 
     [AvaloniaFact]
@@ -275,7 +275,7 @@ public class AnalysisPlotViewTests
             opacity);
     }
 
-    private static void AssertStatisticsOverlay(ScottPlot.Avalonia.AvaPlot plot)
+    private static void AssertAnalysisOverlay(ScottPlot.Avalonia.AvaPlot plot)
     {
         var span = Assert.Single(plot.Plot.PlottableList.OfType<HorizontalSpan>());
         Assert.Equal(20, span.X1, 3);

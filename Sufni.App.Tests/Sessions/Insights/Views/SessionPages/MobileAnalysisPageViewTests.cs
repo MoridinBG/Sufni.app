@@ -60,14 +60,14 @@ public class MobileAnalysisPageViewTests
     }
 
     [AvaloniaFact]
-    public async Task SpringPageView_RendersStatisticsBannerContributions()
+    public async Task SpringPageView_RendersAnalysisBannerContributions()
     {
         var workspace = MobileAnalysisWorkspaceStub.Create(
             hasFrontAnalysis: true,
             hasRearAnalysis: true);
         workspace.ExtensionSlots.AnalysisBanners.Add(new RecordedSessionAnalysisBannerContribution(
             "extension",
-            "statistics-banner",
+            "analysis-banner",
             Order: 0,
             new TestContributionViewModel
             {
@@ -91,7 +91,7 @@ public class MobileAnalysisPageViewTests
             hasRearAnalysis: true);
         workspace.ExtensionSlots.AnalysisBanners.Add(new RecordedSessionAnalysisBannerContribution(
             "extension",
-            "wide-statistics-banner",
+            "wide-analysis-banner",
             Order: 0,
             new TestContributionViewModel
             {
@@ -119,7 +119,7 @@ public class MobileAnalysisPageViewTests
         Assert.NotEmpty(travelHosts);
         Assert.All(travelHosts, host => Assert.True(
             host.Bounds.Width <= scrollViewer.Bounds.Width + 0.5,
-            $"Expected travel statistics host width {host.Bounds.Width} to fit viewport width {scrollViewer.Bounds.Width}."));
+            $"Expected travel analysis host width {host.Bounds.Width} to fit viewport width {scrollViewer.Bounds.Width}."));
     }
 
     [AvaloniaFact]
@@ -255,7 +255,7 @@ public class MobileAnalysisPageViewTests
     }
 
     [AvaloniaFact]
-    public async Task StrokesPageView_SelectsRear_WhenOnlyRearStatisticsAreAvailable()
+    public async Task StrokesPageView_SelectsRear_WhenOnlyRearAnalysisIsAvailable()
     {
         var workspace = MobileAnalysisWorkspaceStub.Create(
             hasFrontAnalysis: false,
@@ -275,18 +275,18 @@ public class MobileAnalysisPageViewTests
     }
 
     [AvaloniaFact]
-    public async Task StrokesPageView_RendersStatisticsBannerContributions()
+    public async Task StrokesPageView_RendersAnalysisBannerContributions()
     {
         var workspace = MobileAnalysisWorkspaceStub.Create(
             hasFrontAnalysis: true,
             hasRearAnalysis: true);
         workspace.ExtensionSlots.AnalysisBanners.Add(new RecordedSessionAnalysisBannerContribution(
             "extension",
-            "statistics-banner",
+            "analysis-banner",
             Order: 0,
             new TestContributionViewModel
             {
-                Content = new TextBlock { Name = "MobileStrokesStatisticsBanner", Text = "Analysis banner" },
+                Content = new TextBlock { Name = "MobileStrokesAnalysisBanner", Text = "Analysis banner" },
             }));
         var page = new StrokesPageViewModel(workspace);
 
@@ -295,7 +295,7 @@ public class MobileAnalysisPageViewTests
         var contributionHost = Assert.Single(
             mounted.View.GetVisualDescendants().OfType<RecordedSessionAnalysisContributionsView>());
         Assert.NotNull(contributionHost);
-        AssertContributionText(mounted.View, "MobileStrokesStatisticsBanner", "Analysis banner");
+        AssertContributionText(mounted.View, "MobileStrokesAnalysisBanner", "Analysis banner");
     }
 
     [AvaloniaFact]
@@ -318,7 +318,7 @@ public class MobileAnalysisPageViewTests
         Assert.Equal(SessionInsightsTargetProfile.Enduro, workspace.SelectedSessionInsightsTargetProfile);
     }
 
-    private static async Task<MountedMobileStatisticsPageView<TView>> MountAsync<TView>(
+    private static async Task<MountedMobileAnalysisPageView<TView>> MountAsync<TView>(
         TView view,
         double? viewportWidth = null)
         where TView : Control
@@ -333,7 +333,7 @@ public class MobileAnalysisPageViewTests
         }
 
         var host = await ViewTestHelpers.ShowViewAsync(hostView);
-        return new MountedMobileStatisticsPageView<TView>(host, view);
+        return new MountedMobileAnalysisPageView<TView>(host, view);
     }
 
     private static void AssertContributionText(Control root, string name, string text)
@@ -479,7 +479,7 @@ public class MobileAnalysisPageViewTests
     }
 }
 
-internal sealed record MountedMobileStatisticsPageView<TView>(Window Host, TView View) : IAsyncDisposable
+internal sealed record MountedMobileAnalysisPageView<TView>(Window Host, TView View) : IAsyncDisposable
     where TView : Control
 {
     public async ValueTask DisposeAsync()

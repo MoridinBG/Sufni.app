@@ -30,7 +30,7 @@ namespace Sufni.App.Tests.Sessions.Analysis.DesktopViews.Items;
 public class SessionAnalysisDesktopViewTests
 {
     [AvaloniaFact]
-    public async Task SessionAnalysisDesktopView_ShowsSpringSectionInitially_WhenFrontAndRearStatisticsAreAvailable()
+    public async Task SessionAnalysisDesktopView_ShowsSpringSectionInitially_WhenFrontAndRearAnalysisAreAvailable()
     {
         var workspace = new SessionAnalysisWorkspaceStub(
             telemetryData: TestTelemetryData.CreateProcessed(),
@@ -63,7 +63,7 @@ public class SessionAnalysisDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task SessionAnalysisDesktopView_RendersStatisticsBannerContributions()
+    public async Task SessionAnalysisDesktopView_RendersAnalysisBannerContributions()
     {
         var workspace = new SessionAnalysisWorkspaceStub(
             telemetryData: TestTelemetryData.CreateProcessed(),
@@ -73,11 +73,11 @@ public class SessionAnalysisDesktopViewTests
             hasReboundBalanceTelemetry: true);
         workspace.ExtensionSlots.AnalysisBanners.Add(new RecordedSessionAnalysisBannerContribution(
             "extension",
-            "statistics-banner",
+            "analysis-banner",
             Order: 0,
             new TestContributionViewModel
             {
-                Content = new TextBlock { Name = "DesktopStatisticsBanner", Text = "Analysis banner" },
+                Content = new TextBlock { Name = "DesktopAnalysisBanner", Text = "Analysis banner" },
             }));
 
         await using var mounted = await MountAsync(workspace);
@@ -85,7 +85,7 @@ public class SessionAnalysisDesktopViewTests
         var contributionHost = Assert.Single(
             mounted.View.GetVisualDescendants().OfType<RecordedSessionAnalysisContributionsView>());
         Assert.NotNull(contributionHost);
-        AssertContributionText(mounted.View, "DesktopStatisticsBanner", "Analysis banner");
+        AssertContributionText(mounted.View, "DesktopAnalysisBanner", "Analysis banner");
     }
 
     [AvaloniaFact]
@@ -210,7 +210,7 @@ public class SessionAnalysisDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task SessionAnalysisDesktopView_UsesSingleScrollableStatisticsPanel()
+    public async Task SessionAnalysisDesktopView_UsesSingleScrollableAnalysisPanel()
     {
         var workspace = new SessionAnalysisWorkspaceStub(
             telemetryData: TestTelemetryData.CreateProcessed(),
@@ -304,7 +304,7 @@ public class SessionAnalysisDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task SessionAnalysisDesktopView_ShowsOnlyFrontDampingHosts_WhenOnlyFrontStatisticsAreAvailable()
+    public async Task SessionAnalysisDesktopView_ShowsOnlyFrontDampingHosts_WhenOnlyFrontAnalysisIsAvailable()
     {
         var workspace = new SessionAnalysisWorkspaceStub(
             telemetryData: TestTelemetryData.CreateProcessed(),
@@ -398,7 +398,7 @@ public class SessionAnalysisDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task SessionAnalysisDesktopView_BindsStatisticsModeSelectors()
+    public async Task SessionAnalysisDesktopView_BindsAnalysisModeSelectors()
     {
         var workspace = new SessionAnalysisWorkspaceStub(
             telemetryData: TestTelemetryData.CreateProcessed(),

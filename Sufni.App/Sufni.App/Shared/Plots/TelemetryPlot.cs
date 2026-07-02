@@ -371,9 +371,9 @@ public class TelemetryPlot : SufniPlot
         HideCursorReadout();
     }
 
-    public void ApplyStatisticsOverlayDescriptor(RecordedSessionAnalysisPlotOverlayDescriptor? descriptor)
+    public void ApplyAnalysisOverlayDescriptor(RecordedSessionAnalysisPlotOverlayDescriptor? descriptor)
     {
-        ClearStatisticsOverlayDescriptor();
+        ClearAnalysisOverlayDescriptor();
         if (descriptor is null)
         {
             return;
@@ -382,12 +382,12 @@ public class TelemetryPlot : SufniPlot
         foreach (var band in descriptor.Bands)
         {
             var span = Plot.Add.HorizontalSpan(band.X1, band.X2);
-            ApplyStatisticsOverlayStyle(span, band.Style);
+            ApplyAnalysisOverlayStyle(span, band.Style);
             statisticsOverlayPlottables.Add(span);
 
             if (!string.IsNullOrWhiteSpace(band.Label))
             {
-                var label = AddStatisticsOverlayLabel(band.Label, (band.X1 + band.X2) / 2.0, Plot.Axes.GetLimits().Top);
+                var label = AddAnalysisOverlayLabel(band.Label, (band.X1 + band.X2) / 2.0, Plot.Axes.GetLimits().Top);
                 statisticsOverlayPlottables.Add(label);
             }
         }
@@ -422,19 +422,19 @@ public class TelemetryPlot : SufniPlot
 
             if (!string.IsNullOrWhiteSpace(line.Label))
             {
-                var label = AddStatisticsOverlayLabel(line.Label, line.X2, line.Y2);
+                var label = AddAnalysisOverlayLabel(line.Label, line.X2, line.Y2);
                 statisticsOverlayPlottables.Add(label);
             }
         }
 
         foreach (var labelOverlay in descriptor.Labels)
         {
-            var label = AddStatisticsOverlayLabel(labelOverlay);
+            var label = AddAnalysisOverlayLabel(labelOverlay);
             statisticsOverlayPlottables.Add(label);
         }
     }
 
-    private void ClearStatisticsOverlayDescriptor()
+    private void ClearAnalysisOverlayDescriptor()
     {
         foreach (var plottable in statisticsOverlayPlottables)
         {
@@ -444,7 +444,7 @@ public class TelemetryPlot : SufniPlot
         statisticsOverlayPlottables.Clear();
     }
 
-    private static void ApplyStatisticsOverlayStyle(HorizontalSpan span, RecordedSessionPlotOverlayStyle style)
+    private static void ApplyAnalysisOverlayStyle(HorizontalSpan span, RecordedSessionPlotOverlayStyle style)
     {
         var color = ToPlotColor(style);
         span.FillColor = color;
@@ -454,7 +454,7 @@ public class TelemetryPlot : SufniPlot
         span.IsVisible = true;
     }
 
-    private Text AddStatisticsOverlayLabel(string label, double x, double y)
+    private Text AddAnalysisOverlayLabel(string label, double x, double y)
     {
         var text = Plot.Add.Text(label, x, y);
         text.LabelFontColor = PlotTheme.InPlotLabelText.ToScottPlotColor();
@@ -463,7 +463,7 @@ public class TelemetryPlot : SufniPlot
         return text;
     }
 
-    private Text AddStatisticsOverlayLabel(RecordedSessionPlotLabelOverlay overlay)
+    private Text AddAnalysisOverlayLabel(RecordedSessionPlotLabelOverlay overlay)
     {
         var x = overlay.X;
         var y = overlay.Y;

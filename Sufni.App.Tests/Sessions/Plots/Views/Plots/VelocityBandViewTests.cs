@@ -68,7 +68,7 @@ public class VelocityBandViewTests
     }
 
     [AvaloniaFact]
-    public async Task VelocityBandView_BandsUseVelocityHistogramDataAreaOffsets()
+    public async Task VelocityBandView_BandsUseVelocityDistributionDataAreaOffsets()
     {
         TestApp.SetIsDesktop(true);
         var view = CreateMountedView(CreateWorkspace());

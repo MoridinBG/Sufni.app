@@ -18,11 +18,11 @@ public sealed class SessionPresentationService : ISessionPresentationService
     {
         var cutoffs = dampingSpeedCutoffs ?? DampingSpeedCutoffs.Default;
         return SessionDampingPercentages.FromSides(
-            CalculateDamperSidePercentages(telemetryData, SuspensionType.Front, range, velocityAverageMode, cutoffs.Front),
-            CalculateDamperSidePercentages(telemetryData, SuspensionType.Rear, range, velocityAverageMode, cutoffs.Rear));
+            CalculateDampingSidePercentages(telemetryData, SuspensionType.Front, range, velocityAverageMode, cutoffs.Front),
+            CalculateDampingSidePercentages(telemetryData, SuspensionType.Rear, range, velocityAverageMode, cutoffs.Rear));
     }
 
-    private static SessionDampingSidePercentages CalculateDamperSidePercentages(
+    private static SessionDampingSidePercentages CalculateDampingSidePercentages(
         TelemetryData telemetryData,
         SuspensionType suspensionType,
         TelemetryTimeRange? range,

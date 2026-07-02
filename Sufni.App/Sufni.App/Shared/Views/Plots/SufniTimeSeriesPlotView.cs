@@ -584,7 +584,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             return;
         }
 
-        recordedPlot.SetRangeOverlayVisibility(RecordedTimeRangeOverlayIds.StatisticsSelection, ShowAnalysisSelection);
+        recordedPlot.SetRangeOverlayVisibility(RecordedTimeRangeOverlayIds.AnalysisSelection, ShowAnalysisSelection);
         if (refresh)
         {
             RefreshPlot();
@@ -601,7 +601,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         var ranges = AnalysisSelectionHighlightRanges ?? [];
         if (ranges.Count == 0)
         {
-            recordedPlot.ClearRangeOverlaySet(RecordedTimeRangeOverlayIds.StatisticsSelection);
+            recordedPlot.ClearRangeOverlaySet(RecordedTimeRangeOverlayIds.AnalysisSelection);
         }
         else
         {

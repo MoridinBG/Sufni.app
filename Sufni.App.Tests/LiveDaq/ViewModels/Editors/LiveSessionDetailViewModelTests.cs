@@ -970,7 +970,7 @@ public class LiveSessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Reset_ClearsStaleHistograms_RemovesBalancePage_AndCancelsInFlightBake()
+    public async Task Reset_ClearsStaleAnalysisPreviews_RemovesBalancePage_AndCancelsInFlightBake()
     {
         var bakedData = new SessionCachePresentationData(
             FrontTravelDistribution: "<svg id='front' />",

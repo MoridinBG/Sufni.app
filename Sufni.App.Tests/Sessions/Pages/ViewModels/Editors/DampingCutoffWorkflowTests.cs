@@ -10,13 +10,13 @@ using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Doubles;
 namespace Sufni.App.Tests.Sessions.Pages.ViewModels.Editors;
 
-public class DamperCutoffWorkflowTests
+public class DampingCutoffWorkflowTests
 {
     private readonly RecordedSessionContext context = new();
     private readonly IBikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();
     private readonly List<string> errors = [];
 
-    private DamperCutoffWorkflow CreateWorkflow() => new(context, bikeCoordinator, errors.Add);
+    private DampingCutoffWorkflow CreateWorkflow() => new(context, bikeCoordinator, errors.Add);
 
     private static DampingSpeedCutoffs Cutoffs() => DampingSpeedCutoffs.FromValues(100, 200, 300, 400);
 

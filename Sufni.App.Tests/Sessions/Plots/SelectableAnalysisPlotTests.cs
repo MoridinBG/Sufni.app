@@ -73,7 +73,7 @@ public class SelectableAnalysisPlotTests
     }
 
     [Fact]
-    public void VelocityHistogram_SelectedYBinEdgeUsesHistogramDigitizeSemantics()
+    public void VelocityDistribution_SelectedYBinEdgeUsesHistogramDigitizeSemantics()
     {
         var telemetry = CreateVelocityTelemetry();
         var plot = new Plot();
@@ -91,7 +91,7 @@ public class SelectableAnalysisPlotTests
     }
 
     [Fact]
-    public void VelocityHistogram_SelectedAllTravelBucketsHighlightsPrimarySegmentsInBin()
+    public void VelocityDistribution_SelectedAllTravelBucketsHighlightsPrimarySegmentsInBin()
     {
         var plot = new Plot();
         var sut = new VelocityDistributionPlot(plot, SuspensionType.Front);
@@ -113,7 +113,7 @@ public class SelectableAnalysisPlotTests
     }
 
     [Fact]
-    public void StrokeLengthHistogram_SelectedPrimaryBarReturnsStrokeLengthSelection()
+    public void StrokeLengthDistribution_SelectedPrimaryBarReturnsStrokeLengthSelection()
     {
         var telemetry = CreateStrokeTelemetry();
         var data = TelemetryStatistics.CalculateStrokeLengthHistogram(
@@ -135,7 +135,7 @@ public class SelectableAnalysisPlotTests
     }
 
     [Fact]
-    public void StrokeLengthHistogram_ClickAbovePrimaryBarReturnsStrokeLengthSelectionAtMouseX()
+    public void StrokeLengthDistribution_ClickAbovePrimaryBarReturnsStrokeLengthSelectionAtMouseX()
     {
         var telemetry = CreateStrokeTelemetry();
         var data = TelemetryStatistics.CalculateStrokeLengthHistogram(
@@ -155,7 +155,7 @@ public class SelectableAnalysisPlotTests
     }
 
     [Fact]
-    public void StrokeLengthHistogram_ClickBetweenBarsReturnsFalse()
+    public void StrokeLengthDistribution_ClickBetweenBarsReturnsFalse()
     {
         var telemetry = CreateStrokeTelemetry();
         var data = TelemetryStatistics.CalculateStrokeLengthHistogram(
@@ -177,7 +177,7 @@ public class SelectableAnalysisPlotTests
     }
 
     [Fact]
-    public void StrokeSpeedHistogram_SelectedPrimaryBarReturnsStrokeSpeedSelectionWithClickedBounds()
+    public void StrokeSpeedDistribution_SelectedPrimaryBarReturnsStrokeSpeedSelectionWithClickedBounds()
     {
         var telemetry = CreateStrokeTelemetry();
         var data = TelemetryStatistics.CalculateStrokeSpeedHistogram(
@@ -199,7 +199,7 @@ public class SelectableAnalysisPlotTests
     }
 
     [Fact]
-    public void StrokeSpeedHistogram_ClickAbovePrimaryBarReturnsStrokeSpeedSelectionAtMouseX()
+    public void StrokeSpeedDistribution_ClickAbovePrimaryBarReturnsStrokeSpeedSelectionAtMouseX()
     {
         var telemetry = CreateStrokeTelemetry();
         var data = TelemetryStatistics.CalculateStrokeSpeedHistogram(
@@ -219,7 +219,7 @@ public class SelectableAnalysisPlotTests
     }
 
     [Fact]
-    public void DeepTravelHistogram_SelectedPrimaryBarReturnsDeepTravelSelectionWithClickedBounds()
+    public void DeepTravelDistribution_SelectedPrimaryBarReturnsDeepTravelSelectionWithClickedBounds()
     {
         var telemetry = CreateStrokeTelemetry();
         var data = TelemetryStatistics.CalculateDeepTravelHistogram(telemetry, SuspensionType.Front);
@@ -237,7 +237,7 @@ public class SelectableAnalysisPlotTests
     }
 
     [Fact]
-    public void DeepTravelHistogram_ClickAbovePrimaryBarReturnsDeepTravelSelectionAtMouseX()
+    public void DeepTravelDistribution_ClickAbovePrimaryBarReturnsDeepTravelSelectionAtMouseX()
     {
         var telemetry = CreateStrokeTelemetry();
         var data = TelemetryStatistics.CalculateDeepTravelHistogram(telemetry, SuspensionType.Front);
@@ -254,7 +254,7 @@ public class SelectableAnalysisPlotTests
     }
 
     [Fact]
-    public void StrokeSpeedHistogram_SelectedPrimaryBarReceivesHighlightedOutline()
+    public void StrokeSpeedDistribution_SelectedPrimaryBarReceivesHighlightedOutline()
     {
         var telemetry = CreateStrokeTelemetry();
         var data = TelemetryStatistics.CalculateStrokeSpeedHistogram(
@@ -278,7 +278,7 @@ public class SelectableAnalysisPlotTests
     }
 
     [Fact]
-    public void StrokeSpeedHistogram_StaleSelectedBoundsDoNotHighlightMatchingIndex()
+    public void StrokeSpeedDistribution_StaleSelectedBoundsDoNotHighlightMatchingIndex()
     {
         var telemetry = CreateStrokeTelemetry();
         var data = TelemetryStatistics.CalculateStrokeSpeedHistogram(

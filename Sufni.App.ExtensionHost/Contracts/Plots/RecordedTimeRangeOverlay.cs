@@ -7,7 +7,7 @@ public static class RecordedTimeRangeOverlayIds
     public const string AnalysisRange = "analysis_range";
     public const string PreviewRange = "preview_range";
     public const string Airtime = "airtime";
-    public const string StatisticsSelection = "statistics_selection";
+    public const string AnalysisSelection = "analysis_selection";
 }
 
 public sealed record RecordedTimeRangeOverlayColor(

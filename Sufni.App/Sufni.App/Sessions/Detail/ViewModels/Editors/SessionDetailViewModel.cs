@@ -124,7 +124,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly SignalAutozoomController signalAutozoomController;
     private readonly IRelayCommand<TelemetryPlotContextMenuContext?> markGpsEventCommand;
     private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markGpsTelemetryEventCommand;
-    private readonly DamperCutoffWorkflow damperCutoffWorkflow;
+    private readonly DampingCutoffWorkflow dampingCutoffWorkflow;
     private readonly ISessionLayoutStrategy layoutStrategy;
 
     #endregion Private fields
@@ -196,7 +196,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public TelemetryRangeSelection? ActiveFrontAnalysisSelection => analysisSelectionController.ActiveFrontAnalysisSelection;
     public TelemetryRangeSelection? ActiveRearAnalysisSelection => analysisSelectionController.ActiveRearAnalysisSelection;
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; }
-    public bool CanEditDampingSpeedCutoffs => damperCutoffWorkflow.CanEdit;
+    public bool CanEditDampingSpeedCutoffs => dampingCutoffWorkflow.CanEdit;
     public RecordedSessionExtensionSlots ExtensionSlots => recordedSessionExtensions?.ExtensionSlots ?? emptyExtensionSlots;
 
     #endregion Public fields
@@ -244,7 +244,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         DampingSpeedCutoffs cutoffs,
         DampingSpeedCutoffOwner? owner)
     {
-        damperCutoffWorkflow.ApplyContext(cutoffs, owner);
+        dampingCutoffWorkflow.ApplyContext(cutoffs, owner);
         OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
     }
 
@@ -252,15 +252,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SuspensionType side,
         DampingSpeedCircuit circuit,
         double cutoffMmPerSecond) =>
-        damperCutoffWorkflow.Preview(side, circuit, cutoffMmPerSecond);
+        dampingCutoffWorkflow.Preview(side, circuit, cutoffMmPerSecond);
 
-    public void CancelDampingSpeedCutoffPreview() => damperCutoffWorkflow.CancelPreview();
+    public void CancelDampingSpeedCutoffPreview() => dampingCutoffWorkflow.CancelPreview();
 
     public Task CommitDampingSpeedCutoffAsync(
         SuspensionType side,
         DampingSpeedCircuit circuit,
         double cutoffMmPerSecond) =>
-        damperCutoffWorkflow.CommitAsync(side, circuit, cutoffMmPerSecond);
+        dampingCutoffWorkflow.CommitAsync(side, circuit, cutoffMmPerSecond);
 
     private void ClearDampingPercentages()
     {
@@ -921,7 +921,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             SaveCommand,
             ResetCommand);
         IsComplete = snapshot.HasProcessedData;
-        damperCutoffWorkflow = new DamperCutoffWorkflow(
+        dampingCutoffWorkflow = new DampingCutoffWorkflow(
             SessionContext,
             bikeCoordinator,
             ErrorMessages.Add);

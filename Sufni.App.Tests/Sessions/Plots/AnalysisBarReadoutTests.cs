@@ -10,7 +10,7 @@ namespace Sufni.App.Tests.Sessions.Plots;
 public class AnalysisBarReadoutTests
 {
     [Fact]
-    public void TravelHistogram_SetPointerPositionWithReadout_ShowsClosestBarValue()
+    public void TravelDistribution_SetPointerPositionWithReadout_ShowsClosestBarValue()
     {
         var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
         var data = TelemetryStatistics.CalculateTravelHistogram(telemetry, SuspensionType.Front);
@@ -28,7 +28,7 @@ public class AnalysisBarReadoutTests
     }
 
     [Fact]
-    public void StrokeLengthHistogram_SetPointerPositionWithReadout_ShowsClosestVerticalBarValue()
+    public void StrokeLengthDistribution_SetPointerPositionWithReadout_ShowsClosestVerticalBarValue()
     {
         var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
         var data = TelemetryStatistics.CalculateStrokeLengthHistogram(telemetry, SuspensionType.Front, BalanceType.Compression);
@@ -46,7 +46,7 @@ public class AnalysisBarReadoutTests
     }
 
     [Fact]
-    public void VelocityHistogram_SetPointerPositionWithReadout_ShowsClosestStackedSegmentValue()
+    public void VelocityDistribution_SetPointerPositionWithReadout_ShowsClosestStackedSegmentValue()
     {
         var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
         var data = TelemetryStatistics.CalculateVelocityHistogram(telemetry, SuspensionType.Front);
@@ -67,7 +67,7 @@ public class AnalysisBarReadoutTests
     }
 
     [Fact]
-    public void TravelHistogram_SetPointerPositionWithReadout_KeepsTooltipAnchorInsideDataArea()
+    public void TravelDistribution_SetPointerPositionWithReadout_KeepsTooltipAnchorInsideDataArea()
     {
         var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
         var data = TelemetryStatistics.CalculateTravelHistogram(telemetry, SuspensionType.Front);
@@ -88,7 +88,7 @@ public class AnalysisBarReadoutTests
     }
 
     [Fact]
-    public void TravelHistogram_SetPointerPositionWithReadout_PositionsTooltipNearPointer()
+    public void TravelDistribution_SetPointerPositionWithReadout_PositionsTooltipNearPointer()
     {
         var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
         var data = TelemetryStatistics.CalculateTravelHistogram(telemetry, SuspensionType.Front);

@@ -5,10 +5,10 @@ using Sufni.Telemetry;
 using Sufni.App.Sessions.Plots;
 namespace Sufni.App.Tests.Sessions.Plots;
 
-public class StrokeStatisticsDistributionPlotTests
+public class StrokeDistributionPlotTests
 {
     [Fact]
-    public void StrokeSpeedHistogram_RendersOnlyBinsWithStrokeValues()
+    public void StrokeSpeedDistribution_RendersOnlyBinsWithStrokeValues()
     {
         var telemetry = CreateStrokeTelemetry(
             [
@@ -31,7 +31,7 @@ public class StrokeStatisticsDistributionPlotTests
     }
 
     [Fact]
-    public void StrokeLengthHistogram_RendersOnlyBinsWithStrokeValues()
+    public void StrokeLengthDistribution_RendersOnlyBinsWithStrokeValues()
     {
         var telemetry = CreateStrokeTelemetry(
             [
@@ -54,7 +54,7 @@ public class StrokeStatisticsDistributionPlotTests
     }
 
     [Fact]
-    public void DeepTravelHistogram_RendersOnlyBinsWithStrokeValues()
+    public void DeepTravelDistribution_RendersOnlyBinsWithStrokeValues()
     {
         var telemetry = CreateStrokeTelemetry(
             [
@@ -74,7 +74,7 @@ public class StrokeStatisticsDistributionPlotTests
     }
 
     [Fact]
-    public void DeepTravelHistogram_DoesNotRenderBarPlot_WhenNoBinsHaveStrokeValues()
+    public void DeepTravelDistribution_DoesNotRenderBarPlot_WhenNoBinsHaveStrokeValues()
     {
         var telemetry = CreateStrokeTelemetry(
             [

@@ -272,7 +272,7 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void AnalysisWorkspace_TracksContextStatisticsStateAndCommands()
+    public void AnalysisWorkspace_TracksContextAnalysisStateAndCommands()
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
         var telemetry = TestTelemetryData.CreateProcessed();
@@ -321,7 +321,7 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void Construction_InitializesStatisticsModeDefaultsAndOptions()
+    public void Construction_InitializesAnalysisModeDefaultsAndOptions()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
 
@@ -1398,7 +1398,7 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Loaded_OnDesktop_AppliesPersistedStatisticsWithoutSavingDuringHydration()
+    public async Task Loaded_OnDesktop_AppliesPersistedAnalysisWithoutSavingDuringHydration()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
@@ -1492,7 +1492,7 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task StatisticsPreferenceChange_RecomputesAnalysisAndPersistsAfterHydration()
+    public async Task AnalysisPreferenceChange_RecomputesAnalysisAndPersistsAfterHydration()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();

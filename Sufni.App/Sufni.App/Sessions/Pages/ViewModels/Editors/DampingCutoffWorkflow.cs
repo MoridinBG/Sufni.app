@@ -14,7 +14,7 @@ namespace Sufni.App.Sessions.Pages.ViewModels.Editors;
 /// the preview origin, commit persists through the bike coordinator and
 /// reconciles the Saved/Conflict/Failed outcome back onto the context.
 /// </summary>
-internal sealed class DamperCutoffWorkflow(
+internal sealed class DampingCutoffWorkflow(
     RecordedSessionContext context,
     IBikeCoordinator? bikeCoordinator,
     Action<string> reportError)

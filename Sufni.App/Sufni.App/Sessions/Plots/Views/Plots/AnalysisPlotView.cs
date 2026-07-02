@@ -190,14 +190,14 @@ public class AnalysisPlotView : SufniTelemetryPlotView
                 ReloadTelemetry();
             }
 
-            if (IsStatisticsOverlayProperty(e.Property.Name))
+            if (IsAnalysisOverlayProperty(e.Property.Name))
             {
                 if (e.Property == ExtensionSlotsProperty)
                 {
                     SubscribeToSlots(ExtensionSlots);
                 }
 
-                ApplyStatisticsOverlayDescriptor(refresh: true);
+                ApplyAnalysisOverlayDescriptor(refresh: true);
             }
 
             if (e.Property.Name is nameof(ActiveAnalysisSelection) && PlotModel is ISelectableAnalysisPlot selectablePlot)
@@ -212,7 +212,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
     {
         base.OnAttachedToVisualTree(e);
         SubscribeToSlots(ExtensionSlots);
-        ApplyStatisticsOverlayDescriptor(refresh: false);
+        ApplyAnalysisOverlayDescriptor(refresh: false);
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -241,7 +241,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         SetPlotModel(plotModel);
         UpdateAnalysisTitle();
         ApplyActiveAnalysisSelectionToPlotModel(plotModel);
-        ApplyStatisticsOverlayDescriptor(refresh: false);
+        ApplyAnalysisOverlayDescriptor(refresh: false);
         InitializeBarReadoutInteractions();
     }
 
@@ -249,7 +249,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
     {
         base.OnPlotDataLoaded();
         ApplyActiveAnalysisSelectionToPlotModel(PlotModel);
-        ApplyStatisticsOverlayDescriptor(refresh: false);
+        ApplyAnalysisOverlayDescriptor(refresh: false);
     }
 
     private static bool IsTitleProperty(string? propertyName) =>
@@ -262,7 +262,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             nameof(BalanceSpeedMode) or
             nameof(VelocityAverageMode);
 
-    private static bool IsStatisticsOverlayProperty(string? propertyName) =>
+    private static bool IsAnalysisOverlayProperty(string? propertyName) =>
         propertyName is nameof(ExtensionSlots) or
             nameof(AnalysisPlotKind) or
             nameof(SuspensionType) or
@@ -290,17 +290,17 @@ public class AnalysisPlotView : SufniTelemetryPlotView
 
     private void OnAnalysisOverlaysChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {
-        ApplyStatisticsOverlayDescriptor(refresh: true);
+        ApplyAnalysisOverlayDescriptor(refresh: true);
     }
 
-    private void ApplyStatisticsOverlayDescriptor(bool refresh)
+    private void ApplyAnalysisOverlayDescriptor(bool refresh)
     {
         if (!HasPlotModel)
         {
             return;
         }
 
-        PlotModel.ApplyStatisticsOverlayDescriptor(CreateAnalysisOverlayDescriptor());
+        PlotModel.ApplyAnalysisOverlayDescriptor(CreateAnalysisOverlayDescriptor());
         if (refresh)
         {
             RefreshPlot();

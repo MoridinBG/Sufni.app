@@ -262,7 +262,7 @@ public class RecordedTimeSeriesPlotTests
         Assert.Equal(theme.Marker.AnalysisSelectionRearFill.ToScottPlotColor(), spans[1].FillColor);
         Assert.Equal(theme.Marker.AnalysisSelectionRearOutline.ToScottPlotColor(), spans[1].LineStyle.Color);
 
-        sut.SetRangeOverlayVisibility(RecordedTimeRangeOverlayIds.StatisticsSelection, true);
+        sut.SetRangeOverlayVisibility(RecordedTimeRangeOverlayIds.AnalysisSelection, true);
 
         Assert.All(spans, span => Assert.True(span.IsVisible));
     }

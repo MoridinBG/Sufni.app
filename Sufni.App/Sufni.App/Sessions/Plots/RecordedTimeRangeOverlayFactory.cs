@@ -78,7 +78,7 @@ public static class RecordedTimeRangeOverlayFactory
         bool isVisible = false)
     {
         return new RecordedTimeRangeOverlaySetRegistration(
-            RecordedTimeRangeOverlayIds.StatisticsSelection,
+            RecordedTimeRangeOverlayIds.AnalysisSelection,
             new RecordedTimeRangeOverlaySet(
                 ranges
                     .Select(range => new RecordedTimeRangeOverlay(

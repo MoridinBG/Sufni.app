@@ -82,7 +82,7 @@ public class SessionPresentationServiceTests
     }
 
     [Fact]
-    public void BuildCachePresentation_WithoutStrokeData_OmitsHistogramsAndPercentages()
+    public void BuildCachePresentation_WithoutStrokeData_OmitsDistributionsAndPercentages()
     {
         var telemetry = CreateTelemetryWithoutStrokes();
 
