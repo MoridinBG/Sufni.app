@@ -29,10 +29,10 @@ mc:Ignorable="d">
         </Grid>
 
         <Grid ColumnDefinitions="*,120">
-            <CheckBox
-            Name="TravelSignalCheckBox"
-            Content="{Binding TravelSignal.DisplayName}"
-            IsChecked="{Binding TravelSignal.Selected, Mode=TwoWay}"
+            <TextBlock
+            Name="TravelSignalLabel"
+            VerticalAlignment="Center"
+            Text="{Binding TravelSignal.DisplayName}"
             IsEnabled="{Binding TravelSignal.Available}" />
 
             <ComboBox
@@ -52,10 +52,10 @@ mc:Ignorable="d">
         </Grid>
 
         <Grid ColumnDefinitions="*,120">
-            <CheckBox
-            Name="VelocitySignalCheckBox"
-            Content="{Binding VelocitySignal.DisplayName}"
-            IsChecked="{Binding VelocitySignal.Selected, Mode=TwoWay}"
+            <TextBlock
+            Name="VelocitySignalLabel"
+            VerticalAlignment="Center"
+            Text="{Binding VelocitySignal.DisplayName}"
             IsEnabled="{Binding VelocitySignal.Available}" />
 
             <ComboBox
@@ -75,10 +75,10 @@ mc:Ignorable="d">
         </Grid>
 
         <Grid ColumnDefinitions="*,120">
-            <CheckBox
-            Name="ImuSignalCheckBox"
-            Content="{Binding ImuSignal.DisplayName}"
-            IsChecked="{Binding ImuSignal.Selected, Mode=TwoWay}"
+            <TextBlock
+            Name="ImuSignalLabel"
+            VerticalAlignment="Center"
+            Text="{Binding ImuSignal.DisplayName}"
             IsEnabled="{Binding ImuSignal.Available}" />
 
             <ComboBox
@@ -98,10 +98,10 @@ mc:Ignorable="d">
         </Grid>
 
         <Grid ColumnDefinitions="*,120">
-            <CheckBox
-            Name="PitchRollSignalCheckBox"
-            Content="{Binding PitchRollSignal.DisplayName}"
-            IsChecked="{Binding PitchRollSignal.Selected, Mode=TwoWay}"
+            <TextBlock
+            Name="PitchRollSignalLabel"
+            VerticalAlignment="Center"
+            Text="{Binding PitchRollSignal.DisplayName}"
             IsEnabled="{Binding PitchRollSignal.Available}" />
 
             <ComboBox
@@ -121,10 +121,10 @@ mc:Ignorable="d">
         </Grid>
 
         <Grid ColumnDefinitions="*,120">
-            <CheckBox
-            Name="SpeedSignalCheckBox"
-            Content="{Binding SpeedSignal.DisplayName}"
-            IsChecked="{Binding SpeedSignal.Selected, Mode=TwoWay}"
+            <TextBlock
+            Name="SpeedSignalLabel"
+            VerticalAlignment="Center"
+            Text="{Binding SpeedSignal.DisplayName}"
             IsEnabled="{Binding SpeedSignal.Available}" />
 
             <ComboBox
@@ -144,10 +144,10 @@ mc:Ignorable="d">
         </Grid>
 
         <Grid ColumnDefinitions="*,120">
-            <CheckBox
-            Name="ElevationSignalCheckBox"
-            Content="{Binding ElevationSignal.DisplayName}"
-            IsChecked="{Binding ElevationSignal.Selected, Mode=TwoWay}"
+            <TextBlock
+            Name="ElevationSignalLabel"
+            VerticalAlignment="Center"
+            Text="{Binding ElevationSignal.DisplayName}"
             IsEnabled="{Binding ElevationSignal.Available}" />
 
             <ComboBox

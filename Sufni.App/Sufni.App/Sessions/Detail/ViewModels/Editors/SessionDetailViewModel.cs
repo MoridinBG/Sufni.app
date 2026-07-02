@@ -327,8 +327,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     internal Guid? CurrentSessionFullTrack => session.FullTrack;
 
-    internal SignalDisplayPreferences RecordedSignalDisplayPreferences => recordedPreferenceStore.Current.SignalDisplay;
-
     internal void SetSessionFullTrack(Guid? fullTrackId)
     {
         session.FullTrack = fullTrackId;
@@ -1174,7 +1172,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         PreferencesPage.ApplySignalDisplayPreferences(preferences.SignalDisplay);
         PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
         ApplyRecordedAnalysisPreferences(preferences.Analysis);
-        presentationApplier.RefreshRecordedSignalStates(recordedPreferenceStore.Current.SignalDisplay);
+        presentationApplier.RefreshRecordedSignalStates();
     }
 
     private void ApplyRecordedAnalysisPreferences(AnalysisPreferences preferences)
@@ -1196,7 +1194,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void OnSignalPreferenceChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName is not (nameof(SignalPreferenceItemViewModel.Selected) or nameof(SignalPreferenceItemViewModel.SelectedSmoothing)))
+        if (args.PropertyName is not nameof(SignalPreferenceItemViewModel.SelectedSmoothing))
         {
             return;
         }
@@ -1204,7 +1202,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         var signalDisplay = PreferencesPage.CreateSignalDisplayPreferences();
         SignalDisplayPreferences = signalDisplay;
         recordedPreferenceStore.UpdateCurrent(current => current with { SignalDisplay = signalDisplay });
-        presentationApplier.RefreshRecordedSignalStates(recordedPreferenceStore.Current.SignalDisplay);
+        presentationApplier.RefreshRecordedSignalStates();
         recordedPreferenceStore.PersistChangeIfEnabled(current => current with { SignalDisplay = signalDisplay });
     }
 

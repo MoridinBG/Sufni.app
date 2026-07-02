@@ -12,7 +12,6 @@ public sealed partial class SignalPreferenceItemViewModel(string displayName) : 
 {
     public string DisplayName { get; } = displayName;
 
-    [ObservableProperty] public partial bool Selected { get; set; } = true;
     [ObservableProperty] public partial bool Available { get; set; }
     [ObservableProperty] public partial PlotSmoothingLevel SelectedSmoothing { get; set; } = PlotSmoothingLevel.Off;
 }
@@ -96,17 +95,19 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
 
     public SignalDisplayPreferences CreateSignalDisplayPreferences()
     {
+        // Signals are always shown; hiding is done by collapsing rows in the
+        // signals view, so the per-signal visibility flags stay true here.
         return new SignalDisplayPreferences(
-            Travel: TravelSignal.Selected,
-            Velocity: VelocitySignal.Selected,
-            Imu: ImuSignal.Selected,
-            PitchRoll: PitchRollSignal.Selected,
+            Travel: true,
+            Velocity: true,
+            Imu: true,
+            PitchRoll: true,
             TravelSmoothing: TravelSignal.SelectedSmoothing,
             VelocitySmoothing: VelocitySignal.SelectedSmoothing,
             ImuSmoothing: ImuSignal.SelectedSmoothing,
             PitchRollSmoothing: PitchRollSignal.SelectedSmoothing,
-            Speed: SpeedSignal.Selected,
-            Elevation: ElevationSignal.Selected,
+            Speed: true,
+            Elevation: true,
             SpeedSmoothing: SpeedSignal.SelectedSmoothing,
             ElevationSmoothing: ElevationSignal.SelectedSmoothing);
     }
@@ -137,12 +138,6 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
 
     public void ApplySignalDisplayPreferences(SignalDisplayPreferences preferences)
     {
-        TravelSignal.Selected = preferences.Travel;
-        VelocitySignal.Selected = preferences.Velocity;
-        ImuSignal.Selected = preferences.Imu;
-        PitchRollSignal.Selected = preferences.PitchRoll;
-        SpeedSignal.Selected = preferences.Speed;
-        ElevationSignal.Selected = preferences.Elevation;
         TravelSignal.SelectedSmoothing = preferences.TravelSmoothing;
         VelocitySignal.SelectedSmoothing = preferences.VelocitySmoothing;
         ImuSignal.SelectedSmoothing = preferences.ImuSmoothing;

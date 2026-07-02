@@ -554,7 +554,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     private void OnSignalPreferenceChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName is not (nameof(SignalPreferenceItemViewModel.Selected) or nameof(SignalPreferenceItemViewModel.SelectedSmoothing)))
+        if (args.PropertyName is not nameof(SignalPreferenceItemViewModel.SelectedSmoothing))
         {
             return;
         }

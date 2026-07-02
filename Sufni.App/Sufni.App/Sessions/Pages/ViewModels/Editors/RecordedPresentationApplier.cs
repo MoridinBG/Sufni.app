@@ -221,7 +221,7 @@ internal sealed class RecordedPresentationApplier
         recordedElevationSignalBaseState = TrackPointSeries.HasElevationSeries(context.TrackPoints)
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
-        RefreshRecordedSignalStates(owner.RecordedSignalDisplayPreferences);
+        RefreshRecordedSignalStates();
     }
 
     public void ApplyRecordedTrackPresentationData(SessionTrackPresentationData trackData)
@@ -233,14 +233,16 @@ internal sealed class RecordedPresentationApplier
         context.MapState = CreateMapState(trackData.TrackPoints, trackData.FullTrackId is not null);
     }
 
-    public void RefreshRecordedSignalStates(SignalDisplayPreferences preferences)
+    public void RefreshRecordedSignalStates()
     {
-        context.TravelSignalState = recordedTravelSignalBaseState.ApplyPlotSelection(preferences.Travel);
-        context.VelocitySignalState = recordedVelocitySignalBaseState.ApplyPlotSelection(preferences.Velocity);
-        context.ImuSignalState = recordedImuSignalBaseState.ApplyPlotSelection(preferences.Imu);
-        context.PitchRollSignalState = recordedPitchRollSignalBaseState.ApplyPlotSelection(preferences.PitchRoll);
-        context.SpeedSignalState = recordedSpeedSignalBaseState.ApplyPlotSelection(preferences.Speed);
-        context.ElevationSignalState = recordedElevationSignalBaseState.ApplyPlotSelection(preferences.Elevation);
+        // Every available signal is shown; hiding is handled by collapsing rows
+        // in the signals view, so row state follows availability alone.
+        context.TravelSignalState = recordedTravelSignalBaseState;
+        context.VelocitySignalState = recordedVelocitySignalBaseState;
+        context.ImuSignalState = recordedImuSignalBaseState;
+        context.PitchRollSignalState = recordedPitchRollSignalBaseState;
+        context.SpeedSignalState = recordedSpeedSignalBaseState;
+        context.ElevationSignalState = recordedElevationSignalBaseState;
     }
 
     private void ApplyCachePresentation(SessionCachePresentationData data)
@@ -496,7 +498,7 @@ internal sealed class RecordedPresentationApplier
         recordedPitchRollSignalBaseState = pitchRollState;
         recordedSpeedSignalBaseState = speedState;
         recordedElevationSignalBaseState = elevationState;
-        RefreshRecordedSignalStates(owner.RecordedSignalDisplayPreferences);
+        RefreshRecordedSignalStates();
     }
 
     private void EnsureBalancePage(bool balanceAvailable)
