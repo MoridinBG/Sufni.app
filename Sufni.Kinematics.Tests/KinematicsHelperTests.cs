@@ -66,8 +66,8 @@ public class KinematicsHelperTests
     public void CalculateDistance_UsesPointCoordinates()
     {
         var distance = GeometryUtils.CalculateDistance(
-            new CartesianCoordinate(0, 0),
-            new CartesianCoordinate(3, 4));
+            new TestPoint(0, 0),
+            new TestPoint(3, 4));
 
         Assert.Equal(5, distance, 3);
     }
@@ -77,8 +77,8 @@ public class KinematicsHelperTests
     {
         var pixelsToMillimeters = GeometryUtils.CalculatePixelsToMillimetersFromChainstay(
             chainstayMillimeters: 450,
-            rearWheel: new CartesianCoordinate(0, 0),
-            bottomBracket: new CartesianCoordinate(3, 4));
+            rearWheel: new TestPoint(0, 0),
+            bottomBracket: new TestPoint(3, 4));
 
         Assert.Equal(90, pixelsToMillimeters);
     }
@@ -88,8 +88,8 @@ public class KinematicsHelperTests
     {
         var pixelsToMillimeters = GeometryUtils.CalculatePixelsToMillimetersFromChainstay(
             chainstayMillimeters: 450,
-            rearWheel: new CartesianCoordinate(0, 0),
-            bottomBracket: new CartesianCoordinate(0, 0));
+            rearWheel: new TestPoint(0, 0),
+            bottomBracket: new TestPoint(0, 0));
 
         Assert.Null(pixelsToMillimeters);
     }
@@ -99,8 +99,8 @@ public class KinematicsHelperTests
     {
         var pixelsToMillimeters = GeometryUtils.CalculatePixelsToMillimetersFromChainstay(
             chainstayMillimeters: null,
-            rearWheel: new CartesianCoordinate(0, 0),
-            bottomBracket: new CartesianCoordinate(3, 4));
+            rearWheel: new TestPoint(0, 0),
+            bottomBracket: new TestPoint(3, 4));
 
         Assert.Null(pixelsToMillimeters);
     }
@@ -109,10 +109,10 @@ public class KinematicsHelperTests
     public void CalculateHeadAngle_ReturnsRoundedAngleAgainstWheelContactGround()
     {
         var headAngle = GeometryUtils.CalculateHeadAngle(
-            headTube1: new CartesianCoordinate(0, -10),
-            headTube2: new CartesianCoordinate(0, 0),
-            frontWheel: new CartesianCoordinate(10, 0),
-            rearWheel: new CartesianCoordinate(0, 0),
+            headTube1: new TestPoint(0, -10),
+            headTube2: new TestPoint(0, 0),
+            frontWheel: new TestPoint(10, 0),
+            rearWheel: new TestPoint(0, 0),
             frontWheelDiameter: 2,
             rearWheelDiameter: 2,
             pixelsToMillimeters: 1);
@@ -124,10 +124,10 @@ public class KinematicsHelperTests
     public void CalculateHeadAngle_ReturnsNullForDegenerateGeometry()
     {
         var headAngle = GeometryUtils.CalculateHeadAngle(
-            headTube1: new CartesianCoordinate(0, 0),
-            headTube2: new CartesianCoordinate(0, 0),
-            frontWheel: new CartesianCoordinate(10, 0),
-            rearWheel: new CartesianCoordinate(0, 0),
+            headTube1: new TestPoint(0, 0),
+            headTube2: new TestPoint(0, 0),
+            frontWheel: new TestPoint(10, 0),
+            rearWheel: new TestPoint(0, 0),
             frontWheelDiameter: 2,
             rearWheelDiameter: 2,
             pixelsToMillimeters: 1);
@@ -146,5 +146,12 @@ public class KinematicsHelperTests
                 adjacent1Y: 0,
                 adjacent2X: 1,
                 adjacent2Y: 0));
+    }
+
+    private sealed class TestPoint(double x, double y) : IPoint
+    {
+        public double X { get; set; } = x;
+
+        public double Y { get; set; } = y;
     }
 }
