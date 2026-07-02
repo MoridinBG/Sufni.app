@@ -8,6 +8,8 @@ namespace Sufni.App.Tests.Bikes.ViewModels.LinkageEditing;
 [Collection("Ui")]
 public class LinkageEditorViewModelTests
 {
+    private const string DetachedPointName = "Detached point";
+
     [AvaloniaFact]
     public void Load_RoundTripsBaselineLinkage_WithoutJointOrLinkDifferences()
     {
@@ -116,9 +118,7 @@ public class LinkageEditorViewModelTests
     public void RemovingJoint_DetachesPropertyHandler_FromRemovedInstance()
     {
         var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
-        baseline.Joints.Add(new Joint("Detached point", JointType.Floating, 6, 6));
-        baseline.ResolveJoints();
-        var baselineSpec = baseline.ToSpec();
+        var baselineSpec = WithDetachedPoint(baseline.ToSpec());
 
         var viewModel = new LinkageEditorViewModel();
         var previewChanges = 0;
@@ -127,13 +127,13 @@ public class LinkageEditorViewModelTests
         viewModel.StateChanged += (_, _) => stateChanges++;
 
         viewModel.Load(baselineSpec, imageHeight: 100, pixelsToMillimeters: 1);
-        var removedJoint = Assert.Single(viewModel.JointViewModels, joint => joint.Name == "Detached point");
+        var removedJoint = Assert.Single(viewModel.JointViewModels, joint => joint.Name == DetachedPointName);
         viewModel.SelectedPoint = removedJoint;
         viewModel.DeleteSelectedItemCommand.Execute(null);
         previewChanges = 0;
         stateChanges = 0;
 
-        removedJoint.Name = "Detached point renamed";
+        removedJoint.Name = $"{DetachedPointName} renamed";
 
         Assert.Equal(0, previewChanges);
         Assert.Equal(0, stateChanges);
@@ -143,11 +143,7 @@ public class LinkageEditorViewModelTests
     public void RemovingLink_DetachesPropertyHandler_FromRemovedInstance()
     {
         var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
-        var detachedPoint = new Joint("Detached point", JointType.Floating, 6, 6);
-        baseline.Joints.Add(detachedPoint);
-        baseline.Links.Add(new Link(baseline.Joints[0], detachedPoint));
-        baseline.ResolveJoints();
-        var baselineSpec = baseline.ToSpec();
+        var baselineSpec = WithDetachedLink(baseline.ToSpec());
 
         var viewModel = new LinkageEditorViewModel();
         var previewChanges = 0;
@@ -158,7 +154,7 @@ public class LinkageEditorViewModelTests
         viewModel.Load(baselineSpec, imageHeight: 100, pixelsToMillimeters: 1);
         var removedLink = Assert.Single(
             viewModel.LinkViewModels,
-            link => link.A?.Name == baseline.Joints[0].Name && link.B?.Name == detachedPoint.Name);
+            link => link.A?.Name == baseline.Joints[0].Name && link.B?.Name == DetachedPointName);
         viewModel.SelectedLink = removedLink;
         viewModel.DeleteSelectedItemCommand.Execute(null);
         previewChanges = 0;
@@ -239,21 +235,17 @@ public class LinkageEditorViewModelTests
     public void DeleteSelectedItemCommand_RemovesSelectedPoint_AndConnectedLinks()
     {
         var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
-        var detachedPoint = new Joint("Detached point", JointType.Floating, 6, 6);
-        baseline.Joints.Add(detachedPoint);
-        baseline.Links.Add(new Link(baseline.Joints[0], detachedPoint));
-        baseline.ResolveJoints();
-        var baselineSpec = baseline.ToSpec();
+        var baselineSpec = WithDetachedLink(baseline.ToSpec());
         var viewModel = new LinkageEditorViewModel();
 
         viewModel.Load(baselineSpec, imageHeight: 100, pixelsToMillimeters: 1);
-        var point = Assert.Single(viewModel.JointViewModels, joint => joint.Name == detachedPoint.Name);
+        var point = Assert.Single(viewModel.JointViewModels, joint => joint.Name == DetachedPointName);
 
         viewModel.SelectedPoint = point;
         viewModel.DeleteSelectedItemCommand.Execute(null);
 
-        Assert.DoesNotContain(viewModel.JointViewModels, joint => joint.Name == detachedPoint.Name);
-        Assert.DoesNotContain(viewModel.LinkViewModels, link => link.A?.Name == detachedPoint.Name || link.B?.Name == detachedPoint.Name);
+        Assert.DoesNotContain(viewModel.JointViewModels, joint => joint.Name == DetachedPointName);
+        Assert.DoesNotContain(viewModel.LinkViewModels, link => link.A?.Name == DetachedPointName || link.B?.Name == DetachedPointName);
     }
 
     [AvaloniaFact]
@@ -271,4 +263,18 @@ public class LinkageEditorViewModelTests
 
         Assert.True(viewModel.HasChangesComparedTo(baselineSpec, 100, 1));
     }
+
+    private static LinkageSpec WithDetachedPoint(LinkageSpec baseline) =>
+        new(
+            [.. baseline.Joints, new JointSpec(DetachedPointName, JointType.Floating, 6, 6)],
+            baseline.Links,
+            baseline.Shock,
+            baseline.ShockStroke);
+
+    private static LinkageSpec WithDetachedLink(LinkageSpec baseline) =>
+        new(
+            [.. baseline.Joints, new JointSpec(DetachedPointName, JointType.Floating, 6, 6)],
+            [.. baseline.Links, new LinkSpec(baseline.Joints[0].Name, DetachedPointName)],
+            baseline.Shock,
+            baseline.ShockStroke);
 }
