@@ -433,11 +433,11 @@ public class DatabaseMigrationRunnerTests
     public async Task Initialization_DoesNotBackfillLegacyRearSuspensionKindFingerprintAfterProcessingVersionAdvance()
     {
         using var tempDatabase = new TempDatabase("legacy-rear-suspension-kind-fingerprint.db");
-        var linkage = TestSnapshots.FullSuspensionLinkage();
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec();
         var bikeSnapshot = TestSnapshots.Bike(id: Guid.NewGuid(), updated: 20) with
         {
             ShockStroke = linkage.ShockStroke,
-            RearSuspension = new RearSuspensionSpec.Linkage(linkage.ToSpec())
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage)
         };
         ProcessingFingerprint? staleFingerprint = null;
         var seed = SeedProcessedSessionDatabase(
