@@ -44,4 +44,27 @@ public class BikeSnapshotTests
         Assert.Equal(240, snapshot.RearCompressionDampingCutoffMmPerSecond);
         Assert.Equal(250, snapshot.RearReboundDampingCutoffMmPerSecond);
     }
+
+    [Fact]
+    public void WithExpression_ReplacesLinkageSpecWithoutMutatingOriginalSnapshot()
+    {
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec();
+        var snapshot = TestSnapshots.Bike() with
+        {
+            ShockStroke = linkage.ShockStroke,
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage)
+        };
+
+        var updated = snapshot with
+        {
+            ShockStroke = 0.75,
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage.WithShockStroke(0.75))
+        };
+
+        Assert.Same(linkage, snapshot.Linkage);
+        Assert.Equal(linkage.ShockStroke, snapshot.ShockStroke);
+        Assert.Equal(linkage.ShockStroke, Assert.IsType<RearSuspensionSpec.Linkage>(snapshot.RearSuspension).Spec.ShockStroke);
+        Assert.Equal(0.75, updated.ShockStroke);
+        Assert.Equal(0.75, Assert.IsType<RearSuspensionSpec.Linkage>(updated.RearSuspension).Spec.ShockStroke);
+    }
 }
