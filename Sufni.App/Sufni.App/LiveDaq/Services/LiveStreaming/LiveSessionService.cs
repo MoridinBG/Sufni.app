@@ -37,8 +37,6 @@ internal sealed class LiveSessionServiceFactory(
 
 internal sealed class LiveSessionService : ILiveSessionService
 {
-    private const int MeasurementChunkSize = 4096;
-    private const int ImuChunkSize = 2048;
     private const int GpsChunkSize = 256;
     private const int DisplayUpdateQueueCapacity = 8;
     private static readonly TimeSpan AnalysisPressureQuietPeriod = TimeSpan.FromMilliseconds(500);
@@ -48,10 +46,14 @@ internal sealed class LiveSessionService : ILiveSessionService
     private readonly record struct LiveCaptureSnapshot(
         Metadata Metadata,
         LiveSessionHeader? SessionHeader,
-        ChunkedBufferSnapshot<ushort> FrontMeasurements,
-        ChunkedBufferSnapshot<ushort> RearMeasurements,
-        ChunkedBufferSnapshot<ImuRecord> ImuRecords,
-        ChunkedBufferSnapshot<GpsRecord> GpsRecords);
+        FixedRateSegment<ushort>[] FrontTravelSegments,
+        FixedRateSegment<ushort>[] RearTravelSegments,
+        IReadOnlyDictionary<LiveImuLocation, FixedRateSegment<ImuRecord>[]> ImuSegmentsByLocation,
+        ChunkedBufferSnapshot<GpsRecord> GpsRecords,
+        MarkerData[] Markers,
+        RawStreamGap[] StreamGaps,
+        SstFinalStatus? FinalStatus,
+        bool MissingFinalStatus);
 
     private abstract record LiveDisplayUpdate(long Epoch)
     {
@@ -96,10 +98,12 @@ internal sealed class LiveSessionService : ILiveSessionService
             AllowSynchronousContinuations = false,
         });
 
-    private readonly AppendOnlyChunkBuffer<ushort> frontMeasurements = new(MeasurementChunkSize);
-    private readonly AppendOnlyChunkBuffer<ushort> rearMeasurements = new(MeasurementChunkSize);
-    private readonly AppendOnlyChunkBuffer<ImuRecord> imuRecords = new(ImuChunkSize);
     private readonly AppendOnlyChunkBuffer<GpsRecord> gpsRecords = new(GpsChunkSize);
+    private readonly List<MarkerData> markers = [];
+    private readonly List<RawStreamGap> streamGaps = [];
+    private readonly FixedRateSegmentBuilder<ushort> frontTravelBuilder;
+    private readonly FixedRateSegmentBuilder<ushort> rearTravelBuilder;
+    private readonly Dictionary<LiveImuLocation, FixedRateSegmentBuilder<ImuRecord>> imuBuilders = [];
 
     private IDisposable? framesSubscription;
     private IDisposable? statesSubscription;
@@ -114,6 +118,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     private TrackPoint[] sessionTrackPoints = [];
     private TrackPointGeoCoordinate? previousAcceptedGpsCoordinate;
     private LiveDaqClientDropCounters sharedClientDropCounters = LiveDaqClientDropCounters.Empty;
+    private SstFinalStatus? finalStatus;
     private LiveConnectionState connectionState = LiveConnectionState.Disconnected;
     private string? lastError;
     private ulong? captureStartMonotonicUs;
@@ -148,6 +153,14 @@ internal sealed class LiveSessionService : ILiveSessionService
         this.sessionPresentationService = sessionPresentationService;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.signalPipeline = signalPipeline;
+        frontTravelBuilder = new FixedRateSegmentBuilder<ushort>(
+            SstV5ProtocolConstants.StreamTravel,
+            (byte)SstV5ProtocolConstants.SensorForkTravel,
+            AddStreamGap);
+        rearTravelBuilder = new FixedRateSegmentBuilder<ushort>(
+            SstV5ProtocolConstants.StreamTravel,
+            (byte)SstV5ProtocolConstants.SensorShockTravel,
+            AddStreamGap);
     }
 
     public IObservable<LiveSessionPresentationSnapshot> Snapshots => snapshotsSubject.AsObservable();
@@ -252,10 +265,17 @@ internal sealed class LiveSessionService : ILiveSessionService
         lock (gate)
         {
             ThrowIfDisposed();
-            frontMeasurements.Clear();
-            rearMeasurements.Clear();
-            imuRecords.Clear();
+            frontTravelBuilder.Clear();
+            rearTravelBuilder.Clear();
+            foreach (var builder in imuBuilders.Values)
+            {
+                builder.Clear();
+            }
+
             gpsRecords.Clear();
+            markers.Clear();
+            streamGaps.Clear();
+            finalStatus = null;
             imuDisplaySignalProcessor.Reset();
             analysisTelemetry = null;
             dampingPercentages = SessionDampingPercentages.Empty;
@@ -410,9 +430,11 @@ internal sealed class LiveSessionService : ILiveSessionService
                     if (sessionHeader is null || nextHeader.SessionId != sessionHeader.SessionId)
                     {
                         imuDisplaySignalProcessor.Reset();
+                        imuBuilders.Clear();
                     }
 
                     sessionHeader = nextHeader;
+                    EnsureImuBuildersLocked();
                 }
             }
 
@@ -465,6 +487,24 @@ internal sealed class LiveSessionService : ILiveSessionService
                     latestSessionStats = sessionStatsFrame.Payload;
                     snapshotToPublish = BuildSnapshotLocked();
                     break;
+
+                case LiveStatusFrame statusFrame:
+                    latestSessionStats = LiveProtocolHelpers.CreateSessionStatsFromStatus(statusFrame.Streams);
+                    snapshotToPublish = BuildSnapshotLocked();
+                    break;
+
+                case LiveMarkerBatchFrame markerBatchFrame:
+                    ApplyMarkerBatchLocked(markerBatchFrame);
+                    snapshotToPublish = BuildSnapshotLocked();
+                    break;
+
+                case LiveSessionResultFrame sessionResultFrame:
+                    finalStatus = sessionResultFrame.Payload.FinalStatus;
+                    snapshotToPublish = BuildSnapshotLocked();
+                    break;
+
+                case LiveBatteryBatchFrame:
+                    break;
             }
         }
 
@@ -500,6 +540,30 @@ internal sealed class LiveSessionService : ILiveSessionService
         var travelTimes = new double[batchCount];
         var frontTravel = new double[batchCount];
         var rearTravel = new double[batchCount];
+        var firstDeltaUs = GetFirstMonotonicDeltaUs(frame.Batch);
+        var effectiveValidityMask = frame.Batch.ValidityMask & sessionHeader.AcceptedSensorMask;
+        var frontAccepted = sessionHeader.AcceptedSensorMask.HasFlag(LiveSensorInstanceMask.ForkTravel);
+        var rearAccepted = sessionHeader.AcceptedSensorMask.HasFlag(LiveSensorInstanceMask.ShockTravel);
+        var frontValid = frontAccepted && effectiveValidityMask.HasFlag(LiveSensorInstanceMask.ForkTravel);
+        var rearValid = rearAccepted && effectiveValidityMask.HasFlag(LiveSensorInstanceMask.ShockTravel);
+
+        if (frontAccepted && !frontValid)
+        {
+            frontTravelBuilder.AddInvalidRange(
+                frame.Batch.FirstIndex,
+                frame.Batch.SampleCount,
+                firstDeltaUs,
+                sessionHeader.AcceptedTravelRateMhz);
+        }
+
+        if (rearAccepted && !rearValid)
+        {
+            rearTravelBuilder.AddInvalidRange(
+                frame.Batch.FirstIndex,
+                frame.Batch.SampleCount,
+                firstDeltaUs,
+                sessionHeader.AcceptedTravelRateMhz);
+        }
 
         InitializeCaptureOriginLocked(frame.Batch.FirstMonotonicUs);
 
@@ -507,15 +571,30 @@ internal sealed class LiveSessionService : ILiveSessionService
         {
             var record = frame.Records[index];
             var monotonicUs = frame.Batch.FirstMonotonicUs + (ulong)index * sessionHeader.TravelPeriodUs;
+            var monotonicDeltaUs = firstDeltaUs + SstV5CompactPayloadDecoder.RoundDurationUs((ulong)index, sessionHeader.AcceptedTravelRateMhz);
+            var sampleIndex = frame.Batch.FirstIndex + (ulong)index;
             var timeOffset = ToSampleOffsetSecondsLocked(monotonicUs);
             travelTimes[index] = timeOffset;
-            frontMeasurements.Append(record.ForkAngle);
-            rearMeasurements.Append(record.ShockAngle);
 
-            var frontValue = ConvertTravel(record.ForkAngle, context.BikeData.FrontMeasurementToTravel, context.BikeData.FrontMaxTravel);
-            var rearValue = ConvertTravel(record.ShockAngle, context.BikeData.RearMeasurementToTravel, context.BikeData.RearMaxTravel);
-            frontTravel[index] = frontValue;
-            rearTravel[index] = rearValue;
+            if (frontValid)
+            {
+                frontTravelBuilder.AddValidSample(sampleIndex, monotonicDeltaUs, record.ForkAngle, sessionHeader.AcceptedTravelRateMhz);
+                frontTravel[index] = ConvertTravel(record.ForkAngle, context.BikeData.FrontMeasurementToTravel, context.BikeData.FrontMaxTravel);
+            }
+            else
+            {
+                frontTravel[index] = double.NaN;
+            }
+
+            if (rearValid)
+            {
+                rearTravelBuilder.AddValidSample(sampleIndex, monotonicDeltaUs, record.ShockAngle, sessionHeader.AcceptedTravelRateMhz);
+                rearTravel[index] = ConvertTravel(record.ShockAngle, context.BikeData.RearMeasurementToTravel, context.BikeData.RearMaxTravel);
+            }
+            else
+            {
+                rearTravel[index] = double.NaN;
+            }
         }
 
         captureRevision++;
@@ -535,7 +614,30 @@ internal sealed class LiveSessionService : ILiveSessionService
             return null;
         }
 
-        imuRecords.AppendRange(frame.Records);
+        EnsureImuBuildersLocked();
+        var firstDeltaUs = GetFirstMonotonicDeltaUs(frame.Batch);
+        var effectiveValidityMask = frame.Batch.ValidityMask & sessionHeader.AcceptedSensorMask;
+        var validLocations = new List<LiveImuLocation>(activeLocations.Count);
+        foreach (var location in activeLocations)
+        {
+            var sourceMask = GetImuSourceMask(location);
+            if ((effectiveValidityMask & sourceMask) == 0)
+            {
+                if (imuBuilders.TryGetValue(location, out var builder))
+                {
+                    builder.AddInvalidRange(
+                        frame.Batch.FirstIndex,
+                        frame.Batch.SampleCount,
+                        firstDeltaUs,
+                        sessionHeader.AcceptedImuRateMhz);
+                }
+            }
+            else
+            {
+                validLocations.Add(location);
+            }
+        }
+
         captureRevision++;
         InitializeCaptureOriginLocked(frame.Batch.FirstMonotonicUs);
 
@@ -557,16 +659,30 @@ internal sealed class LiveSessionService : ILiveSessionService
 
             for (var locationIndex = 0; locationIndex < recordsPerTick; locationIndex++)
             {
+                var location = activeLocations[locationIndex];
                 var recordIndex = tickIndex * recordsPerTick + locationIndex;
+                var sourceMask = GetImuSourceMask(location);
+                if ((effectiveValidityMask & sourceMask) == 0)
+                {
+                    continue;
+                }
+
+                var validLocationIndex = validLocations.IndexOf(location);
+                recordIndex = tickIndex * validLocations.Count + validLocationIndex;
                 if (recordIndex >= frame.Records.Count)
                 {
                     break;
                 }
 
-                var location = activeLocations[locationIndex];
                 var nextIndex = perLocationCounts[locationIndex]++;
+                var record = frame.Records[recordIndex];
                 perLocationTimes[locationIndex][nextIndex] = timeOffset;
-                perLocationRecords[locationIndex][nextIndex] = frame.Records[recordIndex];
+                perLocationRecords[locationIndex][nextIndex] = record;
+                imuBuilders[location].AddValidSample(
+                    frame.Batch.FirstIndex + (ulong)tickIndex,
+                    firstDeltaUs + SstV5CompactPayloadDecoder.RoundDurationUs((ulong)tickIndex, sessionHeader.AcceptedImuRateMhz),
+                    record,
+                    sessionHeader.AcceptedImuRateMhz);
             }
         }
 
@@ -687,6 +803,68 @@ internal sealed class LiveSessionService : ILiveSessionService
 
         captureRevision++;
     }
+
+    private void ApplyMarkerBatchLocked(LiveMarkerBatchFrame frame)
+    {
+        foreach (var record in frame.Records)
+        {
+            if (record.MarkerType == SstV5ProtocolConstants.MarkerManualUserMark)
+            {
+                markers.Add(new MarkerData(record.MonotonicDeltaUs / 1_000_000.0));
+            }
+        }
+
+        if (frame.Records.Count > 0)
+        {
+            captureRevision++;
+        }
+    }
+
+    private void EnsureImuBuildersLocked()
+    {
+        if (sessionHeader is null)
+        {
+            return;
+        }
+
+        foreach (var location in sessionHeader.GetActiveImuLocations())
+        {
+            if (imuBuilders.ContainsKey(location))
+            {
+                continue;
+            }
+
+            imuBuilders[location] = new FixedRateSegmentBuilder<ImuRecord>(
+                SstV5ProtocolConstants.StreamImu,
+                (byte)location,
+                AddStreamGap);
+        }
+    }
+
+    private void AddStreamGap(RawStreamGap gap)
+    {
+        streamGaps.Add(gap);
+    }
+
+    private ulong GetFirstMonotonicDeltaUs(LiveBatchHeader batch)
+    {
+        if (sessionHeader is null)
+        {
+            return batch.FirstMonotonicDeltaUs;
+        }
+
+        return batch.FirstMonotonicUs >= sessionHeader.SessionStartMonotonicUs
+            ? batch.FirstMonotonicUs - sessionHeader.SessionStartMonotonicUs
+            : batch.FirstMonotonicDeltaUs;
+    }
+
+    private static LiveSensorInstanceMask GetImuSourceMask(LiveImuLocation location) => location switch
+    {
+        LiveImuLocation.Frame => LiveSensorInstanceMask.FrameImu,
+        LiveImuLocation.Fork => LiveSensorInstanceMask.ForkImu,
+        LiveImuLocation.Rear => LiveSensorInstanceMask.RearImu,
+        _ => LiveSensorInstanceMask.None,
+    };
 
     private static TrackPointGeoCoordinate? GetLastProjectedCoordinate(IEnumerable<GpsRecord> records)
     {
@@ -1018,10 +1196,18 @@ internal sealed class LiveSessionService : ILiveSessionService
                 Duration = CalculateCaptureDurationLocked().TotalSeconds,
             },
             SessionHeader: sessionHeader,
-            FrontMeasurements: frontMeasurements.CreateSnapshot(),
-            RearMeasurements: rearMeasurements.CreateSnapshot(),
-            ImuRecords: imuRecords.CreateSnapshot(),
-            GpsRecords: gpsRecords.CreateSnapshot());
+            FrontTravelSegments: frontTravelBuilder.CreateSnapshot(),
+            RearTravelSegments: rearTravelBuilder.CreateSnapshot(),
+            ImuSegmentsByLocation: imuBuilders.ToDictionary(
+                entry => entry.Key,
+                entry => entry.Value.CreateSnapshot()),
+            GpsRecords: gpsRecords.CreateSnapshot(),
+            Markers: [.. markers],
+            StreamGaps: [.. streamGaps],
+            FinalStatus: finalStatus,
+            MissingFinalStatus: sessionHeader?.ProtocolVersion == LiveProtocolVersion.V3 &&
+                finalStatus is null &&
+                isTerminalClosed);
     }
 
     private LiveTelemetryCapture BuildCapture(LiveCaptureSnapshot snapshot)
@@ -1029,22 +1215,25 @@ internal sealed class LiveSessionService : ILiveSessionService
         return new LiveTelemetryCapture(
             Metadata: snapshot.Metadata,
             BikeData: context.BikeData,
-            FrontMeasurements: snapshot.FrontMeasurements.ToArray(),
-            RearMeasurements: snapshot.RearMeasurements.ToArray(),
+            FrontSegments: ToRawCountSegments(snapshot.FrontTravelSegments),
+            RearSegments: ToRawCountSegments(snapshot.RearTravelSegments),
             ImuData: BuildImuCapture(snapshot),
             GpsData: snapshot.GpsRecords.Count == 0 ? null : snapshot.GpsRecords.ToArray(),
-            Markers: []);
+            Markers: snapshot.Markers,
+            StreamGaps: snapshot.StreamGaps,
+            FinalStatus: snapshot.FinalStatus,
+            MissingFinalStatus: snapshot.MissingFinalStatus);
     }
 
     private static RawImuData? BuildImuCapture(LiveCaptureSnapshot snapshot)
     {
-        if (snapshot.SessionHeader is null || snapshot.ImuRecords.Count == 0)
+        if (snapshot.SessionHeader is null || snapshot.ImuSegmentsByLocation.Count == 0)
         {
             return null;
         }
 
         var activeLocations = snapshot.SessionHeader.GetActiveImuLocations();
-        return new RawImuData
+        var imuData = new RawImuData
         {
             SampleRate = (int)snapshot.SessionHeader.AcceptedImuHz,
             ActiveLocations = activeLocations.Select(location => (byte)location).ToList(),
@@ -1055,9 +1244,40 @@ internal sealed class LiveSessionService : ILiveSessionService
                     AccelLsbPerG: snapshot.SessionHeader.ImuCalibrationScales.GetAccelScale(location),
                     GyroLsbPerDps: snapshot.SessionHeader.ImuCalibrationScales.GetGyroScale(location)))
             ],
-            Records = [.. snapshot.ImuRecords.ToArray()]
         };
+
+        foreach (var location in activeLocations)
+        {
+            if (!snapshot.ImuSegmentsByLocation.TryGetValue(location, out var segments))
+            {
+                continue;
+            }
+
+            imuData.Segments.AddRange(segments.Select(segment => new RawImuSegment
+            {
+                LocationId = (byte)location,
+                FirstIndex = segment.FirstIndex,
+                FirstMonotonicDeltaUs = segment.FirstMonotonicDeltaUs,
+                Records = segment.Values.ToArray(),
+            }));
+        }
+
+        if (imuData.Segments.Count == 0)
+        {
+            return null;
+        }
+
+        RawImuDataSegmentHelper.PopulateDenseRecordsFromAlignedSegments(imuData, snapshot.StreamGaps);
+        return imuData;
     }
+
+    private static RawCountSegment[] ToRawCountSegments(FixedRateSegment<ushort>[] segments) =>
+        segments.Select(segment => new RawCountSegment
+        {
+            FirstIndex = segment.FirstIndex,
+            FirstMonotonicDeltaUs = segment.FirstMonotonicDeltaUs,
+            Counts = segment.Values.ToArray(),
+        }).ToArray();
 
     private void PublishSnapshot(LiveSessionPresentationSnapshot snapshot)
     {
@@ -1104,10 +1324,27 @@ internal sealed class LiveSessionService : ILiveSessionService
             return TimeSpan.Zero;
         }
 
-        var measurementCount = Math.Max(frontMeasurements.Count, rearMeasurements.Count);
-        if (measurementCount > 0 && sessionHeader is not null && sessionHeader.AcceptedTravelHz > 0)
+        if (finalStatus is not null && captureStartMonotonicUs is not null && sessionHeader is not null)
         {
-            return TimeSpan.FromSeconds(measurementCount / (double)sessionHeader.AcceptedTravelHz);
+            var captureStartDeltaUs = captureStartMonotonicUs.Value >= sessionHeader.SessionStartMonotonicUs
+                ? captureStartMonotonicUs.Value - sessionHeader.SessionStartMonotonicUs
+                : 0;
+            var durationUs = finalStatus.StoppedMonotonicDeltaUs >= captureStartDeltaUs
+                ? finalStatus.StoppedMonotonicDeltaUs - captureStartDeltaUs
+                : 0;
+            return TimeSpan.FromMilliseconds(durationUs / 1000.0);
+        }
+
+        var travelEndDeltaUs = GetLatestTravelEndMonotonicDeltaUs();
+        if (travelEndDeltaUs is not null && captureStartMonotonicUs is not null && sessionHeader is not null)
+        {
+            var captureStartDeltaUs = captureStartMonotonicUs.Value >= sessionHeader.SessionStartMonotonicUs
+                ? captureStartMonotonicUs.Value - sessionHeader.SessionStartMonotonicUs
+                : 0;
+            var durationUs = travelEndDeltaUs.Value >= captureStartDeltaUs
+                ? travelEndDeltaUs.Value - captureStartDeltaUs
+                : 0;
+            return TimeSpan.FromMilliseconds(durationUs / 1000.0);
         }
 
         if (sessionTrackPoints.Length > 0)
@@ -1118,6 +1355,34 @@ internal sealed class LiveSessionService : ILiveSessionService
         }
 
         return TimeSpan.Zero;
+    }
+
+    private ulong? GetLatestTravelEndMonotonicDeltaUs()
+    {
+        if (sessionHeader is null || sessionHeader.AcceptedTravelRateMhz == 0)
+        {
+            return null;
+        }
+
+        ulong? latestEndUs = null;
+        AddLatestEnd(frontTravelBuilder.CreateSnapshot());
+        AddLatestEnd(rearTravelBuilder.CreateSnapshot());
+        return latestEndUs;
+
+        void AddLatestEnd(FixedRateSegment<ushort>[] segments)
+        {
+            foreach (var segment in segments)
+            {
+                if (segment.Values.Length == 0)
+                {
+                    continue;
+                }
+
+                var endUs = segment.FirstMonotonicDeltaUs +
+                    SstV5CompactPayloadDecoder.RoundDurationUs((ulong)segment.Values.Length, sessionHeader.AcceptedTravelRateMhz);
+                latestEndUs = latestEndUs is null ? endUs : Math.Max(latestEndUs.Value, endUs);
+            }
+        }
     }
 
     private void InitializeCaptureOriginLocked(ulong sampleMonotonicUs)
@@ -1136,7 +1401,7 @@ internal sealed class LiveSessionService : ILiveSessionService
 
     private bool CanSaveLocked()
     {
-        return frontMeasurements.Count >= 5 || rearMeasurements.Count >= 5;
+        return frontTravelBuilder.Count >= 5 || rearTravelBuilder.Count >= 5;
     }
 
     private bool CanBuildAnalysisLocked()
@@ -1146,7 +1411,11 @@ internal sealed class LiveSessionService : ILiveSessionService
 
     private bool HasAnyCaptureLocked()
     {
-        return frontMeasurements.Count > 0 || rearMeasurements.Count > 0 || imuRecords.Count > 0 || gpsRecords.Count > 0;
+        return frontTravelBuilder.Count > 0 ||
+            rearTravelBuilder.Count > 0 ||
+            imuBuilders.Values.Any(builder => builder.Count > 0) ||
+            gpsRecords.Count > 0 ||
+            markers.Count > 0;
     }
 
     private void ThrowIfDisposed()

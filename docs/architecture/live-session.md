@@ -1,6 +1,6 @@
 # Live Session Recording
 
-> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the live-session recording slice: the per-tab capture service that subscribes to a shared live transport, accumulates raw samples for save, derives signal batches, computes rolling statistics, and persists the result as a recorded `Session` row with a live-capture source and processing fingerprint. Both desktop and mobile heads expose the live-session tab. The transport, discovery, catalog, and diagnostics-tab side of the live feature lives in [Live DAQ Streaming](live-streaming.md).
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the live-session recording slice: the per-tab capture service that subscribes to a shared live transport, accumulates raw samples for save, derives signal batches, computes rolling analysis state, and persists the result as a recorded `Session` row with a live-capture source and processing fingerprint. Both desktop and mobile heads expose the live-session tab. The transport, discovery, catalog, and diagnostics-tab side of the live feature lives in [Live DAQ Streaming](live-streaming.md).
 
 ## Contents
 
@@ -8,7 +8,7 @@
 - [Data Flow](#data-flow)
 - [Configuration Lock](#configuration-lock)
 - [Capture Service](#capture-service)
-- [Buffers](#buffers)
+- [Capture Stores](#capture-stores)
 - [Live Signal Pipeline](#live-signal-pipeline)
 - [Stream Configuration](#stream-configuration)
 - [Presentation Records](#presentation-records)
@@ -30,9 +30,9 @@ The recording side is decoupled from the transport in three ways:
 ```mermaid
 graph LR
     Shared["LiveDaqSharedStream<br/>(per identity)"] --> Service["ILiveSessionService<br/>(per live tab)"]
-    Service --> AppendBufs["AppendOnlyChunkBuffer<br/>front / rear / IMU / GPS"]
+    Service --> CaptureStores["FixedRateSegmentBuilder<br/>travel / IMU<br/>+ AppendOnlyChunkBuffer GPS"]
     Service --> SignalPipe["LiveSignalPipeline<br/>(velocity SG filter)"]
-    Service --> StatsLoop["Statistics loop<br/>(TelemetryData.FromLiveCapture)"]
+    Service --> StatsLoop["Analysis loop<br/>(TelemetryData.FromLiveCapture)"]
     SignalPipe --> RecentTravel["Recent travel lists<br/>(127 ms velocity context)"]
     Service -->|"Snapshots"| DetailVM["LiveSessionDetailViewModel"]
     SignalPipe -->|"SignalBatches"| DetailVM
@@ -50,10 +50,12 @@ graph LR
 ```
 Shared stream emits LiveProtocolFrame
   -> LiveSessionService.HandleFrame
-    -> LiveTravelBatchFrame  -> AppendOnlyChunkBuffer<ushort> (front/rear) + LiveDisplayUpdate.Travel
-    -> LiveImuBatchFrame     -> AppendOnlyChunkBuffer<ImuRecord>          + LiveDisplayUpdate.Imu (vibration RMS + frame pitch/roll)
+    -> LiveTravelBatchFrame  -> FixedRateSegmentBuilder<ushort> (front/rear) + LiveDisplayUpdate.Travel
+    -> LiveImuBatchFrame     -> FixedRateSegmentBuilder<ImuRecord> per active location + LiveDisplayUpdate.Imu (vibration RMS + frame pitch/roll)
     -> LiveGpsBatchFrame     -> AppendOnlyChunkBuffer<GpsRecord> + projected TrackPoint[]
-    -> LiveSessionStatsFrame -> latest queue/dropped counters
+    -> LiveStatusFrame / LiveSessionStatsFrame -> latest queue/dropped counters
+    -> LiveMarkerBatchFrame  -> marker list
+    -> LiveSessionResultFrame -> final SST stream status
 
 Display loop (Task.Run)
   -> Channel<LiveDisplayUpdate> reader
@@ -66,7 +68,7 @@ Display loop (Task.Run)
     -> projected TrackPoint[] updates drive Speed/Elevation signal rows
 
 Statistics loop (Task.Run)
-  -> snapshot AppendOnlyChunkBuffers under lock
+  -> snapshot segment builders and GPS buffer under lock
     -> TelemetryData.FromLiveCapture (background runner)
       -> SessionPresentationService.CalculateDampingPercentages
         -> LiveSessionPresentationSnapshot -> Subject<LiveSessionPresentationSnapshot>
@@ -76,7 +78,7 @@ Statistics loop (Task.Run)
 User presses Save
   -> LiveSessionDetailViewModel.SaveImplementation
     -> ILiveSessionService.PrepareCaptureForSaveAsync
-      -> snapshot all four buffers under lock
+      -> snapshot travel/IMU segment builders, GPS buffer, markers, gaps, and final status under lock
         -> background BuildCapture -> LiveTelemetryCapture
     -> SessionCoordinator.SaveLiveCaptureAsync(session, capture, preferences)
       -> RecordedSessionSourceFactory.CreateLiveCapture
@@ -88,7 +90,7 @@ User presses Save
 
 User presses Reset
   -> ILiveSessionService.ResetCaptureAsync
-    -> clear AppendOnlyChunkBuffers, bump captureRevision/displayEpoch
+    -> clear segment builders, GPS buffer, markers, gaps, final status, bump captureRevision/displayEpoch
       -> LiveSignalPipeline.Reset (clear pending + sliding window, emit empty batch)
         -> view model clears analysis pages and timeline
 ```
@@ -107,43 +109,47 @@ The live-session service holds a configuration lock on the shared stream for the
 
 `EnsureAttachedAsync` is idempotent and acquires resources in this order under the gate: observer lease, configuration-lock lease, `signalPipeline.Start()`, the display loop task, frame subscription, state subscription. Acquiring resources is followed by a non-locked `sharedStream.EnsureStartedAsync(...)` so connect work runs outside the gate; on failure the resources acquired during this attach are torn down again. `DisposeAsync` mirrors this: it stops subscriptions, completes the display channel, awaits the statistics and display loops, releases both leases, and disposes the signal pipeline.
 
-`ResetCaptureAsync` clears all four `AppendOnlyChunkBuffer` instances, resets statistics and track points, and bumps two monotonic counters: `captureRevision` (observed by the statistics loop to detect that older work is stale) and `displayEpoch` (observed by the display loop to discard older display updates that were already in flight). It then resets the signal pipeline so its sliding window and pending batch are cleared and a single empty `LiveSignalBatch` is published.
+`ResetCaptureAsync` clears the travel and IMU segment builders, GPS buffer, markers, gaps, final status, analysis state, and track points, and bumps two monotonic counters: `captureRevision` (observed by the analysis loop to detect that older work is stale) and `displayEpoch` (observed by the display loop to discard older display updates that were already in flight). It then resets the signal pipeline so its sliding window and pending batch are cleared and a single empty `LiveSignalBatch` is published.
 
 ### Frame Handlers
 
-`HandleFrame` dispatches by the four data-bearing frame types. Travel and IMU batches accumulate raw samples into the chunk buffers under the gate, build a `LiveDisplayUpdate.Travel` or `LiveDisplayUpdate.Imu` carrying the calibrated values for the live plots, and push that update onto a bounded `Channel<LiveDisplayUpdate>` (`DisplayUpdateQueueCapacity = 8`, `BoundedChannelFullMode.DropOldest`). IMU display values are derived by `LiveImuDisplaySignalProcessor`: firmware has already bias-corrected and rotated IMU readings into the bike frame, so per-location vibration RMS uses dynamic acceleration after low-pass gravity removal without waiting for a session-start rest window, and optional frame pitch/roll fuses frame accelerometer plus gyro data relative to the bike-frame calibration while accepting accelerometer correction only from gravity-like samples. The raw-count `ImuRecord` capture buffer is unchanged and remains the saved source of truth. Drops increment `signalBatchesCoalesced` / `signalSamplesDiscarded` on the published drop counters. GPS frames append raw records and project `TrackPoint`s incrementally, falling back to a full re-projection when an out-of-order timestamp is observed. `LiveSessionStatsFrame` only refreshes the queue-depth and dropped-batch counters surfaced in `LiveSessionControlState`.
+`HandleFrame` dispatches by the data-bearing canonical frame types. Travel and IMU batches accumulate raw samples into fixed-rate segment builders under the gate, record invalid-validity and first-index gaps as `RawStreamGap`, build a `LiveDisplayUpdate.Travel` or `LiveDisplayUpdate.Imu` carrying the calibrated values for the live plots, and push that update onto a bounded `Channel<LiveDisplayUpdate>` (`DisplayUpdateQueueCapacity = 8`, `BoundedChannelFullMode.DropOldest`). IMU display values are derived by `LiveImuDisplaySignalProcessor`: firmware has already bias-corrected and rotated IMU readings into the bike frame, so per-location vibration RMS uses dynamic acceleration after low-pass gravity removal without waiting for a session-start rest window, and optional frame pitch/roll fuses frame accelerometer plus gyro data relative to the bike-frame calibration while accepting accelerometer correction only from gravity-like samples. Raw IMU segment records remain the saved source of truth; dense compatibility `RawImuData.Records` is populated only when all active locations have one aligned gap-free segment. Drops increment `signalBatchesCoalesced` / `signalSamplesDiscarded` on the published drop counters. GPS frames append raw records and project `TrackPoint`s incrementally, falling back to a full re-projection when an out-of-order timestamp is observed. `LiveStatusFrame` and legacy `LiveSessionStatsFrame` refresh the queue-depth and dropped-batch counters surfaced in `LiveSessionControlState`. `LiveMarkerBatchFrame` appends user markers, and `LiveSessionResultFrame` stores final SST stream status for v3 captures, including sink backlog batches.
 
 The travel handler is also where `CanSave` flips from `false` to `true` (>= 5 samples on either travel channel) and where the first saveable-capture snapshot is published so the tab's save command becomes enabled.
 
-A change in `LiveDaqSharedStreamState.SessionHeader` to a different `SessionId` while the buffers already hold any data flips `isTerminalClosed = true` with a "DAQ started a new live session." error — the user must reset before more data is accepted, so a recorded save never mixes samples from two firmware sessions.
+A change in `LiveDaqSharedStreamState.SessionHeader` to a different `SessionId` while the capture stores already hold any data flips `isTerminalClosed = true` with a "DAQ started a new live session." error — the user must reset before more data is accepted, so a recorded save never mixes samples from two firmware sessions.
 
 ### Statistics Loop
 
-Once a travel batch has produced enough samples for `CanBuildStatistics`, `QueueStatisticsRecompute` updates `queuedStatisticsRevision` and starts the statistics loop if it is not already running. The loop snapshots all four buffers under the gate, runs `TelemetryData.FromLiveCapture(BuildCapture(...))` on the background task runner, calls `ISessionPresentationService.CalculateDampingPercentages`, and republishes a fresh `LiveSessionPresentationSnapshot` carrying the new `TelemetryData` and damping percentages. Throttling has two parts: `nextStatisticsRunAt` enforces the `PlotSettings.LiveAnalysisRefreshIntervalMs` minimum gap between recomputes, and a 500-ms `StatisticsPressureQuietPeriod` skips queueing entirely while `lastClientPressureUtc` is recent (set whenever the client- or display-channel drop counters increase). Skipped queueing is counted in `statisticsRecomputesSkipped`.
+Once a travel batch has produced enough samples for `CanBuildAnalysis`, `QueueAnalysisRecompute` updates `queuedAnalysisRevision` and starts the analysis loop if it is not already running. The loop snapshots travel/IMU segments and GPS records under the gate, runs `TelemetryData.FromLiveCapture(BuildCapture(...))` on the background task runner, calls `ISessionPresentationService.CalculateDampingPercentages`, and republishes a fresh `LiveSessionPresentationSnapshot` carrying the new `TelemetryData` and damping percentages. Throttling has two parts: `nextAnalysisRunAt` enforces the `PlotSettings.LiveAnalysisRefreshIntervalMs` minimum gap between recomputes, and a 500-ms `AnalysisPressureQuietPeriod` skips queueing entirely while `lastClientPressureUtc` is recent (set whenever the client- or display-channel drop counters increase). Skipped queueing is counted in `analysisRecomputesSkipped`.
 
 ### Display Loop
 
-The display loop reads `LiveDisplayUpdate` records off the bounded channel, drops any whose `Epoch` no longer matches `displayEpoch` (so updates produced before the most recent reset are skipped), and dispatches into the signal pipeline (`AppendTravelSamples` / `AppendImuSamples`). The loop never writes back into the chunk buffers — display and capture are appended in parallel from the frame handler under the same gate, then the display path runs entirely off-lock through the channel.
+The display loop reads `LiveDisplayUpdate` records off the bounded channel, drops any whose `Epoch` no longer matches `displayEpoch` (so updates produced before the most recent reset are skipped), and dispatches into the signal pipeline (`AppendTravelSamples` / `AppendImuSamples`). The loop never writes back into the capture stores — display and capture are appended in parallel from the frame handler under the same gate, then the display path runs entirely off-lock through the channel.
 
-## Buffers
+## Capture Stores
 
-The capture service uses two specialised collection types. Both are internal sealed classes in `Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/`.
+The capture service uses fixed-rate segment builders for travel/IMU and an append-only chunk buffer for GPS. The segment builder is shared with SST v5 parsing so live v3 capture and file import preserve gaps the same way.
+
+### `FixedRateSegmentBuilder`
+
+`FixedRateSegmentBuilder<T>` (`Sufni.Telemetry/FixedRateSegmentBuilder.cs`) is the raw fixed-rate sink for segment-aware save and statistics. `LiveSessionService` owns one builder for front travel, one for rear travel, and one per active IMU location. Each builder keeps contiguous valid samples in `FixedRateSegment<T>` runs and emits `RawStreamGap` records for invalid source validity or first-index discontinuities. On save, travel builders become `RawCountSegment[]`, and IMU builders become `RawImuSegment` records grouped by physical location.
+
+This is what lets live v3 captures retain the same gap semantics as SST v5 files. V2 live streams naturally produce one dense segment per active travel side or IMU location because their batches do not carry per-source validity gaps. Segment snapshots are cheap enough to take under the service gate and convert to `LiveTelemetryCapture` later on the background runner.
 
 ### `AppendOnlyChunkBuffer`
 
-`AppendOnlyChunkBuffer<T>` (`AppendOnlyChunkBuffer.cs`) is the raw-sample sink for save and statistics. It backs the four capture buffers in `LiveSessionService`:
+`AppendOnlyChunkBuffer<T>` (`AppendOnlyChunkBuffer.cs`) remains the raw GPS sink for save and statistics. GPS is event-like rather than fixed-rate, so it stays append-only:
 
-- `frontMeasurements`, `rearMeasurements` — `ushort` encoder counts (`MeasurementChunkSize = 4096` per chunk)
-- `imuRecords` — `ImuRecord` per active IMU location tick (`ImuChunkSize = 2048`)
 - `gpsRecords` — `GpsRecord` GPS fixes (`GpsChunkSize = 256`)
 
 Internally the buffer keeps a `List<T[]>` of sealed full chunks plus one growing active chunk; `Append` rolls the active chunk into the sealed list once it fills. `CreateSnapshot()` captures the sealed-chunk references plus the active chunk and active count as a `ChunkedBufferSnapshot<T>` value type — the snapshot can be taken under the service's gate and flattened into a contiguous `T[]` later (off-lock, on the background task runner during statistics or save) without copying every sample twice.
 
-This shape is what makes the recording side cheap: each `LiveTravelBatchFrame` appends in O(batch) without resizing a long-lived array, statistics recomputes can grab a snapshot in O(chunks) under the gate, and `BuildCapture` flattens to `T[]` once per save.
+This shape keeps event-like GPS capture cheap: each `LiveGpsBatchFrame` appends in O(batch) without resizing a long-lived array, statistics recomputes can grab a snapshot in O(chunks) under the gate, and `BuildCapture` flattens to `T[]` once per save.
 
 ### Live Velocity Window
 
-`LiveSignalPipeline` keeps recent travel times plus front/rear travel values only for live signal velocity display. The retained context is duration-based: samples older than 127 ms from the newest travel sample are trimmed while keeping at least the five samples required by the Savitzky-Golay implementation. Capture and save never read this window — `AppendOnlyChunkBuffer` is the source of truth for the saved sample stream.
+`LiveSignalPipeline` keeps recent travel times plus front/rear travel values only for live signal velocity display. The retained context is duration-based: samples older than 127 ms from the newest travel sample are trimmed while keeping at least the five samples required by the Savitzky-Golay implementation. Capture and save never read this window — the segment builders and GPS buffer are the source of truth for the saved sample stream.
 
 ## Live Signal Pipeline
 
@@ -168,11 +174,11 @@ This shape is what makes the recording side cheap: each `LiveTravelBatchFrame` a
 `LiveDaqStreamConfiguration` (`Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/LiveDaqStreamConfiguration.cs`) is the immutable record the configuration-lock holder sets to ask the DAQ for a particular live stream. It carries:
 
 - `RequestedSensorMask` (`LiveSensorInstanceMask`) — which individual sensor instances to start (fork travel, shock travel, frame/fork/rear IMU, GPS).
-- `TravelHz`, `ImuHz`, `GpsFixHz` — per-stream rate caps; zero means "do not request this stream" and disables the corresponding bit in the resolved mask.
+- `TravelRateMhz`, `ImuRateMhz`, `GpsRateMhz` — per-stream rate caps in millihertz; zero means "do not request this stream" and disables the corresponding bit in the resolved mask. UI-facing `TravelHz`, `ImuHz`, and `GpsFixHz` properties are rounded whole-Hz projections for existing controls.
 
 `Default` requests Travel + IMU at 200 Hz with no GPS. `FromRequestedRates(travelHz, imuHz, gpsFixHz)` builds a configuration whose mask matches the rates: any rate at zero turns off that bit. `ToStartRequest()` ANDs the requested mask with the rate-derived mask before producing the wire-level `LiveStartRequest`, so a configuration with `Travel | Imu` mask but `ImuHz = 0` will not actually request IMU.
 
-The shared stream stores one current `LiveDaqStreamConfiguration` and exposes it as `RequestedConfiguration`. `ApplyConfigurationAsync(configuration, ct)` reconfigures the stream by tearing down the existing connection, reconnecting, and sending a new `START_LIVE` derived from the config — but it returns a no-op while `IsConfigurationLocked` is set, which is the diagnostics tab's cue that a live-session tab on the same DAQ is currently recording. The config itself does not move with the lock; only the _ability_ to change it does. See [Configuration Lock](#configuration-lock) for the lease mechanics, and the [Live Wire Protocol](live-streaming.md#live-wire-protocol) for the on-wire shape.
+The shared stream stores one current `LiveDaqStreamConfiguration` and exposes it as `RequestedConfiguration`. `ApplyConfigurationAsync(configuration, ct)` reconfigures the stream by tearing down the existing connection, reconnecting, and sending a new start request derived from the config — but it returns a no-op while `IsConfigurationLocked` is set, which is the diagnostics tab's cue that a live-session tab on the same DAQ is currently recording. The config itself does not move with the lock; only the _ability_ to change it does. V2 clients round millihertz to whole-Hz wire fields; v3 clients send millihertz directly. See [Configuration Lock](#configuration-lock) for the lease mechanics, and the [Live Wire Protocol](live-streaming.md#live-wire-protocol) for the on-wire shape.
 
 ## Presentation Records
 
@@ -212,7 +218,7 @@ The save lifecycle is split between the service (snapshotting capture state unde
 ```
 LiveSessionDetailViewModel.SaveImplementation
   -> liveSessionService.PrepareCaptureForSaveAsync
-       (snapshot the four AppendOnlyChunkBuffer instances under lock,
+       (snapshot segment builders, GPS buffer, markers, gaps, and final status under lock,
         flatten to LiveTelemetryCapture on the background runner)
   -> session = new Session(name, description, setup, capture timestamp)
        with fork/shock spring + damping settings copied from NotesPage
@@ -234,7 +240,7 @@ LiveSessionDetailViewModel.SaveImplementation
   -> on Failed: append to ErrorMessages
 ```
 
-`SaveLiveCaptureAsync` (`SessionCoordinator.cs`) always inserts a fresh recorded session row — there is no edit path for live captures and no `BaselineUpdated` to enforce. It creates the live-capture source through `RecordedSessionSourceFactory`, then delegates telemetry, generated-track, and fingerprint derivation to `IRecordedSessionReprocessor`. The recorded source payload stores capture metadata, raw front/rear measurements, IMU data, GPS data, and markers; it does not store `BikeData`, so recorded recompute resolves calibration from the saved session's current setup and bike. `PutProcessedSessionAsync` persists the processed session, optional generated full track, and live-capture source in one transaction.
+`SaveLiveCaptureAsync` (`SessionCoordinator.cs`) always inserts a fresh recorded session row — there is no edit path for live captures and no `BaselineUpdated` to enforce. It creates the live-capture source through `RecordedSessionSourceFactory`, then delegates telemetry, generated-track, and fingerprint derivation to `IRecordedSessionReprocessor`. The recorded source payload stores capture metadata, raw front/rear segments, IMU data, GPS data, markers, stream gaps, final status with sink backlog counters, and missing-final-status flags; compatibility reading still accepts older flat front/rear measurement payloads. It does not store `BikeData`, so recorded recompute resolves calibration from the saved session's current setup and bike. `PutProcessedSessionAsync` persists the processed session, optional generated full track, and live-capture source in one transaction.
 
 `SessionPreferences` (built from `PreferencesPage` plus the per-mode analysis pickers via `CreateCurrentSessionPreferences`) is persisted through `ISessionPreferences.UpdateRecordedAsync`, so when the user reopens the saved session in the recorded editor, their plot and analysis choices come back. After a successful save, the view model resets the live capture (so the same tab can immediately start a second one) and routes the user to the recorded editor for the new session via `sessionCoordinator.OpenEditAsync`.
 
@@ -242,7 +248,7 @@ LiveSessionDetailViewModel.SaveImplementation
 
 ## Design Decisions
 
-1. **Capture under the same lock as transport reads.** Frame handlers append to chunk buffers and build display updates in one `lock(gate)` so capture and display see the same sample order. Statistics and save snapshots are taken under the same lock and flattened off-lock, avoiding any need to copy hot data twice or to queue per-sample work.
+1. **Capture under the same lock as transport reads.** Frame handlers append to segment builders or GPS buffers and build display updates in one `lock(gate)` so capture and display see the same sample order. Statistics and save snapshots are taken under the same lock and materialized off-lock, avoiding any need to copy hot data twice or to queue per-sample work.
 2. **Bounded display channel with `DropOldest`.** The display loop is allowed to lag behind capture without ever holding the gate or dropping captured samples — only the _display_ update for those samples is coalesced, and the count is surfaced as backpressure on the control state. Capture itself is never dropped.
 3. **Sliding window only inside the signal pipeline.** Velocity is a presentation concern (the saved telemetry recomputes velocity from the SG filter inside `TelemetryData.FromLiveCapture`), so the sliding window lives next to the flush loop and the pipeline owns the cached SG instance.
 4. **Configuration lock instead of per-tab transport.** A live-session tab and the diagnostics tab on the same DAQ share one connection through the registry. The lock makes the diagnostics tab read-only for the duration of a recording so its rate controls cannot tear down a live capture.

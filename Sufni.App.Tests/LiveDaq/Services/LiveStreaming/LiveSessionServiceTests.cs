@@ -46,7 +46,7 @@ public class LiveSessionServiceTests
                 ConnectionState: LiveConnectionState.Connected,
                 LastError: null,
                 SessionHeader: sessionHeader,
-                SelectedSensorMask: LiveSensorMask.Travel | LiveSensorMask.Imu | LiveSensorMask.Gps,
+                SelectedStreamMask: LiveStreamMask.Travel | LiveStreamMask.Imu | LiveStreamMask.Gps,
                 IsConfigurationLocked: true,
                 IsClosed: false);
             states.OnNext(currentState);
@@ -156,6 +156,178 @@ public class LiveSessionServiceTests
 
         var partialCapture = await service.PrepareCaptureForSaveAsync();
         Assert.Equal(5, partialCapture.TelemetryCapture.RearMeasurements.Length);
+    }
+
+    [Fact]
+    public async Task V3Frames_PrepareCaptureForSave_PreservesSegmentsGapsMarkersAndFinalStatus()
+    {
+        var service = CreateService();
+        await service.EnsureAttachedAsync();
+
+        var v3Header = PublishV3TravelSession();
+
+        frames.OnNext(CreateV3TravelBatch(v3Header, LiveSensorInstanceMask.ForkTravel));
+        frames.OnNext(new LiveMarkerBatchFrame(
+            new LiveFrameMetadata(21),
+            new LiveBatchHeader(
+                SessionId: v3Header.SessionId,
+                Stream: LiveStreamMask.Marker,
+                StreamSequence: 0,
+                FirstIndex: 0,
+                FirstMonotonicDeltaUs: 1_500_000,
+                FirstMonotonicUs: v3Header.SessionStartMonotonicUs + 1_500_000,
+                SampleCount: 1,
+                ValidityMask: LiveSensorInstanceMask.None),
+            [new LiveMarkerRecord(0, 1_500_000, SstV5ProtocolConstants.MarkerManualUserMark)]));
+        frames.OnNext(new LiveSessionResultFrame(
+            new LiveFrameMetadata(22),
+            new LiveSessionResult(
+                v3Header.SessionId,
+                new SstFinalStatus
+                {
+                    SessionResultReason = 3,
+                    StoppedMonotonicDeltaUs = 2_000_000,
+                    Streams = [],
+                })));
+
+        var package = await service.PrepareCaptureForSaveAsync();
+        var capture = package.TelemetryCapture;
+
+        var frontSegment = Assert.Single(capture.FrontSegments);
+        Assert.Equal((ulong)0, frontSegment.FirstIndex);
+        Assert.Equal([1000, 1010, 1020, 1030, 1040], frontSegment.Counts);
+        Assert.Empty(capture.RearSegments);
+        var gap = Assert.Single(capture.StreamGaps);
+        Assert.Equal(SstV5ProtocolConstants.StreamTravel, gap.StreamKind);
+        Assert.Equal((byte)SstV5ProtocolConstants.SensorShockTravel, gap.LocationId);
+        Assert.Equal((ulong)0, gap.FirstMissingIndex);
+        Assert.Equal((ulong)5, gap.MissingCount);
+        Assert.Equal("invalid_validity", gap.Reason);
+        var marker = Assert.Single(capture.Markers);
+        Assert.Equal(1.5, marker.TimestampOffset);
+        Assert.NotNull(capture.FinalStatus);
+        Assert.Equal((byte)3, capture.FinalStatus.SessionResultReason);
+        Assert.False(capture.MissingFinalStatus);
+    }
+
+    [Fact]
+    public async Task V3Frames_PrepareCaptureForSave_MarksMissingFinalStatus_WhenClosedWithoutSessionResult()
+    {
+        var service = CreateService();
+        await service.EnsureAttachedAsync();
+        var v3Header = PublishV3TravelSession();
+
+        frames.OnNext(CreateV3TravelBatch(v3Header, LiveSensorInstanceMask.ForkTravel));
+        currentState = currentState with { IsClosed = true, LastError = "link lost" };
+        states.OnNext(currentState);
+
+        var package = await service.PrepareCaptureForSaveAsync();
+
+        Assert.Null(package.TelemetryCapture.FinalStatus);
+        Assert.True(package.TelemetryCapture.MissingFinalStatus);
+    }
+
+    [Fact]
+    public async Task V3ImuFrames_PrepareCaptureForSave_PopulatesDenseRecordsFromAlignedSegments()
+    {
+        var service = CreateService();
+        await service.EnsureAttachedAsync();
+        var v3Header = PublishV3TravelAndImuSession();
+        var frame0 = CreateImuRecord(10);
+        var fork0 = CreateImuRecord(20);
+        var frame1 = CreateImuRecord(30);
+        var fork1 = CreateImuRecord(40);
+
+        frames.OnNext(CreateV3TravelBatch(v3Header, LiveSensorInstanceMask.Travel));
+        frames.OnNext(CreateV3ImuBatch(
+            v3Header,
+            firstIndex: 0,
+            sampleCount: 2,
+            LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.ForkImu,
+            [frame0, fork0, frame1, fork1]));
+
+        var package = await service.PrepareCaptureForSaveAsync();
+        var imuData = package.TelemetryCapture.ImuData;
+
+        Assert.NotNull(imuData);
+        Assert.Equal(new byte[] { (byte)LiveImuLocation.Frame, (byte)LiveImuLocation.Fork }, imuData!.ActiveLocations);
+        Assert.False(imuData.HasGaps);
+        Assert.Equal([frame0, fork0, frame1, fork1], imuData.Records);
+        Assert.Equal(2, imuData.Segments.Count);
+        Assert.All(imuData.Segments, segment =>
+        {
+            Assert.Equal((ulong)0, segment.FirstIndex);
+            Assert.Equal(2, segment.Records.Length);
+        });
+        Assert.DoesNotContain(package.TelemetryCapture.StreamGaps, gap =>
+            gap.StreamKind == SstV5ProtocolConstants.StreamImu);
+    }
+
+    [Fact]
+    public async Task V3ImuFrames_PrepareCaptureForSave_PreservesValidityAndIndexGapsByLocation()
+    {
+        var service = CreateService();
+        await service.EnsureAttachedAsync();
+        var v3Header = PublishV3TravelAndImuSession();
+
+        frames.OnNext(CreateV3TravelBatch(v3Header, LiveSensorInstanceMask.Travel));
+        frames.OnNext(CreateV3ImuBatch(
+            v3Header,
+            firstIndex: 0,
+            sampleCount: 2,
+            LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.ForkImu,
+            [CreateImuRecord(10), CreateImuRecord(20), CreateImuRecord(30), CreateImuRecord(40)]));
+        frames.OnNext(CreateV3ImuBatch(
+            v3Header,
+            firstIndex: 2,
+            sampleCount: 1,
+            LiveSensorInstanceMask.FrameImu,
+            [CreateImuRecord(50)]));
+        frames.OnNext(CreateV3ImuBatch(
+            v3Header,
+            firstIndex: 4,
+            sampleCount: 1,
+            LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.ForkImu,
+            [CreateImuRecord(60), CreateImuRecord(70)]));
+
+        var package = await service.PrepareCaptureForSaveAsync();
+        var imuData = package.TelemetryCapture.ImuData;
+
+        Assert.NotNull(imuData);
+        Assert.True(imuData!.HasGaps);
+        Assert.Empty(imuData.Records);
+
+        var frameSegments = imuData.Segments
+            .Where(segment => segment.LocationId == (byte)LiveImuLocation.Frame)
+            .OrderBy(segment => segment.FirstIndex)
+            .ToArray();
+        var forkSegments = imuData.Segments
+            .Where(segment => segment.LocationId == (byte)LiveImuLocation.Fork)
+            .OrderBy(segment => segment.FirstIndex)
+            .ToArray();
+        Assert.Equal([0UL, 4UL], frameSegments.Select(segment => segment.FirstIndex).ToArray());
+        Assert.Equal([0UL, 4UL], forkSegments.Select(segment => segment.FirstIndex).ToArray());
+        Assert.Equal(3, frameSegments[0].Records.Length);
+        Assert.Equal(2, forkSegments[0].Records.Length);
+
+        var imuGaps = package.TelemetryCapture.StreamGaps
+            .Where(gap => gap.StreamKind == SstV5ProtocolConstants.StreamImu)
+            .ToArray();
+        Assert.Contains(imuGaps, gap =>
+            gap.LocationId == (byte)LiveImuLocation.Fork &&
+            gap.FirstMissingIndex == 2 &&
+            gap.MissingCount == 1 &&
+            gap.Reason == "invalid_validity");
+        Assert.Contains(imuGaps, gap =>
+            gap.LocationId == (byte)LiveImuLocation.Frame &&
+            gap.FirstMissingIndex == 3 &&
+            gap.MissingCount == 1 &&
+            gap.Reason == "index_gap");
+        Assert.Contains(imuGaps, gap =>
+            gap.LocationId == (byte)LiveImuLocation.Fork &&
+            gap.FirstMissingIndex == 3 &&
+            gap.MissingCount == 1 &&
+            gap.Reason == "index_gap");
     }
 
     [Fact]
@@ -582,7 +754,7 @@ public class LiveSessionServiceTests
     private LiveTravelBatchFrame CreateTravelBatchFrame(ulong? firstMonotonicUs = null)
     {
         return new LiveTravelBatchFrame(
-            Header: new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.TravelBatch, 0, 1),
+            Header: new LiveFrameMetadata(1),
             Batch: new LiveBatchHeader(sessionHeader.SessionId, 1, 0, firstMonotonicUs ?? sessionHeader.SessionStartMonotonicUs, 5),
             Records:
             [
@@ -594,12 +766,115 @@ public class LiveSessionServiceTests
             ]);
     }
 
+    private LiveSessionHeader PublishV3TravelSession()
+    {
+        return PublishV3Session(
+            requestedSensorMask: LiveSensorInstanceMask.Travel,
+            acceptedSensorMask: LiveSensorInstanceMask.Travel,
+            activeImuMask: LiveImuLocationMask.None,
+            selectedStreamMask: LiveStreamMask.Travel);
+    }
+
+    private LiveSessionHeader PublishV3TravelAndImuSession()
+    {
+        const LiveSensorInstanceMask acceptedSensors =
+            LiveSensorInstanceMask.Travel |
+            LiveSensorInstanceMask.FrameImu |
+            LiveSensorInstanceMask.ForkImu;
+
+        return PublishV3Session(
+            requestedSensorMask: acceptedSensors,
+            acceptedSensorMask: acceptedSensors,
+            activeImuMask: LiveImuLocationMask.Frame | LiveImuLocationMask.Fork,
+            selectedStreamMask: LiveStreamMask.Travel | LiveStreamMask.Imu);
+    }
+
+    private LiveSessionHeader PublishV3Session(
+        LiveSensorInstanceMask requestedSensorMask,
+        LiveSensorInstanceMask acceptedSensorMask,
+        LiveImuLocationMask activeImuMask,
+        LiveStreamMask selectedStreamMask)
+    {
+        var v3Header = LiveProtocolTestFrames.CreateSessionHeaderModel(
+            sessionId: 903,
+            imuMask: activeImuMask,
+            requestedSensorMask: requestedSensorMask,
+            acceptedSensorMask: acceptedSensorMask,
+            protocolVersion: LiveProtocolVersion.V3);
+        currentState = currentState with
+        {
+            SessionHeader = v3Header,
+            SelectedStreamMask = selectedStreamMask,
+            ProtocolVersion = LiveProtocolVersion.V3,
+        };
+        states.OnNext(currentState);
+        return v3Header;
+    }
+
+    private static LiveTravelBatchFrame CreateV3TravelBatch(
+        LiveSessionHeader header,
+        LiveSensorInstanceMask validityMask)
+    {
+        return new LiveTravelBatchFrame(
+            Header: new LiveFrameMetadata(20),
+            Batch: new LiveBatchHeader(
+                SessionId: header.SessionId,
+                Stream: LiveStreamMask.Travel,
+                StreamSequence: 0,
+                FirstIndex: 0,
+                FirstMonotonicDeltaUs: 0,
+                FirstMonotonicUs: header.SessionStartMonotonicUs,
+                SampleCount: 5,
+                ValidityMask: validityMask),
+            Records:
+            [
+                new LiveTravelRecord(1000, 0),
+                new LiveTravelRecord(1010, 0),
+                new LiveTravelRecord(1020, 0),
+                new LiveTravelRecord(1030, 0),
+                new LiveTravelRecord(1040, 0),
+            ]);
+    }
+
+    private static LiveImuBatchFrame CreateV3ImuBatch(
+        LiveSessionHeader header,
+        ulong firstIndex,
+        uint sampleCount,
+        LiveSensorInstanceMask validityMask,
+        IReadOnlyList<ImuRecord> records)
+    {
+        var firstMonotonicDeltaUs = SstV5CompactPayloadDecoder.RoundDurationUs(
+            firstIndex,
+            header.AcceptedImuRateMhz);
+        return new LiveImuBatchFrame(
+            Header: new LiveFrameMetadata((uint)(30 + firstIndex)),
+            Batch: new LiveBatchHeader(
+                SessionId: header.SessionId,
+                Stream: LiveStreamMask.Imu,
+                StreamSequence: (uint)firstIndex,
+                FirstIndex: firstIndex,
+                FirstMonotonicDeltaUs: firstMonotonicDeltaUs,
+                FirstMonotonicUs: header.SessionStartMonotonicUs + firstMonotonicDeltaUs,
+                SampleCount: sampleCount,
+                ValidityMask: validityMask),
+            Records: records);
+    }
+
+    private static ImuRecord CreateImuRecord(short value) =>
+        new(
+            value,
+            (short)(value + 1),
+            (short)(value + 2),
+            (short)(value + 3),
+            (short)(value + 4),
+            (short)(value + 5));
+
     private LiveImuBatchFrame CreateImuBatchFrame()
     {
         const int tickCount = 50;
 
         return new LiveImuBatchFrame(
-            Header: new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.ImuBatch, 0, 2),
+            Header: new LiveFrameMetadata(2),
             Batch: new LiveBatchHeader(sessionHeader.SessionId, 1, 0, sessionHeader.SessionStartMonotonicUs, tickCount),
             Records: CreateRestImuRecords(tickCount));
     }
@@ -623,7 +898,7 @@ public class LiveSessionServiceTests
         float altitude = 600)
     {
         return new LiveGpsBatchFrame(
-            Header: new LiveFrameHeader(LiveProtocolConstants.Magic, LiveProtocolConstants.Version, LiveFrameType.GpsBatch, 0, 3),
+            Header: new LiveFrameMetadata(3),
             Batch: new LiveBatchHeader(sessionHeader.SessionId, 1, 0, sessionHeader.SessionStartMonotonicUs, 1),
             Records:
             [

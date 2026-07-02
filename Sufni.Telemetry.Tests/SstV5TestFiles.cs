@@ -332,7 +332,7 @@ internal static class SstV5TestFiles
                 {
                     payload.Write(status.ProducerState);
                     payload.Write(status.ProducerFailureReason);
-                    payload.Write((ushort)0);
+                    payload.Write(status.SinkBacklogBatches);
                     payload.Write(status.ProducerMissedCount);
                     payload.Write(status.ProducerMissingTimeUs);
                     payload.Write(status.SinkMissedCount);
@@ -494,4 +494,5 @@ internal readonly record struct V5FinalStreamStatus(
     ulong ProducerMissedCount,
     ulong ProducerMissingTimeUs,
     ulong SinkMissedCount,
-    ulong SinkMissingTimeUs);
+    ulong SinkMissingTimeUs,
+    ushort SinkBacklogBatches = 0);

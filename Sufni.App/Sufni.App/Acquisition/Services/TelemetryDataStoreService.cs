@@ -193,7 +193,7 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
     }
 
     public TelemetryDataStoreService(
-        [FromKeyedServices("gosst")] IServiceDiscovery serviceDiscovery,
+        [FromKeyedServices("daq")] IServiceDiscovery serviceDiscovery,
         IDaqBrowseOwner browseOwner,
         IDaqManagementService daqManagementService,
         ILiveDaqBoardIdInspector liveDaqBoardIdInspector,
@@ -241,11 +241,27 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
         DataStores.Clear();
     }
 
-    private async void OnServiceAdded(object? sender, ServiceAnnouncementEventArgs e) =>
+    private async void OnServiceAdded(object? sender, ServiceAnnouncementEventArgs e)
+    {
+        if (!IsV2DaqAnnouncement(e.Announcement))
+        {
+            logger.Verbose(
+                "Ignoring network import announcement from {Address}:{Port} because TXT live_proto is not 2",
+                e.Announcement.Address,
+                e.Announcement.Port);
+            return;
+        }
+
         await AddNetworkDataStoreAsync(e);
+    }
 
     private async void OnServiceRemoved(object? sender, ServiceAnnouncementEventArgs e) =>
         await RemoveNetworkDataStoreAsync(e);
+
+    private static bool IsV2DaqAnnouncement(ServiceAnnouncement announcement) =>
+        announcement.TxtRecords.Any(record =>
+            string.Equals(record.Key, "live_proto", StringComparison.Ordinal) &&
+            string.Equals(record.Value, "2", StringComparison.Ordinal));
 
     public Task<IReadOnlyList<ITelemetryFile>> LoadFilesAsync(
         ITelemetryDataStore dataStore,

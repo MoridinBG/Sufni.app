@@ -47,7 +47,7 @@
 		<string>Looking for Sufni Suspension Telemetry DAQs</string>
 		<key>NSBonjourServices</key>
 		<array>
-			<string>_gosst._tcp</string>
+			<string>_sufni._tcp</string>
 			<string>_sstsync._tcp</string>
 		</array>
 	</dict>

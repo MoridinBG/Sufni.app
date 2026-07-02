@@ -87,17 +87,34 @@ public sealed class RecordedSessionReprocessor(IProcessingFingerprintService fin
     {
         var payload = JsonSerializer.Deserialize(source.Payload, AppJson.Context.RecordedLiveCaptureSourcePayload)
                       ?? throw new JsonException("Recorded live-capture source payload is invalid.");
+        var hasSegmentPayload = payload.FrontSegments is not null || payload.RearSegments is not null;
         var capture = new LiveTelemetryCapture(
             payload.Metadata,
             bikeData,
-            payload.FrontMeasurements,
-            payload.RearMeasurements,
+            hasSegmentPayload ? payload.FrontSegments ?? [] : CreateDenseSegments(payload.FrontMeasurements ?? []),
+            hasSegmentPayload ? payload.RearSegments ?? [] : CreateDenseSegments(payload.RearMeasurements ?? []),
             payload.ImuData,
             payload.GpsData,
-            payload.Markers);
+            payload.Markers ?? [],
+            hasSegmentPayload ? payload.StreamGaps ?? [] : [],
+            hasSegmentPayload ? payload.FinalStatus : null,
+            hasSegmentPayload && payload.MissingFinalStatus == true);
 
         return TelemetryData.FromLiveCapture(capture, processingOptions);
     }
+
+    private static RawCountSegment[] CreateDenseSegments(ushort[] measurements) =>
+        measurements.Length == 0
+            ? []
+            :
+            [
+                new RawCountSegment
+                {
+                    FirstIndex = 0,
+                    FirstMonotonicDeltaUs = 0,
+                    Counts = measurements,
+                }
+            ];
 
     internal static Metadata MetadataFromRaw(string sourceName, RawTelemetryData rawTelemetryData) => new()
     {

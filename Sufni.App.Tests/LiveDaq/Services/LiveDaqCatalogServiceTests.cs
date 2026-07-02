@@ -12,12 +12,11 @@ namespace Sufni.App.Tests.LiveDaq.Services;
 public class LiveDaqCatalogServiceTests
 {
     private readonly IServiceDiscovery serviceDiscovery = Substitute.For<IServiceDiscovery>();
-    private readonly ILiveDaqBoardIdInspector boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
 
     private DaqBrowseOwner CreateBrowseOwner() => new(serviceDiscovery);
 
     private LiveDaqCatalogService CreateCatalogService(IDaqBrowseOwner? browseOwner = null) =>
-        new(serviceDiscovery, browseOwner ?? CreateBrowseOwner(), boardIdInspector);
+        new(serviceDiscovery, browseOwner ?? CreateBrowseOwner());
 
     [Fact]
     public void AcquireBrowse_StartsUnderlyingBrowseOnFirstLease_AndStopsOnLastLease()
@@ -27,7 +26,7 @@ public class LiveDaqCatalogServiceTests
         var lease1 = owner.AcquireBrowse();
         var lease2 = owner.AcquireBrowse();
 
-        serviceDiscovery.Received(1).StartBrowse("_gosst._tcp");
+        serviceDiscovery.Received(1).StartBrowse("_sufni._tcp");
 
         lease1.Dispose();
         serviceDiscovery.DidNotReceive().StopBrowse();
@@ -42,7 +41,7 @@ public class LiveDaqCatalogServiceTests
         var failingDiscovery = Substitute.For<IServiceDiscovery>();
         var shouldThrowOnStart = true;
         failingDiscovery
-            .When(d => d.StartBrowse("_gosst._tcp"))
+            .When(d => d.StartBrowse("_sufni._tcp"))
             .Do(_ =>
             {
                 if (shouldThrowOnStart)
@@ -54,72 +53,69 @@ public class LiveDaqCatalogServiceTests
         var owner = new DaqBrowseOwner(failingDiscovery);
 
         Assert.Throws<InvalidOperationException>(() => owner.AcquireBrowse());
-        failingDiscovery.Received(1).StartBrowse("_gosst._tcp");
+        failingDiscovery.Received(1).StartBrowse("_sufni._tcp");
         failingDiscovery.Received(1).StopBrowse();
 
         shouldThrowOnStart = false;
         failingDiscovery.ClearReceivedCalls();
 
         var lease = owner.AcquireBrowse();
-        failingDiscovery.Received(1).StartBrowse("_gosst._tcp");
+        failingDiscovery.Received(1).StartBrowse("_sufni._tcp");
 
         lease.Dispose();
         failingDiscovery.Received(1).StopBrowse();
     }
 
     [Fact]
-    public async Task Observe_AddsBoardIdEnrichedEntry_WhenServiceAdded()
+    public async Task Observe_AddsBidEnrichedEntry_WhenServiceAdded()
     {
-        var boardId = Guid.NewGuid();
-        boardIdInspector.InspectAsync(Arg.Any<IPAddress>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<Guid?>(boardId));
+        var expectedBoardId = UuidUtil.CreateDeviceUuid("0102030405060708").ToString();
 
         using var service = CreateCatalogService();
         var updateTask = WaitForEntriesAsync(service.Observe(), entries => entries.Count == 1);
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
-            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("192.168.1.10"), 4567)));
+            new ServiceAnnouncementEventArgs(CreateAnnouncement(
+                "192.168.1.10",
+                4567,
+                LiveProtocolVersion.V3,
+                bid: "0102030405060708")));
 
         var entries = await updateTask;
         var entry = Assert.Single(entries);
-        Assert.Equal(boardId.ToString(), entry.IdentityKey);
-        Assert.Equal(boardId.ToString(), entry.DisplayName);
-        Assert.Equal(boardId.ToString(), entry.BoardId);
+        Assert.Equal(expectedBoardId, entry.IdentityKey);
+        Assert.Equal(expectedBoardId, entry.DisplayName);
+        Assert.Equal(expectedBoardId, entry.BoardId);
         Assert.Equal("192.168.1.10", entry.Host);
         Assert.Equal(4567, entry.Port);
         Assert.Equal("192.168.1.10:4567", entry.Endpoint);
+        Assert.Equal(LiveProtocolVersion.V3, entry.ProtocolVersion);
     }
 
     [Fact]
-    public async Task Observe_FallsBackToEndpointIdentity_WhenBoardInspectionFails()
+    public async Task Observe_FallsBackToProtocolQualifiedEndpointIdentity_WhenBidIsAbsent()
     {
-        boardIdInspector.InspectAsync(Arg.Any<IPAddress>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromException<Guid?>(new InvalidOperationException("inspection failed")));
-
         using var service = CreateCatalogService();
         var updateTask = WaitForEntriesAsync(service.Observe(), entries => entries.Count == 1);
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
-            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("192.168.1.11"), 6789)));
+            new ServiceAnnouncementEventArgs(CreateAnnouncement("192.168.1.11", 6789, LiveProtocolVersion.V3)));
 
         var entry = Assert.Single(await updateTask);
         Assert.Null(entry.BoardId);
-        Assert.Equal("192.168.1.11:6789", entry.IdentityKey);
-        Assert.Equal("192.168.1.11:6789", entry.DisplayName);
+        Assert.Equal("v3:192.168.1.11:6789", entry.IdentityKey);
+        Assert.Equal("v3:192.168.1.11:6789", entry.DisplayName);
+        Assert.Equal(LiveProtocolVersion.V3, entry.ProtocolVersion);
     }
 
     [Fact]
     public async Task Observe_RemovesEntry_WhenServiceRemoved()
     {
-        var boardId = Guid.NewGuid();
-        boardIdInspector.InspectAsync(Arg.Any<IPAddress>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<Guid?>(boardId));
-
         using var service = CreateCatalogService();
         var added = WaitForEntriesAsync(service.Observe(), entries => entries.Count == 1);
-        var announcement = new ServiceAnnouncement(IPAddress.Parse("192.168.1.12"), 9001);
+        var announcement = CreateAnnouncement("192.168.1.12", 9001, LiveProtocolVersion.V2);
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
@@ -132,6 +128,48 @@ public class LiveDaqCatalogServiceTests
             new ServiceAnnouncementEventArgs(announcement));
 
         Assert.Empty(await removed);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("4")]
+    public void Observe_IgnoresAnnouncementsWithMissingOrUnsupportedProtocol(string? liveProto)
+    {
+        using var service = CreateCatalogService();
+        var observed = new List<IReadOnlyList<LiveDaqCatalogEntry>>();
+        using var subscription = service.Observe().Subscribe(observed.Add);
+
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            serviceDiscovery,
+            new ServiceAnnouncementEventArgs(CreateAnnouncement(
+                "192.168.1.13",
+                9002,
+                liveProto)));
+
+        Assert.Empty(observed[^1]);
+    }
+
+    [Fact]
+    public async Task Observe_ReannouncementWithDifferentProtocol_UpdatesExistingInstance()
+    {
+        using var service = CreateCatalogService();
+        var added = WaitForEntriesAsync(service.Observe(), entries => entries.Count == 1);
+        var v2 = CreateAnnouncement("192.168.1.14", 9003, LiveProtocolVersion.V2, instanceName: "daq-1");
+
+        serviceDiscovery.ServiceAdded += Raise.EventWith(serviceDiscovery, new ServiceAnnouncementEventArgs(v2));
+        await added;
+
+        var updated = WaitForEntriesAsync(service.Observe(), entries =>
+            entries.Count == 1 &&
+            entries[0].ProtocolVersion == LiveProtocolVersion.V3);
+        var v3 = CreateAnnouncement("192.168.1.14", 9003, LiveProtocolVersion.V3, instanceName: "daq-1");
+
+        serviceDiscovery.ServiceAdded += Raise.EventWith(serviceDiscovery, new ServiceAnnouncementEventArgs(v3));
+
+        var entry = Assert.Single(await updated);
+        Assert.Equal(LiveProtocolVersion.V3, entry.ProtocolVersion);
+        Assert.Equal("v3:192.168.1.14:9003", entry.IdentityKey);
     }
 
     [Fact]
@@ -191,6 +229,45 @@ public class LiveDaqCatalogServiceTests
         return await tcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
+    private static ServiceAnnouncement CreateAnnouncement(
+        string host,
+        ushort port,
+        LiveProtocolVersion protocolVersion,
+        string? bid = null,
+        string? instanceName = null) =>
+        CreateAnnouncement(
+            host,
+            port,
+            protocolVersion switch
+            {
+                LiveProtocolVersion.V2 => "2",
+                LiveProtocolVersion.V3 => "3",
+                _ => null,
+            },
+            bid,
+            instanceName);
+
+    private static ServiceAnnouncement CreateAnnouncement(
+        string host,
+        ushort port,
+        string? liveProto,
+        string? bid = null,
+        string? instanceName = null)
+    {
+        var txtRecords = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (liveProto is not null)
+        {
+            txtRecords.Add("live_proto", liveProto);
+        }
+
+        if (bid is not null)
+        {
+            txtRecords.Add("bid", bid);
+        }
+
+        return new ServiceAnnouncement(IPAddress.Parse(host), port, instanceName, txtRecords);
+    }
+
     private static async Task ServeIdentifyAckAsync(TcpListener listener, byte[] boardSerial)
     {
         try
@@ -199,7 +276,7 @@ public class LiveDaqCatalogServiceTests
             await using var stream = client.GetStream();
 
             // Read the Identify frame (16-byte header, no payload)
-            var requestBuffer = new byte[LiveProtocolConstants.FrameHeaderSize];
+            var requestBuffer = new byte[LiveV2ProtocolConstants.FrameHeaderSize];
             var totalRead = 0;
             while (totalRead < requestBuffer.Length)
             {
@@ -208,8 +285,8 @@ public class LiveDaqCatalogServiceTests
                 totalRead += read;
             }
 
-            var header = LiveProtocolReader.ParseHeader(requestBuffer);
-            Assert.Equal(LiveFrameType.Identify, header.FrameType);
+            var header = LiveV2ProtocolReader.ParseHeader(requestBuffer);
+            Assert.Equal(LiveV2FrameType.Identify, header.FrameType);
             Assert.Equal((uint)0, header.PayloadLength);
 
             // Respond with IdentifyAck

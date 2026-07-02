@@ -4,9 +4,10 @@ public sealed record LiveDaqSharedStreamState(
     LiveConnectionState ConnectionState,
     string? LastError,
     LiveSessionHeader? SessionHeader,
-    LiveSensorMask SelectedSensorMask,
+    LiveStreamMask SelectedStreamMask,
     bool IsConfigurationLocked,
-    bool IsClosed)
+    bool IsClosed,
+    LiveProtocolVersion ProtocolVersion = LiveProtocolVersion.V2)
 {
     public LiveDaqClientDropCounters ClientDropCounters { get; init; } = LiveDaqClientDropCounters.Empty;
 
@@ -14,7 +15,8 @@ public sealed record LiveDaqSharedStreamState(
         ConnectionState: LiveConnectionState.Disconnected,
         LastError: null,
         SessionHeader: null,
-        SelectedSensorMask: LiveSensorMask.None,
+        SelectedStreamMask: LiveStreamMask.None,
         IsConfigurationLocked: false,
-        IsClosed: false);
+        IsClosed: false,
+        ProtocolVersion: LiveProtocolVersion.V2);
 }

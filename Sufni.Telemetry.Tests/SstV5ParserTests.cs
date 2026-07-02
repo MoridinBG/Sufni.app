@@ -349,6 +349,27 @@ public class SstV5ParserTests
         Assert.Equal(4, result.FinalStatus.Streams.Length);
     }
 
+    [Fact]
+    public void Inspect_MarkerDataWithMultipleSamples_ReturnsMalformed()
+    {
+        using var stream = SstV5TestFiles.CreateStream(
+            chunks:
+            [
+                SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream(), SstV5TestFiles.MarkerStream()),
+                SstV5TestFiles.TravelData(
+                    0,
+                    0,
+                    SstV5TestFiles.ForkTravel | SstV5TestFiles.ShockTravel,
+                    (1000, 2000)),
+                SstV5TestFiles.MarkerData(0, 1_000_000, 1, 1),
+                SstV5TestFiles.FinalStatus(SstV5TestFiles.OkStatus(), SstV5TestFiles.OkStatus())
+            ]);
+
+        var inspection = Assert.IsType<MalformedSstFileInspection>(RawTelemetryData.InspectStream(stream));
+
+        Assert.Equal((ushort)200, inspection.TelemetrySampleRate);
+    }
+
     [Theory]
     [InlineData((byte)0)]
     [InlineData((byte)3)]
@@ -445,5 +466,27 @@ public class SstV5ParserTests
         Assert.NotNull(result.FinalStatus);
         var streamStatus = Assert.Single(result.FinalStatus.Streams);
         Assert.Equal((byte)3, streamStatus.ProducerState);
+    }
+
+    [Fact]
+    public void Parse_FinalStatusWithSinkBacklog_ImportsAndStoresBacklog()
+    {
+        using var stream = SstV5TestFiles.CreateStream(
+            chunks:
+            [
+                SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream()),
+                SstV5TestFiles.TravelData(
+                    0,
+                    0,
+                    SstV5TestFiles.ForkTravel | SstV5TestFiles.ShockTravel,
+                    (1000, 2000)),
+                SstV5TestFiles.FinalStatus(new V5FinalStreamStatus(1, 0, 0, 0, 0, 0, SinkBacklogBatches: 12))
+            ]);
+
+        var result = RawTelemetryData.FromStream(stream);
+
+        Assert.NotNull(result.FinalStatus);
+        var streamStatus = Assert.Single(result.FinalStatus.Streams);
+        Assert.Equal((ushort)12, streamStatus.SinkBacklogBatches);
     }
 }

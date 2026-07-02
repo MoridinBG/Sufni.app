@@ -4,17 +4,17 @@ using Sufni.Telemetry;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 namespace Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
 
-public class LiveProtocolReaderTests
+public class LiveV2ProtocolReaderTests
 {
     [Fact]
     public void TryReadFrame_WaitsForCompleteHeaderAndPayloadAcrossReads()
     {
-        var reader = new LiveProtocolReader();
+        var reader = new LiveV2ProtocolReader();
         var frameBytes = LiveProtocolTestFrames.CreateStartAckFrame(
             sequence: 5,
             result: LiveStartErrorCode.Busy,
             sessionId: 0,
-            selectedSensorMask: LiveSensorMask.None);
+            selectedStreamMask: LiveStreamMask.None);
 
         reader.Append(frameBytes.AsSpan(0, 10));
         Assert.False(reader.TryReadFrame(out var frame));
@@ -36,9 +36,9 @@ public class LiveProtocolReaderTests
     [Fact]
     public void TryReadFrame_PreservesUnreadBytesAcrossFrameConsumptionAndLaterAppend()
     {
-        var reader = new LiveProtocolReader();
-        var firstFrameBytes = LiveProtocolTestFrames.CreateStartAckFrame(sequence: 1, result: LiveStartErrorCode.Ok, sessionId: 501, selectedSensorMask: LiveSensorMask.Travel);
-        var secondFrameBytes = LiveProtocolTestFrames.CreateStartAckFrame(sequence: 2, result: LiveStartErrorCode.Busy, sessionId: 0, selectedSensorMask: LiveSensorMask.None);
+        var reader = new LiveV2ProtocolReader();
+        var firstFrameBytes = LiveProtocolTestFrames.CreateStartAckFrame(sequence: 1, result: LiveStartErrorCode.Ok, sessionId: 501, selectedStreamMask: LiveStreamMask.Travel);
+        var secondFrameBytes = LiveProtocolTestFrames.CreateStartAckFrame(sequence: 2, result: LiveStartErrorCode.Busy, sessionId: 0, selectedStreamMask: LiveStreamMask.None);
 
         reader.Append(firstFrameBytes);
         reader.Append(secondFrameBytes.AsSpan(0, 8));
@@ -60,7 +60,7 @@ public class LiveProtocolReaderTests
     [Fact]
     public void TryReadFrame_ThrowsWhenHeaderMagicIsInvalid()
     {
-        var reader = new LiveProtocolReader();
+        var reader = new LiveV2ProtocolReader();
         var frameBytes = LiveProtocolTestFrames.CreateStartAckFrame(sequence: 1);
         frameBytes[0] = 0;
 
@@ -75,7 +75,7 @@ public class LiveProtocolReaderTests
         byte[] boardSerial = [0xAA, 0xBB, 0xCC, 0xDD, 0x11, 0x22, 0x33, 0x44];
         var frameBytes = LiveProtocolTestFrames.CreateIdentifyAckFrame(sequence: 3, boardSerial: boardSerial);
 
-        var frame = Assert.IsType<LiveIdentifyAckFrame>(LiveProtocolReader.ParseFrame(frameBytes));
+        var frame = Assert.IsType<LiveIdentifyAckFrame>(LiveV2ProtocolReader.ParseFrame(frameBytes));
 
         Assert.Equal((uint)3, frame.Sequence);
         Assert.Equal(boardSerial, frame.Payload.BoardSerial);
@@ -89,9 +89,13 @@ public class LiveProtocolReaderTests
             acceptedSensorMask: LiveSensorInstanceMask.ForkTravel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.RearImu);
         var frameBytes = LiveProtocolTestFrames.CreateSessionHeaderFrame(7, sessionHeader);
 
-        var frame = Assert.IsType<LiveSessionHeaderFrame>(LiveProtocolReader.ParseFrame(frameBytes));
+        var frame = Assert.IsType<LiveSessionHeaderFrame>(LiveV2ProtocolReader.ParseFrame(frameBytes));
 
         Assert.Equal(sessionHeader.SessionId, frame.Payload.SessionId);
+        Assert.Equal(LiveProtocolVersion.V2, frame.Payload.ProtocolVersion);
+        Assert.Equal(sessionHeader.AcceptedTravelRateMhz, frame.Payload.AcceptedTravelRateMhz);
+        Assert.Equal(sessionHeader.AcceptedImuRateMhz, frame.Payload.AcceptedImuRateMhz);
+        Assert.Equal(sessionHeader.AcceptedGpsRateMhz, frame.Payload.AcceptedGpsRateMhz);
         Assert.Equal(sessionHeader.ActiveImuMask, frame.Payload.ActiveImuMask);
         Assert.Equal(sessionHeader.RequestedSensorMask, frame.Payload.RequestedSensorMask);
         Assert.Equal(sessionHeader.AcceptedSensorMask, frame.Payload.AcceptedSensorMask);
@@ -106,26 +110,42 @@ public class LiveProtocolReaderTests
     {
         var request = new LiveStartRequest(
             LiveSensorInstanceMask.ForkTravel | LiveSensorInstanceMask.RearImu | LiveSensorInstanceMask.Gps,
-            TravelHz: 100,
-            ImuHz: 200,
-            GpsFixHz: 10);
+            TravelRateMhz: 100_000,
+            ImuRateMhz: 200_500,
+            GpsRateMhz: 10_000);
 
-        var frameBytes = LiveProtocolReader.CreateStartLiveFrame(12, request);
+        var frameBytes = LiveV2ProtocolReader.CreateStartLiveFrame(12, request);
 
         Assert.Equal((ushort)2, BinaryPrimitives.ReadUInt16LittleEndian(frameBytes.AsSpan(4, 2)));
         Assert.Equal((uint)LiveSensorInstanceMask.ForkTravel | (uint)LiveSensorInstanceMask.RearImu | (uint)LiveSensorInstanceMask.Gps, BinaryPrimitives.ReadUInt32LittleEndian(frameBytes.AsSpan(16, 4)));
         Assert.Equal((uint)100, BinaryPrimitives.ReadUInt32LittleEndian(frameBytes.AsSpan(20, 4)));
-        Assert.Equal((uint)200, BinaryPrimitives.ReadUInt32LittleEndian(frameBytes.AsSpan(24, 4)));
+        Assert.Equal((uint)201, BinaryPrimitives.ReadUInt32LittleEndian(frameBytes.AsSpan(24, 4)));
         Assert.Equal((uint)10, BinaryPrimitives.ReadUInt32LittleEndian(frameBytes.AsSpan(28, 4)));
+    }
+
+    [Fact]
+    public void CreateStartLiveFrame_WritesZeroForSubHzRequestedRates()
+    {
+        var request = new LiveStartRequest(
+            LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu | LiveSensorInstanceMask.Gps,
+            TravelRateMhz: 999,
+            ImuRateMhz: 500,
+            GpsRateMhz: 1);
+
+        var frameBytes = LiveV2ProtocolReader.CreateStartLiveFrame(12, request);
+
+        Assert.Equal((uint)0, BinaryPrimitives.ReadUInt32LittleEndian(frameBytes.AsSpan(20, 4)));
+        Assert.Equal((uint)0, BinaryPrimitives.ReadUInt32LittleEndian(frameBytes.AsSpan(24, 4)));
+        Assert.Equal((uint)0, BinaryPrimitives.ReadUInt32LittleEndian(frameBytes.AsSpan(28, 4)));
     }
 
     [Fact]
     public void TryReadFrame_ThrowsWhenPayloadLengthExceedsMaximum()
     {
-        var reader = new LiveProtocolReader();
+        var reader = new LiveV2ProtocolReader();
         var header = CreateRawFrameHeader(
-            frameType: (LiveFrameType)0xFFFF,
-            payloadLength: (uint)(LiveProtocolConstants.MaxPayloadLength + 1),
+            frameType: (LiveV2FrameType)0xFFFF,
+            payloadLength: (uint)(LiveV2ProtocolConstants.MaxPayloadLength + 1),
             sequence: 1);
 
         reader.Append(header);
@@ -136,9 +156,9 @@ public class LiveProtocolReaderTests
     [Fact]
     public void TryReadFrame_SkipsUnknownFrameType_AndReturnsNextKnownFrame()
     {
-        var reader = new LiveProtocolReader();
+        var reader = new LiveV2ProtocolReader();
         var unknownFrame = CreateRawFrameHeader(
-            frameType: (LiveFrameType)0xFFFF,
+            frameType: (LiveV2FrameType)0xFFFF,
             payloadLength: 0,
             sequence: 1);
         var knownFrame = LiveProtocolTestFrames.CreateStartAckFrame(sequence: 2, result: LiveStartErrorCode.Ok);
@@ -172,7 +192,7 @@ public class LiveProtocolReaderTests
             sessionId: 88,
             validRecord: valid);
 
-        var frame = Assert.IsType<LiveGpsBatchFrame>(LiveProtocolReader.ParseFrame(frameBytes));
+        var frame = Assert.IsType<LiveGpsBatchFrame>(LiveV2ProtocolReader.ParseFrame(frameBytes));
 
         var decoded = Assert.Single(frame.Records);
         Assert.Equal(valid.Timestamp, decoded.Timestamp);
@@ -204,7 +224,7 @@ public class LiveProtocolReaderTests
             validRecord: valid,
             invalidDate: invalidDate);
 
-        var frame = Assert.IsType<LiveGpsBatchFrame>(LiveProtocolReader.ParseFrame(frameBytes));
+        var frame = Assert.IsType<LiveGpsBatchFrame>(LiveV2ProtocolReader.ParseFrame(frameBytes));
 
         var decoded = Assert.Single(frame.Records);
         Assert.Equal(valid.Timestamp, decoded.Timestamp);
@@ -226,7 +246,7 @@ public class LiveProtocolReaderTests
             Epe3d: 2.2f);
         var frameBytes = LiveProtocolTestFrames.CreateGpsBatchFrame(sequence: 9, sessionId: 88, record: record);
 
-        var frame = Assert.IsType<LiveGpsBatchFrame>(LiveProtocolReader.ParseFrame(frameBytes));
+        var frame = Assert.IsType<LiveGpsBatchFrame>(LiveV2ProtocolReader.ParseFrame(frameBytes));
 
         Assert.Equal((uint)88, frame.Batch.SessionId);
         var decoded = Assert.Single(frame.Records);
@@ -237,11 +257,11 @@ public class LiveProtocolReaderTests
         Assert.Equal(record.Satellites, decoded.Satellites);
     }
 
-    private static byte[] CreateRawFrameHeader(LiveFrameType frameType, uint payloadLength, uint sequence)
+    private static byte[] CreateRawFrameHeader(LiveV2FrameType frameType, uint payloadLength, uint sequence)
     {
-        var header = new byte[LiveProtocolConstants.FrameHeaderSize];
-        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(0, 4), LiveProtocolConstants.Magic);
-        BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(4, 2), LiveProtocolConstants.Version);
+        var header = new byte[LiveV2ProtocolConstants.FrameHeaderSize];
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(0, 4), LiveV2ProtocolConstants.Magic);
+        BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(4, 2), LiveV2ProtocolConstants.Version);
         BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(6, 2), (ushort)frameType);
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(8, 4), payloadLength);
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(12, 4), sequence);
@@ -255,7 +275,7 @@ public class LiveProtocolReaderTests
         uint invalidDate = 0)
     {
         const int records = 2;
-        var payload = new byte[LiveProtocolConstants.BatchHeaderSize + records * LiveProtocolConstants.GpsRecordSize];
+        var payload = new byte[LiveV2ProtocolConstants.BatchHeaderSize + records * LiveV2ProtocolConstants.GpsRecordSize];
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(0, 4), sessionId);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4, 4), 1);
         BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(8, 8), 0);
@@ -263,9 +283,9 @@ public class LiveProtocolReaderTests
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(24, 4), records);
 
         // First record: invalid date, simulating no-fix or impossible firmware output.
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(LiveProtocolConstants.BatchHeaderSize, 4), invalidDate);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(LiveV2ProtocolConstants.BatchHeaderSize, 4), invalidDate);
 
-        var validOffset = LiveProtocolConstants.BatchHeaderSize + LiveProtocolConstants.GpsRecordSize;
+        var validOffset = LiveV2ProtocolConstants.BatchHeaderSize + LiveV2ProtocolConstants.GpsRecordSize;
         var timestamp = validRecord.Timestamp.ToUniversalTime();
         var date = (uint)(timestamp.Year * 10000 + timestamp.Month * 100 + timestamp.Day);
         var timeMs = (uint)timestamp.TimeOfDay.TotalMilliseconds;
@@ -281,6 +301,6 @@ public class LiveProtocolReaderTests
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(validOffset + 38, 4), BitConverter.SingleToInt32Bits(validRecord.Epe2d));
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(validOffset + 42, 4), BitConverter.SingleToInt32Bits(validRecord.Epe3d));
 
-        return LiveProtocolReader.CreateFrame(LiveFrameType.GpsBatch, sequence, payload);
+        return LiveV2ProtocolReader.CreateFrame(LiveV2FrameType.GpsBatch, sequence, payload);
     }
 }

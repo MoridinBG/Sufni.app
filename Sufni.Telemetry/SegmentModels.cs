@@ -44,6 +44,7 @@ public class SstStreamFinalStatus
     public byte StreamKind { get; set; }
     public byte ProducerState { get; set; }
     public byte ProducerFailureReason { get; set; }
+    public ushort SinkBacklogBatches { get; set; }
     public ulong ProducerMissedCount { get; set; }
     public ulong ProducerMissingTimeUs { get; set; }
     public ulong SinkMissedCount { get; set; }

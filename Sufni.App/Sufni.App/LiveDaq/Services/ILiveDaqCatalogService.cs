@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
 
 namespace Sufni.App.LiveDaq.Services;
 
@@ -8,7 +9,8 @@ public sealed record LiveDaqCatalogEntry(
     string DisplayName,
     string? BoardId,
     string Host,
-    int Port)
+    int Port,
+    LiveProtocolVersion ProtocolVersion = LiveProtocolVersion.V2)
 {
     public string Endpoint => $"{Host}:{Port}";
 }

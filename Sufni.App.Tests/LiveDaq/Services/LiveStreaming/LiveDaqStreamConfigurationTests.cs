@@ -10,6 +10,9 @@ public class LiveDaqStreamConfigurationTests
         var configuration = LiveDaqStreamConfiguration.Default;
 
         Assert.Equal(LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu, configuration.RequestedSensorMask);
+        Assert.Equal((uint)200_000, configuration.TravelRateMhz);
+        Assert.Equal((uint)200_000, configuration.ImuRateMhz);
+        Assert.Equal((uint)0, configuration.GpsRateMhz);
         Assert.Equal((uint)200, configuration.TravelHz);
         Assert.Equal((uint)200, configuration.ImuHz);
         Assert.Equal((uint)0, configuration.GpsFixHz);
@@ -20,16 +23,16 @@ public class LiveDaqStreamConfigurationTests
     {
         var configuration = new LiveDaqStreamConfiguration(
             RequestedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu | LiveSensorInstanceMask.Gps,
-            TravelHz: 0,
-            ImuHz: 200,
-            GpsFixHz: 0);
+            TravelRateMhz: 0,
+            ImuRateMhz: 200_000,
+            GpsRateMhz: 0);
 
         var request = configuration.ToStartRequest();
 
         Assert.Equal(LiveSensorInstanceMask.Imu, request.RequestedSensorMask);
-        Assert.Equal((uint)0, request.TravelHz);
-        Assert.Equal((uint)200, request.ImuHz);
-        Assert.Equal((uint)0, request.GpsFixHz);
+        Assert.Equal((uint)0, request.TravelRateMhz);
+        Assert.Equal((uint)200_000, request.ImuRateMhz);
+        Assert.Equal((uint)0, request.GpsRateMhz);
     }
 
     [Fact]
@@ -42,5 +45,11 @@ public class LiveDaqStreamConfigurationTests
         Assert.Equal(LiveSensorInstanceMask.Travel, travelOnly.RequestedSensorMask);
         Assert.Equal(LiveSensorInstanceMask.Imu, imuOnly.RequestedSensorMask);
         Assert.Equal(LiveSensorInstanceMask.Gps, gpsOnly.RequestedSensorMask);
+        Assert.Equal((uint)100_000, travelOnly.TravelRateMhz);
+        Assert.Equal((uint)200_000, imuOnly.ImuRateMhz);
+        Assert.Equal((uint)10_000, gpsOnly.GpsRateMhz);
+        Assert.Equal((uint)100, travelOnly.TravelHz);
+        Assert.Equal((uint)200, imuOnly.ImuHz);
+        Assert.Equal((uint)10, gpsOnly.GpsFixHz);
     }
 }

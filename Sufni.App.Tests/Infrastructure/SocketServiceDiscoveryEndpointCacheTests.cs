@@ -41,4 +41,24 @@ public class SocketServiceDiscoveryEndpointCacheTests
 
         Assert.False(removed);
     }
+
+    [Fact]
+    public void TryRemove_UsesInstanceName_WhenProvided()
+    {
+        var announcedAddress = IPAddress.Parse("192.168.0.10");
+        var firstConnectable = IPAddress.Parse("192.168.0.11");
+        var secondConnectable = IPAddress.Parse("192.168.0.12");
+        var cache = new SocketServiceDiscoveryEndpointCache();
+
+        cache.Add("daq-a", new[] { announcedAddress }, 5575, firstConnectable);
+        cache.Add("daq-b", new[] { announcedAddress }, 5575, secondConnectable);
+
+        var removedFirst = cache.TryRemove("daq-a", new[] { announcedAddress }, 5575, out var firstEmittedAddress);
+        var removedSecond = cache.TryRemove("daq-b", new[] { announcedAddress }, 5575, out var secondEmittedAddress);
+
+        Assert.True(removedFirst);
+        Assert.True(removedSecond);
+        Assert.Equal(firstConnectable, firstEmittedAddress);
+        Assert.Equal(secondConnectable, secondEmittedAddress);
+    }
 }

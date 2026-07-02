@@ -88,9 +88,9 @@ mc:Ignorable="d">
                     CornerRadius="8">
                         <StackPanel Spacing="6">
                             <TextBlock FontSize="16" FontWeight="SemiBold" Text="Accepted Session" />
-                            <TextBlock x:Name="AcceptedTravelRateTextBlock" Text="{Binding Snapshot.Session.AcceptedTravelHz, StringFormat='Travel: {0} Hz'}" />
-                            <TextBlock x:Name="AcceptedImuRateTextBlock" Text="{Binding Snapshot.Session.AcceptedImuHz, StringFormat='IMU: {0} Hz'}" />
-                            <TextBlock x:Name="AcceptedGpsRateTextBlock" Text="{Binding Snapshot.Session.AcceptedGpsFixHz, StringFormat='GPS: {0} Hz'}" />
+                            <TextBlock x:Name="AcceptedTravelRateTextBlock" Text="{Binding Snapshot.Session.AcceptedTravelRateText}" />
+                            <TextBlock x:Name="AcceptedImuRateTextBlock" Text="{Binding Snapshot.Session.AcceptedImuRateText}" />
+                            <TextBlock x:Name="AcceptedGpsRateTextBlock" Text="{Binding Snapshot.Session.AcceptedGpsRateText}" />
                         </StackPanel>
                     </Border>
 

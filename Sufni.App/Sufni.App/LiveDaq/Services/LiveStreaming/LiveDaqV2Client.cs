@@ -21,7 +21,7 @@ namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 // with Task.Factory.StartNew. Start/stop handshakes use a TaskCompletionSource that the caller
 // awaits while the parse loop completes it on the matching ACK or error frame. All state mutations
 // are serialized through lifecycleGate.
-internal sealed class LiveDaqClient : ILiveDaqClient
+internal sealed class LiveDaqV2Client : ILiveDaqClient
 {
     // Default upper bound on the STOP_ACK wait so an unresponsive firmware cannot
     // hang StopPreviewAsync indefinitely when the caller passed CancellationToken.None.
@@ -30,7 +30,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
     private const int DefaultParsedTelemetryFrameCapacity = 256;
     private const ulong DropCounterPublishStride = 64;
 
-    private static readonly ILogger logger = Log.ForContext<LiveDaqClient>();
+    private static readonly ILogger logger = Log.ForContext<LiveDaqV2Client>();
 
     private readonly TimeSpan stopAckTimeout;
     private readonly int rawTelemetryFrameCapacity;
@@ -45,7 +45,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
     // completions, stream/CTS swaps, disposed flag) never interleave.
     private readonly SemaphoreSlim lifecycleGate = new(1, 1);
 
-    private readonly record struct RawFrameEnvelope(LiveFrameHeader Header, byte[] FrameBytes);
+    private readonly record struct RawFrameEnvelope(LiveV2FrameHeader Header, byte[] FrameBytes);
 
     private TcpClient? tcpClient;
     private NetworkStream? stream;
@@ -67,22 +67,22 @@ internal sealed class LiveDaqClient : ILiveDaqClient
     private bool isDisposed;
     private bool intentionalDisconnect;
 
-    public LiveDaqClient()
+    public LiveDaqV2Client()
         : this(DefaultStopAckTimeout, static () => new TcpClient(), SendFrameAsync)
     {
     }
 
-    internal LiveDaqClient(TimeSpan stopAckTimeout)
+    internal LiveDaqV2Client(TimeSpan stopAckTimeout)
         : this(stopAckTimeout, static () => new TcpClient(), SendFrameAsync)
     {
     }
 
-    internal LiveDaqClient(TimeSpan stopAckTimeout, Func<TcpClient> tcpClientFactory)
+    internal LiveDaqV2Client(TimeSpan stopAckTimeout, Func<TcpClient> tcpClientFactory)
         : this(stopAckTimeout, tcpClientFactory, SendFrameAsync)
     {
     }
 
-    internal LiveDaqClient(
+    internal LiveDaqV2Client(
         TimeSpan stopAckTimeout,
         Func<TcpClient> tcpClientFactory,
         Func<NetworkStream, byte[], CancellationToken, Task> sendFrameAsync,
@@ -199,12 +199,12 @@ internal sealed class LiveDaqClient : ILiveDaqClient
             pendingStartResult = tcs;
             startAckAwaitingHeader = null;
             logger.Debug(
-                "Sending live DAQ preview start request with sensors {SensorMask}, travel {TravelHz}, imu {ImuHz}, gps {GpsFixHz}",
+                "Sending live DAQ preview start request with sensors {SensorMask}, travel {TravelRateMhz} mHz, imu {ImuRateMhz} mHz, gps {GpsRateMhz} mHz",
                 request.RequestedSensorMask,
-                request.TravelHz,
-                request.ImuHz,
-                request.GpsFixHz);
-            var frame = LiveProtocolReader.CreateStartLiveFrame(GetNextSequence(), request);
+                request.TravelRateMhz,
+                request.ImuRateMhz,
+                request.GpsRateMhz);
+            var frame = LiveV2ProtocolReader.CreateStartLiveFrame(GetNextSequence(), request);
             await sendFrameAsync(stream, frame, cancellationToken);
             task = tcs.Task;
         }
@@ -258,7 +258,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
             var tcs = new TaskCompletionSource<uint>(TaskCreationOptions.RunContinuationsAsynchronously);
             pendingStopAck = tcs;
             logger.Debug("Sending live DAQ preview stop request");
-            var frame = LiveProtocolReader.CreateStopLiveFrame(GetNextSequence());
+            var frame = LiveV2ProtocolReader.CreateStopLiveFrame(GetNextSequence());
             await sendFrameAsync(stream, frame, cancellationToken);
             waitTask = tcs.Task;
         }
@@ -324,7 +324,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
             {
                 try
                 {
-                    var frame = LiveProtocolReader.CreateStopLiveFrame(GetNextSequence());
+                    var frame = LiveV2ProtocolReader.CreateStopLiveFrame(GetNextSequence());
                     await sendFrameAsync(stream, frame, cancellationToken).ConfigureAwait(false);
                 }
                 catch (Exception ex)
@@ -436,7 +436,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
         ChannelWriter<RawFrameEnvelope>? writer = null;
         try
         {
-            var headerBytes = new byte[LiveProtocolConstants.FrameHeaderSize];
+            var headerBytes = new byte[LiveV2ProtocolConstants.FrameHeaderSize];
             var skipBuffer = new byte[16 * 1024];
             writer = rawTelemetryFrames?.Writer;
             while (!cancellationToken.IsCancellationRequested)
@@ -452,7 +452,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
                     return;
                 }
 
-                var header = LiveProtocolReader.ParseHeader(headerBytes);
+                var header = LiveV2ProtocolReader.ParseHeader(headerBytes);
                 if (!IsKnownFrameType(header.FrameType))
                 {
                     await SkipPayloadAsync(currentStream, header.PayloadLength, skipBuffer, cancellationToken);
@@ -472,7 +472,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
                     Buffer.BlockCopy(headerBytes, 0, frameBytes, 0, headerBytes.Length);
                     if (!await TryReadExactAsync(
                         currentStream,
-                        frameBytes.AsMemory(LiveProtocolConstants.FrameHeaderSize),
+                        frameBytes.AsMemory(LiveV2ProtocolConstants.FrameHeaderSize),
                         cancellationToken))
                     {
                         ReleaseRawTelemetryFrame();
@@ -492,13 +492,13 @@ internal sealed class LiveDaqClient : ILiveDaqClient
                 Buffer.BlockCopy(headerBytes, 0, controlFrameBytes, 0, headerBytes.Length);
                 if (!await TryReadExactAsync(
                     currentStream,
-                    controlFrameBytes.AsMemory(LiveProtocolConstants.FrameHeaderSize),
+                    controlFrameBytes.AsMemory(LiveV2ProtocolConstants.FrameHeaderSize),
                     cancellationToken))
                 {
                     return;
                 }
 
-                var frame = LiveProtocolReader.ParseFrame(controlFrameBytes);
+                var frame = LiveV2ProtocolReader.ParseFrame(controlFrameBytes);
                 await HandleFrameAsync(frame);
             }
         }
@@ -532,7 +532,7 @@ internal sealed class LiveDaqClient : ILiveDaqClient
             await foreach (var rawFrame in readerChannel.ReadAllAsync())
             {
                 ReleaseRawTelemetryFrame();
-                var frame = LiveProtocolReader.ParseFrame(rawFrame.FrameBytes);
+                var frame = LiveV2ProtocolReader.ParseFrame(rawFrame.FrameBytes);
                 if (writer is null || !TryReserveParsedTelemetryFrame())
                 {
                     NoteDropCounters(LiveDaqClientDropCounters.Empty with { ParsedTelemetryFramesDropped = 1 });
@@ -670,30 +670,30 @@ internal sealed class LiveDaqClient : ILiveDaqClient
         Interlocked.Decrement(ref parsedTelemetryFramesInFlight);
     }
 
-    private static bool IsTelemetryFrameType(LiveFrameType frameType) => frameType switch
+    private static bool IsTelemetryFrameType(LiveV2FrameType frameType) => frameType switch
     {
-        LiveFrameType.TravelBatch => true,
-        LiveFrameType.ImuBatch => true,
-        LiveFrameType.GpsBatch => true,
+        LiveV2FrameType.TravelBatch => true,
+        LiveV2FrameType.ImuBatch => true,
+        LiveV2FrameType.GpsBatch => true,
         _ => false,
     };
 
-    private static bool IsKnownFrameType(LiveFrameType frameType) => frameType switch
+    private static bool IsKnownFrameType(LiveV2FrameType frameType) => frameType switch
     {
-        LiveFrameType.StartLive => true,
-        LiveFrameType.StopLive => true,
-        LiveFrameType.Ping => true,
-        LiveFrameType.Identify => true,
-        LiveFrameType.StartLiveAck => true,
-        LiveFrameType.StopLiveAck => true,
-        LiveFrameType.Error => true,
-        LiveFrameType.Pong => true,
-        LiveFrameType.IdentifyAck => true,
-        LiveFrameType.SessionHeader => true,
-        LiveFrameType.TravelBatch => true,
-        LiveFrameType.ImuBatch => true,
-        LiveFrameType.GpsBatch => true,
-        LiveFrameType.SessionStats => true,
+        LiveV2FrameType.StartLive => true,
+        LiveV2FrameType.StopLive => true,
+        LiveV2FrameType.Ping => true,
+        LiveV2FrameType.Identify => true,
+        LiveV2FrameType.StartLiveAck => true,
+        LiveV2FrameType.StopLiveAck => true,
+        LiveV2FrameType.Error => true,
+        LiveV2FrameType.Pong => true,
+        LiveV2FrameType.IdentifyAck => true,
+        LiveV2FrameType.SessionHeader => true,
+        LiveV2FrameType.TravelBatch => true,
+        LiveV2FrameType.ImuBatch => true,
+        LiveV2FrameType.GpsBatch => true,
+        LiveV2FrameType.SessionStats => true,
         _ => false,
     };
 
@@ -750,9 +750,9 @@ internal sealed class LiveDaqClient : ILiveDaqClient
                     if (startAckFrame.Payload.Result == LiveStartErrorCode.Ok)
                     {
                         logger.Debug(
-                            "Received live DAQ preview start ACK for session {SessionId} with sensors {SelectedSensorMask}",
+                            "Received live DAQ preview start ACK for session {SessionId} with sensors {SelectedStreamMask}",
                             startAckFrame.Payload.SessionId,
-                            startAckFrame.Payload.SelectedSensorMask);
+                            startAckFrame.Payload.SelectedStreamMask);
                         startAckAwaitingHeader = startAckFrame.Payload;
                     }
                     else

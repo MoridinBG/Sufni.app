@@ -84,6 +84,77 @@ public class TelemetryDataLiveCaptureTests
         Assert.False(result.Rear.Present);
     }
 
+    [Fact]
+    public void FromLiveCapture_WithSegmentedTravel_PreservesGapsAndFinalStatus()
+    {
+        var finalStatus = new SstFinalStatus
+        {
+            SessionResultReason = 1,
+            StoppedMonotonicDeltaUs = 700_000,
+            Streams =
+            [
+                new SstStreamFinalStatus
+                {
+                    StreamKind = SstV5ProtocolConstants.StreamTravel,
+                    ProducerState = 1,
+                }
+            ],
+        };
+        var capture = new LiveTelemetryCapture(
+            Metadata: new Metadata
+            {
+                SourceName = "live",
+                Version = 4,
+                SampleRate = 100,
+                Timestamp = 1_704_164_646,
+                Duration = 0.7,
+            },
+            BikeData: CreateBikeData(),
+            FrontSegments:
+            [
+                new RawCountSegment
+                {
+                    FirstIndex = 0,
+                    FirstMonotonicDeltaUs = 0,
+                    Counts = Enumerable.Range(0, 32).Select(index => (ushort)(1000 + index)).ToArray(),
+                },
+                new RawCountSegment
+                {
+                    FirstIndex = 36,
+                    FirstMonotonicDeltaUs = 360_000,
+                    Counts = Enumerable.Range(0, 32).Select(index => (ushort)(1100 + index)).ToArray(),
+                },
+            ],
+            RearSegments: [],
+            ImuData: null,
+            GpsData: null,
+            Markers: [],
+            StreamGaps:
+            [
+                new RawStreamGap
+                {
+                    StreamKind = SstV5ProtocolConstants.StreamTravel,
+                    LocationId = (byte)SstV5ProtocolConstants.SensorForkTravel,
+                    FirstMissingIndex = 32,
+                    MissingCount = 4,
+                    MissingTimeUs = 40_000,
+                    Reason = "index_gap",
+                },
+            ],
+            FinalStatus: finalStatus,
+            MissingFinalStatus: false);
+
+        var result = TelemetryData.FromLiveCapture(capture);
+
+        Assert.Equal(5, result.Metadata.Version);
+        Assert.True(result.Front.Present);
+        Assert.True(result.Front.HasGaps);
+        Assert.False(result.Rear.Present);
+        Assert.Single(result.StreamGaps);
+        Assert.Same(finalStatus, result.FinalStatus);
+        Assert.False(result.MissingFinalStatus);
+    }
+
     private static ushort[] BuildSignalWithSpike(ushort baseline, int length, int spikeIndex, ushort spikeValue)
     {
         var samples = new ushort[length];

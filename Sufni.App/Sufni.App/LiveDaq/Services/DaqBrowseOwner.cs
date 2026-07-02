@@ -8,9 +8,9 @@ namespace Sufni.App.LiveDaq.Services;
 
 // Shares one keyed DAQ browse session across multiple feature consumers by using
 // disposable leases rather than global start/stop ownership.
-internal sealed class DaqBrowseOwner([FromKeyedServices("gosst")] IServiceDiscovery serviceDiscovery) : IDaqBrowseOwner
+internal sealed class DaqBrowseOwner([FromKeyedServices("daq")] IServiceDiscovery serviceDiscovery) : IDaqBrowseOwner
 {
-    private const string ServiceType = "_gosst._tcp";
+    private const string ServiceType = "_sufni._tcp";
     private static readonly ILogger logger = Log.ForContext<DaqBrowseOwner>();
 
     private readonly System.Threading.Lock gate = new();

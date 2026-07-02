@@ -34,14 +34,19 @@ public static class RecordedSessionSourceFactory
 
     public static RecordedSessionSource CreateLiveCapture(Guid sessionId, LiveTelemetryCapture capture)
     {
-        var payload = new RecordedLiveCaptureSourcePayload(
-            SchemaVersion,
-            capture.Metadata,
-            capture.FrontMeasurements,
-            capture.RearMeasurements,
-            capture.ImuData,
-            capture.GpsData,
-            capture.Markers);
+        var payload = new RecordedLiveCaptureSourcePayload
+        {
+            SchemaVersion = SchemaVersion,
+            Metadata = capture.Metadata,
+            FrontSegments = capture.FrontSegments,
+            RearSegments = capture.RearSegments,
+            ImuData = capture.ImuData,
+            GpsData = capture.GpsData,
+            Markers = capture.Markers,
+            StreamGaps = capture.StreamGaps,
+            FinalStatus = capture.FinalStatus,
+            MissingFinalStatus = capture.MissingFinalStatus,
+        };
         var payloadBytes = Encoding.UTF8.GetBytes(AppJson.Serialize(payload));
 
         return new RecordedSessionSource

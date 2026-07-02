@@ -24,7 +24,7 @@ public static class MobileAppBootstrapper
     {
         services.AddSingleton(_ => createSecureStorage());
         services.AddSingleton(_ => createFriendlyNameProvider());
-        services.AddKeyedSingleton<IServiceDiscovery>("gosst", (_, key) => createServiceDiscovery((string)key!));
+        services.AddKeyedSingleton<IServiceDiscovery>("daq", (_, key) => createServiceDiscovery((string)key!));
         services.AddKeyedSingleton<IServiceDiscovery>("sync", (_, key) => createServiceDiscovery((string)key!));
         services.AddSingleton(_ => createHapticFeedback());
         services.AddSingleton<ISynchronizationClientService>(sp => new SynchronizationClientService(

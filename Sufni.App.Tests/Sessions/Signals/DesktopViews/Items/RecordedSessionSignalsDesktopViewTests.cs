@@ -84,7 +84,7 @@ public class RecordedSessionSignalsDesktopViewTests
         Assert.NotNull(toolbarHost);
         var leadingCommandBar = toolbarHost.FindControl<CommandBar>("LeadingSignalToolbarCommandBar");
         Assert.NotNull(leadingCommandBar);
-        var button = Assert.Single(leadingCommandBar.PrimaryCommands.OfType<CommandBarButton>(), button => button.Label == "Desktop command");
+        var button = Assert.Single(leadingCommandBar!.PrimaryCommands.OfType<CommandBarButton>(), button => button.Label == "Desktop command");
         Assert.Equal("Desktop command", button.Label);
         Assert.Same(command, button.Command);
         var icon = Assert.IsType<Image>(button.Icon);

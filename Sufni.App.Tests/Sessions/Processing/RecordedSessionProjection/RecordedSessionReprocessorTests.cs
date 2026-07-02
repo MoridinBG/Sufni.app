@@ -1,4 +1,6 @@
+using System.Text;
 using System.Threading;
+using Sufni.App.Infrastructure;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
@@ -124,6 +126,101 @@ public class RecordedSessionReprocessorTests
     }
 
     [Fact]
+    public async Task ReprocessAsync_LiveCaptureSource_WithSegmentPayload_PreservesStreamGaps()
+    {
+        var sessionId = Guid.NewGuid();
+        var capture = new LiveTelemetryCapture(
+            Metadata: new Metadata
+            {
+                SourceName = "live-segmented",
+                Version = 4,
+                SampleRate = 100,
+                Timestamp = 1_700_000_000,
+                Duration = 0.7
+            },
+            BikeData: new BikeData(180, null, measurement => measurement / 10.0, null),
+            FrontSegments:
+            [
+                new RawCountSegment
+                {
+                    FirstIndex = 0,
+                    FirstMonotonicDeltaUs = 0,
+                    Counts = Enumerable.Range(0, 32).Select(sample => (ushort)(1200 + sample)).ToArray(),
+                },
+                new RawCountSegment
+                {
+                    FirstIndex = 36,
+                    FirstMonotonicDeltaUs = 360_000,
+                    Counts = Enumerable.Range(0, 32).Select(sample => (ushort)(1300 + sample)).ToArray(),
+                }
+            ],
+            RearSegments: [],
+            ImuData: null,
+            GpsData: null,
+            Markers: [],
+            StreamGaps:
+            [
+                new RawStreamGap
+                {
+                    StreamKind = SstV5ProtocolConstants.StreamTravel,
+                    LocationId = (byte)SstV5ProtocolConstants.SensorForkTravel,
+                    FirstMissingIndex = 32,
+                    MissingCount = 4,
+                    MissingTimeUs = 40_000,
+                    Reason = "index_gap",
+                }
+            ],
+            FinalStatus: null,
+            MissingFinalStatus: true);
+        var source = RecordedSessionSourceFactory.CreateLiveCapture(sessionId, capture);
+        var sourceJson = Encoding.UTF8.GetString(source.Payload);
+        var domain = CreateLiveCaptureDomain(source);
+        var reprocessor = new RecordedSessionReprocessor(new ProcessingFingerprintService());
+
+        var result = await reprocessor.ReprocessAsync(domain, source);
+
+        Assert.Contains("\"front_segments\"", sourceJson);
+        Assert.DoesNotContain("\"front_measurements\"", sourceJson);
+        Assert.Equal(5, result.TelemetryData.Metadata.Version);
+        Assert.True(result.TelemetryData.Front.HasGaps);
+        Assert.Single(result.TelemetryData.StreamGaps);
+        Assert.True(result.TelemetryData.MissingFinalStatus);
+    }
+
+    [Fact]
+    public async Task ReprocessAsync_LiveCaptureSource_WithOldFlatPayload_RebuildsDenseCapture()
+    {
+        var sessionId = Guid.NewGuid();
+        var payload = new RecordedLiveCaptureSourcePayload
+        {
+            SchemaVersion = 1,
+            Metadata = new Metadata
+            {
+                SourceName = "old-live",
+                Version = 4,
+                SampleRate = 100,
+                Timestamp = 1_700_000_000,
+                Duration = 0.64
+            },
+            FrontMeasurements = Enumerable.Range(0, 64).Select(sample => (ushort)(1200 + sample)).ToArray(),
+            RearMeasurements = [],
+            ImuData = null,
+            GpsData = null,
+            Markers = []
+        };
+        var source = CreateLiveCaptureSource(sessionId, "old-live", payload);
+        var domain = CreateLiveCaptureDomain(source);
+        var reprocessor = new RecordedSessionReprocessor(new ProcessingFingerprintService());
+
+        var result = await reprocessor.ReprocessAsync(domain, source);
+
+        Assert.Equal(4, result.TelemetryData.Metadata.Version);
+        Assert.NotEmpty(result.TelemetryData.Front.Travel);
+        Assert.False(result.TelemetryData.Front.HasGaps);
+        Assert.Empty(result.TelemetryData.StreamGaps);
+    }
+
+    [Fact]
     public void MetadataFromRaw_UsesRecordingDurationSecondsWhenPresent()
     {
         var raw = new RawTelemetryData
@@ -194,4 +291,52 @@ public class RecordedSessionReprocessorTests
         Assert.Equal(100, result.Fingerprint.VelocityFilterWindowMilliseconds);
     }
 
+    private static RecordedSessionDomainSnapshot CreateLiveCaptureDomain(RecordedSessionSource source)
+    {
+        var session = TestSnapshots.Session(id: source.SessionId, setupId: Guid.NewGuid());
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid()) with
+        {
+            HeadAngle = 63,
+            ForkStroke = 180
+        };
+        var setup = TestSnapshots.Setup(id: session.SetupId!.Value, bikeId: bike.Id) with
+        {
+            FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
+            {
+                Length = 10,
+                Resolution = 12
+            })
+        };
+
+        return new RecordedSessionDomainSnapshot(
+            session,
+            setup,
+            bike,
+            null,
+            null,
+            RecordedSessionSourceSnapshot.From(source),
+            new SessionStaleness.MissingProcessedData(),
+            DerivedChangeKind.None);
+    }
+
+    private static RecordedSessionSource CreateLiveCaptureSource(
+        Guid sessionId,
+        string sourceName,
+        RecordedLiveCaptureSourcePayload payload)
+    {
+        var payloadBytes = Encoding.UTF8.GetBytes(AppJson.Serialize(payload));
+        return new RecordedSessionSource
+        {
+            SessionId = sessionId,
+            SourceKind = RecordedSessionSourceKind.LiveCapture,
+            SourceName = sourceName,
+            SchemaVersion = 1,
+            SourceHash = RecordedSessionSourceHash.Compute(
+                RecordedSessionSourceKind.LiveCapture,
+                sourceName,
+                1,
+                payloadBytes),
+            Payload = payloadBytes
+        };
+    }
 }

@@ -53,6 +53,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private readonly CancellableOperation managementOperation = new();
     private string? managementHost;
     private int? managementPort;
+    private LiveProtocolVersion? managementProtocolVersion;
     private ILiveDaqSharedStreamLease? streamLease;
     private LiveDaqTravelCalibration? travelCalibration;
     private byte[]? pendingConfigBytes;
@@ -101,6 +102,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     public bool CanManage => Snapshot.ConnectionState is LiveConnectionState.Disconnected
         && !string.IsNullOrWhiteSpace(managementHost)
         && managementPort is > 0
+        && managementProtocolVersion == LiveProtocolVersion.V2
         && !IsManagementBusy;
 
     public bool CanUploadConfig => CanManage && HasPendingConfig;
@@ -143,6 +145,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         this.liveDaqStore = liveDaqStore;
         managementHost = snapshot.Host;
         managementPort = snapshot.Port;
+        managementProtocolVersion = snapshot.ProtocolVersion;
         ApplyRequestedRates(sharedStream.RequestedConfiguration);
         RefreshTravelCalibration();
         RefreshSharedStreamState();
@@ -601,7 +604,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private void RefreshSnapshot()
     {
         var state = sharedStream.CurrentState;
-        sessionState.ApplySharedSessionState(state.SessionHeader, state.SelectedSensorMask);
+        sessionState.ApplySharedSessionState(state.SessionHeader, state.SelectedStreamMask);
         Snapshot = sessionState.CreateSnapshot(state.ConnectionState, state.LastError);
     }
 
@@ -628,7 +631,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private void RefreshSharedStreamState()
     {
         var state = sharedStream.CurrentState;
-        sessionState.ApplySharedSessionState(state.SessionHeader, state.SelectedSensorMask);
+        sessionState.ApplySharedSessionState(state.SessionHeader, state.SelectedStreamMask);
         CanConnect = !state.IsClosed
             && state.ConnectionState == LiveConnectionState.Disconnected
             && HasRequestedSensors;
@@ -695,11 +698,13 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             Endpoint = endpointSnapshot.Endpoint;
             managementHost = endpointSnapshot.Host;
             managementPort = endpointSnapshot.Port;
+            managementProtocolVersion = endpointSnapshot.ProtocolVersion;
         }
         else
         {
             managementHost = null;
             managementPort = null;
+            managementProtocolVersion = null;
         }
 
         RefreshManagementAvailability();

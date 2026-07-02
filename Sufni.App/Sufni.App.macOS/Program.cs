@@ -1,5 +1,5 @@
 using Sufni.App.ExtensionHost.Contracts.Services;
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Native;
 using Microsoft.Extensions.DependencyInjection;
 using System;
@@ -21,7 +21,7 @@ namespace Sufni.App.macOS
         public static AppBuilder BuildAvaloniaApp()
         {
             App.ServiceCollection.AddSingleton<ISecureStorage, MacOsSecureStorage>();
-            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, BonjourServiceDiscovery>("gosst");
+            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, BonjourServiceDiscovery>("daq");
             DesktopAppBootstrapper.RegisterDesktopSync(App.ServiceCollection);
             RegisterPlatformExtensions(App.ServiceCollection);
             return DesktopAppBootstrapper.ConfigureAvaloniaApp(

@@ -130,4 +130,12 @@ public static class ViewTestHelpers
     {
         return root.GetVisualDescendants().OfType<T>().ToArray();
     }
+
+    public static T? FindNamedVisual<T>(this Control root, string name)
+        where T : Control
+    {
+        return root.GetVisualDescendants()
+            .OfType<T>()
+            .FirstOrDefault(control => control.Name == name);
+    }
 }

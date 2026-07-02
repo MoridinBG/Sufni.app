@@ -23,9 +23,9 @@ public sealed record LiveSessionControlState(
     public bool HasLastError => !string.IsNullOrWhiteSpace(LastError);
     public bool HasSessionHeader => SessionHeader is not null;
     public string SessionIdText => SessionHeader is null ? "Session: -" : $"Session: {SessionHeader.SessionId}";
-    public string AcceptedTravelRateText => SessionHeader is null ? "Travel: -" : $"Travel: {SessionHeader.AcceptedTravelHz} Hz";
-    public string AcceptedImuRateText => SessionHeader is null ? "IMU: -" : $"IMU: {SessionHeader.AcceptedImuHz} Hz";
-    public string AcceptedGpsRateText => SessionHeader is null ? "GPS: -" : $"GPS: {SessionHeader.AcceptedGpsFixHz} Hz";
+    public string AcceptedTravelRateText => LiveProtocolHelpers.FormatRateText("Travel", SessionHeader?.AcceptedTravelRateMhz);
+    public string AcceptedImuRateText => LiveProtocolHelpers.FormatRateText("IMU", SessionHeader?.AcceptedImuRateMhz);
+    public string AcceptedGpsRateText => LiveProtocolHelpers.FormatRateText("GPS", SessionHeader?.AcceptedGpsRateMhz);
 
     public static readonly LiveSessionControlState Empty = new(
         ConnectionState: LiveConnectionState.Disconnected,
@@ -40,4 +40,5 @@ public sealed record LiveSessionControlState(
         ImuDroppedBatches: 0,
         GpsDroppedBatches: 0,
         CanSave: false);
+
 }
