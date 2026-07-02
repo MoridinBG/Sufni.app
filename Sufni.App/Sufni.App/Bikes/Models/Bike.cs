@@ -244,6 +244,7 @@ internal sealed record BikeExportDocument(
     [property: JsonPropertyName("shock_stroke")]
     double? ShockStroke,
     [property: JsonPropertyName("rear_suspension")]
+    [property: JsonRequired]
     RearSuspensionSpec RearSuspension,
     [property: JsonPropertyName("damping_speed_cutoffs")]
     DampingSpeedCutoffs DampingSpeedCutoffs,

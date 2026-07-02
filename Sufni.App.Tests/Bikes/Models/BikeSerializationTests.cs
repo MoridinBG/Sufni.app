@@ -130,4 +130,21 @@ public class BikeSerializationTests
 
         Assert.Null(imported);
     }
+
+    [Fact]
+    public void BikeFromJson_RejectsVersionedExportWithoutRearSuspension()
+    {
+        var bike = new Bike(Guid.NewGuid(), "missing union bike")
+        {
+            HeadAngle = 64,
+            ForkStroke = 150,
+            RearSuspension = new RearSuspensionSpec.Hardtail(),
+        };
+        var root = JsonNode.Parse(bike.ToJson())!.AsObject();
+        root.Remove("rear_suspension");
+
+        var imported = Bike.FromJson(root.ToJsonString());
+
+        Assert.Null(imported);
+    }
 }
