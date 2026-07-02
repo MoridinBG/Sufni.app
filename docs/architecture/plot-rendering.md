@@ -93,7 +93,7 @@ outlined.
 | IMU      | `ImuPlot`                      | Per-location rolling vibration RMS from dynamic acceleration, plotted over time                                      |
 | IMU      | `FramePitchRollPlot`           | Frame-only pitch and roll in degrees, derived from accelerometer and gyro data                                      |
 | IMU      | `VibrationThirdsPlot`          | Grouped bars (compression / rebound / overall) of lower / middle / upper third vibration percentages                 |
-| Leverage | `LeverageRatioPlot`            | Travel-vs-leverage-ratio scatter from the kinematics solver; takes a `Sufni.Kinematics.CoordinateList`               |
+| Leverage | `LeverageRatioPlot`            | Travel-vs-leverage-ratio scatter from copied `Sufni.Kinematics.CoordinateList` data derived from `KinematicSolution` |
 | Live     | `LiveTravelPlot`               | Two `DataStreamer`s (front / rear), running-max Y autoscale, streaming smoother per channel                          |
 | Live     | `LiveVelocityPlot`             | Same shape as travel; converts mm/s batches to m/s before streaming, symmetric Y around zero                         |
 | Live     | `LiveImuPlot`                  | Three vibration RMS streamers (frame orange, fork blue, rear teal), running-max Y autoscale                         |

@@ -275,7 +275,7 @@ Examples:
 
 - import succeeds for valid bike JSON, and returns `InvalidFile` for malformed JSON
 - save succeeds with the current version, and returns `Conflict` for a stale version
-- analysis returns computed data for a valid linkage, and `Unavailable` for missing linkage
+- analysis returns computed data for a valid linkage spec, and `Unavailable` for an incomplete linkage draft
 - a background workflow applies its own result, and an older superseded workflow does not overwrite newer state
 
 This gives good branch coverage without degenerating into random-input testing.

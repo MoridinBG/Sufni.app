@@ -91,7 +91,7 @@ TLS validation is performed by `SynchronizationCertificateValidator.TryValidate(
 ```
 SynchronizationData
 ├── Boards[]
-├── Bikes[]
+├── Bikes[] (includes `rear_suspension` union JSON)
 ├── Setups[]
 ├── Sessions[] (metadata, tuning fields, full-track link, processing fingerprint; no blob)
 ├── Tracks[]
