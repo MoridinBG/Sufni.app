@@ -10,6 +10,7 @@ using ScottPlot.Avalonia;
 using ScottPlot.Plottables;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
@@ -20,6 +21,7 @@ using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Shared.Views.Controls;
 using Sufni.App.LiveDaq.Views.Controls;
+using Sufni.App.Shared.Views.Overlays;
 using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.LiveDaq.Views.Plots;
 
@@ -112,6 +114,62 @@ public class LiveSignalPlotViewTests
 
         batches.OnNext(CreateBatch(revision: 2));
         await FlushSignalBatchesAsync(travelView!);
+
+        Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(6, streamer.Data.CountTotal));
+
+        host.Close();
+        await ViewTestHelpers.FlushDispatcherAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task LiveSessionSignalsDesktopView_AppendsSignalBatches_WhileBorrowedIntoZoomOverlay()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsurePlotViewStyle();
+
+        var batches = new Subject<LiveSignalBatch>();
+        var workspace = new StubLiveSessionSignalsWorkspace(batches);
+        var view = new LiveSessionSignalsDesktopView
+        {
+            DataContext = workspace
+        };
+        var overlay = new PlotZoomOverlayHost();
+        var root = new Grid
+        {
+            Children =
+            {
+                view,
+                overlay,
+            },
+        };
+        var host = new Window
+        {
+            Width = 1200,
+            Height = 900,
+            Content = root
+        };
+
+        host.Show();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var travelView = GetNamedVisual<LiveTravelPlotView>(view, "TravelPlot");
+        var zoomContainer = Assert.Single(travelView.GetVisualAncestors().OfType<PlotZoomContainer>());
+
+        batches.OnNext(CreateBatch(revision: 1));
+        await FlushSignalBatchesAsync(travelView);
+
+        var travelPlot = GetRenderedPlot(travelView);
+        Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
+
+        zoomContainer.RaiseEvent(new PlotZoomRequestedEventArgs(zoomContainer));
+        await ViewTestHelpers.FlushDispatcherAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.True(overlay.IsZoomOpen);
+        Assert.True(zoomContainer.IsChildBorrowed);
+
+        batches.OnNext(CreateBatch(revision: 2));
+        await FlushSignalBatchesAsync(travelView);
 
         Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(6, streamer.Data.CountTotal));
 
