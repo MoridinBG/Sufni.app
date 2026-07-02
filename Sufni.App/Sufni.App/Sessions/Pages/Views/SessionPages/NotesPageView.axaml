@@ -117,12 +117,14 @@ mc:Ignorable="d">
         Name="ForkHscInput"
         Grid.Row="4"
         Grid.Column="3"
-        Value="{Binding ForkSettings.HighSpeedCompression}" />
+        Value="{Binding ForkSettings.HighSpeedCompression}"
+        ToolTip.Tip="High-speed compression damping, in clicks from fully closed." />
         <NumericUpDown
         Name="ShockHscInput"
         Grid.Row="4"
         Grid.Column="5"
-        Value="{Binding ShockSettings.HighSpeedCompression}" />
+        Value="{Binding ShockSettings.HighSpeedCompression}"
+        ToolTip.Tip="High-speed compression damping, in clicks from fully closed." />
 
         <!--  LSC row  -->
         <Label
@@ -134,11 +136,13 @@ mc:Ignorable="d">
         <NumericUpDown
         Grid.Row="5"
         Grid.Column="3"
-        Value="{Binding ForkSettings.LowSpeedCompression}" />
+        Value="{Binding ForkSettings.LowSpeedCompression}"
+        ToolTip.Tip="Low-speed compression damping, in clicks from fully closed." />
         <NumericUpDown
         Grid.Row="5"
         Grid.Column="5"
-        Value="{Binding ShockSettings.LowSpeedCompression}" />
+        Value="{Binding ShockSettings.LowSpeedCompression}"
+        ToolTip.Tip="Low-speed compression damping, in clicks from fully closed." />
 
         <!--  LSR row  -->
         <Label
@@ -150,11 +154,13 @@ mc:Ignorable="d">
         <NumericUpDown
         Grid.Row="6"
         Grid.Column="3"
-        Value="{Binding ForkSettings.LowSpeedRebound}" />
+        Value="{Binding ForkSettings.LowSpeedRebound}"
+        ToolTip.Tip="Low-speed rebound damping, in clicks from fully closed." />
         <NumericUpDown
         Grid.Row="6"
         Grid.Column="5"
-        Value="{Binding ShockSettings.LowSpeedRebound}" />
+        Value="{Binding ShockSettings.LowSpeedRebound}"
+        ToolTip.Tip="Low-speed rebound damping, in clicks from fully closed." />
 
         <!--  HSR row  -->
         <Label
@@ -167,11 +173,13 @@ mc:Ignorable="d">
         Name="ForkHsrInput"
         Grid.Row="7"
         Grid.Column="3"
-        Value="{Binding ForkSettings.HighSpeedRebound}" />
+        Value="{Binding ForkSettings.HighSpeedRebound}"
+        ToolTip.Tip="High-speed rebound damping, in clicks from fully closed." />
         <NumericUpDown
         Name="ShockHsrInput"
         Grid.Row="7"
         Grid.Column="5"
-        Value="{Binding ShockSettings.HighSpeedRebound}" />
+        Value="{Binding ShockSettings.HighSpeedRebound}"
+        ToolTip.Tip="High-speed rebound damping, in clicks from fully closed." />
     </Grid>
 </UserControl>

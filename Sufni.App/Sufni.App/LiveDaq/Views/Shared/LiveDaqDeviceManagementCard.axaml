@@ -27,7 +27,8 @@
                     HorizontalAlignment="Stretch"
                     Command="{Binding SetTimeCommand}"
                     Content="Set Time"
-                    IsEnabled="{Binding CanManage}" />
+                    IsEnabled="{Binding CanManage}"
+                    ToolTip.Tip="Sets the device clock to this computer's time." />
             </Border>
 
             <Border Name="EditConfigButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
@@ -36,7 +37,8 @@
                     HorizontalAlignment="Stretch"
                     Command="{Binding EditConfigCommand}"
                     Content="Edit CONFIG"
-                    IsEnabled="{Binding CanManage}" />
+                    IsEnabled="{Binding CanManage}"
+                    ToolTip.Tip="Downloads the device's CONFIG file to edit its fields here." />
             </Border>
 
             <Border Name="SelectConfigButtonContainer" ToolTip.Tip="{Binding ManagementDisabledTooltip}">
@@ -45,7 +47,8 @@
                     HorizontalAlignment="Stretch"
                     Command="{Binding SelectConfigFileCommand}"
                     Content="Replace Config"
-                    IsEnabled="{Binding CanManage}" />
+                    IsEnabled="{Binding CanManage}"
+                    ToolTip.Tip="Picks a CONFIG file from disk and stages it for upload." />
             </Border>
 
             <TextBlock
@@ -60,7 +63,8 @@
                     HorizontalAlignment="Stretch"
                     Command="{Binding UploadConfigCommand}"
                     Content="Upload CONFIG"
-                    IsEnabled="{Binding CanUploadConfig}" />
+                    IsEnabled="{Binding CanUploadConfig}"
+                    ToolTip.Tip="Sends the staged CONFIG file to the device, replacing the one on it." />
             </Border>
         </StackPanel>
     </Border>

@@ -46,6 +46,19 @@ public class PreferencesPageViewModelTests
     }
 
     [Fact]
+    public void VelocityFilterWindowDisplay_ShowsSampleCount_WhenSampleRateKnown()
+    {
+        var viewModel = new PreferencesPageViewModel
+        {
+            SampleRate = 1000,
+        };
+
+        viewModel.VelocityFilterWindowMilliseconds = 25;
+
+        Assert.Equal("25 samples (25 ms)", viewModel.VelocityFilterWindowDisplay);
+    }
+
+    [Fact]
     public void CommitProcessingPreferenceChange_RaisesOnlyWhenValueChangedSinceLastCommit()
     {
         var viewModel = new PreferencesPageViewModel();

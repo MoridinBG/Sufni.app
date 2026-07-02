@@ -26,6 +26,7 @@
             Grid.Column="1"
             IsEnabled="{Binding AreRequestedRatesEnabled}"
             Minimum="0"
+            ToolTip.Tip="Live preview rate asked of the board; set to 0 Hz to leave this sensor out. Locked once connected."
             Value="{Binding RequestedTravelHz}" />
 
         <TextBlock
@@ -39,6 +40,7 @@
             Grid.Column="1"
             IsEnabled="{Binding AreRequestedRatesEnabled}"
             Minimum="0"
+            ToolTip.Tip="Live preview rate asked of the board; set to 0 Hz to leave this sensor out. Locked once connected."
             Value="{Binding RequestedImuHz}" />
 
         <TextBlock
@@ -52,6 +54,7 @@
             Grid.Column="1"
             IsEnabled="{Binding AreRequestedRatesEnabled}"
             Minimum="0"
+            ToolTip.Tip="Live preview rate asked of the board; set to 0 Hz to leave this sensor out. Locked once connected."
             Value="{Binding RequestedGpsFixHz}" />
     </Grid>
 </UserControl>

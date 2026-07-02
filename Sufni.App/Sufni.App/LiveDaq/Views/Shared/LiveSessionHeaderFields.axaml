@@ -24,17 +24,20 @@
                 x:Name="LiveAcceptedTravelRateTextBlock"
                 FontSize="{Binding #Root.FieldFontSize}"
                 Opacity="{Binding #Root.FieldOpacity}"
-                Text="{Binding ControlState.AcceptedTravelRateText}" />
+                Text="{Binding ControlState.AcceptedTravelRateText}"
+                ToolTip.Tip="The rates the board granted for this recording, which can be lower than requested." />
             <TextBlock
                 x:Name="LiveAcceptedImuRateTextBlock"
                 FontSize="{Binding #Root.FieldFontSize}"
                 Opacity="{Binding #Root.FieldOpacity}"
-                Text="{Binding ControlState.AcceptedImuRateText}" />
+                Text="{Binding ControlState.AcceptedImuRateText}"
+                ToolTip.Tip="The rates the board granted for this recording, which can be lower than requested." />
             <TextBlock
                 x:Name="LiveAcceptedGpsRateTextBlock"
                 FontSize="{Binding #Root.FieldFontSize}"
                 Opacity="{Binding #Root.FieldOpacity}"
-                Text="{Binding ControlState.AcceptedGpsRateText}" />
+                Text="{Binding ControlState.AcceptedGpsRateText}"
+                ToolTip.Tip="The rates the board granted for this recording, which can be lower than requested." />
         </StackPanel>
 
         <TextBlock

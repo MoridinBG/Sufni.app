@@ -6,7 +6,7 @@ using Sufni.Telemetry;
 using Sufni.App.Infrastructure;
 namespace Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 
-public sealed record SignalSmoothingOption(PlotSmoothingLevel Value, string DisplayName);
+public sealed record SignalSmoothingOption(PlotSmoothingLevel Value, string DisplayName, string Description);
 
 public sealed partial class SignalPreferenceItemViewModel(string displayName) : ObservableObject
 {
@@ -29,9 +29,9 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
     public SignalPreferenceItemViewModel ElevationSignal { get; } = new("Elevation");
     public IReadOnlyList<SignalSmoothingOption> SmoothingOptions { get; } =
     [
-        new(PlotSmoothingLevel.Off, "Off"),
-        new(PlotSmoothingLevel.Light, "Light"),
-        new(PlotSmoothingLevel.Strong, "Strong"),
+        new(PlotSmoothingLevel.Off, "Off", "Shows the raw signal with no smoothing."),
+        new(PlotSmoothingLevel.Light, "Light", "Trims fine jitter while keeping quick movements visible."),
+        new(PlotSmoothingLevel.Strong, "Strong", "Removes more noise but softens sharp, fast movements."),
     ];
 
     public event EventHandler? ProcessingPreferenceChangeCommitted;
@@ -55,12 +55,37 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
         }
     } = TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds;
 
+    // Sample rate (Hz) of the loaded recording, used to express the filter
+    // window in samples. 0 when unknown (e.g. before telemetry is applied).
+    public int SampleRate
+    {
+        get => field;
+        set
+        {
+            if (SetProperty(ref field, value))
+            {
+                OnPropertyChanged(nameof(VelocityFilterWindowDisplay));
+            }
+        }
+    }
+
     public string VelocityFilterWindowDisplay
     {
         get
         {
-            var milliseconds = CreateProcessingPreferences().VelocityFilterWindowMilliseconds;
-            return milliseconds == 0 ? "No filter" : $"{milliseconds} ms";
+            var options = CreateProcessingPreferences().ToTelemetryProcessingOptions();
+            var milliseconds = options.ClampedVelocityFilterWindowMilliseconds;
+            if (milliseconds == 0)
+            {
+                return "No filter";
+            }
+
+            // Show the effective window in samples when the recording's sample
+            // rate is known; fall back to milliseconds otherwise.
+            var samples = options.VelocityFilterWindowSamples(SampleRate);
+            return samples > 0
+                ? $"{samples} samples ({milliseconds} ms)"
+                : $"{milliseconds} ms";
         }
     }
 

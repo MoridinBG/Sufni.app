@@ -460,11 +460,7 @@ public class TelemetryData
             return null;
         }
 
-        var target = (int)Math.Round(sampleRate * processingOptions.VelocityFilterWindowSeconds);
-        if (target % 2 == 0)
-        {
-            target++;
-        }
+        var target = processingOptions.VelocityFilterWindowSamples(sampleRate);
 
         var windowSize = Math.Min(target, recordCount);
         if (windowSize % 2 == 0)
@@ -472,9 +468,9 @@ public class TelemetryData
             windowSize--;
         }
 
-        if (windowSize < 5)
+        if (windowSize < TelemetryProcessingOptions.MinVelocityFilterWindowSamples)
         {
-            windowSize = 5;
+            windowSize = TelemetryProcessingOptions.MinVelocityFilterWindowSamples;
         }
 
         return SavitzkyGolay.Create(windowSize, 1, 3);

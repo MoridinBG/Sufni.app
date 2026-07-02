@@ -126,7 +126,8 @@ mc:Ignorable="d">
                         <TextBlock
                         FontSize="16"
                         FontWeight="SemiBold"
-                        Text="Accepted Session" />
+                        Text="Accepted Session"
+                        ToolTip.Tip="The rates the board actually granted for this stream, which can be lower than requested." />
                         <TextBlock Name="AcceptedTravelRateTextBlock" Text="{Binding Snapshot.Session.AcceptedTravelRateText}" />
                         <TextBlock Name="AcceptedImuRateTextBlock" Text="{Binding Snapshot.Session.AcceptedImuRateText}" />
                         <TextBlock Name="AcceptedGpsRateTextBlock" Text="{Binding Snapshot.Session.AcceptedGpsRateText}" />
@@ -151,7 +152,7 @@ mc:Ignorable="d">
                             FontSize="18"
                             FontWeight="SemiBold"
                             Text="Travel"
-                            ToolTip.Tip="{Binding Snapshot.Travel.QueueDepth, StringFormat='Queue depth: {0}'}" />
+                            ToolTip.Tip="{Binding Snapshot.Travel.QueueDepth, StringFormat='Samples buffered and waiting to be shown: {0}'}" />
                             <TextBlock
                             Name="TravelStatusTextBlock"
                             Opacity="0.7"
@@ -160,13 +161,13 @@ mc:Ignorable="d">
                             Padding="10"
                             Background="{DynamicResource SufniRegion}"
                             CornerRadius="6">
-                                <TextBlock Name="FrontTravelTextBlock" Text="{Binding FrontTravelText}" />
+                                <TextBlock Name="FrontTravelTextBlock" Text="{Binding FrontTravelText}" ToolTip.Tip="Current travel, with sag shown as a percentage of maximum travel." />
                             </Border>
                             <Border
                             Padding="10"
                             Background="{DynamicResource SufniRegion}"
                             CornerRadius="6">
-                                <TextBlock Name="RearTravelTextBlock" Text="{Binding RearTravelText}" />
+                                <TextBlock Name="RearTravelTextBlock" Text="{Binding RearTravelText}" ToolTip.Tip="Current travel, with sag shown as a percentage of maximum travel." />
                             </Border>
                         </StackPanel>
                     </Border>
@@ -203,7 +204,7 @@ mc:Ignorable="d">
                                                 <TextBlock
                                                 FontWeight="SemiBold"
                                                 Text="{Binding Location}"
-                                                ToolTip.Tip="{Binding QueueDepth, StringFormat='Queue depth: {0}'}" />
+                                                ToolTip.Tip="{Binding QueueDepth, StringFormat='Samples buffered and waiting to be shown: {0}'}" />
                                                 <Grid
                                                 ColumnDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto"
                                                 ColumnSpacing="4"
@@ -249,7 +250,7 @@ mc:Ignorable="d">
                             FontSize="18"
                             FontWeight="SemiBold"
                             Text="GPS"
-                            ToolTip.Tip="{Binding Snapshot.Gps.QueueDepth, StringFormat='Queue depth: {0}'}" />
+                            ToolTip.Tip="{Binding Snapshot.Gps.QueueDepth, StringFormat='Samples buffered and waiting to be shown: {0}'}" />
                             <TextBlock Name="GpsStatusTextBlock" Text="{Binding Snapshot.Gps.PreviewState.StatusText}" />
                             <TextBlock Name="GpsCoordinatesTextBlock" Text="{Binding Snapshot.Gps.Latitude, StringFormat='Lat: {0:F4}'}" />
                             <TextBlock Name="GpsLongitudeTextBlock" Text="{Binding Snapshot.Gps.Longitude, StringFormat='Lon: {0:F4}'}" />

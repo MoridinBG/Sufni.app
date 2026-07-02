@@ -142,12 +142,18 @@ public partial class SessionAnalysisDesktopView : UserControl
     {
         var builtInEntries = new[]
         {
-            new AnalysisTabEntry(DefaultTabKey, "Spring rate", SpringRate, 0, 0, IsExtension: false, "", ""),
-            new AnalysisTabEntry("builtin:strokes", "Strokes", Strokes, 1, 0, IsExtension: false, "", ""),
-            new AnalysisTabEntry("builtin:damping", "Damping", Damping, 2, 0, IsExtension: false, "", ""),
-            new AnalysisTabEntry("builtin:balance", "Balance", Balance, 3, 0, IsExtension: false, "", ""),
-            new AnalysisTabEntry("builtin:vibration", "Vibration", Vibration, 4, 0, IsExtension: false, "", ""),
-            new AnalysisTabEntry("builtin:analysis", "Insights", Analysis, 5, 0, IsExtension: false, "", ""),
+            new AnalysisTabEntry(DefaultTabKey, "Spring rate", SpringRate, 0, 0, IsExtension: false, "", "",
+                "How much of the available travel the fork and shock use and how often, for dialing in spring rate or air pressure."),
+            new AnalysisTabEntry("builtin:strokes", "Strokes", Strokes, 1, 0, IsExtension: false, "", "",
+                "Distribution of compression and rebound stroke length and speed, plus how often the suspension reaches deep travel."),
+            new AnalysisTabEntry("builtin:damping", "Damping", Damping, 2, 0, IsExtension: false, "", "",
+                "Suspension-speed distribution split into low- and high-speed compression and rebound zones, for tuning damping settings."),
+            new AnalysisTabEntry("builtin:balance", "Balance", Balance, 3, 0, IsExtension: false, "", "",
+                "Compares how the front and rear suspension move together to check the bike is balanced from end to end."),
+            new AnalysisTabEntry("builtin:vibration", "Vibration", Vibration, 4, 0, IsExtension: false, "", "",
+                "Vibration picked up by the IMU across the frequency range, and how smooth the ride is measured overall."),
+            new AnalysisTabEntry("builtin:analysis", "Insights", Analysis, 5, 0, IsExtension: false, "", "",
+                "Setup suggestions derived from the session data, interpreted through the selected riding context."),
         };
         var extensionEntries = workspace?.ExtensionSlots.AnalysisTabs
             .Select(contribution => new AnalysisTabEntry(
@@ -158,7 +164,8 @@ public partial class SessionAnalysisDesktopView : UserControl
                 contribution.Order,
                 IsExtension: true,
                 contribution.ExtensionId,
-                contribution.ContributionId))
+                contribution.ContributionId,
+                Tooltip: ""))
             ?? [];
 
         return builtInEntries
@@ -172,13 +179,21 @@ public partial class SessionAnalysisDesktopView : UserControl
 
     private TabItem CreateTabItem(AnalysisTabEntry entry)
     {
-        return new TabItem
+        var tabItem = new TabItem
         {
             Header = entry.Header,
             Tag = entry.Key,
             HorizontalAlignment = HorizontalAlignment.Center,
             FontSize = GetTabFontSize(),
         };
+
+        // Show a short description of the tab on hover (built-in tabs only).
+        if (!string.IsNullOrEmpty(entry.Tooltip))
+        {
+            ToolTip.SetTip(tabItem, entry.Tooltip);
+        }
+
+        return tabItem;
     }
 
     private double GetTabFontSize()
@@ -275,5 +290,6 @@ public partial class SessionAnalysisDesktopView : UserControl
         int Order,
         bool IsExtension,
         string ExtensionId,
-        string ContributionId);
+        string ContributionId,
+        string Tooltip);
 }

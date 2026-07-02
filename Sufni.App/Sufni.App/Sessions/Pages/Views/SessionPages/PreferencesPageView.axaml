@@ -41,10 +41,11 @@ mc:Ignorable="d">
             IsEnabled="{Binding TravelSignal.Available}"
             ItemsSource="{Binding SmoothingOptions}"
             SelectedValue="{Binding TravelSignal.SelectedSmoothing, Mode=TwoWay}"
-            SelectedValueBinding="{Binding Value, DataType=vm:SignalSmoothingOption}">
+            SelectedValueBinding="{Binding Value, DataType=vm:SignalSmoothingOption}"
+            ToolTip.Tip="Smooths only how this signal is drawn; it does not change the recorded data or the analysis.">
                 <ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:SignalSmoothingOption">
-                        <TextBlock Text="{Binding DisplayName}" />
+                        <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
@@ -63,10 +64,11 @@ mc:Ignorable="d">
             IsEnabled="{Binding VelocitySignal.Available}"
             ItemsSource="{Binding SmoothingOptions}"
             SelectedValue="{Binding VelocitySignal.SelectedSmoothing, Mode=TwoWay}"
-            SelectedValueBinding="{Binding Value, DataType=vm:SignalSmoothingOption}">
+            SelectedValueBinding="{Binding Value, DataType=vm:SignalSmoothingOption}"
+            ToolTip.Tip="Smooths only how this signal is drawn; it does not change the recorded data or the analysis.">
                 <ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:SignalSmoothingOption">
-                        <TextBlock Text="{Binding DisplayName}" />
+                        <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
@@ -85,10 +87,11 @@ mc:Ignorable="d">
             IsEnabled="{Binding ImuSignal.Available}"
             ItemsSource="{Binding SmoothingOptions}"
             SelectedValue="{Binding ImuSignal.SelectedSmoothing, Mode=TwoWay}"
-            SelectedValueBinding="{Binding Value, DataType=vm:SignalSmoothingOption}">
+            SelectedValueBinding="{Binding Value, DataType=vm:SignalSmoothingOption}"
+            ToolTip.Tip="Smooths only how this signal is drawn; it does not change the recorded data or the analysis.">
                 <ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:SignalSmoothingOption">
-                        <TextBlock Text="{Binding DisplayName}" />
+                        <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
@@ -107,10 +110,11 @@ mc:Ignorable="d">
             IsEnabled="{Binding PitchRollSignal.Available}"
             ItemsSource="{Binding SmoothingOptions}"
             SelectedValue="{Binding PitchRollSignal.SelectedSmoothing, Mode=TwoWay}"
-            SelectedValueBinding="{Binding Value, DataType=vm:SignalSmoothingOption}">
+            SelectedValueBinding="{Binding Value, DataType=vm:SignalSmoothingOption}"
+            ToolTip.Tip="Smooths only how this signal is drawn; it does not change the recorded data or the analysis.">
                 <ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:SignalSmoothingOption">
-                        <TextBlock Text="{Binding DisplayName}" />
+                        <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
@@ -129,10 +133,11 @@ mc:Ignorable="d">
             IsEnabled="{Binding SpeedSignal.Available}"
             ItemsSource="{Binding SmoothingOptions}"
             SelectedValue="{Binding SpeedSignal.SelectedSmoothing, Mode=TwoWay}"
-            SelectedValueBinding="{Binding Value, DataType=vm:SignalSmoothingOption}">
+            SelectedValueBinding="{Binding Value, DataType=vm:SignalSmoothingOption}"
+            ToolTip.Tip="Smooths only how this signal is drawn; it does not change the recorded data or the analysis.">
                 <ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:SignalSmoothingOption">
-                        <TextBlock Text="{Binding DisplayName}" />
+                        <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
@@ -151,10 +156,11 @@ mc:Ignorable="d">
             IsEnabled="{Binding ElevationSignal.Available}"
             ItemsSource="{Binding SmoothingOptions}"
             SelectedValue="{Binding ElevationSignal.SelectedSmoothing, Mode=TwoWay}"
-            SelectedValueBinding="{Binding Value, DataType=vm:SignalSmoothingOption}">
+            SelectedValueBinding="{Binding Value, DataType=vm:SignalSmoothingOption}"
+            ToolTip.Tip="Smooths only how this signal is drawn; it does not change the recorded data or the analysis.">
                 <ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:SignalSmoothingOption">
-                        <TextBlock Text="{Binding DisplayName}" />
+                        <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
@@ -180,7 +186,7 @@ mc:Ignorable="d">
         Maximum="{Binding MaxVelocityFilterWindowMilliseconds}"
         TickFrequency="10"
         IsSnapToTickEnabled="True"
-        ToolTip.Tip="Controls how much the app smooths suspension speed before recalculating the session. Higher values reduce jitter and sharp noise; 0 turns it off."
+        ToolTip.Tip="Suspension speed is derived from how quickly travel changes, so sensor noise and tiny bumps get exaggerated. This filter averages the speed over a short window to tame that noise before the session is recalculated. Wider windows remove more noise but blur quick, sharp events; 0 turns it off."
         Value="{Binding VelocityFilterWindowMilliseconds, Mode=TwoWay}" />
         </StackPanel>
     </ScrollViewer>

@@ -58,7 +58,8 @@ mc:Ignorable="d">
                                     HorizontalAlignment="Stretch"
                                     IsVisible="{Binding IsWifiMode}"
                                     ItemsSource="{x:Static vm:LiveDaqConfigFieldRowViewModel.WifiModes}"
-                                    SelectedItem="{Binding Value, Mode=TwoWay}" />
+                                    SelectedItem="{Binding Value, Mode=TwoWay}"
+                                    ToolTip.Tip="STA joins an existing WiFi network; AP makes the device host its own." />
                                     <ToggleButton
                                     Name="RevealSecretButton"
                                     Grid.Column="1"

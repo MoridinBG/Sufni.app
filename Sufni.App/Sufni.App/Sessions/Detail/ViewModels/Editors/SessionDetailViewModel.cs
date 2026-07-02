@@ -340,6 +340,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         try
         {
             SessionContext.TelemetryData = value;
+            // Let the preferences page express the velocity filter window in samples.
+            PreferencesPage.SampleRate = value?.Metadata.SampleRate ?? 0;
         }
         finally
         {

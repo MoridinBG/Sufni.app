@@ -84,13 +84,15 @@ mc:Ignorable="d">
                     Grid.Column="3"
                     Margin="2"
                     VerticalContentAlignment="Center"
-                    Text="{Binding ForkSettings.SpringRate}" />
+                    Text="{Binding ForkSettings.SpringRate}"
+                    ToolTip.Tip="Spring rate or air pressure recorded for the fork/shock." />
                     <TextBox
                     Grid.Row="1"
                     Grid.Column="5"
                     Margin="2"
                     VerticalContentAlignment="Center"
-                    Text="{Binding ShockSettings.SpringRate}" />
+                    Text="{Binding ShockSettings.SpringRate}"
+                    ToolTip.Tip="Spring rate or air pressure recorded for the fork/shock." />
 
                     <Label
                     Grid.Row="2"
@@ -101,11 +103,13 @@ mc:Ignorable="d">
                     <NumericUpDown
                     Grid.Row="2"
                     Grid.Column="3"
-                    Value="{Binding ForkSettings.HighSpeedCompression}" />
+                    Value="{Binding ForkSettings.HighSpeedCompression}"
+                    ToolTip.Tip="High-speed compression damping, in clicks from fully closed." />
                     <NumericUpDown
                     Grid.Row="2"
                     Grid.Column="5"
-                    Value="{Binding ShockSettings.HighSpeedCompression}" />
+                    Value="{Binding ShockSettings.HighSpeedCompression}"
+                    ToolTip.Tip="High-speed compression damping, in clicks from fully closed." />
 
                     <Label
                     Grid.Row="3"
@@ -116,11 +120,13 @@ mc:Ignorable="d">
                     <NumericUpDown
                     Grid.Row="3"
                     Grid.Column="3"
-                    Value="{Binding ForkSettings.LowSpeedCompression}" />
+                    Value="{Binding ForkSettings.LowSpeedCompression}"
+                    ToolTip.Tip="Low-speed compression damping, in clicks from fully closed." />
                     <NumericUpDown
                     Grid.Row="3"
                     Grid.Column="5"
-                    Value="{Binding ShockSettings.LowSpeedCompression}" />
+                    Value="{Binding ShockSettings.LowSpeedCompression}"
+                    ToolTip.Tip="Low-speed compression damping, in clicks from fully closed." />
 
                     <Label
                     Grid.Row="4"
@@ -131,11 +137,13 @@ mc:Ignorable="d">
                     <NumericUpDown
                     Grid.Row="4"
                     Grid.Column="3"
-                    Value="{Binding ForkSettings.LowSpeedRebound}" />
+                    Value="{Binding ForkSettings.LowSpeedRebound}"
+                    ToolTip.Tip="Low-speed rebound damping, in clicks from fully closed." />
                     <NumericUpDown
                     Grid.Row="4"
                     Grid.Column="5"
-                    Value="{Binding ShockSettings.LowSpeedRebound}" />
+                    Value="{Binding ShockSettings.LowSpeedRebound}"
+                    ToolTip.Tip="Low-speed rebound damping, in clicks from fully closed." />
 
                     <Label
                     Grid.Row="5"
@@ -146,11 +154,13 @@ mc:Ignorable="d">
                     <NumericUpDown
                     Grid.Row="5"
                     Grid.Column="3"
-                    Value="{Binding ForkSettings.HighSpeedRebound}" />
+                    Value="{Binding ForkSettings.HighSpeedRebound}"
+                    ToolTip.Tip="High-speed rebound damping, in clicks from fully closed." />
                     <NumericUpDown
                     Grid.Row="5"
                     Grid.Column="5"
-                    Value="{Binding ShockSettings.HighSpeedRebound}" />
+                    Value="{Binding ShockSettings.HighSpeedRebound}"
+                    ToolTip.Tip="High-speed rebound damping, in clicks from fully closed." />
 
                     <StackPanel
                     Name="TemperatureAveragesPanel"
@@ -212,7 +222,8 @@ mc:Ignorable="d">
                     Margin="0,0,5,0"
                     HorizontalContentAlignment="Center"
                     VerticalContentAlignment="Center"
-                    Command="{Binding ResetCommand}">
+                    Command="{Binding ResetCommand}"
+                    ToolTip.Tip="Discards unsaved edits and restores the last saved notes and settings.">
                         <Image
                         Width="16"
                         Height="16"
