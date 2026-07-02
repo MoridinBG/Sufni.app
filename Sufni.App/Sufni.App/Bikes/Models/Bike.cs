@@ -136,11 +136,7 @@ public class Bike : Synchronizable
     [Ignore]
     public double? Chainstay
     {
-        get
-        {
-            chainstay ??= CalculateChainstay();
-            return chainstay;
-        }
+        get => RearSuspension is RearSuspensionSpec.Linkage ? chainstay ?? CalculateChainstay() : null;
         init => chainstay = value;
     }
 

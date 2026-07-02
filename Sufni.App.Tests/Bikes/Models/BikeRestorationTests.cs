@@ -61,6 +61,35 @@ public class BikeRestorationTests
     }
 
     [Fact]
+    public void Chainstay_RecomputesFromCurrentLinkage_WhenNoExplicitValueExists()
+    {
+        var source = new Bike(Guid.NewGuid(), "linkage bike")
+        {
+            RearSuspension = new RearSuspensionSpec.Linkage(LinkageWithChainstay(4)),
+        };
+
+        Assert.Equal(4, source.Chainstay);
+
+        source.RearSuspension = new RearSuspensionSpec.Linkage(LinkageWithChainstay(10));
+
+        Assert.Equal(10, source.Chainstay);
+    }
+
+    [Fact]
+    public void Chainstay_ReturnsNull_WhenRearSuspensionIsChangedToHardtail()
+    {
+        var source = new Bike(Guid.NewGuid(), "linkage bike")
+        {
+            Chainstay = 440,
+            RearSuspension = new RearSuspensionSpec.Linkage(LinkageWithChainstay(4)),
+        };
+
+        var updated = source.WithRearSuspension(new RearSuspensionSpec.Hardtail());
+
+        Assert.Null(updated.Chainstay);
+    }
+
+    [Fact]
     public void WithShockStroke_OnLinkageBike_RebuildsLinkageSpecWithoutMutatingOriginal()
     {
         var linkage = TestSnapshots.FullSuspensionLinkageSpec();
@@ -122,4 +151,23 @@ public class BikeRestorationTests
         string.CompareOrdinal(link.A, link.B) <= 0
             ? $"{link.A}->{link.B}"
             : $"{link.B}->{link.A}";
+
+    private static LinkageSpec LinkageWithChainstay(double chainstay)
+    {
+        var mapping = new JointNameMapping();
+
+        return new LinkageSpec(
+            [
+                new JointSpec(mapping.BottomBracket, JointType.BottomBracket, 0, 0),
+                new JointSpec(mapping.RearWheel, JointType.RearWheel, chainstay, 0),
+                new JointSpec(mapping.ShockEye1, JointType.Floating, chainstay, 3),
+                new JointSpec(mapping.ShockEye2, JointType.Fixed, 0, 3)
+            ],
+            [
+                new LinkSpec(mapping.BottomBracket, mapping.RearWheel),
+                new LinkSpec(mapping.RearWheel, mapping.ShockEye1)
+            ],
+            new LinkSpec(mapping.ShockEye1, mapping.ShockEye2),
+            10);
+    }
 }
