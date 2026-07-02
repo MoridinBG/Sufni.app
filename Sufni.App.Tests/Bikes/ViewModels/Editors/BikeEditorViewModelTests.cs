@@ -145,6 +145,10 @@ public class BikeEditorViewModelTests
             ? $"{link.A}->{link.B}"
             : $"{link.B}->{link.A}";
 
+    private static bool LinkageShockStrokeEquals(Bike bike, double expected) =>
+        bike.RearSuspension is RearSuspensionSpec.Linkage linkage &&
+        linkage.Spec.ShockStroke == expected;
+
     private void AssertOpeningPreservesState(BikeSnapshot snapshot)
     {
         var editor = CreateEditor(snapshot);
@@ -638,6 +642,24 @@ public class BikeEditorViewModelTests
 
         Assert.Equal("renamed", editor.Name);
         Assert.Equal(5, editor.BaselineUpdated);
+    }
+
+    [AvaloniaFact]
+    public async Task Save_OnFullSuspensionBike_UsesCurrentShockStrokeInLinkageSpec()
+    {
+        var snapshot = FullSuspensionSnapshot(includeHeadTubeJoints: true, updated: 5);
+        var editor = CreateEditor(snapshot);
+        editor.ShockStroke = 12.5;
+        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
+            .Returns(new BikeSaveResult.Saved(11, new BikeEditorAnalysisResult.Unavailable()));
+
+        await editor.SaveCommand.ExecuteAsync(null);
+
+        await bikeCoordinator.Received(1).SaveAsync(
+            Arg.Is<Bike>(bike =>
+                bike.ShockStroke == 12.5 &&
+                LinkageShockStrokeEquals(bike, 12.5)),
+            5);
     }
 
     [AvaloniaFact]
