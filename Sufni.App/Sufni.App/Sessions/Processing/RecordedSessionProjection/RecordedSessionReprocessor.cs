@@ -17,7 +17,9 @@ namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 /// It decodes the source payload, reconstructs the bike processing context,
 /// generates any GPS-backed full track, and returns the matching fingerprint.
 /// </summary>
-public sealed class RecordedSessionReprocessor(IProcessingFingerprintService fingerprintService)
+internal sealed class RecordedSessionReprocessor(
+    IProcessingFingerprintService fingerprintService,
+    ITelemetryBikeProcessingContextFactory bikeProcessingContextFactory)
     : IRecordedSessionReprocessor
 {
     public Task<RecordedSessionReprocessResult> ReprocessAsync(
@@ -47,7 +49,8 @@ public sealed class RecordedSessionReprocessor(IProcessingFingerprintService fin
             throw new InvalidOperationException("Recorded source does not match the domain session.");
         }
 
-        var bikeData = TelemetryBikeData.Create(domain.Setup, domain.Bike);
+        var bikeProcessingContext = bikeProcessingContextFactory.Create(domain.Setup, domain.Bike);
+        var bikeData = bikeProcessingContext.BikeData;
 
         var telemetryData = source.SourceKind switch
         {

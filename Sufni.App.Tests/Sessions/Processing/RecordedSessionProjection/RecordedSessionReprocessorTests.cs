@@ -4,6 +4,7 @@ using Sufni.App.Infrastructure;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
+using Sufni.App.Bikes.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
@@ -50,7 +51,7 @@ public class RecordedSessionReprocessorTests
             RecordedSessionSourceSnapshot.From(source),
             new SessionStaleness.MissingProcessedData(),
             DerivedChangeKind.None);
-        var reprocessor = new RecordedSessionReprocessor(new ProcessingFingerprintService());
+        var reprocessor = CreateReprocessor();
 
         var result = await reprocessor.ReprocessAsync(domain, source);
 
@@ -114,7 +115,7 @@ public class RecordedSessionReprocessorTests
             RecordedSessionSourceSnapshot.From(source),
             new SessionStaleness.MissingProcessedData(),
             DerivedChangeKind.None);
-        var reprocessor = new RecordedSessionReprocessor(new ProcessingFingerprintService());
+        var reprocessor = CreateReprocessor();
 
         var result = await reprocessor.ReprocessAsync(domain, source);
 
@@ -175,7 +176,7 @@ public class RecordedSessionReprocessorTests
         var source = RecordedSessionSourceFactory.CreateLiveCapture(sessionId, capture);
         var sourceJson = Encoding.UTF8.GetString(source.Payload);
         var domain = CreateLiveCaptureDomain(source);
-        var reprocessor = new RecordedSessionReprocessor(new ProcessingFingerprintService());
+        var reprocessor = CreateReprocessor();
 
         var result = await reprocessor.ReprocessAsync(domain, source);
 
@@ -210,7 +211,7 @@ public class RecordedSessionReprocessorTests
         };
         var source = CreateLiveCaptureSource(sessionId, "old-live", payload);
         var domain = CreateLiveCaptureDomain(source);
-        var reprocessor = new RecordedSessionReprocessor(new ProcessingFingerprintService());
+        var reprocessor = CreateReprocessor();
 
         var result = await reprocessor.ReprocessAsync(domain, source);
 
@@ -279,7 +280,7 @@ public class RecordedSessionReprocessorTests
             RecordedSessionSourceSnapshot.From(source),
             new SessionStaleness.MissingProcessedData(),
             DerivedChangeKind.None);
-        var reprocessor = new RecordedSessionReprocessor(new ProcessingFingerprintService());
+        var reprocessor = CreateReprocessor();
 
         // The single derivation path (import / live-save / recompute all flow through
         // here) stamps the option it was produced with into the v3 fingerprint, so a
@@ -318,6 +319,13 @@ public class RecordedSessionReprocessorTests
             new SessionStaleness.MissingProcessedData(),
             DerivedChangeKind.None);
     }
+
+    private static RecordedSessionReprocessor CreateReprocessor() =>
+        new(
+            new ProcessingFingerprintService(),
+            new TelemetryBikeProcessingContextFactory(
+                new RearTravelCalibrationBuilder(
+                    new KinematicSolutionCache())));
 
     private static RecordedSessionSource CreateLiveCaptureSource(
         Guid sessionId,
