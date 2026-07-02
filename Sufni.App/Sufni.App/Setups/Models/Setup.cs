@@ -44,11 +44,6 @@ public class Setup : Synchronizable
     [Column("rear_sensor_configuration")]
     public string? RearSensorConfigurationJson { get; set; }
 
-    public ISensorConfiguration? FrontSensorConfiguration(Bike bike)
-    {
-        return FrontSensorConfigurationJson is null ? null : SensorConfiguration.FromJson(FrontSensorConfigurationJson, bike);
-    }
-
     public string ToJson(Bike bike, Guid? boardId)
     {
         return AppJson.SerializeIndented(SetupExportModel.FromSetup(this, bike, boardId));

@@ -2,8 +2,10 @@ using Sufni.Kinematics;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Services;
+using Sufni.App.Bikes.Stores;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Models.SensorConfigurations;
+using Sufni.App.Setups.Stores;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Bikes.Services;
 
@@ -26,7 +28,7 @@ public class RearTravelCalibrationBuilderTests
             })
         };
 
-        var success = RearTravelCalibrationBuilder.TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
 
         Assert.True(success);
         Assert.Null(errorMessage);
@@ -55,7 +57,7 @@ public class RearTravelCalibrationBuilderTests
             })
         };
 
-        var success = RearTravelCalibrationBuilder.TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
 
         Assert.False(success);
         Assert.Null(calibration);
@@ -78,7 +80,7 @@ public class RearTravelCalibrationBuilderTests
             })
         };
 
-        var success = RearTravelCalibrationBuilder.TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
 
         Assert.False(success);
         Assert.Null(calibration);
@@ -101,7 +103,7 @@ public class RearTravelCalibrationBuilderTests
             })
         };
 
-        var success = RearTravelCalibrationBuilder.TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
 
         Assert.True(success);
         Assert.Null(errorMessage);
@@ -130,7 +132,7 @@ public class RearTravelCalibrationBuilderTests
             })
         };
 
-        var success = RearTravelCalibrationBuilder.TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
 
         Assert.True(success);
         Assert.Null(errorMessage);
@@ -159,7 +161,7 @@ public class RearTravelCalibrationBuilderTests
             })
         };
 
-        var success = RearTravelCalibrationBuilder.TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
 
         Assert.False(success);
         Assert.Null(calibration);
@@ -176,7 +178,7 @@ public class RearTravelCalibrationBuilderTests
             BikeId = bike.Id,
         };
 
-        var success = RearTravelCalibrationBuilder.TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
 
         Assert.False(success);
         Assert.Null(calibration);
@@ -206,7 +208,7 @@ public class RearTravelCalibrationBuilderTests
             })
         };
 
-        var success = RearTravelCalibrationBuilder.TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
 
         Assert.True(success);
         Assert.Null(errorMessage);
@@ -234,7 +236,7 @@ public class RearTravelCalibrationBuilderTests
             })
         };
 
-        var success = RearTravelCalibrationBuilder.TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
 
         Assert.False(success);
         Assert.Null(calibration);
@@ -264,10 +266,21 @@ public class RearTravelCalibrationBuilderTests
             })
         };
 
-        var success = RearTravelCalibrationBuilder.TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
 
         Assert.False(success);
         Assert.Null(calibration);
         Assert.False(string.IsNullOrWhiteSpace(errorMessage));
     }
+
+    private static bool TryBuild(
+        Setup setup,
+        Bike bike,
+        out RearTravelCalibration? calibration,
+        out string? errorMessage) =>
+        RearTravelCalibrationBuilder.TryBuild(
+            SetupSnapshot.From(setup, boardId: null),
+            BikeSnapshot.From(bike),
+            out calibration,
+            out errorMessage);
 }
