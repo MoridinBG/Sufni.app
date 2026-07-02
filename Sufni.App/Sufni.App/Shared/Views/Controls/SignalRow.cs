@@ -38,6 +38,7 @@ public sealed class SignalRow : UserControl
     private readonly SignalRowActionsPresenter headerActionsPresenter;
     private readonly Grid expandedGrid;
     private readonly PlaceholderOverlayContainer plotHost;
+    private readonly PlotZoomContainer plotZoomContainer;
     private readonly ContentControl plotContentHost;
     private readonly ContentControl placeholderContentHost;
     private readonly StackPanel childRowsHost;
@@ -301,9 +302,10 @@ public sealed class SignalRow : UserControl
 
         plotContentHost = new ContentControl();
         placeholderContentHost = new ContentControl();
+        plotZoomContainer = new PlotZoomContainer { Child = plotContentHost };
         plotHost = new PlaceholderOverlayContainer
         {
-            ReadyContent = plotContentHost,
+            ReadyContent = plotZoomContainer,
             PlaceholderContent = placeholderContentHost,
         };
         childRowsHost = new StackPanel();
