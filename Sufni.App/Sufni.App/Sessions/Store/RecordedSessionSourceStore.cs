@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -24,8 +23,8 @@ internal sealed class RecordedSessionSourceStore(IRecordedSessionSourceRepositor
 
     public async Task RefreshAsync()
     {
-        var sources = await sourceRepository.GetRecordedSessionSourcesAsync();
-        ReplaceWith(sources.Select(RecordedSessionSourceSnapshot.From));
+        var sources = await sourceRepository.GetRecordedSessionSourceSnapshotsAsync();
+        ReplaceWith(sources);
     }
 
 }

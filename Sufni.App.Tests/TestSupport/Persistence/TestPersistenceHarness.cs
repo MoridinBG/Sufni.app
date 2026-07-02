@@ -11,6 +11,7 @@ using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
+using Sufni.App.Sessions.Store;
 using Sufni.App.Sessions.Services;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
@@ -142,6 +143,12 @@ internal sealed class TestPersistenceHarness
 
     public Task<RecordedSessionSource?> GetRecordedSessionSourceAsync(Guid id) =>
         recordedSessionSourceRepository.GetRecordedSessionSourceAsync(id);
+
+    public Task<List<RecordedSessionSourceSnapshot>> GetRecordedSessionSourceSnapshotsAsync() =>
+        recordedSessionSourceRepository.GetRecordedSessionSourceSnapshotsAsync();
+
+    public Task<RecordedSessionSourceSnapshot?> GetRecordedSessionSourceSnapshotAsync(Guid id) =>
+        recordedSessionSourceRepository.GetRecordedSessionSourceSnapshotAsync(id);
 
     public Task<List<Guid>> GetSessionIdsMissingRecordedSourceAsync() =>
         recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync();

@@ -38,10 +38,11 @@ public class RecordedSessionSourceStoreTests
         var kept = CreateSource(name: "kept.SST");
 
         store.Upsert(RecordedSessionSourceSnapshot.From(removed));
-        sourceRepository.GetRecordedSessionSourcesAsync().Returns([kept]);
+        sourceRepository.GetRecordedSessionSourceSnapshotsAsync().Returns([RecordedSessionSourceSnapshot.From(kept)]);
 
         await store.RefreshAsync();
 
+        await sourceRepository.DidNotReceive().GetRecordedSessionSourcesAsync();
         var snapshot = Assert.Single(snapshots);
         Assert.Equal(kept.SessionId, snapshot.SessionId);
         Assert.Null(store.Get(removed.SessionId));

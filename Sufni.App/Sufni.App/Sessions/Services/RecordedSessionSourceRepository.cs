@@ -7,6 +7,7 @@ using SQLite;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Store;
 namespace Sufni.App.Sessions.Services;
 
 public interface IRecordedSessionSourceRepository
@@ -14,6 +15,10 @@ public interface IRecordedSessionSourceRepository
     Task<List<RecordedSessionSource>> GetRecordedSessionSourcesAsync();
 
     Task<RecordedSessionSource?> GetRecordedSessionSourceAsync(Guid id);
+
+    Task<List<RecordedSessionSourceSnapshot>> GetRecordedSessionSourceSnapshotsAsync();
+
+    Task<RecordedSessionSourceSnapshot?> GetRecordedSessionSourceSnapshotAsync(Guid id);
 
     Task<List<Guid>> GetSessionIdsMissingRecordedSourceAsync();
 
@@ -55,6 +60,30 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
         return await connection.Table<RecordedSessionSource>()
             .Where(source => source.SessionId == id)
             .FirstOrDefaultAsync();
+    }
+
+    public async Task<List<RecordedSessionSourceSnapshot>> GetRecordedSessionSourceSnapshotsAsync()
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        var rows = await connection.QueryAsync<RecordedSessionSourceSnapshotRow>(
+            """
+            SELECT session_id, source_kind, source_name, schema_version, source_hash
+            FROM session_recording_source
+            """);
+        return rows.Select(row => row.ToSnapshot()).ToList();
+    }
+
+    public async Task<RecordedSessionSourceSnapshot?> GetRecordedSessionSourceSnapshotAsync(Guid id)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        var rows = await connection.QueryAsync<RecordedSessionSourceSnapshotRow>(
+            """
+            SELECT session_id, source_kind, source_name, schema_version, source_hash
+            FROM session_recording_source
+            WHERE session_id = ?
+            """,
+            id);
+        return rows.Count == 1 ? rows[0].ToSnapshot() : null;
     }
 
     public async Task<List<Guid>> GetSessionIdsMissingRecordedSourceAsync()
@@ -165,6 +194,31 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
     {
         [Column("session_id")]
         public Guid SessionId { get; set; }
+    }
+
+    private sealed class RecordedSessionSourceSnapshotRow
+    {
+        [Column("session_id")]
+        public Guid SessionId { get; set; }
+
+        [Column("source_kind")]
+        public string SourceKindValue { get; set; } = null!;
+
+        [Column("source_name")]
+        public string SourceName { get; set; } = null!;
+
+        [Column("schema_version")]
+        public int SchemaVersion { get; set; }
+
+        [Column("source_hash")]
+        public string SourceHash { get; set; } = null!;
+
+        public RecordedSessionSourceSnapshot ToSnapshot() => new(
+            SessionId,
+            RecordedSessionSourceKindExtensions.FromStorageValue(SourceKindValue),
+            SourceName,
+            SchemaVersion,
+            SourceHash);
     }
 
     private sealed class SessionSourceStatusRow
