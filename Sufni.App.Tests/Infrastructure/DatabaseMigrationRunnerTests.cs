@@ -64,7 +64,7 @@ public class DatabaseMigrationRunnerTests
                 64.0,
                 150.0,
                 0.5,
-                TestSnapshots.FullSuspensionLinkage().ToJson(),
+                TestSnapshots.FullSuspensionLinkageSpec().ToJson(),
                 0.0,
                 0.0,
                 Array.Empty<byte>(),

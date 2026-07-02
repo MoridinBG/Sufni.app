@@ -99,9 +99,6 @@ public static class TestSnapshots
             0.5);
     }
 
-    public static Linkage FullSuspensionLinkage(bool includeHeadTubeJoints = false) =>
-        Linkage.FromSpec(FullSuspensionLinkageSpec(includeHeadTubeJoints));
-
     public static double WheelDiameter(EtrtoRimSize rimSize, double tireWidth) =>
         Math.Round(rimSize.CalculateTotalDiameterMm(tireWidth), 1);
 
