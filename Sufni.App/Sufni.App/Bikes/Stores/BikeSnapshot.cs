@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json.Serialization;
 using Sufni.Kinematics;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
@@ -97,8 +98,11 @@ public sealed record BikeSnapshot(
 }
 
 public sealed record WheelSpec(
+    [property: JsonPropertyName("diameter_mm")]
     double? DiameterMm,
+    [property: JsonPropertyName("rim_size")]
     EtrtoRimSize? RimSize,
+    [property: JsonPropertyName("tire_width")]
     double? TireWidth)
 {
     public static WheelSpec? FromValues(

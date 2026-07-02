@@ -109,9 +109,11 @@ public class BikeEditorServiceTests
         Assert.IsType<BikeExportResult.Exported>(result);
         var json = Encoding.UTF8.GetString(output.ToArray());
         Assert.Contains("exported bike", json);
+        Assert.Contains("schema_version", json);
         Assert.Contains("head_angle", json);
-        Assert.Contains("front_wheel_diameter", json);
-        Assert.Contains("rear_wheel_diameter", json);
+        Assert.Contains("front_wheel", json);
+        Assert.Contains("rear_wheel", json);
+        Assert.Contains("diameter_mm", json);
         Assert.Contains("image_rotation_degrees", json);
     }
 

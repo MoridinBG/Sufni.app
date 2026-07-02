@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json.Serialization;
 using Sufni.Telemetry;
 
 namespace Sufni.App.ExtensionHost.Contracts.SessionDetails;
@@ -10,7 +11,9 @@ public enum DampingSpeedCircuit
 }
 
 public sealed record DampingSpeedCutoffSide(
+    [property: JsonPropertyName("compression_mm_per_second")]
     double CompressionMmPerSecond,
+    [property: JsonPropertyName("rebound_mm_per_second")]
     double ReboundMmPerSecond)
 {
     public static DampingSpeedCutoffSide Default { get; } = new(
@@ -44,7 +47,9 @@ public sealed record DampingSpeedCutoffSide(
 }
 
 public sealed record DampingSpeedCutoffs(
+    [property: JsonPropertyName("front")]
     DampingSpeedCutoffSide Front,
+    [property: JsonPropertyName("rear")]
     DampingSpeedCutoffSide Rear)
 {
     public const double DefaultMmPerSecond = 200.0;

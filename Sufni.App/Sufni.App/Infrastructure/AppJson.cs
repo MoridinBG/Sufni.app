@@ -7,10 +7,12 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Kinematics;
 using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Stores;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -106,6 +108,7 @@ internal static class AppJson
 
 [JsonSourceGenerationOptions(GenerationMode = JsonSourceGenerationMode.Metadata)]
 [JsonSerializable(typeof(Bike))]
+[JsonSerializable(typeof(BikeExportDocument))]
 [JsonSerializable(typeof(BikeExportModel))]
 [JsonSerializable(typeof(Board))]
 [JsonSerializable(typeof(Setup))]
@@ -171,6 +174,9 @@ internal static class AppJson
 [JsonSerializable(typeof(LeverageRatioSpec))]
 [JsonSerializable(typeof(LeverageRatioPoint))]
 [JsonSerializable(typeof(List<LeverageRatioPoint>))]
+[JsonSerializable(typeof(WheelSpec), TypeInfoPropertyName = "BikeWheelSpec")]
+[JsonSerializable(typeof(DampingSpeedCutoffs))]
+[JsonSerializable(typeof(DampingSpeedCutoffSide))]
 [JsonSerializable(typeof(Linkage), TypeInfoPropertyName = "LegacyLinkage")]
 [JsonSerializable(typeof(Link))]
 [JsonSerializable(typeof(Joint))]

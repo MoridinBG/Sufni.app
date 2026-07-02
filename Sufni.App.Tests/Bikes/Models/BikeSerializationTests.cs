@@ -18,7 +18,12 @@ public class BikeSerializationTests
             ShockStroke = linkage.ShockStroke,
         };
 
-        var imported = Bike.FromJson(bike.ToJson());
+        var json = bike.ToJson();
+        var root = JsonNode.Parse(json)!.AsObject();
+
+        Assert.Equal(2, root["schema_version"]!.GetValue<int>());
+
+        var imported = Bike.FromJson(json);
 
         Assert.NotNull(imported);
         var importedLinkage = Assert.IsType<RearSuspensionSpec.Linkage>(imported!.RearSuspension);
@@ -53,27 +58,19 @@ public class BikeSerializationTests
     }
 
     [Fact]
-    public void BikeFromJson_LegacyExportWithoutDampingCutoffs_UsesDefaults()
+    public void BikeFromJson_RejectsPreRefactorUnversionedExport()
     {
-        var bike = new Bike(Guid.NewGuid(), "legacy cutoff bike")
-        {
-            HeadAngle = 64,
-            ForkStroke = 150,
-        };
+        const string json = """
+                            {
+                              "name": "legacy cutoff bike",
+                              "head_angle": 64,
+                              "fork_stroke": 150
+                            }
+                            """;
 
-        var json = JsonNode.Parse(bike.ToJson())!.AsObject();
-        json.Remove("front_compression_damping_cutoff_mm_per_second");
-        json.Remove("front_rebound_damping_cutoff_mm_per_second");
-        json.Remove("rear_compression_damping_cutoff_mm_per_second");
-        json.Remove("rear_rebound_damping_cutoff_mm_per_second");
+        var imported = Bike.FromJson(json);
 
-        var imported = Bike.FromJson(json.ToJsonString());
-
-        Assert.NotNull(imported);
-        Assert.Equal(200, imported!.FrontCompressionDampingCutoffMmPerSecond);
-        Assert.Equal(200, imported.FrontReboundDampingCutoffMmPerSecond);
-        Assert.Equal(200, imported.RearCompressionDampingCutoffMmPerSecond);
-        Assert.Equal(200, imported.RearReboundDampingCutoffMmPerSecond);
+        Assert.Null(imported);
     }
 
 }
