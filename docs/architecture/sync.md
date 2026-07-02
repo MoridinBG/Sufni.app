@@ -99,6 +99,12 @@ SynchronizationData
 └── ExtensionBatches[] (opaque extension envelopes)
 ```
 
+Every bike sync row must carry the `rear_suspension` union. Payloads that omit
+it, use the legacy `rear_suspension_kind` / `linkage` / `leverage_ratio` triple,
+or contain a malformed union are rejected during deserialization on both the
+client pull path and the desktop inbound push path; legacy rear-suspension data
+is accepted only by the local SQLite startup migration.
+
 Processed telemetry blobs (`session.data`) and raw recorded sources (`session_recording_source.payload`) are transferred through the dedicated session-data and session-source endpoints, not through `SynchronizationData`.
 
 Extension envelopes are handled by `ExtensionSyncService`. Outgoing
