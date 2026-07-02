@@ -235,7 +235,7 @@ public class LiveSessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task SignalPreferenceChange_UpdatesLiveSignalStateWithoutChangingDirtyState()
+    public async Task SignalSmoothingPreferenceChange_UpdatesLiveSignalStateWithoutChangingDirtyState()
     {
         var editor = CreateEditor(CreateSessionContext(hasFrontTravelCalibration: true, hasRearTravelCalibration: true));
         await editor.LoadedCommand.ExecuteAsync(null);
@@ -249,11 +249,12 @@ public class LiveSessionDetailViewModelTests
 
         var wasDirty = editor.IsDirty;
 
-        editor.PreferencesPage.VelocitySignal.Selected = false;
+        editor.PreferencesPage.VelocitySignal.SelectedSmoothing = PlotSmoothingLevel.Strong;
 
         Assert.Equal(wasDirty, editor.IsDirty);
         Assert.True(editor.SignalsWorkspace.TravelSignalState.IsReady);
-        Assert.True(editor.SignalsWorkspace.VelocitySignalState.IsHidden);
+        Assert.True(editor.SignalsWorkspace.VelocitySignalState.IsReady);
+        Assert.Equal(PlotSmoothingLevel.Strong, editor.SignalsWorkspace.SignalDisplayPreferences.VelocitySmoothing);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.ImuSignalState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.PitchRollSignalState.Kind);
     }
@@ -313,7 +314,7 @@ public class LiveSessionDetailViewModelTests
         editor.Name = "Morning lap";
         editor.DescriptionText = "first lap";
         editor.ForkSettings.SpringRate = "550 lb/in";
-        editor.PreferencesPage.VelocitySignal.Selected = false;
+        editor.PreferencesPage.VelocitySignal.SelectedSmoothing = PlotSmoothingLevel.Strong;
         editor.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
         var signalLayout = new SignalLayoutPreferences(
         [
@@ -337,8 +338,9 @@ public class LiveSessionDetailViewModelTests
             capturePackage,
             Arg.Is<SessionPreferences>(preferences =>
                 preferences.SignalDisplay.Travel &&
-                !preferences.SignalDisplay.Velocity &&
+                preferences.SignalDisplay.Velocity &&
                 preferences.SignalDisplay.Imu &&
+                preferences.SignalDisplay.VelocitySmoothing == PlotSmoothingLevel.Strong &&
                 preferences.Analysis.VelocityAverageMode == VelocityAverageMode.StrokePeakAveraged &&
                 preferences.SignalLayout == signalLayout),
             Arg.Any<CancellationToken>());

@@ -1138,7 +1138,7 @@ public class SessionDetailViewModelTests
 
 
     [AvaloniaFact]
-    public async Task Loaded_OnDesktop_AppliesPersistedSignalDisplayPreferences()
+    public async Task Loaded_OnDesktop_AppliesPersistedSignalSmoothingPreferences()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = CreateVibrationTelemetry();
@@ -1147,7 +1147,11 @@ public class SessionDetailViewModelTests
             preferences,
             snapshot.Id,
             new SessionPreferences(
-                new SignalDisplayPreferences(Travel: true, Velocity: false, Imu: true),
+                new SignalDisplayPreferences(
+                    Travel: true,
+                    Velocity: false,
+                    Imu: true,
+                    VelocitySmoothing: PlotSmoothingLevel.Strong),
                 new AnalysisPreferences()));
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(telemetry));
@@ -1156,14 +1160,14 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(snapshot, sessionPreferences: preferences);
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        Assert.True(editor.PreferencesPage.TravelSignal.Selected);
-        Assert.False(editor.PreferencesPage.VelocitySignal.Selected);
-        Assert.True(editor.PreferencesPage.ImuSignal.Selected);
+        Assert.Equal(PlotSmoothingLevel.Off, editor.PreferencesPage.TravelSignal.SelectedSmoothing);
+        Assert.Equal(PlotSmoothingLevel.Strong, editor.PreferencesPage.VelocitySignal.SelectedSmoothing);
+        Assert.Equal(PlotSmoothingLevel.Off, editor.PreferencesPage.ImuSignal.SelectedSmoothing);
         Assert.True(editor.PreferencesPage.TravelSignal.Available);
         Assert.True(editor.PreferencesPage.VelocitySignal.Available);
         Assert.True(editor.PreferencesPage.ImuSignal.Available);
         Assert.True(editor.SessionContext.TravelSignalState.IsReady);
-        Assert.True(editor.SessionContext.VelocitySignalState.IsHidden);
+        Assert.True(editor.SessionContext.VelocitySignalState.IsReady);
         Assert.True(editor.SessionContext.ImuSignalState.IsReady);
         await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
     }
@@ -1208,15 +1212,17 @@ public class SessionDetailViewModelTests
         await editor.LoadedCommand.ExecuteAsync(null);
         preferences.ClearReceivedCalls();
 
-        editor.PreferencesPage.VelocitySignal.Selected = false;
+        editor.PreferencesPage.VelocitySignal.SelectedSmoothing = PlotSmoothingLevel.Strong;
 
         Assert.False(editor.IsDirty);
         Assert.True(editor.SessionContext.TravelSignalState.IsReady);
-        Assert.True(editor.SessionContext.VelocitySignalState.IsHidden);
+        Assert.True(editor.SessionContext.VelocitySignalState.IsReady);
         Assert.True(editor.SessionContext.ImuSignalState.IsReady);
         await preferences.Received(1).UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
         Assert.NotNull(update);
-        Assert.False(update!(SessionPreferences.Default).SignalDisplay.Velocity);
+        var updatedPreferences = update!(SessionPreferences.Default);
+        Assert.True(updatedPreferences.SignalDisplay.Velocity);
+        Assert.Equal(PlotSmoothingLevel.Strong, updatedPreferences.SignalDisplay.VelocitySmoothing);
     }
 
     [AvaloniaFact]

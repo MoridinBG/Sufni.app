@@ -7,7 +7,7 @@ namespace Sufni.App.Tests.Sessions.Pages.ViewModels.SessionPages;
 public class PreferencesPageViewModelTests
 {
     [Fact]
-    public void CreateSignalDisplayPreferences_RoundTripsPitchRollSelectionAndSmoothing()
+    public void CreateSignalDisplayPreferences_KeepsSignalsShownAndRoundTripsSmoothing()
     {
         var viewModel = new PreferencesPageViewModel();
 
@@ -27,10 +27,9 @@ public class PreferencesPageViewModelTests
 
         var preferences = viewModel.CreateSignalDisplayPreferences();
 
-        Assert.False(viewModel.PitchRollSignal.Selected);
         Assert.False(viewModel.PitchRollSignal.Available);
         Assert.Equal(PlotSmoothingLevel.Strong, viewModel.PitchRollSignal.SelectedSmoothing);
-        Assert.False(preferences.PitchRoll);
+        Assert.True(preferences.PitchRoll);
         Assert.Equal(PlotSmoothingLevel.Strong, preferences.PitchRollSmoothing);
     }
 

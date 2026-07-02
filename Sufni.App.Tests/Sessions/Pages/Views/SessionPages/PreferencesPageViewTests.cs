@@ -11,7 +11,7 @@ namespace Sufni.App.Tests.Sessions.Pages.Views.SessionPages;
 public class PreferencesPageViewTests
 {
     [AvaloniaFact]
-    public async Task PreferencesPageView_BindsPlotSelectionAndAvailability()
+    public async Task PreferencesPageView_BindsSmoothingAndAvailability()
     {
         var viewModel = new PreferencesPageViewModel();
         viewModel.ApplySignalDisplayPreferences(new SignalDisplayPreferences(
@@ -37,17 +37,15 @@ public class PreferencesPageViewTests
 
         await using var mounted = await MountAsync(viewModel);
 
-        var travelCheckBox = mounted.View.FindControl<CheckBox>("TravelSignalCheckBox");
+        var travelLabel = mounted.View.FindControl<TextBlock>("TravelSignalLabel");
         var travelSmoothingComboBox = mounted.View.FindControl<ComboBox>("TravelSignalSmoothingComboBox");
 
-        Assert.NotNull(travelCheckBox);
+        Assert.NotNull(travelLabel);
         Assert.NotNull(travelSmoothingComboBox);
-        Assert.False(travelCheckBox!.IsChecked);
-        Assert.True(travelCheckBox.IsEnabled);
+        Assert.True(travelLabel!.IsEnabled);
         Assert.Equal(PlotSmoothingLevel.Light, travelSmoothingComboBox!.SelectedValue);
         Assert.True(travelSmoothingComboBox.IsEnabled);
 
-        travelCheckBox.IsChecked = true;
         travelSmoothingComboBox.SelectedValue = PlotSmoothingLevel.Strong;
         await ViewTestHelpers.FlushDispatcherAsync();
 
