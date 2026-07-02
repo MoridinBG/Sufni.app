@@ -54,6 +54,10 @@ public class BikeSerializationTests
         var root = JsonNode.Parse(json)!.AsObject();
 
         Assert.Equal(2, root["schema_version"]!.GetValue<int>());
+        Assert.False(root.ContainsKey("rear_suspension_kind"));
+        Assert.False(root.ContainsKey("linkage"));
+        Assert.False(root.ContainsKey("leverage_ratio"));
+        Assert.Equal("linkage", root["rear_suspension"]!["kind"]!.GetValue<string>());
 
         var imported = Bike.FromJson(json);
 
