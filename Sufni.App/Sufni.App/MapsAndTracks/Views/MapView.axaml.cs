@@ -38,6 +38,10 @@ public partial class MapView : UserControl
     private RecordedSessionExtensionSlots? subscribedSlots;
     private readonly MapInteractionController interaction = new(
         action => Dispatcher.UIThread.Post(action, DispatcherPriority.Background));
+    private readonly RenderedTrackGeometryCache renderedTrackGeometryCache = new();
+    private RenderedTrackGeometry? appliedFullTrackGeometry;
+    private RenderedTrackGeometry? appliedSessionTrackGeometry;
+    private RenderedTrackGeometry? appliedMarkerTrackGeometry;
 
     private readonly WritableLayer positionMarkerLayer = new()
     {
@@ -188,25 +192,25 @@ public partial class MapView : UserControl
         var fullTrackLayer = mapControl.Map.Layers.FindLayer("Full Track").FirstOrDefault() as MemoryLayer;
         if (fullTrackLayer != null && ViewModel.FullTrackPoints != null)
         {
-            var lineString = new LineString(ViewModel.FullTrackPoints.Select(v => (v.X, v.Y).ToCoordinate()).ToArray());
-            fullTrackLayer.Features = [new GeometryFeature { Geometry = lineString }];
-            fullTrackLayer.DataHasChanged();
+            var fullTrackGeometry = renderedTrackGeometryCache.GetOrBuildFull(ViewModel.FullTrackPoints);
+            ApplyTrackLayer(fullTrackLayer, fullTrackGeometry, ref appliedFullTrackGeometry);
         }
+
+        RenderedTrackGeometry? sessionTrackGeometry = null;
 
         // Update Session Track
         var sessionTrackLayer = mapControl.Map.Layers.FindLayer("Session Track").FirstOrDefault() as MemoryLayer;
         if (sessionTrackLayer != null && ViewModel.SessionTrackPoints != null)
         {
-            var lineString = new LineString(ViewModel.SessionTrackPoints.Select(v => (v.X, v.Y).ToCoordinate()).ToArray());
-            sessionTrackLayer.Features = [new GeometryFeature { Geometry = lineString }];
-            sessionTrackLayer.DataHasChanged();
+            sessionTrackGeometry = renderedTrackGeometryCache.GetOrBuildSession(ViewModel.SessionTrackPoints);
+            ApplyTrackLayer(sessionTrackLayer, sessionTrackGeometry, ref appliedSessionTrackGeometry);
 
             // Keep late track updates aligned with the shared timeline range.
             if (sessionTrackLayer.Extent != null)
             {
                 interaction.RunWithoutViewportTimelineUpdates(() =>
                 {
-                    if (ViewModel.SessionTrackPoints.Count > 1)
+                    if (sessionTrackGeometry.Points.Count > 1)
                     {
                         var start = Timeline?.VisibleRangeStart ?? 0;
                         var end = Timeline?.VisibleRangeEnd ?? 1;
@@ -222,22 +226,42 @@ public partial class MapView : UserControl
 
         // Update Markers
         var markerLayer = mapControl.Map.Layers.FindLayer("Start/End Marker").FirstOrDefault() as MemoryLayer;
-        if (markerLayer != null && ViewModel.SessionTrackPoints != null && ViewModel.SessionTrackPoints.Any())
+        if (markerLayer != null && sessionTrackGeometry is not null)
         {
-            var start = ViewModel.SessionTrackPoints.First();
-            var end = ViewModel.SessionTrackPoints.Last();
-
-            var startPointFeature = new PointFeature(start.X, start.Y);
-            startPointFeature.Styles.Add(new SymbolStyle { SymbolType = SymbolType.Ellipse, Line = new Pen(Color.Black), Fill = new Brush(Color.FromString("#229954")), SymbolScale = 0.5 });
-
-            var endPointFeature = new PointFeature(end.X, end.Y);
-            endPointFeature.Styles.Add(new SymbolStyle { SymbolType = SymbolType.Ellipse, Line = new Pen(Color.Black), Fill = new Brush(Color.FromString("#E74C3C")), SymbolScale = 0.5 });
-
-            markerLayer.Features = [startPointFeature, endPointFeature];
-            markerLayer.DataHasChanged();
+            ApplyMarkerLayer(markerLayer, sessionTrackGeometry, ref appliedMarkerTrackGeometry);
         }
 
         mapControl.Refresh();
+    }
+
+    private static void ApplyTrackLayer(
+        MemoryLayer layer,
+        RenderedTrackGeometry geometry,
+        ref RenderedTrackGeometry? appliedGeometry)
+    {
+        if (ReferenceEquals(appliedGeometry, geometry))
+        {
+            return;
+        }
+
+        layer.Features = geometry.LineFeatures;
+        layer.DataHasChanged();
+        appliedGeometry = geometry;
+    }
+
+    private static void ApplyMarkerLayer(
+        MemoryLayer layer,
+        RenderedTrackGeometry geometry,
+        ref RenderedTrackGeometry? appliedGeometry)
+    {
+        if (ReferenceEquals(appliedGeometry, geometry))
+        {
+            return;
+        }
+
+        layer.Features = geometry.MarkerFeatures;
+        layer.DataHasChanged();
+        appliedGeometry = geometry;
     }
 
     private void SubscribeToSlots(RecordedSessionExtensionSlots? slots)
@@ -435,14 +459,14 @@ public partial class MapView : UserControl
             return;
         }
 
-        var sessionTrackPoints = ViewModel?.SessionTrackPoints;
-        if (sessionTrackPoints is null || sessionTrackPoints.Count == 0)
+        var sessionTrackGeometry = GetSessionTrackGeometry();
+        if (sessionTrackGeometry is null || sessionTrackGeometry.Points.Count == 0)
         {
             ClearNormalizedCursorPosition();
             return;
         }
 
-        var context = GetTimelineContext(sessionTrackPoints);
+        var context = GetTimelineContext(sessionTrackGeometry);
         if (context is null)
         {
             ClearNormalizedCursorPosition();
@@ -450,7 +474,7 @@ public partial class MapView : UserControl
         }
 
         var targetTime = context.Value.OriginSeconds + pos * context.Value.DurationSeconds;
-        var point = MapTrackGeometry.FindClosestTrackPoint(sessionTrackPoints, targetTime);
+        var point = sessionTrackGeometry.TimeIndex.FindClosest(targetTime);
         if (point is null)
         {
             ClearNormalizedCursorPosition();
@@ -480,13 +504,13 @@ public partial class MapView : UserControl
 
     public void ZoomToNormalizedRange(double startNormalized, double endNormalized, double padding = 0.1)
     {
-        var sessionTrackPoints = ViewModel?.SessionTrackPoints;
-        if (sessionTrackPoints is null || sessionTrackPoints.Count == 0 || mapControl == null || startNormalized >= endNormalized) return;
+        var sessionTrackGeometry = GetSessionTrackGeometry();
+        if (sessionTrackGeometry is null || sessionTrackGeometry.Points.Count == 0 || mapControl == null || startNormalized >= endNormalized) return;
 
         startNormalized = Math.Clamp(startNormalized, 0, 1);
         endNormalized = Math.Clamp(endNormalized, 0, 1);
 
-        var context = GetTimelineContext(sessionTrackPoints);
+        var context = GetTimelineContext(sessionTrackGeometry);
         if (context is null)
         {
             return;
@@ -494,7 +518,7 @@ public partial class MapView : UserControl
 
         var startSeconds = context.Value.OriginSeconds + startNormalized * context.Value.DurationSeconds;
         var endSeconds = context.Value.OriginSeconds + endNormalized * context.Value.DurationSeconds;
-        var pointsInRange = MapTrackGeometry.GetTrackPointsInTimeRange(sessionTrackPoints, startSeconds, endSeconds);
+        var pointsInRange = sessionTrackGeometry.TimeIndex.GetRangeWithBoundaryNeighbors(startSeconds, endSeconds);
         switch (MapViewportController.ComputeRangeFit(pointsInRange, padding))
         {
             case MapViewportController.CenterFit center:
@@ -513,8 +537,8 @@ public partial class MapView : UserControl
 
     private void NotifyViewportChanged()
     {
-        var sessionTrackPoints = ViewModel?.SessionTrackPoints;
-        if (interaction.IsApplyingTimelineUpdate || sessionTrackPoints is null || sessionTrackPoints.Count < 2 || mapControl == null || Timeline is null) return;
+        var sessionTrackGeometry = GetSessionTrackGeometry();
+        if (interaction.IsApplyingTimelineUpdate || sessionTrackGeometry is null || sessionTrackGeometry.Points.Count < 2 || mapControl == null || Timeline is null) return;
 
         var viewport = mapControl.Map.Navigator.Viewport;
         var bounds = MapViewportController.ComputeBounds(
@@ -524,10 +548,10 @@ public partial class MapView : UserControl
             viewport.Height,
             viewport.Resolution);
 
-        var context = GetTimelineContext(sessionTrackPoints);
+        var context = GetTimelineContext(sessionTrackGeometry);
         if (context is null ||
             !MapTrackGeometry.TryGetVisibleTrackRange(
-                sessionTrackPoints, context.Value, bounds.MinX, bounds.MaxX, bounds.MinY, bounds.MaxY, out var start, out var end))
+                sessionTrackGeometry.Points, context.Value, bounds.MinX, bounds.MaxX, bounds.MinY, bounds.MaxY, out var start, out var end))
         {
             return;
         }
@@ -589,10 +613,129 @@ public partial class MapView : UserControl
         });
     }
 
-    private TrackTimeRange? GetTimelineContext(IReadOnlyList<TrackPoint> sessionTrackPoints)
+    private RenderedTrackGeometry? GetSessionTrackGeometry()
+    {
+        var sessionTrackPoints = ViewModel?.SessionTrackPoints;
+        return sessionTrackPoints is null
+            ? null
+            : renderedTrackGeometryCache.GetOrBuildSession(sessionTrackPoints);
+    }
+
+    private TrackTimeRange? GetTimelineContext(RenderedTrackGeometry sessionTrackGeometry)
     {
         return ViewModel?.TimelineContext
-               ?? TrackPointSeries.BuildTimelineContext(sessionTrackPoints, originSeconds: null, durationSeconds: null);
+               ?? sessionTrackGeometry.TimeIndex.TimelineContext;
+    }
+
+    private sealed class RenderedTrackGeometryCache
+    {
+        private IReadOnlyList<TrackPoint>? fullPoints;
+        private RenderedTrackGeometry? fullGeometry;
+        private IReadOnlyList<TrackPoint>? sessionPoints;
+        private RenderedTrackGeometry? sessionGeometry;
+
+        public RenderedTrackGeometry GetOrBuildFull(IReadOnlyList<TrackPoint> points)
+        {
+            return GetOrBuild(points, ref fullPoints, ref fullGeometry);
+        }
+
+        public RenderedTrackGeometry GetOrBuildSession(IReadOnlyList<TrackPoint> points)
+        {
+            return GetOrBuild(points, ref sessionPoints, ref sessionGeometry);
+        }
+
+        private static RenderedTrackGeometry GetOrBuild(
+            IReadOnlyList<TrackPoint> points,
+            ref IReadOnlyList<TrackPoint>? cachedPoints,
+            ref RenderedTrackGeometry? cachedGeometry)
+        {
+            if (ReferenceEquals(cachedPoints, points) && cachedGeometry is not null)
+            {
+                return cachedGeometry;
+            }
+
+            var generation = (cachedGeometry?.Generation ?? 0) + 1;
+            cachedPoints = points;
+            cachedGeometry = RenderedTrackGeometry.Create(points, generation);
+            return cachedGeometry;
+        }
+    }
+
+    private sealed class RenderedTrackGeometry
+    {
+        private RenderedTrackGeometry(
+            IReadOnlyList<TrackPoint> points,
+            Coordinate[] coordinates,
+            LineString lineString,
+            IFeature[] lineFeatures,
+            IFeature[] markerFeatures,
+            TrackPointTimeIndex timeIndex,
+            long generation)
+        {
+            Points = points;
+            Coordinates = coordinates;
+            LineString = lineString;
+            LineFeatures = lineFeatures;
+            MarkerFeatures = markerFeatures;
+            TimeIndex = timeIndex;
+            Generation = generation;
+        }
+
+        public IReadOnlyList<TrackPoint> Points { get; }
+
+        public Coordinate[] Coordinates { get; }
+
+        public LineString LineString { get; }
+
+        public IFeature[] LineFeatures { get; }
+
+        public IFeature[] MarkerFeatures { get; }
+
+        public TrackPointTimeIndex TimeIndex { get; }
+
+        public long Generation { get; }
+
+        public static RenderedTrackGeometry Create(IReadOnlyList<TrackPoint> points, long generation)
+        {
+            var coordinates = points.Select(point => (point.X, point.Y).ToCoordinate()).ToArray();
+            var lineString = new LineString(coordinates);
+            var lineFeature = new GeometryFeature { Geometry = lineString };
+            return new RenderedTrackGeometry(
+                points,
+                coordinates,
+                lineString,
+                [lineFeature],
+                CreateMarkerFeatures(points),
+                new TrackPointTimeIndex(points),
+                generation);
+        }
+
+        private static IFeature[] CreateMarkerFeatures(IReadOnlyList<TrackPoint> points)
+        {
+            if (points.Count == 0)
+            {
+                return [];
+            }
+
+            return
+            [
+                CreateMarkerFeature(points[0], "#229954"),
+                CreateMarkerFeature(points[^1], "#E74C3C"),
+            ];
+        }
+
+        private static PointFeature CreateMarkerFeature(TrackPoint point, string fillColor)
+        {
+            var feature = new PointFeature(point.X, point.Y);
+            feature.Styles.Add(new SymbolStyle
+            {
+                SymbolType = SymbolType.Ellipse,
+                Line = new Pen(Color.Black),
+                Fill = new Brush(Color.FromString(fillColor)),
+                SymbolScale = 0.5,
+            });
+            return feature;
+        }
     }
 
     private MemoryLayer CreateSessionTrackLayer()

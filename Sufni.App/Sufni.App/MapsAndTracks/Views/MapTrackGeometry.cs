@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Mapsui.Projections;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.MapsAndTracks.Models;
 
 namespace Sufni.App.MapsAndTracks.Views;
 
@@ -68,27 +70,7 @@ internal static class MapTrackGeometry
 
     internal static TrackPoint? FindClosestTrackPoint(IReadOnlyList<TrackPoint> sessionTrackPoints, double targetTime)
     {
-        TrackPoint? closest = null;
-        var closestDistance = double.PositiveInfinity;
-
-        foreach (var point in sessionTrackPoints)
-        {
-            if (!double.IsFinite(point.Time))
-            {
-                continue;
-            }
-
-            var distance = Math.Abs(point.Time - targetTime);
-            if (distance >= closestDistance)
-            {
-                continue;
-            }
-
-            closest = point;
-            closestDistance = distance;
-        }
-
-        return closest;
+        return new TrackPointTimeIndex(sessionTrackPoints).FindClosest(targetTime);
     }
 
     internal static List<TrackPoint> GetTrackPointsInTimeRange(
@@ -96,43 +78,9 @@ internal static class MapTrackGeometry
         double startSeconds,
         double endSeconds)
     {
-        var pointsInRange = new List<TrackPoint>();
-        TrackPoint? before = null;
-        TrackPoint? after = null;
-
-        foreach (var point in sessionTrackPoints)
-        {
-            if (!double.IsFinite(point.Time))
-            {
-                continue;
-            }
-
-            if (point.Time < startSeconds)
-            {
-                before = point;
-                continue;
-            }
-
-            if (point.Time > endSeconds)
-            {
-                after ??= point;
-                continue;
-            }
-
-            pointsInRange.Add(point);
-        }
-
-        if (before is not null)
-        {
-            pointsInRange.Insert(0, before);
-        }
-
-        if (after is not null)
-        {
-            pointsInRange.Add(after);
-        }
-
-        return pointsInRange;
+        return new TrackPointTimeIndex(sessionTrackPoints)
+            .GetRangeWithBoundaryNeighbors(startSeconds, endSeconds)
+            .ToList();
     }
 
     internal static double NormalizeTime(double timeSeconds, TrackTimeRange context)
