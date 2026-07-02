@@ -85,6 +85,7 @@ public class TrackRepositoryTests
     {
         using var tempDatabase = new TempDatabase("track-no-timestamp.db");
         var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        _ = await database.GetInitializedConnectionAsync();
 
         Assert.Null(await database.FindTrackContainingTimestampAsync(null));
     }
