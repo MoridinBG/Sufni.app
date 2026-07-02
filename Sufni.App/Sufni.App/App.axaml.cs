@@ -161,7 +161,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISessionPresentationService, SessionPresentationService>();
         ServiceCollection.AddSingleton<ISessionInsightsService, SessionInsightsService>();
         ServiceCollection.AddSingleton<IRecordedSessionAnalysisComputer, RecordedSessionAnalysisComputer>();
-        ServiceCollection.AddSingleton<IRecordedSessionAnalysisResultStateFactory, RecordedSessionAnalysisResultStateFactory>();
+        ServiceCollection.AddTransient<IRecordedSessionAnalysisResultStateFactory, RecordedSessionAnalysisResultStateFactory>();
         ServiceCollection.AddSingleton<ISessionTelemetryProcessor, SessionTelemetryProcessor>();
         ServiceCollection.AddSingleton<ISessionProcessedTelemetryReader, SessionProcessedTelemetryReader>();
         ServiceCollection.AddSingleton<IDaqManagementService, DaqManagementService>();
@@ -352,6 +352,8 @@ public partial class App : Application
         // Services with constructor-time event subscriptions are
         // eagerly resolved here so the subscriptions are wired before any
         // sync, pairing, or telemetry arrival can happen.
+        _ = Services.GetRequiredService<IProcessingDependencyHashIndex>();
+        _ = Services.GetRequiredService<ISessionTrackReader>();
         _ = Services.GetRequiredService<SessionSyncApplier>();
         _ = Services.GetRequiredService<IPairedDeviceCoordinator>();
         _ = Services.GetRequiredService<ISyncCoordinator>();
