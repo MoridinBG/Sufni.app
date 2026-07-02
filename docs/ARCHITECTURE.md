@@ -154,7 +154,7 @@ Topics in [architecture/processing.md](architecture/processing.md):
   - [Serialized Structure](architecture/processing.md#serialized-structure) — MessagePack `TelemetryData` shape
   - [Recorded Session Derivation](architecture/processing.md#recorded-session-derivation) — raw source, processed BLOB, processing fingerprint, and staleness rules
 - [Suspension Kinematics](architecture/processing.md#suspension-kinematics)
-  - [Linkage Model](architecture/processing.md#linkage-model) — joint types, links, JSON deserialization
+  - [Linkage Model](architecture/processing.md#linkage-model) — immutable specs, resolver validation, runtime linkage state
   - [Kinematic Solver](architecture/processing.md#kinematic-solver) — Gauss-Seidel constraint relaxation across shock travel
   - [Bike Characteristics](architecture/processing.md#bike-characteristics) — derived travel limits and leverage ratio
   - [Utilities](architecture/processing.md#utilities) — `CoordinateRotation`, `GroundCalculator`, `EtrtoRimSize`, `GeometryUtils`

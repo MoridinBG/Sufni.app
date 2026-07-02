@@ -123,7 +123,7 @@ The `Sufni.Kinematics` library models bike suspension linkages to compute how wh
 
 ### Linkage Model
 
-A `Linkage` (`Sufni.Kinematics/Linkage.cs`) consists of named `Joint`s and `Link`s. Joints have a type that determines their behavior during solving:
+A linkage is stored as an immutable `LinkageSpec` (`Sufni.Kinematics/LinkageSpec.cs`) made of ordered `JointSpec` values, ordered `LinkSpec` constraints, a shock `LinkSpec`, and the linkage's shock stroke. Joint specs have a nullable type that determines behavior during solving:
 
 | JointType       | Behavior                     |
 | --------------- | ---------------------------- |
@@ -134,15 +134,15 @@ A `Linkage` (`Sufni.Kinematics/Linkage.cs`) consists of named `Joint`s and `Link
 | `RearWheel`     | Rear axle position           |
 | `FrontWheel`    | Front axle position          |
 
-A `Link` (`Sufni.Kinematics/Link.cs`) connects two joints and stores their Euclidean distance as a constraint. The `Shock` link is special — its length is varied during solving to simulate compression.
+Each `LinkSpec` connects two joints by name. `LinkageResolver.Resolve(LinkageSpec)` validates referenced joint names, duplicate joints/links, the shock endpoints, and degenerate link lengths, then produces a fresh mutable `ResolvedLinkage` runtime graph for the solver. `ResolvedLink` stores the Euclidean length constraint. The shock link is special — its length is varied during solving to simulate compression.
 
-Linkages are stored as JSON in the `bike` table and deserialized with `Linkage.FromJson()`, which resolves joint name references to object references for fast lookup.
+Linkages are stored inside the `bike.rear_suspension` union JSON. The persisted JSON is pure spec data; deserialization has no side effects and does not resolve object references until the solver or validation explicitly asks the resolver to do so.
 
 ### Kinematic Solver
 
 `KinematicSolver` (`Sufni.Kinematics/KinematicSolver.cs`) uses iterative constraint satisfaction (Gauss-Seidel relaxation) to find valid joint positions through the full range of shock compression.
 
-Constructor: `KinematicSolver(Linkage, steps=200, iterations=1000)` — deep-copies the linkage via JSON round-trip.
+Constructor: `KinematicSolver(LinkageSpec, steps=200, iterations=1000)` — resolves the spec into fresh mutable runtime state for that solver instance. The immutable spec is never mutated.
 
 For each of the 200 steps (0% to 100% shock compression):
 
@@ -151,7 +151,7 @@ For each of the 200 steps (0% to 100% shock compression):
 
 `EnforceLength()` corrects each link toward its target along the link axis. When both endpoints are free (`movableEndpointCount == 2`), each moves by half the error so the link length matches in a single pass. When only one endpoint is free, that endpoint receives the *full* correction (`correctionScale = 1.0`). Multiple iterations are still required for the system to converge because every move perturbs the neighboring links sharing those joints.
 
-Output: `Dictionary<string, CoordinateList>` mapping each joint name to its X,Y positions across all 200 steps.
+Output: `KinematicSolution`, a deeply immutable set of `JointPath` values mapping each joint name to its X,Y positions across all steps. `ToCoordinateDictionary()` exists for plotting compatibility and returns fresh mutable `CoordinateList` copies on every call.
 
 ### Bike Characteristics
 
@@ -183,7 +183,7 @@ Four sensor types convert raw ADC counts to millimeters of travel through the `I
 - `MeasurementToTravel` — `Func<ushort, double>` calibration closure
 - `MaxTravel` — physical suspension limit in mm
 
-Polymorphic JSON deserialization: `SensorConfiguration.FromJson(json, bike)` reads the `Type` field first, then dispatches to the concrete class's `FromJson()` which deserializes the type-specific parameters and computes calibration factors using bike geometry. Front-suspension types build their `MeasurementToTravel` closure during this deserialization step. Rear shock payloads (`LinearShockSensorConfiguration`, `RotationalShockSensorConfiguration`) are deserialized as data-only records and the closure is built later by [`RearTravelCalibrationBuilder`](#rear-travel-calibration), which keeps the linkage and leverage-ratio rules out of the sensor-configuration types.
+Polymorphic JSON deserialization: `SensorConfiguration.FromJson(json, BikeSnapshot)` reads the `Type` field first, then dispatches to the front-sensor concrete class's `FromJson()` which deserializes the type-specific parameters and computes calibration factors using bike geometry. The data-only overload `SensorConfiguration.FromJson(json)` is used when the payload must remain independent of bike context. Rear shock payloads (`LinearShockSensorConfiguration`, `RotationalShockSensorConfiguration`) are deserialized as data-only records and the closure is built later by [`RearTravelCalibrationBuilder`](#rear-travel-calibration), which keeps the linkage and leverage-ratio rules out of the sensor-configuration types.
 
 For example, `LinearForkSensorConfiguration` stores `Length` (sensor physical range) and `Resolution` (ADC bit depth). Its calibration:
 
@@ -210,17 +210,17 @@ The bike context (head angle, fork stroke, shock stroke) is injected at deserial
 
 ### Rear Travel Calibration
 
-`RearTravelCalibrationBuilder` (`Sufni.App/Sufni.App/Bikes/Services/RearTravelCalibrationBuilder.cs`) extends the `ISensorConfiguration` strategy pattern for the rear shock, where shock-stroke ADC counts have to be converted to wheel travel through either a linkage solve or a leverage-ratio curve. Its single entry point — `TryBuild(Setup, Bike, out RearTravelCalibration?, out string?)` — returns a `RearTravelCalibration(MaxTravel, MeasurementToTravel, MeasurementWraps)` record that `TelemetryBikeData.Create(setup, bike)` (`Sufni.App/Sufni.App/Bikes/Services/TelemetryBikeData.cs`) feeds into `BikeData` for `TelemetryData.FromRecording(...)`. It is invoked at processing time (recorded session import, recompute, live capture launch) — never at sensor-configuration deserialization time, so the rear `LinearShockSensorConfiguration` / `RotationalShockSensorConfiguration` instances persisted on a `Setup` carry only their JSON parameters.
+`RearTravelCalibrationBuilder` (`Sufni.App/Sufni.App/Bikes/Services/RearTravelCalibrationBuilder.cs`) extends the `ISensorConfiguration` strategy pattern for the rear shock, where shock-stroke ADC counts have to be converted to wheel travel through either a linkage solve or a leverage-ratio curve. Its single entry point — `TryBuild(SetupSnapshot, BikeSnapshot, out RearTravelCalibration?, out string?)` — returns a `RearTravelCalibration(MaxTravel, MeasurementToTravel, MeasurementWraps)` record that `TelemetryBikeData.Create(setup, bike)` (`Sufni.App/Sufni.App/Bikes/Services/TelemetryBikeData.cs`) feeds into `BikeData` for `TelemetryData.FromRecording(...)`. It is invoked at processing time (recorded session import, recompute, live capture launch) — never at sensor-configuration deserialization time, so the rear `LinearShockSensorConfiguration` / `RotationalShockSensorConfiguration` instances persisted on a `Setup` carry only their JSON parameters.
 
 The build flow:
 
-1. Resolve the rear suspension model via `RearSuspensionResolver` from `Bike.RearSuspensionKind` (`Hardtail`, `Linkage`, `LeverageRatio`). A hardtail returns success with no calibration; an `Invalid` resolution returns the resolver's error verbatim.
-2. Deserialize `Setup.RearSensorConfigurationJson` as a data-only `SensorConfiguration` payload and pattern-match it against the resolved suspension:
+1. Pattern-match `BikeSnapshot.RearSuspension`. A hardtail returns success with no calibration; linkage and leverage-ratio drafts fail with "Rear suspension is incomplete."; unknown values fail with "Unknown rear suspension."
+2. Deserialize `SetupSnapshot.RearSensorConfigurationJson` as a data-only `SensorConfiguration` payload and pattern-match it against the suspension spec:
    - `LinearShockSensorConfiguration` with `SensorType.LinearShock` + `Linkage`, or `SensorType.LinearShockStroke` + `LeverageRatio` — compatible.
    - `RotationalShockSensorConfiguration` + `Linkage` — compatible.
    - Any other combination — incompatible, returns a setup-level error.
 3. Compute the per-sample shock stroke from the payload (linear: `Length / (2^Resolution - 1)`; rotational: `2π / 4096` rad per ADC count, then a cubic polynomial fit of the linkage's angle-to-shock-stroke dataset).
-4. Convert shock stroke to wheel travel through the resolved suspension: linkage suspensions interpolate `BikeCharacteristics.ShockStrokeToWheelTravelDataset()`, leverage-ratio suspensions call `LeverageRatio.WheelTravelAt(...)`.
+4. Convert shock stroke to wheel travel through the suspension spec: linkage suspensions solve `LinkageSpec` and interpolate `BikeCharacteristics.ShockStrokeToWheelTravelDataset()`, leverage-ratio suspensions call `LeverageRatio.WheelTravelAt(...)`.
 5. For leverage-ratio bikes, `LeverageRatioShockStrokeRules.TryValidate` checks that the bike's configured shock stroke matches the curve's `MaxShockStroke` within tolerance before the calibration is accepted; the resulting `MaxTravel` is the wheel travel at that validated stroke, not a separately configured number.
 
 The `MeasurementWraps` flag on the produced `RearTravelCalibration` is `true` for the rotational-shock path (the rotary encoder reports modulo-4096 angles) and `false` for the linear-shock paths; `TelemetryBikeData.Create` copies it onto `BikeData.RearMeasurementWraps`, which selects the [Measurement Preprocessing](#measurement-preprocessing) path for the rear samples.
