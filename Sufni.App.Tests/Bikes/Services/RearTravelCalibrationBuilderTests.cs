@@ -143,12 +143,19 @@ public class RearTravelCalibrationBuilderTests
         Assert.Equal(calibration.MaxTravel, calibration.MeasurementToTravel(15), 6);
     }
 
-    [Fact]
-    public void TryBuild_ReturnsFalse_WhenRearSuspensionStateIsInvalid()
+    public static TheoryData<RearSuspensionSpec> DraftRearSuspensions => new()
+    {
+        new RearSuspensionSpec.LinkageDraft(),
+        new RearSuspensionSpec.LeverageRatioDraft(),
+    };
+
+    [Theory]
+    [MemberData(nameof(DraftRearSuspensions))]
+    public void TryBuild_ReturnsFalse_WhenRearSuspensionStateIsDraft(RearSuspensionSpec rearSuspension)
     {
         var bike = new Bike(Guid.NewGuid(), "invalid bike")
         {
-            RearSuspension = new RearSuspensionSpec.LinkageDraft(),
+            RearSuspension = rearSuspension,
             ShockStroke = 0.5,
         };
         var setup = new Setup(Guid.NewGuid(), "invalid setup")
