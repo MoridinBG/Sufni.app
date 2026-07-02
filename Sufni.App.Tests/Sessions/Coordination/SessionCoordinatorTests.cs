@@ -2,7 +2,6 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;
@@ -12,7 +11,6 @@ using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
-using Sufni.App.Extensibility.Database;
 using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.MapsAndTracks.Coordinators;
@@ -64,7 +62,6 @@ public class SessionCoordinatorTests
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
     private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
-    private readonly IExtensionCascadeService extensionCascade = Substitute.For<IExtensionCascadeService>();
     private readonly ISessionRecomputeEngine recomputeEngine = Substitute.For<ISessionRecomputeEngine>();
 
     public SessionCoordinatorTests()
@@ -120,8 +117,7 @@ public class SessionCoordinatorTests
             sessionPreferences,
             shell,
             recomputeEngine,
-            () => editorFactory,
-            extensionCascade);
+            () => editorFactory);
 
     private SessionCoordinator CreateCoordinator() =>
         new(
@@ -398,11 +394,9 @@ public class SessionCoordinatorTests
 
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
         await sessionEntityRepository.Received(1).DeleteAsync(id);
-        await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, id);
         await recordedSessionSourceRepository.Received(1).DeleteRecordedSessionSourceAsync(id);
         sourceStore.Received(1).Remove(id);
         await trackEntityRepository.Received(1).DeleteAsync(trackId);
-        await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, trackId);
         await sessionPreferences.Received(1).RemoveRecordedAsync(id);
         editorFactory.Received(1).CloseSessionDetail(id);
         sessionStore.Received(1).Remove(id);
@@ -425,11 +419,9 @@ public class SessionCoordinatorTests
 
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
         await sessionEntityRepository.Received(1).DeleteAsync(id);
-        await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, id);
         await recordedSessionSourceRepository.Received(1).DeleteRecordedSessionSourceAsync(id);
         sourceStore.Received(1).Remove(id);
         await trackEntityRepository.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
-        await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, Arg.Any<Guid>());
         editorFactory.Received(1).CloseSessionDetail(id);
         sessionStore.Received(1).Remove(id);
     }
@@ -450,11 +442,9 @@ public class SessionCoordinatorTests
 
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
         await sessionEntityRepository.Received(1).DeleteAsync(id);
-        await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, id);
         await recordedSessionSourceRepository.Received(1).DeleteRecordedSessionSourceAsync(id);
         sourceStore.Received(1).Remove(id);
         await trackEntityRepository.Received(1).DeleteAsync(trackId);
-        await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, trackId);
         editorFactory.Received(1).CloseSessionDetail(id);
         sessionStore.Received(1).Remove(id);
     }
@@ -468,7 +458,6 @@ public class SessionCoordinatorTests
         var result = await CreateCoordinator().DeleteAsync(id);
 
         Assert.Equal(SessionDeleteOutcome.Failed, result.Outcome);
-        await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(Arg.Any<ExtensionCoreEntityKind>(), Arg.Any<Guid>());
         await sessionPreferences.DidNotReceive().RemoveRecordedAsync(id);
         sessionStore.DidNotReceiveWithAnyArgs().Remove(default);
         editorFactory.DidNotReceive().CloseSessionDetail(Arg.Any<Guid>());

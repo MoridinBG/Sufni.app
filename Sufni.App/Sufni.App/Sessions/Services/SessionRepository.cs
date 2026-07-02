@@ -79,6 +79,10 @@ internal sealed class SessionRepository(
     SqliteConnectionContext connectionContext,
     IProcessingFingerprintService fingerprintService) : ISessionRepository
 {
+    private sealed class RollbackWithoutResultException : Exception
+    {
+    }
+
     private static readonly string ActiveSessionMetadataProjection = $"""
                                                                      id,
                                                                      name,
@@ -293,90 +297,84 @@ internal sealed class SessionRepository(
         Track? newFullTrack,
         ProcessingFingerprint expectedInputFingerprint)
     {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-
-        await connection.ExecuteAsync("BEGIN TRANSACTION");
-
         try
         {
-            // Coherence guard: re-check the DB-resident inputs that produced
-            // the reprocess against the freshly read row, inside the write
-            // transaction. A mismatch means a passive setup/bike/source change
-            // raced this run, so roll back and return null (the engine re-enqueues).
-            // The preference-stored processing option is not a DB column and is
-            // guarded by the engine's commit-time still-current check instead.
-            if (!await CurrentDatabaseInputsMatchAsync(connection, session.Id, expectedInputFingerprint))
+            await connectionContext.RunInTransactionAsync(connection =>
             {
-                await connection.ExecuteAsync("ROLLBACK");
-                return null;
-            }
-
-            if (newFullTrack is not null)
-            {
-                var existingTrack = await EntityExistsAsync<Track>(connection, newFullTrack.Id);
-                newFullTrack.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                newFullTrack.Deleted = null;
-
-                if (existingTrack)
+                // Coherence guard: re-check the DB-resident inputs that produced
+                // the reprocess against the freshly read row, inside the write
+                // transaction. A mismatch means a passive setup/bike/source change
+                // raced this run, so roll back and return null (the engine re-enqueues).
+                // The preference-stored processing option is not a DB column and is
+                // guarded by the engine's commit-time still-current check instead.
+                if (!CurrentDatabaseInputsMatch(connection, session.Id, expectedInputFingerprint))
                 {
-                    await UpdateEntityAsync(connection, newFullTrack);
-                }
-                else
-                {
-                    await InsertEntityAsync(connection, newFullTrack);
+                    throw new RollbackWithoutResultException();
                 }
 
-                session.FullTrack = newFullTrack.Id;
-            }
+                if (newFullTrack is not null)
+                {
+                    var existingTrack = EntityExists<Track>(connection, newFullTrack.Id);
+                    newFullTrack.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                    newFullTrack.Deleted = null;
 
-            session.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            var updatedRows = await connection.ExecuteAsync(
-                UpdateProcessedDerivedDataSql,
-                CreateDerivedDataUpdateValuesWithId(session));
-            if (updatedRows == 0)
-            {
-                await connection.ExecuteAsync("ROLLBACK");
-                return null;
-            }
+                    if (existingTrack)
+                    {
+                        UpdateEntity(connection, newFullTrack);
+                    }
+                    else
+                    {
+                        InsertEntity(connection, newFullTrack);
+                    }
 
-            await connection.ExecuteAsync("COMMIT");
+                    session.FullTrack = newFullTrack.Id;
+                }
+
+                session.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var updatedRows = connection.Execute(
+                    UpdateProcessedDerivedDataSql,
+                    CreateDerivedDataUpdateValuesWithId(session));
+                if (updatedRows == 0)
+                {
+                    throw new RollbackWithoutResultException();
+                }
+            });
         }
-        catch
+        catch (RollbackWithoutResultException)
         {
-            await connection.ExecuteAsync("ROLLBACK");
-            throw;
+            return null;
         }
 
         return await GetSessionAsync(session.Id)
                ?? throw new InvalidOperationException($"Session {session.Id} was not found after derived-data persistence.");
     }
 
-    private async Task<bool> CurrentDatabaseInputsMatchAsync(
-        SQLiteAsyncConnection connection,
+    private bool CurrentDatabaseInputsMatch(
+        SQLiteConnection connection,
         Guid sessionId,
         ProcessingFingerprint expectedInputFingerprint)
     {
         // Re-read via the metadata projection (no BLOB) to get the row's current
         // setup linkage, then resolve setup/bike/source as they stand now.
-        var session = await GetSessionAsync(sessionId);
+        var session = GetSession(connection, sessionId);
         if (session?.Setup is not { } setupId)
         {
             return false;
         }
 
-        var setup = await connection.FindAsync<Setup>(setupId);
+        var setup = connection.Find<Setup>(setupId);
         if (setup is null || setup.Deleted is not null)
         {
             return false;
         }
 
-        var bike = await connection.FindAsync<Bike>(setup.BikeId);
+        var bike = connection.Find<Bike>(setup.BikeId);
         if (bike is null || bike.Deleted is not null)
         {
             return false;
         }
 
-        var source = await connection.FindAsync<RecordedSessionSource>(sessionId);
+        var source = connection.Find<RecordedSessionSource>(sessionId);
         if (source is null)
         {
             return false;
@@ -388,6 +386,20 @@ internal sealed class SessionRepository(
             BikeSnapshot.From(bike),
             RecordedSessionSourceSnapshot.From(source));
         return expectedInputFingerprint.MatchesDatabaseInputs(current);
+    }
+
+    private static Session? GetSession(SQLiteConnection connection, Guid id)
+    {
+        var query = $"""
+                     SELECT
+                         {ActiveSessionMetadataProjection}
+                     FROM
+                         session
+                     WHERE
+                         deleted IS NULL AND id = ?
+                     """;
+        var sessions = connection.Query<Session>(query, id);
+        return sessions.Count == 1 ? sessions[0] : null;
     }
 
     public async Task UpdateSessionPsstAsync(Guid id, byte[] data, string? fingerprintJson, SessionSummaryMetrics metrics)
@@ -464,77 +476,72 @@ internal sealed class SessionRepository(
         Track? newFullTrack,
         RecordedSessionSource? source)
     {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-
         if (source is not null && source.SessionId != session.Id)
         {
             throw new InvalidOperationException("Recorded session source must belong to the processed session.");
         }
 
-        await connection.ExecuteAsync("BEGIN TRANSACTION");
-
         try
         {
-            if (newFullTrack is not null)
+            await connectionContext.RunInTransactionAsync(connection =>
             {
-                var existingTrack = await EntityExistsAsync<Track>(connection, newFullTrack.Id);
-                newFullTrack.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                newFullTrack.Deleted = null;
-
-                if (existingTrack)
+                if (newFullTrack is not null)
                 {
-                    await UpdateEntityAsync(connection, newFullTrack);
+                    var existingTrack = EntityExists<Track>(connection, newFullTrack.Id);
+                    newFullTrack.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                    newFullTrack.Deleted = null;
+
+                    if (existingTrack)
+                    {
+                        UpdateEntity(connection, newFullTrack);
+                    }
+                    else
+                    {
+                        InsertEntity(connection, newFullTrack);
+                    }
+
+                    session.FullTrack = newFullTrack.Id;
+                }
+
+                var existingSession = EntityExists<Session>(connection, session.Id);
+                session.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                session.Deleted = null;
+
+                if (existingSession)
+                {
+                    var updatedRows = UpdateProcessedSession(connection, session);
+                    if (updatedRows == 0)
+                    {
+                        throw new RollbackWithoutResultException();
+                    }
                 }
                 else
                 {
-                    await InsertEntityAsync(connection, newFullTrack);
+                    InsertEntity(connection, session);
                 }
 
-                session.FullTrack = newFullTrack.Id;
-            }
-
-            var existingSession = await EntityExistsAsync<Session>(connection, session.Id);
-            session.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            session.Deleted = null;
-
-            if (existingSession)
-            {
-                var updatedRows = await UpdateProcessedSessionAsync(connection, session);
-                if (updatedRows == 0)
+                if (source is not null)
                 {
-                    await connection.ExecuteAsync("ROLLBACK");
-                    return null;
+                    RecordedSessionSourceRepository.PutRecordedSessionSourceInTransaction(
+                        connection,
+                        source);
                 }
-            }
-            else
-            {
-                await InsertEntityAsync(connection, session);
-            }
-
-            if (source is not null)
-            {
-                await RecordedSessionSourceRepository.PutRecordedSessionSourceInCurrentTransactionAsync(
-                    connection,
-                    source);
-            }
-
-            await connection.ExecuteAsync("COMMIT");
+            });
         }
-        catch
+        catch (RollbackWithoutResultException)
         {
-            await connection.ExecuteAsync("ROLLBACK");
-            throw;
+            return null;
         }
 
         return await GetSessionAsync(session.Id)
                ?? throw new InvalidOperationException($"Session {session.Id} was not found after processed-session persistence.");
     }
 
-    private static Task<int> UpdateProcessedSessionAsync(
-        SQLiteAsyncConnection connection,
+    private static int UpdateProcessedSession(
+        SQLiteConnection connection,
         Session session)
     {
-        return connection.ExecuteAsync(
+        return connection.Execute(
             UpdateProcessedSessionSql,
             CreateProcessedSessionUpdateValuesWithId(session));
     }

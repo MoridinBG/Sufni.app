@@ -30,6 +30,15 @@ internal static class PersistenceGuards
         return await connection.ExecuteScalarAsync<int>($"SELECT COUNT(1) FROM {tableName} WHERE id = ?", id) > 0;
     }
 
+    public static bool EntityExists<
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
+        SQLiteConnection connection,
+        Guid id) where T : Synchronizable, new()
+    {
+        var tableName = GetTableName<T>();
+        return connection.ExecuteScalar<int>($"SELECT COUNT(1) FROM {tableName} WHERE id = ?", id) > 0;
+    }
+
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "T is annotated to preserve SQLite-mapped members.")]
     public static Task<int> InsertEntityAsync<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
@@ -41,6 +50,16 @@ internal static class PersistenceGuards
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "T is annotated to preserve SQLite-mapped members.")]
+    public static int InsertEntity<
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
+        SQLiteConnection connection,
+        T entity) where T : new()
+    {
+        ValidateEntityForPersistence(entity);
+        return connection.Insert(entity);
+    }
+
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "T is annotated to preserve SQLite-mapped members.")]
     public static Task<int> UpdateEntityAsync<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
         SQLiteAsyncConnection connection,
@@ -48,6 +67,16 @@ internal static class PersistenceGuards
     {
         ValidateEntityForPersistence(entity);
         return connection.UpdateAsync(entity);
+    }
+
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "T is annotated to preserve SQLite-mapped members.")]
+    public static int UpdateEntity<
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
+        SQLiteConnection connection,
+        T entity) where T : new()
+    {
+        ValidateEntityForPersistence(entity);
+        return connection.Update(entity);
     }
 
     public static void ValidateEntityForPersistence<T>(T entity) where T : new()

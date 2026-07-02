@@ -153,6 +153,8 @@ erDiagram
 
 `SqliteConnectionContext` (`Sufni.App/Sufni.App/Infrastructure/SqliteConnectionContext.cs`) owns the single `SQLiteAsyncConnection`, the extension table catalog, and the initialization gate. It constructs the database at `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db` and starts `DatabaseMigrationRunner`, which enables WAL mode, creates core tables, applies compatibility migrations/backfills, runs extension migrations, performs startup cleanup, repairs duplicate track ranges, and runs extension orphan repair.
 
+The connection context is also the only app-owned transaction entry point for multi-statement repository writes. `RunInTransactionAsync(...)` awaits initialization, then delegates to sqlite-net's `RunInTransactionAsync(Action<SQLiteConnection>)`, so the connection/transaction lock is held for the whole callback. Transaction bodies use synchronous `SQLiteConnection` operations; raw `BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK` statement sequences are not used.
+
 Bike rows include presentation-owned damping speed cutoffs for front/rear compression and rebound. These values default to 200 mm/s, are synchronized and exported with the bike, and are backfilled on startup for legacy schemas. They are not session preferences and do not affect telemetry processing fingerprints.
 
 Startup migration also backfills `session_processing_fingerprint` for legacy processed sessions when the session has a processed BLOB, an undeleted setup and bike, and recorded-source metadata. The backfill writes only the fingerprint column and does not update the processed BLOB, summary metrics, or `updated` timestamp. The `core_migration` marker table records the one-time `session_processing_fingerprint_backfill_v2_202606` migration: during that first run, existing source-backed processed rows whose fingerprint already references the same setup, bike, track-projection version, and source hash are currentized even if their dependency hash came from a previous compatibility shape or from pre-refactor dependency state. After the marker exists, startup only repairs explicitly known legacy shapes such as missing/legacy fingerprints, the version-1 to version-2 processing-fingerprint compatibility case, the old snake_case dependency-hash serialization, and the legacy linkage-bike `rear_suspension_kind = None` value being normalized to `Linkage`; new source or dependency hash mismatches remain stale so recompute can still surface real derived-data changes.
@@ -164,13 +166,13 @@ Persistence consumers inject narrow repository interfaces instead of a single da
 - `GetAllAsync<T>()` — returns all records where `Deleted == null`
 - `GetChangedAsync<T>(long since)` — returns records where `Updated > since` OR (`Deleted != null` AND `Deleted > since`)
 - `PutAsync<T>(item)` — upsert. Stamps `Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds()` and clears `Deleted` (resurrecting any tombstoned row with the same id).
-- `DeleteAsync<T>(id)` — sets `Deleted` timestamp (soft delete); idempotent — leaves the existing tombstone in place if the row is already deleted.
+- `DeleteAsync<T>(id)` — runs in one transaction, soft-deletes the core row when it exists and is not already tombstoned, and applies matching extension cascade rules for the entity kind/id in the same transaction. Cascade rules still run when the core row is already tombstoned or missing, so extension rows referencing that id can be cleaned. Extension state refresh runs after commit only when rules matched.
 
 `ISessionRepository` operations split metadata and processed-data handling, and store the values they are given: telemetry validation, summary-metric derivation, and session-window track association/generation happen in `SessionTelemetryWriter` before the repository is called. `session.data` is the authoritative local processed-telemetry cache; `session.has_data` remains in the row for schema compatibility and snapshot projection, but session reads derive the availability flag from `data IS NOT NULL` so the flag cannot drift away from the blob. Nullable summary columns (`duration_seconds`, `distance_meters`, `ascent_meters`, `descent_meters`) are derived list-summary cache values, not user-authored session metadata. `gps_offset_seconds` is per-session state applied when deriving the cached session-window GPS track from a reusable full `Track`; it is stored on `session` rather than `track` because the same full ride track can back multiple recorded sessions or segments.
 
-- `PutSessionAsync()` — updates user-authored session metadata columns, the processing fingerprint, and stamps `Updated`/`Deleted` like `PutAsync`. Existing derived summary metrics are preserved on metadata updates; the `data` blob and cached `track` are only filled via `COALESCE(?, existing)` for compatibility with older callers and soft-deleted-row reuse, while normal metadata-only saves pass them as null.
-- `PutProcessedSessionAsync(session, newFullTrack, source)` — persists a processed session in one explicit transaction. It writes a new full `Track` when supplied, stamps `session.full_track_id`, writes all session metadata plus `data`, `session_processing_fingerprint`, and the summary-metric values already set on the session, and optionally inserts/replaces the matching `RecordedSessionSource`. If any write fails, the session, full-track, and source write roll back together.
-- `UpdateProcessedDerivedDataAsync(session, newFullTrack, expectedInputFingerprint)` — the derived-only write used by recorded-session recompute. In one transaction it re-reads the row, recomputes the **DB-input** part of the processing fingerprint from the freshly read setup/bike/source/version state, and compares it to `expectedInputFingerprint`; on a mismatch (a passive dependency change) it rolls back and returns `null`. The preference-stored processing option is deliberately **not** re-checked here — it is not a DB column and is guarded by the recompute engine's commit-time check. On a match it writes **only** the derived columns (`data`, `session_processing_fingerprint`, the four summary metrics, cached `track`, `full_track_id`), optionally inserts `newFullTrack`, stamps `updated`, and never touches user-metadata columns, returning the fresh row.
+- `PutSessionAsync()` — updates user-authored session metadata columns and stamps `Updated`/`Deleted` like `PutAsync`. Existing derived summary metrics are preserved on metadata updates; the `data` blob and cached `track` are only filled via `COALESCE(?, existing)` for compatibility with older callers and soft-deleted-row reuse, while normal metadata-only saves pass them as null. The full-track linkage and processing fingerprint are owned by the processed-write path and are preserved on metadata-only saves.
+- `PutProcessedSessionAsync(session, newFullTrack, source)` — persists a processed session in one lock-held `RunInTransactionAsync` callback. It writes a new full `Track` when supplied, stamps `session.full_track_id`, writes all session metadata plus `data`, `session_processing_fingerprint`, and the summary-metric values already set on the session, and optionally inserts/replaces the matching `RecordedSessionSource`. If any write fails, the session, full-track, and source write roll back together.
+- `UpdateProcessedDerivedDataAsync(session, newFullTrack, expectedInputFingerprint)` — the derived-only write used by recorded-session recompute. In one lock-held transaction it re-reads the row, recomputes the **DB-input** part of the processing fingerprint from the freshly read setup/bike/source/version state, and compares it to `expectedInputFingerprint`; on a mismatch (a passive dependency change) it rolls back and returns `null`. The preference-stored processing option is deliberately **not** re-checked here — it is not a DB column and is guarded by the recompute engine's commit-time check. On a match it writes **only** the derived columns (`data`, `session_processing_fingerprint`, the four summary metrics, cached `track`, `full_track_id`), optionally inserts `newFullTrack`, stamps `updated`, and never touches user-metadata columns, returning the fresh row.
 - `UpdateSessionPsstAsync(id, data, fingerprintJson, metrics)` — overwrites the BLOB-bound pair (`data` and `session_processing_fingerprint`) plus the supplied summary metrics on a non-deleted row, with **no `updated` bump** so a sync swap/fill creates no metadata-sync feedback edge; the blob, fingerprint, and metrics arrive pre-validated/pre-computed from `SessionTelemetryWriter`
 - `UpdateSessionTrackAsync(id, points, metrics, gpsOffsetSeconds?)` — replaces the cached session-window `track` JSON and the supplied summary metrics, optionally updates the per-session GPS offset, and stamps `updated`; callers that omit the offset preserve the existing `gps_offset_seconds`
 - `GetSessionRawPsstAsync(id)` / `GetSessionRawPsstWithFingerprintAsync(id)` — return the raw MessagePack blob (sync transfer, consumer-side deserialization); the second also returns the fingerprint of those bytes so the session-data push can carry both
@@ -208,6 +210,11 @@ initialization before returning an `IExtensionDatabaseSession` scoped to
 declared extension table types. Extension services can query and mutate their
 owned rows through the session operations, while undeclared table types and
 core table names are rejected before reaching sqlite-net.
+For extension-owned multi-statement writes, the session exposes
+`RunInTransactionAsync(Action<IExtensionDatabaseTransaction>)`. The transaction
+object provides synchronous table/find/insert/insert-or-replace/update/delete
+counterparts with the same declared-table validation, and callback exceptions
+roll the whole extension transaction back.
 
 Extension migrations are declared by `IExtensionDatabaseMigrator`.
 Each migrator declares:
@@ -249,15 +256,17 @@ declared cascade rules rather than ad hoc core knowledge.
 `IExtensionCascadeRuleProvider` declares the extension table, core
 entity kind, foreign-key column, and `SoftDelete` or `HardDelete`
 action. `ExtensionCascadeService` validates that the target table is
-owned by an extension migrator, applies rules after successful core
-delete workflows, and repeats the same declared cleanup during startup
-orphan repair. `IExtensionStateRefreshParticipant` lets extension
-state refresh after cascade work without exposing extension stores to
-core coordinators.
+owned by an extension migrator. `ISynchronizableRepository<T>.DeleteAsync`
+applies matching rules inside the same transaction as the core soft delete,
+including tombstoned or missing core rows where extension rows still reference
+the id. Startup orphan repair repeats the same declared cleanup after core
+cleanup. `IExtensionStateRefreshParticipant` lets extension state refresh after
+cascade work without exposing extension stores to core coordinators; delete
+workflows invoke refresh after the delete transaction commits.
 
 ## Conflict Resolution
 
-`MergeAsync<T>()` is invoked per entity inside the `MergeAllAsync(SynchronizationData)` transaction. It compares against a derived "content version" — `existing.ClientUpdated` if set, otherwise `existing.Updated` — so locally-authored rows that have not yet round-tripped through a sync still compare correctly.
+`MergeAsync<T>()` is invoked per entity inside the lock-held `MergeAllAsync(SynchronizationData)` transaction. It compares against a derived "content version" — `existing.ClientUpdated` if set, otherwise `existing.Updated` — so locally-authored rows that have not yet round-tripped through a sync still compare correctly.
 
 The merge cases, in evaluation order:
 

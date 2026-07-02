@@ -49,6 +49,12 @@ internal sealed class ExtensionDatabaseSession(
         return row is null ? 0 : await connection.DeleteAsync(row);
     }
 
+    public Task RunInTransactionAsync(Action<IExtensionDatabaseTransaction> work)
+    {
+        return connection.RunInTransactionAsync(transactionConnection =>
+            work(new ExtensionDatabaseTransaction(transactionConnection, tableCatalog)));
+    }
+
     private void ValidateTable<T>()
     {
         var tableType = typeof(T);

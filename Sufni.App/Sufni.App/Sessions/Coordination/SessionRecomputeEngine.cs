@@ -4,12 +4,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
-using Sufni.App.Extensibility.Database;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
@@ -82,7 +80,6 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
     private readonly IRecordedSessionDomainQuery recordedSessionDomainQuery;
     private readonly IRecordedSessionReprocessor recordedSessionReprocessor;
-    private readonly IExtensionCascadeService? extensionCascadeService;
 
     // Mirrors RecordedSessionProjection's stateGate pattern: a single lock guards the
     // run map and the monotonic sequence; there is deliberately no per-id
@@ -102,8 +99,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
         ISessionPreferences sessionPreferences,
         IRecordedSessionSourceStoreWriter sourceStore,
         IRecordedSessionDomainQuery recordedSessionDomainQuery,
-        IRecordedSessionReprocessor recordedSessionReprocessor,
-        IExtensionCascadeService? extensionCascadeService = null)
+        IRecordedSessionReprocessor recordedSessionReprocessor)
     {
         this.sessionStore = sessionStore;
         this.sessionRepository = sessionRepository;
@@ -115,7 +111,6 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
         this.sourceStore = sourceStore;
         this.recordedSessionDomainQuery = recordedSessionDomainQuery;
         this.recordedSessionReprocessor = recordedSessionReprocessor;
-        this.extensionCascadeService = extensionCascadeService;
     }
 
     private sealed record Run(CancellationTokenSource Cts, long Seq, Task<SessionRecomputeResult> Task);
@@ -421,10 +416,6 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
         try
         {
             await trackEntityRepository.DeleteAsync(previousFullTrackId.Value);
-            if (extensionCascadeService is not null)
-            {
-                await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, previousFullTrackId.Value);
-            }
         }
         catch (Exception e)
         {

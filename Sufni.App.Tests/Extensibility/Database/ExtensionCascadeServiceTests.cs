@@ -9,7 +9,7 @@ namespace Sufni.App.Tests.Extensibility.Database;
 public class ExtensionCascadeServiceTests
 {
     [Fact]
-    public async Task ApplyForDeletedCoreEntityAsync_SoftDeletesRowsAndRefreshesParticipants()
+    public async Task ApplyRulesForDeletedCoreEntityInTransaction_SoftDeletesRows_AndRefreshesParticipantsAfterCommit()
     {
         using var tempDirectory = new TempDirectory("sufni-cascade-test");
         var databasePath = Path.Combine(tempDirectory.Path, "soft-cascade.db");
@@ -32,8 +32,17 @@ public class ExtensionCascadeServiceTests
         });
         var service = new ExtensionCascadeService(context, [migrator], [provider], [refresh]);
 
-        await service.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, sessionId);
+        var applied = false;
+        await context.RunInTransactionAsync(transaction =>
+        {
+            applied = service.ApplyRulesForDeletedCoreEntityInTransaction(
+                transaction,
+                ExtensionCoreEntityKind.Session,
+                sessionId);
+        });
+        await service.RefreshExtensionStateAsync();
 
+        Assert.True(applied);
         var row = await connection.GetAsync<SoftCascadeRow>("soft");
         Assert.NotNull(row.Deleted);
         Assert.Equal(row.Deleted, row.Updated);
@@ -41,7 +50,7 @@ public class ExtensionCascadeServiceTests
     }
 
     [Fact]
-    public async Task ApplyForDeletedCoreEntityAsync_HardDeletesRows()
+    public async Task ApplyRulesForDeletedCoreEntityInTransaction_HardDeletesRows()
     {
         using var tempDirectory = new TempDirectory("sufni-cascade-test");
         var databasePath = Path.Combine(tempDirectory.Path, "hard-cascade.db");
@@ -63,8 +72,16 @@ public class ExtensionCascadeServiceTests
         });
         var service = new ExtensionCascadeService(context, [migrator], [provider], []);
 
-        await service.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, trackId);
+        var applied = false;
+        await context.RunInTransactionAsync(transaction =>
+        {
+            applied = service.ApplyRulesForDeletedCoreEntityInTransaction(
+                transaction,
+                ExtensionCoreEntityKind.Track,
+                trackId);
+        });
 
+        Assert.True(applied);
         Assert.Empty(await connection.Table<HardCascadeRow>().ToListAsync());
     }
 
@@ -113,7 +130,7 @@ public class ExtensionCascadeServiceTests
     }
 
     [Fact]
-    public async Task ApplyForDeletedCoreEntityAsync_RejectsRulesForUndeclaredTables()
+    public async Task Constructor_RejectsRulesForUndeclaredTables()
     {
         using var tempDirectory = new TempDirectory("sufni-cascade-test");
         var databasePath = Path.Combine(tempDirectory.Path, "invalid-cascade.db");

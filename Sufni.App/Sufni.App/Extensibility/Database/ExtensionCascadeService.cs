@@ -71,28 +71,35 @@ internal sealed class ExtensionCascadeService : IExtensionCascadeService
         }
     }
 
-    public async Task ApplyForDeletedCoreEntityAsync(
+    public bool ApplyRulesForDeletedCoreEntityInTransaction(
+        SQLiteConnection connection,
         ExtensionCoreEntityKind kind,
-        Guid id,
-        CancellationToken cancellationToken = default)
+        Guid id)
     {
         var matchingRules = rules
             .Where(rule => rule.CoreEntityKind == kind)
             .ToArray();
         if (matchingRules.Length == 0)
         {
-            return;
+            return false;
         }
 
-        var connection = await getConnectionAsync(cancellationToken);
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         foreach (var rule in matchingRules)
         {
             ValidateRule(rule);
-            await ApplyRuleForDeletedCoreEntityAsync(connection, rule, id, now);
+            ApplyRuleForDeletedCoreEntity(connection, rule, id, now);
         }
 
-        await RefreshExtensionStateAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task RefreshExtensionStateAsync(CancellationToken cancellationToken = default)
+    {
+        foreach (var participant in getRefreshParticipants())
+        {
+            await participant.RefreshExtensionStateAsync(cancellationToken);
+        }
     }
 
     public async Task RepairOrphansAsync(CancellationToken cancellationToken = default)
@@ -119,8 +126,8 @@ internal sealed class ExtensionCascadeService : IExtensionCascadeService
         }
     }
 
-    private static async Task ApplyRuleForDeletedCoreEntityAsync(
-        SQLiteAsyncConnection connection,
+    private static void ApplyRuleForDeletedCoreEntity(
+        SQLiteConnection connection,
         ExtensionCascadeRule rule,
         Guid id,
         long now)
@@ -130,13 +137,13 @@ internal sealed class ExtensionCascadeService : IExtensionCascadeService
 
         if (rule.Action == ExtensionCascadeAction.HardDelete)
         {
-            await connection.ExecuteAsync(
+            connection.Execute(
                 $"DELETE FROM {tableName} WHERE {referenceColumnName} = ?",
                 id);
             return;
         }
 
-        await connection.ExecuteAsync(
+        connection.Execute(
             $"""
             UPDATE {tableName}
             SET {QuoteIdentifier(rule.DeletedColumnName)} = ?, {QuoteIdentifier(rule.UpdatedColumnName)} = ?
@@ -215,14 +222,6 @@ internal sealed class ExtensionCascadeService : IExtensionCascadeService
         {
             throw new InvalidOperationException(
                 $"Extension cascade rule for '{rule.ExtensionId}' references column '{columnName}' on table '{rule.TableName}', but the registered extension table does not declare that column.");
-        }
-    }
-
-    private async Task RefreshExtensionStateAsync(CancellationToken cancellationToken)
-    {
-        foreach (var participant in getRefreshParticipants())
-        {
-            await participant.RefreshExtensionStateAsync(cancellationToken);
         }
     }
 

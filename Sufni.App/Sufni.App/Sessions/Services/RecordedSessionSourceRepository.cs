@@ -31,6 +31,17 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
     : IRecordedSessionSourceRepository
 {
     private const string SessionProcessingFingerprintColumn = "session_processing_fingerprint";
+    private const string PutRecordedSessionSourceSql = """
+                                                       INSERT OR REPLACE INTO session_recording_source (
+                                                           session_id,
+                                                           source_kind,
+                                                           source_name,
+                                                           schema_version,
+                                                           source_hash,
+                                                           payload
+                                                       )
+                                                       VALUES (?, ?, ?, ?, ?, ?)
+                                                       """;
 
     public async Task<List<RecordedSessionSource>> GetRecordedSessionSourcesAsync()
     {
@@ -88,7 +99,8 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
     public async Task PutRecordedSessionSourceAsync(RecordedSessionSource source)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
-        await PutRecordedSessionSourceInCurrentTransactionAsync(connection, source);
+        ValidateRecordedSessionSource(source);
+        await connection.ExecuteAsync(PutRecordedSessionSourceSql, CreatePutRecordedSessionSourceValues(source));
     }
 
     public async Task DeleteRecordedSessionSourceAsync(Guid sessionId)
@@ -97,34 +109,23 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
         await connection.ExecuteAsync("DELETE FROM session_recording_source WHERE session_id=?", sessionId);
     }
 
-    internal static Task PutRecordedSessionSourceInCurrentTransactionAsync(
-        SQLiteAsyncConnection connection,
+    internal static int PutRecordedSessionSourceInTransaction(
+        SQLiteConnection connection,
         RecordedSessionSource source)
     {
         ValidateRecordedSessionSource(source);
-
-        const string query = """
-                             INSERT OR REPLACE INTO session_recording_source (
-                                 session_id,
-                                 source_kind,
-                                 source_name,
-                                 schema_version,
-                                 source_hash,
-                                 payload
-                             )
-                             VALUES (?, ?, ?, ?, ?, ?)
-                             """;
-
-        return connection.ExecuteAsync(query,
-            [
-                source.SessionId,
-                source.SourceKindValue,
-                source.SourceName,
-                source.SchemaVersion,
-                source.SourceHash,
-                source.Payload
-            ]);
+        return connection.Execute(PutRecordedSessionSourceSql, CreatePutRecordedSessionSourceValues(source));
     }
+
+    private static object?[] CreatePutRecordedSessionSourceValues(RecordedSessionSource source) =>
+    [
+        source.SessionId,
+        source.SourceKindValue,
+        source.SourceName,
+        source.SchemaVersion,
+        source.SourceHash,
+        source.Payload
+    ];
 
     private static void ValidateRecordedSessionSource(RecordedSessionSource source)
     {

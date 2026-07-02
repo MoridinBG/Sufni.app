@@ -3,14 +3,12 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Sufni.App.ExtensionHost.Contracts.Database;
 using Serilog;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Acquisition.Services;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
-using Sufni.App.Extensibility.Database;
 using Sufni.App.Infrastructure;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
@@ -30,8 +28,7 @@ public class SetupCoordinator(
     IFilesService filesService,
     IBackgroundTaskRunner backgroundTaskRunner,
     IShellCoordinator shell,
-    Func<IEditorFactory> editorFactory,
-    IExtensionCascadeService? extensionCascadeService = null)
+    Func<IEditorFactory> editorFactory)
     : ISetupCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SetupCoordinator>();
@@ -117,10 +114,6 @@ public class SetupCoordinator(
         try
         {
             await setupRepository.DeleteAsync(setupId);
-            if (extensionCascadeService is not null)
-            {
-                await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Setup, setupId);
-            }
         }
         catch (Exception e)
         {

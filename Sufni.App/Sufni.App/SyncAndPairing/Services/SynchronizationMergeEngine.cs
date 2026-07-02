@@ -163,35 +163,25 @@ internal sealed class SynchronizationMergeEngine(
 
     public async Task<IReadOnlyList<SessionBlobSwap>> ApplyRemoteSynchronizationDataAsync(SynchronizationData data)
     {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        var swaps = new List<SessionBlobSwap>();
-
-        await connection.ExecuteAsync("BEGIN TRANSACTION");
-
-        try
+        return await connectionContext.RunInTransactionAsync<IReadOnlyList<SessionBlobSwap>>(connection =>
         {
-            foreach (var board in data.Boards) await ApplyRemoteEntityAsync(connection, board);
-            foreach (var bike in data.Bikes) await ApplyRemoteEntityAsync(connection, bike);
-            foreach (var setup in data.Setups) await ApplyRemoteEntityAsync(connection, setup);
-            foreach (var track in data.Tracks) await ApplyRemoteEntityAsync(connection, track);
+            var swaps = new List<SessionBlobSwap>();
+
+            foreach (var board in data.Boards) ApplyRemoteEntity(connection, board);
+            foreach (var bike in data.Bikes) ApplyRemoteEntity(connection, bike);
+            foreach (var setup in data.Setups) ApplyRemoteEntity(connection, setup);
+            foreach (var track in data.Tracks) ApplyRemoteEntity(connection, track);
             foreach (var session in data.Sessions)
             {
-                var swap = await ApplyRemoteSessionAsync(connection, session);
+                var swap = ApplyRemoteSession(connection, session);
                 if (swap is not null)
                 {
                     swaps.Add(swap);
                 }
             }
 
-            await connection.ExecuteAsync("COMMIT");
-        }
-        catch
-        {
-            await connection.ExecuteAsync("ROLLBACK");
-            throw;
-        }
-
-        return swaps;
+            return swaps;
+        });
     }
 
     public async Task<long> GetLastSyncTimeAsync(string? serverUrl)
@@ -229,25 +219,14 @@ internal sealed class SynchronizationMergeEngine(
 
     public async Task MergeAllAsync(SynchronizationData data)
     {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-
-        await connection.ExecuteAsync("BEGIN TRANSACTION");
-
-        try
+        await connectionContext.RunInTransactionAsync(connection =>
         {
-            foreach (var bike in data.Bikes) await MergeAsync(connection, bike, MergeGenericAcceptedContentAsync);
-            foreach (var setup in data.Setups) await MergeAsync(connection, setup, MergeGenericAcceptedContentAsync);
-            foreach (var board in data.Boards) await MergeAsync(connection, board, MergeGenericAcceptedContentAsync);
-            foreach (var session in data.Sessions) await MergeAsync(connection, session, MergeSessionAcceptedContentAsync);
-            foreach (var track in data.Tracks) await MergeAsync(connection, track, MergeGenericAcceptedContentAsync);
-
-            await connection.ExecuteAsync("COMMIT");
-        }
-        catch
-        {
-            await connection.ExecuteAsync("ROLLBACK");
-            throw;
-        }
+            foreach (var bike in data.Bikes) Merge(connection, bike, MergeGenericAcceptedContent);
+            foreach (var setup in data.Setups) Merge(connection, setup, MergeGenericAcceptedContent);
+            foreach (var board in data.Boards) Merge(connection, board, MergeGenericAcceptedContent);
+            foreach (var session in data.Sessions) Merge(connection, session, MergeSessionAcceptedContent);
+            foreach (var track in data.Tracks) Merge(connection, track, MergeGenericAcceptedContent);
+        });
     }
 
     private static async Task<List<T>> GetChangedAsync<
@@ -278,27 +257,27 @@ internal sealed class SynchronizationMergeEngine(
         return connection.QueryAsync<Session>(query, since, since);
     }
 
-    private static async Task ApplyRemoteEntityAsync<
+    private static void ApplyRemoteEntity<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        SQLiteAsyncConnection connection,
+        SQLiteConnection connection,
         T entity) where T : Synchronizable, new()
     {
-        var existing = await FindAsync<T>(connection, entity.Id);
+        var existing = Find<T>(connection, entity.Id);
         if (existing is null)
         {
-            await InsertEntityAsync(connection, entity);
+            InsertEntity(connection, entity);
             return;
         }
 
-        await UpdateEntityAsync(connection, entity);
+        UpdateEntity(connection, entity);
     }
 
-    private async Task<SessionBlobSwap?> ApplyRemoteSessionAsync(SQLiteAsyncConnection connection, Session session)
+    private SessionBlobSwap? ApplyRemoteSession(SQLiteConnection connection, Session session)
     {
-        var existing = await FindAsync<Session>(connection, session.Id);
+        var existing = Find<Session>(connection, session.Id);
         if (existing is null)
         {
-            await InsertEntityAsync(connection, session);
+            InsertEntity(connection, session);
             return null;
         }
 
@@ -306,7 +285,7 @@ internal sealed class SynchronizationMergeEngine(
         {
             // No held BLOB: the fingerprint is just metadata, so write it normally.
             // The BLOB, if any, arrives via the session-data fill with a match check.
-            await connection.ExecuteAsync(
+            connection.Execute(
                 UpdateRemoteSessionMetadataSql,
                 CreateRemoteSessionMetadataValues(session, session.Updated, session.ClientUpdated));
             return null;
@@ -314,11 +293,11 @@ internal sealed class SynchronizationMergeEngine(
 
         // Held BLOB: defer the two BLOB-bound columns so the row keeps advertising
         // the fingerprint of the bytes it holds, and sync the rest immediately.
-        await connection.ExecuteAsync(
+        connection.Execute(
             UpdateRemoteSessionMetadataExceptFingerprintSql,
             CreateRemoteSessionMetadataExceptFingerprintValues(session, session.Updated, session.ClientUpdated));
 
-        return await TryBuildSwapAsync(
+        return TryBuildSwap(
             connection,
             session.Id,
             existing.ProcessingFingerprintJson,
@@ -329,18 +308,18 @@ internal sealed class SynchronizationMergeEngine(
         ? entity.ClientUpdated
         : entity.Updated;
 
-    private static async Task MergeAsync<
+    private static void Merge<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        SQLiteAsyncConnection connection,
+        SQLiteConnection connection,
         T entity,
-        Func<SQLiteAsyncConnection, T, T?, long, bool, Task> applyAcceptedContentAsync) where T : Synchronizable, new()
+        Action<SQLiteConnection, T, T?, long, bool> applyAcceptedContent) where T : Synchronizable, new()
     {
-        var existing = await FindAsync<T>(connection, entity.Id);
+        var existing = Find<T>(connection, entity.Id);
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
         if (existing is null)
         {
-            await applyAcceptedContentAsync(connection, entity, null, now, true);
+            applyAcceptedContent(connection, entity, null, now, true);
             return;
         }
 
@@ -354,7 +333,7 @@ internal sealed class SynchronizationMergeEngine(
             }
 
             existing.Updated = now;
-            await UpdateEntityAsync(connection, existing);
+            UpdateEntity(connection, existing);
             return;
         }
 
@@ -363,13 +342,13 @@ internal sealed class SynchronizationMergeEngine(
             if (entity.Deleted <= existingContentVersion)
             {
                 existing.Updated = now;
-                await UpdateEntityAsync(connection, existing);
+                UpdateEntity(connection, existing);
                 return;
             }
 
             existing.Deleted = entity.Deleted;
             existing.Updated = now;
-            await UpdateEntityAsync(connection, existing);
+            UpdateEntity(connection, existing);
             return;
         }
 
@@ -378,35 +357,35 @@ internal sealed class SynchronizationMergeEngine(
         if (existingContentVersion > entity.Updated)
         {
             existing.Updated = now;
-            await UpdateEntityAsync(connection, existing);
+            UpdateEntity(connection, existing);
             return;
         }
 
-        await applyAcceptedContentAsync(connection, entity, existing, now, false);
+        applyAcceptedContent(connection, entity, existing, now, false);
     }
 
-    private static Task PersistAcceptedEntityAsync<
+    private static void PersistAcceptedEntity<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        SQLiteAsyncConnection connection,
+        SQLiteConnection connection,
         T entity,
         long now,
         bool isInsert) where T : Synchronizable, new()
     {
-        return PersistEntityWithServerTimestampsAsync(
+        PersistEntityWithServerTimestamps(
             entity,
             updated: now,
             clientUpdated: entity.Updated,
-            persistAsync: isInsert
-                ? row => InsertEntityAsync(connection, row)
-                : row => UpdateEntityAsync(connection, row));
+            persist: isInsert
+                ? row => InsertEntity(connection, row)
+                : row => UpdateEntity(connection, row));
     }
 
-    private static async Task PersistEntityWithServerTimestampsAsync<
+    private static void PersistEntityWithServerTimestamps<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
         T entity,
         long updated,
         long clientUpdated,
-        Func<T, Task<int>> persistAsync) where T : Synchronizable, new()
+        Func<T, int> persist) where T : Synchronizable, new()
     {
         var originalUpdated = entity.Updated;
         var originalClientUpdated = entity.ClientUpdated;
@@ -415,7 +394,7 @@ internal sealed class SynchronizationMergeEngine(
         {
             entity.Updated = updated;
             entity.ClientUpdated = clientUpdated;
-            await persistAsync(entity);
+            persist(entity);
         }
         finally
         {
@@ -424,19 +403,19 @@ internal sealed class SynchronizationMergeEngine(
         }
     }
 
-    private static Task MergeGenericAcceptedContentAsync<
+    private static void MergeGenericAcceptedContent<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        SQLiteAsyncConnection connection,
+        SQLiteConnection connection,
         T entity,
         T? existing,
         long now,
         bool isInsert) where T : Synchronizable, new()
     {
-        return PersistAcceptedEntityAsync(connection, entity, now, isInsert);
+        PersistAcceptedEntity(connection, entity, now, isInsert);
     }
 
-    private async Task MergeSessionMetadataAsync(
-        SQLiteAsyncConnection connection,
+    private void MergeSessionMetadata(
+        SQLiteConnection connection,
         Session session,
         Session? existing,
         long now)
@@ -448,31 +427,37 @@ internal sealed class SynchronizationMergeEngine(
             // bytes it holds, and sync only the rest of the metadata. The hub runs no
             // session-data pull phase, so to receive a newer BLOB it records a
             // push-swap request and asks a client to upload it.
-            await connection.ExecuteAsync(
+            connection.Execute(
                 UpdateRemoteSessionMetadataExceptFingerprintSql,
                 CreateRemoteSessionMetadataExceptFingerprintValues(session, now, session.Updated));
-            await UpdateSessionBlobSwapRequestAsync(connection, session, heldRow);
+            UpdateSessionBlobSwapRequest(connection, session, heldRow);
             return;
         }
 
         // No held BLOB: write the fingerprint + data columns normally (the BLOB, if
         // any, arrives via the data-null fill with a match check), and drop any stale
         // push-swap request for this row.
-        await connection.ExecuteAsync(
+        connection.Execute(
             UpdateRemoteSessionMetadataSql,
             CreateRemoteSessionMetadataValues(session, now, session.Updated));
-        await ClearSessionBlobSwapRequestAsync(connection, session.Id);
+        ClearSessionBlobSwapRequest(connection, session.Id);
     }
 
-    private Task MergeSessionAcceptedContentAsync(
-        SQLiteAsyncConnection connection,
+    private void MergeSessionAcceptedContent(
+        SQLiteConnection connection,
         Session session,
         Session? existing,
         long now,
-        bool isInsert) =>
-        isInsert
-            ? PersistAcceptedEntityAsync(connection, session, now, isInsert: true)
-            : MergeSessionMetadataAsync(connection, session, existing, now);
+        bool isInsert)
+    {
+        if (isInsert)
+        {
+            PersistAcceptedEntity(connection, session, now, isInsert: true);
+            return;
+        }
+
+        MergeSessionMetadata(connection, session, existing, now);
+    }
 
     // Records (or clears) a hub-side push-swap request for a deferred, held-BLOB row.
     // It asks a client to upload a newer BLOB when the synced metadata advertises a
@@ -485,14 +470,14 @@ internal sealed class SynchronizationMergeEngine(
     // current inputs, so it records the accepted target as-is rather than drop the
     // metadata delta — the upload is still match-checked, so a non-matching BLOB is
     // ignored and the held BLOB is preserved until a matching one arrives.
-    private async Task UpdateSessionBlobSwapRequestAsync(
-        SQLiteAsyncConnection connection,
+    private void UpdateSessionBlobSwapRequest(
+        SQLiteConnection connection,
         Session incoming,
         Session heldRow)
     {
         if (StringComparer.Ordinal.Equals(incoming.ProcessingFingerprintJson, heldRow.ProcessingFingerprintJson))
         {
-            await ClearSessionBlobSwapRequestAsync(connection, incoming.Id);
+            ClearSessionBlobSwapRequest(connection, incoming.Id);
             return;
         }
 
@@ -502,34 +487,34 @@ internal sealed class SynchronizationMergeEngine(
             incomingFingerprint.SchemaVersion != fingerprintService.CurrentSchemaVersion ||
             heldFingerprint.SchemaVersion != fingerprintService.CurrentSchemaVersion)
         {
-            await ClearSessionBlobSwapRequestAsync(connection, incoming.Id);
+            ClearSessionBlobSwapRequest(connection, incoming.Id);
             return;
         }
 
-        var currentDatabaseInputs = await TryComputeCurrentDatabaseInputsAsync(connection, incoming);
+        var currentDatabaseInputs = TryComputeCurrentDatabaseInputs(connection, incoming);
         if (currentDatabaseInputs is not null &&
             incomingFingerprint.MatchesDatabaseInputs(currentDatabaseInputs) &&
             !heldFingerprint.MatchesDatabaseInputs(currentDatabaseInputs))
         {
-            await RecordSessionBlobSwapRequestAsync(connection, incoming.Id, incoming.ProcessingFingerprintJson!);
+            RecordSessionBlobSwapRequest(connection, incoming.Id, incoming.ProcessingFingerprintJson!);
             return;
         }
 
-        if (currentDatabaseInputs is null && !await SessionHasRecordedSourceAsync(connection, incoming.Id))
+        if (currentDatabaseInputs is null && !SessionHasRecordedSource(connection, incoming.Id))
         {
             // The source payload travels after metadata sync. Preserve the accepted
             // target so the hub can request the matching BLOB once the source phase
             // fills session_recording_source; otherwise this metadata delta would be
             // lost when the client advances its sync watermark.
-            await RecordSessionBlobSwapRequestAsync(connection, incoming.Id, incoming.ProcessingFingerprintJson!);
+            RecordSessionBlobSwapRequest(connection, incoming.Id, incoming.ProcessingFingerprintJson!);
             return;
         }
 
-        await ClearSessionBlobSwapRequestAsync(connection, incoming.Id);
+        ClearSessionBlobSwapRequest(connection, incoming.Id);
     }
 
-    private async Task<ProcessingFingerprint?> TryComputeCurrentDatabaseInputsAsync(
-        SQLiteAsyncConnection connection,
+    private ProcessingFingerprint? TryComputeCurrentDatabaseInputs(
+        SQLiteConnection connection,
         Session session)
     {
         if (session.Setup is not { } setupId)
@@ -537,19 +522,19 @@ internal sealed class SynchronizationMergeEngine(
             return null;
         }
 
-        var setup = await connection.FindAsync<Setup>(setupId);
+        var setup = connection.Find<Setup>(setupId);
         if (setup is null)
         {
             return null;
         }
 
-        var bike = await connection.FindAsync<Bike>(setup.BikeId);
+        var bike = connection.Find<Bike>(setup.BikeId);
         if (bike is null)
         {
             return null;
         }
 
-        var sources = await connection.QueryAsync<RecordedSessionSource>(
+        var sources = connection.Query<RecordedSessionSource>(
             "SELECT session_id, source_kind, source_name, schema_version, source_hash FROM session_recording_source WHERE session_id = ?",
             session.Id);
         if (sources.Count != 1)
@@ -573,16 +558,16 @@ internal sealed class SynchronizationMergeEngine(
         }
     }
 
-    private static Task ClearSessionBlobSwapRequestAsync(SQLiteAsyncConnection connection, Guid sessionId) =>
-        connection.ExecuteAsync(
+    private static void ClearSessionBlobSwapRequest(SQLiteConnection connection, Guid sessionId) =>
+        connection.Execute(
             $"DELETE FROM {SessionBlobSwapRequestStore.TableName} WHERE session_id = ?",
             sessionId);
 
-    private static Task RecordSessionBlobSwapRequestAsync(
-        SQLiteAsyncConnection connection,
+    private static void RecordSessionBlobSwapRequest(
+        SQLiteConnection connection,
         Guid sessionId,
         string targetFingerprint) =>
-        connection.ExecuteAsync(
+        connection.Execute(
             $"INSERT OR REPLACE INTO {SessionBlobSwapRequestStore.TableName} (session_id, target_fingerprint) VALUES (?, ?)",
             sessionId,
             targetFingerprint);
@@ -663,8 +648,8 @@ internal sealed class SynchronizationMergeEngine(
     // self-heal by recompute, so it keeps its only BLOB and only ever gains one
     // through the data-null fill). A legacy fingerprint on either side defers to
     // the one-time normalization pass.
-    private async Task<SessionBlobSwap?> TryBuildSwapAsync(
-        SQLiteAsyncConnection connection,
+    private SessionBlobSwap? TryBuildSwap(
+        SQLiteConnection connection,
         Guid sessionId,
         string? localFingerprintJson,
         string? remoteFingerprintJson)
@@ -683,7 +668,7 @@ internal sealed class SynchronizationMergeEngine(
             return null;
         }
 
-        if (!await SessionHasRecordedSourceAsync(connection, sessionId))
+        if (!SessionHasRecordedSource(connection, sessionId))
         {
             return null;
         }
@@ -691,20 +676,20 @@ internal sealed class SynchronizationMergeEngine(
         return new SessionBlobSwap(sessionId, remoteFingerprintJson!);
     }
 
-    private static async Task<bool> SessionHasRecordedSourceAsync(SQLiteAsyncConnection connection, Guid sessionId)
+    private static bool SessionHasRecordedSource(SQLiteConnection connection, Guid sessionId)
     {
-        var exists = await connection.ExecuteScalarAsync<int>(
+        var exists = connection.ExecuteScalar<int>(
             "SELECT EXISTS(SELECT 1 FROM session_recording_source WHERE session_id = ?)",
             sessionId);
         return exists != 0;
     }
 
-    private static async Task<T?> FindAsync<
+    private static T? Find<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        SQLiteAsyncConnection connection,
+        SQLiteConnection connection,
         object primaryKey) where T : new()
     {
-        return await connection.FindAsync<T>(primaryKey);
+        return connection.Find<T>(primaryKey);
     }
 
 }

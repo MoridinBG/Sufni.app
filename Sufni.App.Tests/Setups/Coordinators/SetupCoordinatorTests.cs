@@ -1,13 +1,11 @@
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Acquisition.Services;
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
-using Sufni.App.Extensibility.Database;
 using Sufni.App.Infrastructure;
 using Sufni.App.Setups.Coordinators;
 using Sufni.App.Setups.Models;
@@ -34,7 +32,6 @@ public class SetupCoordinatorTests
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
     private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
-    private readonly IExtensionCascadeService extensionCascade = Substitute.For<IExtensionCascadeService>();
 
     private SetupCoordinator CreateCoordinator()
     {
@@ -49,8 +46,7 @@ public class SetupCoordinatorTests
             filesService,
             backgroundTaskRunner,
             shell,
-            () => editorFactory,
-            extensionCascade);
+            () => editorFactory);
         return coordinator;
     }
 
@@ -270,7 +266,6 @@ public class SetupCoordinatorTests
 
         Assert.Equal(SetupDeleteOutcome.Deleted, result.Outcome);
         await setupRepository.Received(1).DeleteAsync(snapshot.Id);
-        await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Setup, snapshot.Id);
         editorFactory.Received(1).CloseSetupEditor(snapshot.Id);
         setupStore.Received(1).Remove(snapshot.Id);
     }
@@ -313,7 +308,6 @@ public class SetupCoordinatorTests
         var result = await CreateCoordinator().DeleteAsync(snapshot.Id);
 
         Assert.Equal(SetupDeleteOutcome.Failed, result.Outcome);
-        await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(Arg.Any<ExtensionCoreEntityKind>(), Arg.Any<Guid>());
         setupStore.DidNotReceiveWithAnyArgs().Remove(default);
         editorFactory.DidNotReceive().CloseSetupEditor(Arg.Any<Guid>());
     }

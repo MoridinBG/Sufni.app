@@ -4,10 +4,16 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Threading.Tasks;
 using SQLite;
+using Sufni.App.ExtensionHost.Contracts.Database;
 
 using static Sufni.App.Infrastructure.PersistenceGuards;
 
+using Sufni.App.Bikes.Models;
+using Sufni.App.Extensibility.Database;
 using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Setups.Models;
 using Sufni.App.SyncAndPairing.Models;
 namespace Sufni.App.SyncAndPairing.Services;
 
@@ -30,7 +36,8 @@ public interface ISynchronizableRepository<
 
 internal sealed class SynchronizableRepository<
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-    SqliteConnectionContext connectionContext)
+    SqliteConnectionContext connectionContext,
+    IExtensionCascadeService? extensionCascadeService = null)
     : ISynchronizableRepository<T>
     where T : Synchronizable, new()
 {
@@ -78,28 +85,69 @@ internal sealed class SynchronizableRepository<
 
     public async Task DeleteAsync(Guid id)
     {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        var item = await connection.Table<T>()
-            .Where(entity => entity.Id == id)
-            .FirstOrDefaultAsync();
-        if (item is not null && item.Deleted is null)
-        {
-            item.Deleted = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            await UpdateEntityAsync(connection, item);
-        }
+        await DeleteCoreAsync(id);
     }
 
     public async Task DeleteAsync(T item)
     {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        var itemFromDatabase = await connection.Table<T>()
-            .Where(entity => entity.Id == item.Id)
-            .FirstOrDefaultAsync();
-        if (itemFromDatabase is not null && itemFromDatabase.Deleted is null)
+        await DeleteCoreAsync(item.Id);
+    }
+
+    private async Task DeleteCoreAsync(Guid id)
+    {
+        var rulesApplied = false;
+        await connectionContext.RunInTransactionAsync(connection =>
         {
-            itemFromDatabase.Deleted = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            await UpdateEntityAsync(connection, itemFromDatabase);
+            var itemFromDatabase = connection.Find<T>(id);
+            if (itemFromDatabase is not null && itemFromDatabase.Deleted is null)
+            {
+                itemFromDatabase.Deleted = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                UpdateEntity(connection, itemFromDatabase);
+            }
+
+            if (extensionCascadeService is not null)
+            {
+                rulesApplied = extensionCascadeService.ApplyRulesForDeletedCoreEntityInTransaction(
+                    connection,
+                    GetCoreEntityKind(),
+                    id);
+            }
+        });
+
+        if (rulesApplied && extensionCascadeService is not null)
+        {
+            await extensionCascadeService.RefreshExtensionStateAsync();
         }
     }
 
+    private static ExtensionCoreEntityKind GetCoreEntityKind()
+    {
+        var entityType = typeof(T);
+        if (entityType == typeof(Board))
+        {
+            return ExtensionCoreEntityKind.Board;
+        }
+
+        if (entityType == typeof(Bike))
+        {
+            return ExtensionCoreEntityKind.Bike;
+        }
+
+        if (entityType == typeof(Setup))
+        {
+            return ExtensionCoreEntityKind.Setup;
+        }
+
+        if (entityType == typeof(Session))
+        {
+            return ExtensionCoreEntityKind.Session;
+        }
+
+        if (entityType == typeof(Track))
+        {
+            return ExtensionCoreEntityKind.Track;
+        }
+
+        throw new InvalidOperationException($"Unsupported synchronizable entity type '{entityType.FullName}'.");
+    }
 }

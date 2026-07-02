@@ -61,4 +61,25 @@ internal sealed class SqliteConnectionContext
         await Initialization.WaitAsync(cancellationToken);
         return Connection;
     }
+
+    internal async Task<T> RunInTransactionAsync<T>(
+        Func<SQLiteConnection, T> work,
+        CancellationToken cancellationToken = default)
+    {
+        await Initialization.WaitAsync(cancellationToken);
+        T result = default!;
+        await Connection.RunInTransactionAsync(connection =>
+        {
+            result = work(connection);
+        });
+        return result;
+    }
+
+    internal async Task RunInTransactionAsync(
+        Action<SQLiteConnection> work,
+        CancellationToken cancellationToken = default)
+    {
+        await Initialization.WaitAsync(cancellationToken);
+        await Connection.RunInTransactionAsync(work);
+    }
 }

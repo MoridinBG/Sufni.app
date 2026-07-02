@@ -1,5 +1,4 @@
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
@@ -12,7 +11,6 @@ using Sufni.App.Bikes.Queries;
 using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Bikes.ViewModels.Editors;
-using Sufni.App.Extensibility.Database;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Sessions.Processing.SessionDetails;
@@ -24,8 +22,7 @@ public class BikeCoordinator(
     IBikeDependencyQuery dependencyQuery,
     IShellCoordinator shell,
     IBikeEditorService bikeEditorService,
-    Func<IEditorFactory> editorFactory,
-    IExtensionCascadeService? extensionCascadeService = null)
+    Func<IEditorFactory> editorFactory)
     : IBikeCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<BikeCoordinator>();
@@ -275,10 +272,6 @@ public class BikeCoordinator(
         try
         {
             await bikeRepository.DeleteAsync(bikeId);
-            if (extensionCascadeService is not null)
-            {
-                await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Bike, bikeId);
-            }
         }
         catch (Exception e)
         {

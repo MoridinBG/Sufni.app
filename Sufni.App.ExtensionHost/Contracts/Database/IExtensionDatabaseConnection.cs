@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using SQLite;
@@ -24,5 +25,25 @@ public interface IExtensionDatabaseSession
     Task<int> UpdateAsync<T>(T row);
 
     Task<int> DeleteAsync<T>(object primaryKey)
+        where T : new();
+
+    Task RunInTransactionAsync(Action<IExtensionDatabaseTransaction> work);
+}
+
+public interface IExtensionDatabaseTransaction
+{
+    TableQuery<T> Table<T>()
+        where T : new();
+
+    T? Find<T>(object primaryKey)
+        where T : new();
+
+    int Insert<T>(T row);
+
+    int InsertOrReplace<T>(T row);
+
+    int Update<T>(T row);
+
+    int Delete<T>(object primaryKey)
         where T : new();
 }

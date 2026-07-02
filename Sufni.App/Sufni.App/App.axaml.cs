@@ -244,8 +244,7 @@ public partial class App : Application
             sp.GetRequiredService<ISessionPreferences>(),
             sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
             sp.GetRequiredService<IRecordedSessionDomainQuery>(),
-            sp.GetRequiredService<IRecordedSessionReprocessor>(),
-            sp.GetRequiredService<IExtensionCascadeService>()));
+            sp.GetRequiredService<IRecordedSessionReprocessor>()));
         ServiceCollection.AddSingleton<SessionCommandService>(sp => new SessionCommandService(
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<ISessionRepository>(),
@@ -261,8 +260,7 @@ public partial class App : Application
             sp.GetRequiredService<ISessionPreferences>(),
             sp.GetRequiredService<IShellCoordinator>(),
             sp.GetRequiredService<ISessionRecomputeEngine>(),
-            sp.GetRequiredService<Func<IEditorFactory>>(),
-            sp.GetRequiredService<IExtensionCascadeService>()));
+            sp.GetRequiredService<Func<IEditorFactory>>()));
         ServiceCollection.AddSingleton<SessionSyncApplier>(sp => new SessionSyncApplier(
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<ISessionRepository>(),

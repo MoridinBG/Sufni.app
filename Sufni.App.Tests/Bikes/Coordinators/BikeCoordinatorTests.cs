@@ -1,7 +1,6 @@
 using Avalonia.Headless.XUnit;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.Kinematics;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Services;
@@ -12,7 +11,6 @@ using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Queries;
 using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
-using Sufni.App.Extensibility.Database;
 using Sufni.App.Infrastructure;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
@@ -30,7 +28,6 @@ public class BikeCoordinatorTests
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
     private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
-    private readonly IExtensionCascadeService extensionCascade = Substitute.For<IExtensionCascadeService>();
 
     private BikeCoordinator CreateCoordinator()
     {
@@ -41,8 +38,7 @@ public class BikeCoordinatorTests
             dependencyQuery,
             shell,
             bikeEditorService,
-            () => editorFactory,
-            extensionCascade);
+            () => editorFactory);
         return coordinator;
     }
 
@@ -421,7 +417,6 @@ public class BikeCoordinatorTests
 
         Assert.Equal(BikeDeleteOutcome.InUse, result.Outcome);
         await bikeRepository.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
-        await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(Arg.Any<ExtensionCoreEntityKind>(), Arg.Any<Guid>());
         editorFactory.DidNotReceive().CloseBikeEditor(Arg.Any<Guid>());
         bikeStore.DidNotReceiveWithAnyArgs().Remove(default);
     }
@@ -437,7 +432,6 @@ public class BikeCoordinatorTests
 
         Assert.Equal(BikeDeleteOutcome.Deleted, result.Outcome);
         await bikeRepository.Received(1).DeleteAsync(id);
-        await extensionCascade.Received(1).ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Bike, id);
         editorFactory.Received(1).CloseBikeEditor(id);
         bikeStore.Received(1).Remove(id);
     }
@@ -453,7 +447,6 @@ public class BikeCoordinatorTests
         var result = await coordinator.DeleteAsync(id);
 
         Assert.Equal(BikeDeleteOutcome.Failed, result.Outcome);
-        await extensionCascade.DidNotReceive().ApplyForDeletedCoreEntityAsync(Arg.Any<ExtensionCoreEntityKind>(), Arg.Any<Guid>());
         bikeStore.DidNotReceiveWithAnyArgs().Remove(default);
         editorFactory.DidNotReceive().CloseBikeEditor(Arg.Any<Guid>());
     }

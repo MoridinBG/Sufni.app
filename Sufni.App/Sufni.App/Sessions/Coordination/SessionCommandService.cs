@@ -3,12 +3,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Bikes.Models;
-using Sufni.App.Extensibility.Database;
 using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.MapsAndTracks.Models;
@@ -50,7 +48,6 @@ public sealed class SessionCommandService
     private readonly IShellCoordinator shell;
     private readonly ISessionRecomputeEngine recomputeEngine;
     private readonly Func<IEditorFactory> editorFactory;
-    private readonly IExtensionCascadeService? extensionCascadeService;
 
     public SessionCommandService(
         ISessionStoreWriter sessionStore,
@@ -67,8 +64,7 @@ public sealed class SessionCommandService
         ISessionPreferences sessionPreferences,
         IShellCoordinator shell,
         ISessionRecomputeEngine recomputeEngine,
-        Func<IEditorFactory> editorFactory,
-        IExtensionCascadeService? extensionCascadeService = null)
+        Func<IEditorFactory> editorFactory)
     {
         this.sessionStore = sessionStore;
         this.sessionRepository = sessionRepository;
@@ -85,7 +81,6 @@ public sealed class SessionCommandService
         this.shell = shell;
         this.recomputeEngine = recomputeEngine;
         this.editorFactory = editorFactory;
-        this.extensionCascadeService = extensionCascadeService;
     }
 
     public Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, RecomputeReason reason) =>
@@ -220,10 +215,6 @@ public sealed class SessionCommandService
             }
 
             await sessionEntityRepository.DeleteAsync(sessionId);
-            if (extensionCascadeService is not null)
-            {
-                await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Session, sessionId);
-            }
             await recordedSessionSourceRepository.DeleteRecordedSessionSourceAsync(sessionId);
             sourceStore.Remove(sessionId);
 
@@ -232,10 +223,6 @@ public sealed class SessionCommandService
                 try
                 {
                     await trackEntityRepository.DeleteAsync(trackId.Value);
-                    if (extensionCascadeService is not null)
-                    {
-                        await extensionCascadeService.ApplyForDeletedCoreEntityAsync(ExtensionCoreEntityKind.Track, trackId.Value);
-                    }
                 }
                 catch (Exception e)
                 {

@@ -62,4 +62,57 @@ public class ExtensionDatabaseConnectionTests
         Assert.Contains(typeof(SecondTestExtensionRow).FullName!, undeclaredException.Message);
         Assert.Contains(typeof(CoreNamedExtensionRow).FullName!, coreException.Message);
     }
+
+    [Fact]
+    public async Task RunInTransactionAsync_RollsBack_WhenCallbackThrows()
+    {
+        using var tempDatabase = new TempDatabase("extension-transaction-rollback.db");
+        var databasePath = tempDatabase.DatabasePath;
+
+        IExtensionDatabaseConnection database = new ExtensionDatabaseConnection(
+            PersistenceTestData.CreateConnectionContext(
+                databasePath,
+                [new TestExtensionMigrator("test", targetVersion: 0, [typeof(TestExtensionRow)], [])]));
+        var session = await database.OpenSessionAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            session.RunInTransactionAsync(transaction =>
+            {
+                transaction.Insert(new TestExtensionRow { Id = "rolled-back", Value = 10 });
+                throw new InvalidOperationException("fail transaction");
+            }));
+
+        Assert.Null(await session.FindAsync<TestExtensionRow>("rolled-back"));
+    }
+
+    [Fact]
+    public async Task RunInTransactionAsync_RejectsUndeclaredAndCoreTableTypes()
+    {
+        using var tempDatabase = new TempDatabase("extension-transaction-validation.db");
+        var databasePath = tempDatabase.DatabasePath;
+
+        IExtensionDatabaseConnection database = new ExtensionDatabaseConnection(
+            PersistenceTestData.CreateConnectionContext(
+                databasePath,
+                [new TestExtensionMigrator("test", targetVersion: 0, [typeof(TestExtensionRow)], [])]));
+        var session = await database.OpenSessionAsync();
+
+        await session.RunInTransactionAsync(transaction =>
+        {
+            _ = transaction.Table<TestExtensionRow>();
+        });
+        var undeclaredException = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            session.RunInTransactionAsync(transaction =>
+            {
+                _ = transaction.Table<SecondTestExtensionRow>();
+            }));
+        var coreException = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            session.RunInTransactionAsync(transaction =>
+            {
+                transaction.Insert(new CoreNamedExtensionRow { Id = "core" });
+            }));
+
+        Assert.Contains(typeof(SecondTestExtensionRow).FullName!, undeclaredException.Message);
+        Assert.Contains(typeof(CoreNamedExtensionRow).FullName!, coreException.Message);
+    }
 }

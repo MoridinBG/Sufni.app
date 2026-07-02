@@ -68,7 +68,7 @@ This keeps public `ViewLocator` dictionaries free of extension view-model types 
 
 ## Database Hooks
 
-`ExtensionDatabaseConnection` is registered as the concrete singleton behind `IExtensionDatabaseConnection`. Extensions call `OpenSessionAsync()` to wait for normal SQLite initialization and receive an `IExtensionDatabaseSession` scoped to declared extension table types. The session supports table queries plus find/insert/insert-or-replace/update/delete operations and rejects table types that are not owned by a registered extension migrator.
+`ExtensionDatabaseConnection` is registered as the concrete singleton behind `IExtensionDatabaseConnection`. Extensions call `OpenSessionAsync()` to wait for normal SQLite initialization and receive an `IExtensionDatabaseSession` scoped to declared extension table types. The session supports table queries plus find/insert/insert-or-replace/update/delete operations and rejects table types that are not owned by a registered extension migrator. For extension-owned multi-statement writes, `RunInTransactionAsync(Action<IExtensionDatabaseTransaction>)` runs a synchronous transaction callback with the same table validation on `Table`, `Find`, `Insert`, `InsertOrReplace`, `Update`, and `Delete`; exceptions roll the whole callback back.
 
 Extension schema state lives in `extension_schema_version`:
 
@@ -92,12 +92,12 @@ duplicate extension table ownership before creating tables or running steps.
 
 ## Cascade Rules
 
-Extensions declare references to core rows through `IExtensionCascadeRuleProvider`. `ExtensionCascadeService` validates that each rule targets a table declared by an extension migrator and then applies the requested action when core delete workflows run:
+Extensions declare references to core rows through `IExtensionCascadeRuleProvider`. `ExtensionCascadeService` validates that each rule targets a table declared by an extension migrator and then applies the requested action inside `ISynchronizableRepository<T>.DeleteAsync` when a core entity kind/id is deleted:
 
 - `SoftDelete` marks the extension row deleted and updates its timestamp.
 - `HardDelete` removes the extension row.
 
-The service is invoked after successful bike, setup, session, and track delete work. Startup orphan repair applies the same declared rules after core cleanup. `IExtensionStateRefreshParticipant` lets extension state refresh after cascade work without public coordinators knowing extension store types. The main page startup database load also invokes these participants after the core stores refresh, so extension-owned read stores are hydrated before list, toolbar, and recorded-session contributions need persisted extension state.
+The core row soft-delete and matching extension cascade rules share the same transaction. Rules are applied by entity kind/id even when the core row is already tombstoned or absent, which lets retries and orphaned extension rows converge. Startup orphan repair applies the same declared rules after core cleanup. `IExtensionStateRefreshParticipant` lets extension state refresh after cascade work without public coordinators knowing extension store types; delete workflows refresh after the transaction commits when any rule matched. The main page startup database load also invokes these participants after the core stores refresh, so extension-owned read stores are hydrated before list, toolbar, and recorded-session contributions need persisted extension state.
 
 ## Sync Envelopes
 

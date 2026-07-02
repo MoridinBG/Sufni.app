@@ -4,9 +4,15 @@ using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
 
+using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Setups.Models;
+using Sufni.App.Setups.Stores;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Tests.TestSupport.Persistence;
 namespace Sufni.App.Tests.Sessions.Services;
@@ -158,6 +164,113 @@ public class SessionRepositoryTests
         Assert.Equal(persisted.Updated, current!.Updated);
         Assert.Equal(originalRaw, await database.GetSessionRawPsstAsync(sessionId));
         Assert.Null(await database.GetAsync<Track>(newTrack.Id));
+    }
+
+    [Fact]
+    public async Task ProcessedSessionWrites_CanRunConcurrently_OnSharedConnection()
+    {
+        using var tempDatabase = new TempDatabase("processed-session-concurrent-writes.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var database = new TestPersistenceHarness(databasePath);
+        var fingerprintService = new ProcessingFingerprintService();
+        const int updateCount = 16;
+        const int putCount = 16;
+        var updateCases = new List<(Guid SessionId, Guid SetupId, ProcessingFingerprint Fingerprint)>();
+        var putCases = new List<(Session Session, Track Track, RecordedSessionSource Source)>();
+
+        for (var i = 0; i < updateCount; i++)
+        {
+            var bike = new Bike(Guid.NewGuid(), $"bike {i}")
+            {
+                HeadAngle = 64 + i
+            };
+            var setup = new Setup(Guid.NewGuid(), $"setup {i}")
+            {
+                BikeId = bike.Id
+            };
+            var sessionId = Guid.NewGuid();
+            var session = new Session(sessionId, $"session {i}", "desc", setup.Id, 100 + i)
+            {
+                ProcessedData = PersistenceTestData.CreateTelemetryBlob(60 + i)
+            };
+            var source = PersistenceTestData.CreateRecordedSessionSource(sessionId);
+            var fingerprint = CreateCurrentFingerprint(fingerprintService, session, setup, bike, source);
+            session.ProcessingFingerprintJson = AppJson.Serialize(fingerprint);
+
+            await database.PutAsync(bike);
+            await database.PutAsync(setup);
+            await database.PutProcessedSessionAsync(session, PersistenceTestData.CreateFullTrack(), source);
+            updateCases.Add((sessionId, setup.Id, fingerprint));
+        }
+
+        for (var i = 0; i < putCount; i++)
+        {
+            var sessionId = Guid.NewGuid();
+            var track = PersistenceTestData.CreateFullTrack();
+            var source = PersistenceTestData.CreateRecordedSessionSource(sessionId);
+            var session = new Session(sessionId, $"new session {i}", "desc", null, 200 + i)
+            {
+                ProcessedData = PersistenceTestData.CreateTelemetryBlob(90 + i),
+                ProcessingFingerprintJson = """{"concurrent":true}"""
+            };
+            putCases.Add((session, track, source));
+        }
+
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var writeTasks = new List<Task<(Guid SessionId, Guid TrackId)>>();
+        foreach (var updateCase in updateCases)
+        {
+            writeTasks.Add(Task.Run(async () =>
+            {
+                await start.Task;
+                var newTrack = PersistenceTestData.CreateFullTrack();
+                var recomputed = new Session(updateCase.SessionId, "recomputed", "desc", updateCase.SetupId, 100)
+                {
+                    ProcessedData = PersistenceTestData.CreateTelemetryBlob(120),
+                    ProcessingFingerprintJson = AppJson.Serialize(updateCase.Fingerprint),
+                    DurationSeconds = 120,
+                    DistanceMeters = 20,
+                    AscentMeters = 2,
+                    DescentMeters = 1
+                };
+
+                var updated = await database.UpdateProcessedDerivedDataAsync(
+                    recomputed,
+                    newTrack,
+                    updateCase.Fingerprint);
+                Assert.NotNull(updated);
+                return (updateCase.SessionId, newTrack.Id);
+            }));
+        }
+
+        foreach (var putCase in putCases)
+        {
+            writeTasks.Add(Task.Run(async () =>
+            {
+                await start.Task;
+                var persisted = await database.PutProcessedSessionAsync(
+                    putCase.Session,
+                    putCase.Track,
+                    putCase.Source);
+                Assert.Equal(putCase.Track.Id, persisted.FullTrack);
+                return (putCase.Session.Id, putCase.Track.Id);
+            }));
+        }
+
+        start.SetResult();
+        var written = await Task.WhenAll(writeTasks);
+
+        foreach (var (sessionId, trackId) in written)
+        {
+            var session = await database.GetSessionAsync(sessionId);
+            Assert.NotNull(session);
+            Assert.Equal(trackId, session!.FullTrack);
+            Assert.True(session.HasProcessedData);
+            Assert.NotNull(await database.GetAsync<Track>(trackId));
+        }
+
+        Assert.Equal(updateCount + putCount, (await database.GetSessionsAsync()).Count);
+        Assert.Equal(updateCount + putCount, (await database.GetRecordedSessionSourcesAsync()).Count);
     }
 
     [Fact]
@@ -458,4 +571,16 @@ public class SessionRepositoryTests
             new SessionSummaryMetrics(null, null, null, null)));
 
     }
+
+    private static ProcessingFingerprint CreateCurrentFingerprint(
+        ProcessingFingerprintService fingerprintService,
+        Session session,
+        Setup setup,
+        Bike bike,
+        RecordedSessionSource source) =>
+        fingerprintService.CreateCurrentDatabaseInputs(
+            SessionSnapshot.From(session),
+            SetupSnapshot.From(setup, boardId: null),
+            BikeSnapshot.From(bike),
+            RecordedSessionSourceSnapshot.From(source));
 }
