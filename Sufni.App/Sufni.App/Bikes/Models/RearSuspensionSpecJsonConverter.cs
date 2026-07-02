@@ -29,15 +29,55 @@ public sealed class RearSuspensionSpecJsonConverter : JsonConverter<RearSuspensi
             throw new JsonException("Rear suspension must be a JSON object.");
         }
 
-        if (!root.TryGetProperty(KindPropertyName, out var kindElement) ||
-            kindElement.ValueKind != JsonValueKind.String)
+        var hasKind = false;
+        var hasLinkage = false;
+        var hasLeverageRatio = false;
+        JsonElement kindElement = default;
+        JsonElement linkageElement = default;
+        JsonElement leverageRatioElement = default;
+
+        foreach (var property in root.EnumerateObject())
+        {
+            switch (property.Name)
+            {
+                case KindPropertyName:
+                    if (hasKind)
+                    {
+                        throw new JsonException("Rear suspension cannot contain duplicate kind properties.");
+                    }
+
+                    hasKind = true;
+                    kindElement = property.Value;
+                    break;
+                case LinkagePropertyName:
+                    if (hasLinkage)
+                    {
+                        throw new JsonException("Rear suspension cannot contain duplicate linkage payloads.");
+                    }
+
+                    hasLinkage = true;
+                    linkageElement = property.Value;
+                    break;
+                case LeverageRatioPropertyName:
+                    if (hasLeverageRatio)
+                    {
+                        throw new JsonException("Rear suspension cannot contain duplicate leverage ratio payloads.");
+                    }
+
+                    hasLeverageRatio = true;
+                    leverageRatioElement = property.Value;
+                    break;
+                default:
+                    throw new JsonException($"Unknown rear suspension property '{property.Name}'.");
+            }
+        }
+
+        if (!hasKind || kindElement.ValueKind != JsonValueKind.String)
         {
             throw new JsonException("Rear suspension kind is required.");
         }
 
         var kind = kindElement.GetString();
-        var hasLinkage = root.TryGetProperty(LinkagePropertyName, out var linkageElement);
-        var hasLeverageRatio = root.TryGetProperty(LeverageRatioPropertyName, out var leverageRatioElement);
         if (hasLinkage && hasLeverageRatio)
         {
             throw new JsonException("Rear suspension cannot contain multiple payloads.");
