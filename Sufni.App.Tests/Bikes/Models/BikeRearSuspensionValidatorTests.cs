@@ -14,7 +14,6 @@ public class BikeRearSuspensionValidatorTests
 
         var valid = Assert.IsType<BikeRearSuspensionValidationResult.Valid>(result);
         Assert.IsType<RearSuspensionSpec.Hardtail>(valid.RearSuspension);
-        Assert.Null(valid.AnalysisInput);
     }
 
     [Fact]
@@ -59,9 +58,8 @@ public class BikeRearSuspensionValidatorTests
         var result = BikeRearSuspensionValidator.ValidateForSave(snapshot);
 
         var valid = Assert.IsType<BikeRearSuspensionValidationResult.Valid>(result);
-        Assert.IsType<RearSuspensionSpec.Linkage>(valid.RearSuspension);
-        var analysisInput = Assert.IsType<LinkageRearSuspension>(valid.AnalysisInput);
-        Assert.Equal(linkage.ToSpec(), analysisInput.Linkage.ToSpec());
+        var validLinkage = Assert.IsType<RearSuspensionSpec.Linkage>(valid.RearSuspension);
+        Assert.Equal(linkage.ToSpec(), validLinkage.Spec);
     }
 
     [Fact]
@@ -88,9 +86,8 @@ public class BikeRearSuspensionValidatorTests
         var result = BikeRearSuspensionValidator.ValidateForSave(snapshot);
 
         var valid = Assert.IsType<BikeRearSuspensionValidationResult.Valid>(result);
-        Assert.IsType<RearSuspensionSpec.LeverageRatio>(valid.RearSuspension);
-        var analysisInput = Assert.IsType<LeverageRatioRearSuspension>(valid.AnalysisInput);
-        Assert.Same(leverageRatio, analysisInput.LeverageRatio);
+        var validLeverageRatio = Assert.IsType<RearSuspensionSpec.LeverageRatio>(valid.RearSuspension);
+        Assert.Same(leverageRatio, validLeverageRatio.Spec);
     }
 
     [Fact]

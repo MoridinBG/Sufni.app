@@ -28,7 +28,7 @@ internal static class TestCoordinatorSubstitutes
 
         coordinator.OpenCreateAsync().Returns(Task.CompletedTask);
         coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
-        coordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
+        coordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Unavailable()));
         coordinator.LoadImageAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeImageLoadResult>(new BikeImageLoadResult.Canceled()));

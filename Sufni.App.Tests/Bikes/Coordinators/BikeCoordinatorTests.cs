@@ -83,7 +83,7 @@ public class BikeCoordinatorTests
     [Fact]
     public async Task LoadAnalysisAsync_DelegatesToBikeEditorService()
     {
-        RearSuspension? rearSuspension = new LinkageRearSuspension(new Sufni.Kinematics.Linkage());
+        RearSuspensionSpec rearSuspension = new RearSuspensionSpec.Linkage(TestSnapshots.FullSuspensionLinkage().ToSpec());
         var expected = new BikeEditorAnalysisResult.Unavailable();
         bikeEditorService.LoadAnalysisAsync(rearSuspension, Arg.Any<CancellationToken>()).Returns(expected);
 
@@ -123,7 +123,7 @@ public class BikeCoordinatorTests
         };
         bikeEditorService.ImportBikeAsync(Arg.Any<CancellationToken>())
             .Returns(new BikeFileImportResult.Imported(importedBike));
-        bikeEditorService.LoadAnalysisAsync(null, Arg.Any<CancellationToken>())
+        bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(new BikeEditorAnalysisResult.Unavailable());
 
         var result = await CreateCoordinator().ImportBikeAsync();
@@ -146,7 +146,7 @@ public class BikeCoordinatorTests
     }
 
     [Fact]
-    public async Task ImportBikeAsync_SkipsAnalysis_ForInvalidRearSuspensionShape()
+    public async Task ImportBikeAsync_LoadsUnavailableAnalysis_ForDraftRearSuspension()
     {
         var importedBike = new Bike(Guid.NewGuid(), "mismatched import")
         {
@@ -156,13 +156,15 @@ public class BikeCoordinatorTests
         };
         bikeEditorService.ImportBikeAsync(Arg.Any<CancellationToken>())
             .Returns(new BikeFileImportResult.Imported(importedBike));
+        bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
+            .Returns(new BikeEditorAnalysisResult.Unavailable());
 
         var result = await CreateCoordinator().ImportBikeAsync();
 
         var imported = Assert.IsType<BikeImportResult.Imported>(result);
         Assert.IsType<BikeEditorAnalysisResult.Unavailable>(imported.Data.AnalysisResult);
-        await bikeEditorService.DidNotReceiveWithAnyArgs()
-            .LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>());
+        await bikeEditorService.Received(1)
+            .LoadAnalysisAsync(Arg.Is<RearSuspensionSpec.LeverageRatioDraft>(_ => true), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -356,7 +358,7 @@ public class BikeCoordinatorTests
     {
         var existing = TestSnapshots.Bike(updated: 5);
         bikeStore.Get(existing.Id).Returns(existing);
-        bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
+        bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(new BikeEditorAnalysisResult.Unavailable());
         var coordinator = CreateCoordinator();
 

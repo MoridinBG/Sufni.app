@@ -611,13 +611,13 @@ public class BikeEditorViewModelTests
         var pendingAnalysis = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
             .Returns(new BikeSaveResult.Conflict(fresh));
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(pendingAnalysis.Task);
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
-        await bikeCoordinator.Received(1).LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>());
+        await bikeCoordinator.Received(1).LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>());
         Assert.True(editor.IsPlotBusy);
 
         pendingAnalysis.SetResult(new BikeEditorAnalysisResult.Unavailable());
@@ -786,7 +786,7 @@ public class BikeEditorViewModelTests
         await editor.SaveCommand.ExecuteAsync(null);
 
         Assert.Equal(data, editor.LeverageRatioData);
-        await bikeCoordinator.DidNotReceive().LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>());
+        await bikeCoordinator.DidNotReceive().LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>());
     }
 
     // ----- CanDelete -----
@@ -876,7 +876,7 @@ public class BikeEditorViewModelTests
         var editor = CreateEditor(snapshot);
         var data = new CoordinateList([1, 2], [3, 4]);
         var rearAxlePathData = new CoordinateList([2, 4], [0.25, 0.75]);
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(
                 new BikeEditorAnalysisResult.Computed(new BikeAnalysisPresentationData(data, rearAxlePathData))));
 
@@ -896,7 +896,7 @@ public class BikeEditorViewModelTests
         var snapshot = TestSnapshots.Bike();
         var editor = CreateEditor(snapshot);
         editor.LeverageRatioData = new CoordinateList([1, 2], [3, 4]);
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Unavailable()));
 
         await editor.LoadedCommand.ExecuteAsync(null);
@@ -911,7 +911,7 @@ public class BikeEditorViewModelTests
         var snapshot = TestSnapshots.Bike();
         var editor = CreateEditor(snapshot);
         editor.LeverageRatioData = new CoordinateList([1, 2], [3, 4]);
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Failed("boom")));
 
         await editor.LoadedCommand.ExecuteAsync(null);
@@ -927,7 +927,7 @@ public class BikeEditorViewModelTests
             frontWheelDiameter: 760,
             rearWheelDiameter: 750);
         var data = new CoordinateList([1, 2], [3, 4]);
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(
                 new BikeEditorAnalysisResult.Computed(PresentationData(data))));
 
@@ -935,7 +935,7 @@ public class BikeEditorViewModelTests
         await Task.Yield();
 
         Assert.Equal(data, editor.LeverageRatioData);
-        await bikeCoordinator.Received(1).LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>());
+        await bikeCoordinator.Received(1).LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
@@ -984,7 +984,7 @@ public class BikeEditorViewModelTests
         var editor = CreateEditor(snapshot);
         var pendingAnalysis = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         editor.Name = "renamed";
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(pendingAnalysis.Task);
 
         var resetTask = editor.ResetCommand.ExecuteAsync(null);
@@ -1028,7 +1028,7 @@ public class BikeEditorViewModelTests
         var snapshot = TestSnapshots.Bike();
         var editor = CreateEditor(snapshot);
         var pendingAnalysis = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(pendingAnalysis.Task);
 
         var loadedTask = editor.LoadedCommand.ExecuteAsync(null);
@@ -1050,7 +1050,7 @@ public class BikeEditorViewModelTests
         var pendingAnalysis = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         bikeCoordinator
-            .LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
+            .LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
                 capturedToken = call.Arg<CancellationToken>();
@@ -1076,7 +1076,7 @@ public class BikeEditorViewModelTests
         var pendingImport = new TaskCompletionSource<BikeImportResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var importedData = new CoordinateList([5, 6], [7, 8]);
 
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspension?>(), Arg.Any<CancellationToken>())
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(pendingAnalysis.Task);
         bikeCoordinator.ImportBikeAsync(Arg.Any<CancellationToken>())
             .Returns(pendingImport.Task);

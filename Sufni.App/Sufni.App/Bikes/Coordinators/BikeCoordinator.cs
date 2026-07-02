@@ -1,5 +1,4 @@
 using Serilog;
-using Sufni.Kinematics;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
@@ -46,7 +45,7 @@ public class BikeCoordinator(
     }
 
     public Task<BikeEditorAnalysisResult> LoadAnalysisAsync(
-        RearSuspension? rearSuspension,
+        RearSuspensionSpec rearSuspension,
         CancellationToken cancellationToken = default) =>
         bikeEditorService.LoadAnalysisAsync(rearSuspension, cancellationToken);
 
@@ -135,14 +134,14 @@ public class BikeCoordinator(
 
         var validRearSuspension = (BikeRearSuspensionValidationResult.Valid)validation;
         BikeEditorAnalysisResult analysisResult = new BikeEditorAnalysisResult.Unavailable();
-        switch (validRearSuspension.AnalysisInput)
+        switch (validRearSuspension.RearSuspension)
         {
-            case null:
+            case RearSuspensionSpec.Hardtail:
                 break;
 
-            case LinkageRearSuspension linkage:
+            case RearSuspensionSpec.Linkage:
                 logger.Verbose("Analyzing linkage before bike save for {BikeId}", bike.Id);
-                analysisResult = await bikeEditorService.LoadAnalysisAsync(linkage);
+                analysisResult = await bikeEditorService.LoadAnalysisAsync(validRearSuspension.RearSuspension);
                 switch (analysisResult)
                 {
                     case BikeEditorAnalysisResult.Unavailable:
@@ -158,9 +157,9 @@ public class BikeCoordinator(
                 }
                 break;
 
-            case LeverageRatioRearSuspension leverageRatio:
+            case RearSuspensionSpec.LeverageRatio:
                 logger.Verbose("Analyzing leverage ratio before bike save for {BikeId}", bike.Id);
-                analysisResult = await bikeEditorService.LoadAnalysisAsync(leverageRatio);
+                analysisResult = await bikeEditorService.LoadAnalysisAsync(validRearSuspension.RearSuspension);
                 if (analysisResult is BikeEditorAnalysisResult.Failed leverageRatioFailed)
                 {
                     logger.Error(
@@ -294,26 +293,7 @@ public class BikeCoordinator(
         CancellationToken cancellationToken)
     {
         var normalizedBike = NormalizeImportedBike(imported);
-        BikeEditorAnalysisResult analysis = new BikeEditorAnalysisResult.Unavailable();
-        switch (normalizedBike.RearSuspension)
-        {
-            case RearSuspensionSpec.Hardtail:
-                analysis = await bikeEditorService.LoadAnalysisAsync(null, cancellationToken);
-                break;
-            case RearSuspensionSpec.Linkage linkage:
-                analysis = await bikeEditorService.LoadAnalysisAsync(
-                    new LinkageRearSuspension(Linkage.FromSpec(linkage.Spec)),
-                    cancellationToken);
-                break;
-            case RearSuspensionSpec.LeverageRatio leverageRatio:
-                analysis = await bikeEditorService.LoadAnalysisAsync(
-                    new LeverageRatioRearSuspension(leverageRatio.Spec),
-                    cancellationToken);
-                break;
-            case RearSuspensionSpec.LinkageDraft:
-            case RearSuspensionSpec.LeverageRatioDraft:
-                break;
-        }
+        var analysis = await bikeEditorService.LoadAnalysisAsync(normalizedBike.RearSuspension, cancellationToken);
 
         return new BikeImportResult.Imported(new ImportedBikeEditorData(normalizedBike, analysis));
     }

@@ -8,7 +8,7 @@ namespace Sufni.App.Bikes.Services;
 public interface IBikeEditorService
 {
     Task<BikeEditorAnalysisResult> LoadAnalysisAsync(
-        RearSuspension? rearSuspension,
+        RearSuspensionSpec rearSuspension,
         CancellationToken cancellationToken = default);
 
     Task<BikeImageLoadResult> LoadImageAsync(CancellationToken cancellationToken = default);

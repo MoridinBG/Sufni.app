@@ -13,7 +13,7 @@ internal static class BikeRearSuspensionValidator
         return snapshot.RearSuspension switch
         {
             RearSuspensionSpec.Hardtail =>
-                new BikeRearSuspensionValidationResult.Valid(snapshot.RearSuspension, AnalysisInput: null),
+                new BikeRearSuspensionValidationResult.Valid(snapshot.RearSuspension),
 
             RearSuspensionSpec.LinkageDraft =>
                 Invalid(BikeRearSuspensionValidationFailureCode.LinkageDraft),
@@ -58,8 +58,7 @@ internal static class BikeRearSuspensionValidator
         }
 
         return new BikeRearSuspensionValidationResult.Valid(
-            new RearSuspensionSpec.Linkage(linkage),
-            new LinkageRearSuspension(Linkage.FromSpec(linkage)));
+            new RearSuspensionSpec.Linkage(linkage));
     }
 
     private static BikeRearSuspensionValidationResult ValidateLeverageRatio(
@@ -72,8 +71,7 @@ internal static class BikeRearSuspensionValidator
             out _,
             out var errorMessage)
             ? new BikeRearSuspensionValidationResult.Valid(
-                new RearSuspensionSpec.LeverageRatio(leverageRatio),
-                new LeverageRatioRearSuspension(leverageRatio))
+                new RearSuspensionSpec.LeverageRatio(leverageRatio))
             : Invalid(BikeRearSuspensionValidationFailureCode.LeverageRatioShockStrokeMismatch, errorMessage);
     }
 
@@ -88,7 +86,7 @@ internal abstract record BikeRearSuspensionValidationResult
 {
     private BikeRearSuspensionValidationResult() { }
 
-    public sealed record Valid(RearSuspensionSpec RearSuspension, RearSuspension? AnalysisInput)
+    public sealed record Valid(RearSuspensionSpec RearSuspension)
         : BikeRearSuspensionValidationResult;
 
     public sealed record Invalid(BikeRearSuspensionValidationFailure Failure)

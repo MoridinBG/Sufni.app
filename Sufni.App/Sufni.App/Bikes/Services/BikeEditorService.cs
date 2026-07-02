@@ -21,12 +21,14 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
     private static readonly ILogger logger = Log.ForContext<BikeEditorService>();
 
     public async Task<BikeEditorAnalysisResult> LoadAnalysisAsync(
-        RearSuspension? rearSuspension,
+        RearSuspensionSpec rearSuspension,
         CancellationToken cancellationToken = default)
     {
-        if (rearSuspension is null)
+        ArgumentNullException.ThrowIfNull(rearSuspension);
+
+        if (rearSuspension is RearSuspensionSpec.Hardtail or RearSuspensionSpec.LinkageDraft or RearSuspensionSpec.LeverageRatioDraft)
         {
-            logger.Verbose("Skipping bike rear suspension analysis because no rear suspension was supplied");
+            logger.Verbose("Skipping bike rear suspension analysis for {RearSuspensionType}", rearSuspension.GetType().Name);
             return new BikeEditorAnalysisResult.Unavailable();
         }
 
@@ -40,8 +42,8 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
                 {
                     return rearSuspension switch
                     {
-                        LinkageRearSuspension linkageRearSuspension => AnalyzeLinkage(linkageRearSuspension.Linkage),
-                        LeverageRatioRearSuspension leverageRatioRearSuspension => AnalyzeLeverageRatio(leverageRatioRearSuspension.LeverageRatio),
+                        RearSuspensionSpec.Linkage linkage => AnalyzeLinkage(linkage.Spec),
+                        RearSuspensionSpec.LeverageRatio leverageRatio => AnalyzeLeverageRatio(leverageRatio.Spec),
                         _ => throw new ArgumentOutOfRangeException(nameof(rearSuspension))
                     };
                 }
@@ -238,9 +240,9 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
         }
     }
 
-    private BikeEditorAnalysisResult AnalyzeLinkage(Linkage linkage)
+    private BikeEditorAnalysisResult AnalyzeLinkage(LinkageSpec linkage)
     {
-        var solver = new KinematicSolver(linkage.ToSpec());
+        var solver = new KinematicSolver(linkage);
         var solution = solver.SolveSuspensionMotion();
         var characteristics = new BikeCharacteristics(solution);
         var mapping = new JointNameMapping();

@@ -116,9 +116,9 @@ public class BikeEditorServiceTests
     }
 
     [Fact]
-    public async Task LoadAnalysisAsync_ReturnsUnavailable_WhenRearSuspensionMissing()
+    public async Task LoadAnalysisAsync_ReturnsUnavailable_WhenRearSuspensionIsHardtail()
     {
-        var result = await CreateService().LoadAnalysisAsync(null);
+        var result = await CreateService().LoadAnalysisAsync(new RearSuspensionSpec.Hardtail());
 
         Assert.IsType<BikeEditorAnalysisResult.Unavailable>(result);
     }
@@ -126,7 +126,7 @@ public class BikeEditorServiceTests
     [Fact]
     public async Task LoadAnalysisAsync_ReturnsComputed_WhenLinkageIsValid()
     {
-        var result = await CreateService().LoadAnalysisAsync(new LinkageRearSuspension(CreateSimpleLinkage()));
+        var result = await CreateService().LoadAnalysisAsync(new RearSuspensionSpec.Linkage(CreateSimpleLinkage().ToSpec()));
 
         var computed = Assert.IsType<BikeEditorAnalysisResult.Computed>(result);
         Assert.NotEmpty(computed.Data.LeverageRatioData.X);
@@ -145,7 +145,7 @@ public class BikeEditorServiceTests
             (10, 25),
             (20, 45));
 
-        var result = await CreateService().LoadAnalysisAsync(new LeverageRatioRearSuspension(leverageRatio));
+        var result = await CreateService().LoadAnalysisAsync(new RearSuspensionSpec.LeverageRatio(leverageRatio));
 
         var computed = Assert.IsType<BikeEditorAnalysisResult.Computed>(result);
         Assert.Collection(

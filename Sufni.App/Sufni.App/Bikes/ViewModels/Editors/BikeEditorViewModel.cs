@@ -398,14 +398,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         _ => throw new ArgumentOutOfRangeException(nameof(RearSuspensionMode)),
     };
 
-    private RearSuspension? BuildCurrentRearSuspension() => RearSuspensionMode switch
-    {
-        BikeRearSuspensionMode.None => null,
-        BikeRearSuspensionMode.Linkage when CreateCurrentLinkageSpec() is LinkageSpec linkage => new LinkageRearSuspension(Linkage.FromSpec(linkage)),
-        BikeRearSuspensionMode.LeverageRatio when LeverageRatioEditor.BuildCurrent() is LeverageRatioSpec leverageRatio => new LeverageRatioRearSuspension(leverageRatio),
-        _ => null,
-    };
-
     private LinkageSpec? CreateCurrentLinkageSpec()
     {
         if (!IsLinkageMode)
@@ -489,7 +481,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         IsPlotBusy = showPlotBusyOverlay;
         try
         {
-            var result = await bikeCoordinator.LoadAnalysisAsync(BuildCurrentRearSuspension(), token);
+            var result = await bikeCoordinator.LoadAnalysisAsync(BuildCurrentRearSuspensionSpec(), token);
             if (token.IsCancellationRequested) return;
 
             ApplyAnalysisResult(result);
