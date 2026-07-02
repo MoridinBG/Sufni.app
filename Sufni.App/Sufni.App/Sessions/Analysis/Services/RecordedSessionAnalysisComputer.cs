@@ -1,5 +1,6 @@
 using System;
 using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Sessions.Insights.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
@@ -44,6 +45,18 @@ internal sealed class RecordedSessionAnalysisComputer(
             key.DampingSpeedCutoffs);
     }
 
+    internal static SessionDampingPercentages CalculateDampingPercentages(
+        TelemetryData telemetryData,
+        TelemetryTimeRange? range = null,
+        VelocityAverageMode velocityAverageMode = VelocityAverageMode.SampleAveraged,
+        DampingSpeedCutoffs? dampingSpeedCutoffs = null)
+    {
+        var cutoffs = dampingSpeedCutoffs ?? DampingSpeedCutoffs.Default;
+        return SessionDampingPercentages.FromSides(
+            CalculateDampingSidePercentages(telemetryData, SuspensionType.Front, range, velocityAverageMode, cutoffs.Front),
+            CalculateDampingSidePercentages(telemetryData, SuspensionType.Rear, range, velocityAverageMode, cutoffs.Rear));
+    }
+
     private SessionInsightsAnalysisResult CalculateSessionInsights(
         RecordedSessionAnalysisKey key,
         TelemetryData telemetry)
@@ -64,7 +77,7 @@ internal sealed class RecordedSessionAnalysisComputer(
         return new SessionInsightsAnalysisResult(sessionInsightsService.Analyze(request));
     }
 
-    private static TravelDistributionAnalysisResult CalculateTravelDistribution(
+    internal static TravelDistributionAnalysisResult CalculateTravelDistribution(
         RecordedSessionAnalysisKey key,
         TelemetryData telemetry)
     {
@@ -103,7 +116,7 @@ internal sealed class RecordedSessionAnalysisComputer(
             hasStrokeData);
     }
 
-    private static VelocityDistributionAnalysisResult CalculateVelocityDistribution(
+    internal static VelocityDistributionAnalysisResult CalculateVelocityDistribution(
         RecordedSessionAnalysisKey key,
         TelemetryData telemetry)
     {
@@ -129,7 +142,7 @@ internal sealed class RecordedSessionAnalysisComputer(
             HasStrokeData: true);
     }
 
-    private static BalanceAnalysisResult CalculateBalance(
+    internal static BalanceAnalysisResult CalculateBalance(
         RecordedSessionAnalysisKey key,
         TelemetryData telemetry)
     {
@@ -215,4 +228,32 @@ internal sealed class RecordedSessionAnalysisComputer(
 
     private static BalanceType RequireBalanceType(RecordedSessionAnalysisKey key) =>
         key.BalanceType ?? throw new ArgumentException("Analysis key requires a balance type.", nameof(key));
+
+    private static SessionDampingSidePercentages CalculateDampingSidePercentages(
+        TelemetryData telemetryData,
+        SuspensionType suspensionType,
+        TelemetryTimeRange? range,
+        VelocityAverageMode velocityAverageMode,
+        DampingSpeedCutoffSide cutoffs)
+    {
+        if (!TelemetryStatistics.HasStrokeData(telemetryData, suspensionType, range))
+        {
+            return SessionDampingSidePercentages.Empty;
+        }
+
+        var options = new VelocityStatisticsOptions(
+            range,
+            velocityAverageMode,
+            cutoffs.CompressionMmPerSecond,
+            cutoffs.ReboundMmPerSecond);
+        var bands = TelemetryStatistics.CalculateVelocityBands(
+            telemetryData,
+            suspensionType,
+            options);
+        return new SessionDampingSidePercentages(
+            bands.HighSpeedCompression,
+            bands.LowSpeedCompression,
+            bands.LowSpeedRebound,
+            bands.HighSpeedRebound);
+    }
 }
