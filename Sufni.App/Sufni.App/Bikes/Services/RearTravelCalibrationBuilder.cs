@@ -4,8 +4,10 @@ using MathNet.Numerics;
 using Sufni.Kinematics;
 
 using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Stores;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Models.SensorConfigurations;
+using Sufni.App.Setups.Stores;
 namespace Sufni.App.Bikes.Services;
 
 internal static class RearTravelCalibrationBuilder
@@ -15,6 +17,13 @@ internal static class RearTravelCalibrationBuilder
     public static bool TryBuild(
         Setup setup,
         Bike bike,
+        out RearTravelCalibration? calibration,
+        out string? errorMessage) =>
+        TryBuild(SetupSnapshot.From(setup, boardId: null), BikeSnapshot.From(bike), out calibration, out errorMessage);
+
+    public static bool TryBuild(
+        SetupSnapshot setup,
+        BikeSnapshot bike,
         out RearTravelCalibration? calibration,
         out string? errorMessage)
     {

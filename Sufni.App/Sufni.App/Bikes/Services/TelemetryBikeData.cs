@@ -1,14 +1,13 @@
 using Sufni.Telemetry;
 
-using Sufni.App.Bikes.Models;
-using Sufni.App.Setups.Models;
+using Sufni.App.Bikes.Stores;
 using Sufni.App.Setups.Models.SensorConfigurations;
+using Sufni.App.Setups.Stores;
 namespace Sufni.App.Bikes.Services;
 
 public static class TelemetryBikeData
 {
     internal static BikeData Create(
-        Bike bike,
         ISensorConfiguration? frontSensorConfiguration,
         RearTravelCalibration? rearTravelCalibration)
     {
@@ -21,11 +20,13 @@ public static class TelemetryBikeData
             rearTravelCalibration?.MeasurementWraps ?? false);
     }
 
-    public static BikeData Create(Setup setup, Bike bike)
+    public static BikeData Create(SetupSnapshot setup, BikeSnapshot bike)
     {
-        var frontSensorConfiguration = setup.FrontSensorConfiguration(bike);
+        var frontSensorConfiguration = setup.FrontSensorConfigurationJson is null
+            ? null
+            : SensorConfiguration.FromJson(setup.FrontSensorConfigurationJson, bike);
         RearTravelCalibrationBuilder.TryBuild(setup, bike, out var rearTravelCalibration, out _);
 
-        return Create(bike, frontSensorConfiguration, rearTravelCalibration);
+        return Create(frontSensorConfiguration, rearTravelCalibration);
     }
 }

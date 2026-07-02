@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text.Json.Serialization;
 
 using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
 namespace Sufni.App.Setups.Models.SensorConfigurations;
 
@@ -10,7 +11,7 @@ public class RotationalForkSensorConfiguration : SensorConfiguration, ISensorCon
 {
     private double startAngle;
     private double strokeToTravel;
-    private Bike? bike;
+    private double? forkStroke;
     private readonly double measurementToAngle = 2.0 * Math.PI / 4096;
 
     [JsonPropertyName("max_length")] public double MaxLength { get; init; }
@@ -35,8 +36,8 @@ public class RotationalForkSensorConfiguration : SensorConfiguration, ISensorCon
     {
         get
         {
-            Debug.Assert(bike?.ForkStroke != null);
-            return bike.ForkStroke.Value * strokeToTravel;
+            Debug.Assert(forkStroke != null);
+            return forkStroke.Value * strokeToTravel;
         }
     }
 
@@ -47,7 +48,19 @@ public class RotationalForkSensorConfiguration : SensorConfiguration, ISensorCon
 
         sc.startAngle = Math.Acos(sc.MaxLength / 2.0 / sc.ArmLength);
         sc.strokeToTravel = Math.Sin(bike.HeadAngle * Math.PI / 180.0);
-        sc.bike = bike;
+        sc.forkStroke = bike.ForkStroke;
+
+        return sc;
+    }
+
+    public new static ISensorConfiguration? FromJson(string json, BikeSnapshot bike)
+    {
+        var sc = AppJson.Deserialize<RotationalForkSensorConfiguration>(json);
+        if (sc is null) return null;
+
+        sc.startAngle = Math.Acos(sc.MaxLength / 2.0 / sc.ArmLength);
+        sc.strokeToTravel = Math.Sin(bike.HeadAngle * Math.PI / 180.0);
+        sc.forkStroke = bike.ForkStroke;
 
         return sc;
     }

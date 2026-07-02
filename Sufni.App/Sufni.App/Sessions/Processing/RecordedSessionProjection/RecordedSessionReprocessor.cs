@@ -8,9 +8,6 @@ using Sufni.Telemetry;
 
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Setups.Models;
-using Sufni.App.Setups.Stores;
-using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Services;
 using Sufni.App.Infrastructure;
 namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -50,9 +47,7 @@ public sealed class RecordedSessionReprocessor(IProcessingFingerprintService fin
             throw new InvalidOperationException("Recorded source does not match the domain session.");
         }
 
-        var bike = Bike.FromSnapshot(domain.Bike);
-        var setup = SetupFromSnapshot(domain.Setup);
-        var bikeData = TelemetryBikeData.Create(setup, bike);
+        var bikeData = TelemetryBikeData.Create(domain.Setup, domain.Bike);
 
         var telemetryData = source.SourceKind switch
         {
@@ -127,13 +122,6 @@ public sealed class RecordedSessionReprocessor(IProcessingFingerprintService fin
             : 0.0)
     };
 
-    private static Setup SetupFromSnapshot(SetupSnapshot snapshot) => new(snapshot.Id, snapshot.Name)
-    {
-        BikeId = snapshot.BikeId,
-        FrontSensorConfigurationJson = snapshot.FrontSensorConfigurationJson,
-        RearSensorConfigurationJson = snapshot.RearSensorConfigurationJson,
-        Updated = snapshot.Updated,
-    };
 }
 
 /// <summary>

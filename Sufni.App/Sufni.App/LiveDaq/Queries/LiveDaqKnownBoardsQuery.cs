@@ -9,13 +9,11 @@ using Serilog;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 using Sufni.App.Bikes.Stores;
-using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Models.SensorConfigurations;
 using Sufni.App.Setups.Stores;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Sessions.Processing.SessionDetails;
-using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Services;
 namespace Sufni.App.LiveDaq.Queries;
 
@@ -82,14 +80,6 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
             ? projection.SessionContext
             : null;
     }
-
-    private static Setup SetupFromSnapshot(SetupSnapshot snapshot) => new(snapshot.Id, snapshot.Name)
-    {
-        BikeId = snapshot.BikeId,
-        FrontSensorConfigurationJson = snapshot.FrontSensorConfigurationJson,
-        RearSensorConfigurationJson = snapshot.RearSensorConfigurationJson,
-        Updated = snapshot.Updated,
-    };
 
     private static LiveDaqTravelCalibration CreateTravelCalibration(
         ISensorConfiguration? frontSensorConfiguration,
@@ -224,10 +214,10 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
             return new KnownLiveDaqProjection(record, null, null);
         }
 
-        var setup = SetupFromSnapshot(setupSnapshot);
-        var bike = Bike.FromSnapshot(bikeSnapshot);
-        var frontSensorConfiguration = setup.FrontSensorConfiguration(bike);
-        RearTravelCalibrationBuilder.TryBuild(setup, bike, out var rearTravelCalibration, out _);
+        var frontSensorConfiguration = setupSnapshot.FrontSensorConfigurationJson is null
+            ? null
+            : SensorConfiguration.FromJson(setupSnapshot.FrontSensorConfigurationJson, bikeSnapshot);
+        RearTravelCalibrationBuilder.TryBuild(setupSnapshot, bikeSnapshot, out var rearTravelCalibration, out _);
         var calibration = CreateTravelCalibration(frontSensorConfiguration, rearTravelCalibration);
 
         return new KnownLiveDaqProjection(
@@ -241,7 +231,7 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
                 SetupName: record.SetupName!,
                 BikeId: record.BikeId!.Value,
                 BikeName: record.BikeName!,
-                BikeData: TelemetryBikeData.Create(bike, frontSensorConfiguration, rearTravelCalibration),
+                BikeData: TelemetryBikeData.Create(frontSensorConfiguration, rearTravelCalibration),
                 TravelCalibration: calibration,
                 DampingSpeedCutoffs: bikeSnapshot.DampingSpeedCutoffs,
                 DampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(bikeSnapshot.Id, bikeSnapshot.Updated)));

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text.Json.Serialization;
 
 using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
 namespace Sufni.App.Setups.Models.SensorConfigurations;
 
@@ -10,7 +11,7 @@ public class LinearForkSensorConfiguration : SensorConfiguration, ISensorConfigu
 {
     private double measurementToStroke;
     private double strokeToTravel;
-    private Bike? bike;
+    private double? forkStroke;
 
     [JsonPropertyName("length")] public double Length { get; init; }
     [JsonPropertyName("resolution")] public int Resolution { get; init; }
@@ -29,8 +30,8 @@ public class LinearForkSensorConfiguration : SensorConfiguration, ISensorConfigu
     {
         get
         {
-            Debug.Assert(bike?.ForkStroke != null);
-            return bike.ForkStroke.Value * strokeToTravel;
+            Debug.Assert(forkStroke != null);
+            return forkStroke.Value * strokeToTravel;
         }
     }
 
@@ -39,7 +40,18 @@ public class LinearForkSensorConfiguration : SensorConfiguration, ISensorConfigu
         var sc = AppJson.Deserialize<LinearForkSensorConfiguration>(json);
         if (sc is null) return null;
 
-        sc.bike = bike;
+        sc.forkStroke = bike.ForkStroke;
+        sc.measurementToStroke = LinearSensorCalibrationMath.MeasurementToStroke(sc.Length, sc.Resolution);
+        sc.strokeToTravel = Math.Sin(bike.HeadAngle * Math.PI / 180.0);
+        return sc;
+    }
+
+    public new static ISensorConfiguration? FromJson(string json, BikeSnapshot bike)
+    {
+        var sc = AppJson.Deserialize<LinearForkSensorConfiguration>(json);
+        if (sc is null) return null;
+
+        sc.forkStroke = bike.ForkStroke;
         sc.measurementToStroke = LinearSensorCalibrationMath.MeasurementToStroke(sc.Length, sc.Resolution);
         sc.strokeToTravel = Math.Sin(bike.HeadAngle * Math.PI / 180.0);
         return sc;
