@@ -945,10 +945,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
                 }
                 break;
 
-            case BikeSaveResult.InvalidLinkage:
-                ErrorMessages.Add("Linkage movement could not be calculated. Please check the joints and links!");
-                break;
-
             case BikeSaveResult.InvalidRearSuspension invalidRearSuspension:
                 ErrorMessages.Add(invalidRearSuspension.ErrorMessage);
                 break;

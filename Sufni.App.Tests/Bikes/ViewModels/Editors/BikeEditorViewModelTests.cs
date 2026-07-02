@@ -760,21 +760,6 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Save_OnInvalidLinkage_AppendsErrorMessage()
-    {
-        var snapshot = TestSnapshots.Bike(updated: 5);
-        var editor = CreateEditor(snapshot);
-        editor.Name = "renamed";
-
-        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
-            .Returns(new BikeSaveResult.InvalidLinkage());
-
-        await editor.SaveCommand.ExecuteAsync(null);
-
-        Assert.Single(editor.ErrorMessages);
-    }
-
-    [AvaloniaFact]
     public async Task Save_OnDraftLinkage_RoutesDraftToCoordinator_AndAppendsValidationMessage()
     {
         var snapshot = TestSnapshots.Bike(updated: 5) with

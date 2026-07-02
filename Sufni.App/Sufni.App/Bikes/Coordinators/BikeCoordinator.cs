@@ -305,7 +305,6 @@ public abstract record BikeSaveResult
 
     public sealed record Saved(long NewBaselineUpdated, BikeEditorAnalysisResult AnalysisResult) : BikeSaveResult;
     public sealed record Conflict(BikeSnapshot CurrentSnapshot) : BikeSaveResult;
-    public sealed record InvalidLinkage : BikeSaveResult;
     public sealed record InvalidRearSuspension(string ErrorMessage) : BikeSaveResult;
     public sealed record Failed(string ErrorMessage) : BikeSaveResult;
 }
