@@ -176,7 +176,4 @@ internal static class AppJson
 [JsonSerializable(typeof(WheelSpec), TypeInfoPropertyName = "BikeWheelSpec")]
 [JsonSerializable(typeof(DampingSpeedCutoffs))]
 [JsonSerializable(typeof(DampingSpeedCutoffSide))]
-[JsonSerializable(typeof(Linkage), TypeInfoPropertyName = "LegacyLinkage")]
-[JsonSerializable(typeof(Link))]
-[JsonSerializable(typeof(Joint))]
 internal partial class AppJsonContext : JsonSerializerContext;
