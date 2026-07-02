@@ -1,4 +1,8 @@
 using NSubstitute;
+using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Tests.TestSupport.Async;
@@ -25,6 +29,29 @@ public class SessionProcessedTelemetryReaderTests
 
         Assert.NotNull(first);
         Assert.Same(first, second);
+        Assert.Equal(1, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
+        await sessionRepository.Received(2).GetSessionRawPsstAsync(sessionId);
+    }
+
+    [Fact]
+    public async Task GetAsync_RetainedSession_ConcurrentReadsShareOneDecode()
+    {
+        var sessionId = Guid.NewGuid();
+        var raw = Blob(duration: 65);
+        var sessionRepository = Substitute.For<ISessionRepository>();
+        var telemetryProcessor = new BlockingTelemetryProcessor(TestTelemetryData.CreateMinimal(duration: 65));
+        var reader = CreateReader(sessionRepository, telemetryProcessor);
+        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
+        using var retention = reader.Retain(sessionId);
+
+        var firstTask = Task.Run(() => reader.GetAsync(sessionId));
+        Assert.True(telemetryProcessor.WaitUntilDecodeStarted(TimeSpan.FromSeconds(2)));
+        var secondTask = Task.Run(() => reader.GetAsync(sessionId));
+
+        telemetryProcessor.ReleaseDecode();
+        var results = await Task.WhenAll(firstTask, secondTask);
+
+        Assert.Same(results[0], results[1]);
         Assert.Equal(1, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
         await sessionRepository.Received(2).GetSessionRawPsstAsync(sessionId);
     }
@@ -117,7 +144,7 @@ public class SessionProcessedTelemetryReaderTests
 
     private static SessionProcessedTelemetryReader CreateReader(
         ISessionRepository sessionRepository,
-        TestSessionTelemetryProcessor telemetryProcessor) =>
+        ISessionTelemetryProcessor telemetryProcessor) =>
         new(
             sessionRepository,
             telemetryProcessor,
@@ -125,4 +152,37 @@ public class SessionProcessedTelemetryReaderTests
 
     private static byte[] Blob(double duration) =>
         TestTelemetryData.CreateMinimal(duration: duration).BinaryForm;
+
+    private sealed class BlockingTelemetryProcessor(TelemetryData telemetryData) : ISessionTelemetryProcessor
+    {
+        private readonly ManualResetEventSlim decodeStarted = new();
+        private readonly ManualResetEventSlim releaseDecode = new();
+
+        public int ReadProcessedTelemetryDataCallCount { get; private set; }
+
+        public bool WaitUntilDecodeStarted(TimeSpan timeout) => decodeStarted.Wait(timeout);
+
+        public void ReleaseDecode() => releaseDecode.Set();
+
+        public double? ReadProcessedDurationSeconds(byte[]? processedData) =>
+            throw new NotSupportedException();
+
+        public TelemetryData ReadProcessedTelemetryData(byte[] processedData)
+        {
+            ReadProcessedTelemetryDataCallCount++;
+            decodeStarted.Set();
+            releaseDecode.Wait();
+            return telemetryData;
+        }
+
+        public SessionSummaryMetrics ComputeSummaryMetrics(double? durationSeconds, IReadOnlyList<TrackPoint>? points) =>
+            throw new NotSupportedException();
+
+        public List<TrackPoint>? GenerateSessionTrackFromFullTrack(
+            Track fullTrack,
+            long? timestamp,
+            double? durationSeconds,
+            double gpsOffsetSeconds = 0) =>
+            throw new NotSupportedException();
+    }
 }
