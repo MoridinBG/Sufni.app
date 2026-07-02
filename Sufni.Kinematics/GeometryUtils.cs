@@ -75,11 +75,6 @@ public static class GeometryUtils
         return Math.Round(180.0 - angle, 1);
     }
 
-    public static double CalculateAngleAtPoint(Joint central, Joint adjacent1, Joint adjacent2)
-    {
-        return CalculateAngleAtPoint(central.X, central.Y, adjacent1.X, adjacent1.Y, adjacent2.X, adjacent2.Y);
-    }
-    
     public static double CalculateAngleAtPoint(double centralX, double centralY,
         double adjacent1X, double adjacent1Y, double adjacent2X, double adjacent2Y)
     {
