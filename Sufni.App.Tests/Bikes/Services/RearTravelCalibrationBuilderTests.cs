@@ -114,13 +114,13 @@ public class RearTravelCalibrationBuilderTests
     [Fact]
     public void TryBuild_ComposesLinkageRearTravelCalibration()
     {
-        var linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
         var bike = new Bike(Guid.NewGuid(), "linkage bike")
         {
             HeadAngle = 64,
             ForkStroke = 170,
             ShockStroke = linkage.ShockStroke,
-            RearSuspension = new RearSuspensionSpec.Linkage(linkage.ToSpec()),
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage),
         };
         var setup = new Setup(Guid.NewGuid(), "linkage setup")
         {
@@ -188,13 +188,13 @@ public class RearTravelCalibrationBuilderTests
     [Fact]
     public void TryBuild_ComposesRotationalShockAndLinkageMapping()
     {
-        var linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
         var bike = new Bike(Guid.NewGuid(), "rotational linkage bike")
         {
             HeadAngle = 64,
             ForkStroke = 170,
             ShockStroke = linkage.ShockStroke,
-            RearSuspension = new RearSuspensionSpec.Linkage(linkage.ToSpec()),
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage),
         };
         var mapping = new JointNameMapping();
         var setup = new Setup(Guid.NewGuid(), "rotational setup")
@@ -246,13 +246,13 @@ public class RearTravelCalibrationBuilderTests
     [Fact]
     public void TryBuild_ReturnsFalse_WhenRotationalSensorGeometryIsDegenerate()
     {
-        var linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
         var bike = new Bike(Guid.NewGuid(), "degenerate rotational bike")
         {
             HeadAngle = 64,
             ForkStroke = 170,
             ShockStroke = linkage.ShockStroke,
-            RearSuspension = new RearSuspensionSpec.Linkage(linkage.ToSpec()),
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage),
         };
         var mapping = new JointNameMapping();
         var setup = new Setup(Guid.NewGuid(), "degenerate rotational setup")
