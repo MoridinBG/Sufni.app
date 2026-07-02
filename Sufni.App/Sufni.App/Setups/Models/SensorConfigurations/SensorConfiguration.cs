@@ -30,13 +30,10 @@ public class SensorConfiguration
 
     public static ISensorConfiguration? FromJson(string json, BikeSnapshot bike)
     {
-        var s = AppJson.Deserialize<SensorConfiguration>(json);
-        if (s is null) return null;
-
-        return s.Type switch
+        return FromJson(json) switch
         {
-            SensorType.LinearFork => LinearForkSensorConfiguration.FromJson(json, bike),
-            SensorType.RotationalFork => RotationalForkSensorConfiguration.FromJson(json, bike),
+            LinearForkSensorConfiguration linearFork => linearFork.BindBike(bike),
+            RotationalForkSensorConfiguration rotationalFork => rotationalFork.BindBike(bike),
             _ => null
         };
     }

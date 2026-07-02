@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Sufni.App.Setups.Models.SensorConfigurations;
+using Sufni.App.Tests.TestSupport.Fixtures;
 using Xunit;
 
 namespace Sufni.App.Tests.Setups.Models.SensorConfigurations;
@@ -112,5 +114,56 @@ public class SensorConfigurationJsonTests
     public void FromJson_ReturnsNull_ForJsonNull()
     {
         Assert.Null(SensorConfiguration.FromJson("null"));
+    }
+
+    [Fact]
+    public void FromJsonWithBike_BindsLinearForkCalibration()
+    {
+        var bike = TestSnapshots.Bike() with { HeadAngle = 30, ForkStroke = 120 };
+
+        var configuration = SensorConfiguration.FromJson(LinearForkGolden, bike);
+
+        var linearFork = Assert.IsType<LinearForkSensorConfiguration>(configuration);
+        Assert.Equal(60, linearFork.MaxTravel, precision: 6);
+        Assert.Equal(50, linearFork.MeasurementToTravel(4095), precision: 6);
+    }
+
+    [Fact]
+    public void FromJsonWithBike_BindsRotationalForkCalibration()
+    {
+        var bike = TestSnapshots.Bike() with { HeadAngle = 30, ForkStroke = 120 };
+        var json = """{"max_length":100,"arm_length":60,"type":"rotational_fork"}""";
+
+        var configuration = SensorConfiguration.FromJson(json, bike);
+
+        var rotationalFork = Assert.IsType<RotationalForkSensorConfiguration>(configuration);
+        Assert.Equal(60, rotationalFork.MaxTravel, precision: 6);
+        Assert.Equal(0, rotationalFork.MeasurementToTravel(0), precision: 6);
+    }
+
+    [Theory]
+    [InlineData(LinearShockGolden)]
+    [InlineData(RotationalShockGolden)]
+    public void FromJsonWithBike_ReturnsNull_ForRearSensorPayloads(string json)
+    {
+        var bike = TestSnapshots.Bike();
+
+        Assert.Null(SensorConfiguration.FromJson(json, bike));
+    }
+
+    [Fact]
+    public void FromJsonWithBike_ReturnsNull_ForUnknownNumericType()
+    {
+        var bike = TestSnapshots.Bike();
+
+        Assert.Null(SensorConfiguration.FromJson("""{"type":999}""", bike));
+    }
+
+    [Fact]
+    public void FromJsonWithBike_Throws_ForMalformedJson()
+    {
+        var bike = TestSnapshots.Bike();
+
+        Assert.Throws<JsonException>(() => SensorConfiguration.FromJson("{", bike));
     }
 }

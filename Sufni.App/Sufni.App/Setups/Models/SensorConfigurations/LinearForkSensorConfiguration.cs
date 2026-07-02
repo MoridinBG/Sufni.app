@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Text.Json.Serialization;
 
 using Sufni.App.Bikes.Stores;
-using Sufni.App.Infrastructure;
 namespace Sufni.App.Setups.Models.SensorConfigurations;
 
 public class LinearForkSensorConfiguration : SensorConfiguration, ISensorConfiguration
@@ -34,14 +33,11 @@ public class LinearForkSensorConfiguration : SensorConfiguration, ISensorConfigu
         }
     }
 
-    public new static ISensorConfiguration? FromJson(string json, BikeSnapshot bike)
+    internal LinearForkSensorConfiguration BindBike(BikeSnapshot bike)
     {
-        var sc = AppJson.Deserialize<LinearForkSensorConfiguration>(json);
-        if (sc is null) return null;
-
-        sc.forkStroke = bike.ForkStroke;
-        sc.measurementToStroke = LinearSensorCalibrationMath.MeasurementToStroke(sc.Length, sc.Resolution);
-        sc.strokeToTravel = Math.Sin(bike.HeadAngle * Math.PI / 180.0);
-        return sc;
+        forkStroke = bike.ForkStroke;
+        measurementToStroke = LinearSensorCalibrationMath.MeasurementToStroke(Length, Resolution);
+        strokeToTravel = Math.Sin(bike.HeadAngle * Math.PI / 180.0);
+        return this;
     }
 }
