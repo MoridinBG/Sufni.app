@@ -26,11 +26,19 @@ public sealed record BikeSnapshot(
     byte[] ImageBytes,
     long Updated)
 {
+    private readonly byte[] imageBytes = [.. ImageBytes];
+
     public RearSuspensionKind Kind => RearSuspension.Kind;
 
     public LinkageSpec? Linkage => (RearSuspension as RearSuspensionSpec.Linkage)?.Spec;
 
     public LeverageRatioSpec? LeverageRatio => (RearSuspension as RearSuspensionSpec.LeverageRatio)?.Spec;
+
+    public byte[] ImageBytes
+    {
+        get => [.. imageBytes];
+        init => imageBytes = value is null ? [] : [.. value];
+    }
 
     public double FrontCompressionDampingCutoffMmPerSecond
     {

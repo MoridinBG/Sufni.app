@@ -63,6 +63,22 @@ public class BikeSnapshotTests
     }
 
     [Fact]
+    public void ImageBytes_AreCopiedOnInitAndRead()
+    {
+        byte[] imageBytes = [1, 2, 3];
+        var snapshot = TestSnapshots.Bike() with
+        {
+            ImageBytes = imageBytes,
+        };
+
+        imageBytes[0] = 9;
+        var exposed = snapshot.ImageBytes;
+        exposed[1] = 8;
+
+        Assert.Equal([1, 2, 3], snapshot.ImageBytes);
+    }
+
+    [Fact]
     public void WithExpression_ReplacesLinkageSpecWithoutMutatingOriginalSnapshot()
     {
         var linkage = TestSnapshots.FullSuspensionLinkageSpec();
