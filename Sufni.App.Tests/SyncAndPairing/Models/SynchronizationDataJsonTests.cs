@@ -74,6 +74,27 @@ public class SynchronizationDataJsonTests
             JsonSerializer.Deserialize(json, AppJson.InboundContext.SynchronizationData));
     }
 
+    [Fact]
+    public void LenientContext_RejectsSynchronizationDataBikeWithoutRearSuspension()
+    {
+        var json = SyncDataJson("");
+
+        Assert.Throws<JsonException>(() => AppJson.Deserialize<SynchronizationData>(json));
+    }
+
+    [Fact]
+    public void LenientContext_RejectsSynchronizationDataBikeWithLegacyRearSuspensionTriple()
+    {
+        var json = SyncDataJson(
+            """
+            "rear_suspension_kind": "none",
+            "linkage": null,
+            "leverage_ratio": null
+            """);
+
+        Assert.Throws<JsonException>(() => AppJson.Deserialize<SynchronizationData>(json));
+    }
+
     private static Bike CreateBike(string name, RearSuspensionSpec rearSuspension) =>
         new(Guid.NewGuid(), name)
         {
