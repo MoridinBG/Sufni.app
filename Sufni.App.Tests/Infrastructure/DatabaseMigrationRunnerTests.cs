@@ -153,6 +153,14 @@ public class DatabaseMigrationRunnerTests
                 new RearSuspensionSpec.LinkageDraft(),
                 expectedShockStroke: null),
             LegacyRearSuspensionCase.Create(
+                "linkage kind with invalid linkage payload",
+                (int)RearSuspensionKind.Linkage,
+                linkageJson: "{",
+                leverageRatio.ToJson(),
+                shockStroke: 0.8,
+                new RearSuspensionSpec.LinkageDraft(),
+                expectedShockStroke: 0.8),
+            LegacyRearSuspensionCase.Create(
                 "leverage-ratio kind with leverage-ratio payload",
                 (int)RearSuspensionKind.LeverageRatio,
                 linkageJson: null,
@@ -168,6 +176,14 @@ public class DatabaseMigrationRunnerTests
                 shockStroke: 12,
                 new RearSuspensionSpec.LeverageRatioDraft(),
                 expectedShockStroke: 12),
+            LegacyRearSuspensionCase.Create(
+                "leverage-ratio kind with invalid leverage-ratio payload",
+                (int)RearSuspensionKind.LeverageRatio,
+                linkage.ToJson(),
+                leverageRatioJson: "{",
+                shockStroke: 11,
+                new RearSuspensionSpec.LeverageRatioDraft(),
+                expectedShockStroke: 11),
             LegacyRearSuspensionCase.Create(
                 "none kind with orphan linkage payload",
                 (int)RearSuspensionKind.None,
