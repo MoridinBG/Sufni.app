@@ -102,6 +102,9 @@ internal sealed class TestPersistenceHarness
     public Task<List<Guid>> GetIncompleteSessionIdsAsync() =>
         sessionRepository.GetIncompleteSessionIdsAsync();
 
+    public Task<SessionProcessingInputBundle?> GetProcessingInputBundleAsync(Guid sessionId) =>
+        sessionRepository.GetProcessingInputBundleAsync(sessionId);
+
     public async Task<TelemetryData?> GetSessionPsstAsync(Guid id)
     {
         var raw = await sessionRepository.GetSessionRawPsstAsync(id);

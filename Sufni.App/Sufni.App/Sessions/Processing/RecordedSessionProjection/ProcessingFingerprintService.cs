@@ -27,7 +27,22 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         BikeSnapshot bike,
         RecordedSessionSourceSnapshot source,
         TelemetryProcessingOptions? options = null) =>
-        CreateCurrentDatabaseInputs(session, setup, bike, source) with
+        CreateCurrent(
+            session,
+            setup,
+            bike,
+            source,
+            ProcessingDependencyHash.Compute(setup, bike),
+            options);
+
+    public ProcessingFingerprint CreateCurrent(
+        SessionSnapshot session,
+        SetupSnapshot setup,
+        BikeSnapshot bike,
+        RecordedSessionSourceSnapshot source,
+        string dependencyHash,
+        TelemetryProcessingOptions? options = null) =>
+        CreateCurrentDatabaseInputs(session, setup, bike, source, dependencyHash) with
         {
             VelocityFilterWindowMilliseconds =
                 (options ?? TelemetryProcessingOptions.Default).ClampedVelocityFilterWindowMilliseconds,
@@ -38,6 +53,48 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         SetupSnapshot setup,
         BikeSnapshot bike,
         RecordedSessionSourceSnapshot source)
+    {
+        return CreateCurrentDatabaseInputs(
+            session,
+            setup,
+            bike,
+            source,
+            ProcessingDependencyHash.Compute(setup, bike));
+    }
+
+    public ProcessingFingerprint CreateCurrentDatabaseInputs(SessionProcessingInputBundle input)
+    {
+        if (input.Session.SetupId != input.Setup.Id)
+        {
+            throw new InvalidOperationException("Session setup does not match the processing setup.");
+        }
+
+        if (input.Setup.BikeId != input.Bike.Id)
+        {
+            throw new InvalidOperationException("Setup bike does not match the processing bike.");
+        }
+
+        if (input.Source.SessionId != input.Session.Id)
+        {
+            throw new InvalidOperationException("Recorded source does not match the processing session.");
+        }
+
+        return new ProcessingFingerprint(
+            SchemaVersion,
+            TelemetryProcessingVersion.Current,
+            input.Setup.Id,
+            input.Bike.Id,
+            GpsTrackPointProjection.ProjectionVersion,
+            ProcessingDependencyHash.Compute(input.Setup, input.Bike),
+            input.Source.SourceHash);
+    }
+
+    private static ProcessingFingerprint CreateCurrentDatabaseInputs(
+        SessionSnapshot session,
+        SetupSnapshot setup,
+        BikeSnapshot bike,
+        RecordedSessionSourceSnapshot source,
+        string dependencyHash)
     {
         if (session.SetupId != setup.Id)
         {
@@ -60,7 +117,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             setup.Id,
             bike.Id,
             GpsTrackPointProjection.ProjectionVersion,
-            ProcessingDependencyHash.Compute(setup, bike),
+            dependencyHash,
             source.SourceHash);
     }
 

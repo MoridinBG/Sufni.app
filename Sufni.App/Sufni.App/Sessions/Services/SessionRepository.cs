@@ -14,10 +14,7 @@ using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Bikes.Models;
-using Sufni.App.Setups.Models;
-using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Store;
-using Sufni.App.Setups.Stores;
 namespace Sufni.App.Sessions.Services;
 
 public interface ISessionRepository
@@ -29,6 +26,8 @@ public interface ISessionRepository
     Task<List<Guid>> GetActiveSessionIdsAsync();
 
     Task<bool> HasOtherActiveSessionWithFullTrackAsync(Guid fullTrackId, Guid excludingSessionId);
+
+    Task<SessionProcessingInputBundle?> GetProcessingInputBundleAsync(Guid sessionId);
 
     Task<List<Guid>> GetIncompleteSessionIdsAsync();
 
@@ -184,6 +183,29 @@ internal sealed class SessionRepository(
                                                                        id=?
                                                                    """;
 
+    private const string ProcessingInputBundleSql = """
+                                                    SELECT
+                                                        s.id AS session_id,
+                                                        s.setup_id AS setup_id,
+                                                        setup.bike_id AS bike_id,
+                                                        setup.front_sensor_configuration AS front_sensor_configuration,
+                                                        setup.rear_sensor_configuration AS rear_sensor_configuration,
+                                                        bike.head_angle AS head_angle,
+                                                        bike.fork_stroke AS fork_stroke,
+                                                        bike.shock_stroke AS shock_stroke,
+                                                        bike.rear_suspension AS rear_suspension,
+                                                        source.session_id AS source_session_id,
+                                                        source.source_kind AS source_kind,
+                                                        source.source_name AS source_name,
+                                                        source.schema_version AS schema_version,
+                                                        source.source_hash AS source_hash
+                                                    FROM session s
+                                                    JOIN setup ON setup.id = s.setup_id AND setup.deleted IS NULL
+                                                    JOIN bike ON bike.id = setup.bike_id AND bike.deleted IS NULL
+                                                    JOIN session_recording_source source ON source.session_id = s.id
+                                                    WHERE s.deleted IS NULL AND s.id = ?
+                                                    """;
+
     public async Task<List<Session>> GetSessionsAsync()
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
@@ -248,6 +270,13 @@ internal sealed class SessionRepository(
             excludingSessionId,
             fullTrackId);
         return exists != 0;
+    }
+
+    public async Task<SessionProcessingInputBundle?> GetProcessingInputBundleAsync(Guid sessionId)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        var rows = await connection.QueryAsync<ProcessingInputBundleRow>(ProcessingInputBundleSql, sessionId);
+        return rows.Count == 1 ? rows[0].ToBundle() : null;
     }
 
     public async Task<List<Guid>> GetIncompleteSessionIdsAsync()
@@ -392,52 +421,20 @@ internal sealed class SessionRepository(
         Guid sessionId,
         ProcessingFingerprint expectedInputFingerprint)
     {
-        // Re-read via the metadata projection (no BLOB) to get the row's current
-        // setup linkage, then resolve setup/bike/source as they stand now.
-        var session = GetSession(connection, sessionId);
-        if (session?.Setup is not { } setupId)
+        var input = GetProcessingInputBundle(connection, sessionId);
+        if (input is null)
         {
             return false;
         }
 
-        var setup = connection.Find<Setup>(setupId);
-        if (setup is null || setup.Deleted is not null)
-        {
-            return false;
-        }
-
-        var bike = connection.Find<Bike>(setup.BikeId);
-        if (bike is null || bike.Deleted is not null)
-        {
-            return false;
-        }
-
-        var source = connection.Find<RecordedSessionSource>(sessionId);
-        if (source is null)
-        {
-            return false;
-        }
-
-        var current = fingerprintService.CreateCurrentDatabaseInputs(
-            SessionSnapshot.From(session),
-            SetupSnapshot.From(setup, boardId: null),
-            BikeSnapshot.From(bike),
-            RecordedSessionSourceSnapshot.From(source));
+        var current = fingerprintService.CreateCurrentDatabaseInputs(input);
         return expectedInputFingerprint.MatchesDatabaseInputs(current);
     }
 
-    private static Session? GetSession(SQLiteConnection connection, Guid id)
+    private static SessionProcessingInputBundle? GetProcessingInputBundle(SQLiteConnection connection, Guid sessionId)
     {
-        var query = $"""
-                     SELECT
-                         {ActiveSessionMetadataProjection}
-                     FROM
-                         session
-                     WHERE
-                         deleted IS NULL AND id = ?
-                     """;
-        var sessions = connection.Query<Session>(query, id);
-        return sessions.Count == 1 ? sessions[0] : null;
+        var rows = connection.Query<ProcessingInputBundleRow>(ProcessingInputBundleSql, sessionId);
+        return rows.Count == 1 ? rows[0].ToBundle() : null;
     }
 
     public async Task UpdateSessionPsstAsync(Guid id, byte[] data, string? fingerprintJson, SessionSummaryMetrics metrics)
@@ -666,5 +663,92 @@ internal sealed class SessionRepository(
     {
         [Column("id")]
         public Guid Id { get; set; }
+    }
+
+    private sealed class ProcessingInputBundleRow
+    {
+        [Column("session_id")]
+        public Guid SessionId { get; set; }
+
+        [Column("setup_id")]
+        public Guid SetupId { get; set; }
+
+        [Column("bike_id")]
+        public Guid BikeId { get; set; }
+
+        [Column("front_sensor_configuration")]
+        public string? FrontSensorConfigurationJson { get; set; }
+
+        [Column("rear_sensor_configuration")]
+        public string? RearSensorConfigurationJson { get; set; }
+
+        [Column("head_angle")]
+        public double HeadAngle { get; set; }
+
+        [Column("fork_stroke")]
+        public double? ForkStroke { get; set; }
+
+        [Column("shock_stroke")]
+        public double? ShockStroke { get; set; }
+
+        [Column("rear_suspension")]
+        public string RearSuspensionJson { get; set; } = null!;
+
+        [Column("source_session_id")]
+        public Guid SourceSessionId { get; set; }
+
+        [Column("source_kind")]
+        public string SourceKindValue { get; set; } = null!;
+
+        [Column("source_name")]
+        public string SourceName { get; set; } = null!;
+
+        [Column("schema_version")]
+        public int SchemaVersion { get; set; }
+
+        [Column("source_hash")]
+        public string SourceHash { get; set; } = null!;
+
+        public SessionProcessingInputBundle? ToBundle()
+        {
+            if (!RearSuspensionJsonCodec.TryDeserialize(RearSuspensionJson, out var rearSuspension) ||
+                rearSuspension is null ||
+                string.IsNullOrWhiteSpace(SourceKindValue) ||
+                string.IsNullOrWhiteSpace(SourceName) ||
+                string.IsNullOrWhiteSpace(SourceHash))
+            {
+                return null;
+            }
+
+            RecordedSessionSourceKind sourceKind;
+            try
+            {
+                sourceKind = RecordedSessionSourceKindExtensions.FromStorageValue(SourceKindValue);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                return null;
+            }
+
+            return new SessionProcessingInputBundle(
+                new SessionProcessingInput(SessionId, SetupId),
+                new SetupProcessingInput(
+                    SetupId,
+                    BikeId,
+                    FrontSensorConfigurationJson,
+                    RearSensorConfigurationJson),
+                new BikeProcessingInput(
+                    BikeId,
+                    HeadAngle,
+                    ForkStroke,
+                    ShockStroke,
+                    rearSuspension),
+                new RecordedSessionSourceSnapshot(
+                    SourceSessionId,
+                    sourceKind,
+                    SourceName,
+                    SchemaVersion,
+                    SourceHash));
+        }
     }
 }

@@ -25,35 +25,55 @@ public static class ProcessingDependencyHash
 
     public static string Compute(SetupSnapshot setup, BikeSnapshot bike)
     {
-        return Compute(setup, bike, AppJson.Options);
+        return Compute(CreatePayload(setup, bike), AppJson.Options);
+    }
+
+    internal static string Compute(SetupProcessingInput setup, BikeProcessingInput bike)
+    {
+        return Compute(CreatePayload(setup, bike), AppJson.Options);
     }
 
     internal static string ComputeLegacySnakeCaseJson(SetupSnapshot setup, BikeSnapshot bike)
     {
-        return Compute(setup, bike, LegacySnakeCaseJsonOptions);
+        return Compute(CreatePayload(setup, bike), LegacySnakeCaseJsonOptions);
     }
 
-    private static string Compute(SetupSnapshot setup, BikeSnapshot bike, JsonSerializerOptions jsonOptions)
+    private static string Compute(DependencyPayload payload, JsonSerializerOptions jsonOptions)
     {
-        var payload = new DependencyPayload(
-            Setup: new SetupPayload(
-                setup.Id,
-                setup.BikeId,
-                SensorPayload.FromJson(setup.FrontSensorConfigurationJson),
-                SensorPayload.FromJson(setup.RearSensorConfigurationJson)),
-            Bike: new BikePayload(
-                bike.Id,
-                bike.HeadAngle,
-                bike.ForkStroke,
-                bike.ShockStroke,
-                bike.Kind,
-                LinkagePayload.FromRearSuspension(bike.RearSuspension),
-                LeverageRatioPayload.FromRearSuspension(bike.RearSuspension)));
-
         using var stream = new MemoryStream();
         JsonSerializer.Serialize(stream, payload, jsonOptions);
         return Convert.ToHexStringLower(SHA256.HashData(stream.GetBuffer().AsSpan(0, checked((int)stream.Length))));
     }
+
+    private static DependencyPayload CreatePayload(SetupSnapshot setup, BikeSnapshot bike) => new(
+        Setup: new SetupPayload(
+            setup.Id,
+            setup.BikeId,
+            SensorPayload.FromJson(setup.FrontSensorConfigurationJson),
+            SensorPayload.FromJson(setup.RearSensorConfigurationJson)),
+        Bike: new BikePayload(
+            bike.Id,
+            bike.HeadAngle,
+            bike.ForkStroke,
+            bike.ShockStroke,
+            bike.Kind,
+            LinkagePayload.FromRearSuspension(bike.RearSuspension),
+            LeverageRatioPayload.FromRearSuspension(bike.RearSuspension)));
+
+    private static DependencyPayload CreatePayload(SetupProcessingInput setup, BikeProcessingInput bike) => new(
+        Setup: new SetupPayload(
+            setup.Id,
+            setup.BikeId,
+            SensorPayload.FromJson(setup.FrontSensorConfigurationJson),
+            SensorPayload.FromJson(setup.RearSensorConfigurationJson)),
+        Bike: new BikePayload(
+            bike.Id,
+            bike.HeadAngle,
+            bike.ForkStroke,
+            bike.ShockStroke,
+            bike.Kind,
+            LinkagePayload.FromRearSuspension(bike.RearSuspension),
+            LeverageRatioPayload.FromRearSuspension(bike.RearSuspension)));
 
     private static JsonSerializerOptions CreateLegacySnakeCaseJsonOptions()
     {

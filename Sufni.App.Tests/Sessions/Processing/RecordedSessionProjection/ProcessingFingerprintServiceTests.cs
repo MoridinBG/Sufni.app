@@ -71,6 +71,24 @@ public class ProcessingFingerprintServiceTests
     }
 
     [Fact]
+    public void CreateCurrent_UsesPrecomputedDependencyHash()
+    {
+        var context = CreateContext();
+        const string dependencyHash = "precomputed-dependency-hash";
+
+        var current = service.CreateCurrent(
+            context.Session,
+            context.Setup,
+            context.Bike,
+            context.Source,
+            dependencyHash,
+            new TelemetryProcessingOptions(100));
+
+        Assert.Equal(dependencyHash, current.DependencyHash);
+        Assert.Equal(100, current.VelocityFilterWindowMilliseconds);
+    }
+
+    [Fact]
     public void Evaluate_ReturnsStaleRecomputable_WhenOnlyVelocityFilterOptionDiffers()
     {
         var context = CreateContext();

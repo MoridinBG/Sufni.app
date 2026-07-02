@@ -20,6 +20,14 @@ public interface IProcessingFingerprintService
         RecordedSessionSourceSnapshot source,
         TelemetryProcessingOptions? options = null);
 
+    ProcessingFingerprint CreateCurrent(
+        SessionSnapshot session,
+        SetupSnapshot setup,
+        BikeSnapshot bike,
+        RecordedSessionSourceSnapshot source,
+        string dependencyHash,
+        TelemetryProcessingOptions? options = null);
+
     /// <summary>
     /// Builds a fingerprint from the DB-resident processing inputs only (setup,
     /// bike, source, versions), without the preference-stored processing option.
@@ -32,6 +40,8 @@ public interface IProcessingFingerprintService
         SetupSnapshot setup,
         BikeSnapshot bike,
         RecordedSessionSourceSnapshot source);
+
+    ProcessingFingerprint CreateCurrentDatabaseInputs(SessionProcessingInputBundle input);
 
     ProcessingFingerprint? ParsePersisted(SessionSnapshot session);
 
