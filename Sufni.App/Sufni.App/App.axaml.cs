@@ -155,6 +155,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IKinematicSolutionCache, KinematicSolutionCache>();
         ServiceCollection.AddSingleton<IRearTravelCalibrationBuilder, RearTravelCalibrationBuilder>();
         ServiceCollection.AddSingleton<IBikeRearSuspensionValidator, BikeRearSuspensionValidator>();
+        ServiceCollection.AddSingleton<ITelemetryBikeProcessingContextFactory, TelemetryBikeProcessingContextFactory>();
         ServiceCollection.AddSingleton<IBikeEditorService, BikeEditorService>();
         ServiceCollection.AddSingleton<ISessionPresentationService, SessionPresentationService>();
         ServiceCollection.AddSingleton<ISessionInsightsService, SessionInsightsService>();

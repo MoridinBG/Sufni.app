@@ -5,9 +5,9 @@ using Sufni.App.Setups.Models.SensorConfigurations;
 using Sufni.App.Setups.Stores;
 namespace Sufni.App.Bikes.Services;
 
-public static class TelemetryBikeData
+internal static class TelemetryBikeData
 {
-    internal static BikeData Create(
+    public static BikeData Create(
         ISensorConfiguration? frontSensorConfiguration,
         RearTravelCalibration? rearTravelCalibration)
     {
