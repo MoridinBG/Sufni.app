@@ -16,7 +16,10 @@ using Sufni.App.Infrastructure;
 using Sufni.App.Bikes.ViewModels.Editors.BikeEditorParts;
 namespace Sufni.App.Bikes.Services;
 
-public sealed class BikeEditorService(IFilesService filesService, IBackgroundTaskRunner backgroundTaskRunner) : IBikeEditorService
+internal sealed class BikeEditorService(
+    IFilesService filesService,
+    IBackgroundTaskRunner backgroundTaskRunner,
+    IKinematicSolutionCache kinematicSolutionCache) : IBikeEditorService
 {
     private static readonly ILogger logger = Log.ForContext<BikeEditorService>();
 
@@ -242,8 +245,7 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
 
     private BikeEditorAnalysisResult AnalyzeLinkage(LinkageSpec linkage)
     {
-        var solver = new KinematicSolver(linkage);
-        var solution = solver.SolveSuspensionMotion();
+        var solution = kinematicSolutionCache.GetOrSolve(linkage);
         var characteristics = new BikeCharacteristics(solution);
         var mapping = new JointNameMapping();
         var rearAxlePathData = solution.TryGetPath(mapping.RearWheel, out var path)

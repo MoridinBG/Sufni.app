@@ -25,6 +25,7 @@ public class BikeCoordinatorTests
     private readonly IBikeDependencyQuery dependencyQuery = Substitute.For<IBikeDependencyQuery>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IBikeEditorService bikeEditorService = Substitute.For<IBikeEditorService>();
+    private readonly IBikeRearSuspensionValidator rearSuspensionValidator = new BikeRearSuspensionValidator(new KinematicSolutionCache());
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
     private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
@@ -38,6 +39,7 @@ public class BikeCoordinatorTests
             dependencyQuery,
             shell,
             bikeEditorService,
+            rearSuspensionValidator,
             () => editorFactory);
         return coordinator;
     }

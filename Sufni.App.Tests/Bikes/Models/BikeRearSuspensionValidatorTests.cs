@@ -1,4 +1,5 @@
 using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Services;
 using Sufni.App.Tests.TestSupport.Fixtures;
 
 namespace Sufni.App.Tests.Bikes.Models;
@@ -10,7 +11,7 @@ public class BikeRearSuspensionValidatorTests
     {
         var snapshot = TestSnapshots.Bike();
 
-        var result = BikeRearSuspensionValidator.ValidateForSave(snapshot);
+        var result = CreateValidator().ValidateForSave(snapshot);
 
         var valid = Assert.IsType<BikeRearSuspensionValidationResult.Valid>(result);
         Assert.IsType<RearSuspensionSpec.Hardtail>(valid.RearSuspension);
@@ -24,7 +25,7 @@ public class BikeRearSuspensionValidatorTests
             RearSuspension = new RearSuspensionSpec.LinkageDraft()
         };
 
-        var result = BikeRearSuspensionValidator.ValidateForSave(snapshot);
+        var result = CreateValidator().ValidateForSave(snapshot);
 
         AssertFailure(BikeRearSuspensionValidationFailureCode.LinkageDraft, result);
     }
@@ -37,7 +38,7 @@ public class BikeRearSuspensionValidatorTests
             RearSuspension = new RearSuspensionSpec.LeverageRatioDraft()
         };
 
-        var result = BikeRearSuspensionValidator.ValidateForSave(snapshot);
+        var result = CreateValidator().ValidateForSave(snapshot);
 
         AssertFailure(BikeRearSuspensionValidationFailureCode.LeverageRatioDraft, result);
     }
@@ -55,7 +56,7 @@ public class BikeRearSuspensionValidatorTests
             ImageBytes = TestImages.SmallPngBytes(),
         };
 
-        var result = BikeRearSuspensionValidator.ValidateForSave(snapshot);
+        var result = CreateValidator().ValidateForSave(snapshot);
 
         var valid = Assert.IsType<BikeRearSuspensionValidationResult.Valid>(result);
         var validLinkage = Assert.IsType<RearSuspensionSpec.Linkage>(valid.RearSuspension);
@@ -72,7 +73,7 @@ public class BikeRearSuspensionValidatorTests
                 TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true)),
         };
 
-        var result = BikeRearSuspensionValidator.ValidateForSave(snapshot);
+        var result = CreateValidator().ValidateForSave(snapshot);
 
         AssertFailure(BikeRearSuspensionValidationFailureCode.LinkageMissingCalibration, result);
     }
@@ -83,7 +84,7 @@ public class BikeRearSuspensionValidatorTests
         var leverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (10, 25));
         var snapshot = TestSnapshots.LeverageRatioBike(leverageRatio, shockStroke: 10);
 
-        var result = BikeRearSuspensionValidator.ValidateForSave(snapshot);
+        var result = CreateValidator().ValidateForSave(snapshot);
 
         var valid = Assert.IsType<BikeRearSuspensionValidationResult.Valid>(result);
         var validLeverageRatio = Assert.IsType<RearSuspensionSpec.LeverageRatio>(valid.RearSuspension);
@@ -97,7 +98,7 @@ public class BikeRearSuspensionValidatorTests
             TestSnapshots.LeverageRatioCurve((0, 0), (10, 25)),
             shockStroke: 8);
 
-        var result = BikeRearSuspensionValidator.ValidateForSave(snapshot);
+        var result = CreateValidator().ValidateForSave(snapshot);
 
         AssertFailure(BikeRearSuspensionValidationFailureCode.LeverageRatioShockStrokeMismatch, result);
     }
@@ -109,4 +110,7 @@ public class BikeRearSuspensionValidatorTests
         var invalid = Assert.IsType<BikeRearSuspensionValidationResult.Invalid>(result);
         Assert.Equal(expectedCode, invalid.Failure.Code);
     }
+
+    private static BikeRearSuspensionValidator CreateValidator() =>
+        new(new KinematicSolutionCache());
 }

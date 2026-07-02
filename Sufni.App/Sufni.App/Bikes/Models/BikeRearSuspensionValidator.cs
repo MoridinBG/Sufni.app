@@ -1,12 +1,18 @@
 using System;
 using Sufni.App.Bikes.Stores;
+using Sufni.App.Bikes.Services;
 using Sufni.Kinematics;
 
 namespace Sufni.App.Bikes.Models;
 
-internal static class BikeRearSuspensionValidator
+internal interface IBikeRearSuspensionValidator
 {
-    public static BikeRearSuspensionValidationResult ValidateForSave(BikeSnapshot snapshot)
+    BikeRearSuspensionValidationResult ValidateForSave(BikeSnapshot snapshot);
+}
+
+internal sealed class BikeRearSuspensionValidator(IKinematicSolutionCache kinematicSolutionCache) : IBikeRearSuspensionValidator
+{
+    public BikeRearSuspensionValidationResult ValidateForSave(BikeSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 
@@ -31,7 +37,7 @@ internal static class BikeRearSuspensionValidator
         };
     }
 
-    private static BikeRearSuspensionValidationResult ValidateLinkage(
+    private BikeRearSuspensionValidationResult ValidateLinkage(
         BikeSnapshot snapshot,
         LinkageSpec linkage)
     {
@@ -50,7 +56,7 @@ internal static class BikeRearSuspensionValidator
         try
         {
             LinkageResolver.Resolve(linkage);
-            _ = new KinematicSolver(linkage).SolveSuspensionMotion();
+            _ = kinematicSolutionCache.GetOrSolve(linkage);
         }
         catch (Exception exception) when (exception is LinkageValidationException or InvalidOperationException or ArgumentException)
         {

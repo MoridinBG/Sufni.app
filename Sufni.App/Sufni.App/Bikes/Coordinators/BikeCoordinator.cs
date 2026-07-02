@@ -16,12 +16,13 @@ using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Sessions.Processing.SessionDetails;
 namespace Sufni.App.Bikes.Coordinators;
 
-public class BikeCoordinator(
+internal class BikeCoordinator(
     IBikeStoreWriter bikeStore,
     ISynchronizableRepository<Bike> bikeRepository,
     IBikeDependencyQuery dependencyQuery,
     IShellCoordinator shell,
     IBikeEditorService bikeEditorService,
+    IBikeRearSuspensionValidator rearSuspensionValidator,
     Func<IEditorFactory> editorFactory)
     : IBikeCoordinator
 {
@@ -124,7 +125,7 @@ public class BikeCoordinator(
             return new BikeSaveResult.Conflict(current);
         }
 
-        var validation = BikeRearSuspensionValidator.ValidateForSave(BikeSnapshot.From(bike));
+        var validation = rearSuspensionValidator.ValidateForSave(BikeSnapshot.From(bike));
         if (validation is BikeRearSuspensionValidationResult.Invalid invalid)
         {
             var rearSuspensionError = RearSuspensionValidationMessages.ForSave(invalid.Failure);

@@ -19,8 +19,8 @@ public class BikeEditorServiceTests
     private readonly IFilesService filesService = Substitute.For<IFilesService>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
 
-    private BikeEditorService CreateService() => new(filesService, backgroundTaskRunner);
-
+    private BikeEditorService CreateService(IKinematicSolutionCache? kinematicSolutionCache = null) =>
+        new(filesService, backgroundTaskRunner, kinematicSolutionCache ?? new KinematicSolutionCache());
 
     [AvaloniaFact]
     public async Task LoadImageAsync_DecodesBitmapFromStreamWithoutUsingPath()
@@ -117,18 +117,31 @@ public class BikeEditorServiceTests
         Assert.Contains("image_rotation_degrees", json);
     }
 
-    [Fact]
-    public async Task LoadAnalysisAsync_ReturnsUnavailable_WhenRearSuspensionIsHardtail()
+    public static TheoryData<RearSuspensionSpec> UnavailableRearSuspensions => new()
     {
-        var result = await CreateService().LoadAnalysisAsync(new RearSuspensionSpec.Hardtail());
+        new RearSuspensionSpec.Hardtail(),
+        new RearSuspensionSpec.LinkageDraft(),
+        new RearSuspensionSpec.LeverageRatioDraft(),
+    };
+
+    [Theory]
+    [MemberData(nameof(UnavailableRearSuspensions))]
+    public async Task LoadAnalysisAsync_ReturnsUnavailable_WithoutUsingCache(RearSuspensionSpec rearSuspension)
+    {
+        var kinematicSolutionCache = new CountingKinematicSolutionCache();
+
+        var result = await CreateService(kinematicSolutionCache).LoadAnalysisAsync(rearSuspension);
 
         Assert.IsType<BikeEditorAnalysisResult.Unavailable>(result);
+        Assert.Equal(0, kinematicSolutionCache.GetOrSolveCount);
     }
 
     [Fact]
     public async Task LoadAnalysisAsync_ReturnsComputed_WhenLinkageIsValid()
     {
-        var result = await CreateService().LoadAnalysisAsync(new RearSuspensionSpec.Linkage(CreateSimpleLinkageSpec()));
+        var kinematicSolutionCache = new CountingKinematicSolutionCache();
+
+        var result = await CreateService(kinematicSolutionCache).LoadAnalysisAsync(new RearSuspensionSpec.Linkage(CreateSimpleLinkageSpec()));
 
         var computed = Assert.IsType<BikeEditorAnalysisResult.Computed>(result);
         Assert.NotEmpty(computed.Data.LeverageRatioData.X);
@@ -137,6 +150,7 @@ public class BikeEditorServiceTests
         var rearAxlePathData = computed.Data.RearAxlePathData.Value;
         Assert.NotEmpty(rearAxlePathData.X);
         Assert.NotEmpty(rearAxlePathData.Y);
+        Assert.Equal(1, kinematicSolutionCache.GetOrSolveCount);
     }
 
     [Fact]
@@ -161,6 +175,34 @@ public class BikeEditorServiceTests
         Assert.Null(computed.Data.RearAxlePathData);
     }
 
+    [Fact]
+    public async Task LoadAnalysisAndSaveValidation_ShareCachedLinkageSolution()
+    {
+        var solveCount = 0;
+        var kinematicSolutionCache = new KinematicSolutionCache((linkage, steps, iterations) =>
+        {
+            solveCount++;
+            return new KinematicSolver(linkage, steps, iterations).SolveSuspensionMotion();
+        });
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
+        var validator = new BikeRearSuspensionValidator(kinematicSolutionCache);
+        var snapshot = TestSnapshots.Bike() with
+        {
+            ShockStroke = linkage.ShockStroke,
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage),
+            Chainstay = 440,
+            PixelsToMillimeters = 1,
+            ImageBytes = TestImages.SmallPngBytes(),
+        };
+
+        var analysis = await CreateService(kinematicSolutionCache).LoadAnalysisAsync(new RearSuspensionSpec.Linkage(linkage));
+        var validation = validator.ValidateForSave(snapshot);
+
+        Assert.IsType<BikeEditorAnalysisResult.Computed>(analysis);
+        Assert.IsType<BikeRearSuspensionValidationResult.Valid>(validation);
+        Assert.Equal(1, solveCount);
+    }
+
     private static LinkageSpec CreateSimpleLinkageSpec()
     {
         var mapping = new JointNameMapping();
@@ -177,5 +219,16 @@ public class BikeEditorServiceTests
             ],
             new LinkSpec(mapping.ShockEye1, mapping.ShockEye2),
             0.5);
+    }
+
+    private sealed class CountingKinematicSolutionCache : IKinematicSolutionCache
+    {
+        public int GetOrSolveCount { get; private set; }
+
+        public KinematicSolution GetOrSolve(LinkageSpec linkage, int steps = 200, int iterations = 1000)
+        {
+            GetOrSolveCount++;
+            return new KinematicSolver(linkage, steps, iterations).SolveSuspensionMotion();
+        }
     }
 }
