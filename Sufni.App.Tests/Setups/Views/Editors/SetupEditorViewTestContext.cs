@@ -41,7 +41,7 @@ internal sealed class SetupEditorViewTestContext : IDisposable
         {
             ShockStroke = 0.5,
             RearSuspension = new RearSuspensionSpec.Linkage(
-                TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true).ToSpec()),
+                TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true)),
         };
         bikesCache.AddOrUpdate(bike);
         return bike;

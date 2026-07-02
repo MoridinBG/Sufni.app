@@ -61,7 +61,7 @@ public class BikeEditorViewModelTests
             ImageBytes = TestImages.SmallPngBytes(),
             PixelsToMillimeters = 1,
             RearSuspension = new RearSuspensionSpec.Linkage(
-                TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints).ToSpec()),
+                TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints)),
             FrontWheelRimSize = frontWheelRimSize,
             FrontWheelTireWidth = frontWheelTireWidth,
             FrontWheelDiameterMm = frontWheelDiameter,

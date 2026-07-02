@@ -124,7 +124,7 @@ public class SetupEditorViewModelTests
         {
             ShockStroke = 0.5,
             RearSuspension = new RearSuspensionSpec.Linkage(
-                TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true).ToSpec()),
+                TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true)),
         };
         bikesCache.AddOrUpdate(bike);
         var snapshot = TestSnapshots.Setup(bikeId: bike.Id) with
@@ -149,7 +149,7 @@ public class SetupEditorViewModelTests
         {
             ShockStroke = 0.5,
             RearSuspension = new RearSuspensionSpec.Linkage(
-                TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true).ToSpec()),
+                TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true)),
         };
         var leverageRatioBike = TestSnapshots.LeverageRatioBike(
             TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)));
@@ -200,7 +200,7 @@ public class SetupEditorViewModelTests
         {
             ShockStroke = 0.5,
             RearSuspension = new RearSuspensionSpec.Linkage(
-                TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true).ToSpec()),
+                TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true)),
         };
         var leverageRatioBike = TestSnapshots.LeverageRatioBike(
             TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)));

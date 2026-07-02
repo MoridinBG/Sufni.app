@@ -69,7 +69,7 @@ public class BikeRearSuspensionValidatorTests
         {
             ShockStroke = 0.5,
             RearSuspension = new RearSuspensionSpec.Linkage(
-                TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true).ToSpec()),
+                TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true)),
         };
 
         var result = BikeRearSuspensionValidator.ValidateForSave(snapshot);

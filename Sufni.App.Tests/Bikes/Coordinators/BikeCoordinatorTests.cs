@@ -83,7 +83,7 @@ public class BikeCoordinatorTests
     [Fact]
     public async Task LoadAnalysisAsync_DelegatesToBikeEditorService()
     {
-        RearSuspensionSpec rearSuspension = new RearSuspensionSpec.Linkage(TestSnapshots.FullSuspensionLinkage().ToSpec());
+        RearSuspensionSpec rearSuspension = new RearSuspensionSpec.Linkage(TestSnapshots.FullSuspensionLinkageSpec());
         var expected = new BikeEditorAnalysisResult.Unavailable();
         bikeEditorService.LoadAnalysisAsync(rearSuspension, Arg.Any<CancellationToken>()).Returns(expected);
 
@@ -371,7 +371,7 @@ public class BikeCoordinatorTests
             PixelsToMillimeters = 1,
             ImageBytes = TestImages.SmallPngBytes(),
             RearSuspension = new RearSuspensionSpec.Linkage(
-                TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true).ToSpec()),
+                TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true)),
         };
 
         var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);

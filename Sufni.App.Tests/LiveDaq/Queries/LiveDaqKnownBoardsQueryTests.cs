@@ -224,7 +224,7 @@ public class LiveDaqKnownBoardsQueryTests
             HeadAngle = 63.5,
             ForkStroke = 170,
             ShockStroke = 0.5,
-            RearSuspension = new RearSuspensionSpec.Linkage(TestSnapshots.FullSuspensionLinkage().ToSpec()),
+            RearSuspension = new RearSuspensionSpec.Linkage(TestSnapshots.FullSuspensionLinkageSpec()),
         };
         var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "session setup", bikeId: bike.Id, boardId: boardId) with
         {
@@ -270,7 +270,7 @@ public class LiveDaqKnownBoardsQueryTests
             HeadAngle = 63.5,
             ForkStroke = 170,
             ShockStroke = 0.5,
-            RearSuspension = new RearSuspensionSpec.Linkage(TestSnapshots.FullSuspensionLinkage().ToSpec()),
+            RearSuspension = new RearSuspensionSpec.Linkage(TestSnapshots.FullSuspensionLinkageSpec()),
         };
         var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "cached session setup", bikeId: bike.Id, boardId: boardId) with
         {
