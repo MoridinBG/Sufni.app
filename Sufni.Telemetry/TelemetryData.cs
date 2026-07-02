@@ -677,13 +677,31 @@ public class TelemetryData
         LiveTelemetryCapture capture,
         TelemetryProcessingOptions processingOptions)
     {
+        var version = UsesSegmentAwareLiveCapture(capture)
+            ? SstV5Constants.Version
+            : capture.Metadata.Version;
+        var metadata = new Metadata
+        {
+            SourceName = capture.Metadata.SourceName,
+            Version = version,
+            SampleRate = capture.Metadata.SampleRate,
+            Timestamp = capture.Metadata.Timestamp,
+            Duration = capture.Metadata.Duration,
+        };
+        var front = capture.FrontMeasurements;
+        var rear = capture.RearMeasurements;
         var rawData = new RawTelemetryData
         {
-            Version = 4,
+            Version = (byte)Math.Clamp(version, byte.MinValue, byte.MaxValue),
             SampleRate = (ushort)Math.Clamp(capture.Metadata.SampleRate, 0, ushort.MaxValue),
             Timestamp = capture.Metadata.Timestamp,
-            Front = capture.FrontMeasurements.ToArray(),
-            Rear = capture.RearMeasurements.ToArray(),
+            Front = front,
+            Rear = rear,
+            FrontSegments = capture.FrontSegments.ToArray(),
+            RearSegments = capture.RearSegments.ToArray(),
+            StreamGaps = capture.StreamGaps.ToArray(),
+            FinalStatus = capture.FinalStatus,
+            MissingFinalStatus = capture.MissingFinalStatus,
             SessionStartUtcMs = checked(capture.Metadata.Timestamp * 1000),
             RecordingDurationSeconds = capture.Metadata.Duration,
             Markers = capture.Markers,
@@ -691,7 +709,7 @@ public class TelemetryData
             GpsData = capture.GpsData,
         };
 
-        if (rawData.Front.Length > 0)
+        if (rawData.FrontSegments.Length == 0 && rawData.Front.Length > 0)
         {
             rawData.FrontSegments =
             [
@@ -704,7 +722,7 @@ public class TelemetryData
             ];
         }
 
-        if (rawData.Rear.Length > 0)
+        if (rawData.RearSegments.Length == 0 && rawData.Rear.Length > 0)
         {
             rawData.RearSegments =
             [
@@ -717,8 +735,20 @@ public class TelemetryData
             ];
         }
 
-        return FromRecording(rawData, capture.Metadata, capture.BikeData, processingOptions, logLifecycle: false);
+        return FromRecording(rawData, metadata, capture.BikeData, processingOptions, logLifecycle: false);
     }
+
+    private static bool UsesSegmentAwareLiveCapture(LiveTelemetryCapture capture) =>
+        capture.StreamGaps.Length > 0 ||
+        capture.FinalStatus is not null ||
+        capture.MissingFinalStatus ||
+        HasNonDenseSegments(capture.FrontSegments) ||
+        HasNonDenseSegments(capture.RearSegments) ||
+        capture.ImuData?.HasGaps == true;
+
+    private static bool HasNonDenseSegments(RawCountSegment[] segments) =>
+        segments.Length > 1 ||
+        segments.Any(segment => segment.FirstIndex != 0 || segment.FirstMonotonicDeltaUs != 0);
 
     #endregion
 }

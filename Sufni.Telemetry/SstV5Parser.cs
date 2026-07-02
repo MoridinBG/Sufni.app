@@ -1,26 +1,7 @@
-using System.Buffers.Binary;
-
 namespace Sufni.Telemetry;
 
 public class SstV5Parser : ISstParser
 {
-    private const int HeaderRemainderSize = 20;
-    private const int FixedHeaderBytes = 24;
-    private const int ChunkEnvelopeSize = 8;
-    private const int MetadataHeaderSize = 12;
-    private const int StreamDescriptorSize = 24;
-    private const int GpsStreamDescriptorTailSize = 8;
-    private const int SourceDescriptorSize = 16;
-    private const int TravelSourceDescriptorTailSize = 8;
-    private const int ImuSourceDescriptorTailSize = 12;
-    private const int TemperatureSourceDescriptorTailSize = 8;
-    private const int OmissionRecordSize = 8;
-    private const int DataHeaderSize = 26;
-    private const int FinalStatusHeaderSize = 12;
-    private const int FinalStatusRecordSize = 36;
-    private const int Lc76GRecordSize = 38;
-    private const int M8NRecordSize = 30;
-    private const int GpsDiagnosticsRecordSize = 17;
     private const string UnsupportedTravelMessage = "SST v5 travel data is missing or unsupported by this app.";
     private const string MissingFinalStatusMessage = "SST v5 final status is missing; parsed complete data chunks only.";
     private const string TrimmedTrailingChunkMessage = "SST v5 chunk extends past end of file; incomplete trailing chunk data was trimmed.";
@@ -66,7 +47,7 @@ public class SstV5Parser : ISstParser
     private static RawTelemetryData ParseBytes(byte[] bytes, byte version)
     {
         var context = new V5ParseContext(version);
-        if (bytes.Length < HeaderRemainderSize)
+        if (bytes.Length < SstV5ProtocolConstants.HeaderRemainderSize)
         {
             throw context.Malformed("SST v5 header is truncated.");
         }
@@ -79,7 +60,7 @@ public class SstV5Parser : ISstParser
 
         context.SessionStartUtcMs = sessionStartUtcMs;
 
-        if (headerBytes != FixedHeaderBytes)
+        if (headerBytes != SstV5ProtocolConstants.FixedHeaderBytes)
         {
             throw context.Malformed("SST v5 header length is invalid.");
         }
@@ -91,7 +72,7 @@ public class SstV5Parser : ISstParser
 
         while (cursor.Position < cursor.Length)
         {
-            if (cursor.Position + ChunkEnvelopeSize > cursor.Length)
+            if (cursor.Position + SstV5ProtocolConstants.ChunkEnvelopeSize > cursor.Length)
             {
                 throw context.Malformed("SST v5 file ends with an incomplete chunk header.");
             }
@@ -123,7 +104,7 @@ public class SstV5Parser : ISstParser
             var payload = bytes.AsSpan(payloadStart, payloadLength);
             cursor.MoveTo((int)declaredEnd);
 
-            if (!IsKnownChunkType(chunkType))
+            if (!SstV5ProtocolConstants.IsKnownChunkType(chunkType))
             {
                 throw context.Malformed("SST v5 chunk type is unknown.");
             }
@@ -135,7 +116,7 @@ public class SstV5Parser : ISstParser
 
             if (chunkType == SstV5Constants.ChunkSessionMetadata)
             {
-                if (context.MetadataParsed || chunkStart != HeaderRemainderSize)
+                if (context.MetadataParsed || chunkStart != SstV5ProtocolConstants.HeaderRemainderSize)
                 {
                     throw context.Malformed("SST v5 session metadata chunk is out of order.");
                 }
@@ -170,98 +151,11 @@ public class SstV5Parser : ISstParser
     {
         try
         {
-            var reader = new SstByteReader(payload);
-            if (payload.Length < MetadataHeaderSize)
+            var descriptor = SstV5DescriptorReader.ReadSessionDescriptor(payload);
+            foreach (var streamDescriptor in descriptor.StreamDescriptors)
             {
-                throw context.Malformed("SST v5 metadata payload is truncated.");
-            }
-
-            var boardId = reader.ReadByte();
-            var streamDescriptorCount = reader.ReadByte();
-            var sourceDescriptorTotalCount = reader.ReadByte();
-            var omissionCount = reader.ReadByte();
-            var acceptedStreamMask = reader.ReadUInt32();
-            var metadataFlags = reader.ReadUInt16();
-            var reserved = reader.ReadUInt16();
-
-            if (boardId is not 1 and not 2)
-            {
-                throw context.Malformed("SST v5 board ID is invalid.");
-            }
-
-            if (metadataFlags != 0 || reserved != 0)
-            {
-                throw context.Malformed("SST v5 metadata flags are invalid.");
-            }
-
-            byte previousStreamKind = 0;
-            uint emittedStreamMask = 0;
-            for (var index = 0; index < streamDescriptorCount; index++)
-            {
-                var descriptor = ReadStreamDescriptor(ref reader, context);
-                if (descriptor.StreamKind <= previousStreamKind)
-                {
-                    throw context.Malformed("SST v5 stream descriptors are out of order.");
-                }
-
-                previousStreamKind = descriptor.StreamKind;
-                emittedStreamMask |= StreamMaskForKind(descriptor.StreamKind);
-                context.StreamDescriptors.Add(descriptor.StreamKind, descriptor);
-                context.StreamDescriptorOrder.Add(descriptor);
-            }
-
-            if (emittedStreamMask != acceptedStreamMask)
-            {
-                throw context.Malformed("SST v5 accepted stream mask does not match descriptors.");
-            }
-
-            byte previousSourceStreamKind = 0;
-            uint previousSourceMask = 0;
-            for (var index = 0; index < sourceDescriptorTotalCount; index++)
-            {
-                var source = ReadSourceDescriptor(ref reader, context);
-                if (source.StreamKind < previousSourceStreamKind ||
-                    (source.StreamKind == previousSourceStreamKind && source.SourceBitMask <= previousSourceMask))
-                {
-                    throw context.Malformed("SST v5 source descriptors are out of order.");
-                }
-
-                previousSourceStreamKind = source.StreamKind;
-                previousSourceMask = source.SourceBitMask;
-                context.StreamDescriptors[source.StreamKind].Sources.Add(source);
-            }
-
-            foreach (var descriptor in context.StreamDescriptorOrder)
-            {
-                if (descriptor.Sources.Count != descriptor.SourceDescriptorCount)
-                {
-                    throw context.Malformed("SST v5 source descriptor count does not match stream descriptor.");
-                }
-
-                ValidateStreamDescriptorShape(descriptor, context);
-            }
-
-            for (var index = 0; index < omissionCount; index++)
-            {
-                if (reader.Remaining < OmissionRecordSize)
-                {
-                    throw context.Malformed("SST v5 omission records are truncated.");
-                }
-
-                var targetKind = reader.ReadByte();
-                _ = reader.ReadByte(); // stream_kind
-                _ = reader.ReadByte(); // admission_reason
-                var omissionReserved = reader.ReadByte();
-                _ = reader.ReadUInt32(); // target_mask
-                if (targetKind is < 1 or > 3 || omissionReserved != 0)
-                {
-                    throw context.Malformed("SST v5 omission record is invalid.");
-                }
-            }
-
-            if (reader.Position != reader.Length)
-            {
-                throw context.Malformed("SST v5 metadata payload length is invalid.");
+                context.StreamDescriptors.Add(streamDescriptor.StreamKind, streamDescriptor);
+                context.StreamDescriptorOrder.Add(streamDescriptor);
             }
 
             context.MetadataParsed = true;
@@ -269,356 +163,66 @@ public class SstV5Parser : ISstParser
         }
         catch (FormatException ex)
         {
-            throw context.Malformed("SST v5 metadata payload cannot be fully parsed.", ex);
-        }
-    }
-
-    private static V5StreamDescriptor ReadStreamDescriptor(ref SstByteReader reader, V5ParseContext context)
-    {
-        if (reader.Remaining < StreamDescriptorSize)
-        {
-            throw context.Malformed("SST v5 stream descriptor is truncated.");
-        }
-
-        var streamKind = reader.ReadByte();
-        var timingModelId = reader.ReadByte();
-        var sourceDescriptorCount = reader.ReadByte();
-        var reserved = reader.ReadByte();
-        var acceptedSensorMask = reader.ReadUInt32();
-        var acceptedExtensionMask = reader.ReadUInt32();
-        var acceptedRateMhz = reader.ReadUInt32();
-        var acceptedBatchDurationMs = reader.ReadUInt32();
-        var compactPayloadRecordBytes = reader.ReadUInt16();
-        var flags = reader.ReadUInt16();
-
-        if (!IsKnownStreamKind(streamKind) || timingModelId is < 1 or > 3 || reserved != 0 || flags != 0)
-        {
-            throw context.Malformed("SST v5 stream descriptor is invalid.");
-        }
-
-        var descriptor = new V5StreamDescriptor(
-            streamKind,
-            timingModelId,
-            sourceDescriptorCount,
-            acceptedSensorMask,
-            acceptedExtensionMask,
-            acceptedRateMhz,
-            acceptedBatchDurationMs,
-            compactPayloadRecordBytes);
-
-        if (streamKind == SstV5Constants.StreamGps)
-        {
-            if (reader.Remaining < GpsStreamDescriptorTailSize)
-            {
-                throw context.Malformed("SST v5 GPS stream descriptor is truncated.");
-            }
-
-            descriptor.GpsDriverId = reader.ReadByte();
-            descriptor.GpsPayloadEncodingId = reader.ReadByte();
-            descriptor.GpsPayloadRecordBytes = reader.ReadUInt16();
-            descriptor.GpsExtensionRecordBytes = reader.ReadUInt16();
-            var gpsReserved = reader.ReadUInt16();
-            if (gpsReserved != 0)
-            {
-                throw context.Malformed("SST v5 GPS stream descriptor reserved field is invalid.");
-            }
-        }
-
-        return descriptor;
-    }
-
-    private static V5SourceDescriptor ReadSourceDescriptor(ref SstByteReader reader, V5ParseContext context)
-    {
-        if (reader.Remaining < SourceDescriptorSize)
-        {
-            throw context.Malformed("SST v5 source descriptor is truncated.");
-        }
-
-        var source = new V5SourceDescriptor
-        {
-            StreamKind = reader.ReadByte(),
-            DriverId = reader.ReadByte(),
-            PayloadEncodingId = reader.ReadByte(),
-            PayloadValueCount = reader.ReadByte(),
-            SourceBitMask = reader.ReadUInt32(),
-            PayloadByteOffset = reader.ReadUInt16(),
-            PayloadRecordBytes = reader.ReadUInt16(),
-            PayloadValueWidthBits = reader.ReadUInt16(),
-        };
-        var flags = reader.ReadUInt16();
-
-        if (flags != 0 || !context.StreamDescriptors.TryGetValue(source.StreamKind, out var streamDescriptor))
-        {
-            throw context.Malformed("SST v5 source descriptor is invalid.");
-        }
-
-        if (source.StreamKind is not SstV5Constants.StreamTravel and not SstV5Constants.StreamImu and not SstV5Constants.StreamTemperature)
-        {
-            throw context.Malformed("SST v5 source descriptor references a non-source stream.");
-        }
-
-        if (!IsSingleBitMask(source.SourceBitMask) || (source.SourceBitMask & streamDescriptor.AcceptedSensorMask) == 0)
-        {
-            throw context.Malformed("SST v5 source descriptor source bit is invalid.");
-        }
-
-        if (!SourceBelongsToStream(source.StreamKind, source.SourceBitMask))
-        {
-            throw context.Malformed("SST v5 source descriptor source bit does not belong to the stream.");
-        }
-
-        if (source.PayloadByteOffset + source.PayloadRecordBytes > streamDescriptor.CompactPayloadRecordBytes)
-        {
-            throw context.Malformed("SST v5 source descriptor payload range is invalid.");
-        }
-
-        switch (source.StreamKind)
-        {
-            case SstV5Constants.StreamTravel:
-                ReadTravelSourceTail(ref reader, source, context);
-                break;
-            case SstV5Constants.StreamImu:
-                ReadImuSourceTail(ref reader, source, context);
-                break;
-            case SstV5Constants.StreamTemperature:
-                ReadTemperatureSourceTail(ref reader, source, context);
-                break;
-        }
-
-        return source;
-    }
-
-    private static void ReadTravelSourceTail(ref SstByteReader reader, V5SourceDescriptor source, V5ParseContext context)
-    {
-        if (reader.Remaining < TravelSourceDescriptorTailSize)
-        {
-            throw context.Malformed("SST v5 travel source descriptor is truncated.");
-        }
-
-        source.CountMin = reader.ReadUInt16();
-        source.CountMax = reader.ReadUInt16();
-        source.WrapModulus = reader.ReadUInt16();
-        source.Wraps = reader.ReadByte();
-        var reserved = reader.ReadByte();
-
-        if (reserved != 0 ||
-            source.PayloadEncodingId != SstV5Constants.EncodingTravelAdjustedU16 ||
-            source.PayloadRecordBytes != 2 ||
-            source.PayloadValueWidthBits != 16 ||
-            source.PayloadValueCount != 1 ||
-            source.Wraps is not 0 and not 1)
-        {
-            throw context.Malformed("SST v5 travel source descriptor is invalid.");
-        }
-    }
-
-    private static void ReadImuSourceTail(ref SstByteReader reader, V5SourceDescriptor source, V5ParseContext context)
-    {
-        if (reader.Remaining < ImuSourceDescriptorTailSize)
-        {
-            throw context.Malformed("SST v5 IMU source descriptor is truncated.");
-        }
-
-        source.AccelLsbPerG = reader.ReadSingle();
-        source.GyroLsbPerDps = reader.ReadSingle();
-        source.BikeFrameId = reader.ReadByte();
-        var reserved = reader.ReadBytes(3);
-
-        if (reserved[0] != 0 ||
-            reserved[1] != 0 ||
-            reserved[2] != 0 ||
-            source.PayloadEncodingId != SstV5Constants.EncodingImuI16X6CalCounts ||
-            source.PayloadRecordBytes != 12 ||
-            source.PayloadValueCount != 6 ||
-            source.BikeFrameId != 1)
-        {
-            throw context.Malformed("SST v5 IMU source descriptor is invalid.");
-        }
-    }
-
-    private static void ReadTemperatureSourceTail(ref SstByteReader reader, V5SourceDescriptor source, V5ParseContext context)
-    {
-        if (reader.Remaining < TemperatureSourceDescriptorTailSize)
-        {
-            throw context.Malformed("SST v5 temperature source descriptor is truncated.");
-        }
-
-        source.TemperatureLsbPerCelsius = reader.ReadSingle();
-        source.TemperatureCelsiusAtRawZero = reader.ReadSingle();
-
-        if (source.PayloadEncodingId != SstV5Constants.EncodingTemperatureRawI16 ||
-            source.PayloadRecordBytes != 2 ||
-            source.PayloadValueCount != 1 ||
-            source.PayloadValueWidthBits != 16 ||
-            source.TemperatureLsbPerCelsius == 0)
-        {
-            throw context.Malformed("SST v5 temperature source descriptor is invalid.");
-        }
-    }
-
-    private static void ValidateStreamDescriptorShape(V5StreamDescriptor descriptor, V5ParseContext context)
-    {
-        switch (descriptor.StreamKind)
-        {
-            case SstV5Constants.StreamTravel:
-                ValidateFixedSourceStream(descriptor, SstV5Constants.TimingFixedRate, context);
-                if ((descriptor.AcceptedSensorMask & ~(SstV5Constants.SensorForkTravel | SstV5Constants.SensorShockTravel)) != 0)
-                {
-                    throw context.Malformed("SST v5 travel descriptor accepted sensor mask is invalid.");
-                }
-                break;
-            case SstV5Constants.StreamImu:
-                ValidateFixedSourceStream(descriptor, SstV5Constants.TimingFixedRate, context);
-                if ((descriptor.AcceptedSensorMask & ~(SstV5Constants.SensorFrameImu | SstV5Constants.SensorForkImu | SstV5Constants.SensorRearImu)) != 0)
-                {
-                    throw context.Malformed("SST v5 IMU descriptor accepted sensor mask is invalid.");
-                }
-                break;
-            case SstV5Constants.StreamTemperature:
-                if (descriptor.TimingModelId != SstV5Constants.TimingMonotonicEventStatus ||
-                    (descriptor.AcceptedSensorMask & ~(SstV5Constants.SensorFrameImu | SstV5Constants.SensorForkImu | SstV5Constants.SensorRearImu)) != 0)
-                {
-                    throw context.Malformed("SST v5 temperature descriptor is invalid.");
-                }
-                break;
-            case SstV5Constants.StreamGps:
-                ValidateGpsStreamDescriptor(descriptor, context);
-                break;
-            case SstV5Constants.StreamBattery:
-                if (descriptor.SourceDescriptorCount != 0 ||
-                    descriptor.TimingModelId != SstV5Constants.TimingMonotonicEventStatus ||
-                    descriptor.CompactPayloadRecordBytes != 4 ||
-                    descriptor.AcceptedSensorMask != SstV5Constants.SensorBattery ||
-                    descriptor.AcceptedExtensionMask != 0)
-                {
-                    throw context.Malformed("SST v5 battery descriptor is invalid.");
-                }
-                break;
-            case SstV5Constants.StreamMarker:
-                if (descriptor.SourceDescriptorCount != 0 ||
-                    descriptor.TimingModelId != SstV5Constants.TimingMonotonicEventStatus ||
-                    descriptor.CompactPayloadRecordBytes != 1 ||
-                    descriptor.AcceptedSensorMask != 0 ||
-                    descriptor.AcceptedExtensionMask != 0)
-                {
-                    throw context.Malformed("SST v5 marker descriptor is invalid.");
-                }
-                break;
-        }
-    }
-
-    private static void ValidateFixedSourceStream(V5StreamDescriptor descriptor, byte expectedTimingModel, V5ParseContext context)
-    {
-        if (descriptor.TimingModelId != expectedTimingModel ||
-            descriptor.AcceptedExtensionMask != 0 ||
-            descriptor.AcceptedRateMhz == 0 ||
-            descriptor.SourceDescriptorCount == 0)
-        {
-            throw context.Malformed("SST v5 fixed-rate stream descriptor is invalid.");
-        }
-    }
-
-    private static void ValidateGpsStreamDescriptor(V5StreamDescriptor descriptor, V5ParseContext context)
-    {
-        if (descriptor.SourceDescriptorCount != 0 ||
-            descriptor.TimingModelId != SstV5Constants.TimingGpsReceiverTimed ||
-            descriptor.AcceptedSensorMask != SstV5Constants.SensorGps ||
-            descriptor.GpsPayloadEncodingId != SstV5Constants.EncodingGpsNavFixV1 ||
-            descriptor.GpsDriverId is not SstV5Constants.GpsDriverLc76G and not SstV5Constants.GpsDriverM8N ||
-            (descriptor.AcceptedExtensionMask & ~SstV5Constants.ExtensionGpsDiagPublicV1) != 0)
-        {
-            throw context.Malformed("SST v5 GPS descriptor is invalid.");
-        }
-
-        var expectedPayloadBytes = descriptor.GpsDriverId == SstV5Constants.GpsDriverLc76G
-            ? Lc76GRecordSize
-            : M8NRecordSize;
-        var expectedExtensionBytes = descriptor.AcceptedExtensionMask == 0 ? 0 : GpsDiagnosticsRecordSize;
-        if (descriptor.GpsPayloadRecordBytes != expectedPayloadBytes ||
-            descriptor.GpsExtensionRecordBytes != expectedExtensionBytes ||
-            descriptor.CompactPayloadRecordBytes != expectedPayloadBytes + expectedExtensionBytes)
-        {
-            throw context.Malformed("SST v5 GPS descriptor payload size is invalid.");
+            throw context.Malformed(ex.Message, ex);
         }
     }
 
     private static void ParseDataChunk(ushort chunkType, ReadOnlySpan<byte> payload, V5ParseContext context)
     {
-        var streamKind = StreamKindForDataChunk(chunkType);
+        var streamKind = SstV5ProtocolConstants.StreamKindForDataChunk(chunkType);
         if (!context.StreamDescriptors.TryGetValue(streamKind, out var descriptor))
         {
             throw context.Malformed("SST v5 data chunk references a stream without a descriptor.");
         }
 
-        if (payload.Length < DataHeaderSize)
+        SstV5DataHeader header;
+        try
         {
-            throw context.Malformed("SST v5 data payload is truncated.");
+            header = SstV5DescriptorReader.ReadDataHeader(payload, descriptor);
+        }
+        catch (FormatException ex)
+        {
+            throw context.Malformed(ex.Message, ex);
         }
 
-        var reader = new SstByteReader(payload);
-        var firstIndex = reader.ReadUInt64();
-        var firstMonotonicDeltaUs = reader.ReadUInt64();
-        var sampleCount = reader.ReadUInt32();
-        var validityMask = reader.ReadUInt32();
-        var flags = reader.ReadUInt16();
-
-        if (sampleCount == 0 || flags != 0)
+        var compactPayload = payload[SstV5ProtocolConstants.DataHeaderSize..];
+        try
         {
-            throw context.Malformed("SST v5 data header is invalid.");
-        }
-
-        var expectedLength = DataHeaderSize + (ulong)sampleCount * descriptor.CompactPayloadRecordBytes;
-        if (expectedLength != (ulong)payload.Length)
-        {
-            throw context.Malformed("SST v5 data payload length is invalid.");
-        }
-
-        if (streamKind == SstV5Constants.StreamMarker)
-        {
-            if (validityMask != 0)
+            switch (streamKind)
             {
-                throw context.Malformed("SST v5 marker validity mask is invalid.");
+                case SstV5Constants.StreamTravel:
+                    DecodeTravelData(descriptor, compactPayload, header, context);
+                    break;
+                case SstV5Constants.StreamImu:
+                    DecodeImuData(descriptor, compactPayload, header, context);
+                    break;
+                case SstV5Constants.StreamTemperature:
+                    DecodeTemperatureData(descriptor, compactPayload, header, context);
+                    break;
+                case SstV5Constants.StreamGps:
+                    DecodeGpsData(descriptor, compactPayload, header, context);
+                    break;
+                case SstV5Constants.StreamBattery:
+                    DecodeBatteryData(descriptor, compactPayload, header, context);
+                    break;
+                case SstV5Constants.StreamMarker:
+                    DecodeMarkerData(descriptor, compactPayload, header, context);
+                    break;
             }
         }
-        else if ((validityMask & ~descriptor.AcceptedSensorMask) != 0)
+        catch (FormatException ex)
         {
-            throw context.Malformed("SST v5 validity mask contains unaccepted source bits.");
-        }
-
-        var compactPayload = payload[DataHeaderSize..];
-        switch (streamKind)
-        {
-            case SstV5Constants.StreamTravel:
-                DecodeTravelData(descriptor, compactPayload, firstIndex, firstMonotonicDeltaUs, sampleCount, validityMask, context);
-                break;
-            case SstV5Constants.StreamImu:
-                DecodeImuData(descriptor, compactPayload, firstIndex, firstMonotonicDeltaUs, sampleCount, validityMask, context);
-                break;
-            case SstV5Constants.StreamTemperature:
-                DecodeTemperatureData(descriptor, compactPayload, firstIndex, firstMonotonicDeltaUs, sampleCount, validityMask, context);
-                break;
-            case SstV5Constants.StreamGps:
-                DecodeGpsData(descriptor, compactPayload, firstIndex, firstMonotonicDeltaUs, sampleCount, validityMask, context);
-                break;
-            case SstV5Constants.StreamBattery:
-                DecodeBatteryData(descriptor, compactPayload, firstIndex, firstMonotonicDeltaUs, sampleCount, validityMask, context);
-                break;
-            case SstV5Constants.StreamMarker:
-                DecodeMarkerData(descriptor, compactPayload, firstIndex, firstMonotonicDeltaUs, sampleCount, context);
-                break;
+            throw context.Malformed(ex.Message, ex);
         }
 
         context.HasCompleteTravelData |= streamKind == SstV5Constants.StreamTravel;
-        context.ObserveDataEnd(descriptor, firstMonotonicDeltaUs, sampleCount);
+        context.ObserveDataEnd(descriptor, header.FirstMonotonicDeltaUs, header.SampleCount);
     }
 
     private static void DecodeTravelData(
-        V5StreamDescriptor descriptor,
+        SstV5StreamDescriptor descriptor,
         ReadOnlySpan<byte> compactPayload,
-        ulong firstIndex,
-        ulong firstMonotonicDeltaUs,
-        uint sampleCount,
-        uint validityMask,
+        SstV5DataHeader header,
         V5ParseContext context)
     {
         foreach (var source in descriptor.Sources)
@@ -630,225 +234,140 @@ public class SstV5Parser : ISstParser
                 _ => throw context.Malformed("SST v5 travel source bit is unsupported by this app."),
             };
 
-            if ((validityMask & source.SourceBitMask) == 0)
+            if ((header.ValidityMask & source.SourceBitMask) == 0)
             {
-                builder.AddInvalidRange(firstIndex, sampleCount, firstMonotonicDeltaUs, descriptor.AcceptedRateMhz);
-                continue;
+                builder.AddInvalidRange(
+                    header.FirstIndex,
+                    header.SampleCount,
+                    header.FirstMonotonicDeltaUs,
+                    descriptor.AcceptedRateMhz);
             }
+        }
 
-            for (var sampleOffset = 0u; sampleOffset < sampleCount; sampleOffset++)
+        foreach (var record in SstV5CompactPayloadDecoder.DecodeTravel(descriptor, header, compactPayload))
+        {
+            var builder = record.SourceBitMask switch
             {
-                var recordOffset = checked((int)(sampleOffset * descriptor.CompactPayloadRecordBytes + source.PayloadByteOffset));
-                var value = BinaryPrimitives.ReadUInt16LittleEndian(compactPayload.Slice(recordOffset, sizeof(ushort)));
-                var index = firstIndex + sampleOffset;
-                var monotonic = CalculateSampleMonotonicUs(firstMonotonicDeltaUs, sampleOffset, descriptor.AcceptedRateMhz);
-                builder.AddValidSample(index, monotonic, value, descriptor.AcceptedRateMhz);
-            }
+                SstV5Constants.SensorForkTravel => context.FrontBuilder,
+                SstV5Constants.SensorShockTravel => context.RearBuilder,
+                _ => throw context.Malformed("SST v5 travel source bit is unsupported by this app."),
+            };
+            builder.AddValidSample(record.Index, record.MonotonicDeltaUs, record.Count, descriptor.AcceptedRateMhz);
         }
     }
 
     private static void DecodeImuData(
-        V5StreamDescriptor descriptor,
+        SstV5StreamDescriptor descriptor,
         ReadOnlySpan<byte> compactPayload,
-        ulong firstIndex,
-        ulong firstMonotonicDeltaUs,
-        uint sampleCount,
-        uint validityMask,
+        SstV5DataHeader header,
         V5ParseContext context)
     {
         foreach (var source in descriptor.Sources)
         {
-            var location = LocationIdForImuSource(source.SourceBitMask, context);
+            var location = SstV5ProtocolConstants.GetImuLocationId(source.SourceBitMask);
             var builder = context.ImuBuilders[location];
 
-            if ((validityMask & source.SourceBitMask) == 0)
+            if ((header.ValidityMask & source.SourceBitMask) == 0)
             {
-                builder.AddInvalidRange(firstIndex, sampleCount, firstMonotonicDeltaUs, descriptor.AcceptedRateMhz);
-                continue;
+                builder.AddInvalidRange(
+                    header.FirstIndex,
+                    header.SampleCount,
+                    header.FirstMonotonicDeltaUs,
+                    descriptor.AcceptedRateMhz);
             }
+        }
 
-            for (var sampleOffset = 0u; sampleOffset < sampleCount; sampleOffset++)
-            {
-                var recordOffset = checked((int)(sampleOffset * descriptor.CompactPayloadRecordBytes + source.PayloadByteOffset));
-                var record = ReadImuRecord(compactPayload.Slice(recordOffset, 12));
-                var index = firstIndex + sampleOffset;
-                var monotonic = CalculateSampleMonotonicUs(firstMonotonicDeltaUs, sampleOffset, descriptor.AcceptedRateMhz);
-                builder.AddValidSample(index, monotonic, record, descriptor.AcceptedRateMhz);
-            }
+        foreach (var record in SstV5CompactPayloadDecoder.DecodeImu(descriptor, header, compactPayload))
+        {
+            context.ImuBuilders[record.LocationId]
+                .AddValidSample(record.Index, record.MonotonicDeltaUs, record.Record, descriptor.AcceptedRateMhz);
         }
     }
 
     private static void DecodeTemperatureData(
-        V5StreamDescriptor descriptor,
+        SstV5StreamDescriptor descriptor,
         ReadOnlySpan<byte> compactPayload,
-        ulong firstIndex,
-        ulong firstMonotonicDeltaUs,
-        uint sampleCount,
-        uint validityMask,
+        SstV5DataHeader header,
         V5ParseContext context)
     {
         foreach (var source in descriptor.Sources)
         {
-            if ((validityMask & source.SourceBitMask) == 0)
+            if ((header.ValidityMask & source.SourceBitMask) == 0)
             {
                 context.AddGap(
                     SstV5Constants.StreamTemperature,
-                    LocationIdForImuSource(source.SourceBitMask, context),
-                    firstIndex,
-                    sampleCount,
+                    SstV5ProtocolConstants.GetImuLocationId(source.SourceBitMask),
+                    header.FirstIndex,
+                    header.SampleCount,
                     null,
                     "invalid_validity");
-                continue;
             }
+        }
 
-            for (var sampleOffset = 0u; sampleOffset < sampleCount; sampleOffset++)
-            {
-                var recordOffset = checked((int)(sampleOffset * descriptor.CompactPayloadRecordBytes + source.PayloadByteOffset));
-                var raw = BinaryPrimitives.ReadInt16LittleEndian(compactPayload.Slice(recordOffset, sizeof(short)));
-                var celsius = raw / source.TemperatureLsbPerCelsius + source.TemperatureCelsiusAtRawZero;
-                var monotonic = descriptor.AcceptedRateMhz > 0
-                    ? CalculateSampleMonotonicUs(firstMonotonicDeltaUs, sampleOffset, descriptor.AcceptedRateMhz)
-                    : firstMonotonicDeltaUs;
-                var timestampUtc = checked((context.SessionStartUtcMs!.Value * 1000 + (long)monotonic) / 1_000_000);
-                context.TemperatureSamples.Add(new TemperatureSample(
-                    timestampUtc,
-                    LocationIdForImuSource(source.SourceBitMask, context),
-                    celsius));
-            }
+        foreach (var record in SstV5CompactPayloadDecoder.DecodeTemperature(
+                     descriptor,
+                     header,
+                     context.SessionStartUtcMs!.Value,
+                     compactPayload))
+        {
+            context.TemperatureSamples.Add(record.Sample);
         }
     }
 
     private static void DecodeGpsData(
-        V5StreamDescriptor descriptor,
+        SstV5StreamDescriptor descriptor,
         ReadOnlySpan<byte> compactPayload,
-        ulong firstIndex,
-        ulong firstMonotonicDeltaUs,
-        uint sampleCount,
-        uint validityMask,
+        SstV5DataHeader header,
         V5ParseContext context)
     {
-        if ((validityMask & SstV5Constants.SensorGps) == 0)
+        if ((header.ValidityMask & SstV5Constants.SensorGps) == 0)
         {
-            context.AddGap(SstV5Constants.StreamGps, null, firstIndex, sampleCount, null, "invalid_validity");
+            context.AddGap(SstV5Constants.StreamGps, null, header.FirstIndex, header.SampleCount, null, "invalid_validity");
             return;
         }
 
-        for (var sampleOffset = 0u; sampleOffset < sampleCount; sampleOffset++)
+        foreach (var record in SstV5CompactPayloadDecoder.DecodeGps(descriptor, header, compactPayload))
         {
-            var recordOffset = checked((int)(sampleOffset * descriptor.CompactPayloadRecordBytes));
-            var record = DecodeGpsRecord(descriptor, compactPayload.Slice(recordOffset, descriptor.CompactPayloadRecordBytes), context);
-            if (record is not null)
-            {
-                context.GpsRecords.Add(record);
-            }
+            context.GpsRecords.Add(record.Record);
         }
-    }
-
-    private static GpsRecord? DecodeGpsRecord(
-        V5StreamDescriptor descriptor,
-        ReadOnlySpan<byte> recordBytes,
-        V5ParseContext context)
-    {
-        var reader = new SstByteReader(recordBytes);
-        var date = reader.ReadUInt32();
-        var timeMs = reader.ReadUInt32();
-        double latitude;
-        double longitude;
-        float altitude;
-        float speed;
-        float heading;
-        byte fixMode;
-        byte satellites;
-
-        if (descriptor.GpsDriverId == SstV5Constants.GpsDriverLc76G)
-        {
-            latitude = reader.ReadDouble();
-            longitude = reader.ReadDouble();
-            altitude = reader.ReadSingle();
-            speed = reader.ReadSingle();
-            heading = reader.ReadSingle();
-            fixMode = reader.ReadByte();
-            satellites = reader.ReadByte();
-        }
-        else
-        {
-            latitude = reader.ReadInt32() / 10_000_000.0;
-            longitude = reader.ReadInt32() / 10_000_000.0;
-            altitude = reader.ReadInt32() / 1000.0f;
-            speed = reader.ReadInt32() / 1000.0f;
-            heading = reader.ReadInt32() / 100_000.0f;
-            fixMode = reader.ReadByte();
-            satellites = reader.ReadByte();
-        }
-
-        if (fixMode is not 0 and not 2 and not 3)
-        {
-            // Out-of-range fix modes are unpublishable GPS records; skip them like invalid
-            // dates rather than failing the whole import.
-            return null;
-        }
-
-        var epe2d = float.NaN;
-        var epe3d = float.NaN;
-        if (descriptor.GpsExtensionRecordBytes > 0)
-        {
-            _ = reader.ReadByte(); // quality
-            _ = reader.ReadSingle(); // hdop
-            _ = reader.ReadSingle(); // pdop
-            epe2d = reader.ReadSingle();
-            epe3d = reader.ReadSingle();
-        }
-
-        if (!TryCreateGpsTimestamp(date, timeMs, out var timestamp))
-        {
-            return null;
-        }
-
-        return new GpsRecord(timestamp, latitude, longitude, altitude, speed, heading, fixMode, satellites, epe2d, epe3d);
     }
 
     private static void DecodeBatteryData(
-        V5StreamDescriptor descriptor,
+        SstV5StreamDescriptor descriptor,
         ReadOnlySpan<byte> compactPayload,
-        ulong firstIndex,
-        ulong firstMonotonicDeltaUs,
-        uint sampleCount,
-        uint validityMask,
+        SstV5DataHeader header,
         V5ParseContext context)
     {
-        if ((validityMask & SstV5Constants.SensorBattery) == 0)
+        if ((header.ValidityMask & SstV5Constants.SensorBattery) == 0)
         {
-            context.AddGap(SstV5Constants.StreamBattery, null, firstIndex, sampleCount, null, "invalid_validity");
+            context.AddGap(SstV5Constants.StreamBattery, null, header.FirstIndex, header.SampleCount, null, "invalid_validity");
             return;
         }
 
-        // Battery records are size-validated by the chunk-length check and intentionally not
-        // stored in app data. Undefined battery flag bits are tolerated rather than failing the
-        // import, since a future appendix may define additional bits.
+        // Battery records are decoded for protocol validation but intentionally not stored in app
+        // data. Undefined battery flag bits are tolerated because a future appendix may define
+        // additional bits.
+        _ = SstV5CompactPayloadDecoder.DecodeBattery(descriptor, header, compactPayload);
     }
 
     private static void DecodeMarkerData(
-        V5StreamDescriptor descriptor,
+        SstV5StreamDescriptor descriptor,
         ReadOnlySpan<byte> compactPayload,
-        ulong firstIndex,
-        ulong firstMonotonicDeltaUs,
-        uint sampleCount,
+        SstV5DataHeader header,
         V5ParseContext context)
     {
-        for (var sampleOffset = 0u; sampleOffset < sampleCount; sampleOffset++)
+        foreach (var record in SstV5CompactPayloadDecoder.DecodeMarkers(descriptor, header, compactPayload))
         {
-            var recordOffset = checked((int)(sampleOffset * descriptor.CompactPayloadRecordBytes));
-            var markerType = compactPayload[recordOffset];
-            if (markerType == SstV5Constants.MarkerManualUserMark)
+            if (record.MarkerType == SstV5Constants.MarkerManualUserMark)
             {
-                context.Markers.Add(new MarkerData(firstMonotonicDeltaUs / 1_000_000.0));
+                context.Markers.Add(new MarkerData(record.MonotonicDeltaUs / 1_000_000.0));
             }
         }
     }
 
     private static void ParseFinalStatus(ReadOnlySpan<byte> payload, V5ParseContext context)
     {
-        if (payload.Length < FinalStatusHeaderSize)
+        if (payload.Length < SstV5ProtocolConstants.FinalStatusHeaderSize)
         {
             throw context.Malformed("SST v5 final status payload is truncated.");
         }
@@ -865,7 +384,8 @@ public class SstV5Parser : ISstParser
         }
 
         if (streamStatusCount != context.StreamDescriptorOrder.Count ||
-            payload.Length != FinalStatusHeaderSize + streamStatusCount * FinalStatusRecordSize)
+            payload.Length != SstV5ProtocolConstants.FinalStatusHeaderSize +
+            streamStatusCount * SstV5ProtocolConstants.FinalStatusRecordSize)
         {
             throw context.Malformed("SST v5 final status payload length is invalid.");
         }
@@ -876,25 +396,18 @@ public class SstV5Parser : ISstParser
             var descriptor = context.StreamDescriptorOrder[index];
             var producerState = reader.ReadByte();
             var producerFailureReason = reader.ReadByte();
-            var reserved = reader.ReadUInt16();
+            var sinkBacklogBatches = reader.ReadUInt16();
             var producerMissedCount = reader.ReadUInt64();
             var producerMissingTimeUs = reader.ReadUInt64();
             var sinkMissedCount = reader.ReadUInt64();
             var sinkMissingTimeUs = reader.ReadUInt64();
-
-            // Reserved bytes must be zero, but out-of-range producer state / failure reason
-            // values are tolerated and stored raw: the spec treats an invalid producer state as
-            // a producer fault rather than a malformed file, and this metadata does not gate import.
-            if (reserved != 0)
-            {
-                throw context.Malformed("SST v5 final status record is invalid.");
-            }
 
             var status = new SstStreamFinalStatus
             {
                 StreamKind = descriptor.StreamKind,
                 ProducerState = producerState,
                 ProducerFailureReason = producerFailureReason,
+                SinkBacklogBatches = sinkBacklogBatches,
                 ProducerMissedCount = producerMissedCount,
                 ProducerMissingTimeUs = producerMissingTimeUs,
                 SinkMissedCount = sinkMissedCount,
@@ -941,130 +454,8 @@ public class SstV5Parser : ISstParser
             }));
         }
 
-        var imuGapExists = context.Gaps.Any(gap => gap.StreamKind == SstV5Constants.StreamImu);
-        var segmentsByLocation = context.ImuData.Segments
-            .GroupBy(segment => segment.LocationId)
-            .ToDictionary(group => group.Key, group => group.OrderBy(segment => segment.FirstIndex).ToArray());
-        var dense = context.ImuData.ActiveLocations.Count > 0 &&
-            context.ImuData.ActiveLocations.All(location => segmentsByLocation.TryGetValue(location, out var segments) && segments.Length == 1) &&
-            !imuGapExists;
-
-        if (dense)
-        {
-            var firstLocation = context.ImuData.ActiveLocations[0];
-            var firstSegment = segmentsByLocation[firstLocation][0];
-            dense = context.ImuData.ActiveLocations.All(location =>
-            {
-                var segment = segmentsByLocation[location][0];
-                return segment.FirstIndex == firstSegment.FirstIndex &&
-                    segment.FirstMonotonicDeltaUs == firstSegment.FirstMonotonicDeltaUs &&
-                    segment.Records.Length == firstSegment.Records.Length;
-            });
-
-            if (dense)
-            {
-                for (var sampleIndex = 0; sampleIndex < firstSegment.Records.Length; sampleIndex++)
-                {
-                    foreach (var location in context.ImuData.ActiveLocations)
-                    {
-                        context.ImuData.Records.Add(segmentsByLocation[location][0].Records[sampleIndex]);
-                    }
-                }
-            }
-        }
-
-        context.ImuData.HasGaps = !dense ||
-            context.ImuData.Segments.CountBy(segment => segment.LocationId).Any(kvp => kvp.Value > 1);
-
+        RawImuDataSegmentHelper.PopulateDenseRecordsFromAlignedSegments(context.ImuData, context.Gaps);
         return context.ImuData;
-    }
-
-    private static bool TryCreateGpsTimestamp(uint date, uint timeMs, out DateTime timestamp)
-    {
-        timestamp = default;
-        if (date == 0)
-        {
-            return false;
-        }
-
-        var year = (int)(date / 10000);
-        var month = (int)(date / 100 % 100);
-        var day = (int)(date % 100);
-
-        if (year is < 1 or > 9999 || month is < 1 or > 12)
-        {
-            return false;
-        }
-
-        if (day < 1 || day > DateTime.DaysInMonth(year, month))
-        {
-            return false;
-        }
-
-        timestamp = new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(timeMs);
-        return true;
-    }
-
-    private static ImuRecord ReadImuRecord(ReadOnlySpan<byte> bytes)
-    {
-        var reader = new SstByteReader(bytes);
-        return new ImuRecord(
-            reader.ReadInt16(),
-            reader.ReadInt16(),
-            reader.ReadInt16(),
-            reader.ReadInt16(),
-            reader.ReadInt16(),
-            reader.ReadInt16());
-    }
-
-    private static bool IsKnownChunkType(ushort chunkType) =>
-        chunkType is >= SstV5Constants.ChunkSessionMetadata and <= SstV5Constants.ChunkFinalStatus;
-
-    private static bool IsKnownStreamKind(byte streamKind) =>
-        streamKind is >= SstV5Constants.StreamTravel and <= SstV5Constants.StreamMarker;
-
-    private static byte StreamKindForDataChunk(ushort chunkType) => chunkType switch
-    {
-        SstV5Constants.ChunkTravelData => SstV5Constants.StreamTravel,
-        SstV5Constants.ChunkImuData => SstV5Constants.StreamImu,
-        SstV5Constants.ChunkTemperatureData => SstV5Constants.StreamTemperature,
-        SstV5Constants.ChunkGpsData => SstV5Constants.StreamGps,
-        SstV5Constants.ChunkBatteryData => SstV5Constants.StreamBattery,
-        SstV5Constants.ChunkMarkerData => SstV5Constants.StreamMarker,
-        _ => throw new InvalidOperationException("Chunk type is not a data chunk."),
-    };
-
-    private static uint StreamMaskForKind(byte streamKind) => 1u << streamKind;
-
-    private static bool IsSingleBitMask(uint mask) => mask != 0 && (mask & (mask - 1)) == 0;
-
-    private static bool SourceBelongsToStream(byte streamKind, uint sourceBitMask) => streamKind switch
-    {
-        SstV5Constants.StreamTravel => (sourceBitMask & (SstV5Constants.SensorForkTravel | SstV5Constants.SensorShockTravel)) != 0,
-        SstV5Constants.StreamImu => (sourceBitMask & (SstV5Constants.SensorFrameImu | SstV5Constants.SensorForkImu | SstV5Constants.SensorRearImu)) != 0,
-        SstV5Constants.StreamTemperature => (sourceBitMask & (SstV5Constants.SensorFrameImu | SstV5Constants.SensorForkImu | SstV5Constants.SensorRearImu)) != 0,
-        _ => false,
-    };
-
-    private static byte LocationIdForImuSource(uint sourceBitMask, V5ParseContext context) => sourceBitMask switch
-    {
-        SstV5Constants.SensorFrameImu => (byte)ImuLocation.Frame,
-        SstV5Constants.SensorForkImu => (byte)ImuLocation.Fork,
-        SstV5Constants.SensorRearImu => (byte)ImuLocation.Shock,
-        _ => throw context.Malformed("SST v5 IMU location source bit is invalid."),
-    };
-
-    private static ulong CalculateSampleMonotonicUs(ulong firstMonotonicDeltaUs, ulong sampleOffset, uint rateMhz) =>
-        checked(firstMonotonicDeltaUs + RoundDurationUs(sampleOffset, rateMhz));
-
-    private static ulong RoundDurationUs(ulong sampleCount, uint rateMhz)
-    {
-        if (sampleCount == 0 || rateMhz == 0)
-        {
-            return 0;
-        }
-
-        return checked((ulong)Math.Round(sampleCount * 1_000_000_000.0 / rateMhz, MidpointRounding.AwayFromZero));
     }
 
     private static ulong? OptionalMissingTime(ulong missingTimeUs) => missingTimeUs == 0 ? null : missingTimeUs;
@@ -1078,24 +469,24 @@ public class SstV5Parser : ISstParser
         public ulong MaxObservedEndUs { get; set; }
         public string? WarningMessage { get; set; }
         public SstFinalStatus? FinalStatus { get; set; }
-        public Dictionary<byte, V5StreamDescriptor> StreamDescriptors { get; } = [];
-        public List<V5StreamDescriptor> StreamDescriptorOrder { get; } = [];
+        public Dictionary<byte, SstV5StreamDescriptor> StreamDescriptors { get; } = [];
+        public List<SstV5StreamDescriptor> StreamDescriptorOrder { get; } = [];
         public List<RawStreamGap> Gaps { get; } = [];
         public List<MarkerData> Markers { get; } = [];
         public RawImuData ImuData { get; } = new();
         public List<GpsRecord> GpsRecords { get; } = [];
         public List<TemperatureSample> TemperatureSamples { get; } = [];
-        public FixedSegmentBuilder<ushort> FrontBuilder { get; }
-        public FixedSegmentBuilder<ushort> RearBuilder { get; }
-        public Dictionary<byte, FixedSegmentBuilder<ImuRecord>> ImuBuilders { get; } = [];
+        public FixedRateSegmentBuilder<ushort> FrontBuilder { get; }
+        public FixedRateSegmentBuilder<ushort> RearBuilder { get; }
+        public Dictionary<byte, FixedRateSegmentBuilder<ImuRecord>> ImuBuilders { get; } = [];
 
         public V5ParseContext(byte version)
         {
             Version = version;
             // Tag travel gaps with the travel sensor bit (fork=front, shock=rear) so the
             // processing layer can attribute a gap to the correct side instead of both.
-            FrontBuilder = new FixedSegmentBuilder<ushort>(SstV5Constants.StreamTravel, (byte)SstV5Constants.SensorForkTravel, AddGap);
-            RearBuilder = new FixedSegmentBuilder<ushort>(SstV5Constants.StreamTravel, (byte)SstV5Constants.SensorShockTravel, AddGap);
+            FrontBuilder = new FixedRateSegmentBuilder<ushort>(SstV5Constants.StreamTravel, (byte)SstV5Constants.SensorForkTravel, AddGap);
+            RearBuilder = new FixedRateSegmentBuilder<ushort>(SstV5Constants.StreamTravel, (byte)SstV5Constants.SensorShockTravel, AddGap);
         }
 
         public void InitializeImuMetadata()
@@ -1107,10 +498,10 @@ public class SstV5Parser : ISstParser
 
             foreach (var source in imuDescriptor.Sources.OrderBy(source => source.SourceBitMask))
             {
-                var location = LocationIdForImuSource(source.SourceBitMask, this);
+                var location = SstV5ProtocolConstants.GetImuLocationId(source.SourceBitMask);
                 ImuData.Meta.Add(new ImuMetaEntry(location, source.AccelLsbPerG, source.GyroLsbPerDps));
                 ImuData.ActiveLocations.Add(location);
-                ImuBuilders[location] = new FixedSegmentBuilder<ImuRecord>(SstV5Constants.StreamImu, location, AddGap);
+                ImuBuilders[location] = new FixedRateSegmentBuilder<ImuRecord>(SstV5Constants.StreamImu, location, AddGap);
             }
 
             ImuData.SampleRate = imuDescriptor.AcceptedRateMhz % 1000 == 0
@@ -1118,10 +509,13 @@ public class SstV5Parser : ISstParser
                 : 0;
         }
 
-        public void ObserveDataEnd(V5StreamDescriptor descriptor, ulong firstMonotonicDeltaUs, uint sampleCount)
+        public void ObserveDataEnd(SstV5StreamDescriptor descriptor, ulong firstMonotonicDeltaUs, uint sampleCount)
         {
             var endUs = descriptor.TimingModelId == SstV5Constants.TimingFixedRate
-                ? CalculateSampleMonotonicUs(firstMonotonicDeltaUs, sampleCount, descriptor.AcceptedRateMhz)
+                ? SstV5CompactPayloadDecoder.CalculateSampleMonotonicUs(
+                    firstMonotonicDeltaUs,
+                    sampleCount,
+                    descriptor.AcceptedRateMhz)
                 : firstMonotonicDeltaUs;
             MaxObservedEndUs = Math.Max(MaxObservedEndUs, endUs);
         }
@@ -1195,9 +589,14 @@ public class SstV5Parser : ISstParser
             };
         }
 
+        public void AddGap(RawStreamGap gap)
+        {
+            Gaps.Add(gap);
+        }
+
         public void AddGap(byte streamKind, byte? locationId, ulong firstMissingIndex, ulong missingCount, ulong? missingTimeUs, string reason)
         {
-            Gaps.Add(new RawStreamGap
+            AddGap(new RawStreamGap
             {
                 StreamKind = streamKind,
                 LocationId = locationId,
@@ -1236,128 +635,6 @@ public class SstV5Parser : ISstParser
 
             return checked((ushort)(travelDescriptor.AcceptedRateMhz / 1000));
         }
-    }
-
-    private sealed class FixedSegmentBuilder<T>(
-        byte streamKind,
-        byte? locationId,
-        Action<byte, byte?, ulong, ulong, ulong?, string> addGap)
-    {
-        private readonly List<T> currentValues = [];
-        private ulong currentFirstIndex;
-        private ulong currentFirstMonotonicDeltaUs;
-        private bool hasTimeline;
-        private ulong lastIndex;
-
-        public byte? LocationId => locationId;
-        public List<FixedSegment<T>> Segments { get; } = [];
-
-        public void AddValidSample(ulong index, ulong monotonicDeltaUs, T value, uint rateMhz)
-        {
-            var startsNewSegment = currentValues.Count == 0;
-
-            // The first emitted sample establishes the timeline. Its logical index may be greater
-            // than zero because the producer trims pre-anchor backlog at session start (per spec
-            // that is not session loss), so it anchors the run at its own monotonic time without
-            // recording a leading gap.
-            //
-            // Fixed-rate gaps are defined by missing logical sample indices, not by the batch
-            // monotonic timestamp. Real producers stamp each batch from the monotonic clock, which
-            // jitters by tens of microseconds around the nominal grid; contiguous indices mean no
-            // samples were lost, so that jitter must not split the segment.
-            if (hasTimeline && index != lastIndex + 1)
-            {
-                var missingCount = index > lastIndex ? index - lastIndex - 1 : 0;
-                addGap(streamKind, locationId, lastIndex + 1, missingCount, RoundDurationUs(missingCount, rateMhz), "index_gap");
-                Flush();
-                startsNewSegment = true;
-            }
-
-            if (startsNewSegment)
-            {
-                currentFirstIndex = index;
-                currentFirstMonotonicDeltaUs = monotonicDeltaUs;
-            }
-
-            currentValues.Add(value);
-            hasTimeline = true;
-            lastIndex = index;
-        }
-
-        public void AddInvalidRange(ulong firstIndex, ulong count, ulong firstMonotonicDeltaUs, uint rateMhz)
-        {
-            if (count == 0)
-            {
-                return;
-            }
-
-            addGap(streamKind, locationId, firstIndex, count, RoundDurationUs(count, rateMhz), "invalid_validity");
-            Flush();
-            hasTimeline = true;
-            lastIndex = checked(firstIndex + count - 1);
-        }
-
-        public void Finish()
-        {
-            Flush();
-        }
-
-        private void Flush()
-        {
-            if (currentValues.Count == 0)
-            {
-                return;
-            }
-
-            Segments.Add(new FixedSegment<T>(
-                currentFirstIndex,
-                currentFirstMonotonicDeltaUs,
-                [.. currentValues]));
-            currentValues.Clear();
-        }
-    }
-
-    private sealed record FixedSegment<T>(
-        ulong FirstIndex,
-        ulong FirstMonotonicDeltaUs,
-        T[] Values);
-
-    private sealed record V5StreamDescriptor(
-        byte StreamKind,
-        byte TimingModelId,
-        byte SourceDescriptorCount,
-        uint AcceptedSensorMask,
-        uint AcceptedExtensionMask,
-        uint AcceptedRateMhz,
-        uint AcceptedBatchDurationMs,
-        ushort CompactPayloadRecordBytes)
-    {
-        public byte GpsDriverId { get; set; }
-        public byte GpsPayloadEncodingId { get; set; }
-        public ushort GpsPayloadRecordBytes { get; set; }
-        public ushort GpsExtensionRecordBytes { get; set; }
-        public List<V5SourceDescriptor> Sources { get; } = [];
-    }
-
-    private sealed class V5SourceDescriptor
-    {
-        public byte StreamKind { get; set; }
-        public byte DriverId { get; set; }
-        public byte PayloadEncodingId { get; set; }
-        public byte PayloadValueCount { get; set; }
-        public uint SourceBitMask { get; set; }
-        public ushort PayloadByteOffset { get; set; }
-        public ushort PayloadRecordBytes { get; set; }
-        public ushort PayloadValueWidthBits { get; set; }
-        public ushort CountMin { get; set; }
-        public ushort CountMax { get; set; }
-        public ushort WrapModulus { get; set; }
-        public byte Wraps { get; set; }
-        public float AccelLsbPerG { get; set; }
-        public float GyroLsbPerDps { get; set; }
-        public byte BikeFrameId { get; set; }
-        public float TemperatureLsbPerCelsius { get; set; }
-        public float TemperatureCelsiusAtRawZero { get; set; }
     }
 
     private sealed class SstV5MalformedException(
