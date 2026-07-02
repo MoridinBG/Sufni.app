@@ -6,10 +6,10 @@ using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
+using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 using Sufni.App.Bikes.Stores;
-using Sufni.App.Setups.Models.SensorConfigurations;
 using Sufni.App.Setups.Stores;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
@@ -19,7 +19,7 @@ namespace Sufni.App.LiveDaq.Queries;
 
 // Keeps a cached, query-shaped view of known live DAQ boards so the coordinator can
 // seed offline rows and refresh setup or bike labels cheaply.
-public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposable
+internal sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposable
 {
     private static readonly ILogger logger = Log.ForContext<LiveDaqKnownBoardsQuery>();
 
@@ -31,6 +31,7 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
     private readonly ISynchronizableRepository<Board> boardRepository;
     private readonly ISetupStore setupStore;
     private readonly IBikeStore bikeStore;
+    private readonly ITelemetryBikeProcessingContextFactory bikeProcessingContextFactory;
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> changesSubject = new([]);
     private IReadOnlyDictionary<string, KnownLiveDaqProjection> currentProjections = new Dictionary<string, KnownLiveDaqProjection>(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim refreshGate = new(1, 1);
@@ -43,11 +44,13 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
     public LiveDaqKnownBoardsQuery(
         ISynchronizableRepository<Board> boardRepository,
         ISetupStore setupStore,
-        IBikeStore bikeStore)
+        IBikeStore bikeStore,
+        ITelemetryBikeProcessingContextFactory bikeProcessingContextFactory)
     {
         this.boardRepository = boardRepository;
         this.setupStore = setupStore;
         this.bikeStore = bikeStore;
+        this.bikeProcessingContextFactory = bikeProcessingContextFactory;
 
         // Ignore only the synchronous replay that can happen during
         // subscription. If a store starts empty, its first real load must still
@@ -81,12 +84,10 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
             : null;
     }
 
-    private static LiveDaqTravelCalibration CreateTravelCalibration(
-        ISensorConfiguration? frontSensorConfiguration,
-        RearTravelCalibration? rearTravelCalibration)
+    private static LiveDaqTravelCalibration CreateTravelCalibration(BikeData bikeData)
     {
-        var front = CreateCalibration(frontSensorConfiguration);
-        var rear = CreateCalibration(rearTravelCalibration);
+        var front = CreateCalibration(bikeData.FrontMaxTravel, bikeData.FrontMeasurementToTravel);
+        var rear = CreateCalibration(bikeData.RearMaxTravel, bikeData.RearMeasurementToTravel);
 
         return new LiveDaqTravelCalibration(front, rear);
     }
@@ -214,11 +215,8 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
             return new KnownLiveDaqProjection(record, null, null);
         }
 
-        var frontSensorConfiguration = setupSnapshot.FrontSensorConfigurationJson is null
-            ? null
-            : SensorConfiguration.FromJson(setupSnapshot.FrontSensorConfigurationJson, bikeSnapshot);
-        RearTravelCalibrationBuilder.TryBuild(setupSnapshot, bikeSnapshot, out var rearTravelCalibration, out _);
-        var calibration = CreateTravelCalibration(frontSensorConfiguration, rearTravelCalibration);
+        var bikeProcessingContext = bikeProcessingContextFactory.Create(setupSnapshot, bikeSnapshot);
+        var calibration = CreateTravelCalibration(bikeProcessingContext.BikeData);
 
         return new KnownLiveDaqProjection(
             Record: record,
@@ -231,31 +229,21 @@ public sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDisposa
                 SetupName: record.SetupName!,
                 BikeId: record.BikeId!.Value,
                 BikeName: record.BikeName!,
-                BikeData: TelemetryBikeData.Create(frontSensorConfiguration, rearTravelCalibration),
+                BikeData: bikeProcessingContext.BikeData,
                 TravelCalibration: calibration,
                 DampingSpeedCutoffs: bikeSnapshot.DampingSpeedCutoffs,
                 DampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(bikeSnapshot.Id, bikeSnapshot.Updated)));
     }
 
-    private static LiveDaqTravelChannelCalibration? CreateCalibration(Sufni.App.Setups.Models.SensorConfigurations.ISensorConfiguration? configuration)
+    private static LiveDaqTravelChannelCalibration? CreateCalibration(
+        double? maxTravel,
+        Func<ushort, double>? measurementToTravel)
     {
-        if (configuration is null)
+        if (maxTravel is not > 0 || measurementToTravel is null)
         {
             return null;
         }
 
-        return configuration.MaxTravel <= 0
-            ? null
-            : new LiveDaqTravelChannelCalibration(configuration.MaxTravel, configuration.MeasurementToTravel);
-    }
-
-    private static LiveDaqTravelChannelCalibration? CreateCalibration(Sufni.App.Setups.Models.SensorConfigurations.RearTravelCalibration? calibration)
-    {
-        if (calibration is null || calibration.MaxTravel <= 0)
-        {
-            return null;
-        }
-
-        return new LiveDaqTravelChannelCalibration(calibration.MaxTravel, calibration.MeasurementToTravel);
+        return new LiveDaqTravelChannelCalibration(maxTravel.Value, measurementToTravel);
     }
 }

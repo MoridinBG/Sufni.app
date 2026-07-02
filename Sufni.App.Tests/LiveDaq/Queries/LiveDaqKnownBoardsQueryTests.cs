@@ -3,6 +3,7 @@ using DynamicData;
 using NSubstitute;
 
 using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.LiveDaq.Queries;
 using Sufni.App.Setups.Models;
@@ -27,7 +28,13 @@ public class LiveDaqKnownBoardsQueryTests
         bikeStore = new BikeStore(bikeRepository);
     }
 
-    private LiveDaqKnownBoardsQuery CreateQuery() => new(boardRepository, setupStore, bikeStore);
+    private LiveDaqKnownBoardsQuery CreateQuery() => new(
+        boardRepository,
+        setupStore,
+        bikeStore,
+        new TelemetryBikeProcessingContextFactory(
+            new RearTravelCalibrationBuilder(
+                new KinematicSolutionCache())));
 
     [Fact]
     public async Task Changes_ReturnsBoardOnlyRecord_WhenBoardHasNoSetup()
@@ -259,6 +266,8 @@ public class LiveDaqKnownBoardsQueryTests
         Assert.NotNull(context.BikeData.RearMeasurementToTravel);
         Assert.NotNull(context.TravelCalibration.Front);
         Assert.NotNull(context.TravelCalibration.Rear);
+        Assert.Same(context.BikeData.FrontMeasurementToTravel, context.TravelCalibration.Front!.MeasurementToTravel);
+        Assert.Same(context.BikeData.RearMeasurementToTravel, context.TravelCalibration.Rear!.MeasurementToTravel);
     }
 
     [Fact]
