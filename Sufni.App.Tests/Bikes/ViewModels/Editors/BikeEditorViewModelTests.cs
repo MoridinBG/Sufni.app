@@ -782,6 +782,26 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Save_AfterSwitchingToIncompleteLinkage_RoutesLinkageDraftToCoordinator()
+    {
+        var snapshot = TestSnapshots.Bike(updated: 5);
+        var editor = CreateEditor(snapshot);
+        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
+            .Returns(new BikeSaveResult.InvalidRearSuspension("Linkage data is required for linkage bikes."));
+
+        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.Linkage);
+        await Task.Yield();
+
+        Assert.True(editor.SaveCommand.CanExecute(null));
+
+        await editor.SaveCommand.ExecuteAsync(null);
+
+        await bikeCoordinator.Received(1).SaveAsync(
+            Arg.Is<Bike>(bike => bike.RearSuspension is RearSuspensionSpec.LinkageDraft),
+            5);
+    }
+
+    [AvaloniaFact]
     public async Task Save_OnDraftLeverageRatio_RoutesDraftToCoordinator_AndAppendsValidationMessage()
     {
         var snapshot = TestSnapshots.Bike(updated: 5) with
