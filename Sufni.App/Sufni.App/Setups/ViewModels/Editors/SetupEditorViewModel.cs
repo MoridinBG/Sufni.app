@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using DynamicData.Binding;
+using Sufni.Kinematics;
 using BikeModel = Sufni.App.Bikes.Models.Bike;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
@@ -186,12 +187,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     {
         if (snapshot is null || snapshot.ImageBytes.Length == 0) return [];
 
-        var resolution = RearSuspensionResolver.Resolve(
-            snapshot.RearSuspensionKind,
-            snapshot.Linkage,
-            snapshot.LeverageRatio);
-
-        if (resolution is not RearSuspensionResolution.Linkage linkage) return [];
+        if (snapshot.RearSuspension is not RearSuspensionSpec.Linkage linkage) return [];
 
         var imageHeight = BikeImageData.Decode(snapshot.ImageBytes)?.Size.Height;
         if (!imageHeight.HasValue)
@@ -199,14 +195,25 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
             return [];
         }
 
-        var jvms = linkage.Value.Linkage.Joints
+        var mutableLinkage = Linkage.FromSpec(linkage.Spec);
+        var jvms = mutableLinkage.Joints
             .Select(j => JointViewModel.FromJoint(j, imageHeight.Value, snapshot.PixelsToMillimeters));
         return [.. jvms];
     }
 
     private static RearSuspensionResolution ResolveRearSuspension(BikeSnapshot? bike) => bike is null
         ? new RearSuspensionResolution.Hardtail()
-        : RearSuspensionResolver.Resolve(bike.RearSuspensionKind, bike.Linkage, bike.LeverageRatio);
+        : bike.RearSuspension switch
+        {
+            RearSuspensionSpec.Hardtail => new RearSuspensionResolution.Hardtail(),
+            RearSuspensionSpec.Linkage linkage => new RearSuspensionResolution.Linkage(
+                new LinkageRearSuspension(Linkage.FromSpec(linkage.Spec))),
+            RearSuspensionSpec.LeverageRatio leverageRatio => new RearSuspensionResolution.LeverageRatio(
+                new LeverageRatioRearSuspension(leverageRatio.Spec)),
+            RearSuspensionSpec.LinkageDraft => new RearSuspensionResolution.Hardtail(),
+            RearSuspensionSpec.LeverageRatioDraft => new RearSuspensionResolution.Hardtail(),
+            _ => new RearSuspensionResolution.Invalid(RearSuspensionResolutionError.MultiplePayloadsPresent),
+        };
 
     private static IReadOnlyList<SensorType?> AllowedShockSensorTypes(RearSuspensionResolution resolution) => resolution switch
     {

@@ -230,30 +230,24 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     private bool IsReplacingState => isReplacingState;
 
     private static BikeRearSuspensionEditorState CreateRearSuspensionState(BikeSnapshot snapshot) =>
-        RearSuspensionResolver.Resolve(
-            snapshot.RearSuspensionKind,
-            snapshot.Linkage,
-            snapshot.LeverageRatio) switch
+        snapshot.RearSuspension switch
         {
-            RearSuspensionResolution.Hardtail =>
+            RearSuspensionSpec.Hardtail =>
                 new BikeRearSuspensionEditorState.Hardtail(),
 
-            RearSuspensionResolution.Linkage(var linkage) =>
-                new BikeRearSuspensionEditorState.Linkage(linkage),
+            RearSuspensionSpec.Linkage linkage =>
+                new BikeRearSuspensionEditorState.Linkage(new LinkageRearSuspension(Linkage.FromSpec(linkage.Spec))),
 
-            RearSuspensionResolution.LeverageRatio(var leverageRatio) =>
-                new BikeRearSuspensionEditorState.LeverageRatio(leverageRatio),
+            RearSuspensionSpec.LeverageRatio leverageRatio =>
+                new BikeRearSuspensionEditorState.LeverageRatio(new LeverageRatioRearSuspension(leverageRatio.Spec)),
 
-            RearSuspensionResolution.Invalid(RearSuspensionResolutionError.KindLinkageMissingPayload) =>
+            RearSuspensionSpec.LinkageDraft =>
                 new BikeRearSuspensionEditorState.DraftLinkage(),
 
-            RearSuspensionResolution.Invalid(RearSuspensionResolutionError.KindLeverageRatioMissingPayload) =>
+            RearSuspensionSpec.LeverageRatioDraft =>
                 new BikeRearSuspensionEditorState.DraftLeverageRatio(),
 
-            RearSuspensionResolution.Invalid(var error) =>
-                new BikeRearSuspensionEditorState.Invalid(error),
-
-            _ => throw new InvalidOperationException("Unknown resolver result."),
+            _ => throw new ArgumentOutOfRangeException(nameof(snapshot)),
         };
 
     private static BikeRearSuspensionMode ModeFromEditorState(BikeRearSuspensionEditorState state) => state switch
@@ -265,14 +259,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         BikeRearSuspensionEditorState.DraftLeverageRatio => BikeRearSuspensionMode.LeverageRatio,
         BikeRearSuspensionEditorState.Invalid => BikeRearSuspensionMode.None,
         _ => throw new ArgumentOutOfRangeException(nameof(state)),
-    };
-
-    private static RearSuspensionKind RearSuspensionKindFromMode(BikeRearSuspensionMode mode) => mode switch
-    {
-        BikeRearSuspensionMode.None => RearSuspensionKind.None,
-        BikeRearSuspensionMode.Linkage => RearSuspensionKind.Linkage,
-        BikeRearSuspensionMode.LeverageRatio => RearSuspensionKind.LeverageRatio,
-        _ => throw new ArgumentOutOfRangeException(nameof(mode))
     };
 
     // Route every state swap through the same raw-apply -> derive -> accept sequence.
@@ -406,7 +392,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         Debug.Assert(HeadAngle is not null);
         Debug.Assert(ForksStroke is not null);
 
-        var rearSuspension = BuildCurrentRearSuspension();
+        var rearSuspension = BuildCurrentRearSuspensionSpec();
         var pixelsToMillimeters = RearSuspensionMode == BikeRearSuspensionMode.Linkage
             ? PixelsToMillimeters ?? acceptedSnapshot.PixelsToMillimeters
             : 0;
@@ -417,31 +403,41 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
             HeadAngle.Value,
             ForksStroke,
             ShockStroke,
-            RearSuspensionKindFromMode(RearSuspensionMode),
+            rearSuspension,
             acceptedSnapshot.FrontCompressionDampingCutoffMmPerSecond,
             acceptedSnapshot.FrontReboundDampingCutoffMmPerSecond,
             acceptedSnapshot.RearCompressionDampingCutoffMmPerSecond,
             acceptedSnapshot.RearReboundDampingCutoffMmPerSecond,
             RearSuspensionMode == BikeRearSuspensionMode.Linkage ? Chainstay : null,
             pixelsToMillimeters,
-            WheelGeometry.FrontWheelDiameter,
-            WheelGeometry.RearWheelDiameter,
-            WheelGeometry.FrontWheelRimSize,
-            WheelGeometry.FrontWheelTireWidth,
-            WheelGeometry.RearWheelRimSize,
-            WheelGeometry.RearWheelTireWidth,
+            WheelSpec.FromValues(
+                WheelGeometry.FrontWheelDiameter,
+                WheelGeometry.FrontWheelRimSize,
+                WheelGeometry.FrontWheelTireWidth),
+            WheelSpec.FromValues(
+                WheelGeometry.RearWheelDiameter,
+                WheelGeometry.RearWheelRimSize,
+                WheelGeometry.RearWheelTireWidth),
             RearSuspensionMode == BikeRearSuspensionMode.Linkage ? ImageCanvas.ImageRotationDegrees : 0,
-            (rearSuspension as LeverageRatioRearSuspension)?.LeverageRatio,
-            (rearSuspension as LinkageRearSuspension)?.Linkage,
             RearSuspensionMode == BikeRearSuspensionMode.Linkage ? ImageCanvas.ImageBytes : [],
             updated);
     }
+
+    private RearSuspensionSpec BuildCurrentRearSuspensionSpec() => RearSuspensionMode switch
+    {
+        BikeRearSuspensionMode.None => new RearSuspensionSpec.Hardtail(),
+        BikeRearSuspensionMode.Linkage when CreateCurrentLinkage() is Linkage linkage => new RearSuspensionSpec.Linkage(linkage.ToSpec()),
+        BikeRearSuspensionMode.Linkage => new RearSuspensionSpec.LinkageDraft(),
+        BikeRearSuspensionMode.LeverageRatio when LeverageRatioEditor.BuildCurrent() is LeverageRatioSpec leverageRatio => new RearSuspensionSpec.LeverageRatio(leverageRatio),
+        BikeRearSuspensionMode.LeverageRatio => new RearSuspensionSpec.LeverageRatioDraft(),
+        _ => throw new ArgumentOutOfRangeException(nameof(RearSuspensionMode)),
+    };
 
     private RearSuspension? BuildCurrentRearSuspension() => RearSuspensionMode switch
     {
         BikeRearSuspensionMode.None => null,
         BikeRearSuspensionMode.Linkage when CreateCurrentLinkage() is Linkage linkage => new LinkageRearSuspension(linkage),
-        BikeRearSuspensionMode.LeverageRatio when LeverageRatioEditor.BuildCurrent() is LeverageRatio leverageRatio => new LeverageRatioRearSuspension(leverageRatio),
+        BikeRearSuspensionMode.LeverageRatio when LeverageRatioEditor.BuildCurrent() is LeverageRatioSpec leverageRatio => new LeverageRatioRearSuspension(leverageRatio),
         _ => null,
     };
 
@@ -874,7 +870,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         _ => throw new ArgumentOutOfRangeException(nameof(mode))
     };
 
-    private static bool LeverageRatiosEqual(LeverageRatio? left, LeverageRatio? right)
+    private static bool LeverageRatiosEqual(LeverageRatioSpec? left, LeverageRatioSpec? right)
     {
         if (ReferenceEquals(left, right))
         {

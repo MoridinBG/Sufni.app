@@ -240,12 +240,12 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
 
     private BikeEditorAnalysisResult AnalyzeLinkage(Linkage linkage)
     {
-        var solver = new KinematicSolver(linkage);
+        var solver = new KinematicSolver(linkage.ToSpec());
         var solution = solver.SolveSuspensionMotion();
         var characteristics = new BikeCharacteristics(solution);
         var mapping = new JointNameMapping();
-        var rearAxlePathData = solution.TryGetValue(mapping.RearWheel, out var path)
-            ? path
+        var rearAxlePathData = solution.TryGetPath(mapping.RearWheel, out var path)
+            ? new CoordinateList([.. path.X], [.. path.Y])
             : new CoordinateList([], []);
 
         logger.Verbose(
@@ -259,7 +259,7 @@ public sealed class BikeEditorService(IFilesService filesService, IBackgroundTas
                 rearAxlePathData));
     }
 
-    private BikeEditorAnalysisResult AnalyzeLeverageRatio(LeverageRatio leverageRatio)
+    private BikeEditorAnalysisResult AnalyzeLeverageRatio(LeverageRatioSpec leverageRatio)
     {
         var coordinateList = leverageRatio.DeriveLeverageRatioData();
 

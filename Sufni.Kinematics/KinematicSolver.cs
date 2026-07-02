@@ -13,13 +13,13 @@ public class KinematicSolver
     private static readonly ILogger logger = Log.ForContext<KinematicSolver>();
 
     private readonly double shockMaxLength;
-    private readonly Linkage linkage;
+    private readonly ResolvedLinkage linkage;
     private readonly int steps;
     private readonly int iterations;
 
-    public KinematicSolver(Linkage linkage, int steps = 200, int iterations = 1000)
+    public KinematicSolver(LinkageSpec linkage, int steps = 200, int iterations = 1000)
     {
-        this.linkage = linkage.CloneResolved();
+        this.linkage = LinkageResolver.Resolve(linkage);
 
         this.steps = steps;
         this.iterations = iterations;
@@ -28,7 +28,7 @@ public class KinematicSolver
 
     #region Public methods
 
-    public Dictionary<string, CoordinateList> SolveSuspensionMotion()
+    public KinematicSolution SolveSuspensionMotion()
     {
         logger.Verbose(
             "Starting kinematic solve with {StepCount} steps, {IterationCount} iterations, and {JointCount} joints",
@@ -40,7 +40,7 @@ public class KinematicSolver
 
         for (var i = 0; i < steps; i++)
         {
-            var compression = linkage.ShockStroke * i / (steps - 1);
+            var compression = linkage.Spec.ShockStroke * i / (steps - 1);
 
             for (var it = 0; it < iterations; it++)
             {
@@ -65,7 +65,8 @@ public class KinematicSolver
             "Kinematic solve completed with {JointSolutionCount} joint paths",
             solutions.Count);
 
-        return solutions;
+        return new KinematicSolution(
+            [.. solutions.Select(solution => new JointPath(solution.Key, solution.Value.X, solution.Value.Y))]);
     }
 
     #endregion Public methods
@@ -83,7 +84,7 @@ public class KinematicSolver
         }
     }
 
-    private static void EnforceLength(Link link, double targetLength)
+    private static void EnforceLength(ResolvedLink link, double targetLength)
     {
         Debug.Assert(link.A is not null);
         Debug.Assert(link.B is not null);

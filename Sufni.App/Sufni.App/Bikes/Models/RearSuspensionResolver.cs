@@ -8,7 +8,7 @@ public static class RearSuspensionResolver
     public static RearSuspensionResolution Resolve(
         RearSuspensionKind kind,
         Linkage? linkage,
-        LeverageRatio? leverageRatio)
+        LeverageRatioSpec? leverageRatio)
     {
         var hasLinkage = linkage is not null;
         var hasLeverageRatio = leverageRatio is not null;

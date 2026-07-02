@@ -60,7 +60,7 @@ public abstract record LeverageRatioImportResult
 {
     private LeverageRatioImportResult() { }
 
-    public sealed record Imported(LeverageRatio Value) : LeverageRatioImportResult;
+    public sealed record Imported(LeverageRatioSpec Value) : LeverageRatioImportResult;
     public sealed record Canceled : LeverageRatioImportResult;
     public sealed record Invalid(string[] ErrorMessages) : LeverageRatioImportResult;
     public sealed record Failed(string ErrorMessage) : LeverageRatioImportResult;

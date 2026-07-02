@@ -6,4 +6,4 @@ public abstract record RearSuspension;
 
 public sealed record LinkageRearSuspension(Linkage Linkage) : RearSuspension;
 
-public sealed record LeverageRatioRearSuspension(LeverageRatio LeverageRatio) : RearSuspension;
+public sealed record LeverageRatioRearSuspension(LeverageRatioSpec LeverageRatio) : RearSuspension;

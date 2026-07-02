@@ -1,5 +1,3 @@
-using System.Collections.Frozen;
-
 namespace Sufni.Kinematics;
 
 public class JointNameMapping
@@ -21,8 +19,7 @@ public class BikeCharacteristics
     {
         get
         {
-            leverageRatioData ??= CalculateLeverageRatioData();
-            return leverageRatioData.Value;
+            return CalculateLeverageRatioData();
         }
     }
 
@@ -30,17 +27,16 @@ public class BikeCharacteristics
 
     #region Private fields
 
-    private readonly FrozenDictionary<string, CoordinateList> solution;
+    private readonly KinematicSolution solution;
     private readonly JointNameMapping mapping;
-    private CoordinateList? leverageRatioData;
 
     #endregion Private fields
 
     #region Constructors
 
-    public BikeCharacteristics(Dictionary<string, CoordinateList> solution, JointNameMapping? mapping = null)
+    public BikeCharacteristics(KinematicSolution solution, JointNameMapping? mapping = null)
     {
-        this.solution = solution.ToFrozenDictionary();
+        this.solution = solution;
         this.mapping = mapping ?? new JointNameMapping();
     }
 
@@ -82,9 +78,9 @@ public class BikeCharacteristics
 
     private List<double> CalculateAngles(string centralJoint, string adjacentJoint1, string adjacentJoint2)
     {
-        var sensorJointMotion = solution[centralJoint];
-        var adjacentJoint1Motion = solution[adjacentJoint1];
-        var adjacentJoint2Motion = solution[adjacentJoint2];
+        var sensorJointMotion = GetPath(centralJoint);
+        var adjacentJoint1Motion = GetPath(adjacentJoint1);
+        var adjacentJoint2Motion = GetPath(adjacentJoint2);
         List<double> angles = [];
         for (var i = 0; i < sensorJointMotion.X.Count; ++i)
         {
@@ -99,38 +95,51 @@ public class BikeCharacteristics
 
     private List<double> CalculateRearWheelTravel()
     {
-        var x0 = solution[mapping.RearWheel].X[0];
-        var y0 = solution[mapping.RearWheel].Y[0];
-        return solution[mapping.RearWheel].X
-            .Zip(solution[mapping.RearWheel].Y, (x, y) =>
+        var rearWheel = GetPath(mapping.RearWheel);
+        var x0 = rearWheel.X[0];
+        var y0 = rearWheel.Y[0];
+        return rearWheel.X
+            .Zip(rearWheel.Y, (x, y) =>
                 double.Hypot(x - x0, y - y0))
             .ToList();
     }
 
     private List<double> CalculateShockStroke()
     {
+        var shockEye1 = GetPath(mapping.ShockEye1);
+        var shockEye2 = GetPath(mapping.ShockEye2);
         IEnumerable<double> dx = [];
         IEnumerable<double> dy = [];
 
-        if (solution[mapping.ShockEye1].X.Count > 1 && solution[mapping.ShockEye2].X.Count > 1)
+        if (shockEye1.X.Count > 1 && shockEye2.X.Count > 1)
         {
-            dx = solution[mapping.ShockEye1].X.Zip(solution[mapping.ShockEye2].X, (a, b) => a - b);
-            dy = solution[mapping.ShockEye1].Y.Zip(solution[mapping.ShockEye2].Y, (a, b) => a - b);
+            dx = shockEye1.X.Zip(shockEye2.X, (a, b) => a - b);
+            dy = shockEye1.Y.Zip(shockEye2.Y, (a, b) => a - b);
         }
-        else if (solution[mapping.ShockEye1].X.Count > 1)
+        else if (shockEye1.X.Count > 1)
         {
-            dx = solution[mapping.ShockEye1].X.Select(x => x - solution[mapping.ShockEye2].X[0]);
-            dy = solution[mapping.ShockEye1].Y.Select(y => y - solution[mapping.ShockEye2].Y[0]);
+            dx = shockEye1.X.Select(x => x - shockEye2.X[0]);
+            dy = shockEye1.Y.Select(y => y - shockEye2.Y[0]);
         }
-        else if (solution[mapping.ShockEye2].X.Count > 1)
+        else if (shockEye2.X.Count > 1)
         {
-            dx = solution[mapping.ShockEye2].X.Select(x => x - solution[mapping.ShockEye1].X[0]);
-            dy = solution[mapping.ShockEye2].Y.Select(y => y - solution[mapping.ShockEye1].Y[0]);
+            dx = shockEye2.X.Select(x => x - shockEye1.X[0]);
+            dy = shockEye2.Y.Select(y => y - shockEye1.Y[0]);
         }
 
         var shockLengths = dx.Zip(dy, (a, b) => double.Hypot(a, b)).ToArray();
         var initialShockLength = shockLengths[0];
         return shockLengths.Select(length => initialShockLength - length).ToList();
+    }
+
+    private JointPath GetPath(string jointName)
+    {
+        if (solution.TryGetPath(jointName, out var path))
+        {
+            return path;
+        }
+
+        throw new KeyNotFoundException($"Joint path '{jointName}' was not found in the kinematic solution.");
     }
 
     #endregion Private methods

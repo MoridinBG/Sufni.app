@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using SQLite;
 using Serilog;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.Kinematics;
 
 using Sufni.App.Extensibility.Database;
 using Sufni.App.Bikes.Models;
@@ -34,8 +36,8 @@ internal sealed class DatabaseMigrationRunner(
             await EnsureSessionSummaryMetricColumnsAsync();
             await EnsureSessionGpsOffsetColumnAsync();
             await EnsureBikeDampingSpeedCutoffColumnsAsync();
+            await EnsureBikeRearSuspensionColumnAsync();
             await EnsureSessionCacheDampingSpeedCutoffColumnsAsync();
-            await BackfillRearSuspensionKindAsync();
             await coreMigrations.EnsureTableAsync();
             await connection.ExecuteAsync(SessionBlobSwapRequestStore.CreateTableSql);
             await extensionMigratorRunner.RunAsync(connection);
@@ -151,9 +153,145 @@ internal sealed class DatabaseMigrationRunner(
         }
     }
 
-    private Task<int> BackfillRearSuspensionKindAsync() => connection.ExecuteAsync(
-        "UPDATE bike SET rear_suspension_kind = ? WHERE linkage IS NOT NULL AND (rear_suspension_kind IS NULL OR rear_suspension_kind = ?)",
-        [(int)RearSuspensionKind.Linkage, (int)RearSuspensionKind.None]);
+    private async Task EnsureBikeRearSuspensionColumnAsync()
+    {
+        var columns = await connection.QueryAsync<TableColumnInfo>("PRAGMA table_info(bike)");
+        var columnNames = columns.Select(column => column.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (!columnNames.Contains("rear_suspension"))
+        {
+            await connection.ExecuteAsync(
+                "ALTER TABLE bike ADD COLUMN rear_suspension TEXT NOT NULL DEFAULT '{\"kind\":\"hardtail\"}'");
+            columnNames.Add("rear_suspension");
+        }
+
+        if (!columnNames.Contains("rear_suspension_kind") &&
+            !columnNames.Contains("linkage") &&
+            !columnNames.Contains("leverage_ratio"))
+        {
+            return;
+        }
+
+        var rearSuspensionKindColumn = columnNames.Contains("rear_suspension_kind")
+            ? "rear_suspension_kind"
+            : "NULL AS rear_suspension_kind";
+        var linkageColumn = columnNames.Contains("linkage")
+            ? "linkage"
+            : "NULL AS linkage";
+        var leverageRatioColumn = columnNames.Contains("leverage_ratio")
+            ? "leverage_ratio"
+            : "NULL AS leverage_ratio";
+        var rows = await connection.QueryAsync<LegacyBikeRearSuspensionRow>(
+            $"""
+            SELECT id, {rearSuspensionKindColumn}, {linkageColumn}, {leverageRatioColumn}, shock_stroke
+            FROM bike
+            """);
+
+        foreach (var row in rows)
+        {
+            var rearSuspension = MapLegacyRearSuspension(row, out var reconciledShockStroke);
+            var json = RearSuspensionJsonCodec.Serialize(rearSuspension);
+            if (reconciledShockStroke.HasValue)
+            {
+                await connection.ExecuteAsync(
+                    "UPDATE bike SET rear_suspension = ?, shock_stroke = ? WHERE id = ?",
+                    json,
+                    reconciledShockStroke.Value,
+                    row.Id);
+            }
+            else
+            {
+                await connection.ExecuteAsync(
+                    "UPDATE bike SET rear_suspension = ? WHERE id = ?",
+                    json,
+                    row.Id);
+                }
+        }
+
+        foreach (var legacyColumn in new[] { "rear_suspension_kind", "linkage", "leverage_ratio" })
+        {
+            if (columnNames.Contains(legacyColumn))
+            {
+                await connection.ExecuteAsync($"ALTER TABLE bike DROP COLUMN {legacyColumn}");
+            }
+        }
+    }
+
+    private static RearSuspensionSpec MapLegacyRearSuspension(
+        LegacyBikeRearSuspensionRow row,
+        out double? reconciledShockStroke)
+    {
+        reconciledShockStroke = null;
+        var kind = TryReadRearSuspensionKind(row.RearSuspensionKind);
+        var hasLinkage = TryParseLinkage(row.LinkageJson, out var linkage);
+        var hasLeverageRatio = TryParseLeverageRatio(row.LeverageRatioJson, out var leverageRatio);
+
+        return kind switch
+        {
+            RearSuspensionKind.Linkage => hasLinkage
+                ? Linkage(linkage!, row.ShockStroke, out reconciledShockStroke)
+                : new RearSuspensionSpec.LinkageDraft(),
+
+            RearSuspensionKind.LeverageRatio => hasLeverageRatio
+                ? new RearSuspensionSpec.LeverageRatio(leverageRatio!)
+                : new RearSuspensionSpec.LeverageRatioDraft(),
+
+            _ when hasLinkage =>
+                Linkage(linkage!, row.ShockStroke, out reconciledShockStroke),
+
+            _ when hasLeverageRatio =>
+                new RearSuspensionSpec.LeverageRatio(leverageRatio!),
+
+            _ => new RearSuspensionSpec.Hardtail(),
+        };
+    }
+
+    private static RearSuspensionKind? TryReadRearSuspensionKind(int? value)
+    {
+        return value is null || !Enum.IsDefined(typeof(RearSuspensionKind), value.Value)
+            ? null
+            : (RearSuspensionKind)value.Value;
+    }
+
+    private static RearSuspensionSpec.Linkage Linkage(
+        LinkageSpec linkage,
+        double? shockStroke,
+        out double? reconciledShockStroke)
+    {
+        if (shockStroke.HasValue)
+        {
+            reconciledShockStroke = shockStroke.Value;
+            return new RearSuspensionSpec.Linkage(linkage.WithShockStroke(shockStroke.Value));
+        }
+
+        reconciledShockStroke = linkage.ShockStroke;
+        return new RearSuspensionSpec.Linkage(linkage);
+    }
+
+    private static bool TryParseLinkage(string? json, out LinkageSpec? linkage)
+    {
+        linkage = null;
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return false;
+        }
+
+        try
+        {
+            linkage = LinkageSpec.FromJson(json);
+            return true;
+        }
+        catch (Exception exception) when (exception is JsonException or NotSupportedException or ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private static bool TryParseLeverageRatio(string? json, out LeverageRatioSpec? leverageRatio)
+    {
+        leverageRatio = LeverageRatioSpec.FromJson(json ?? string.Empty);
+        return leverageRatio is not null;
+    }
 
     private async Task<CleanupSummary> Cleanup()
     {
@@ -285,6 +423,24 @@ internal sealed class DatabaseMigrationRunner(
     {
         [Column("name")]
         public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class LegacyBikeRearSuspensionRow
+    {
+        [Column("id")]
+        public Guid Id { get; set; }
+
+        [Column("rear_suspension_kind")]
+        public int? RearSuspensionKind { get; set; }
+
+        [Column("linkage")]
+        public string? LinkageJson { get; set; }
+
+        [Column("leverage_ratio")]
+        public string? LeverageRatioJson { get; set; }
+
+        [Column("shock_stroke")]
+        public double? ShockStroke { get; set; }
     }
 
     private sealed class TrackTimeRow

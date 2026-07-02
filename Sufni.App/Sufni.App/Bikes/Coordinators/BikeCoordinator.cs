@@ -1,4 +1,5 @@
 using Serilog;
+using Sufni.Kinematics;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
@@ -124,38 +125,30 @@ public class BikeCoordinator(
             return new BikeSaveResult.Conflict(current);
         }
 
-        var resolution = RearSuspensionResolver.Resolve(bike.RearSuspensionKind, bike.Linkage, bike.LeverageRatio);
-        if (resolution is RearSuspensionResolution.Invalid invalid)
+        var validation = BikeRearSuspensionValidator.ValidateForSave(BikeSnapshot.From(bike));
+        if (validation is BikeRearSuspensionValidationResult.Invalid invalid)
         {
-            var rearSuspensionError = RearSuspensionResolutionMessages.ForSave(invalid.Error);
+            var rearSuspensionError = RearSuspensionValidationMessages.ForSave(invalid.Failure);
             logger.Warning("Bike save blocked because the rear suspension was invalid for {BikeId}: {ErrorMessage}", bike.Id, rearSuspensionError);
             return new BikeSaveResult.InvalidRearSuspension(rearSuspensionError);
         }
 
+        var validRearSuspension = (BikeRearSuspensionValidationResult.Valid)validation;
         BikeEditorAnalysisResult analysisResult = new BikeEditorAnalysisResult.Unavailable();
-        switch (resolution)
+        switch (validRearSuspension.AnalysisInput)
         {
-            case RearSuspensionResolution.Hardtail:
+            case null:
                 break;
 
-            case RearSuspensionResolution.Linkage linkageResolution:
-                if (bike.ShockStroke is null)
-                {
-                    return new BikeSaveResult.InvalidRearSuspension("Shock stroke is required for linkage bikes.");
-                }
-
-                if (bike.ImageBytes.Length == 0 || bike.Chainstay is null || bike.PixelsToMillimeters <= 0)
-                {
-                    return new BikeSaveResult.InvalidRearSuspension("Linkage bikes require an image, chainstay, and calibrated linkage scale.");
-                }
-
+            case LinkageRearSuspension linkage:
                 logger.Verbose("Analyzing linkage before bike save for {BikeId}", bike.Id);
-                analysisResult = await bikeEditorService.LoadAnalysisAsync(linkageResolution.Value);
+                analysisResult = await bikeEditorService.LoadAnalysisAsync(linkage);
                 switch (analysisResult)
                 {
                     case BikeEditorAnalysisResult.Unavailable:
                         logger.Warning("Bike save blocked because linkage was invalid for {BikeId}", bike.Id);
-                        return new BikeSaveResult.InvalidRearSuspension("Linkage movement could not be calculated. Please check the joints and links.");
+                        return new BikeSaveResult.InvalidRearSuspension(RearSuspensionValidationMessages.ForSave(
+                            new BikeRearSuspensionValidationFailure(BikeRearSuspensionValidationFailureCode.LinkageInvalidOrUnsolvable)));
                     case BikeEditorAnalysisResult.Failed failed:
                         logger.Error(
                             "Bike save failed during linkage analysis for {BikeId}: {ErrorMessage}",
@@ -165,19 +158,9 @@ public class BikeCoordinator(
                 }
                 break;
 
-            case RearSuspensionResolution.LeverageRatio leverageRatioResolution:
-                var leverageRatio = leverageRatioResolution.Value.LeverageRatio;
-                if (!LeverageRatioShockStrokeRules.TryValidate(
-                        bike.ShockStroke,
-                        leverageRatio,
-                        out _,
-                        out var leverageRatioShockStrokeError))
-                {
-                    return new BikeSaveResult.InvalidRearSuspension(leverageRatioShockStrokeError!);
-                }
-
+            case LeverageRatioRearSuspension leverageRatio:
                 logger.Verbose("Analyzing leverage ratio before bike save for {BikeId}", bike.Id);
-                analysisResult = await bikeEditorService.LoadAnalysisAsync(leverageRatioResolution.Value);
+                analysisResult = await bikeEditorService.LoadAnalysisAsync(leverageRatio);
                 if (analysisResult is BikeEditorAnalysisResult.Failed leverageRatioFailed)
                 {
                     logger.Error(
@@ -187,6 +170,12 @@ public class BikeCoordinator(
                     return new BikeSaveResult.Failed(leverageRatioFailed.ErrorMessage);
                 }
                 break;
+
+            default:
+                var rearSuspensionError = RearSuspensionValidationMessages.ForSave(
+                    new BikeRearSuspensionValidationFailure(BikeRearSuspensionValidationFailureCode.InvalidLegacyShape));
+                logger.Warning("Bike save blocked because the rear suspension was invalid for {BikeId}: {ErrorMessage}", bike.Id, rearSuspensionError);
+                return new BikeSaveResult.InvalidRearSuspension(rearSuspensionError);
         }
 
         try
@@ -306,18 +295,23 @@ public class BikeCoordinator(
     {
         var normalizedBike = NormalizeImportedBike(imported);
         BikeEditorAnalysisResult analysis = new BikeEditorAnalysisResult.Unavailable();
-        switch (RearSuspensionResolver.Resolve(normalizedBike.RearSuspensionKind, normalizedBike.Linkage, normalizedBike.LeverageRatio))
+        switch (normalizedBike.RearSuspension)
         {
-            case RearSuspensionResolution.Hardtail:
+            case RearSuspensionSpec.Hardtail:
                 analysis = await bikeEditorService.LoadAnalysisAsync(null, cancellationToken);
                 break;
-            case RearSuspensionResolution.Linkage linkageResolution:
-                analysis = await bikeEditorService.LoadAnalysisAsync(linkageResolution.Value, cancellationToken);
+            case RearSuspensionSpec.Linkage linkage:
+                analysis = await bikeEditorService.LoadAnalysisAsync(
+                    new LinkageRearSuspension(Linkage.FromSpec(linkage.Spec)),
+                    cancellationToken);
                 break;
-            case RearSuspensionResolution.LeverageRatio leverageRatioResolution:
-                analysis = await bikeEditorService.LoadAnalysisAsync(leverageRatioResolution.Value, cancellationToken);
+            case RearSuspensionSpec.LeverageRatio leverageRatio:
+                analysis = await bikeEditorService.LoadAnalysisAsync(
+                    new LeverageRatioRearSuspension(leverageRatio.Spec),
+                    cancellationToken);
                 break;
-            case RearSuspensionResolution.Invalid:
+            case RearSuspensionSpec.LinkageDraft:
+            case RearSuspensionSpec.LeverageRatioDraft:
                 break;
         }
 

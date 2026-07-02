@@ -9,7 +9,7 @@ internal static class LeverageRatioShockStrokeRules
 
     public static bool TryValidate(
         double? shockStroke,
-        LeverageRatio leverageRatio,
+        LeverageRatioSpec leverageRatio,
         out double validatedShockStroke,
         out string? errorMessage)
     {

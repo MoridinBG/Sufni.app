@@ -46,9 +46,9 @@ public static class ProcessingDependencyHash
                 bike.HeadAngle,
                 bike.ForkStroke,
                 bike.ShockStroke,
-                bike.RearSuspensionKind,
-                LinkagePayload.FromLinkage(bike.Linkage),
-                LeverageRatioPayload.FromLeverageRatio(bike.LeverageRatio)));
+                bike.Kind,
+                LinkagePayload.FromRearSuspension(bike.RearSuspension),
+                LeverageRatioPayload.FromRearSuspension(bike.RearSuspension)));
 
         using var stream = new MemoryStream();
         JsonSerializer.Serialize(stream, payload, jsonOptions);
@@ -151,24 +151,24 @@ public static class ProcessingDependencyHash
         IReadOnlyList<JointPayload> Joints,
         IReadOnlyList<LinkPayload> Links)
     {
-        public static LinkagePayload? FromLinkage(Linkage? linkage)
+        public static LinkagePayload? FromRearSuspension(RearSuspensionSpec rearSuspension)
         {
-            if (linkage is null)
+            if (rearSuspension is not RearSuspensionSpec.Linkage linkage)
             {
                 return null;
             }
 
             return new LinkagePayload(
-                linkage.ShockStroke,
-                linkage.Shock.A_Name,
-                linkage.Shock.B_Name,
-                [.. linkage.Joints
+                linkage.Spec.ShockStroke,
+                linkage.Spec.Shock.A,
+                linkage.Spec.Shock.B,
+                [.. linkage.Spec.Joints
                     .OrderBy(joint => joint.Name, StringComparer.Ordinal)
                     .Select(joint => new JointPayload(joint.Name, joint.Type, joint.X, joint.Y))],
-                [.. linkage.Links
-                    .OrderBy(link => link.A_Name, StringComparer.Ordinal)
-                    .ThenBy(link => link.B_Name, StringComparer.Ordinal)
-                    .Select(link => new LinkPayload(link.A_Name, link.B_Name))]);
+                [.. linkage.Spec.Links
+                    .OrderBy(link => link.A, StringComparer.Ordinal)
+                    .ThenBy(link => link.B, StringComparer.Ordinal)
+                    .Select(link => new LinkPayload(link.A, link.B))]);
         }
     }
 
@@ -178,12 +178,13 @@ public static class ProcessingDependencyHash
 
     private sealed record LeverageRatioPayload(IReadOnlyList<LeverageRatioPointPayload> Points)
     {
-        public static LeverageRatioPayload? FromLeverageRatio(LeverageRatio? leverageRatio) => leverageRatio is null
-            ? null
-            : new LeverageRatioPayload(
-                [.. leverageRatio.Points.Select(point => new LeverageRatioPointPayload(
+        public static LeverageRatioPayload? FromRearSuspension(RearSuspensionSpec rearSuspension) =>
+            rearSuspension is RearSuspensionSpec.LeverageRatio leverageRatio
+                ? new LeverageRatioPayload(
+                [.. leverageRatio.Spec.Points.Select(point => new LeverageRatioPointPayload(
                     point.ShockTravelMm,
-                    point.WheelTravelMm))]);
+                    point.WheelTravelMm))])
+                : null;
     }
 
     private sealed record LeverageRatioPointPayload(double ShockTravelMm, double WheelTravelMm);

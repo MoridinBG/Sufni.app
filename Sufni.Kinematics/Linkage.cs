@@ -55,6 +55,17 @@ public class Linkage
         return linkage;
     }
 
+    public static Linkage FromSpec(LinkageSpec spec)
+    {
+        ArgumentNullException.ThrowIfNull(spec);
+
+        return CreateResolved(
+            spec.Joints.Select(joint => new Joint(joint.X, joint.Y) { Name = joint.Name, Type = joint.Type }),
+            spec.Links.Select(link => new Link(link.A, link.B)),
+            new Link(spec.Shock.A, spec.Shock.B),
+            spec.ShockStroke);
+    }
+
     #endregion Initializers
 
     #region Public methods
@@ -65,6 +76,12 @@ public class Linkage
     }
 
     public Linkage CloneResolved() => FromJson(ToJson());
+
+    public LinkageSpec ToSpec() => new(
+        [.. Joints.Select(joint => new JointSpec(joint.Name!, joint.Type, joint.X, joint.Y))],
+        [.. Links.Select(link => new LinkSpec(link.A_Name!, link.B_Name!))],
+        new LinkSpec(Shock.A_Name!, Shock.B_Name!),
+        ShockStroke);
 
     public void ResolveJoints()
     {

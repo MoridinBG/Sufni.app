@@ -105,7 +105,7 @@ public static class LeverageRatioCsvParser
             return new LeverageRatioParseResult.Invalid(errors);
         }
 
-        return new LeverageRatioParseResult.Parsed(LeverageRatio.FromPoints(points));
+        return new LeverageRatioParseResult.Parsed(LeverageRatioSpec.FromPoints(points));
     }
 
     private static List<(int LineNumber, string Line)> ReadNonEmptyLines(string csvText)
@@ -155,7 +155,7 @@ public abstract record LeverageRatioParseResult
 {
     private LeverageRatioParseResult() { }
 
-    public sealed record Parsed(LeverageRatio Value) : LeverageRatioParseResult;
+    public sealed record Parsed(LeverageRatioSpec Value) : LeverageRatioParseResult;
 
     public sealed record Invalid(IReadOnlyList<LeverageRatioParseError> Errors) : LeverageRatioParseResult;
 }

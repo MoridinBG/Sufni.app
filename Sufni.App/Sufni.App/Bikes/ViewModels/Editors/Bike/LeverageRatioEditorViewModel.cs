@@ -10,7 +10,7 @@ namespace Sufni.App.Bikes.ViewModels.Editors.Bike;
 
 public sealed partial class LeverageRatioEditorViewModel : ObservableObject
 {
-    [ObservableProperty] public partial LeverageRatio? Value { get; set; }
+    [ObservableProperty] public partial LeverageRatioSpec? Value { get; set; }
     [ObservableProperty] public partial ObservableCollection<LeverageRatioPoint> PointsView { get; set; } = [];
     [ObservableProperty] public partial string[] ValidationErrors { get; set; } = [];
     [ObservableProperty] public partial CoordinateList? LeverageRatioPlotData { get; set; }
@@ -29,7 +29,7 @@ public sealed partial class LeverageRatioEditorViewModel : ObservableObject
         CanEdit = canEdit;
     }
 
-    partial void OnValueChanged(LeverageRatio? value)
+    partial void OnValueChanged(LeverageRatioSpec? value)
     {
         PointsView = value is null
             ? []
@@ -55,9 +55,9 @@ public sealed partial class LeverageRatioEditorViewModel : ObservableObject
         ClearCommand.NotifyCanExecuteChanged();
     }
 
-    public LeverageRatio? BuildCurrent() => Value;
+    public LeverageRatioSpec? BuildCurrent() => Value;
 
-    public void ReplaceState(LeverageRatio? initial)
+    public void ReplaceState(LeverageRatioSpec? initial)
     {
         ValidationErrors = [];
         Value = initial;

@@ -24,9 +24,6 @@ public class Bike : Synchronizable
 
     private double? chainstay;
     private byte[] imageBytes = [];
-    private double? shockStroke;
-    private Linkage? linkage;
-    private LeverageRatio? leverageRatio;
 
     [JsonPropertyName("name")]
     [Column("name")]
@@ -42,22 +39,11 @@ public class Bike : Synchronizable
 
     [JsonPropertyName("shock_stroke")]
     [Column("shock_stroke")]
-    public double? ShockStroke
-    {
-        get => shockStroke;
-        set
-        {
-            shockStroke = value;
-            if (value is not null && linkage is not null)
-            {
-                linkage.ShockStroke = value.Value;
-            }
-        }
-    }
+    public double? ShockStroke { get; set; }
 
-    [JsonPropertyName("rear_suspension_kind")]
-    [Column("rear_suspension_kind")]
-    public RearSuspensionKind RearSuspensionKind { get; set; }
+    [JsonPropertyName("rear_suspension")]
+    [Ignore]
+    public RearSuspensionSpec RearSuspension { get; set; } = new RearSuspensionSpec.Hardtail();
 
     [JsonPropertyName("front_compression_damping_cutoff_mm_per_second")]
     [Column("front_compression_damping_cutoff_mm_per_second")]
@@ -94,67 +80,12 @@ public class Bike : Synchronizable
         }
     }
 
-    [JsonPropertyName("linkage")]
-    [Ignore]
-    public Linkage? Linkage
-    {
-        get => linkage;
-        set
-        {
-            linkage = value;
-            linkage?.ResolveJoints();
-
-            if (value is not null && RearSuspensionKind == RearSuspensionKind.None && leverageRatio is null)
-            {
-                RearSuspensionKind = RearSuspensionKind.Linkage;
-            }
-
-            if (linkage is null) return;
-
-            if (shockStroke.HasValue)
-            {
-                linkage.ShockStroke = shockStroke.Value;
-            }
-            else
-            {
-                shockStroke = linkage.ShockStroke;
-            }
-        }
-    }
-
-    [JsonPropertyName("leverage_ratio")]
-    [Ignore]
-    public LeverageRatio? LeverageRatio
-    {
-        get => leverageRatio;
-        set
-        {
-            leverageRatio = value;
-            if (value is not null && RearSuspensionKind == RearSuspensionKind.None && linkage is null)
-            {
-                RearSuspensionKind = RearSuspensionKind.LeverageRatio;
-            }
-        }
-    }
-
     [JsonIgnore]
-    [Column("linkage")]
-    public string? LinkageJson
+    [Column("rear_suspension")]
+    public string RearSuspensionJson
     {
-        get => Linkage?.ToJson();
-        set
-        {
-            if (value is null) return;
-            Linkage = Linkage.FromJson(value, false); // Linkage's setter will resolve joints.
-        }
-    }
-
-    [JsonIgnore]
-    [Column("leverage_ratio")]
-    public string? LeverageRatioJson
-    {
-        get => leverageRatio?.ToJson();
-        set => LeverageRatio = value is null ? null : LeverageRatio.FromJson(value);
+        get => RearSuspensionJsonCodec.Serialize(RearSuspension);
+        set => RearSuspension = RearSuspensionJsonCodec.Deserialize(value);
     }
 
     [JsonPropertyName("pixels_to_millimeters")]
@@ -233,7 +164,7 @@ public class Bike : Synchronizable
         HeadAngle = snapshot.HeadAngle,
         ForkStroke = snapshot.ForkStroke,
         ShockStroke = snapshot.ShockStroke,
-        RearSuspensionKind = snapshot.RearSuspensionKind,
+        RearSuspension = snapshot.RearSuspension,
         FrontCompressionDampingCutoffMmPerSecond = snapshot.FrontCompressionDampingCutoffMmPerSecond,
         FrontReboundDampingCutoffMmPerSecond = snapshot.FrontReboundDampingCutoffMmPerSecond,
         RearCompressionDampingCutoffMmPerSecond = snapshot.RearCompressionDampingCutoffMmPerSecond,
@@ -247,8 +178,6 @@ public class Bike : Synchronizable
         RearWheelRimSize = snapshot.RearWheelRimSize,
         RearWheelTireWidth = snapshot.RearWheelTireWidth,
         ImageRotationDegrees = snapshot.ImageRotationDegrees,
-        LeverageRatio = snapshot.LeverageRatio,
-        Linkage = snapshot.Linkage,
         ImageBytes = snapshot.ImageBytes,
         Updated = snapshot.Updated,
     };
@@ -257,9 +186,7 @@ public class Bike : Synchronizable
     {
         try
         {
-            var bike = AppJson.Deserialize<Bike>(json);
-            bike?.Linkage?.ResolveJoints();
-            return bike;
+            return AppJson.Deserialize<Bike>(json);
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException or LeverageRatioValidationException)
         {
@@ -270,13 +197,43 @@ public class Bike : Synchronizable
 
     private double? CalculateChainstay()
     {
-        var bottomBracket = Linkage?.Joints.FirstOrDefault(j => j.Type == JointType.BottomBracket);
-        var rearWheel = Linkage?.Joints.FirstOrDefault(j => j.Type == JointType.RearWheel);
+        if (RearSuspension is not RearSuspensionSpec.Linkage linkage)
+        {
+            return null;
+        }
+
+        var bottomBracket = linkage.Spec.Joints.FirstOrDefault(j => j.Type == JointType.BottomBracket);
+        var rearWheel = linkage.Spec.Joints.FirstOrDefault(j => j.Type == JointType.RearWheel);
         if (bottomBracket is null || rearWheel is null) return null;
 
         var dx = rearWheel.X - bottomBracket.X;
         var dy = rearWheel.Y - bottomBracket.Y;
         return double.Hypot(dx, dy);
+    }
+
+    public Bike WithRearSuspension(RearSuspensionSpec rearSuspension)
+    {
+        ArgumentNullException.ThrowIfNull(rearSuspension);
+
+        var snapshot = BikeSnapshot.From(this) with
+        {
+            RearSuspension = rearSuspension,
+        };
+        return FromSnapshot(snapshot);
+    }
+
+    public Bike WithShockStroke(double? shockStroke)
+    {
+        var rearSuspension = RearSuspension is RearSuspensionSpec.Linkage linkage && shockStroke.HasValue
+            ? new RearSuspensionSpec.Linkage(linkage.Spec.WithShockStroke(shockStroke.Value))
+            : RearSuspension;
+
+        var snapshot = BikeSnapshot.From(this) with
+        {
+            ShockStroke = shockStroke,
+            RearSuspension = rearSuspension,
+        };
+        return FromSnapshot(snapshot);
     }
 }
 
@@ -285,8 +242,8 @@ internal sealed class BikeExportModel
     [JsonPropertyName("name")]
     public string Name { get; init; } = null!;
 
-    [JsonPropertyName("rear_suspension_kind")]
-    public RearSuspensionKind RearSuspensionKind { get; init; }
+    [JsonPropertyName("rear_suspension")]
+    public RearSuspensionSpec RearSuspension { get; init; } = new RearSuspensionSpec.Hardtail();
 
     [JsonPropertyName("head_angle")]
     public double HeadAngle { get; init; }
@@ -308,12 +265,6 @@ internal sealed class BikeExportModel
 
     [JsonPropertyName("rear_rebound_damping_cutoff_mm_per_second")]
     public double RearReboundDampingCutoffMmPerSecond { get; init; } = DampingSpeedCutoffs.DefaultMmPerSecond;
-
-    [JsonPropertyName("linkage")]
-    public Linkage? Linkage { get; init; }
-
-    [JsonPropertyName("leverage_ratio")]
-    public LeverageRatio? LeverageRatio { get; init; }
 
     [JsonPropertyName("pixels_to_millimeters")]
     public double PixelsToMillimeters { get; init; }
@@ -347,7 +298,7 @@ internal sealed class BikeExportModel
         return new BikeExportModel
         {
             Name = bike.Name,
-            RearSuspensionKind = bike.RearSuspensionKind,
+            RearSuspension = bike.RearSuspension,
             HeadAngle = bike.HeadAngle,
             ForkStroke = bike.ForkStroke,
             ShockStroke = bike.ShockStroke,
@@ -355,8 +306,6 @@ internal sealed class BikeExportModel
             FrontReboundDampingCutoffMmPerSecond = bike.FrontReboundDampingCutoffMmPerSecond,
             RearCompressionDampingCutoffMmPerSecond = bike.RearCompressionDampingCutoffMmPerSecond,
             RearReboundDampingCutoffMmPerSecond = bike.RearReboundDampingCutoffMmPerSecond,
-            Linkage = bike.Linkage,
-            LeverageRatio = bike.LeverageRatio,
             PixelsToMillimeters = bike.PixelsToMillimeters,
             FrontWheelDiameterMm = bike.FrontWheelDiameterMm,
             RearWheelDiameterMm = bike.RearWheelDiameterMm,
@@ -373,7 +322,7 @@ internal sealed class BikeExportModel
     {
         var bike = new Bike(Guid.NewGuid(), Name)
         {
-            RearSuspensionKind = RearSuspensionKind,
+            RearSuspension = RearSuspension,
             HeadAngle = HeadAngle,
             ForkStroke = ForkStroke,
             ShockStroke = ShockStroke,
@@ -381,8 +330,6 @@ internal sealed class BikeExportModel
             FrontReboundDampingCutoffMmPerSecond = FrontReboundDampingCutoffMmPerSecond,
             RearCompressionDampingCutoffMmPerSecond = RearCompressionDampingCutoffMmPerSecond,
             RearReboundDampingCutoffMmPerSecond = RearReboundDampingCutoffMmPerSecond,
-            Linkage = Linkage,
-            LeverageRatio = LeverageRatio,
             PixelsToMillimeters = PixelsToMillimeters,
             FrontWheelDiameterMm = FrontWheelDiameterMm,
             RearWheelDiameterMm = RearWheelDiameterMm,
@@ -393,7 +340,6 @@ internal sealed class BikeExportModel
             ImageRotationDegrees = ImageRotationDegrees,
             ImageBytes = ImageBytes
         };
-        bike.Linkage?.ResolveJoints();
         return bike;
     }
 }
