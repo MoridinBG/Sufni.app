@@ -21,18 +21,16 @@ internal static class RearTravelCalibrationBuilder
         calibration = null;
         errorMessage = null;
 
-        RearSuspension rearSuspension;
+        var rearSuspension = bike.RearSuspension;
         LinkageSpec? linkageSpec = null;
-        switch (bike.RearSuspension)
+        switch (rearSuspension)
         {
             case RearSuspensionSpec.Hardtail:
                 return true;
             case RearSuspensionSpec.Linkage linkage:
                 linkageSpec = linkage.Spec;
-                rearSuspension = new LinkageRearSuspension(Linkage.FromSpec(linkage.Spec));
                 break;
-            case RearSuspensionSpec.LeverageRatio leverageRatio:
-                rearSuspension = new LeverageRatioRearSuspension(leverageRatio.Spec);
+            case RearSuspensionSpec.LeverageRatio:
                 break;
             case RearSuspensionSpec.LinkageDraft:
             case RearSuspensionSpec.LeverageRatioDraft:
@@ -60,10 +58,10 @@ internal static class RearTravelCalibrationBuilder
         {
             calibration = payload switch
             {
-                LinearShockSensorConfiguration linearShock when IsCompatibleLinearShock(linearShock.Type, bike.RearSuspension.Kind) =>
-                    BuildLinearCalibration(linearShock, bike, rearSuspension),
+                LinearShockSensorConfiguration linearShock when IsCompatibleLinearShock(linearShock.Type, rearSuspension) =>
+                    BuildLinearCalibration(linearShock, bike.ShockStroke, rearSuspension),
                 RotationalShockSensorConfiguration rotationalShock when linkageSpec is not null =>
-                    BuildRotationalCalibration(rotationalShock, linkageSpec, rearSuspension),
+                    BuildRotationalCalibration(rotationalShock, linkageSpec),
                 _ => null
             };
 
@@ -82,31 +80,32 @@ internal static class RearTravelCalibrationBuilder
         }
     }
 
-    private static bool IsCompatibleLinearShock(SensorType type, RearSuspensionKind rearSuspensionKind) =>
-        (type, rearSuspensionKind) switch
+    private static bool IsCompatibleLinearShock(SensorType type, RearSuspensionSpec rearSuspension) =>
+        (type, rearSuspension) switch
         {
-            (SensorType.LinearShock, RearSuspensionKind.Linkage) => true,
-            (SensorType.LinearShockStroke, RearSuspensionKind.LeverageRatio) => true,
+            (SensorType.LinearShock, RearSuspensionSpec.Linkage) => true,
+            (SensorType.LinearShockStroke, RearSuspensionSpec.LeverageRatio) => true,
             _ => false,
         };
 
     private static RearTravelCalibration BuildLinearCalibration(
         LinearShockSensorConfiguration configuration,
-        Bike bike,
-        RearSuspension rearSuspension)
+        double? shockStroke,
+        RearSuspensionSpec rearSuspension)
     {
         var measurementToStroke = LinearSensorCalibrationMath.MeasurementToStroke(configuration.Length, configuration.Resolution);
         var maxShockStroke = rearSuspension switch
         {
-            LeverageRatioRearSuspension leverageRatioRearSuspension =>
+            RearSuspensionSpec.LeverageRatio leverageRatio =>
                 LeverageRatioShockStrokeRules.TryValidate(
-                    bike.ShockStroke,
-                    leverageRatioRearSuspension.LeverageRatio,
+                    shockStroke,
+                    leverageRatio.Spec,
                     out var validatedShockStroke,
                     out var errorMessage)
                     ? validatedShockStroke
                     : throw new InvalidOperationException(errorMessage),
-            _ => bike.ShockStroke ?? configuration.Length,
+            RearSuspensionSpec.Linkage => shockStroke ?? configuration.Length,
+            _ => throw new ArgumentOutOfRangeException(nameof(rearSuspension)),
         };
 
         return BuildTravelCalibration(rearSuspension, maxShockStroke, measurement => measurement * measurementToStroke, measurementWraps: false);
@@ -114,8 +113,7 @@ internal static class RearTravelCalibrationBuilder
 
     private static RearTravelCalibration BuildRotationalCalibration(
         RotationalShockSensorConfiguration configuration,
-        LinkageSpec linkage,
-        RearSuspension rearSuspension)
+        LinkageSpec linkage)
     {
         var central = linkage.Joints.FirstOrDefault(joint => joint.Name == configuration.CentralJoint);
         var adjacent1 = linkage.Joints.FirstOrDefault(joint => joint.Name == configuration.AdjacentJoint1);
@@ -138,8 +136,8 @@ internal static class RearTravelCalibrationBuilder
         var anglesIncreasing = dataset.X[^1] > dataset.X[0];
         var polynomial = Polynomial.Fit([.. dataset.X], [.. dataset.Y], 3);
 
-        return BuildTravelCalibration(
-            rearSuspension,
+        return BuildLinkageTravelCalibration(
+            linkage,
             dataset.Y[^1],
             measurement =>
             {
@@ -155,29 +153,29 @@ internal static class RearTravelCalibrationBuilder
     }
 
     private static RearTravelCalibration BuildTravelCalibration(
-        RearSuspension rearSuspension,
+        RearSuspensionSpec rearSuspension,
         double maxShockStroke,
         Func<ushort, double> measurementToShockStroke,
         bool measurementWraps)
     {
         return rearSuspension switch
         {
-            LinkageRearSuspension linkageRearSuspension => BuildLinkageTravelCalibration(linkageRearSuspension.Linkage, maxShockStroke, measurementToShockStroke, measurementWraps),
-            LeverageRatioRearSuspension leverageRatioRearSuspension => new RearTravelCalibration(
-                leverageRatioRearSuspension.LeverageRatio.WheelTravelAt(maxShockStroke),
-                measurement => leverageRatioRearSuspension.LeverageRatio.WheelTravelAt(Math.Min(maxShockStroke, measurementToShockStroke(measurement))),
+            RearSuspensionSpec.Linkage linkage => BuildLinkageTravelCalibration(linkage.Spec, maxShockStroke, measurementToShockStroke, measurementWraps),
+            RearSuspensionSpec.LeverageRatio leverageRatio => new RearTravelCalibration(
+                leverageRatio.Spec.WheelTravelAt(maxShockStroke),
+                measurement => leverageRatio.Spec.WheelTravelAt(Math.Min(maxShockStroke, measurementToShockStroke(measurement))),
                 measurementWraps),
             _ => throw new ArgumentOutOfRangeException(nameof(rearSuspension)),
         };
     }
 
     private static RearTravelCalibration BuildLinkageTravelCalibration(
-        Linkage linkage,
+        LinkageSpec linkage,
         double maxShockStroke,
         Func<ushort, double> measurementToShockStroke,
         bool measurementWraps)
     {
-        var solution = new KinematicSolver(linkage.ToSpec()).SolveSuspensionMotion();
+        var solution = new KinematicSolver(linkage).SolveSuspensionMotion();
         var dataset = new BikeCharacteristics(solution).ShockStrokeToWheelTravelDataset();
         return new RearTravelCalibration(
             dataset.Y[^1],
