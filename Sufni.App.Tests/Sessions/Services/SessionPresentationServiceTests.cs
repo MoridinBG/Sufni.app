@@ -105,8 +105,8 @@ public class SessionPresentationServiceTests
         var telemetry = new TelemetryData
         {
             Metadata = new Metadata { SampleRate = 1000, Duration = 0.004 },
-            Front = CreateDamperSuspension([150, 250, -150, -250]),
-            Rear = CreateDamperSuspension([350, 450, -350, -450]),
+            Front = CreateSuspensionWithVelocity([150, 250, -150, -250]),
+            Rear = CreateSuspensionWithVelocity([350, 450, -350, -450]),
             Airtimes = [],
             Markers = [],
         };
@@ -232,7 +232,7 @@ public class SessionPresentationServiceTests
         return telemetry;
     }
 
-    private static Suspension CreateDamperSuspension(double[] velocity)
+    private static Suspension CreateSuspensionWithVelocity(double[] velocity)
     {
         return new Suspension
         {
