@@ -9,6 +9,7 @@ xmlns:controls="clr-namespace:Sufni.App.Shared.Views.Overlays"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:plots="clr-namespace:Sufni.App.Sessions.Plots.Views.Plots"
+xmlns:zoom="clr-namespace:Sufni.App.ExtensionHost.Runtime.Presentation;assembly=Sufni.App.ExtensionHost"
 d:DesignHeight="450"
 d:DesignWidth="800"
 mc:Ignorable="d">
@@ -16,19 +17,21 @@ mc:Ignorable="d">
     <controls:PlaceholderOverlayContainer PresentationState="{Binding #Root.PresentationState}">
         <controls:PlaceholderOverlayContainer.ReadyContent>
             <Grid>
-                <plots:AnalysisPlotView
-                Name="{Binding #Root.PlotName}"
-                AnalysisRange="{Binding #Root.AnalysisRange}"
-                BalanceDisplacementMode="{Binding #Root.BalanceDisplacementMode}"
-                BalanceSpeedMode="{Binding #Root.BalanceSpeedMode}"
-                BalanceType="{Binding #Root.BalanceType}"
-                DampingSpeedCutoffs="{Binding #Root.PlotDampingSpeedCutoffs}"
-                ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                <zoom:PlotZoomContainer
                 Height="{Binding #Root.PlotHeight}"
-                HeaderContent="{Binding #Root.HeaderContent}"
-                IsVisible="{Binding #Root.HasAnalysisData}"
-                AnalysisPlotKind="Balance"
-                Telemetry="{Binding #Root.Telemetry}" />
+                IsVisible="{Binding #Root.HasAnalysisData}">
+                    <plots:AnalysisPlotView
+                    Name="{Binding #Root.PlotName}"
+                    AnalysisRange="{Binding #Root.AnalysisRange}"
+                    BalanceDisplacementMode="{Binding #Root.BalanceDisplacementMode}"
+                    BalanceSpeedMode="{Binding #Root.BalanceSpeedMode}"
+                    BalanceType="{Binding #Root.BalanceType}"
+                    DampingSpeedCutoffs="{Binding #Root.PlotDampingSpeedCutoffs}"
+                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                    HeaderContent="{Binding #Root.HeaderContent}"
+                    AnalysisPlotKind="Balance"
+                    Telemetry="{Binding #Root.Telemetry}" />
+                </zoom:PlotZoomContainer>
 
                 <Svg
                 Name="{Binding #Root.StaticSourceName}"
