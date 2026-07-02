@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using Sufni.Kinematics;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Tests.TestSupport.Fixtures;
@@ -6,6 +7,37 @@ namespace Sufni.App.Tests.Bikes.Models;
 
 public class BikeSerializationTests
 {
+    [Fact]
+    public void BikeToJson_RoundTripsHardtailBike()
+    {
+        var bike = new Bike(Guid.NewGuid(), "hardtail bike")
+        {
+            HeadAngle = 65,
+            ForkStroke = 160,
+            RearSuspension = new RearSuspensionSpec.Hardtail(),
+            FrontWheelRimSize = EtrtoRimSize.Inch29,
+            FrontWheelTireWidth = 2.4,
+            FrontWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
+            ImageRotationDegrees = 4,
+        };
+
+        var json = bike.ToJson();
+        var root = JsonNode.Parse(json)!.AsObject();
+
+        Assert.Equal(2, root["schema_version"]!.GetValue<int>());
+        Assert.False(root.ContainsKey("front_wheel_diameter"));
+        Assert.Equal(bike.FrontWheelDiameterMm, root["front_wheel"]!["diameter_mm"]!.GetValue<double>());
+
+        var imported = Bike.FromJson(json);
+
+        Assert.NotNull(imported);
+        Assert.IsType<RearSuspensionSpec.Hardtail>(imported!.RearSuspension);
+        Assert.Equal(bike.FrontWheelDiameterMm, imported.FrontWheelDiameterMm);
+        Assert.Equal(EtrtoRimSize.Inch29, imported.FrontWheelRimSize);
+        Assert.Equal(2.4, imported.FrontWheelTireWidth);
+        Assert.Equal(4, imported.ImageRotationDegrees);
+    }
+
     [Fact]
     public void BikeToJson_RoundTripsLinkageBike()
     {
@@ -46,7 +78,12 @@ public class BikeSerializationTests
             RearReboundDampingCutoffMmPerSecond = 240,
         };
 
-        var imported = Bike.FromJson(bike.ToJson());
+        var json = bike.ToJson();
+        var root = JsonNode.Parse(json)!.AsObject();
+
+        Assert.Equal(2, root["schema_version"]!.GetValue<int>());
+
+        var imported = Bike.FromJson(json);
 
         Assert.NotNull(imported);
         var importedLeverageRatio = Assert.IsType<RearSuspensionSpec.LeverageRatio>(imported!.RearSuspension);
