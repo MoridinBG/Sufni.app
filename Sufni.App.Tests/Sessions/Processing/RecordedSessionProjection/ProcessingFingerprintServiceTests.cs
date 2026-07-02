@@ -1,6 +1,11 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Sufni.Kinematics;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
+using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
@@ -13,6 +18,9 @@ namespace Sufni.App.Tests.Sessions.Processing.RecordedSessionProjection;
 
 public class ProcessingFingerprintServiceTests
 {
+    private static readonly Guid DependencyHashSetupId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    private static readonly Guid DependencyHashBikeId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+
     private readonly ProcessingFingerprintService service = new();
 
     [Fact]
@@ -330,6 +338,74 @@ public class ProcessingFingerprintServiceTests
         Assert.NotEqual(original, changed);
     }
 
+    [Fact]
+    public void ProcessingDependencyHash_PreservesRearSuspensionPayloadShape()
+    {
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec();
+        var leverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (10, 25));
+        var cases = new[]
+        {
+            HashCase(
+                "hardtail",
+                new RearSuspensionSpec.Hardtail(),
+                shockStroke: null,
+                rearSuspensionKind: "none",
+                linkagePayload: null,
+                leverageRatioPayload: null),
+            HashCase(
+                "linkage draft",
+                new RearSuspensionSpec.LinkageDraft(),
+                shockStroke: null,
+                rearSuspensionKind: "linkage",
+                linkagePayload: null,
+                leverageRatioPayload: null),
+            HashCase(
+                "leverage-ratio draft",
+                new RearSuspensionSpec.LeverageRatioDraft(),
+                shockStroke: null,
+                rearSuspensionKind: "leverage_ratio",
+                linkagePayload: null,
+                leverageRatioPayload: null),
+            HashCase(
+                "linkage",
+                new RearSuspensionSpec.Linkage(linkage.WithShockStroke(0.6)),
+                shockStroke: 0.6,
+                rearSuspensionKind: "linkage",
+                linkagePayload: linkage.WithShockStroke(0.6),
+                leverageRatioPayload: null),
+            HashCase(
+                "leverage ratio",
+                new RearSuspensionSpec.LeverageRatio(leverageRatio),
+                shockStroke: 10,
+                rearSuspensionKind: "leverage_ratio",
+                linkagePayload: null,
+                leverageRatioPayload: leverageRatio),
+            HashCase(
+                "legacy linkage null shock stroke",
+                new RearSuspensionSpec.Linkage(linkage),
+                shockStroke: linkage.ShockStroke,
+                rearSuspensionKind: "linkage",
+                linkagePayload: linkage,
+                leverageRatioPayload: null),
+            HashCase(
+                "legacy linkage divergent shock stroke",
+                new RearSuspensionSpec.Linkage(linkage.WithShockStroke(0.75)),
+                shockStroke: 0.75,
+                rearSuspensionKind: "linkage",
+                linkagePayload: linkage.WithShockStroke(0.75),
+                leverageRatioPayload: null),
+        };
+
+        foreach (var testCase in cases)
+        {
+            var setup = DependencyHashSetup();
+            var bike = DependencyHashBike(testCase.RearSuspension, testCase.ShockStroke);
+
+            Assert.Equal(Hash(testCase.CurrentPayload), ProcessingDependencyHash.Compute(setup, bike));
+            Assert.Equal(Hash(testCase.LegacyPayload), ProcessingDependencyHash.ComputeLegacySnakeCaseJson(setup, bike));
+        }
+    }
+
     private static TestContext CreateContext()
     {
         var bike = TestSnapshots.Bike(id: Guid.NewGuid());
@@ -348,6 +424,106 @@ public class ProcessingFingerprintServiceTests
         var source = CreateSource(session.Id);
         return new TestContext(session, setup, bike, source);
     }
+
+    private static SetupSnapshot DependencyHashSetup() =>
+        TestSnapshots.Setup(id: DependencyHashSetupId, bikeId: DependencyHashBikeId);
+
+    private static BikeSnapshot DependencyHashBike(RearSuspensionSpec rearSuspension, double? shockStroke) =>
+        TestSnapshots.Bike(id: DependencyHashBikeId) with
+        {
+            HeadAngle = 65,
+            ForkStroke = 160,
+            ShockStroke = shockStroke,
+            RearSuspension = rearSuspension
+        };
+
+    private static DependencyHashCase HashCase(
+        string name,
+        RearSuspensionSpec rearSuspension,
+        double? shockStroke,
+        string rearSuspensionKind,
+        LinkageSpec? linkagePayload,
+        LeverageRatioSpec? leverageRatioPayload)
+    {
+        var currentLinkage = linkagePayload is null ? "null" : CurrentLinkagePayload(linkagePayload);
+        var legacyLinkage = linkagePayload is null ? "null" : LegacyLinkagePayload(linkagePayload);
+        var currentLeverageRatio = leverageRatioPayload is null ? "null" : CurrentLeverageRatioPayload(leverageRatioPayload);
+        var legacyLeverageRatio = leverageRatioPayload is null ? "null" : LegacyLeverageRatioPayload(leverageRatioPayload);
+
+        return new DependencyHashCase(
+            name,
+            rearSuspension,
+            shockStroke,
+            $$$"""{"Setup":{"Id":"{{{DependencyHashSetupId}}}","BikeId":"{{{DependencyHashBikeId}}}","FrontSensorConfiguration":null,"RearSensorConfiguration":null},"Bike":{"Id":"{{{DependencyHashBikeId}}}","HeadAngle":65,"ForkStroke":160,"ShockStroke":{{{JsonNumber(shockStroke)}}},"RearSuspensionKind":"{{{rearSuspensionKind}}}","Linkage":{{{currentLinkage}}},"LeverageRatio":{{{currentLeverageRatio}}}}}""",
+            $$$"""{"setup":{"id":"{{{DependencyHashSetupId}}}","bike_id":"{{{DependencyHashBikeId}}}","front_sensor_configuration":null,"rear_sensor_configuration":null},"bike":{"id":"{{{DependencyHashBikeId}}}","head_angle":65,"fork_stroke":160,"shock_stroke":{{{JsonNumber(shockStroke)}}},"rear_suspension_kind":"{{{rearSuspensionKind}}}","linkage":{{{legacyLinkage}}},"leverage_ratio":{{{legacyLeverageRatio}}}}}""");
+    }
+
+    private static string CurrentLinkagePayload(LinkageSpec linkage)
+    {
+        var joints = string.Join(
+            ",",
+            linkage.Joints
+                .OrderBy(joint => joint.Name, StringComparer.Ordinal)
+                .Select(joint => $$"""{"Name":{{JsonString(joint.Name)}},"Type":{{JsonValue(joint.Type)}},"X":{{JsonNumber(joint.X)}},"Y":{{JsonNumber(joint.Y)}}}"""));
+        var links = string.Join(
+            ",",
+            linkage.Links
+                .OrderBy(link => link.A, StringComparer.Ordinal)
+                .ThenBy(link => link.B, StringComparer.Ordinal)
+                .Select(link => $$"""{"AName":{{JsonString(link.A)}},"BName":{{JsonString(link.B)}}}"""));
+
+        return $$"""{"ShockStroke":{{JsonNumber(linkage.ShockStroke)}},"ShockAName":{{JsonString(linkage.Shock.A)}},"ShockBName":{{JsonString(linkage.Shock.B)}},"Joints":[{{joints}}],"Links":[{{links}}]}""";
+    }
+
+    private static string LegacyLinkagePayload(LinkageSpec linkage)
+    {
+        var joints = string.Join(
+            ",",
+            linkage.Joints
+                .OrderBy(joint => joint.Name, StringComparer.Ordinal)
+                .Select(joint => $$"""{"name":{{JsonString(joint.Name)}},"type":{{JsonValue(joint.Type)}},"x":{{JsonNumber(joint.X)}},"y":{{JsonNumber(joint.Y)}}}"""));
+        var links = string.Join(
+            ",",
+            linkage.Links
+                .OrderBy(link => link.A, StringComparer.Ordinal)
+                .ThenBy(link => link.B, StringComparer.Ordinal)
+                .Select(link => $$"""{"a_name":{{JsonString(link.A)}},"b_name":{{JsonString(link.B)}}}"""));
+
+        return $$"""{"shock_stroke":{{JsonNumber(linkage.ShockStroke)}},"shock_a_name":{{JsonString(linkage.Shock.A)}},"shock_b_name":{{JsonString(linkage.Shock.B)}},"joints":[{{joints}}],"links":[{{links}}]}""";
+    }
+
+    private static string CurrentLeverageRatioPayload(LeverageRatioSpec leverageRatio)
+    {
+        var points = string.Join(
+            ",",
+            leverageRatio.Points.Select(point =>
+                $$"""{"ShockTravelMm":{{JsonNumber(point.ShockTravelMm)}},"WheelTravelMm":{{JsonNumber(point.WheelTravelMm)}}}"""));
+        return $$"""{"Points":[{{points}}]}""";
+    }
+
+    private static string LegacyLeverageRatioPayload(LeverageRatioSpec leverageRatio)
+    {
+        var points = string.Join(
+            ",",
+            leverageRatio.Points.Select(point =>
+                $$"""{"shock_travel_mm":{{JsonNumber(point.ShockTravelMm)}},"wheel_travel_mm":{{JsonNumber(point.WheelTravelMm)}}}"""));
+        return $$"""{"points":[{{points}}]}""";
+    }
+
+    private static string JsonString(string value) => JsonSerializer.Serialize(value);
+
+    private static string JsonValue<T>(T value) => JsonSerializer.Serialize(value, AppJson.Options);
+
+    private static string JsonNumber(double? value) =>
+        value.HasValue
+            ? JsonNumber(value.Value)
+            : "null";
+
+    private static string JsonNumber(double value) =>
+        JsonSerializer.Serialize(value, AppJson.Options);
+
+    private static string Hash(string payload) =>
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
 
     private static RecordedSessionSourceSnapshot CreateSource(Guid sessionId)
     {
@@ -370,4 +546,11 @@ public class ProcessingFingerprintServiceTests
         SetupSnapshot Setup,
         BikeSnapshot Bike,
         RecordedSessionSourceSnapshot Source);
+
+    private sealed record DependencyHashCase(
+        string Name,
+        RearSuspensionSpec RearSuspension,
+        double? ShockStroke,
+        string CurrentPayload,
+        string LegacyPayload);
 }
