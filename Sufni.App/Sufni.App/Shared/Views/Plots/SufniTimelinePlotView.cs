@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using Avalonia;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 using Sufni.App.Shared.Plots;
 namespace Sufni.App.Shared.Views.Plots;
@@ -82,7 +83,7 @@ public abstract class SufniTimelinePlotView : SufniPlotView
             limits.Right,
             0,
             duration,
-            duration * ZoomFractions.TimeSeries);
+            duration * PlotZoomFractions.TimeSeries);
         var startNormalized = Math.Clamp(left / duration, 0.0, 1.0);
         var endNormalized = Math.Clamp(right / duration, 0.0, 1.0);
 

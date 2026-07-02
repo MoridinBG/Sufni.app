@@ -4,6 +4,7 @@ using System.Linq;
 using ScottPlot;
 using ScottPlot.TickGenerators;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 using Sufni.App.Shared.Plots;
 using Sufni.App.Theming;
@@ -96,7 +97,7 @@ public class StrokeSpeedDistributionPlot(Plot plot, SuspensionType type, Balance
         var top = maxValue / 0.9;
         Plot.Axes.SetLimits(left: data.Bins[0], right: data.Bins[^1], bottom: 0, top: top);
         Plot.Axes.Rules.Add(new BoundedZoomRule(Plot.Axes.Bottom, Plot.Axes.Left,
-            data.Bins[0], data.Bins[^1], 0, top, ZoomFractions.Analysis));
+            data.Bins[0], data.Bins[^1], 0, top, PlotZoomFractions.Analysis));
         Plot.Axes.Bottom.TickGenerator = new NumericFixedInterval(500);
     }
 

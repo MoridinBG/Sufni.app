@@ -1,5 +1,5 @@
 
-using Sufni.App.Shared.Plots;
+using Sufni.App.ExtensionHost.Runtime.Presentation;
 namespace Sufni.App.Tests.Shared.Plots;
 
 public class AxisRangeConstraintsTests

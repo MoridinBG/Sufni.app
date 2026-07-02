@@ -136,6 +136,11 @@ public class ViewLocator : IDataTemplate
     {
         if (data is null) return false;
 
+        if (data is RecordedSessionExtensionPageViewModel extensionPage)
+        {
+            return Match(extensionPage.ViewModel);
+        }
+
         var isDesktop = App.Current?.IsDesktop == true;
         var viewModelType = data.GetType();
         return data is ViewModelBase ||

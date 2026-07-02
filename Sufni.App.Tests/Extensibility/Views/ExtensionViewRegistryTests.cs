@@ -75,6 +75,33 @@ public class ExtensionViewRegistryTests
     }
 
     [AvaloniaFact]
+    public void ViewLocator_Match_ReturnsTrue_ForRecordedSessionExtensionPage_WithRegisteredContent()
+    {
+        TestApp.SetIsDesktop(false);
+
+        var registry = new ExtensionViewRegistry();
+        registry.Register(
+            typeof(ExtensionViewModel),
+            static () => new TextBlock(),
+            desktopFactory: null);
+        var locator = new ViewLocator(registry);
+        var page = new RecordedSessionExtensionPageViewModel("Extension", new ExtensionViewModel());
+
+        Assert.True(locator.Match(page));
+    }
+
+    [AvaloniaFact]
+    public void ViewLocator_Match_ReturnsFalse_ForRecordedSessionExtensionPage_WithUnregisteredContent()
+    {
+        TestApp.SetIsDesktop(false);
+
+        var locator = new ViewLocator(new ExtensionViewRegistry());
+        var page = new RecordedSessionExtensionPageViewModel("Extension", new ExtensionViewModel());
+
+        Assert.False(locator.Match(page));
+    }
+
+    [AvaloniaFact]
     public void ViewLocator_Match_ReturnsTrue_ForExtensionViewModel()
     {
         TestApp.SetIsDesktop(false);

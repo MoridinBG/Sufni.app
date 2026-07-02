@@ -16,6 +16,8 @@ One deliberate cross-reference exists: the `Contracts` scope interface exposes `
 The theme model is **not** part of the SDK. It lives in a separate leaf project `Sufni.App.Theming` (assembly and namespace `Sufni.App.Theming`, Avalonia-only) that the app and theme-consuming extensions reference directly; the extension host's contracts and runtime use no theme type. An extension that must style a ScottPlot surface the app cannot render for it references `Sufni.App.Theming` and calls `SufniThemes.FromVariant(...)`. See [theming.md](theming.md).
 
 Accepted-for-now contract dependencies (removing them is a redesign of the extension model, out of scope): `IServiceCollection` in module registration, `Func<Control>` view factories, `AsyncTableQuery<T>`, `IStorageFile`, and `Sufni.Telemetry` types.
+The runtime presentation surface also references ScottPlot for shared plot-axis
+rules that extension-owned plot controls can use without copying app logic.
 
 There is no assembly scanning. Modules are added explicitly by build-time code through the two-argument partial method `App.RegisterBuildTimeExtensions(App.Extensions, isDesktop)`. Public builds have no implementation of that partial method, so the call is removed by the compiler and `App.Extensions.Modules` remains empty.
 
@@ -60,6 +62,13 @@ Desktop platform heads expose a neutral `Program.RegisterPlatformExtensions(ISer
 
 This keeps public `ViewLocator` dictionaries free of extension view-model types while still letting extension views render anywhere Avalonia data templates are used.
 
+Recorded-session page and analysis-tab contributions are projected into the
+session page collection behind an app-internal wrapper page view model.
+`ViewLocator` unwraps that wrapper in both `Match` and `Build`, so template
+matching and view construction are decided by the wrapped contribution view
+model's registered factory — without this the mobile page carousel would fall
+back to the default `ToString()` presenter.
+
 ## Host Services
 
 `IFilePickerService` is the neutral file-open picker seam available through DI. Callers pass a `FilePickerRequest` with `FilePickerFilter` descriptors and receive Avalonia `IStorageFile` results. `FilesService` implements this interface alongside the workflow-specific `IFilesService`, so extension modules that need user-selected files can depend on the generic picker surface without depending on app-specific import, GPX, image, bike/setup, or DAQ CONFIG workflows.
@@ -74,7 +83,10 @@ may use directly without referencing `Sufni.App`. `SignalRowAction` remains the
 row-header action descriptor used by app and extension signal rows.
 `PlotZoomContainer` is the opt-in contract for zoomable plot surfaces: the
 container raises `PlotZoomRequested` on double-tap/double-click when the
-gesture does not originate from an interactive descendant.
+gesture does not originate from an interactive descendant. The same runtime
+surface also publishes `BoundedZoomRule`, `AxisRangeConstraints`, and
+`PlotZoomFractions` so app-owned and extension-owned ScottPlot surfaces can use
+the same pan/zoom clamping behavior.
 
 The app's `PlotZoomOverlayHost` responds to that routed request by borrowing
 the container child and moving the live control into the modal overlay. The

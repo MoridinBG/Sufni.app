@@ -4,6 +4,7 @@ using ScottPlot;
 using ScottPlot.TickGenerators;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 using Sufni.App.Shared.Plots;
 using Sufni.App.Theming;
@@ -58,7 +59,7 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
         var roundedMaxVelocity = (int)Math.Ceiling(maxVelocity / 100.0) * 100;
         Plot.Axes.SetLimits(0, 100, 0, roundedMaxVelocity);
         Plot.Axes.Rules.Add(new BoundedZoomRule(Plot.Axes.Bottom, Plot.Axes.Left,
-            0, 100, 0, roundedMaxVelocity, ZoomFractions.Analysis));
+            0, 100, 0, roundedMaxVelocity, PlotZoomFractions.Analysis));
 
         var tickInterval = (int)Math.Ceiling(maxVelocity / 5 / 100.0) * 100;
         Plot.Axes.Left.TickGenerator = new NumericFixedInterval(tickInterval);
