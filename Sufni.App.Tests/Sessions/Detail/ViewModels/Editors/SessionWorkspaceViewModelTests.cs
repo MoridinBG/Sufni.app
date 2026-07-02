@@ -10,9 +10,9 @@ using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
-using Sufni.App.Sessions.Statistics.ViewModels.Editors;
+using Sufni.App.Sessions.Analysis.ViewModels.Editors;
 using Sufni.App.Shared.Base;
-using Sufni.App.Sessions.Graph.ViewModels.Editors;
+using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Sessions.Media.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
@@ -23,49 +23,49 @@ namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 public class SessionWorkspaceViewModelTests
 {
     [Fact]
-    public void RecordedSessionGraphWorkspace_ForwardsActionsAndContextChanges()
+    public void RecordedSessionSignalsWorkspace_ForwardsActionsAndContextChanges()
     {
         var context = new RecordedSessionContext();
         var gateway = new TestSessionOperationGateway();
-        var workspace = new RecordedSessionGraphWorkspaceViewModel(context, gateway);
+        var workspace = new RecordedSessionSignalsWorkspaceViewModel(context, gateway);
         var changes = TrackPropertyChanges(workspace);
 
-        workspace.GraphPreferences = context.GraphPreferences;
+        workspace.SignalLayoutPreferences = context.SignalLayoutPreferences;
         workspace.SetAnalysisRange(1.25, 3.5);
         workspace.ClearAnalysisRange();
         workspace.SetAnalysisRangeBoundary(2.25);
-        context.TravelGraphState = SurfacePresentationState.Ready;
+        context.TravelSignalState = SurfacePresentationState.Ready;
 
-        Assert.Equal(context.GraphPreferences, Assert.Single(gateway.GraphPreferences));
+        Assert.Equal(context.SignalLayoutPreferences, Assert.Single(gateway.SignalLayoutPreferences));
         Assert.Equal((1.25, 3.5), Assert.Single(gateway.AnalysisRanges));
         Assert.Equal(1, gateway.AnalysisRangeClearCount);
         Assert.Equal(2.25, Assert.Single(gateway.AnalysisRangeBoundaries));
-        Assert.Equal(SurfacePresentationState.Ready, workspace.TravelGraphState);
-        Assert.Contains(nameof(RecordedSessionGraphWorkspaceViewModel.TravelGraphState), changes);
+        Assert.Equal(SurfacePresentationState.Ready, workspace.TravelSignalState);
+        Assert.Contains(nameof(RecordedSessionSignalsWorkspaceViewModel.TravelSignalState), changes);
     }
 
     [Fact]
-    public void SessionStatisticsWorkspace_ModeSetters_WriteTheContext()
+    public void SessionAnalysisWorkspace_ModeSetters_WriteTheContext()
     {
-        var (context, _, workspace) = CreateStatisticsWorkspace();
+        var (context, _, workspace) = CreateAnalysisWorkspace();
 
-        workspace.SelectedTravelHistogramMode = TravelHistogramMode.DynamicSag;
+        workspace.SelectedTravelDistributionMode = TravelDistributionMode.DynamicSag;
         workspace.SelectedBalanceDisplacementMode = BalanceDisplacementMode.Speed;
         workspace.SelectedBalanceSpeedMode = BalanceSpeedMode.HighSpeed;
         workspace.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
-        workspace.SelectedSessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Enduro;
+        workspace.SelectedSessionInsightsTargetProfile = SessionInsightsTargetProfile.Enduro;
 
-        Assert.Equal(TravelHistogramMode.DynamicSag, context.SelectedTravelHistogramMode);
+        Assert.Equal(TravelDistributionMode.DynamicSag, context.SelectedTravelDistributionMode);
         Assert.Equal(BalanceDisplacementMode.Speed, context.SelectedBalanceDisplacementMode);
         Assert.Equal(BalanceSpeedMode.HighSpeed, context.SelectedBalanceSpeedMode);
         Assert.Equal(VelocityAverageMode.StrokePeakAveraged, context.SelectedVelocityAverageMode);
-        Assert.Equal(SessionAnalysisTargetProfile.Enduro, context.SelectedSessionAnalysisTargetProfile);
+        Assert.Equal(SessionInsightsTargetProfile.Enduro, context.SelectedSessionInsightsTargetProfile);
     }
 
     [Fact]
-    public async Task SessionStatisticsWorkspace_DampingCallbacks_RouteThroughTheGateway()
+    public async Task SessionAnalysisWorkspace_DampingCallbacks_RouteThroughTheGateway()
     {
-        var (_, gateway, workspace) = CreateStatisticsWorkspace();
+        var (_, gateway, workspace) = CreateAnalysisWorkspace();
 
         workspace.PreviewDampingSpeedCutoff(SuspensionType.Front, DampingSpeedCircuit.Compression, 123);
         workspace.CancelDampingSpeedCutoffPreview();
@@ -77,9 +77,9 @@ public class SessionWorkspaceViewModelTests
     }
 
     [Fact]
-    public void SessionStatisticsWorkspace_AnalysisTexts_TrackContextChanges()
+    public void SessionAnalysisWorkspace_AnalysisTexts_TrackContextChanges()
     {
-        var (context, _, workspace) = CreateStatisticsWorkspace();
+        var (context, _, workspace) = CreateAnalysisWorkspace();
         var changes = TrackPropertyChanges(workspace);
 
         context.AnalysisRange = new TelemetryTimeRange(1, 3);
@@ -87,25 +87,25 @@ public class SessionWorkspaceViewModelTests
 
         Assert.Contains("1.0", workspace.SessionAnalysisRangeText, StringComparison.Ordinal);
         Assert.Contains("3.0", workspace.SessionAnalysisRangeText, StringComparison.Ordinal);
-        Assert.Contains(nameof(SessionStatisticsWorkspaceViewModel.SessionAnalysisRangeText), changes);
-        Assert.Contains(nameof(SessionStatisticsWorkspaceViewModel.SessionAnalysisModesText), changes);
+        Assert.Contains(nameof(SessionAnalysisWorkspaceViewModel.SessionAnalysisRangeText), changes);
+        Assert.Contains(nameof(SessionAnalysisWorkspaceViewModel.SessionAnalysisModesText), changes);
     }
 
     [Fact]
     public void RecordedSessionContext_SelectedPageState_ClampsAndTracksCollectionChanges()
     {
         var context = new RecordedSessionContext();
-        var graph = new PageViewModelBase("Graph");
-        var damper = new PageViewModelBase("Damper");
+        var signals = new PageViewModelBase("Signals");
+        var damping = new PageViewModelBase("Damping");
         var changes = TrackPropertyChanges(context);
 
-        context.Pages.Add(graph);
-        context.Pages.Add(damper);
+        context.Pages.Add(signals);
+        context.Pages.Add(damping);
 
         Assert.Equal(2, context.PageCount);
         Assert.Equal(0, context.SelectedPageIndex);
-        Assert.Same(graph, context.SelectedPage);
-        Assert.Equal("Graph", context.SelectedPageDisplayName);
+        Assert.Same(signals, context.SelectedPage);
+        Assert.Equal("Signals", context.SelectedPageDisplayName);
         Assert.Contains(nameof(RecordedSessionContext.PageCount), changes);
         Assert.Contains(nameof(RecordedSessionContext.SelectedPage), changes);
         Assert.Contains(nameof(RecordedSessionContext.SelectedPageDisplayName), changes);
@@ -113,8 +113,8 @@ public class SessionWorkspaceViewModelTests
         changes.Clear();
         context.SelectedPageIndex = 1;
 
-        Assert.Same(damper, context.SelectedPage);
-        Assert.Equal("Damper", context.SelectedPageDisplayName);
+        Assert.Same(damping, context.SelectedPage);
+        Assert.Equal("Damping", context.SelectedPageDisplayName);
         Assert.Contains(nameof(RecordedSessionContext.SelectedPageIndex), changes);
         Assert.Contains(nameof(RecordedSessionContext.SelectedPage), changes);
         Assert.Contains(nameof(RecordedSessionContext.PageCount), changes);
@@ -129,11 +129,11 @@ public class SessionWorkspaceViewModelTests
         context.SelectedPageIndex = 1;
         changes.Clear();
 
-        context.Pages.Remove(damper);
+        context.Pages.Remove(damping);
 
         Assert.Equal(0, context.SelectedPageIndex);
-        Assert.Same(graph, context.SelectedPage);
-        Assert.Equal("Graph", context.SelectedPageDisplayName);
+        Assert.Same(signals, context.SelectedPage);
+        Assert.Equal("Signals", context.SelectedPageDisplayName);
         Assert.Contains(nameof(RecordedSessionContext.SelectedPageIndex), changes);
         Assert.Contains(nameof(RecordedSessionContext.PageCount), changes);
 
@@ -150,11 +150,11 @@ public class SessionWorkspaceViewModelTests
         Assert.Contains(nameof(RecordedSessionContext.SelectedPageDisplayName), changes);
     }
 
-    private static (RecordedSessionContext Context, TestSessionOperationGateway Gateway, SessionStatisticsWorkspaceViewModel Workspace) CreateStatisticsWorkspace()
+    private static (RecordedSessionContext Context, TestSessionOperationGateway Gateway, SessionAnalysisWorkspaceViewModel Workspace) CreateAnalysisWorkspace()
     {
         var context = new RecordedSessionContext();
         var gateway = new TestSessionOperationGateway();
-        var workspace = new SessionStatisticsWorkspaceViewModel(
+        var workspace = new SessionAnalysisWorkspaceViewModel(
             context,
             gateway,
             new RelayCommand<TelemetryRangeSelection?>(_ => { }));
@@ -199,8 +199,8 @@ public class SessionWorkspaceViewModelTests
 
         context.ScreenState = SessionScreenPresentationState.Loading("Loading session.");
         context.SessionOperationState = SessionOperationPresentationState.Progress("Saving.", 25);
-        context.Pages.Add(new PageViewModelBase("Graph"));
-        context.Pages.Add(new PageViewModelBase("Damper"));
+        context.Pages.Add(new PageViewModelBase("Signals"));
+        context.Pages.Add(new PageViewModelBase("Damping"));
         context.SelectedPageIndex = 1;
 
         Assert.Equal(context.ScreenState, workspace.ScreenState);
@@ -262,22 +262,22 @@ public class SessionWorkspaceViewModelTests
     }
 
     [Fact]
-    public void GraphWorkspace_ForwardedPropertiesAreDeclaredPublicProperties() =>
+    public void SignalsWorkspace_ForwardedPropertiesAreDeclaredPublicProperties() =>
         AssertForwardedPropertiesAreDeclared(
-            typeof(RecordedSessionGraphWorkspaceViewModel),
-            RecordedSessionGraphWorkspaceViewModel.ForwardedProperties);
+            typeof(RecordedSessionSignalsWorkspaceViewModel),
+            RecordedSessionSignalsWorkspaceViewModel.ForwardedProperties);
 
     [Fact]
-    public void StatisticsWorkspace_ForwardedPropertiesAreDeclaredPublicProperties() =>
+    public void AnalysisWorkspace_ForwardedPropertiesAreDeclaredPublicProperties() =>
         AssertForwardedPropertiesAreDeclared(
-            typeof(SessionStatisticsWorkspaceViewModel),
-            SessionStatisticsWorkspaceViewModel.ForwardedProperties);
+            typeof(SessionAnalysisWorkspaceViewModel),
+            SessionAnalysisWorkspaceViewModel.ForwardedProperties);
 
     [Fact]
-    public void GraphWorkspace_DoesNotRebroadcastUndeclaredContextProperties()
+    public void SignalsWorkspace_DoesNotRebroadcastUndeclaredContextProperties()
     {
         var context = new RecordedSessionContext();
-        var workspace = new RecordedSessionGraphWorkspaceViewModel(context, new TestSessionOperationGateway());
+        var workspace = new RecordedSessionSignalsWorkspaceViewModel(context, new TestSessionOperationGateway());
         var changes = TrackPropertyChanges(workspace);
 
         context.ScreenState = SessionScreenPresentationState.Loading("Loading session.");

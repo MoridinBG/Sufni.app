@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Sufni.App.ExtensionHost.Contracts.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
 using Sufni.App.Extensibility.Capabilities;

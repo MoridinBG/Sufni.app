@@ -35,14 +35,14 @@ public class PlaceholderOverlayContainerTests
     [AvaloniaFact]
     public async Task PlaceholderOverlayContainer_ShowsErrorPresentation_ForError()
     {
-        await using var mounted = await MountAsync(SurfacePresentationState.Error("Failed to load graph."));
+        await using var mounted = await MountAsync(SurfacePresentationState.Error("Failed to load signals."));
 
         Assert.True(mounted.View.IsVisible);
         Assert.False(mounted.View.FindControl<ContentControl>("ReadyHost")!.IsVisible);
         Assert.True(mounted.View.FindControl<ContentControl>("PlaceholderHost")!.IsVisible);
         Assert.True(mounted.View.FindControl<Border>("OverlayPanel")!.IsVisible);
         Assert.True(mounted.View.FindControl<TextBlock>("ErrorIconText")!.IsVisible);
-        Assert.Equal("Failed to load graph.", mounted.View.FindControl<TextBlock>("StateMessageText")!.Text);
+        Assert.Equal("Failed to load signals.", mounted.View.FindControl<TextBlock>("StateMessageText")!.Text);
     }
 
     [AvaloniaFact]

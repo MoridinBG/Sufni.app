@@ -8,16 +8,16 @@ namespace Sufni.App.Tests.Theming;
 public class SufniThemeTests
 {
     [Fact]
-    public void SufniDarkTheme_GraphRowByDepth_UsesRootHostedLevelsAndClamp()
+    public void SufniDarkTheme_SignalRowByDepth_UsesRootHostedLevelsAndClamp()
     {
-        var graphRow = SufniDarkTheme.Instance.GraphRow;
+        var signalRow = SufniDarkTheme.Instance.SignalRow;
 
-        Assert.Equal(graphRow.Root, graphRow.ByDepth(0));
-        Assert.Equal(graphRow.Root, graphRow.ByDepth(-1));
-        Assert.Equal(graphRow.HostedLevel1, graphRow.ByDepth(1));
-        Assert.Equal(graphRow.HostedLevel2, graphRow.ByDepth(2));
-        Assert.Equal(graphRow.HostedLevel3Plus, graphRow.ByDepth(3));
-        Assert.Equal(graphRow.HostedLevel3Plus, graphRow.ByDepth(10));
+        Assert.Equal(signalRow.Root, signalRow.ByDepth(0));
+        Assert.Equal(signalRow.Root, signalRow.ByDepth(-1));
+        Assert.Equal(signalRow.HostedLevel1, signalRow.ByDepth(1));
+        Assert.Equal(signalRow.HostedLevel2, signalRow.ByDepth(2));
+        Assert.Equal(signalRow.HostedLevel3Plus, signalRow.ByDepth(3));
+        Assert.Equal(signalRow.HostedLevel3Plus, signalRow.ByDepth(10));
     }
 
     [Fact]

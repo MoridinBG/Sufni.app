@@ -2,7 +2,7 @@
 x:Class="Sufni.App.Sessions.Pages.Views.SessionPages.VibrationPageView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls2="clr-namespace:Sufni.App.Sessions.Statistics.Views.Controls"
+    xmlns:controls2="clr-namespace:Sufni.App.Sessions.Analysis.Views.Controls"
 xmlns:controls="clr-namespace:Sufni.App.Extensibility.Views"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -23,9 +23,9 @@ mc:Ignorable="d">
         Width="{Binding #PageScrollViewer.Bounds.Width}"
         ClipToBounds="True"
         Spacing="10">
-            <controls:RecordedSessionStatisticsContributionsView ExtensionSlots="{Binding Workspace.ExtensionSlots}" />
+            <controls:RecordedSessionAnalysisContributionsView ExtensionSlots="{Binding Workspace.ExtensionSlots}" />
 
-            <controls2:VibrationStatisticsHost
+            <controls2:VibrationAnalysisHost
             HostName="FrontForkVibrationHost"
             AnalysisRange="{Binding Workspace.AnalysisRange}"
             ExtensionSlots="{Binding Workspace.ExtensionSlots}"
@@ -35,9 +35,9 @@ mc:Ignorable="d">
             PresentationState="{Binding Workspace.FrontForkVibrationState}"
             SuspensionType="Front"
             Telemetry="{Binding Workspace.TelemetryData}"
-            Title="Front fork vibration" />
+            Title="Front fork" />
 
-            <controls2:VibrationStatisticsHost
+            <controls2:VibrationAnalysisHost
             HostName="FrontFrameVibrationHost"
             AnalysisRange="{Binding Workspace.AnalysisRange}"
             ExtensionSlots="{Binding Workspace.ExtensionSlots}"
@@ -47,9 +47,9 @@ mc:Ignorable="d">
             PresentationState="{Binding Workspace.FrontFrameVibrationState}"
             SuspensionType="Front"
             Telemetry="{Binding Workspace.TelemetryData}"
-            Title="Front frame vibration" />
+            Title="Front frame" />
 
-            <controls2:VibrationStatisticsHost
+            <controls2:VibrationAnalysisHost
             HostName="RearForkVibrationHost"
             AnalysisRange="{Binding Workspace.AnalysisRange}"
             ExtensionSlots="{Binding Workspace.ExtensionSlots}"
@@ -59,9 +59,9 @@ mc:Ignorable="d">
             PresentationState="{Binding Workspace.RearForkVibrationState}"
             SuspensionType="Rear"
             Telemetry="{Binding Workspace.TelemetryData}"
-            Title="Rear fork vibration" />
+            Title="Rear fork" />
 
-            <controls2:VibrationStatisticsHost
+            <controls2:VibrationAnalysisHost
             HostName="RearFrameVibrationHost"
             AnalysisRange="{Binding Workspace.AnalysisRange}"
             ExtensionSlots="{Binding Workspace.ExtensionSlots}"
@@ -71,7 +71,7 @@ mc:Ignorable="d">
             PresentationState="{Binding Workspace.RearFrameVibrationState}"
             SuspensionType="Rear"
             Telemetry="{Binding Workspace.TelemetryData}"
-            Title="Rear frame vibration" />
+            Title="Rear frame" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

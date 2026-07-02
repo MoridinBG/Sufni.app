@@ -1,14 +1,14 @@
 using SQLite;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Setups.Models;
 using Sufni.App.Extensibility.Database;
 using Sufni.App.Infrastructure;

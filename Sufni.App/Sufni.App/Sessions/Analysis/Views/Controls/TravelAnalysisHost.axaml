@@ -1,0 +1,71 @@
+<UserControl
+x:Name="Root"
+x:Class="Sufni.App.Sessions.Analysis.Views.Controls.TravelAnalysisHost"
+x:DataType="analysisControls:TravelAnalysisHost"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:analysisControls="clr-namespace:Sufni.App.Sessions.Analysis.Views.Controls"
+xmlns:controls="clr-namespace:Sufni.App.Shared.Views.Overlays"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:plots="clr-namespace:Sufni.App.Sessions.Plots.Views.Plots"
+d:DesignHeight="450"
+d:DesignWidth="800"
+mc:Ignorable="d">
+
+    <controls:PlaceholderOverlayContainer PresentationState="{Binding #Root.PresentationState}">
+        <controls:PlaceholderOverlayContainer.ReadyContent>
+            <Grid>
+                <Grid IsVisible="{Binding #Root.ShowFrequencyDistribution}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="{Binding #Root.TravelDistributionRowHeight}" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="{Binding #Root.TravelFrequencyDistributionRowHeight}" />
+                    </Grid.RowDefinitions>
+
+                    <plots:AnalysisPlotView
+                    AnalysisRange="{Binding #Root.AnalysisRange}"
+                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                    HeaderContent="{Binding #Root.HeaderContent}"
+                    AnalysisPlotKind="TravelDistribution"
+                    SuspensionType="{Binding #Root.SuspensionType}"
+                    Telemetry="{Binding #Root.Telemetry}"
+                    TravelDistributionMode="{Binding #Root.TravelDistributionMode}" />
+
+                    <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
+
+                    <plots:AnalysisPlotView
+                    AnalysisRange="{Binding #Root.AnalysisRange}"
+                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                    Grid.Row="2"
+                    AnalysisPlotKind="TravelFrequencyDistribution"
+                    SuspensionType="{Binding #Root.SuspensionType}"
+                    Telemetry="{Binding #Root.Telemetry}" />
+                </Grid>
+
+                <Grid IsVisible="{Binding !#Root.ShowFrequencyDistribution}">
+                    <plots:AnalysisPlotView
+                    AnalysisRange="{Binding #Root.AnalysisRange}"
+                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                    Height="{Binding #Root.PlotHeight}"
+                    HeaderContent="{Binding #Root.HeaderContent}"
+                    IsVisible="{Binding #Root.HasAnalysisData}"
+                    AnalysisPlotKind="TravelDistribution"
+                    SuspensionType="{Binding #Root.SuspensionType}"
+                    Telemetry="{Binding #Root.Telemetry}"
+                    TravelDistributionMode="{Binding #Root.TravelDistributionMode}" />
+
+                    <Svg
+                    IsVisible="{Binding !#Root.HasAnalysisData}"
+                    Source="{Binding #Root.StaticSource}" />
+                </Grid>
+            </Grid>
+        </controls:PlaceholderOverlayContainer.ReadyContent>
+        <controls:PlaceholderOverlayContainer.PlaceholderContent>
+            <controls:SurfacePlaceholderCard
+            Margin="{Binding #Root.PlaceholderMargin}"
+            MinCardHeight="{Binding #Root.MinCardHeight}"
+            Title="{Binding #Root.Title}" />
+        </controls:PlaceholderOverlayContainer.PlaceholderContent>
+    </controls:PlaceholderOverlayContainer>
+</UserControl>

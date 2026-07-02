@@ -7,7 +7,7 @@ using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.Theming;
 using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Acquisition.ViewModels;
@@ -17,7 +17,7 @@ using Sufni.App.Infrastructure.Theming;
 using Sufni.App.LiveDaq.ViewModels.ItemLists;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.Sessions.Lists.ViewModels.ItemLists;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Setups.ViewModels.ItemLists;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Shell.ViewModels;
@@ -104,14 +104,14 @@ internal static class MainPagesViewModelTestFactory
             UiThreadDispatcher);
 
     private static SessionListViewModel CreateSessionListPage() =>
-        new(CreateRecordedSessionGraph(), TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
+        new(CreateRecordedSessionProjection(), TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
 
-    private static IRecordedSessionGraph CreateRecordedSessionGraph()
+    private static IRecordedSessionProjection CreateRecordedSessionProjection()
     {
-        var graph = Substitute.For<IRecordedSessionGraph>();
+        var projection = Substitute.For<IRecordedSessionProjection>();
         var cache = new SourceCache<RecordedSessionSummary, Guid>(summary => summary.Id);
-        graph.ConnectSessions().Returns(cache.Connect());
-        return graph;
+        projection.ConnectSessions().Returns(cache.Connect());
+        return projection;
     }
 
     private static SetupListViewModel CreateSetupListPage() =>

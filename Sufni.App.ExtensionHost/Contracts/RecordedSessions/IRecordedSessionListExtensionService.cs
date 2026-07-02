@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Sufni.App.ExtensionHost.Contracts.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 namespace Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 

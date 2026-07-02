@@ -13,7 +13,7 @@ using Sufni.Telemetry;
 using Sufni.App.Bikes.Models;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Models.SensorConfigurations;
 using Sufni.App.SyncAndPairing.Models;
@@ -67,6 +67,7 @@ internal static class AppJson
         {
             PropertyNameCaseInsensitive = true
         };
+        AddPreferenceConverters(options, AppPreferenceSerialization.CurrentVersion);
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
         return options;
     }
@@ -78,8 +79,28 @@ internal static class AppJson
         // RespectNullableAnnotations=true, RespectRequiredConstructorParameters=true.
         // Keep the snake_case enum converter (Strict does not add it).
         JsonSerializerOptions options = new(JsonSerializerDefaults.Strict);
+        AddPreferenceConverters(options, AppPreferenceSerialization.CurrentVersion);
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
         return options;
+    }
+
+    internal static JsonSerializerOptions CreatePreferenceOptionsForVersion(int version)
+    {
+        JsonSerializerOptions options = new()
+        {
+            PropertyNameCaseInsensitive = true
+        };
+        AddPreferenceConverters(options, version);
+        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
+        return options;
+    }
+
+    private static void AddPreferenceConverters(JsonSerializerOptions options, int version)
+    {
+        options.Converters.Add(new SessionPreferencesJsonConverter(version));
+        options.Converters.Add(new AnalysisPreferencesJsonConverter(version));
+        options.Converters.Add(new SessionLayoutPreferencesJsonConverter(version));
+        options.Converters.Add(new SessionPaneSizePreferenceJsonConverter(version));
     }
 }
 
@@ -94,11 +115,11 @@ internal static class AppJson
 [JsonSerializable(typeof(MapPreferencesSyncData))]
 [JsonSerializable(typeof(SessionPreferencesSyncData))]
 [JsonSerializable(typeof(SessionPreferences))]
-[JsonSerializable(typeof(SessionPlotPreferences))]
-[JsonSerializable(typeof(SessionStatisticsPreferences))]
+[JsonSerializable(typeof(SignalDisplayPreferences))]
+[JsonSerializable(typeof(AnalysisPreferences))]
 [JsonSerializable(typeof(SessionProcessingPreferences))]
-[JsonSerializable(typeof(SessionGraphPreferences))]
-[JsonSerializable(typeof(SessionGraphRowPreferences))]
+[JsonSerializable(typeof(SignalLayoutPreferences))]
+[JsonSerializable(typeof(SignalLayoutRowPreferences))]
 [JsonSerializable(typeof(SessionLayoutPreferences))]
 [JsonSerializable(typeof(SessionPaneGroupPreferences))]
 [JsonSerializable(typeof(SessionPaneSizePreference))]

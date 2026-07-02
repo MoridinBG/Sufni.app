@@ -11,13 +11,13 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.Services;
-using Sufni.App.Sessions.Analysis.Services;
+using Sufni.App.Sessions.Insights.Services;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Detail.DesktopViews.Editors;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Detail.Views.Editors;
 using Sufni.App.Sessions.Processing.SessionDetails;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Shell.Coordinators;
@@ -37,9 +37,9 @@ internal sealed class SessionDetailViewTestContext
     private readonly ISessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
     private readonly ITrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
     private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
-    private readonly IRecordedSessionGraph recordedSessionGraph = Substitute.For<IRecordedSessionGraph>();
+    private readonly IRecordedSessionProjection recordedSessionProjection = Substitute.For<IRecordedSessionProjection>();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
-    private readonly ISessionAnalysisService sessionAnalysisService = Substitute.For<ISessionAnalysisService>();
+    private readonly ISessionInsightsService sessionAnalysisService = Substitute.For<ISessionInsightsService>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
     private readonly ISessionPreferences sessionPreferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
@@ -52,13 +52,13 @@ internal sealed class SessionDetailViewTestContext
         sessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(Task.FromResult(SessionPreferences.Default));
         sessionPreferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<SessionPreferences, SessionPreferences>>())
             .Returns(Task.CompletedTask);
-        sessionPresentationService.CalculateDamperPercentages(
+        sessionPresentationService.CalculateDampingPercentages(
                 Arg.Any<TelemetryData>(),
                 Arg.Any<TelemetryTimeRange?>(),
                 Arg.Any<VelocityAverageMode>(),
                 Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(SessionDamperPercentages.Empty);
-        sessionAnalysisService.Analyze(Arg.Any<SessionAnalysisRequest>()).Returns(SessionAnalysisResult.Hidden);
+            .Returns(SessionDampingPercentages.Empty);
+        sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(SessionInsightsResult.Hidden);
     }
 
     public SessionSnapshot CreateTelemetryBearingSnapshot(
@@ -97,7 +97,7 @@ internal sealed class SessionDetailViewTestContext
             FullTrackPoints: null,
             TrackPoints: null,
             MediaColumnWidth: null,
-            DamperPercentages: new SessionDamperPercentages(10, 20, 30, 40, 50, 60, 70, 80),
+            DampingPercentages: new SessionDampingPercentages(10, 20, 30, 40, 50, 60, 70, 80),
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             DampingSpeedCutoffOwner: null));
     }
@@ -107,13 +107,13 @@ internal sealed class SessionDetailViewTestContext
         bool includeTelemetry = true)
     {
         return new SessionMobileLoadResult.LoadedFromCache(new SessionCachePresentationData(
-            FrontTravelHistogram: DefaultSvg,
-            RearTravelHistogram: DefaultSvg,
-            FrontVelocityHistogram: DefaultSvg,
-            RearVelocityHistogram: DefaultSvg,
+            FrontTravelDistribution: DefaultSvg,
+            RearTravelDistribution: DefaultSvg,
+            FrontVelocityDistribution: DefaultSvg,
+            RearVelocityDistribution: DefaultSvg,
             CompressionBalance: includeBalance ? DefaultSvg : null,
             ReboundBalance: includeBalance ? DefaultSvg : null,
-            DamperPercentages: new SessionDamperPercentages(10, 20, 30, 40, 50, 60, 70, 80),
+            DampingPercentages: new SessionDampingPercentages(10, 20, 30, 40, 50, 60, 70, 80),
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             BalanceAvailable: includeBalance),
             includeTelemetry ? TestTelemetryData.CreateProcessed() : null,
@@ -164,7 +164,7 @@ internal sealed class SessionDetailViewTestContext
 
     private void ConfigureStores(SessionSnapshot snapshot)
     {
-        recordedSessionGraph.WatchSession(snapshot.Id).Returns(Observable.Empty<RecordedSessionDomainSnapshot>());
+        recordedSessionProjection.WatchSession(snapshot.Id).Returns(Observable.Empty<RecordedSessionDomainSnapshot>());
         sessionStore.Get(snapshot.Id).Returns(snapshot);
     }
 
@@ -175,7 +175,7 @@ internal sealed class SessionDetailViewTestContext
             sessionCoordinator,
             trackCoordinator,
             sessionStore,
-            recordedSessionGraph,
+            recordedSessionProjection,
             sessionPresentationService,
             sessionAnalysisService,
             new TestMapViewModelFactory(tileLayerService),

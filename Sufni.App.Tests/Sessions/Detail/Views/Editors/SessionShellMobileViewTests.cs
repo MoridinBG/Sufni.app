@@ -154,7 +154,7 @@ public class SessionShellMobileViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(1, host.SelectedPageIndex);
-        Assert.Equal("Damper", header.Text);
+        Assert.Equal("Damping", header.Text);
 
         pager.SelectedPageIndex = 2;
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -260,7 +260,7 @@ public class SessionShellMobileViewTests
             ScreenState = SessionScreenPresentationState.Ready,
         };
         host.Pages.Add(new SpringPageViewModel());
-        host.Pages.Add(new DamperPageViewModel());
+        host.Pages.Add(new DampingPageViewModel());
         host.Pages.Add(new NotesPageViewModel());
         return host;
     }

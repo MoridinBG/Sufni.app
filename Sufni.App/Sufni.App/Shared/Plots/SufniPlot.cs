@@ -111,7 +111,7 @@ public class SufniPlot
         Plot.Axes.Title.Label.Text = ShowTitle ? title : string.Empty;
     }
 
-    protected PixelPadding CreateStatisticsPlotPadding(
+    protected PixelPadding CreateAnalysisPlotPadding(
         float left = 65,
         float right = 10,
         float bottom = 55,

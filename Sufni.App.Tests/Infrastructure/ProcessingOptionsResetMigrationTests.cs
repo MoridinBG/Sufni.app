@@ -1,13 +1,13 @@
 using System.Collections.Generic;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.TestSupport;
 using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Tests.TestSupport.Persistence;

@@ -18,7 +18,7 @@ namespace Sufni.App.Infrastructure;
 
 public sealed class AppPreferences : IAppPreferences
 {
-    private const int CurrentVersion = 1;
+    private const int CurrentVersion = AppPreferenceSerialization.CurrentVersion;
     private static readonly ILogger logger = Log.ForContext<AppPreferences>();
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -27,6 +27,7 @@ public sealed class AppPreferences : IAppPreferences
     };
 
     private readonly string filePath;
+    private readonly int documentVersion;
     private readonly SemaphoreSlim gate = new(1, 1);
 
     // Hot stream of "remote sync just landed in the on-disk document". Fired
@@ -46,8 +47,14 @@ public sealed class AppPreferences : IAppPreferences
     }
 
     internal AppPreferences(string filePath)
+        : this(filePath, CurrentVersion)
+    {
+    }
+
+    internal AppPreferences(string filePath, int documentVersion)
     {
         this.filePath = filePath;
+        this.documentVersion = documentVersion;
         Map = new MapPreferences(this);
         Session = new RecordedSessionPreferences(this);
         Theme = new ThemePreferences(this);
@@ -109,7 +116,7 @@ public sealed class AppPreferences : IAppPreferences
                 return;
             }
 
-            document.ApplySyncData(preferences);
+            document.ApplySyncData(preferences, documentVersion);
             await WriteDocumentCoreAsync(document);
             applied = true;
         }
@@ -165,14 +172,14 @@ public sealed class AppPreferences : IAppPreferences
     {
         if (!File.Exists(filePath))
         {
-            return new AppPreferencesDocument();
+            return new AppPreferencesDocument().Normalize(documentVersion);
         }
 
         try
         {
             await using var stream = File.OpenRead(filePath);
             var document = await JsonSerializer.DeserializeAsync<AppPreferencesDocument>(stream, JsonOptions);
-            return document?.Normalize() ?? new AppPreferencesDocument();
+            return document?.Normalize(documentVersion) ?? new AppPreferencesDocument().Normalize(documentVersion);
         }
         catch (JsonException ex)
         {
@@ -194,7 +201,7 @@ public sealed class AppPreferences : IAppPreferences
         {
             await using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous))
             {
-                await JsonSerializer.SerializeAsync(stream, document.Normalize(), JsonOptions);
+                await JsonSerializer.SerializeAsync(stream, document.Normalize(documentVersion), JsonOptions);
             }
 
             File.Move(tempPath, filePath, overwrite: true);
@@ -268,7 +275,10 @@ public sealed class AppPreferences : IAppPreferences
             return owner.UpdateAsync(document =>
             {
                 var current = document.Session.GetRecorded(sessionId);
-                document.Session.Sessions[SessionKey(sessionId)] = SessionPreferencesDocument.FromModel(update(current));
+                document.Session.Sessions[SessionKey(sessionId)] = SessionPreferencesDocument.FromModel(
+                    update(current),
+                    document.WriteLegacyPreferenceKeys,
+                    document.WriteLegacyLayoutPaneIds);
             });
         }
 
@@ -282,10 +292,13 @@ public sealed class AppPreferences : IAppPreferences
             return owner.UpdateWithoutAdvancingSyncClockAsync(document =>
             {
                 // Reset only Processing to the default; the session's other
-                // preferences (plots, statistics, graph, layout) are preserved.
+                // preferences (signal display, analysis, signal layout, layout) are preserved.
                 var current = document.Session.GetRecorded(sessionId);
                 var reset = current with { Processing = new SessionProcessingPreferences() };
-                document.Session.Sessions[SessionKey(sessionId)] = SessionPreferencesDocument.FromModel(reset);
+                document.Session.Sessions[SessionKey(sessionId)] = SessionPreferencesDocument.FromModel(
+                    reset,
+                    document.WriteLegacyPreferenceKeys,
+                    document.WriteLegacyLayoutPaneIds);
             });
         }
 
@@ -320,13 +333,17 @@ public sealed class AppPreferences : IAppPreferences
         public SessionPreferencesGroupDocument Session { get; set; } = new();
         public ThemePreferencesDocument Theme { get; set; } = new();
 
-        public AppPreferencesDocument Normalize()
+        public bool WriteLegacyPreferenceKeys => AppPreferenceSerialization.ShouldWriteLegacyPreferenceKeys(Version);
+        public bool WriteLegacyLayoutPaneIds => AppPreferenceSerialization.ShouldWriteLegacyLayoutPaneIds(Version);
+
+        public AppPreferencesDocument Normalize(int targetVersion)
         {
-            Version = CurrentVersion;
+            Version = Math.Max(Version, targetVersion);
             Maps ??= new MapPreferencesDocument();
             Maps.CustomLayers ??= [];
             Session ??= new SessionPreferencesGroupDocument();
             Session.Sessions ??= [];
+            Session.Normalize(WriteLegacyPreferenceKeys, WriteLegacyLayoutPaneIds);
             Theme ??= new ThemePreferencesDocument();
             return this;
         }
@@ -368,7 +385,7 @@ public sealed class AppPreferences : IAppPreferences
             };
         }
 
-        public void ApplySyncData(AppPreferencesSyncData preferences)
+        public void ApplySyncData(AppPreferencesSyncData preferences, int targetVersion)
         {
             var maps = preferences.Maps ?? new MapPreferencesSyncData();
             var session = preferences.Session ?? new SessionPreferencesSyncData();
@@ -387,14 +404,17 @@ public sealed class AppPreferences : IAppPreferences
                 Sessions = session.Sessions?
                     .ToDictionary(
                         pair => pair.Key.ToString("D"),
-                        pair => (SessionPreferencesDocument?)SessionPreferencesDocument.FromModel(pair.Value))
+                        pair => (SessionPreferencesDocument?)SessionPreferencesDocument.FromModel(
+                            pair.Value,
+                            WriteLegacyPreferenceKeys,
+                            WriteLegacyLayoutPaneIds))
                     ?? [],
             };
             Theme = new ThemePreferencesDocument
             {
                 Mode = theme.Mode,
             };
-            Normalize();
+            Normalize(targetVersion);
         }
     }
 
@@ -420,6 +440,20 @@ public sealed class AppPreferences : IAppPreferences
     {
         public Dictionary<string, SessionPreferencesDocument?> Sessions { get; set; } = [];
 
+        public void Normalize(bool writeLegacyPreferenceKeys, bool writeLegacyLayoutPaneIds)
+        {
+            foreach (var key in Sessions.Keys.ToArray())
+            {
+                if (Sessions[key] is { } preferences)
+                {
+                    Sessions[key] = SessionPreferencesDocument.FromModel(
+                        preferences.ToModel(),
+                        writeLegacyPreferenceKeys,
+                        writeLegacyLayoutPaneIds);
+                }
+            }
+        }
+
         public SessionPreferences GetRecorded(Guid sessionId)
         {
             return Sessions.TryGetValue(sessionId.ToString("D"), out var preferences) && preferences is not null
@@ -430,36 +464,52 @@ public sealed class AppPreferences : IAppPreferences
 
     private sealed class SessionPreferencesDocument
     {
-        public SessionPlotPreferencesDocument? Plots { get; set; }
-        public SessionStatisticsPreferencesDocument? Statistics { get; set; }
+        public SignalDisplayPreferencesDocument? SignalDisplay { get; set; }
+        public SignalDisplayPreferencesDocument? Plots { get; set; }
+        public AnalysisPreferencesDocument? Analysis { get; set; }
+        public AnalysisPreferencesDocument? Statistics { get; set; }
         public SessionProcessingPreferencesDocument? Processing { get; set; }
-        public SessionGraphPreferencesDocument? Graph { get; set; }
+        public SignalLayoutPreferencesDocument? SignalLayout { get; set; }
+        public SignalLayoutPreferencesDocument? Graph { get; set; }
         public SessionLayoutPreferencesDocument? Layout { get; set; }
 
         public SessionPreferences ToModel()
         {
             return new SessionPreferences(
-                Plots?.ToModel() ?? new SessionPlotPreferences(),
-                Statistics?.ToModel() ?? new SessionStatisticsPreferences(),
-                Processing?.ToModel() ?? new SessionProcessingPreferences(),
-                Graph?.ToModel() ?? SessionGraphPreferences.Default,
-                Layout?.ToModel() ?? SessionLayoutPreferences.Default);
+                signalDisplay: SignalDisplay?.ToModel() ?? Plots?.ToModel() ?? new SignalDisplayPreferences(),
+                analysis: Analysis?.ToModel() ?? Statistics?.ToModel() ?? new AnalysisPreferences(),
+                processing: Processing?.ToModel() ?? new SessionProcessingPreferences(),
+                signalLayout: SignalLayout?.ToModel() ?? Graph?.ToModel() ?? SignalLayoutPreferences.Default,
+                layout: Layout?.ToModel() ?? SessionLayoutPreferences.Default);
         }
 
-        public static SessionPreferencesDocument FromModel(SessionPreferences preferences)
+        public static SessionPreferencesDocument FromModel(
+            SessionPreferences preferences,
+            bool writeLegacyPreferenceKeys,
+            bool writeLegacyLayoutPaneIds)
         {
+            var signalDisplay = SignalDisplayPreferencesDocument.FromModel(preferences.SignalDisplay);
+            var analysis = AnalysisPreferencesDocument.FromModel(preferences.Analysis, writeLegacyPreferenceKeys);
+            var signalLayout = SignalLayoutPreferencesDocument.FromModel(preferences.SignalLayout);
+
             return new SessionPreferencesDocument
             {
-                Plots = SessionPlotPreferencesDocument.FromModel(preferences.Plots),
-                Statistics = SessionStatisticsPreferencesDocument.FromModel(preferences.Statistics),
+                SignalDisplay = signalDisplay,
+                Plots = writeLegacyPreferenceKeys ? signalDisplay : null,
+                Analysis = analysis,
+                Statistics = writeLegacyPreferenceKeys ? analysis : null,
                 Processing = SessionProcessingPreferencesDocument.FromModel(preferences.Processing),
-                Graph = SessionGraphPreferencesDocument.FromModel(preferences.Graph),
-                Layout = SessionLayoutPreferencesDocument.FromModel(preferences.Layout),
+                SignalLayout = signalLayout,
+                Graph = writeLegacyPreferenceKeys ? signalLayout : null,
+                Layout = SessionLayoutPreferencesDocument.FromModel(
+                    preferences.Layout,
+                    writeLegacyPreferenceKeys,
+                    writeLegacyLayoutPaneIds),
             };
         }
     }
 
-    private sealed class SessionPlotPreferencesDocument
+    private sealed class SignalDisplayPreferencesDocument
     {
         public bool? Travel { get; set; }
         public bool? Velocity { get; set; }
@@ -474,9 +524,9 @@ public sealed class AppPreferences : IAppPreferences
         public string? SpeedSmoothing { get; set; }
         public string? ElevationSmoothing { get; set; }
 
-        public SessionPlotPreferences ToModel()
+        public SignalDisplayPreferences ToModel()
         {
-            return new SessionPlotPreferences(
+            return new SignalDisplayPreferences(
                 Travel: Travel ?? true,
                 Velocity: Velocity ?? true,
                 Imu: Imu ?? true,
@@ -491,9 +541,9 @@ public sealed class AppPreferences : IAppPreferences
                 ElevationSmoothing: ParseEnum(ElevationSmoothing, PlotSmoothingLevel.Off));
         }
 
-        public static SessionPlotPreferencesDocument FromModel(SessionPlotPreferences preferences)
+        public static SignalDisplayPreferencesDocument FromModel(SignalDisplayPreferences preferences)
         {
-            return new SessionPlotPreferencesDocument
+            return new SignalDisplayPreferencesDocument
             {
                 Travel = preferences.Travel,
                 Velocity = preferences.Velocity,
@@ -519,33 +569,37 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    private sealed class SessionStatisticsPreferencesDocument
+    private sealed class AnalysisPreferencesDocument
     {
+        public string? TravelDistributionMode { get; set; }
         public string? TravelHistogramMode { get; set; }
         public string? VelocityAverageMode { get; set; }
         public string? BalanceDisplacementMode { get; set; }
         public string? BalanceSpeedMode { get; set; }
+        public string? SessionInsightsTargetProfile { get; set; }
         public string? SessionAnalysisTargetProfile { get; set; }
 
-        public SessionStatisticsPreferences ToModel()
+        public AnalysisPreferences ToModel()
         {
-            return new SessionStatisticsPreferences(
-                ParseEnum(TravelHistogramMode, Sufni.Telemetry.TravelHistogramMode.ActiveSuspension),
+            return new AnalysisPreferences(
+                ParseEnum(TravelDistributionMode ?? TravelHistogramMode, Sufni.Telemetry.TravelDistributionMode.ActiveSuspension),
                 ParseEnum(VelocityAverageMode, Sufni.Telemetry.VelocityAverageMode.SampleAveraged),
                 ParseEnum(BalanceDisplacementMode, Sufni.Telemetry.BalanceDisplacementMode.Zenith),
                 ParseEnum(BalanceSpeedMode, Sufni.Telemetry.BalanceSpeedMode.Both),
-                ParseEnum(SessionAnalysisTargetProfile, Sufni.App.Sessions.Models.SessionAnalysisTargetProfile.Trail));
+                ParseEnum(SessionInsightsTargetProfile ?? SessionAnalysisTargetProfile, Sufni.App.Sessions.Models.SessionInsightsTargetProfile.Trail));
         }
 
-        public static SessionStatisticsPreferencesDocument FromModel(SessionStatisticsPreferences preferences)
+        public static AnalysisPreferencesDocument FromModel(AnalysisPreferences preferences, bool writeLegacyPreferenceKeys)
         {
-            return new SessionStatisticsPreferencesDocument
+            return new AnalysisPreferencesDocument
             {
-                TravelHistogramMode = preferences.TravelHistogramMode.ToString(),
+                TravelDistributionMode = preferences.TravelDistributionMode.ToString(),
+                TravelHistogramMode = writeLegacyPreferenceKeys ? preferences.TravelDistributionMode.ToString() : null,
                 VelocityAverageMode = preferences.VelocityAverageMode.ToString(),
                 BalanceDisplacementMode = preferences.BalanceDisplacementMode.ToString(),
                 BalanceSpeedMode = preferences.BalanceSpeedMode.ToString(),
-                SessionAnalysisTargetProfile = preferences.SessionAnalysisTargetProfile.ToString(),
+                SessionInsightsTargetProfile = preferences.SessionInsightsTargetProfile.ToString(),
+                SessionAnalysisTargetProfile = writeLegacyPreferenceKeys ? preferences.SessionInsightsTargetProfile.ToString() : null,
             };
         }
 
@@ -578,11 +632,11 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    private sealed class SessionGraphPreferencesDocument
+    private sealed class SignalLayoutPreferencesDocument
     {
-        public List<SessionGraphRowPreferencesDocument?>? Rows { get; set; }
+        public List<SignalLayoutRowPreferencesDocument?>? Rows { get; set; }
 
-        public SessionGraphPreferences ToModel()
+        public SignalLayoutPreferences ToModel()
         {
             var rows = Rows?
                 .Where(row => row is not null)
@@ -591,31 +645,31 @@ public sealed class AppPreferences : IAppPreferences
                 .ToArray();
 
             return rows is { Length: > 0 }
-                ? new SessionGraphPreferences(rows)
-                : SessionGraphPreferences.Default;
+                ? new SignalLayoutPreferences(rows)
+                : SignalLayoutPreferences.Default;
         }
 
-        public static SessionGraphPreferencesDocument FromModel(SessionGraphPreferences preferences)
+        public static SignalLayoutPreferencesDocument FromModel(SignalLayoutPreferences preferences)
         {
-            return new SessionGraphPreferencesDocument
+            return new SignalLayoutPreferencesDocument
             {
                 Rows = preferences.Rows
-                    .Select(row => (SessionGraphRowPreferencesDocument?)SessionGraphRowPreferencesDocument.FromModel(row))
+                    .Select(row => (SignalLayoutRowPreferencesDocument?)SignalLayoutRowPreferencesDocument.FromModel(row))
                     .ToList(),
             };
         }
     }
 
-    private sealed class SessionGraphRowPreferencesDocument
+    private sealed class SignalLayoutRowPreferencesDocument
     {
         public string? RowId { get; set; }
         public bool? IsExpanded { get; set; }
         public double? HeightRatio { get; set; }
-        public List<SessionGraphRowPreferencesDocument?>? Children { get; set; }
+        public List<SignalLayoutRowPreferencesDocument?>? Children { get; set; }
 
-        public SessionGraphRowPreferences ToModel()
+        public SignalLayoutRowPreferences ToModel()
         {
-            return new SessionGraphRowPreferences(
+            return new SignalLayoutRowPreferences(
                 RowId ?? "",
                 IsExpanded ?? true,
                 Children?
@@ -626,15 +680,15 @@ public sealed class AppPreferences : IAppPreferences
                 HeightRatio);
         }
 
-        public static SessionGraphRowPreferencesDocument FromModel(SessionGraphRowPreferences preferences)
+        public static SignalLayoutRowPreferencesDocument FromModel(SignalLayoutRowPreferences preferences)
         {
-            return new SessionGraphRowPreferencesDocument
+            return new SignalLayoutRowPreferencesDocument
             {
                 RowId = preferences.RowId,
                 IsExpanded = preferences.IsExpanded,
                 HeightRatio = preferences.HeightRatio,
                 Children = preferences.Children
-                    .Select(child => (SessionGraphRowPreferencesDocument?)FromModel(child))
+                    .Select(child => (SignalLayoutRowPreferencesDocument?)FromModel(child))
                     .ToList(),
             };
         }
@@ -643,7 +697,9 @@ public sealed class AppPreferences : IAppPreferences
     private sealed class SessionLayoutPreferencesDocument
     {
         public SessionPaneGroupPreferencesDocument? DesktopShellRows { get; set; }
+        public SessionPaneGroupPreferencesDocument? DesktopSignalsMediaColumns { get; set; }
         public SessionPaneGroupPreferencesDocument? DesktopGraphMediaColumns { get; set; }
+        public SessionPaneGroupPreferencesDocument? DesktopAnalysisSidebarColumns { get; set; }
         public SessionPaneGroupPreferencesDocument? DesktopStatisticsSidebarColumns { get; set; }
         public SessionPaneGroupPreferencesDocument? DesktopMediaRows { get; set; }
 
@@ -651,19 +707,35 @@ public sealed class AppPreferences : IAppPreferences
         {
             return new SessionLayoutPreferences(
                 DesktopShellRows?.ToModel(),
-                DesktopGraphMediaColumns?.ToModel(),
-                DesktopStatisticsSidebarColumns?.ToModel(),
+                DesktopSignalsMediaColumns?.ToModel() ?? DesktopGraphMediaColumns?.ToModel(),
+                DesktopAnalysisSidebarColumns?.ToModel() ?? DesktopStatisticsSidebarColumns?.ToModel(),
                 DesktopMediaRows?.ToModel());
         }
 
-        public static SessionLayoutPreferencesDocument FromModel(SessionLayoutPreferences preferences)
+        public static SessionLayoutPreferencesDocument FromModel(
+            SessionLayoutPreferences preferences,
+            bool writeLegacyPreferenceKeys,
+            bool writeLegacyLayoutPaneIds)
         {
+            var desktopSignalsMediaColumns = SessionPaneGroupPreferencesDocument.FromModel(
+                preferences.DesktopSignalsMediaColumns,
+                writeLegacyLayoutPaneIds);
+            var desktopAnalysisSidebarColumns = SessionPaneGroupPreferencesDocument.FromModel(
+                preferences.DesktopAnalysisSidebarColumns,
+                writeLegacyLayoutPaneIds);
+
             return new SessionLayoutPreferencesDocument
             {
-                DesktopShellRows = SessionPaneGroupPreferencesDocument.FromModel(preferences.DesktopShellRows),
-                DesktopGraphMediaColumns = SessionPaneGroupPreferencesDocument.FromModel(preferences.DesktopGraphMediaColumns),
-                DesktopStatisticsSidebarColumns = SessionPaneGroupPreferencesDocument.FromModel(preferences.DesktopStatisticsSidebarColumns),
-                DesktopMediaRows = SessionPaneGroupPreferencesDocument.FromModel(preferences.DesktopMediaRows),
+                DesktopShellRows = SessionPaneGroupPreferencesDocument.FromModel(
+                    preferences.DesktopShellRows,
+                    writeLegacyLayoutPaneIds),
+                DesktopSignalsMediaColumns = desktopSignalsMediaColumns,
+                DesktopGraphMediaColumns = writeLegacyPreferenceKeys ? desktopSignalsMediaColumns : null,
+                DesktopAnalysisSidebarColumns = desktopAnalysisSidebarColumns,
+                DesktopStatisticsSidebarColumns = writeLegacyPreferenceKeys ? desktopAnalysisSidebarColumns : null,
+                DesktopMediaRows = SessionPaneGroupPreferencesDocument.FromModel(
+                    preferences.DesktopMediaRows,
+                    writeLegacyLayoutPaneIds),
             };
         }
     }
@@ -681,7 +753,9 @@ public sealed class AppPreferences : IAppPreferences
                 .ToArray());
         }
 
-        public static SessionPaneGroupPreferencesDocument? FromModel(SessionPaneGroupPreferences? preferences)
+        public static SessionPaneGroupPreferencesDocument? FromModel(
+            SessionPaneGroupPreferences? preferences,
+            bool writeLegacyLayoutPaneIds)
         {
             if (preferences is null)
             {
@@ -691,7 +765,9 @@ public sealed class AppPreferences : IAppPreferences
             return new SessionPaneGroupPreferencesDocument
             {
                 Panes = preferences.Panes
-                    .Select(pane => (SessionPaneSizePreferenceDocument?)SessionPaneSizePreferenceDocument.FromModel(pane))
+                    .Select(pane => (SessionPaneSizePreferenceDocument?)SessionPaneSizePreferenceDocument.FromModel(
+                        pane,
+                        writeLegacyLayoutPaneIds))
                     .ToList(),
             };
         }
@@ -708,11 +784,15 @@ public sealed class AppPreferences : IAppPreferences
             return new SessionPaneSizePreference(PaneId ?? "", Ratio ?? 0, IsCollapsed ?? false);
         }
 
-        public static SessionPaneSizePreferenceDocument FromModel(SessionPaneSizePreference preferences)
+        public static SessionPaneSizePreferenceDocument FromModel(
+            SessionPaneSizePreference preferences,
+            bool writeLegacyLayoutPaneIds)
         {
             return new SessionPaneSizePreferenceDocument
             {
-                PaneId = preferences.PaneId,
+                PaneId = writeLegacyLayoutPaneIds
+                    ? SessionLayoutPaneIds.ToLegacy(preferences.PaneId)
+                    : SessionLayoutPaneIds.Normalize(preferences.PaneId),
                 Ratio = preferences.Ratio,
                 IsCollapsed = preferences.IsCollapsed,
             };

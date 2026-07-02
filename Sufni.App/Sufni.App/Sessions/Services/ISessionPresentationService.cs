@@ -8,7 +8,7 @@ namespace Sufni.App.Sessions.Services;
 
 public interface ISessionPresentationService
 {
-    SessionDamperPercentages CalculateDamperPercentages(
+    SessionDampingPercentages CalculateDampingPercentages(
         TelemetryData telemetryData,
         TelemetryTimeRange? range = null,
         VelocityAverageMode velocityAverageMode = VelocityAverageMode.SampleAveraged,

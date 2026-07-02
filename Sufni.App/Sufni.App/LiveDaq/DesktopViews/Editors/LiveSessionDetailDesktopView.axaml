@@ -4,7 +4,7 @@ xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:items2="clr-namespace:Sufni.App.Sessions.Detail.DesktopViews.Items"
     xmlns:items3="clr-namespace:Sufni.App.Sessions.Media.DesktopViews.Items"
-    xmlns:items4="clr-namespace:Sufni.App.Sessions.Statistics.DesktopViews.Items"
+    xmlns:items4="clr-namespace:Sufni.App.Sessions.Analysis.DesktopViews.Items"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:editors="clr-namespace:Sufni.App.Sessions.Detail.DesktopViews.Editors"
 xmlns:items="clr-namespace:Sufni.App.LiveDaq.DesktopViews.Items"
@@ -34,17 +34,17 @@ mc:Ignorable="d">
             IsVisible="{Binding ScreenState.IsReady}"
             MediaColumnWidth="{Binding MediaWorkspace.MediaColumnWidth, TargetNullValue=400}">
 
-            <editors:SessionShellDesktopView.GraphContent>
-                <items:LiveSessionGraphDesktopView DataContext="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext).GraphWorkspace}" />
-            </editors:SessionShellDesktopView.GraphContent>
+            <editors:SessionShellDesktopView.SignalsContent>
+                <items:LiveSessionSignalsDesktopView DataContext="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext).SignalsWorkspace}" />
+            </editors:SessionShellDesktopView.SignalsContent>
 
             <editors:SessionShellDesktopView.MediaContent>
                 <items3:SessionMediaDesktopView DataContext="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext).MediaWorkspace}" />
             </editors:SessionShellDesktopView.MediaContent>
 
-            <editors:SessionShellDesktopView.StatisticsContent>
-                <items4:SessionStatisticsDesktopView DataContext="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext)}" />
-            </editors:SessionShellDesktopView.StatisticsContent>
+            <editors:SessionShellDesktopView.AnalysisContent>
+                <items4:SessionAnalysisDesktopView DataContext="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext)}" />
+            </editors:SessionShellDesktopView.AnalysisContent>
 
             <editors:SessionShellDesktopView.ControlContent>
                 <items:LiveSessionControlsDesktopView DataContext="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext)}" />

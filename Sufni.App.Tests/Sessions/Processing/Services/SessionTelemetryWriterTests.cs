@@ -3,7 +3,7 @@ using Sufni.App.ExtensionHost.Contracts.Models;
 
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Tests.TestSupport.Persistence;
 namespace Sufni.App.Tests.Sessions.Processing.Services;
 

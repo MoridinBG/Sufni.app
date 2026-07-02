@@ -8,14 +8,14 @@ public interface IRecordedSessionPageContributionViewModel : IExtensionViewModel
 
 public interface IRecordedSessionMediaPaneContributionViewModel : IExtensionViewModel;
 
-public interface IRecordedSessionStatisticsBannerContributionViewModel : IExtensionViewModel;
+public interface IRecordedSessionAnalysisBannerContributionViewModel : IExtensionViewModel;
 
-public interface IRecordedSessionStatisticsOverlayContributionViewModel : IExtensionViewModel;
+public interface IRecordedSessionAnalysisOverlayContributionViewModel : IExtensionViewModel;
 
-public interface IRecordedSessionStatisticsTabContributionViewModel : IExtensionViewModel;
+public interface IRecordedSessionAnalysisTabContributionViewModel : IExtensionViewModel;
 
 public interface IRecordedSessionListIndicatorContributionViewModel : IExtensionViewModel;
 
 public interface IRecordedSessionListActionContributionViewModel : IExtensionViewModel;
 
-public interface IRecordedSessionHostedGraphRowContributionViewModel : IExtensionViewModel;
+public interface IRecordedSessionHostedSignalRowContributionViewModel : IExtensionViewModel;

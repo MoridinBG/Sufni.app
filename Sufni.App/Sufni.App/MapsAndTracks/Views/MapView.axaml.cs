@@ -27,7 +27,7 @@ using Sufni.App.ExtensionHost.Contracts.Models;
 
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.ViewModels;
-using Sufni.App.Sessions.Graph.ViewModels.Editors;
+using Sufni.App.Sessions.Signals.ViewModels.Editors;
 namespace Sufni.App.MapsAndTracks.Views;
 
 public partial class MapView : UserControl

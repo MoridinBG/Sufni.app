@@ -65,11 +65,11 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
             new RecordedSessionIdentityState(sessionId, null, null, null, IsLoaded: false, IsActive: false),
             new RecordedSessionSelectionState(null),
             new RecordedSessionTimelineState(null, null, null),
-            new RecordedSessionStatisticsState(
-                SessionDamperPercentages.Empty,
+            new RecordedSessionAnalysisState(
+                SessionDampingPercentages.Empty,
                 DampingSpeedCutoffs.Default,
                 VelocityAverageMode.SampleAveraged,
-                TravelHistogramMode.ActiveSuspension));
+                TravelDistributionMode.ActiveSuspension));
         stateChanged = new BehaviorSubject<RecordedSessionHostState>(CurrentState);
     }
 

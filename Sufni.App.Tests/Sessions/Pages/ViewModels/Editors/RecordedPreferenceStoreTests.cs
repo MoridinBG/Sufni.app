@@ -12,7 +12,7 @@ public class RecordedPreferenceStoreTests
         var sessionId = Guid.NewGuid();
         var preferences = SessionPreferences.Default with
         {
-            Plots = SessionPreferences.Default.Plots with { Velocity = false },
+            SignalDisplay = SessionPreferences.Default.SignalDisplay with { Velocity = false },
         };
         var service = Substitute.For<ISessionPreferences>();
         service.GetRecordedAsync(sessionId).Returns(preferences);
@@ -55,7 +55,7 @@ public class RecordedPreferenceStoreTests
 
         sut.PersistChangeIfEnabled(current => current with
         {
-            Plots = current.Plots with { Velocity = false },
+            SignalDisplay = current.SignalDisplay with { Velocity = false },
         });
 
         await service.DidNotReceive().UpdateRecordedAsync(sessionId, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
@@ -73,7 +73,7 @@ public class RecordedPreferenceStoreTests
 
         var persisted = await sut.PersistChangeAsync(current => current with
         {
-            Plots = current.Plots with { Velocity = false },
+            SignalDisplay = current.SignalDisplay with { Velocity = false },
         });
 
         Assert.False(persisted);

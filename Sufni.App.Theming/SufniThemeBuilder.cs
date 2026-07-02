@@ -20,17 +20,17 @@ public sealed record SufniThemeInputs(
     Color FieldBorderDisabled,
     Color DragHeader,
     Color DropTargetHeader,
-    Color GraphRowRootPlotData,
-    SufniGraphRowDepthTheme GraphRowHostedLevel1,
-    SufniGraphRowDepthTheme GraphRowHostedLevel2,
-    SufniGraphRowDepthTheme GraphRowHostedLevel3Plus,
-    Color GraphRowConnector,
+    Color SignalRowRootPlotData,
+    SufniSignalRowDepthTheme SignalRowHostedLevel1,
+    SufniSignalRowDepthTheme SignalRowHostedLevel2,
+    SufniSignalRowDepthTheme SignalRowHostedLevel3Plus,
+    Color SignalRowConnector,
     Color PlotGridMajor,
     Color PlotGridMinor,
     Color PlotAxisLine,
     Color PlotMarkerBlue,
-    Color PlotStatisticsSelectionFrontBase,
-    Color PlotStatisticsSelectionRearBase,
+    Color PlotAnalysisSelectionFrontBase,
+    Color PlotAnalysisSelectionRearBase,
     Color PlotDampingSelectionFill,
     Color PlotDampingSelectionOutline,
     double PlotAnalysisSelectedFillOpacity,
@@ -43,7 +43,7 @@ public sealed record SufniThemeInputs(
 
 // Single composition point for both app themes. Given a theme's divergent inputs it
 // derives every cross-referenced token, applies the fixed opacities/dimensions, and
-// assembles the SufniTheme. The plot depth themes are derived from the graph-row depth
+// assembles the SufniTheme. The plot depth themes are derived from the signal-row depth
 // themes (they were always equal), so that invariant is now enforced by construction.
 public static class SufniThemeBuilder
 {
@@ -82,7 +82,7 @@ public static class SufniThemeBuilder
             Indicator: selection.Indicator,
             IndicatorBleed: 12,
             WindowFontSize: 16,
-            StatisticsFontSize: 16,
+            AnalysisFontSize: 16,
             NavFontSize: 9);
 
         var navRail = new SufniNavRailTheme(
@@ -129,26 +129,26 @@ public static class SufniThemeBuilder
             DropTargetHeader: inputs.DropTargetHeader,
             DropPositionIndicator: action.AccentAliases.DropPosition);
 
-        var graphRow = new SufniGraphRowTheme(
-            Root: new SufniGraphRowDepthTheme(
+        var signalRow = new SufniSignalRowTheme(
+            Root: new SufniSignalRowDepthTheme(
                 Container: surface.Page,
                 Header: surface.Elevated,
                 PlotFigure: surface.Page,
-                PlotData: inputs.GraphRowRootPlotData),
-            HostedLevel1: inputs.GraphRowHostedLevel1,
-            HostedLevel2: inputs.GraphRowHostedLevel2,
-            HostedLevel3Plus: inputs.GraphRowHostedLevel3Plus,
-            Connector: inputs.GraphRowConnector,
+                PlotData: inputs.SignalRowRootPlotData),
+            HostedLevel1: inputs.SignalRowHostedLevel1,
+            HostedLevel2: inputs.SignalRowHostedLevel2,
+            HostedLevel3Plus: inputs.SignalRowHostedLevel3Plus,
+            Connector: inputs.SignalRowConnector,
             DividerBetweenRoots: line.Divider);
 
         var series = SufniThemes.SignalSeries;
 
-        // Plot figure/data backgrounds mirror the graph-row depth themes at every level.
+        // Plot figure/data backgrounds mirror the signal-row depth themes at every level.
         var plot = new SufniPlotTheme(
-            Root: new SufniPlotDepthTheme(graphRow.Root.PlotFigure, graphRow.Root.PlotData),
-            HostedLevel1: new SufniPlotDepthTheme(graphRow.HostedLevel1.PlotFigure, graphRow.HostedLevel1.PlotData),
-            HostedLevel2: new SufniPlotDepthTheme(graphRow.HostedLevel2.PlotFigure, graphRow.HostedLevel2.PlotData),
-            HostedLevel3Plus: new SufniPlotDepthTheme(graphRow.HostedLevel3Plus.PlotFigure, graphRow.HostedLevel3Plus.PlotData),
+            Root: new SufniPlotDepthTheme(signalRow.Root.PlotFigure, signalRow.Root.PlotData),
+            HostedLevel1: new SufniPlotDepthTheme(signalRow.HostedLevel1.PlotFigure, signalRow.HostedLevel1.PlotData),
+            HostedLevel2: new SufniPlotDepthTheme(signalRow.HostedLevel2.PlotFigure, signalRow.HostedLevel2.PlotData),
+            HostedLevel3Plus: new SufniPlotDepthTheme(signalRow.HostedLevel3Plus.PlotFigure, signalRow.HostedLevel3Plus.PlotData),
             Grid: new SufniPlotGridTheme(inputs.PlotGridMajor, inputs.PlotGridMinor),
             Axis: new SufniPlotAxisTheme(inputs.PlotAxisLine, text.Primary, text.Primary),
             Legend: new SufniPlotLegendTheme(surface.Elevated, line.Subtle, text.Primary),
@@ -156,10 +156,10 @@ public static class SufniThemeBuilder
                 Line: inputs.PlotMarkerBlue.WithAlpha(0.9),
                 AirtimeFill: inputs.PlotMarkerBlue.WithAlpha(0.2),
                 AirtimeOutline: text.Secondary.WithAlpha(0.5),
-                StatisticsSelectionFrontFill: inputs.PlotStatisticsSelectionFrontBase.WithAlpha(0.20),
-                StatisticsSelectionFrontOutline: inputs.PlotStatisticsSelectionFrontBase.WithAlpha(0.66),
-                StatisticsSelectionRearFill: inputs.PlotStatisticsSelectionRearBase.WithAlpha(0.20),
-                StatisticsSelectionRearOutline: inputs.PlotStatisticsSelectionRearBase.WithAlpha(0.66),
+                AnalysisSelectionFrontFill: inputs.PlotAnalysisSelectionFrontBase.WithAlpha(0.20),
+                AnalysisSelectionFrontOutline: inputs.PlotAnalysisSelectionFrontBase.WithAlpha(0.66),
+                AnalysisSelectionRearFill: inputs.PlotAnalysisSelectionRearBase.WithAlpha(0.20),
+                AnalysisSelectionRearOutline: inputs.PlotAnalysisSelectionRearBase.WithAlpha(0.66),
                 DampingSelectionFill: inputs.PlotDampingSelectionFill,
                 DampingSelectionOutline: inputs.PlotDampingSelectionOutline),
             AnalysisRange: new SufniPlotAnalysisRangeTheme(
@@ -206,7 +206,7 @@ public static class SufniThemeBuilder
             Splitter: splitter,
             Field: field,
             DragDrop: dragDrop,
-            GraphRow: graphRow,
+            SignalRow: signalRow,
             Plot: plot,
             Typography: SufniThemes.Typography,
             Spacing: SufniThemes.Spacing);

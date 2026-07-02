@@ -9,10 +9,10 @@ namespace Sufni.App.Sessions.Models;
 public class SessionCache
 {
     [Column("session_id"), PrimaryKey] public Guid SessionId { get; set; }
-    [Column("front_travel_histogram")] public string? FrontTravelHistogram { get; set; }
-    [Column("rear_travel_histogram")] public string? RearTravelHistogram { get; set; }
-    [Column("front_velocity_histogram")] public string? FrontVelocityHistogram { get; set; }
-    [Column("rear_velocity_histogram")] public string? RearVelocityHistogram { get; set; }
+    [Column("front_travel_histogram")] public string? FrontTravelDistribution { get; set; }
+    [Column("rear_travel_histogram")] public string? RearTravelDistribution { get; set; }
+    [Column("front_velocity_histogram")] public string? FrontVelocityDistribution { get; set; }
+    [Column("rear_velocity_histogram")] public string? RearVelocityDistribution { get; set; }
     [Column("compression_balance")] public string? CompressionBalance { get; set; }
     [Column("rebound_balance")] public string? ReboundBalance { get; set; }
     [Column("front_hsc_percentage")] public double? FrontHscPercentage { get; set; }
@@ -33,7 +33,7 @@ public class SessionCache
     public double RearReboundDampingCutoffMmPerSecond { get; set; } = DampingSpeedCutoffs.DefaultMmPerSecond;
 
     [Ignore]
-    public SessionDamperPercentages DamperPercentages
+    public SessionDampingPercentages DampingPercentages
     {
         get => new(
             FrontHscPercentage,

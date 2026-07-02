@@ -5,13 +5,13 @@ using Serilog;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.Telemetry;
 
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Processing.SessionDetails;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 using Sufni.App.SyncAndPairing.Services;
@@ -94,8 +94,8 @@ public sealed class SessionLoader
 
             var dampingSpeedCutoffContext = ResolveDampingSpeedCutoffContext(sessionId);
             logger.Verbose("Calculating presentation data for desktop session {SessionId}", sessionId);
-            var damperPercentages = await backgroundTaskRunner.RunAsync(
-                () => sessionPresentationService.CalculateDamperPercentages(
+            var dampingPercentages = await backgroundTaskRunner.RunAsync(
+                () => sessionPresentationService.CalculateDampingPercentages(
                     telemetryData,
                     dampingSpeedCutoffs: dampingSpeedCutoffContext.Cutoffs),
                 cancellationToken);
@@ -108,7 +108,7 @@ public sealed class SessionLoader
                     trackData.FullTrackPoints,
                     trackData.TrackPoints,
                     trackData.MediaColumnWidth,
-                    damperPercentages,
+                    dampingPercentages,
                     dampingSpeedCutoffContext.Cutoffs,
                     dampingSpeedCutoffContext.Owner));
         }
@@ -165,15 +165,15 @@ public sealed class SessionLoader
                 };
                 if (cachedTelemetryData is not null && cachedPresentation.DampingSpeedCutoffs != dampingSpeedCutoffContext.Cutoffs)
                 {
-                    logger.Verbose("Recomputing cached damper percentages for session {SessionId} because bike cutoffs changed", sessionId);
-                    var damperPercentages = await backgroundTaskRunner.RunAsync(
-                        () => sessionPresentationService.CalculateDamperPercentages(
+                    logger.Verbose("Recomputing cached damping percentages for session {SessionId} because bike cutoffs changed", sessionId);
+                    var dampingPercentages = await backgroundTaskRunner.RunAsync(
+                        () => sessionPresentationService.CalculateDampingPercentages(
                             cachedTelemetryData,
                             dampingSpeedCutoffs: dampingSpeedCutoffContext.Cutoffs),
                         cancellationToken);
                     cachedPresentation = cachedPresentation with
                     {
-                        DamperPercentages = damperPercentages,
+                        DampingPercentages = dampingPercentages,
                         DampingSpeedCutoffs = dampingSpeedCutoffContext.Cutoffs,
                     };
                 }

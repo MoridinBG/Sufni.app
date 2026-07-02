@@ -18,10 +18,10 @@ using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.LiveDaq.ViewModels.Editors;
 using Sufni.App.MapsAndTracks.Services;
-using Sufni.App.Sessions.Analysis.Services;
+using Sufni.App.Sessions.Insights.Services;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Processing.SessionDetails;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.ViewModels.Editors;
@@ -264,9 +264,9 @@ public class EditorFactoryTests
             TestCoordinatorSubstitutes.Session(),
             TestCoordinatorSubstitutes.Track(),
             Substitute.For<ISessionStore>(),
-            Substitute.For<IRecordedSessionGraph>(),
+            Substitute.For<IRecordedSessionProjection>(),
             Substitute.For<ISessionPresentationService>(),
-            Substitute.For<ISessionAnalysisService>(),
+            Substitute.For<ISessionInsightsService>(),
             new TestMapViewModelFactory(Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges()),
             Substitute.For<ISessionPreferences>(),
             Substitute.For<IRecordedSessionProcessingOptionCache>(),

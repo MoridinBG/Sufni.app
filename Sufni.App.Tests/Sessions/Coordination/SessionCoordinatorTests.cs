@@ -8,7 +8,7 @@ using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Contracts.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
@@ -21,7 +21,7 @@ using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.Services;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Models;
@@ -58,7 +58,7 @@ public class SessionCoordinatorTests
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
     private readonly IRecordedSessionDomainQuery domainQuery = Substitute.For<IRecordedSessionDomainQuery>();
-    private readonly IRecordedSessionGraph recordedSessionGraph = Substitute.For<IRecordedSessionGraph>();
+    private readonly IRecordedSessionProjection recordedSessionProjection = Substitute.For<IRecordedSessionProjection>();
     private readonly IRecordedSessionReprocessor reprocessor = Substitute.For<IRecordedSessionReprocessor>();
     private readonly IRecordedSessionDataReader recordedSessionDataReader = Substitute.For<IRecordedSessionDataReader>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
@@ -313,13 +313,13 @@ public class SessionCoordinatorTests
             HasProcessedData = true,
         };
         var preferences = new SessionPreferences(
-            new SessionPlotPreferences(Travel: true, Velocity: false, Imu: true),
-            new SessionStatisticsPreferences(
-                TravelHistogramMode.DynamicSag,
+            new SignalDisplayPreferences(Travel: true, Velocity: false, Imu: true),
+            new AnalysisPreferences(
+                TravelDistributionMode.DynamicSag,
                 VelocityAverageMode.StrokePeakAveraged,
                 BalanceDisplacementMode.Travel,
                 BalanceSpeedMode.HighSpeed,
-                SessionAnalysisTargetProfile.DH));
+                SessionInsightsTargetProfile.DH));
         Func<SessionPreferences, SessionPreferences>? update = null;
         SeedLiveCaptureDependencies(capture);
         sessionTelemetryWriter
@@ -481,7 +481,7 @@ public class SessionCoordinatorTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
-        var percentages = new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8);
+        var percentages = new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8);
         var trackData = new SessionTrackPresentationData(
             Guid.NewGuid(),
             [new TrackPoint(1, 1, 1, 0)],
@@ -493,7 +493,7 @@ public class SessionCoordinatorTests
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(trackData);
         sessionPresentationService
-            .CalculateDamperPercentages(
+            .CalculateDampingPercentages(
                 telemetry,
                 Arg.Any<TelemetryTimeRange?>(),
                 Arg.Any<VelocityAverageMode>(),
@@ -506,7 +506,7 @@ public class SessionCoordinatorTests
         Assert.Same(telemetry, loaded.Data.TelemetryData);
         Assert.Same(trackData.TrackPoints, loaded.Data.TrackPoints);
         Assert.Equal(400.0, loaded.Data.MediaColumnWidth);
-        Assert.Equal(percentages, loaded.Data.DamperPercentages);
+        Assert.Equal(percentages, loaded.Data.DampingPercentages);
     }
 
     [Fact]
@@ -522,7 +522,7 @@ public class SessionCoordinatorTests
             RearCompressionDampingCutoffMmPerSecond = cutoffs.Rear.CompressionMmPerSecond,
             RearReboundDampingCutoffMmPerSecond = cutoffs.Rear.ReboundMmPerSecond,
         };
-        var percentages = new SessionDamperPercentages(11, 12, 13, 14, 15, 16, 17, 18);
+        var percentages = new SessionDampingPercentages(11, 12, 13, 14, 15, 16, 17, 18);
 
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         domainQuery.Get(snapshot.Id).Returns(DomainWithBike(snapshot, bike));
@@ -530,7 +530,7 @@ public class SessionCoordinatorTests
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(new SessionTrackPresentationData(null, null, null, null));
         sessionPresentationService
-            .CalculateDamperPercentages(
+            .CalculateDampingPercentages(
                 telemetry,
                 Arg.Any<TelemetryTimeRange?>(),
                 Arg.Any<VelocityAverageMode>(),
@@ -541,7 +541,7 @@ public class SessionCoordinatorTests
 
         var loaded = Assert.IsType<SessionDesktopLoadResult.Loaded>(result);
         Assert.Equal(cutoffs, loaded.Data.DampingSpeedCutoffs);
-        Assert.Equal(percentages, loaded.Data.DamperPercentages);
+        Assert.Equal(percentages, loaded.Data.DampingPercentages);
         Assert.Equal(new DampingSpeedCutoffOwner(bike.Id, bike.Updated), loaded.Data.DampingSpeedCutoffOwner);
     }
 
@@ -593,7 +593,7 @@ public class SessionCoordinatorTests
     public async Task LoadMobileDetailAsync_ReturnsCacheHit_WhenCacheExists()
     {
         var sessionId = Guid.NewGuid();
-        var cache = new SessionCache { SessionId = sessionId, FrontTravelHistogram = "cached" };
+        var cache = new SessionCache { SessionId = sessionId, FrontTravelDistribution = "cached" };
         var telemetry = TestTelemetryData.CreateProcessed();
         var trackData = new SessionTrackPresentationData(Guid.NewGuid(), [], [], 400);
         sessionCacheStore.GetSessionCacheAsync(sessionId).Returns(cache);
@@ -604,7 +604,7 @@ public class SessionCoordinatorTests
         var result = await CreateCoordinator().LoadMobileDetailAsync(sessionId, new SessionPresentationDimensions(320, 180));
 
         var loaded = Assert.IsType<SessionMobileLoadResult.LoadedFromCache>(result);
-        Assert.Equal("cached", loaded.Data.FrontTravelHistogram);
+        Assert.Equal("cached", loaded.Data.FrontTravelDistribution);
         Assert.Same(telemetry, loaded.Telemetry);
         Assert.Same(trackData, loaded.TrackData);
         await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId);
@@ -615,14 +615,14 @@ public class SessionCoordinatorTests
     public async Task LoadMobileDetailAsync_ReturnsCacheHit_WithNullTelemetry_WhenLocalTelemetryMissing()
     {
         var sessionId = Guid.NewGuid();
-        var cache = new SessionCache { SessionId = sessionId, FrontTravelHistogram = "cached" };
+        var cache = new SessionCache { SessionId = sessionId, FrontTravelDistribution = "cached" };
         sessionCacheStore.GetSessionCacheAsync(sessionId).Returns(cache);
         SetLocalTelemetry(sessionId, null);
 
         var result = await CreateCoordinator().LoadMobileDetailAsync(sessionId, new SessionPresentationDimensions(320, 180));
 
         var loaded = Assert.IsType<SessionMobileLoadResult.LoadedFromCache>(result);
-        Assert.Equal("cached", loaded.Data.FrontTravelHistogram);
+        Assert.Equal("cached", loaded.Data.FrontTravelDistribution);
         Assert.Null(loaded.Telemetry);
         Assert.Null(loaded.TrackData);
         await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId);
@@ -630,7 +630,7 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
-    public async Task LoadMobileDetailAsync_RecomputesCachedDamperPercentages_WhenBikeCutoffsChangedAndTelemetryIsAvailable()
+    public async Task LoadMobileDetailAsync_RecomputesCachedDampingPercentages_WhenBikeCutoffsChangedAndTelemetryIsAvailable()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
@@ -643,13 +643,13 @@ public class SessionCoordinatorTests
             RearCompressionDampingCutoffMmPerSecond = currentCutoffs.Rear.CompressionMmPerSecond,
             RearReboundDampingCutoffMmPerSecond = currentCutoffs.Rear.ReboundMmPerSecond,
         };
-        var stalePercentages = new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8);
-        var currentPercentages = new SessionDamperPercentages(11, 12, 13, 14, 15, 16, 17, 18);
+        var stalePercentages = new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8);
+        var currentPercentages = new SessionDampingPercentages(11, 12, 13, 14, 15, 16, 17, 18);
         var cache = new SessionCache
         {
             SessionId = snapshot.Id,
-            FrontTravelHistogram = "cached",
-            DamperPercentages = stalePercentages,
+            FrontTravelDistribution = "cached",
+            DampingPercentages = stalePercentages,
             DampingSpeedCutoffs = cachedCutoffs,
         };
 
@@ -660,7 +660,7 @@ public class SessionCoordinatorTests
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(new SessionTrackPresentationData(null, null, null, null));
         sessionPresentationService
-            .CalculateDamperPercentages(
+            .CalculateDampingPercentages(
                 telemetry,
                 Arg.Any<TelemetryTimeRange?>(),
                 Arg.Any<VelocityAverageMode>(),
@@ -670,7 +670,7 @@ public class SessionCoordinatorTests
         var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
 
         var loaded = Assert.IsType<SessionMobileLoadResult.LoadedFromCache>(result);
-        Assert.Equal(currentPercentages, loaded.Data.DamperPercentages);
+        Assert.Equal(currentPercentages, loaded.Data.DampingPercentages);
         Assert.Equal(currentCutoffs, loaded.Data.DampingSpeedCutoffs);
         Assert.Equal(new DampingSpeedCutoffOwner(bike.Id, bike.Updated), loaded.Data.DampingSpeedCutoffOwner);
         await sessionCacheStore.DidNotReceive().PutSessionCacheAsync(Arg.Any<SessionCache>());
@@ -689,7 +689,7 @@ public class SessionCoordinatorTests
             null,
             null,
             null,
-            new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
+            new SessionDampingPercentages(1, null, 2, null, 3, null, 4, null),
             DampingSpeedCutoffs.Default,
             false);
 
@@ -708,11 +708,11 @@ public class SessionCoordinatorTests
         var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
 
         var built = Assert.IsType<SessionMobileLoadResult.BuiltCache>(result);
-        Assert.Equal("front-travel", built.Data.FrontTravelHistogram);
+        Assert.Equal("front-travel", built.Data.FrontTravelDistribution);
         Assert.Same(telemetry, built.Telemetry);
         Assert.Same(trackData, built.TrackData);
         await sessionCacheStore.Received(1).PutSessionCacheAsync(Arg.Is<SessionCache>(cache =>
-            cache.SessionId == snapshot.Id && cache.FrontTravelHistogram == "front-travel"));
+            cache.SessionId == snapshot.Id && cache.FrontTravelDistribution == "front-travel"));
     }
 
     [Fact]
@@ -735,7 +735,7 @@ public class SessionCoordinatorTests
             null,
             null,
             null,
-            new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
+            new SessionDampingPercentages(1, null, 2, null, 3, null, 4, null),
             cutoffs,
             false);
 
@@ -837,7 +837,7 @@ public class SessionCoordinatorTests
                     null,
                     null,
                     null,
-                    new SessionDamperPercentages(1, null, 2, null, 3, null, 4, null),
+                    new SessionDampingPercentages(1, null, 2, null, 3, null, 4, null),
                     DampingSpeedCutoffs.Default,
                     false);
             });

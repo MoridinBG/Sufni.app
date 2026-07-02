@@ -62,15 +62,15 @@ public partial class RecordedSessionToolbarContributionsView : UserControl
 
         if (subscribedSlots is not null)
         {
-            subscribedSlots.GraphToolbarCommands.CollectionChanged -= OnToolbarContributionsChanged;
-            subscribedSlots.GraphToolbarViews.CollectionChanged -= OnToolbarContributionsChanged;
+            subscribedSlots.SignalToolbarCommands.CollectionChanged -= OnToolbarContributionsChanged;
+            subscribedSlots.SignalToolbarViews.CollectionChanged -= OnToolbarContributionsChanged;
         }
 
         subscribedSlots = slots;
         if (subscribedSlots is not null)
         {
-            subscribedSlots.GraphToolbarCommands.CollectionChanged += OnToolbarContributionsChanged;
-            subscribedSlots.GraphToolbarViews.CollectionChanged += OnToolbarContributionsChanged;
+            subscribedSlots.SignalToolbarCommands.CollectionChanged += OnToolbarContributionsChanged;
+            subscribedSlots.SignalToolbarViews.CollectionChanged += OnToolbarContributionsChanged;
         }
     }
 
@@ -81,10 +81,10 @@ public partial class RecordedSessionToolbarContributionsView : UserControl
 
     private void Rebuild()
     {
-        LeadingGraphToolbarCommandBar.PrimaryCommands.Clear();
-        TrailingGraphToolbarCommandBar.PrimaryCommands.Clear();
-        LeadingGraphToolbarViewsHost.Children.Clear();
-        TrailingGraphToolbarViewsHost.Children.Clear();
+        LeadingSignalToolbarCommandBar.PrimaryCommands.Clear();
+        TrailingSignalToolbarCommandBar.PrimaryCommands.Clear();
+        LeadingSignalToolbarViewsHost.Children.Clear();
+        TrailingSignalToolbarViewsHost.Children.Clear();
         if (ExtensionSlots is not { } slots)
         {
             return;
@@ -92,22 +92,22 @@ public partial class RecordedSessionToolbarContributionsView : UserControl
 
         foreach (var contribution in OrderedToolbarCommandContributions(slots, RecordedSessionToolbarZone.Leading))
         {
-            LeadingGraphToolbarCommandBar.PrimaryCommands.Add(CreateCommandBarButton(contribution));
+            LeadingSignalToolbarCommandBar.PrimaryCommands.Add(CreateCommandBarButton(contribution));
         }
 
         foreach (var contribution in OrderedToolbarCommandContributions(slots, RecordedSessionToolbarZone.Trailing))
         {
-            TrailingGraphToolbarCommandBar.PrimaryCommands.Add(CreateCommandBarButton(contribution));
+            TrailingSignalToolbarCommandBar.PrimaryCommands.Add(CreateCommandBarButton(contribution));
         }
 
         foreach (var contribution in OrderedToolbarViewContributions(slots, RecordedSessionToolbarZone.Leading))
         {
-            LeadingGraphToolbarViewsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
+            LeadingSignalToolbarViewsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
         }
 
         foreach (var contribution in OrderedToolbarViewContributions(slots, RecordedSessionToolbarZone.Trailing))
         {
-            TrailingGraphToolbarViewsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
+            TrailingSignalToolbarViewsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
         }
     }
 
@@ -115,7 +115,7 @@ public partial class RecordedSessionToolbarContributionsView : UserControl
         RecordedSessionExtensionSlots slots,
         RecordedSessionToolbarZone zone)
     {
-        return slots.GraphToolbarCommands
+        return slots.SignalToolbarCommands
             .Where(contribution => contribution.Zone == zone)
             .OrderBy(static contribution => contribution.Order)
             .ThenBy(static contribution => contribution.ExtensionId, StringComparer.Ordinal)
@@ -126,7 +126,7 @@ public partial class RecordedSessionToolbarContributionsView : UserControl
         RecordedSessionExtensionSlots slots,
         RecordedSessionToolbarZone zone)
     {
-        return slots.GraphToolbarViews
+        return slots.SignalToolbarViews
             .Where(contribution => contribution.Zone == zone)
             .OrderBy(static contribution => contribution.Order)
             .ThenBy(static contribution => contribution.ExtensionId, StringComparer.Ordinal)

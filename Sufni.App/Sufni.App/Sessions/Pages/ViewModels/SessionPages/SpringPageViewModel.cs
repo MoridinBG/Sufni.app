@@ -8,98 +8,98 @@ namespace Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 
 public partial class SpringPageViewModel : PageViewModelBase
 {
-    public ISessionStatisticsWorkspace? StatisticsWorkspace { get; }
-    public bool HasDynamicStatistics => StatisticsWorkspace?.TelemetryData is not null;
-    public SurfacePresentationState FrontPresentationState => HasDynamicStatistics
-        ? StatisticsWorkspace!.FrontStatisticsState
-        : FrontHistogramState;
-    public SurfacePresentationState RearPresentationState => HasDynamicStatistics
-        ? StatisticsWorkspace!.RearStatisticsState
-        : RearHistogramState;
+    public ISessionAnalysisWorkspace? AnalysisWorkspace { get; }
+    public bool HasAnalysisData => AnalysisWorkspace?.TelemetryData is not null;
+    public SurfacePresentationState FrontPresentationState => HasAnalysisData
+        ? AnalysisWorkspace!.FrontAnalysisState
+        : FrontDistributionState;
+    public SurfacePresentationState RearPresentationState => HasAnalysisData
+        ? AnalysisWorkspace!.RearAnalysisState
+        : RearDistributionState;
 
-    [ObservableProperty] public partial string? FrontTravelHistogram { get; set; }
-    [ObservableProperty] public partial string? RearTravelHistogram { get; set; }
-    [ObservableProperty] public partial SurfacePresentationState FrontHistogramState { get; set; } = SurfacePresentationState.Hidden;
-    [ObservableProperty] public partial SurfacePresentationState RearHistogramState { get; set; } = SurfacePresentationState.Hidden;
+    [ObservableProperty] public partial string? FrontTravelDistribution { get; set; }
+    [ObservableProperty] public partial string? RearTravelDistribution { get; set; }
+    [ObservableProperty] public partial SurfacePresentationState FrontDistributionState { get; set; } = SurfacePresentationState.Hidden;
+    [ObservableProperty] public partial SurfacePresentationState RearDistributionState { get; set; } = SurfacePresentationState.Hidden;
 
     public bool ActiveSuspensionModeSelected
     {
-        get => StatisticsWorkspace?.SelectedTravelHistogramMode == TravelHistogramMode.ActiveSuspension;
+        get => AnalysisWorkspace?.SelectedTravelDistributionMode == TravelDistributionMode.ActiveSuspension;
         set
         {
             if (value)
             {
-                SelectTravelHistogramMode(TravelHistogramMode.ActiveSuspension);
+                SelectTravelDistributionMode(TravelDistributionMode.ActiveSuspension);
             }
         }
     }
 
     public bool DynamicSagModeSelected
     {
-        get => StatisticsWorkspace?.SelectedTravelHistogramMode == TravelHistogramMode.DynamicSag;
+        get => AnalysisWorkspace?.SelectedTravelDistributionMode == TravelDistributionMode.DynamicSag;
         set
         {
             if (value)
             {
-                SelectTravelHistogramMode(TravelHistogramMode.DynamicSag);
+                SelectTravelDistributionMode(TravelDistributionMode.DynamicSag);
             }
         }
     }
 
-    public SpringPageViewModel(ISessionStatisticsWorkspace? statisticsWorkspace = null)
+    public SpringPageViewModel(ISessionAnalysisWorkspace? analysisWorkspace = null)
         : base("Spring")
     {
-        StatisticsWorkspace = statisticsWorkspace;
-        if (statisticsWorkspace is INotifyPropertyChanged observableWorkspace)
+        AnalysisWorkspace = analysisWorkspace;
+        if (analysisWorkspace is INotifyPropertyChanged observableWorkspace)
         {
             observableWorkspace.PropertyChanged += OnWorkspacePropertyChanged;
         }
     }
 
-    partial void OnFrontHistogramStateChanged(SurfacePresentationState value)
+    partial void OnFrontDistributionStateChanged(SurfacePresentationState value)
     {
         OnPropertyChanged(nameof(FrontPresentationState));
     }
 
-    partial void OnRearHistogramStateChanged(SurfacePresentationState value)
+    partial void OnRearDistributionStateChanged(SurfacePresentationState value)
     {
         OnPropertyChanged(nameof(RearPresentationState));
     }
 
     private void OnWorkspacePropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName is nameof(ISessionStatisticsWorkspace.TelemetryData))
+        if (args.PropertyName is nameof(ISessionAnalysisWorkspace.TelemetryData))
         {
-            OnPropertyChanged(nameof(HasDynamicStatistics));
+            OnPropertyChanged(nameof(HasAnalysisData));
             OnPropertyChanged(nameof(FrontPresentationState));
             OnPropertyChanged(nameof(RearPresentationState));
         }
-        else if (args.PropertyName is nameof(ISessionStatisticsWorkspace.FrontStatisticsState))
+        else if (args.PropertyName is nameof(ISessionAnalysisWorkspace.FrontAnalysisState))
         {
             OnPropertyChanged(nameof(FrontPresentationState));
         }
-        else if (args.PropertyName is nameof(ISessionStatisticsWorkspace.RearStatisticsState))
+        else if (args.PropertyName is nameof(ISessionAnalysisWorkspace.RearAnalysisState))
         {
             OnPropertyChanged(nameof(RearPresentationState));
         }
-        else if (args.PropertyName is nameof(ISessionStatisticsWorkspace.SelectedTravelHistogramMode))
+        else if (args.PropertyName is nameof(ISessionAnalysisWorkspace.SelectedTravelDistributionMode))
         {
-            RefreshTravelHistogramModeSelection();
+            RefreshTravelDistributionModeSelection();
         }
     }
 
-    private void SelectTravelHistogramMode(TravelHistogramMode mode)
+    private void SelectTravelDistributionMode(TravelDistributionMode mode)
     {
-        if (StatisticsWorkspace is null || StatisticsWorkspace.SelectedTravelHistogramMode == mode)
+        if (AnalysisWorkspace is null || AnalysisWorkspace.SelectedTravelDistributionMode == mode)
         {
             return;
         }
 
-        StatisticsWorkspace.SelectedTravelHistogramMode = mode;
-        RefreshTravelHistogramModeSelection();
+        AnalysisWorkspace.SelectedTravelDistributionMode = mode;
+        RefreshTravelDistributionModeSelection();
     }
 
-    private void RefreshTravelHistogramModeSelection()
+    private void RefreshTravelDistributionModeSelection()
     {
         OnPropertyChanged(nameof(ActiveSuspensionModeSelected));
         OnPropertyChanged(nameof(DynamicSagModeSelected));

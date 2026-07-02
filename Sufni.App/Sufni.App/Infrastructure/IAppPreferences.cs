@@ -41,7 +41,7 @@ public interface ISessionPreferences
 
     // Bulk read of every recorded session's preferences from the single in-memory
     // preferences document. Used to hydrate the processing-option cache for all
-    // sessions (list rows, the startup graph sweep, the migration), not just open
+    // sessions (list rows, the startup projection sweep, the migration), not just open
     // ones. Sessions absent from the document fall back to defaults at read time.
     Task<IReadOnlyDictionary<Guid, SessionPreferences>> GetAllRecordedAsync();
 

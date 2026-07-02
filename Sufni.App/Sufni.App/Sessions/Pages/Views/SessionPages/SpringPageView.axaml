@@ -2,7 +2,7 @@
 x:Class="Sufni.App.Sessions.Pages.Views.SessionPages.SpringPageView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls2="clr-namespace:Sufni.App.Sessions.Statistics.Views.Controls"
+    xmlns:controls2="clr-namespace:Sufni.App.Sessions.Analysis.Views.Controls"
 xmlns:controls="clr-namespace:Sufni.App.Extensibility.Views"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -19,58 +19,58 @@ mc:Ignorable="d">
     HorizontalScrollBarVisibility="Disabled"
     IsScrollChainingEnabled="False">
         <StackPanel
-        Name="MobileSpringStatisticsContent"
+        Name="MobileSpringAnalysisContent"
         Width="{Binding #PageScrollViewer.Bounds.Width}"
         ClipToBounds="True"
         Orientation="Vertical"
         Spacing="8">
-            <controls:RecordedSessionStatisticsContributionsView ExtensionSlots="{Binding StatisticsWorkspace.ExtensionSlots}" />
+            <controls:RecordedSessionAnalysisContributionsView ExtensionSlots="{Binding AnalysisWorkspace.ExtensionSlots}" />
 
             <StackPanel
-            Name="MobileTravelHistogramModeRadioButtons"
+            Name="MobileTravelDistributionModeRadioButtons"
             Margin="0,8,0,0"
-            IsVisible="{Binding HasDynamicStatistics}"
+            IsVisible="{Binding HasAnalysisData}"
             Spacing="4">
                 <RadioButton
                 Name="MobileActiveSuspensionModeRadioButton"
                 Content="Active suspension"
-                GroupName="MobileTravelHistogramMode"
+                GroupName="MobileTravelDistributionMode"
                 IsChecked="{Binding ActiveSuspensionModeSelected, Mode=TwoWay}"
                 ToolTip.Tip="Uses only compression and rebound stroke samples. Best for travel use while the suspension is actively moving." />
                 <RadioButton
                 Name="MobileDynamicSagModeRadioButton"
                 Content="Dynamic sag"
-                GroupName="MobileTravelHistogramMode"
+                GroupName="MobileTravelDistributionMode"
                 IsChecked="{Binding DynamicSagModeSelected, Mode=TwoWay}"
                 ToolTip.Tip="Uses every selected travel sample. Best for ride height over the segment, including quiet or steady sections." />
             </StackPanel>
 
-            <controls2:TravelStatisticsHost
-            AnalysisRange="{Binding StatisticsWorkspace.AnalysisRange}"
-            ExtensionSlots="{Binding StatisticsWorkspace.ExtensionSlots}"
-            HasDynamicStatistics="{Binding HasDynamicStatistics}"
+            <controls2:TravelAnalysisHost
+            AnalysisRange="{Binding AnalysisWorkspace.AnalysisRange}"
+            ExtensionSlots="{Binding AnalysisWorkspace.ExtensionSlots}"
+            HasAnalysisData="{Binding HasAnalysisData}"
             MinCardHeight="220"
             PlaceholderMargin="0,0,0,12"
             PlotHeight="260"
             PresentationState="{Binding FrontPresentationState}"
-            StaticSource="{Binding FrontTravelHistogram}"
+            StaticSource="{Binding FrontTravelDistribution}"
             SuspensionType="Front"
-            Telemetry="{Binding StatisticsWorkspace.TelemetryData}"
-            Title="Front travel"
-            TravelHistogramMode="{Binding StatisticsWorkspace.SelectedTravelHistogramMode}" />
+            Telemetry="{Binding AnalysisWorkspace.TelemetryData}"
+            Title="Front travel distribution"
+            TravelDistributionMode="{Binding AnalysisWorkspace.SelectedTravelDistributionMode}" />
 
-            <controls2:TravelStatisticsHost
-            AnalysisRange="{Binding StatisticsWorkspace.AnalysisRange}"
-            ExtensionSlots="{Binding StatisticsWorkspace.ExtensionSlots}"
-            HasDynamicStatistics="{Binding HasDynamicStatistics}"
+            <controls2:TravelAnalysisHost
+            AnalysisRange="{Binding AnalysisWorkspace.AnalysisRange}"
+            ExtensionSlots="{Binding AnalysisWorkspace.ExtensionSlots}"
+            HasAnalysisData="{Binding HasAnalysisData}"
             MinCardHeight="220"
             PlotHeight="260"
             PresentationState="{Binding RearPresentationState}"
-            StaticSource="{Binding RearTravelHistogram}"
+            StaticSource="{Binding RearTravelDistribution}"
             SuspensionType="Rear"
-            Telemetry="{Binding StatisticsWorkspace.TelemetryData}"
-            Title="Rear travel"
-            TravelHistogramMode="{Binding StatisticsWorkspace.SelectedTravelHistogramMode}" />
+            Telemetry="{Binding AnalysisWorkspace.TelemetryData}"
+            Title="Rear travel distribution"
+            TravelDistributionMode="{Binding AnalysisWorkspace.SelectedTravelDistributionMode}" />
         </StackPanel>
     </ScrollViewer>
 

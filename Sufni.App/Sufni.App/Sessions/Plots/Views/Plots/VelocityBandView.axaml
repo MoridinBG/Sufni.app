@@ -93,7 +93,7 @@
                                 TextAlignment="Center" />
                                 <ItemsControl ItemsSource="{Binding Path=HsrMetricAnnotations, RelativeSource={RelativeSource TemplatedParent}}">
                                     <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="recorded:RecordedSessionStatisticsMetricContribution">
+                                        <DataTemplate x:DataType="recorded:RecordedSessionAnalysisMetricContribution">
                                             <StackPanel>
                                                 <TextBlock
                                                 Classes.accent="{Binding IsAccentTone}"
@@ -123,7 +123,7 @@
                                 TextAlignment="Center" />
                                 <ItemsControl ItemsSource="{Binding Path=LsrMetricAnnotations, RelativeSource={RelativeSource TemplatedParent}}">
                                     <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="recorded:RecordedSessionStatisticsMetricContribution">
+                                        <DataTemplate x:DataType="recorded:RecordedSessionAnalysisMetricContribution">
                                             <StackPanel>
                                                 <TextBlock Classes="metricAnnotation" Classes.accent="{Binding IsAccentTone}" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" Text="{Binding DisplayValue}" TextAlignment="Center" />
                                                 <TextBlock Classes="metricAnnotation" Classes.accent="{Binding IsAccentTone}" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" IsVisible="{Binding HasDeltaValue}" Text="{Binding DeltaValue}" TextAlignment="Center" />
@@ -140,7 +140,7 @@
                                 TextAlignment="Center" />
                                 <ItemsControl ItemsSource="{Binding Path=LscMetricAnnotations, RelativeSource={RelativeSource TemplatedParent}}">
                                     <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="recorded:RecordedSessionStatisticsMetricContribution">
+                                        <DataTemplate x:DataType="recorded:RecordedSessionAnalysisMetricContribution">
                                             <StackPanel>
                                                 <TextBlock Classes="metricAnnotation" Classes.accent="{Binding IsAccentTone}" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" Text="{Binding DisplayValue}" TextAlignment="Center" />
                                                 <TextBlock Classes="metricAnnotation" Classes.accent="{Binding IsAccentTone}" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" IsVisible="{Binding HasDeltaValue}" Text="{Binding DeltaValue}" TextAlignment="Center" />
@@ -157,7 +157,7 @@
                                 TextAlignment="Center" />
                                 <ItemsControl ItemsSource="{Binding Path=HscMetricAnnotations, RelativeSource={RelativeSource TemplatedParent}}">
                                     <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="recorded:RecordedSessionStatisticsMetricContribution">
+                                        <DataTemplate x:DataType="recorded:RecordedSessionAnalysisMetricContribution">
                                             <StackPanel>
                                                 <TextBlock Classes="metricAnnotation" Classes.accent="{Binding IsAccentTone}" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" Text="{Binding DisplayValue}" TextAlignment="Center" />
                                                 <TextBlock Classes="metricAnnotation" Classes.accent="{Binding IsAccentTone}" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" IsVisible="{Binding HasDeltaValue}" Text="{Binding DeltaValue}" TextAlignment="Center" />

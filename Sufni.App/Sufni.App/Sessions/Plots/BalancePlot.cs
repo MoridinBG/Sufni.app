@@ -50,15 +50,15 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
             BalanceDisplacementMode.Speed => "Peak speed position",
             _ => "Zenith",
         };
-        SetTitle(StatisticsPlotTitles.Balance(type, DisplacementMode, SpeedMode));
+        SetTitle(AnalysisPlotTitles.Balance(type, DisplacementMode, SpeedMode));
         SetAxisLabels(xAxisLabel, "Peak speed (mm/s)");
-        Plot.Layout.Fixed(CreateStatisticsPlotPadding());
+        Plot.Layout.Fixed(CreateAnalysisPlotPadding());
 
         var maxVelocity = Math.Max(balance.FrontVelocity.Max(), balance.RearVelocity.Max());
         var roundedMaxVelocity = (int)Math.Ceiling(maxVelocity / 100.0) * 100;
         Plot.Axes.SetLimits(0, 100, 0, roundedMaxVelocity);
         Plot.Axes.Rules.Add(new BoundedZoomRule(Plot.Axes.Bottom, Plot.Axes.Left,
-            0, 100, 0, roundedMaxVelocity, ZoomFractions.Statistics));
+            0, 100, 0, roundedMaxVelocity, ZoomFractions.Analysis));
 
         var tickInterval = (int)Math.Ceiling(maxVelocity / 5 / 100.0) * 100;
         Plot.Axes.Left.TickGenerator = new NumericFixedInterval(tickInterval);

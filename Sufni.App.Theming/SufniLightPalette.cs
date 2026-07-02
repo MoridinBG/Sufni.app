@@ -42,17 +42,17 @@ public static class SufniLightPalette
     public static readonly Color Glacier        = C("#D8E5EC");
     public static readonly Color DropTargetBlue = C("#C8DBEA");
 
-    // Hosted graph-row depth ramp, level 1 (Container slot reuses Pearl).
+    // Hosted signal-row depth ramp, level 1 (Container slot reuses Pearl).
     public static readonly Color SandHeader = C("#D4D8DC");
     public static readonly Color SandFigure = C("#DCE0E4");
     public static readonly Color SandData   = C("#DCE2E8");
 
-    // Hosted graph-row depth ramp, level 2 (Header slot reuses Stone).
+    // Hosted signal-row depth ramp, level 2 (Header slot reuses Stone).
     public static readonly Color ClayContainer = C("#CCD0D4");
     public static readonly Color ClayFigure    = C("#D0D4D8");
     public static readonly Color ClayData      = C("#D4DAE0");
 
-    // Hosted graph-row depth ramp, level 3+ (darkest hosted surfaces).
+    // Hosted signal-row depth ramp, level 3+ (darkest hosted surfaces).
     public static readonly Color EarthContainer = C("#C0C4C8");
     public static readonly Color EarthHeader    = C("#BCC0C4");
     public static readonly Color EarthFigure    = C("#C4C8CC");

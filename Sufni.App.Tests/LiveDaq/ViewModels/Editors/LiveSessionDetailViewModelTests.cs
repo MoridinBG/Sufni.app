@@ -46,7 +46,7 @@ public class LiveSessionDetailViewModelTests
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
-    private readonly Subject<LiveGraphBatch> graphBatches = new();
+    private readonly Subject<LiveSignalBatch> signalBatches = new();
     private readonly LiveSessionCapturePackage capturePackage;
 
     private readonly BehaviorSubject<LiveSessionPresentationSnapshot> snapshots;
@@ -62,7 +62,7 @@ public class LiveSessionDetailViewModelTests
         snapshots = new BehaviorSubject<LiveSessionPresentationSnapshot>(currentSnapshot);
 
         liveSessionService.Snapshots.Returns(snapshots);
-        liveSessionService.GraphBatches.Returns(graphBatches);
+        liveSessionService.SignalBatches.Returns(signalBatches);
         liveSessionService.Current.Returns(_ => currentSnapshot);
         liveSessionService.EnsureAttachedAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         liveSessionService.PrepareCaptureForSaveAsync(Arg.Any<CancellationToken>()).Returns(capturePackage);
@@ -73,12 +73,12 @@ public class LiveSessionDetailViewModelTests
             return Task.CompletedTask;
         });
         liveSessionService.DisposeAsync().Returns(ValueTask.CompletedTask);
-        sessionPresentationService.CalculateDamperPercentages(
+        sessionPresentationService.CalculateDampingPercentages(
                 Arg.Any<TelemetryData>(),
                 Arg.Any<TelemetryTimeRange?>(),
                 Arg.Any<VelocityAverageMode>(),
                 Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(SessionDamperPercentages.Empty);
+            .Returns(SessionDampingPercentages.Empty);
         sessionCoordinator.SaveLiveCaptureAsync(
             Arg.Any<Session>(),
             Arg.Any<LiveSessionCapturePackage>(),
@@ -99,13 +99,13 @@ public class LiveSessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void Construction_ExposesHiddenSessionAnalysisForV1()
+    public void Construction_ExposesHiddenSessionInsightsForV1()
     {
         var editor = CreateEditor();
 
-        Assert.Equal(SurfacePresentationState.Hidden, editor.SessionAnalysis.State);
-        Assert.Empty(editor.SessionAnalysis.Findings);
-        Assert.Equal(SessionAnalysisTargetProfile.Trail, editor.SelectedSessionAnalysisTargetProfile);
+        Assert.Equal(SurfacePresentationState.Hidden, editor.SessionInsights.State);
+        Assert.Empty(editor.SessionInsights.Findings);
+        Assert.Equal(SessionInsightsTargetProfile.Trail, editor.SelectedSessionInsightsTargetProfile);
     }
 
     [AvaloniaFact]
@@ -116,12 +116,12 @@ public class LiveSessionDetailViewModelTests
 
         Assert.Equal(editor.Pages.Count, editor.PageCount);
         Assert.Same(editor.Pages[0], editor.SelectedPage);
-        Assert.Equal("Graph", editor.SelectedPageDisplayName);
+        Assert.Equal("Signals", editor.SelectedPageDisplayName);
 
         editor.SelectedPageIndex = 2;
 
         Assert.Same(editor.Pages[2], editor.SelectedPage);
-        Assert.Equal("Damper", editor.SelectedPageDisplayName);
+        Assert.Equal("Damping", editor.SelectedPageDisplayName);
         Assert.Contains(nameof(LiveSessionDetailViewModel.SelectedPageIndex), changes);
         Assert.Contains(nameof(LiveSessionDetailViewModel.SelectedPage), changes);
         Assert.Contains(nameof(LiveSessionDetailViewModel.PageCount), changes);
@@ -156,7 +156,7 @@ public class LiveSessionDetailViewModelTests
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
-        Assert.Same(currentSnapshot.StatisticsTelemetry, editor.TelemetryData);
+        Assert.Same(currentSnapshot.AnalysisTelemetry, editor.TelemetryData);
     }
 
     [AvaloniaFact]
@@ -193,24 +193,24 @@ public class LiveSessionDetailViewModelTests
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.TravelGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.VelocityGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.ImuGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.PitchRollGraphState.Kind);
-        Assert.True(editor.PreferencesPage.TravelPlot.Available);
-        Assert.True(editor.PreferencesPage.VelocityPlot.Available);
-        Assert.True(editor.PreferencesPage.ImuPlot.Available);
-        Assert.True(editor.PreferencesPage.PitchRollPlot.Available);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.TravelSignalState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.VelocitySignalState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.ImuSignalState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.PitchRollSignalState.Kind);
+        Assert.True(editor.PreferencesPage.TravelSignal.Available);
+        Assert.True(editor.PreferencesPage.VelocitySignal.Available);
+        Assert.True(editor.PreferencesPage.ImuSignal.Available);
+        Assert.True(editor.PreferencesPage.PitchRollSignal.Available);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.MediaWorkspace.MapState.Kind);
         Assert.True(editor.MediaWorkspace.HasMediaContent);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontStatisticsState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.RearStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontAnalysisState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.RearAnalysisState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.CompressionBalanceState.Kind);
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.ReboundBalanceState.Kind);
     }
 
     [AvaloniaFact]
-    public async Task GraphBatches_PromoteTravelAndImuStates_Independently()
+    public async Task SignalBatches_PromoteTravelAndImuStates_Independently()
     {
         var editor = CreateEditor(CreateSessionContext(hasFrontTravelCalibration: true, hasRearTravelCalibration: true));
         await editor.LoadedCommand.ExecuteAsync(null);
@@ -219,23 +219,23 @@ public class LiveSessionDetailViewModelTests
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
-        graphBatches.OnNext(CreateTravelOnlyBatch(revision: 1));
+        signalBatches.OnNext(CreateTravelOnlyBatch(revision: 1));
         await WaitForUiRefreshAsync();
 
-        Assert.Equal(SurfaceStateKind.Ready, editor.GraphWorkspace.TravelGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.Ready, editor.GraphWorkspace.VelocityGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.ImuGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.PitchRollGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.SignalsWorkspace.TravelSignalState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.SignalsWorkspace.VelocitySignalState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.ImuSignalState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.PitchRollSignalState.Kind);
 
-        graphBatches.OnNext(CreateImuOnlyBatch(revision: 2));
+        signalBatches.OnNext(CreateImuOnlyBatch(revision: 2));
         await WaitForUiRefreshAsync();
 
-        Assert.Equal(SurfaceStateKind.Ready, editor.GraphWorkspace.ImuGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.PitchRollGraphState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, editor.SignalsWorkspace.ImuSignalState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.PitchRollSignalState.Kind);
     }
 
     [AvaloniaFact]
-    public async Task PlotPreferenceChange_UpdatesLiveGraphStateWithoutChangingDirtyState()
+    public async Task SignalPreferenceChange_UpdatesLiveSignalStateWithoutChangingDirtyState()
     {
         var editor = CreateEditor(CreateSessionContext(hasFrontTravelCalibration: true, hasRearTravelCalibration: true));
         await editor.LoadedCommand.ExecuteAsync(null);
@@ -244,18 +244,18 @@ public class LiveSessionDetailViewModelTests
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
-        graphBatches.OnNext(CreateTravelOnlyBatch(revision: 1));
+        signalBatches.OnNext(CreateTravelOnlyBatch(revision: 1));
         await WaitForUiRefreshAsync();
 
         var wasDirty = editor.IsDirty;
 
-        editor.PreferencesPage.VelocityPlot.Selected = false;
+        editor.PreferencesPage.VelocitySignal.Selected = false;
 
         Assert.Equal(wasDirty, editor.IsDirty);
-        Assert.True(editor.GraphWorkspace.TravelGraphState.IsReady);
-        Assert.True(editor.GraphWorkspace.VelocityGraphState.IsHidden);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.ImuGraphState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.GraphWorkspace.PitchRollGraphState.Kind);
+        Assert.True(editor.SignalsWorkspace.TravelSignalState.IsReady);
+        Assert.True(editor.SignalsWorkspace.VelocitySignalState.IsHidden);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.ImuSignalState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.PitchRollSignalState.Kind);
     }
 
     [AvaloniaFact]
@@ -285,7 +285,7 @@ public class LiveSessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task SnapshotUpdate_KeepsStatisticsHidden_ForUnconfiguredSide()
+    public async Task SnapshotUpdate_KeepsAnalysisHidden_ForUnconfiguredSide()
     {
         var editor = CreateEditor(CreateSessionContext(hasFrontTravelCalibration: true, hasRearTravelCalibration: false));
         await editor.LoadedCommand.ExecuteAsync(null);
@@ -294,8 +294,8 @@ public class LiveSessionDetailViewModelTests
         snapshots.OnNext(currentSnapshot);
         await WaitForUiRefreshAsync();
 
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontStatisticsState.Kind);
-        Assert.Equal(SurfaceStateKind.Hidden, editor.RearStatisticsState.Kind);
+        Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontAnalysisState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.RearAnalysisState.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, editor.CompressionBalanceState.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, editor.ReboundBalanceState.Kind);
     }
@@ -313,14 +313,14 @@ public class LiveSessionDetailViewModelTests
         editor.Name = "Morning lap";
         editor.DescriptionText = "first lap";
         editor.ForkSettings.SpringRate = "550 lb/in";
-        editor.PreferencesPage.VelocityPlot.Selected = false;
+        editor.PreferencesPage.VelocitySignal.Selected = false;
         editor.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
-        var graph = new SessionGraphPreferences(
+        var signalLayout = new SignalLayoutPreferences(
         [
-            new SessionGraphRowPreferences(TelemetryGraphRowIds.Imu, isExpanded: false),
-            new SessionGraphRowPreferences(TelemetryGraphRowIds.Travel),
+            new SignalLayoutRowPreferences(SignalRowIds.Imu, isExpanded: false),
+            new SignalLayoutRowPreferences(SignalRowIds.Travel),
         ]);
-        editor.GraphWorkspace.GraphPreferences = graph;
+        editor.SignalsWorkspace.SignalLayoutPreferences = signalLayout;
 
         await editor.SaveCommand.ExecuteAsync(null);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -336,11 +336,11 @@ public class LiveSessionDetailViewModelTests
                 && session.FrontSpringRate == "550 lb/in"),
             capturePackage,
             Arg.Is<SessionPreferences>(preferences =>
-                preferences.Plots.Travel &&
-                !preferences.Plots.Velocity &&
-                preferences.Plots.Imu &&
-                preferences.Statistics.VelocityAverageMode == VelocityAverageMode.StrokePeakAveraged &&
-                preferences.Graph == graph),
+                preferences.SignalDisplay.Travel &&
+                !preferences.SignalDisplay.Velocity &&
+                preferences.SignalDisplay.Imu &&
+                preferences.Analysis.VelocityAverageMode == VelocityAverageMode.StrokePeakAveraged &&
+                preferences.SignalLayout == signalLayout),
             Arg.Any<CancellationToken>());
         Assert.Equal("Morning lap", editor.Name);
         Assert.Null(editor.TelemetryData);
@@ -406,7 +406,7 @@ public class LiveSessionDetailViewModelTests
         var telemetry = TestTelemetryData.CreateProcessed();
         var initialCutoffs = DampingSpeedCutoffs.FromValues(100, 200, 300, 400);
         var previewCutoffs = initialCutoffs.With(SuspensionType.Rear, DampingSpeedCircuit.Compression, 520);
-        var previewPercentages = new SessionDamperPercentages(11, 12, 13, 14, 15, 16, 17, 18);
+        var previewPercentages = new SessionDampingPercentages(11, 12, 13, 14, 15, 16, 17, 18);
         var bikeId = Guid.NewGuid();
         var context = CreateSessionContext(
             bikeId: bikeId,
@@ -419,7 +419,7 @@ public class LiveSessionDetailViewModelTests
         await WaitForUiRefreshAsync();
         sessionPresentationService.ClearReceivedCalls();
         sessionPresentationService
-            .CalculateDamperPercentages(
+            .CalculateDampingPercentages(
                 telemetry,
                 Arg.Any<TelemetryTimeRange?>(),
                 Arg.Any<VelocityAverageMode>(),
@@ -431,7 +431,7 @@ public class LiveSessionDetailViewModelTests
 
         Assert.Equal(previewCutoffs, editor.DampingSpeedCutoffs);
         Assert.Equal(initialCutoffs, editor.PlotDampingSpeedCutoffs);
-        Assert.Equal(previewPercentages, editor.DamperPercentages);
+        Assert.Equal(previewPercentages, editor.DampingPercentages);
         Assert.Equal(wasDirty, editor.IsDirty);
     }
 
@@ -590,29 +590,29 @@ public class LiveSessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void Pages_Initial_IsLiveGraphSpringDamperNotesPreferences()
+    public void Pages_Initial_IsLiveSignalsSpringDampingNotesPreferences()
     {
         var editor = CreateEditor();
 
-        Assert.IsType<LiveGraphPageViewModel>(editor.Pages[0]);
+        Assert.IsType<LiveSignalsPageViewModel>(editor.Pages[0]);
         Assert.IsType<SpringPageViewModel>(editor.Pages[1]);
-        Assert.IsType<DamperPageViewModel>(editor.Pages[2]);
+        Assert.IsType<DampingPageViewModel>(editor.Pages[2]);
         Assert.IsType<NotesPageViewModel>(editor.Pages[3]);
         Assert.IsType<PreferencesPageViewModel>(editor.Pages[4]);
         Assert.DoesNotContain(editor.Pages, page => page is BalancePageViewModel);
     }
 
     [AvaloniaFact]
-    public async Task Bake_WithNewStatisticsTelemetry_AndDimensions_PopulatesPageFields()
+    public async Task Bake_WithNewAnalysisTelemetry_AndDimensions_PopulatesPageFields()
     {
         var bakeData = new SessionCachePresentationData(
-            FrontTravelHistogram: "<svg id='front-travel' />",
-            RearTravelHistogram: "<svg id='rear-travel' />",
-            FrontVelocityHistogram: "<svg id='front-vel' />",
-            RearVelocityHistogram: "<svg id='rear-vel' />",
+            FrontTravelDistribution: "<svg id='front-travel' />",
+            RearTravelDistribution: "<svg id='rear-travel' />",
+            FrontVelocityDistribution: "<svg id='front-vel' />",
+            RearVelocityDistribution: "<svg id='rear-vel' />",
             CompressionBalance: null,
             ReboundBalance: null,
-            DamperPercentages: new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8),
+            DampingPercentages: new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8),
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             BalanceAvailable: false);
 
@@ -639,13 +639,13 @@ public class LiveSessionDetailViewModelTests
                 Arg.Any<SessionPresentationDimensions>(),
                 Arg.Any<CancellationToken>(),
                 Arg.Any<DampingSpeedCutoffs?>());
-        Assert.Equal(bakeData.FrontTravelHistogram, editor.SpringPage.FrontTravelHistogram);
-        Assert.Equal(bakeData.RearTravelHistogram, editor.SpringPage.RearTravelHistogram);
-        Assert.Equal(bakeData.FrontVelocityHistogram, editor.DamperPage.FrontVelocityHistogram);
-        Assert.Equal(bakeData.RearVelocityHistogram, editor.DamperPage.RearVelocityHistogram);
-        Assert.Equal(1d, editor.DamperPage.FrontHscPercentage);
-        Assert.Equal(8d, editor.DamperPage.RearHsrPercentage);
-        Assert.Equal(1d, editor.DamperPercentages.FrontHscPercentage);
+        Assert.Equal(bakeData.FrontTravelDistribution, editor.SpringPage.FrontTravelDistribution);
+        Assert.Equal(bakeData.RearTravelDistribution, editor.SpringPage.RearTravelDistribution);
+        Assert.Equal(bakeData.FrontVelocityDistribution, editor.DampingPage.FrontVelocityDistribution);
+        Assert.Equal(bakeData.RearVelocityDistribution, editor.DampingPage.RearVelocityDistribution);
+        Assert.Equal(1d, editor.DampingPage.FrontHscPercentage);
+        Assert.Equal(8d, editor.DampingPage.RearHsrPercentage);
+        Assert.Equal(1d, editor.DampingPercentages.FrontHscPercentage);
     }
 
     [AvaloniaFact]
@@ -653,13 +653,13 @@ public class LiveSessionDetailViewModelTests
     {
         var cutoffs = DampingSpeedCutoffs.FromValues(150, 250, 350, 450);
         var bakeData = new SessionCachePresentationData(
-            FrontTravelHistogram: "<svg id='front-travel' />",
-            RearTravelHistogram: null,
-            FrontVelocityHistogram: null,
-            RearVelocityHistogram: null,
+            FrontTravelDistribution: "<svg id='front-travel' />",
+            RearTravelDistribution: null,
+            FrontVelocityDistribution: null,
+            RearVelocityDistribution: null,
             CompressionBalance: null,
             ReboundBalance: null,
-            DamperPercentages: SessionDamperPercentages.Empty,
+            DampingPercentages: SessionDampingPercentages.Empty,
             DampingSpeedCutoffs: cutoffs,
             BalanceAvailable: false);
         sessionPresentationService
@@ -709,13 +709,13 @@ public class LiveSessionDetailViewModelTests
     public async Task Bake_InsertsBalancePageBeforeNotes_WhenBothSidesConfigured_AndPagePersists()
     {
         var balanceData = new SessionCachePresentationData(
-            FrontTravelHistogram: null,
-            RearTravelHistogram: null,
-            FrontVelocityHistogram: null,
-            RearVelocityHistogram: null,
+            FrontTravelDistribution: null,
+            RearTravelDistribution: null,
+            FrontVelocityDistribution: null,
+            RearVelocityDistribution: null,
             CompressionBalance: "<svg id='compression' />",
             ReboundBalance: "<svg id='rebound' />",
-            DamperPercentages: SessionDamperPercentages.Empty,
+            DampingPercentages: SessionDampingPercentages.Empty,
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             BalanceAvailable: true);
         var noBalanceData = balanceData with
@@ -769,13 +769,13 @@ public class LiveSessionDetailViewModelTests
     public async Task Bake_OmitsBalancePage_WhenOneSideUnconfigured()
     {
         var bakeData = new SessionCachePresentationData(
-            FrontTravelHistogram: null,
-            RearTravelHistogram: null,
-            FrontVelocityHistogram: null,
-            RearVelocityHistogram: null,
+            FrontTravelDistribution: null,
+            RearTravelDistribution: null,
+            FrontVelocityDistribution: null,
+            RearVelocityDistribution: null,
             CompressionBalance: null,
             ReboundBalance: null,
-            DamperPercentages: SessionDamperPercentages.Empty,
+            DampingPercentages: SessionDampingPercentages.Empty,
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             BalanceAvailable: false);
 
@@ -804,18 +804,18 @@ public class LiveSessionDetailViewModelTests
         var firstBakeGate = new TaskCompletionSource<SessionCachePresentationData>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var firstData = new SessionCachePresentationData(
-            FrontTravelHistogram: "<svg id='first-front' />",
-            RearTravelHistogram: null,
-            FrontVelocityHistogram: null,
-            RearVelocityHistogram: null,
+            FrontTravelDistribution: "<svg id='first-front' />",
+            RearTravelDistribution: null,
+            FrontVelocityDistribution: null,
+            RearVelocityDistribution: null,
             CompressionBalance: null,
             ReboundBalance: null,
-            DamperPercentages: SessionDamperPercentages.Empty,
+            DampingPercentages: SessionDampingPercentages.Empty,
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             BalanceAvailable: false);
         var secondData = firstData with
         {
-            FrontTravelHistogram = "<svg id='second-front' />",
+            FrontTravelDistribution = "<svg id='second-front' />",
         };
 
         var firstBakeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -862,7 +862,7 @@ public class LiveSessionDetailViewModelTests
         await WaitForUiRefreshAsync();
 
         Assert.True(capturedFirstToken.IsCancellationRequested);
-        Assert.Equal(secondData.FrontTravelHistogram, editor.SpringPage.FrontTravelHistogram);
+        Assert.Equal(secondData.FrontTravelDistribution, editor.SpringPage.FrontTravelDistribution);
     }
 
     [AvaloniaFact]
@@ -928,13 +928,13 @@ public class LiveSessionDetailViewModelTests
     public async Task Bake_WarmUp_WithoutStrokeData_PushesWaitingState_OntoPageVMs()
     {
         var warmUpData = new SessionCachePresentationData(
-            FrontTravelHistogram: null,
-            RearTravelHistogram: null,
-            FrontVelocityHistogram: null,
-            RearVelocityHistogram: null,
+            FrontTravelDistribution: null,
+            RearTravelDistribution: null,
+            FrontVelocityDistribution: null,
+            RearVelocityDistribution: null,
             CompressionBalance: null,
             ReboundBalance: null,
-            DamperPercentages: SessionDamperPercentages.Empty,
+            DampingPercentages: SessionDampingPercentages.Empty,
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             BalanceAvailable: false);
 
@@ -960,10 +960,10 @@ public class LiveSessionDetailViewModelTests
 
         Assert.Equal(
             Sufni.App.ExtensionHost.Contracts.Presentation.SurfaceStateKind.WaitingForData,
-            editor.SpringPage.FrontHistogramState.Kind);
+            editor.SpringPage.FrontDistributionState.Kind);
         Assert.Equal(
             Sufni.App.ExtensionHost.Contracts.Presentation.SurfaceStateKind.WaitingForData,
-            editor.DamperPage.RearHistogramState.Kind);
+            editor.DampingPage.RearDistributionState.Kind);
         Assert.Equal(
             Sufni.App.ExtensionHost.Contracts.Presentation.SurfaceStateKind.WaitingForData,
             editor.BalancePage.CompressionBalanceState.Kind);
@@ -973,13 +973,13 @@ public class LiveSessionDetailViewModelTests
     public async Task Reset_ClearsStaleHistograms_RemovesBalancePage_AndCancelsInFlightBake()
     {
         var bakedData = new SessionCachePresentationData(
-            FrontTravelHistogram: "<svg id='front' />",
-            RearTravelHistogram: "<svg id='rear' />",
-            FrontVelocityHistogram: "<svg id='front-vel' />",
-            RearVelocityHistogram: "<svg id='rear-vel' />",
+            FrontTravelDistribution: "<svg id='front' />",
+            RearTravelDistribution: "<svg id='rear' />",
+            FrontVelocityDistribution: "<svg id='front-vel' />",
+            RearVelocityDistribution: "<svg id='rear-vel' />",
             CompressionBalance: "<svg id='comp' />",
             ReboundBalance: "<svg id='reb' />",
-            DamperPercentages: new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8),
+            DampingPercentages: new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8),
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             BalanceAvailable: true);
 
@@ -1000,23 +1000,23 @@ public class LiveSessionDetailViewModelTests
         await WaitForUiRefreshAsync();
 
         Assert.Contains(editor.Pages, page => page is BalancePageViewModel);
-        Assert.True(editor.SpringPage.FrontHistogramState.IsReady);
-        Assert.Equal(1d, editor.DamperPage.FrontHscPercentage);
+        Assert.True(editor.SpringPage.FrontDistributionState.IsReady);
+        Assert.Equal(1d, editor.DampingPage.FrontHscPercentage);
 
         await editor.ResetCommand.ExecuteAsync(null);
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        Assert.Null(editor.SpringPage.FrontTravelHistogram);
-        Assert.Null(editor.SpringPage.RearTravelHistogram);
-        Assert.Null(editor.DamperPage.FrontVelocityHistogram);
-        Assert.Null(editor.DamperPage.RearVelocityHistogram);
+        Assert.Null(editor.SpringPage.FrontTravelDistribution);
+        Assert.Null(editor.SpringPage.RearTravelDistribution);
+        Assert.Null(editor.DampingPage.FrontVelocityDistribution);
+        Assert.Null(editor.DampingPage.RearVelocityDistribution);
         Assert.Null(editor.BalancePage.CompressionBalance);
         Assert.Null(editor.BalancePage.ReboundBalance);
-        Assert.True(editor.SpringPage.FrontHistogramState.IsHidden);
-        Assert.True(editor.DamperPage.FrontHistogramState.IsHidden);
+        Assert.True(editor.SpringPage.FrontDistributionState.IsHidden);
+        Assert.True(editor.DampingPage.FrontDistributionState.IsHidden);
         Assert.True(editor.BalancePage.CompressionBalanceState.IsHidden);
-        Assert.Null(editor.DamperPage.FrontHscPercentage);
-        Assert.Null(editor.DamperPercentages.FrontHscPercentage);
+        Assert.Null(editor.DampingPage.FrontHscPercentage);
+        Assert.Null(editor.DampingPercentages.FrontHscPercentage);
         Assert.DoesNotContain(editor.Pages, page => page is BalancePageViewModel);
     }
 
@@ -1026,13 +1026,13 @@ public class LiveSessionDetailViewModelTests
         var bakeGate = new TaskCompletionSource<SessionCachePresentationData>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var staleData = new SessionCachePresentationData(
-            FrontTravelHistogram: "<svg id='stale' />",
-            RearTravelHistogram: null,
-            FrontVelocityHistogram: null,
-            RearVelocityHistogram: null,
+            FrontTravelDistribution: "<svg id='stale' />",
+            RearTravelDistribution: null,
+            FrontVelocityDistribution: null,
+            RearVelocityDistribution: null,
             CompressionBalance: null,
             ReboundBalance: null,
-            DamperPercentages: SessionDamperPercentages.Empty,
+            DampingPercentages: SessionDampingPercentages.Empty,
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             BalanceAvailable: false);
         CancellationToken capturedBakeToken = default;
@@ -1065,8 +1065,8 @@ public class LiveSessionDetailViewModelTests
         await WaitForUiRefreshAsync();
 
         Assert.True(capturedBakeToken.IsCancellationRequested);
-        Assert.Null(editor.SpringPage.FrontTravelHistogram);
-        Assert.True(editor.SpringPage.FrontHistogramState.IsHidden);
+        Assert.Null(editor.SpringPage.FrontTravelDistribution);
+        Assert.True(editor.SpringPage.FrontDistributionState.IsHidden);
     }
 
     private static TelemetryData TelemetryWithoutStrokes()
@@ -1129,8 +1129,8 @@ public class LiveSessionDetailViewModelTests
         header ??= LiveProtocolTestFrames.CreateSessionHeaderModel();
         return new LiveSessionPresentationSnapshot(
             Stream: new LiveSessionStreamPresentation.Streaming(header.SessionStartUtc.LocalDateTime, header),
-            StatisticsTelemetry: telemetryData,
-            DamperPercentages: new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8),
+            AnalysisTelemetry: telemetryData,
+            DampingPercentages: new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8),
             SessionTrackPoints: trackPoints ?? [],
             Controls: new LiveSessionControlState(
                 ConnectionState: LiveConnectionState.Connected,
@@ -1231,9 +1231,9 @@ public class LiveSessionDetailViewModelTests
         return changes;
     }
 
-    private static LiveGraphBatch CreateTravelOnlyBatch(long revision)
+    private static LiveSignalBatch CreateTravelOnlyBatch(long revision)
     {
-        return new LiveGraphBatch(
+        return new LiveSignalBatch(
             Revision: revision,
             TravelTimes: [0.0, 0.01],
             FrontTravel: [10.0, 11.0],
@@ -1248,9 +1248,9 @@ public class LiveSessionDetailViewModelTests
             FrameRollDegrees: []);
     }
 
-    private static LiveGraphBatch CreateImuOnlyBatch(long revision)
+    private static LiveSignalBatch CreateImuOnlyBatch(long revision)
     {
-        return new LiveGraphBatch(
+        return new LiveSignalBatch(
             Revision: revision,
             TravelTimes: [],
             FrontTravel: [],

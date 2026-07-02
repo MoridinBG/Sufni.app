@@ -63,13 +63,13 @@ public class TravelVelocityLegendTests
 
         Assert.True(front.IsVisible);
         Assert.False(rear.IsVisible);
-        Assert.False(visibility.IsVisible(TelemetryGraphRowIds.Travel, TelemetrySourceKeys.Rear));
+        Assert.False(visibility.IsVisible(SignalRowIds.Travel, TelemetrySourceKeys.Rear));
         AssertAxisLimitsEqual(initialLimits, plot.Axes.GetLimits());
 
         Assert.False(sut.TryToggleInteractiveLegendAt(GetLegendItemCenter(plot, front, plotSize), plotSize));
         Assert.True(front.IsVisible);
         Assert.False(rear.IsVisible);
-        Assert.True(visibility.IsVisible(TelemetryGraphRowIds.Travel, TelemetrySourceKeys.Front));
+        Assert.True(visibility.IsVisible(SignalRowIds.Travel, TelemetrySourceKeys.Front));
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class TravelVelocityLegendTests
         Assert.True(scatters[1].IsVisible);
         Assert.False(scatters[2].IsVisible);
         Assert.False(scatters[3].IsVisible);
-        Assert.False(visibility.IsVisible(TelemetryGraphRowIds.Travel, TelemetrySourceKeys.Rear));
+        Assert.False(visibility.IsVisible(SignalRowIds.Travel, TelemetrySourceKeys.Rear));
     }
 
     [Fact]

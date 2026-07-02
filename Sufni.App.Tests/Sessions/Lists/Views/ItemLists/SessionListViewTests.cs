@@ -7,7 +7,7 @@ using Avalonia.VisualTree;
 using DynamicData;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Lists.DesktopViews.Controls;
@@ -15,7 +15,7 @@ using Sufni.App.Sessions.Lists.DesktopViews.ItemLists;
 using Sufni.App.Sessions.Lists.ViewModels.ItemLists;
 using Sufni.App.Sessions.Lists.Views.Controls;
 using Sufni.App.Sessions.Lists.Views.ItemLists;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Harness;
@@ -40,12 +40,12 @@ public class SessionListViewTests
             snapshot.Timestamp,
             snapshot.HasProcessedData,
             new SessionStaleness.MissingProcessedData()));
-        var graph = Substitute.For<IRecordedSessionGraph>();
-        graph.ConnectSessions().Returns(cache.Connect());
+        var projection = Substitute.For<IRecordedSessionProjection>();
+        projection.ConnectSessions().Returns(cache.Connect());
         var coordinator = TestCoordinatorSubstitutes.Session();
         coordinator.OpenEditAsync(snapshot.Id).Returns(Task.CompletedTask);
 
-        var viewModel = new SessionListViewModel(graph, coordinator, new InlineUiThreadDispatcher());
+        var viewModel = new SessionListViewModel(projection, coordinator, new InlineUiThreadDispatcher());
         var view = new SessionListView
         {
             DataContext = viewModel,
@@ -53,7 +53,7 @@ public class SessionListViewTests
 
         await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(view);
 
-        Assert.NotNull(mounted.Control.FindFirstVisual<SearchBarWithDateFilter>());
+        Assert.NotNull(mounted.Control.FindControl<Border>("DatePickers"));
         var row = Assert.Single(mounted.Control.FindAllVisual<SessionSwipeActionButton>());
         var header = Assert.Single(
             mounted.Control.FindAllVisual<TextBlock>(),
@@ -83,10 +83,10 @@ public class SessionListViewTests
             snapshot.Timestamp,
             snapshot.HasProcessedData,
             new SessionStaleness.Current()));
-        var graph = Substitute.For<IRecordedSessionGraph>();
-        graph.ConnectSessions().Returns(cache.Connect());
+        var projection = Substitute.For<IRecordedSessionProjection>();
+        projection.ConnectSessions().Returns(cache.Connect());
         var viewModel = new SessionListViewModel(
-            graph,
+            projection,
             TestCoordinatorSubstitutes.Session(),
             new InlineUiThreadDispatcher(),
             new TestRecordedSessionListExtensionService());
@@ -115,13 +115,13 @@ public class SessionListViewTests
             snapshot.Timestamp,
             snapshot.HasProcessedData,
             new SessionStaleness.DependencyHashChanged()));
-        var graph = Substitute.For<IRecordedSessionGraph>();
-        graph.ConnectSessions().Returns(cache.Connect());
+        var projection = Substitute.For<IRecordedSessionProjection>();
+        projection.ConnectSessions().Returns(cache.Connect());
         var coordinator = TestCoordinatorSubstitutes.Session();
         coordinator.RequestRecomputeAsync(snapshot.Id, RecomputeReason.ManualFromList)
             .Returns(new SessionRecomputeResult.Recomputed(snapshot.Updated + 1));
 
-        var viewModel = new SessionListViewModel(graph, coordinator, new InlineUiThreadDispatcher());
+        var viewModel = new SessionListViewModel(projection, coordinator, new InlineUiThreadDispatcher());
         var view = new SessionListView
         {
             DataContext = viewModel,
@@ -163,10 +163,10 @@ public class SessionListViewTests
             snapshot.Timestamp,
             snapshot.HasProcessedData,
             new SessionStaleness.DependencyHashChanged()));
-        var graph = Substitute.For<IRecordedSessionGraph>();
-        graph.ConnectSessions().Returns(cache.Connect());
+        var projection = Substitute.For<IRecordedSessionProjection>();
+        projection.ConnectSessions().Returns(cache.Connect());
 
-        var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session(), new InlineUiThreadDispatcher());
+        var viewModel = new SessionListViewModel(projection, TestCoordinatorSubstitutes.Session(), new InlineUiThreadDispatcher());
         var view = new SessionListDesktopView
         {
             DataContext = viewModel,
@@ -199,10 +199,10 @@ public class SessionListViewTests
             snapshot.Timestamp,
             snapshot.HasProcessedData,
             new SessionStaleness.Current()));
-        var graph = Substitute.For<IRecordedSessionGraph>();
-        graph.ConnectSessions().Returns(cache.Connect());
+        var projection = Substitute.For<IRecordedSessionProjection>();
+        projection.ConnectSessions().Returns(cache.Connect());
         var viewModel = new SessionListViewModel(
-            graph,
+            projection,
             TestCoordinatorSubstitutes.Session(),
             new InlineUiThreadDispatcher(),
             new TestRecordedSessionListExtensionService());
@@ -243,10 +243,10 @@ public class SessionListViewTests
             second.Timestamp,
             second.HasProcessedData,
             new SessionStaleness.Current()));
-        var graph = Substitute.For<IRecordedSessionGraph>();
-        graph.ConnectSessions().Returns(cache.Connect());
+        var projection = Substitute.For<IRecordedSessionProjection>();
+        projection.ConnectSessions().Returns(cache.Connect());
 
-        var viewModel = new SessionListViewModel(graph, TestCoordinatorSubstitutes.Session(), new InlineUiThreadDispatcher());
+        var viewModel = new SessionListViewModel(projection, TestCoordinatorSubstitutes.Session(), new InlineUiThreadDispatcher());
         var view = new SessionListDesktopView
         {
             DataContext = viewModel,

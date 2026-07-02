@@ -16,33 +16,33 @@
         </Setter>
     </Style>
 
-    <Style Selector=":is(plots2|SessionStatisticsPlotView)">
+    <Style Selector=":is(plots2|AnalysisPlotView)">
         <Setter Property="Template">
             <ControlTemplate>
                 <Grid RowDefinitions="Auto,*">
-                    <plots2:StatisticsPlotHeaderPanel
+                    <plots2:AnalysisPlotHeaderPanel
                         Grid.Row="0"
                         MinHeight="28"
                         Margin="0,0,0,2"
                         Gap="8">
                         <TextBlock
-                            x:Name="StatisticsTitleTextBlock"
+                            x:Name="AnalysisTitleTextBlock"
                             HorizontalAlignment="Stretch"
                             VerticalAlignment="Center"
                             FontSize="14"
                             FontWeight="Bold"
                             Foreground="{DynamicResource SufniTextPrimaryBrush}"
-                            Text="{TemplateBinding StatisticsTitle}"
+                            Text="{TemplateBinding AnalysisTitle}"
                             TextAlignment="Center"
                             TextTrimming="CharacterEllipsis" />
 
                         <ContentControl
-                            x:Name="StatisticsHeaderContentPresenter"
+                            x:Name="AnalysisHeaderContentPresenter"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center"
                             DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}"
                             Content="{TemplateBinding HeaderContent}" />
-                    </plots2:StatisticsPlotHeaderPanel>
+                    </plots2:AnalysisPlotHeaderPanel>
 
                     <plots:SufniAvaPlot Grid.Row="1" Name="Plot" />
                 </Grid>

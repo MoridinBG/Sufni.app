@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 namespace Sufni.App.Sessions.Pages.ViewModels.Editors;
 
 /// <summary>
@@ -36,7 +36,7 @@ internal sealed class ProcessingPreferenceWorkflow(
 
         var previousProcessing = preferenceStore.Current.Processing;
 
-        // Restores everything — persisted option, graph cache, and the slider — to
+        // Restores everything — persisted option, projection cache, and the slider — to
         // the pre-change value when the recompute cannot complete.
         async Task RevertAsync()
         {
@@ -54,14 +54,14 @@ internal sealed class ProcessingPreferenceWorkflow(
             return;
         }
 
-        // Publish the new option into the graph cache so staleness evaluates against
-        // it; otherwise the graph would compare the just-recomputed fingerprint
+        // Publish the new option into the projection cache so staleness evaluates against
+        // it; otherwise the projection would compare the just-recomputed fingerprint
         // (new option) against a stale cached option and report the session stale.
         processingOptionCache.Set(gateway.SessionId, processing.ToTelemetryProcessingOptions());
 
         // The request flips the engine's IsActive(id) true synchronously, so the
         // staleness prompter suppresses the stale emission this same option change
-        // produces in the graph — the local case never double-prompts.
+        // produces in the projection — the local case never double-prompts.
         var result = await sessionCoordinator.RequestRecomputeAsync(
             gateway.SessionId,
             RecomputeReason.ProcessingPreferenceChanged);

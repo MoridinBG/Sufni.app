@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 namespace Sufni.App.Sessions.Pages.ViewModels.Editors;
 
 /// <summary>
@@ -44,7 +44,7 @@ internal sealed class SessionStalenessReconciler
     {
         // Suppress the prompt for a recompute the user just triggered: the request
         // flips engine.IsActive(id) true synchronously before any await, and both
-        // the graph emission and the request run on the UI thread.
+        // the projection emission and the request run on the UI thread.
         if (sessionCoordinator.IsRecomputeActive(gateway.SessionId))
         {
             return;

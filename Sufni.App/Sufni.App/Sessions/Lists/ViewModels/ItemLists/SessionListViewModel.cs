@@ -11,11 +11,11 @@ using DynamicData;
 using DynamicData.Binding;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Lists.ViewModels.Rows;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Shared.Base;
 namespace Sufni.App.Sessions.Lists.ViewModels.ItemLists;
 
@@ -49,7 +49,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
     #region Constructors
 
     public SessionListViewModel(
-        IRecordedSessionGraph recordedSessionGraph,
+        IRecordedSessionProjection recordedSessionProjection,
         ISessionCoordinator sessionCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
         IRecordedSessionListExtensionService? listExtensionService = null,
@@ -63,7 +63,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
             this.listExtensionService.ContributionsChanged += OnListExtensionContributionsChanged;
         }
 
-        recordedSessionGraph.ConnectSessions()
+        recordedSessionProjection.ConnectSessions()
             .Filter(filterSubject)
             .TransformWithInlineUpdate(
                 summary => new SessionRowViewModel(

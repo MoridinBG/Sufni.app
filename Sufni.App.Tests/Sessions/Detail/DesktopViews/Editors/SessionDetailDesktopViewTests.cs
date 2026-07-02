@@ -5,10 +5,10 @@ using Avalonia.VisualTree;
 
 using Sufni.App.Sessions.Detail.DesktopViews.Editors;
 using Sufni.App.Sessions.Detail.DesktopViews.Items;
-using Sufni.App.Sessions.Graph.DesktopViews.Items;
+using Sufni.App.Sessions.Signals.DesktopViews.Items;
 using Sufni.App.Sessions.Media.DesktopViews.Items;
 using Sufni.App.Sessions.Processing.SessionDetails;
-using Sufni.App.Sessions.Statistics.DesktopViews.Items;
+using Sufni.App.Sessions.Analysis.DesktopViews.Items;
 using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Shared.Views.Overlays;
 using Sufni.App.Tests.Sessions.Detail.Views.Editors;
@@ -26,40 +26,40 @@ public class SessionDetailDesktopViewTests
             loadResult: context.CreateDesktopLoadedState(includeImu: true));
 
         var shell = mounted.View.GetVisualDescendants().OfType<SessionShellDesktopView>().Single();
-        var graphHost = shell.FindControl<ContentControl>("GraphHost");
+        var signalsHost = shell.FindControl<ContentControl>("SignalsHost");
         var mediaHost = shell.FindControl<ContentControl>("MediaHost");
-        var statisticsHost = shell.FindControl<ContentControl>("StatisticsHost");
+        var analysisHost = shell.FindControl<ContentControl>("AnalysisHost");
         var controlHost = shell.FindControl<ContentControl>("ControlHost");
         var sidebarHost = shell.FindControl<ContentControl>("SidebarHost");
         var errorMessagesBar = mounted.View.FindControl<ErrorMessagesBar>("SessionErrorMessagesBar");
 
-        var graphView = Assert.IsType<RecordedSessionGraphDesktopView>(shell.GraphContent);
+        var signalsView = Assert.IsType<RecordedSessionSignalsDesktopView>(shell.SignalsContent);
         var mediaView = Assert.IsType<SessionMediaDesktopView>(shell.MediaContent);
-        var statisticsView = Assert.IsType<SessionStatisticsDesktopView>(shell.StatisticsContent);
+        var analysisView = Assert.IsType<SessionAnalysisDesktopView>(shell.AnalysisContent);
         var sidebarView = Assert.IsType<SessionSidebarDesktopView>(shell.SidebarContent);
 
-        Assert.NotNull(graphHost);
+        Assert.NotNull(signalsHost);
         Assert.NotNull(mediaHost);
-        Assert.NotNull(statisticsHost);
+        Assert.NotNull(analysisHost);
         Assert.NotNull(controlHost);
         Assert.NotNull(sidebarHost);
         Assert.NotNull(errorMessagesBar);
 
-        Assert.Same(graphView, graphHost!.Content);
+        Assert.Same(signalsView, signalsHost!.Content);
         Assert.Same(mediaView, mediaHost!.Content);
-        Assert.Same(statisticsView, statisticsHost!.Content);
+        Assert.Same(analysisView, analysisHost!.Content);
         Assert.Null(controlHost!.Content);
         Assert.Same(sidebarView, sidebarHost!.Content);
 
-        Assert.Same(mounted.Editor.GraphWorkspace, graphView.DataContext);
+        Assert.Same(mounted.Editor.SignalsWorkspace, signalsView.DataContext);
         Assert.Same(mounted.Editor.MediaWorkspace, mediaView.DataContext);
-        Assert.Same(mounted.Editor.StatisticsWorkspace, statisticsView.DataContext);
+        Assert.Same(mounted.Editor.AnalysisWorkspace, analysisView.DataContext);
         Assert.Same(mounted.Editor.SidebarWorkspace, sidebarView.DataContext);
         Assert.Same(mounted.Editor, errorMessagesBar!.DataContext);
     }
 
     [AvaloniaFact]
-    public async Task SessionDetailDesktopView_ShowsGraphPlaceholders_WhenDesktopTelemetryIsPending()
+    public async Task SessionDetailDesktopView_ShowsSignalsPlaceholders_WhenDesktopTelemetryIsPending()
     {
         var context = new SessionDetailViewTestContext();
         var snapshot = context.CreateTelemetryBearingSnapshot(hasProcessedData: true);
@@ -68,17 +68,17 @@ public class SessionDetailDesktopViewTests
             snapshot: snapshot,
             loadResult: new SessionDesktopLoadResult.TelemetryPending());
 
-        var graphView = mounted.View.GetVisualDescendants().OfType<RecordedSessionGraphDesktopView>().Single();
-        var graphHosts = graphView.GetVisualDescendants()
+        var signalsView = mounted.View.GetVisualDescendants().OfType<RecordedSessionSignalsDesktopView>().Single();
+        var signalHosts = signalsView.GetVisualDescendants()
             .OfType<PlaceholderOverlayContainer>()
             .Where(host => host.IsVisible)
             .ToArray();
-        var progressIndicators = graphView.GetVisualDescendants()
+        var progressIndicators = signalsView.GetVisualDescendants()
             .OfType<Control>()
             .Where(control => control.Name == "ProgressIndicator" && control.IsVisible)
             .ToArray();
 
-        Assert.Equal(4, graphHosts.Length);
+        Assert.Equal(4, signalHosts.Length);
         Assert.Equal(4, progressIndicators.Length);
     }
 

@@ -22,7 +22,7 @@ public class SessionDetailDesktopShellTests
 
         await using var mounted = await MountAsync(shell);
 
-        var graphMediaSplit = FindSplit(mounted.View, "GraphMediaSplit");
+        var graphMediaSplit = FindSplit(mounted.View, "SignalsMediaSplit");
         var controlHost = mounted.View.FindControl<ContentControl>("ControlHost");
         var controlSplitter = mounted.View.FindControl<GridSplitter>("ControlSplitter");
 
@@ -54,25 +54,25 @@ public class SessionDetailDesktopShellTests
         shell.LayoutPreferences = new SessionLayoutPreferences(
             desktopShellRows: new SessionPaneGroupPreferences(
             [
-                new SessionPaneSizePreference(SessionLayoutPaneIds.GraphMediaArea, 0.6),
-                new SessionPaneSizePreference(SessionLayoutPaneIds.StatisticsSidebarArea, 0.4),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.SignalsMediaArea, 0.6),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.AnalysisSidebarArea, 0.4),
             ]),
-            desktopGraphMediaColumns: new SessionPaneGroupPreferences(
+            desktopSignalsMediaColumns: new SessionPaneGroupPreferences(
             [
-                new SessionPaneSizePreference(SessionLayoutPaneIds.Graph, 0.7),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Signals, 0.7),
                 new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.3),
             ]),
-            desktopStatisticsSidebarColumns: new SessionPaneGroupPreferences(
+            desktopAnalysisSidebarColumns: new SessionPaneGroupPreferences(
             [
-                new SessionPaneSizePreference(SessionLayoutPaneIds.Statistics, 0.65),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Analysis, 0.65),
                 new SessionPaneSizePreference(SessionLayoutPaneIds.Sidebar, 0.35),
             ]));
 
         await using var mounted = await MountAsync(shell);
 
         var shellRows = GetPaneLengths(FindSplit(mounted.View, "ShellRowsSplit"));
-        var graphMedia = GetPaneLengths(FindSplit(mounted.View, "GraphMediaSplit"));
-        var statisticsSidebar = GetPaneLengths(FindSplit(mounted.View, "StatisticsSidebarSplit"));
+        var graphMedia = GetPaneLengths(FindSplit(mounted.View, "SignalsMediaSplit"));
+        var analysisSidebar = GetPaneLengths(FindSplit(mounted.View, "AnalysisSidebarSplit"));
 
         Assert.Equal(0.6, shellRows.First.Value);
         Assert.Equal(0.4, shellRows.Second.Value);
@@ -80,8 +80,8 @@ public class SessionDetailDesktopShellTests
         Assert.Equal(GridUnitType.Star, shellRows.Second.GridUnitType);
         Assert.Equal(0.7, graphMedia.First.Value);
         Assert.Equal(0.3, graphMedia.Second.Value);
-        Assert.Equal(0.65, statisticsSidebar.First.Value);
-        Assert.Equal(0.35, statisticsSidebar.Second.Value);
+        Assert.Equal(0.65, analysisSidebar.First.Value);
+        Assert.Equal(0.35, analysisSidebar.Second.Value);
     }
 
     [AvaloniaFact]
@@ -91,7 +91,7 @@ public class SessionDetailDesktopShellTests
 
         var shell = CreateShell();
         shell.LayoutPreferences = new SessionLayoutPreferences(
-            desktopGraphMediaColumns: new SessionPaneGroupPreferences(
+            desktopSignalsMediaColumns: new SessionPaneGroupPreferences(
             [
                 new SessionPaneSizePreference("unknown", 0.7),
                 new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.3),
@@ -99,10 +99,10 @@ public class SessionDetailDesktopShellTests
 
         await using var mounted = await MountAsync(shell);
 
-        var (graph, media) = GetPaneLengths(FindSplit(mounted.View, "GraphMediaSplit"));
+        var (signals, media) = GetPaneLengths(FindSplit(mounted.View, "SignalsMediaSplit"));
 
-        Assert.Equal(1, graph.Value);
-        Assert.Equal(GridUnitType.Star, graph.GridUnitType);
+        Assert.Equal(1, signals.Value);
+        Assert.Equal(GridUnitType.Star, signals.GridUnitType);
         Assert.Equal(400, media.Value);
         Assert.Equal(GridUnitType.Pixel, media.GridUnitType);
     }
@@ -117,7 +117,7 @@ public class SessionDetailDesktopShellTests
 
         await using var mounted = await MountAsync(shell);
 
-        var (_, media) = GetPaneLengths(FindSplit(mounted.View, "GraphMediaSplit"));
+        var (_, media) = GetPaneLengths(FindSplit(mounted.View, "SignalsMediaSplit"));
 
         Assert.Equal(480, media.Value);
         Assert.Equal(GridUnitType.Pixel, media.GridUnitType);
@@ -130,8 +130,8 @@ public class SessionDetailDesktopShellTests
             new SessionLayoutPreferences(
                 desktopShellRows: new SessionPaneGroupPreferences(
                 [
-                    new SessionPaneSizePreference(SessionLayoutPaneIds.GraphMediaArea, 0.2, IsCollapsed: true),
-                    new SessionPaneSizePreference(SessionLayoutPaneIds.StatisticsSidebarArea, 0.8),
+                    new SessionPaneSizePreference(SessionLayoutPaneIds.SignalsMediaArea, 0.2, IsCollapsed: true),
+                    new SessionPaneSizePreference(SessionLayoutPaneIds.AnalysisSidebarArea, 0.8),
                 ])),
             "ShellRowsSplit",
             firstPane: true);
@@ -140,89 +140,89 @@ public class SessionDetailDesktopShellTests
             new SessionLayoutPreferences(
                 desktopShellRows: new SessionPaneGroupPreferences(
                 [
-                    new SessionPaneSizePreference(SessionLayoutPaneIds.GraphMediaArea, 0.8),
-                    new SessionPaneSizePreference(SessionLayoutPaneIds.StatisticsSidebarArea, 0.2, IsCollapsed: true),
+                    new SessionPaneSizePreference(SessionLayoutPaneIds.SignalsMediaArea, 0.8),
+                    new SessionPaneSizePreference(SessionLayoutPaneIds.AnalysisSidebarArea, 0.2, IsCollapsed: true),
                 ])),
             "ShellRowsSplit",
             firstPane: false);
 
         await AssertCollapsedPaneAsync(
             new SessionLayoutPreferences(
-                desktopGraphMediaColumns: new SessionPaneGroupPreferences(
+                desktopSignalsMediaColumns: new SessionPaneGroupPreferences(
                 [
-                    new SessionPaneSizePreference(SessionLayoutPaneIds.Graph, 0.2, IsCollapsed: true),
+                    new SessionPaneSizePreference(SessionLayoutPaneIds.Signals, 0.2, IsCollapsed: true),
                     new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.8),
                 ])),
-            "GraphMediaSplit",
+            "SignalsMediaSplit",
             firstPane: true);
 
         await AssertCollapsedPaneAsync(
             new SessionLayoutPreferences(
-                desktopGraphMediaColumns: new SessionPaneGroupPreferences(
+                desktopSignalsMediaColumns: new SessionPaneGroupPreferences(
                 [
-                    new SessionPaneSizePreference(SessionLayoutPaneIds.Graph, 0.8),
+                    new SessionPaneSizePreference(SessionLayoutPaneIds.Signals, 0.8),
                     new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.2, IsCollapsed: true),
                 ])),
-            "GraphMediaSplit",
+            "SignalsMediaSplit",
             firstPane: false);
 
         await AssertCollapsedPaneAsync(
             new SessionLayoutPreferences(
-                desktopStatisticsSidebarColumns: new SessionPaneGroupPreferences(
+                desktopAnalysisSidebarColumns: new SessionPaneGroupPreferences(
                 [
-                    new SessionPaneSizePreference(SessionLayoutPaneIds.Statistics, 0.2, IsCollapsed: true),
+                    new SessionPaneSizePreference(SessionLayoutPaneIds.Analysis, 0.2, IsCollapsed: true),
                     new SessionPaneSizePreference(SessionLayoutPaneIds.Sidebar, 0.8),
                 ])),
-            "StatisticsSidebarSplit",
+            "AnalysisSidebarSplit",
             firstPane: true);
 
         await AssertCollapsedPaneAsync(
             new SessionLayoutPreferences(
-                desktopStatisticsSidebarColumns: new SessionPaneGroupPreferences(
+                desktopAnalysisSidebarColumns: new SessionPaneGroupPreferences(
                 [
-                    new SessionPaneSizePreference(SessionLayoutPaneIds.Statistics, 0.8),
+                    new SessionPaneSizePreference(SessionLayoutPaneIds.Analysis, 0.8),
                     new SessionPaneSizePreference(SessionLayoutPaneIds.Sidebar, 0.2, IsCollapsed: true),
                 ])),
-            "StatisticsSidebarSplit",
+            "AnalysisSidebarSplit",
             firstPane: false);
     }
 
     [AvaloniaFact]
-    public async Task SessionShellDesktopView_StatisticsAndSidebarCollapsedHeaders_RestoreStoredPaneRatios()
+    public async Task SessionShellDesktopView_AnalysisAndSidebarCollapsedHeaders_RestoreStoredPaneRatios()
     {
         ViewTestHelpers.EnsureViewTestResources();
 
         var shell = CreateShell();
         shell.LayoutPreferences = new SessionLayoutPreferences(
-            desktopStatisticsSidebarColumns: new SessionPaneGroupPreferences(
+            desktopAnalysisSidebarColumns: new SessionPaneGroupPreferences(
             [
-                new SessionPaneSizePreference(SessionLayoutPaneIds.Statistics, 0.2, IsCollapsed: true),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Analysis, 0.2, IsCollapsed: true),
                 new SessionPaneSizePreference(SessionLayoutPaneIds.Sidebar, 0.8),
             ]));
 
         await using var mounted = await MountAsync(shell);
 
-        var split = FindSplit(mounted.View, "StatisticsSidebarSplit");
+        var split = FindSplit(mounted.View, "AnalysisSidebarSplit");
         FindPart<Button>(split, "PART_FirstCollapsedHeader")
             .RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         AssertPane(
-            mounted.View.LayoutPreferences.DesktopStatisticsSidebarColumns!,
-            SessionLayoutPaneIds.Statistics,
+            mounted.View.LayoutPreferences.DesktopAnalysisSidebarColumns!,
+            SessionLayoutPaneIds.Analysis,
             0.2,
             isCollapsed: false);
         AssertPane(
-            mounted.View.LayoutPreferences.DesktopStatisticsSidebarColumns!,
+            mounted.View.LayoutPreferences.DesktopAnalysisSidebarColumns!,
             SessionLayoutPaneIds.Sidebar,
             0.8,
             isCollapsed: false);
 
         mounted.View.LayoutPreferences = mounted.View.LayoutPreferences with
         {
-            DesktopStatisticsSidebarColumns = new SessionPaneGroupPreferences(
+            DesktopAnalysisSidebarColumns = new SessionPaneGroupPreferences(
             [
-                new SessionPaneSizePreference(SessionLayoutPaneIds.Statistics, 0.8),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Analysis, 0.8),
                 new SessionPaneSizePreference(SessionLayoutPaneIds.Sidebar, 0.2, IsCollapsed: true),
             ]),
         };
@@ -233,12 +233,12 @@ public class SessionDetailDesktopShellTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         AssertPane(
-            mounted.View.LayoutPreferences.DesktopStatisticsSidebarColumns!,
-            SessionLayoutPaneIds.Statistics,
+            mounted.View.LayoutPreferences.DesktopAnalysisSidebarColumns!,
+            SessionLayoutPaneIds.Analysis,
             0.8,
             isCollapsed: false);
         AssertPane(
-            mounted.View.LayoutPreferences.DesktopStatisticsSidebarColumns!,
+            mounted.View.LayoutPreferences.DesktopAnalysisSidebarColumns!,
             SessionLayoutPaneIds.Sidebar,
             0.2,
             isCollapsed: false);
@@ -276,10 +276,10 @@ public class SessionDetailDesktopShellTests
     {
         return new SessionShellDesktopView
         {
-            GraphContent = new Border(),
+            SignalsContent = new Border(),
             HasMediaContent = true,
             MediaContent = new Border(),
-            StatisticsContent = new Border(),
+            AnalysisContent = new Border(),
             SidebarContent = new Border(),
         };
     }

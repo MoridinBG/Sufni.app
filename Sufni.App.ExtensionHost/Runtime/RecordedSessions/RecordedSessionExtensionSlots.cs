@@ -11,21 +11,21 @@ namespace Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
 public sealed class RecordedSessionExtensionSlots
 {
-    public ObservableCollection<RecordedSessionToolbarCommandContribution> GraphToolbarCommands { get; } = CreateCollection<RecordedSessionToolbarCommandContribution>();
-    public ObservableCollection<RecordedSessionToolbarViewContribution> GraphToolbarViews { get; } = CreateCollection<RecordedSessionToolbarViewContribution>();
+    public ObservableCollection<RecordedSessionToolbarCommandContribution> SignalToolbarCommands { get; } = CreateCollection<RecordedSessionToolbarCommandContribution>();
+    public ObservableCollection<RecordedSessionToolbarViewContribution> SignalToolbarViews { get; } = CreateCollection<RecordedSessionToolbarViewContribution>();
     public ObservableCollection<RecordedSessionPageContribution> Pages { get; } = CreateCollection<RecordedSessionPageContribution>();
     public ObservableCollection<RecordedSessionMediaPaneContribution> MediaPanes { get; } = CreateCollection<RecordedSessionMediaPaneContribution>();
     public ObservableCollection<RecordedSessionMapOverlayContribution> MapOverlays { get; } = CreateCollection<RecordedSessionMapOverlayContribution>();
-    public ObservableCollection<RecordedSessionStatisticsBannerContribution> StatisticsBanners { get; } = CreateCollection<RecordedSessionStatisticsBannerContribution>();
-    public ObservableCollection<RecordedSessionStatisticsTabContribution> StatisticsTabs { get; } = CreateCollection<RecordedSessionStatisticsTabContribution>();
-    public ObservableCollection<RecordedSessionStatisticsOverlayContribution> StatisticsOverlays { get; } = CreateCollection<RecordedSessionStatisticsOverlayContribution>();
-    public ObservableCollection<RecordedSessionStatisticsMetricContribution> StatisticsMetrics { get; } = CreateCollection<RecordedSessionStatisticsMetricContribution>();
+    public ObservableCollection<RecordedSessionAnalysisBannerContribution> AnalysisBanners { get; } = CreateCollection<RecordedSessionAnalysisBannerContribution>();
+    public ObservableCollection<RecordedSessionAnalysisTabContribution> AnalysisTabs { get; } = CreateCollection<RecordedSessionAnalysisTabContribution>();
+    public ObservableCollection<RecordedSessionAnalysisOverlayContribution> AnalysisOverlays { get; } = CreateCollection<RecordedSessionAnalysisOverlayContribution>();
+    public ObservableCollection<RecordedSessionAnalysisMetricContribution> AnalysisMetrics { get; } = CreateCollection<RecordedSessionAnalysisMetricContribution>();
     public ObservableCollection<RecordedSessionListIndicatorContribution> SessionListIndicators { get; } = CreateCollection<RecordedSessionListIndicatorContribution>();
     public ObservableCollection<RecordedSessionListActionContribution> SessionListActions { get; } = CreateCollection<RecordedSessionListActionContribution>();
-    public ObservableCollection<RecordedSessionPlotContextMenuContribution> PlotContextMenuActions { get; } = CreateCollection<RecordedSessionPlotContextMenuContribution>();
-    public ObservableCollection<RecordedSessionPlotRowActionContribution> PlotRowHeaderActions { get; } = CreateCollection<RecordedSessionPlotRowActionContribution>();
-    public ObservableCollection<RecordedSessionHostedGraphRowContribution> HostedGraphRows { get; } = CreateCollection<RecordedSessionHostedGraphRowContribution>();
-    public ObservableCollection<RecordedSessionTimeRangeOverlayContribution> TimeRangeOverlays { get; } = CreateCollection<RecordedSessionTimeRangeOverlayContribution>();
+    public ObservableCollection<RecordedSessionSignalPlotContextMenuContribution> SignalPlotContextMenuActions { get; } = CreateCollection<RecordedSessionSignalPlotContextMenuContribution>();
+    public ObservableCollection<RecordedSessionSignalRowActionContribution> SignalRowHeaderActions { get; } = CreateCollection<RecordedSessionSignalRowActionContribution>();
+    public ObservableCollection<RecordedSessionHostedSignalRowContribution> HostedSignalRows { get; } = CreateCollection<RecordedSessionHostedSignalRowContribution>();
+    public ObservableCollection<RecordedSessionTimeRangeOverlayContribution> SignalTimeRangeOverlays { get; } = CreateCollection<RecordedSessionTimeRangeOverlayContribution>();
 
     private static ObservableCollection<T> CreateCollection<T>() => new RecordedSessionExtensionSlotCollection<T>();
 
@@ -35,21 +35,21 @@ public sealed class RecordedSessionExtensionSlots
 
         return new RecordedSessionExtensionSlotChangeSubscription(
             [
-                Subscribe(GraphToolbarCommands, changed),
-                Subscribe(GraphToolbarViews, changed),
+                Subscribe(SignalToolbarCommands, changed),
+                Subscribe(SignalToolbarViews, changed),
                 Subscribe(Pages, changed),
                 Subscribe(MediaPanes, changed),
                 Subscribe(MapOverlays, changed),
-                Subscribe(StatisticsBanners, changed),
-                Subscribe(StatisticsTabs, changed),
-                Subscribe(StatisticsOverlays, changed),
-                Subscribe(StatisticsMetrics, changed),
+                Subscribe(AnalysisBanners, changed),
+                Subscribe(AnalysisTabs, changed),
+                Subscribe(AnalysisOverlays, changed),
+                Subscribe(AnalysisMetrics, changed),
                 Subscribe(SessionListIndicators, changed),
                 Subscribe(SessionListActions, changed),
-                Subscribe(PlotContextMenuActions, changed),
-                Subscribe(PlotRowHeaderActions, changed),
-                Subscribe(HostedGraphRows, changed),
-                Subscribe(TimeRangeOverlays, changed),
+                Subscribe(SignalPlotContextMenuActions, changed),
+                Subscribe(SignalRowHeaderActions, changed),
+                Subscribe(HostedSignalRows, changed),
+                Subscribe(SignalTimeRangeOverlays, changed),
             ]);
     }
 

@@ -3,12 +3,12 @@ x:Class="Sufni.App.Sessions.Detail.DesktopViews.Editors.SessionDetailDesktopView
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:items2="clr-namespace:Sufni.App.Sessions.Detail.DesktopViews.Items"
-    xmlns:items3="clr-namespace:Sufni.App.Sessions.Graph.DesktopViews.Items"
+    xmlns:items3="clr-namespace:Sufni.App.Sessions.Signals.DesktopViews.Items"
     xmlns:items4="clr-namespace:Sufni.App.Sessions.Media.DesktopViews.Items"
 xmlns:controls="using:Sufni.App.Shared.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:editors="clr-namespace:Sufni.App.Sessions.Detail.DesktopViews.Editors"
-xmlns:items="clr-namespace:Sufni.App.Sessions.Statistics.DesktopViews.Items"
+xmlns:items="clr-namespace:Sufni.App.Sessions.Analysis.DesktopViews.Items"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
 xmlns:vm="clr-namespace:Sufni.App.Sessions.Detail.ViewModels.Editors"
@@ -66,9 +66,9 @@ mc:Ignorable="d">
             LayoutPreferences="{Binding LayoutPreferences, Mode=TwoWay}"
             MediaColumnWidth="{Binding MediaWorkspace.MediaColumnWidth, TargetNullValue=400}">
 
-            <editors:SessionShellDesktopView.GraphContent>
-                <items3:RecordedSessionGraphDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).GraphWorkspace}" />
-            </editors:SessionShellDesktopView.GraphContent>
+            <editors:SessionShellDesktopView.SignalsContent>
+                <items3:RecordedSessionSignalsDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).SignalsWorkspace}" />
+            </editors:SessionShellDesktopView.SignalsContent>
 
             <editors:SessionShellDesktopView.MediaContent>
                 <items4:SessionMediaDesktopView
@@ -76,9 +76,9 @@ mc:Ignorable="d">
                     LayoutPreferences="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).MediaLayoutPreferences, Mode=TwoWay}" />
             </editors:SessionShellDesktopView.MediaContent>
 
-            <editors:SessionShellDesktopView.StatisticsContent>
-                <items:SessionStatisticsDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).StatisticsWorkspace}" />
-            </editors:SessionShellDesktopView.StatisticsContent>
+            <editors:SessionShellDesktopView.AnalysisContent>
+                <items:SessionAnalysisDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).AnalysisWorkspace}" />
+            </editors:SessionShellDesktopView.AnalysisContent>
 
             <editors:SessionShellDesktopView.SidebarContent>
                 <items2:SessionSidebarDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).SidebarWorkspace}" />

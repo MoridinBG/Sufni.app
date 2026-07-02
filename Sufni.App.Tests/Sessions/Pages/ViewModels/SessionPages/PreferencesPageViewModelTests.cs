@@ -7,17 +7,17 @@ namespace Sufni.App.Tests.Sessions.Pages.ViewModels.SessionPages;
 public class PreferencesPageViewModelTests
 {
     [Fact]
-    public void CreatePlotPreferences_RoundTripsPitchRollSelectionAndSmoothing()
+    public void CreateSignalDisplayPreferences_RoundTripsPitchRollSelectionAndSmoothing()
     {
         var viewModel = new PreferencesPageViewModel();
 
-        viewModel.ApplyPlotPreferences(new SessionPlotPreferences(
+        viewModel.ApplySignalDisplayPreferences(new SignalDisplayPreferences(
             Travel: true,
             Velocity: true,
             Imu: true,
             PitchRoll: false,
             PitchRollSmoothing: PlotSmoothingLevel.Strong));
-        viewModel.ApplyPlotAvailability(
+        viewModel.ApplySignalAvailability(
             travelAvailable: true,
             velocityAvailable: true,
             imuAvailable: true,
@@ -25,11 +25,11 @@ public class PreferencesPageViewModelTests
             speedAvailable: true,
             elevationAvailable: true);
 
-        var preferences = viewModel.CreatePlotPreferences();
+        var preferences = viewModel.CreateSignalDisplayPreferences();
 
-        Assert.False(viewModel.PitchRollPlot.Selected);
-        Assert.False(viewModel.PitchRollPlot.Available);
-        Assert.Equal(PlotSmoothingLevel.Strong, viewModel.PitchRollPlot.SelectedSmoothing);
+        Assert.False(viewModel.PitchRollSignal.Selected);
+        Assert.False(viewModel.PitchRollSignal.Available);
+        Assert.Equal(PlotSmoothingLevel.Strong, viewModel.PitchRollSignal.SelectedSmoothing);
         Assert.False(preferences.PitchRoll);
         Assert.Equal(PlotSmoothingLevel.Strong, preferences.PitchRollSmoothing);
     }

@@ -16,21 +16,21 @@ public class RecordedSessionExtensionSlotsTests
     {
         var slots = new RecordedSessionExtensionSlots();
 
-        Assert.Empty(slots.GraphToolbarCommands);
-        Assert.Empty(slots.GraphToolbarViews);
+        Assert.Empty(slots.SignalToolbarCommands);
+        Assert.Empty(slots.SignalToolbarViews);
         Assert.Empty(slots.Pages);
         Assert.Empty(slots.MediaPanes);
         Assert.Empty(slots.MapOverlays);
-        Assert.Empty(slots.StatisticsBanners);
-        Assert.Empty(slots.StatisticsTabs);
-        Assert.Empty(slots.StatisticsOverlays);
-        Assert.Empty(slots.StatisticsMetrics);
+        Assert.Empty(slots.AnalysisBanners);
+        Assert.Empty(slots.AnalysisTabs);
+        Assert.Empty(slots.AnalysisOverlays);
+        Assert.Empty(slots.AnalysisMetrics);
         Assert.Empty(slots.SessionListIndicators);
         Assert.Empty(slots.SessionListActions);
-        Assert.Empty(slots.PlotContextMenuActions);
-        Assert.Empty(slots.PlotRowHeaderActions);
-        Assert.Empty(slots.HostedGraphRows);
-        Assert.Empty(slots.TimeRangeOverlays);
+        Assert.Empty(slots.SignalPlotContextMenuActions);
+        Assert.Empty(slots.SignalRowHeaderActions);
+        Assert.Empty(slots.HostedSignalRows);
+        Assert.Empty(slots.SignalTimeRangeOverlays);
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public class RecordedSessionExtensionSlotsTests
             "Inspect",
             new RelayCommand(() => { }));
 
-        slots.GraphToolbarCommands.Add(new RecordedSessionToolbarCommandContribution(
+        slots.SignalToolbarCommands.Add(new RecordedSessionToolbarCommandContribution(
             "extension",
             "toolbar-command",
             Order: 5,
@@ -50,29 +50,29 @@ public class RecordedSessionExtensionSlotsTests
             "Toolbar command",
             Icon: null,
             new RelayCommand(() => { })));
-        slots.GraphToolbarViews.Add(new RecordedSessionToolbarViewContribution(
+        slots.SignalToolbarViews.Add(new RecordedSessionToolbarViewContribution(
             "extension",
             "toolbar-view",
             Order: 10,
             RecordedSessionToolbarZone.Leading,
             new TestContributionViewModel()));
-        var commandContribution = Assert.Single(slots.GraphToolbarCommands);
+        var commandContribution = Assert.Single(slots.SignalToolbarCommands);
         Assert.Equal(RecordedSessionToolbarZone.Trailing, commandContribution.Zone);
-        slots.PlotContextMenuActions.Add(new RecordedSessionPlotContextMenuContribution(
+        slots.SignalPlotContextMenuActions.Add(new RecordedSessionSignalPlotContextMenuContribution(
             "extension",
             "context",
             Order: 20,
-            RecordedSessionBuiltInGraphRow.Travel,
+            RecordedSessionBuiltInSignalRow.Travel,
             action));
-        slots.StatisticsMetrics.Add(new RecordedSessionStatisticsMetricContribution(
+        slots.AnalysisMetrics.Add(new RecordedSessionAnalysisMetricContribution(
             "extension",
             "metric",
             Order: 30,
-            RecordedSessionStatisticsMetricTarget.FrontHscPercentage,
+            RecordedSessionAnalysisMetricTarget.FrontHscPercentage,
             "match 42.00",
             "+3.00",
             RecordedSessionMetricTone.Positive));
-        slots.StatisticsTabs.Add(new RecordedSessionStatisticsTabContribution(
+        slots.AnalysisTabs.Add(new RecordedSessionAnalysisTabContribution(
             "extension",
             "tab",
             Order: 40,
@@ -80,42 +80,42 @@ public class RecordedSessionExtensionSlotsTests
             RequestedIndex: 3,
             new TestContributionViewModel()));
 
-        var toolbarContribution = Assert.Single(slots.GraphToolbarViews);
+        var toolbarContribution = Assert.Single(slots.SignalToolbarViews);
         Assert.Equal(RecordedSessionToolbarZone.Leading, toolbarContribution.Zone);
-        var contextContribution = Assert.Single(slots.PlotContextMenuActions);
+        var contextContribution = Assert.Single(slots.SignalPlotContextMenuActions);
         Assert.Equal("extension", contextContribution.ExtensionId);
         Assert.Equal("context", contextContribution.ContributionId);
         Assert.Equal(20, contextContribution.Order);
-        Assert.Equal(RecordedSessionBuiltInGraphRow.Travel, contextContribution.TargetRow);
+        Assert.Equal(RecordedSessionBuiltInSignalRow.Travel, contextContribution.TargetRow);
         Assert.Equal(action, contextContribution.Action);
-        var metricContribution = Assert.Single(slots.StatisticsMetrics);
-        Assert.Equal(RecordedSessionStatisticsMetricTarget.FrontHscPercentage, metricContribution.TargetMetric);
+        var metricContribution = Assert.Single(slots.AnalysisMetrics);
+        Assert.Equal(RecordedSessionAnalysisMetricTarget.FrontHscPercentage, metricContribution.TargetMetric);
         Assert.True(metricContribution.HasDeltaValue);
         Assert.True(metricContribution.IsPositiveTone);
-        var tabContribution = Assert.Single(slots.StatisticsTabs);
+        var tabContribution = Assert.Single(slots.AnalysisTabs);
         Assert.Equal("Extension tab", tabContribution.DisplayName);
         Assert.Equal(3, tabContribution.RequestedIndex);
     }
 
     [Fact]
-    public void HostedGraphRows_AcceptNeutralSeriesGraphViewModel()
+    public void HostedSignalRows_AcceptNeutralSignalPlotViewModel()
     {
         var slots = new RecordedSessionExtensionSlots();
-        var contribution = new RecordedSessionHostedGraphRowContribution(
+        var contribution = new RecordedSessionHostedSignalRowContribution(
             "extension",
-            "neutral-series",
+            "neutral-signal",
             Order: 1,
-            RecordedSessionBuiltInGraphRow.Travel,
-            RecordedSessionGraphRowTarget.Extension("extension", "neutral-series"),
+            RecordedSessionBuiltInSignalRow.Travel,
+            RecordedSessionSignalRowTarget.Extension("extension", "neutral-signal"),
             "Matched travel",
             SurfacePresentationState.Ready,
-            new RecordedSessionSeriesGraphViewModel(
+            new RecordedSessionSignalPlotViewModel(
                 [], invertValueAxis: true, durationSeconds: 1, emptyMessage: "none", airtimeSpans: []),
             IsInitiallyExpanded: false);
 
-        slots.HostedGraphRows.Add(contribution);
+        slots.HostedSignalRows.Add(contribution);
 
-        Assert.IsType<RecordedSessionSeriesGraphViewModel>(Assert.Single(slots.HostedGraphRows).ViewModel);
+        Assert.IsType<RecordedSessionSignalPlotViewModel>(Assert.Single(slots.HostedSignalRows).ViewModel);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class RecordedSessionExtensionSlotsTests
         Assert.Equal(15, notifications);
 
         subscription.Dispose();
-        slots.GraphToolbarViews.Add(CreateToolbarContribution("after-dispose"));
+        slots.SignalToolbarViews.Add(CreateToolbarContribution("after-dispose"));
 
         Assert.Equal(15, notifications);
     }
@@ -145,27 +145,27 @@ public class RecordedSessionExtensionSlotsTests
 
         publisher.Publish(builder => builder.AddFrom(source));
 
-        Assert.Equal(["toolbar-command"], target.GraphToolbarCommands.Select(contribution => contribution.ContributionId));
-        Assert.Equal(["toolbar-view"], target.GraphToolbarViews.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["toolbar-command"], target.SignalToolbarCommands.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["toolbar-view"], target.SignalToolbarViews.Select(contribution => contribution.ContributionId));
         Assert.Equal(["page"], target.Pages.Select(contribution => contribution.ContributionId));
         Assert.Equal(["media"], target.MediaPanes.Select(contribution => contribution.ContributionId));
         Assert.Equal(["map"], target.MapOverlays.Select(contribution => contribution.ContributionId));
-        Assert.Equal(["banner"], target.StatisticsBanners.Select(contribution => contribution.ContributionId));
-        Assert.Equal(["tab"], target.StatisticsTabs.Select(contribution => contribution.ContributionId));
-        Assert.Equal(["overlay"], target.StatisticsOverlays.Select(contribution => contribution.ContributionId));
-        Assert.Equal(["metric"], target.StatisticsMetrics.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["banner"], target.AnalysisBanners.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["tab"], target.AnalysisTabs.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["overlay"], target.AnalysisOverlays.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["metric"], target.AnalysisMetrics.Select(contribution => contribution.ContributionId));
         Assert.Equal(["indicator"], target.SessionListIndicators.Select(contribution => contribution.ContributionId));
         Assert.Equal(["list-action"], target.SessionListActions.Select(contribution => contribution.ContributionId));
-        Assert.Equal(["context"], target.PlotContextMenuActions.Select(contribution => contribution.ContributionId));
-        Assert.Equal(["row-action"], target.PlotRowHeaderActions.Select(contribution => contribution.ContributionId));
-        Assert.Equal(["hosted-row"], target.HostedGraphRows.Select(contribution => contribution.ContributionId));
-        Assert.Equal(["range"], target.TimeRangeOverlays.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["context"], target.SignalPlotContextMenuActions.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["row-action"], target.SignalRowHeaderActions.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["hosted-row"], target.HostedSignalRows.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["range"], target.SignalTimeRangeOverlays.Select(contribution => contribution.ContributionId));
     }
 
     private static void AddOneContributionToEachFamily(RecordedSessionExtensionSlots slots)
     {
-        slots.GraphToolbarCommands.Add(CreateToolbarCommandContribution("toolbar-command"));
-        slots.GraphToolbarViews.Add(CreateToolbarContribution("toolbar-view"));
+        slots.SignalToolbarCommands.Add(CreateToolbarCommandContribution("toolbar-command"));
+        slots.SignalToolbarViews.Add(CreateToolbarContribution("toolbar-view"));
         slots.Pages.Add(new RecordedSessionPageContribution(
             "extension",
             "page",
@@ -184,30 +184,30 @@ public class RecordedSessionExtensionSlotsTests
             Order: 4,
             Lines: [],
             Points: []));
-        slots.StatisticsBanners.Add(new RecordedSessionStatisticsBannerContribution(
+        slots.AnalysisBanners.Add(new RecordedSessionAnalysisBannerContribution(
             "extension",
             "banner",
             Order: 5,
             new TestContributionViewModel()));
-        slots.StatisticsTabs.Add(new RecordedSessionStatisticsTabContribution(
+        slots.AnalysisTabs.Add(new RecordedSessionAnalysisTabContribution(
             "extension",
             "tab",
             Order: 6,
             "Extension tab",
             RequestedIndex: 3,
             new TestContributionViewModel()));
-        slots.StatisticsOverlays.Add(new RecordedSessionStatisticsOverlayContribution(
+        slots.AnalysisOverlays.Add(new RecordedSessionAnalysisOverlayContribution(
             "extension",
             "overlay",
             Order: 7,
-            RecordedSessionStatisticsPlotTarget.TravelHistogram(SuspensionType.Front),
+            RecordedSessionAnalysisPlotTarget.TravelDistribution(SuspensionType.Front),
             ViewModel: null,
             Overlay: null));
-        slots.StatisticsMetrics.Add(new RecordedSessionStatisticsMetricContribution(
+        slots.AnalysisMetrics.Add(new RecordedSessionAnalysisMetricContribution(
             "extension",
             "metric",
             Order: 8,
-            RecordedSessionStatisticsMetricTarget.FrontHscPercentage,
+            RecordedSessionAnalysisMetricTarget.FrontHscPercentage,
             "42.00",
             DeltaValue: null,
             RecordedSessionMetricTone.Default));
@@ -221,33 +221,33 @@ public class RecordedSessionExtensionSlotsTests
             "list-action",
             Order: 10,
             new TestContributionViewModel()));
-        slots.PlotContextMenuActions.Add(new RecordedSessionPlotContextMenuContribution(
+        slots.SignalPlotContextMenuActions.Add(new RecordedSessionSignalPlotContextMenuContribution(
             "extension",
             "context",
             Order: 11,
-            RecordedSessionBuiltInGraphRow.Travel,
+            RecordedSessionBuiltInSignalRow.Travel,
             new TelemetryPlotContextMenuAction("inspect", "Inspect", new RelayCommand(() => { }))));
-        slots.PlotRowHeaderActions.Add(new RecordedSessionPlotRowActionContribution(
+        slots.SignalRowHeaderActions.Add(new RecordedSessionSignalRowActionContribution(
             "extension",
             "row-action",
             Order: 12,
-            RecordedSessionGraphRowTarget.BuiltIn(RecordedSessionBuiltInGraphRow.Travel),
-            new TelemetryPlotRowAction { Id = "row-action" }));
-        slots.HostedGraphRows.Add(new RecordedSessionHostedGraphRowContribution(
+            RecordedSessionSignalRowTarget.BuiltIn(RecordedSessionBuiltInSignalRow.Travel),
+            new SignalRowAction { Id = "row-action" }));
+        slots.HostedSignalRows.Add(new RecordedSessionHostedSignalRowContribution(
             "extension",
             "hosted-row",
             Order: 13,
-            RecordedSessionBuiltInGraphRow.Travel,
-            RecordedSessionGraphRowTarget.Extension("extension", "hosted-row"),
+            RecordedSessionBuiltInSignalRow.Travel,
+            RecordedSessionSignalRowTarget.Extension("extension", "hosted-row"),
             "Hosted row",
             SurfacePresentationState.Ready,
             new TestContributionViewModel(),
             IsInitiallyExpanded: false));
-        slots.TimeRangeOverlays.Add(new RecordedSessionTimeRangeOverlayContribution(
+        slots.SignalTimeRangeOverlays.Add(new RecordedSessionTimeRangeOverlayContribution(
             "extension",
             "range",
             Order: 14,
-            RecordedSessionGraphRowTarget.BuiltIn(RecordedSessionBuiltInGraphRow.Travel),
+            RecordedSessionSignalRowTarget.BuiltIn(RecordedSessionBuiltInSignalRow.Travel),
             new RecordedTimeRangeOverlaySetRegistration(
                 "range",
                 new RecordedTimeRangeOverlaySet(

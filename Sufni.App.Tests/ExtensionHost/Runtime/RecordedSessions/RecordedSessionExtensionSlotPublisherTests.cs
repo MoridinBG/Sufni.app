@@ -19,13 +19,13 @@ public class RecordedSessionExtensionSlotPublisherTests
             "media",
             Order: 10,
             new TestContributionViewModel());
-        var contextMenu = new RecordedSessionPlotContextMenuContribution(
+        var contextMenu = new RecordedSessionSignalPlotContextMenuContribution(
             "extension",
             "context",
             Order: 20,
-            RecordedSessionBuiltInGraphRow.Travel,
+            RecordedSessionBuiltInSignalRow.Travel,
             new TelemetryPlotContextMenuAction("inspect", "Inspect", new RelayCommand(() => { })));
-        var statisticsTab = new RecordedSessionStatisticsTabContribution(
+        var analysisTab = new RecordedSessionAnalysisTabContribution(
             "extension",
             "tab",
             Order: 30,
@@ -36,19 +36,19 @@ public class RecordedSessionExtensionSlotPublisherTests
         publisher.Publish(builder =>
         {
             builder.MediaPanes.Add(mediaPane);
-            builder.PlotContextMenuActions.Add(contextMenu);
-            builder.StatisticsTabs.Add(statisticsTab);
+            builder.SignalPlotContextMenuActions.Add(contextMenu);
+            builder.AnalysisTabs.Add(analysisTab);
         });
 
         Assert.Equal([mediaPane], slots.MediaPanes);
-        Assert.Equal([contextMenu], slots.PlotContextMenuActions);
-        Assert.Equal([statisticsTab], slots.StatisticsTabs);
+        Assert.Equal([contextMenu], slots.SignalPlotContextMenuActions);
+        Assert.Equal([analysisTab], slots.AnalysisTabs);
 
         publisher.Publish(builder => builder.MediaPanes.Add(mediaPane with { ContributionId = "updated" }));
 
         Assert.Equal(["updated"], slots.MediaPanes.Select(contribution => contribution.ContributionId));
-        Assert.Empty(slots.PlotContextMenuActions);
-        Assert.Empty(slots.StatisticsTabs);
+        Assert.Empty(slots.SignalPlotContextMenuActions);
+        Assert.Empty(slots.AnalysisTabs);
     }
 
     [Fact]
@@ -65,15 +65,15 @@ public class RecordedSessionExtensionSlotPublisherTests
             new TestContributionViewModel());
         var second = first with { ContributionId = "second" };
 
-        publisher.RequestPublish(builder => builder.GraphToolbarViews.Add(first));
-        publisher.RequestPublish(builder => builder.GraphToolbarViews.Add(second));
+        publisher.RequestPublish(builder => builder.SignalToolbarViews.Add(first));
+        publisher.RequestPublish(builder => builder.SignalToolbarViews.Add(second));
 
         Assert.Equal(1, dispatcher.PendingPostCount);
-        Assert.Empty(slots.GraphToolbarViews);
+        Assert.Empty(slots.SignalToolbarViews);
 
         dispatcher.RunPendingPosts();
 
-        Assert.Equal([second], slots.GraphToolbarViews);
+        Assert.Equal([second], slots.SignalToolbarViews);
     }
 
     [Fact]
@@ -90,15 +90,15 @@ public class RecordedSessionExtensionSlotPublisherTests
             new TestContributionViewModel());
         var current = queued with { ContributionId = "current" };
 
-        publisher.RequestPublish(builder => builder.GraphToolbarViews.Add(queued));
+        publisher.RequestPublish(builder => builder.SignalToolbarViews.Add(queued));
         dispatcher.SetCheckAccess(true);
-        publisher.RequestPublish(builder => builder.GraphToolbarViews.Add(current));
+        publisher.RequestPublish(builder => builder.SignalToolbarViews.Add(current));
 
-        Assert.Equal([current], slots.GraphToolbarViews);
+        Assert.Equal([current], slots.SignalToolbarViews);
 
         dispatcher.RunPendingPosts();
 
-        Assert.Equal([current], slots.GraphToolbarViews);
+        Assert.Equal([current], slots.SignalToolbarViews);
     }
 
     [Fact]
@@ -114,12 +114,12 @@ public class RecordedSessionExtensionSlotPublisherTests
             RecordedSessionToolbarZone.Leading,
             new TestContributionViewModel());
 
-        publisher.RequestPublish(builder => builder.GraphToolbarViews.Add(queued));
+        publisher.RequestPublish(builder => builder.SignalToolbarViews.Add(queued));
         publisher.Clear();
 
         dispatcher.RunPendingPosts();
 
-        Assert.Empty(slots.GraphToolbarViews);
+        Assert.Empty(slots.SignalToolbarViews);
     }
 
     private sealed class TestUiThreadDispatcher(bool checkAccess) : IUiThreadDispatcher

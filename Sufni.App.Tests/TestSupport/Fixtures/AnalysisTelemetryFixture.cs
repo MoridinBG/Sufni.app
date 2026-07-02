@@ -25,24 +25,24 @@ public static class AnalysisTelemetryFixture
         double ReboundSlope,
         int Bottomouts);
 
-    public static SessionAnalysisRequest CreateRequest(
+    public static SessionInsightsRequest CreateRequest(
         TelemetryData? telemetryData,
         TelemetryTimeRange? range = null,
-        TravelHistogramMode travelMode = TravelHistogramMode.ActiveSuspension,
+        TravelDistributionMode travelMode = TravelDistributionMode.ActiveSuspension,
         VelocityAverageMode velocityMode = VelocityAverageMode.SampleAveraged,
         BalanceDisplacementMode balanceMode = BalanceDisplacementMode.Zenith,
         BalanceSpeedMode balanceSpeedMode = BalanceSpeedMode.Both,
-        SessionAnalysisTargetProfile profile = SessionAnalysisTargetProfile.Trail,
-        SessionDamperPercentages? damperPercentages = null)
+        SessionInsightsTargetProfile profile = SessionInsightsTargetProfile.Trail,
+        SessionDampingPercentages? dampingPercentages = null)
     {
-        return new SessionAnalysisRequest(
+        return new SessionInsightsRequest(
             telemetryData,
             range,
             travelMode,
             velocityMode,
             balanceMode,
             balanceSpeedMode,
-            damperPercentages ?? SessionDamperPercentages.Empty,
+            dampingPercentages ?? SessionDampingPercentages.Empty,
             profile);
     }
 

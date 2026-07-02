@@ -25,7 +25,7 @@ public static class SufniThemeResourceBridge
         resources["SufniTabIndicatorBleed"] = theme.Tab.IndicatorBleed;
         resources["SufniTabIndicatorBleedMargin"] = new Thickness(-theme.Tab.IndicatorBleed, 0, -theme.Tab.IndicatorBleed, 0);
         resources["SufniTabFontSizeWindow"] = theme.Tab.WindowFontSize;
-        resources["SufniTabFontSizeStatistics"] = theme.Tab.StatisticsFontSize;
+        resources["SufniTabFontSizeAnalysis"] = theme.Tab.AnalysisFontSize;
         resources["SufniTabFontSizeNav"] = theme.Tab.NavFontSize;
 
         resources["SufniNavRailPaneCompactWidth"] = theme.NavRail.CompactPaneWidth;
@@ -236,12 +236,12 @@ public static class SufniThemeResourceBridge
         AddColorPair(resources, "SufniFieldBorderFocused", theme.Field.BorderFocused);
         AddColorPair(resources, "SufniFieldBorderDisabled", theme.Field.BorderDisabled);
 
-        AddColorPair(resources, "SufniGraphRowConnector", theme.GraphRow.Connector);
-        AddColorPair(resources, "SufniGraphRowDividerBetweenRoots", theme.GraphRow.DividerBetweenRoots);
-        AddGraphRowDepth(resources, "SufniGraphRowRoot", theme.GraphRow.Root);
-        AddGraphRowDepth(resources, "SufniGraphRowHostedLevel1", theme.GraphRow.HostedLevel1);
-        AddGraphRowDepth(resources, "SufniGraphRowHostedLevel2", theme.GraphRow.HostedLevel2);
-        AddGraphRowDepth(resources, "SufniGraphRowHostedLevel3Plus", theme.GraphRow.HostedLevel3Plus);
+        AddColorPair(resources, "SufniSignalRowConnector", theme.SignalRow.Connector);
+        AddColorPair(resources, "SufniSignalRowDividerBetweenRoots", theme.SignalRow.DividerBetweenRoots);
+        AddSignalRowDepth(resources, "SufniSignalRowRoot", theme.SignalRow.Root);
+        AddSignalRowDepth(resources, "SufniSignalRowHostedLevel1", theme.SignalRow.HostedLevel1);
+        AddSignalRowDepth(resources, "SufniSignalRowHostedLevel2", theme.SignalRow.HostedLevel2);
+        AddSignalRowDepth(resources, "SufniSignalRowHostedLevel3Plus", theme.SignalRow.HostedLevel3Plus);
         AddColorPair(resources, "SufniDragFeedbackHeader", theme.DragDrop.Header);
         AddColorPair(resources, "SufniDropTargetHeader", theme.DragDrop.DropTargetHeader);
         AddColorPair(resources, "SufniDropPositionIndicator", theme.DragDrop.DropPositionIndicator);
@@ -259,10 +259,10 @@ public static class SufniThemeResourceBridge
         AddColorPair(resources, "SufniPlotLegendBorder", theme.Plot.Legend.Border);
         AddColorPair(resources, "SufniPlotLegendText", theme.Plot.Legend.Text);
         AddColorPair(resources, "SufniPlotMarkerLine", theme.Plot.Marker.Line);
-        AddColorPair(resources, "SufniPlotStatisticsSelectionFrontFill", theme.Plot.Marker.StatisticsSelectionFrontFill);
-        AddColorPair(resources, "SufniPlotStatisticsSelectionFrontOutline", theme.Plot.Marker.StatisticsSelectionFrontOutline);
-        AddColorPair(resources, "SufniPlotStatisticsSelectionRearFill", theme.Plot.Marker.StatisticsSelectionRearFill);
-        AddColorPair(resources, "SufniPlotStatisticsSelectionRearOutline", theme.Plot.Marker.StatisticsSelectionRearOutline);
+        AddColorPair(resources, "SufniPlotAnalysisSelectionFrontFill", theme.Plot.Marker.AnalysisSelectionFrontFill);
+        AddColorPair(resources, "SufniPlotAnalysisSelectionFrontOutline", theme.Plot.Marker.AnalysisSelectionFrontOutline);
+        AddColorPair(resources, "SufniPlotAnalysisSelectionRearFill", theme.Plot.Marker.AnalysisSelectionRearFill);
+        AddColorPair(resources, "SufniPlotAnalysisSelectionRearOutline", theme.Plot.Marker.AnalysisSelectionRearOutline);
         AddColorPair(resources, "SufniPlotAnalysisRangeSelectedFill", theme.Plot.AnalysisRange.SelectedFill);
         AddColorPair(resources, "SufniPlotAnalysisRangePreviewFill", theme.Plot.AnalysisRange.PreviewFill);
         AddColorPair(resources, "SufniPlotCursorLine", theme.Plot.Cursor.Line);
@@ -280,7 +280,7 @@ public static class SufniThemeResourceBridge
         AddColorPair(resources, "SufniSeriesGpsElevation", theme.Plot.Series.GpsElevation);
     }
 
-    private static void AddGraphRowDepth(ResourceDictionary resources, string prefix, SufniGraphRowDepthTheme depth)
+    private static void AddSignalRowDepth(ResourceDictionary resources, string prefix, SufniSignalRowDepthTheme depth)
     {
         AddColorPair(resources, $"{prefix}Container", depth.Container);
         AddColorPair(resources, $"{prefix}Header", depth.Header);

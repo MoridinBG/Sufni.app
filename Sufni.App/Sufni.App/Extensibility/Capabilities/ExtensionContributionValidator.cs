@@ -61,28 +61,28 @@ internal static class ExtensionContributionValidator
         ValidateRequiredId(ownerExtensionId, "Recorded-session extension owner");
 
         var contributionIds = new ContributionIdTracker("recorded-session slots");
-        var hostedRowTargets = ValidateHostedRows(slots.HostedGraphRows, ownerExtensionId, contributionIds);
-        ValidateContributions(slots.GraphToolbarCommands, ownerExtensionId, "recorded-session graph toolbar commands", contributionIds);
-        ValidateContributions(slots.GraphToolbarViews, ownerExtensionId, "recorded-session graph toolbar views", contributionIds);
+        var hostedRowTargets = ValidateHostedRows(slots.HostedSignalRows, ownerExtensionId, contributionIds);
+        ValidateContributions(slots.SignalToolbarCommands, ownerExtensionId, "recorded-session signal toolbar commands", contributionIds);
+        ValidateContributions(slots.SignalToolbarViews, ownerExtensionId, "recorded-session signal toolbar views", contributionIds);
         ValidateContributions(slots.Pages, ownerExtensionId, "recorded-session pages", contributionIds);
         ValidateContributions(slots.MediaPanes, ownerExtensionId, "recorded-session media panes", contributionIds);
         ValidateContributions(slots.MapOverlays, ownerExtensionId, "recorded-session map overlays", contributionIds);
-        ValidateContributions(slots.StatisticsBanners, ownerExtensionId, "recorded-session statistics banners", contributionIds);
-        ValidateContributions(slots.StatisticsTabs, ownerExtensionId, "recorded-session statistics tabs", contributionIds);
-        ValidateContributions(slots.StatisticsOverlays, ownerExtensionId, "recorded-session statistics overlays", contributionIds);
-        ValidateContributions(slots.StatisticsMetrics, ownerExtensionId, "recorded-session statistics metrics", contributionIds);
+        ValidateContributions(slots.AnalysisBanners, ownerExtensionId, "recorded-session analysis banners", contributionIds);
+        ValidateContributions(slots.AnalysisTabs, ownerExtensionId, "recorded-session analysis tabs", contributionIds);
+        ValidateContributions(slots.AnalysisOverlays, ownerExtensionId, "recorded-session analysis overlays", contributionIds);
+        ValidateContributions(slots.AnalysisMetrics, ownerExtensionId, "recorded-session analysis metrics", contributionIds);
         ValidateContributions(slots.SessionListIndicators, ownerExtensionId, "recorded-session list indicators", contributionIds);
         ValidateContributions(slots.SessionListActions, ownerExtensionId, "recorded-session list actions", contributionIds);
-        ValidateContributions(slots.PlotContextMenuActions, ownerExtensionId, "recorded-session plot context menu actions", contributionIds);
-        ValidateContributions(slots.PlotRowHeaderActions, ownerExtensionId, "recorded-session plot row actions", contributionIds);
-        ValidateContributions(slots.TimeRangeOverlays, ownerExtensionId, "recorded-session time-range overlays", contributionIds);
+        ValidateContributions(slots.SignalPlotContextMenuActions, ownerExtensionId, "recorded-session plot context menu actions", contributionIds);
+        ValidateContributions(slots.SignalRowHeaderActions, ownerExtensionId, "recorded-session plot row actions", contributionIds);
+        ValidateContributions(slots.SignalTimeRangeOverlays, ownerExtensionId, "recorded-session signal time-range overlays", contributionIds);
 
-        foreach (var contribution in slots.PlotContextMenuActions)
+        foreach (var contribution in slots.SignalPlotContextMenuActions)
         {
             ValidateBuiltInRow(contribution.TargetRow, "recorded-session plot context menu action target");
         }
 
-        foreach (var contribution in slots.PlotRowHeaderActions)
+        foreach (var contribution in slots.SignalRowHeaderActions)
         {
             ValidateRowTargetReference(
                 contribution.TargetRow,
@@ -91,7 +91,7 @@ internal static class ExtensionContributionValidator
                 "recorded-session plot row action target");
         }
 
-        foreach (var contribution in slots.TimeRangeOverlays)
+        foreach (var contribution in slots.SignalTimeRangeOverlays)
         {
             ValidateRowTargetReference(
                 contribution.TargetRow,
@@ -110,28 +110,28 @@ internal static class ExtensionContributionValidator
     }
 
     private static IReadOnlySet<string> ValidateHostedRows(
-        IEnumerable<RecordedSessionHostedGraphRowContribution> contributions,
+        IEnumerable<RecordedSessionHostedSignalRowContribution> contributions,
         string ownerExtensionId,
         ContributionIdTracker contributionIds)
     {
         var targets = new HashSet<string>(StringComparer.Ordinal);
         foreach (var contribution in contributions)
         {
-            ValidateContribution(contribution, ownerExtensionId, "recorded-session hosted graph row");
-            contributionIds.Add(contribution, "recorded-session hosted graph row");
-            ValidateBuiltInRow(contribution.ParentRow, "recorded-session hosted graph row parent");
+            ValidateContribution(contribution, ownerExtensionId, "recorded-session hosted signal row");
+            contributionIds.Add(contribution, "recorded-session hosted signal row");
+            ValidateBuiltInRow(contribution.ParentRow, "recorded-session hosted signal row parent");
             if (contribution.RowTarget.IsBuiltIn ||
                 !StringComparer.Ordinal.Equals(contribution.RowTarget.ExtensionId, contribution.ExtensionId) ||
                 !StringComparer.Ordinal.Equals(contribution.RowTarget.ContributionId, contribution.ContributionId))
             {
                 throw new InvalidOperationException(
-                    $"Recorded-session hosted graph row contribution '{contribution.ExtensionId}:{contribution.ContributionId}' must use a row target matching its extension id and contribution id.");
+                    $"Recorded-session hosted signal row contribution '{contribution.ExtensionId}:{contribution.ContributionId}' must use a row target matching its extension id and contribution id.");
             }
 
             if (!targets.Add(contribution.RowTarget.StableKey))
             {
                 throw new InvalidOperationException(
-                    $"Duplicate recorded-session hosted graph row target '{contribution.RowTarget.StableKey}'.");
+                    $"Duplicate recorded-session hosted signal row target '{contribution.RowTarget.StableKey}'.");
             }
         }
 
@@ -169,7 +169,7 @@ internal static class ExtensionContributionValidator
     }
 
     private static void ValidateRowTargetReference(
-        RecordedSessionGraphRowTarget target,
+        RecordedSessionSignalRowTarget target,
         string ownerExtensionId,
         IReadOnlySet<string> hostedRowTargets,
         string targetName)
@@ -191,11 +191,11 @@ internal static class ExtensionContributionValidator
         if (!hostedRowTargets.Contains(target.StableKey))
         {
             throw new InvalidOperationException(
-                $"{targetName} '{target.StableKey}' does not refer to a hosted graph row published by extension '{ownerExtensionId}'.");
+                $"{targetName} '{target.StableKey}' does not refer to a hosted signal row published by extension '{ownerExtensionId}'.");
         }
     }
 
-    private static void ValidateBuiltInRow(RecordedSessionBuiltInGraphRow row, string targetName)
+    private static void ValidateBuiltInRow(RecordedSessionBuiltInSignalRow row, string targetName)
     {
         if (!Enum.IsDefined(row))
         {

@@ -21,7 +21,7 @@ using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
-using Sufni.App.Sessions.Graph.ViewModels.Editors;
+using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Shell.Behaviors;
 using Sufni.App.Tests.TestSupport.Harness;
@@ -336,8 +336,8 @@ public class TravelPlotViewTests
         var view = new ContextMenuTravelPlotView
         {
             Telemetry = telemetry,
-            GraphWorkspace = new RecordedSessionGraphWorkspaceStub(telemetry),
-            PlotRowId = TelemetryGraphRowIds.Travel,
+            SignalsWorkspace = new RecordedSessionSignalsWorkspaceStub(telemetry),
+            SignalRowId = SignalRowIds.Travel,
             AnalysisRange = analysisRange,
         };
 
@@ -350,7 +350,7 @@ public class TravelPlotViewTests
         var context = view.CreateContextForTest(pixel);
 
         Assert.NotNull(context);
-        Assert.Equal(TelemetryGraphRowIds.Travel, context.RowId);
+        Assert.Equal(SignalRowIds.Travel, context.RowId);
         Assert.Equal(3, context.ClickSeconds, 1);
         Assert.Equal(10, context.DurationSeconds, 6);
         Assert.Equal(analysisRange, context.AnalysisRange);
@@ -362,22 +362,22 @@ public class TravelPlotViewTests
     {
         var telemetry = CreateMinimal(duration: 10);
         var action = new TelemetryPlotContextMenuAction("test", "Test", Substitute.For<ICommand>());
-        var workspace = new RecordedSessionGraphWorkspaceStub(
+        var workspace = new RecordedSessionSignalsWorkspaceStub(
             telemetry,
             new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>
             {
-                [TelemetryGraphRowIds.Travel] = [action],
+                [SignalRowIds.Travel] = [action],
             });
         var view = new ContextMenuTravelPlotView
         {
             Telemetry = telemetry,
-            GraphWorkspace = workspace,
-            PlotRowId = TelemetryGraphRowIds.Travel,
+            SignalsWorkspace = workspace,
+            SignalRowId = SignalRowIds.Travel,
         };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
-        var context = new TelemetryPlotContextMenuContext(TelemetryGraphRowIds.Travel, 3, 10, null);
+        var context = new TelemetryPlotContextMenuContext(SignalRowIds.Travel, 3, 10, null);
         var actions = view.GetActionsForTest(context);
 
         Assert.Same(action, Assert.Single(actions));
@@ -393,8 +393,8 @@ public class TravelPlotViewTests
             var view = new MobileContextMenuTravelPlotView
             {
                 Telemetry = telemetry,
-                GraphWorkspace = new RecordedSessionGraphWorkspaceStub(telemetry),
-                PlotRowId = TelemetryGraphRowIds.Travel,
+                SignalsWorkspace = new RecordedSessionSignalsWorkspaceStub(telemetry),
+                SignalRowId = SignalRowIds.Travel,
             };
 
             await using var mounted = await PlotViewTestSupport.MountAsync(view);
@@ -423,11 +423,11 @@ public class TravelPlotViewTests
         try
         {
             var telemetry = CreateMinimal(duration: 10);
-            var workspace = new RecordedSessionGraphWorkspaceStub(telemetry);
+            var workspace = new RecordedSessionSignalsWorkspaceStub(telemetry);
             var view = new LongPressTravelPlotView
             {
                 Telemetry = telemetry,
-                GraphWorkspace = workspace,
+                SignalsWorkspace = workspace,
             };
             var feedbackRequestCount = 0;
             view.AddHandler(
@@ -469,13 +469,13 @@ public class TravelPlotViewTests
         try
         {
             var telemetry = CreateMinimal(duration: 10);
-            var workspace = new RecordedSessionGraphWorkspaceStub(telemetry);
+            var workspace = new RecordedSessionSignalsWorkspaceStub(telemetry);
             var view = new LongPressContextMenuTravelPlotView
             {
                 Telemetry = telemetry,
                 AnalysisRange = new TelemetryTimeRange(2, 4),
-                GraphWorkspace = workspace,
-                PlotRowId = TelemetryGraphRowIds.Travel,
+                SignalsWorkspace = workspace,
+                SignalRowId = SignalRowIds.Travel,
             };
             var feedbackRequestCount = 0;
             view.AddHandler(
@@ -677,10 +677,10 @@ public class TravelPlotViewTests
         public void Dispose() => dispose();
     }
 
-    private sealed class RecordedSessionGraphWorkspaceStub(
+    private sealed class RecordedSessionSignalsWorkspaceStub(
         TelemetryData telemetryData,
-        IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>? plotContextMenuActionsByRowId = null)
-        : IRecordedSessionGraphWorkspace
+        IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>? plotContextMenuActionsBySignalRowId = null)
+        : IRecordedSessionSignalsWorkspace
     {
         public TelemetryData? TelemetryData { get; } = telemetryData;
         public TelemetryTimeRange? AnalysisRange { get; private set; }
@@ -690,35 +690,35 @@ public class TravelPlotViewTests
         public bool ShowPitchRollAirtime => false;
         public bool ShowSpeedAirtime => false;
         public bool ShowElevationAirtime => false;
-        public IReadOnlyList<TelemetryHighlightRange> StatisticsSelectionHighlightRanges { get; } = [];
-        public bool HasStatisticsSelection => false;
-        public bool ShowStatisticsSelection => false;
-        public bool ShowVelocityStatisticsSelection => false;
-        public bool ShowImuStatisticsSelection => false;
-        public bool ShowPitchRollStatisticsSelection => false;
-        public bool ShowSpeedStatisticsSelection => false;
-        public bool ShowElevationStatisticsSelection => false;
-        public IReadOnlyList<TelemetryPlotRowAction> TravelHeaderActions { get; } = [];
-        public IReadOnlyList<TelemetryPlotRowAction> VelocityHeaderActions { get; } = [];
-        public IReadOnlyList<TelemetryPlotRowAction> ImuHeaderActions { get; } = [];
-        public IReadOnlyList<TelemetryPlotRowAction> PitchRollHeaderActions { get; } = [];
-        public IReadOnlyList<TelemetryPlotRowAction> SpeedHeaderActions { get; } = [];
-        public IReadOnlyList<TelemetryPlotRowAction> ElevationHeaderActions { get; } = [];
+        public IReadOnlyList<TelemetryHighlightRange> AnalysisSelectionHighlightRanges { get; } = [];
+        public bool HasAnalysisSelection => false;
+        public bool ShowAnalysisSelection => false;
+        public bool ShowVelocityAnalysisSelection => false;
+        public bool ShowImuAnalysisSelection => false;
+        public bool ShowPitchRollAnalysisSelection => false;
+        public bool ShowSpeedAnalysisSelection => false;
+        public bool ShowElevationAnalysisSelection => false;
+        public IReadOnlyList<SignalRowAction> TravelHeaderActions { get; } = [];
+        public IReadOnlyList<SignalRowAction> VelocityHeaderActions { get; } = [];
+        public IReadOnlyList<SignalRowAction> ImuHeaderActions { get; } = [];
+        public IReadOnlyList<SignalRowAction> PitchRollHeaderActions { get; } = [];
+        public IReadOnlyList<SignalRowAction> SpeedHeaderActions { get; } = [];
+        public IReadOnlyList<SignalRowAction> ElevationHeaderActions { get; } = [];
         public IReadOnlyList<TrackPoint>? TrackPoints => null;
         public TrackTimeRange? TrackTimelineContext => null;
-        public SurfacePresentationState TravelGraphState => SurfacePresentationState.Ready;
-        public SurfacePresentationState VelocityGraphState => SurfacePresentationState.Hidden;
-        public SurfacePresentationState ImuGraphState => SurfacePresentationState.Hidden;
-        public SurfacePresentationState PitchRollGraphState => SurfacePresentationState.Hidden;
-        public SurfacePresentationState SpeedGraphState => SurfacePresentationState.Hidden;
-        public SurfacePresentationState ElevationGraphState => SurfacePresentationState.Hidden;
-        public SessionPlotPreferences PlotPreferences { get; } = new();
-        public SessionGraphPreferences GraphPreferences { get; set; } = SessionGraphPreferences.Default;
+        public SurfacePresentationState TravelSignalState => SurfacePresentationState.Ready;
+        public SurfacePresentationState VelocitySignalState => SurfacePresentationState.Hidden;
+        public SurfacePresentationState ImuSignalState => SurfacePresentationState.Hidden;
+        public SurfacePresentationState PitchRollSignalState => SurfacePresentationState.Hidden;
+        public SurfacePresentationState SpeedSignalState => SurfacePresentationState.Hidden;
+        public SurfacePresentationState ElevationSignalState => SurfacePresentationState.Hidden;
+        public SignalDisplayPreferences SignalDisplayPreferences { get; } = new();
+        public SignalLayoutPreferences SignalLayoutPreferences { get; set; } = SignalLayoutPreferences.Default;
         public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
         public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
-        public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> PlotContextMenuActionsByRowId { get; } =
-            plotContextMenuActionsByRowId ?? new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
+        public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; } =
+            plotContextMenuActionsBySignalRowId ?? new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
         public int ClearAnalysisRangeCallCount { get; private set; }
         public int SetAnalysisRangeBoundaryCallCount { get; private set; }
         public double? LastAnalysisRangeBoundary { get; private set; }

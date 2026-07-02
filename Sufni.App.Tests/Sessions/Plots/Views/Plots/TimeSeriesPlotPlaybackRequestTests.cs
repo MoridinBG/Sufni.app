@@ -5,7 +5,7 @@ using Avalonia.Input;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
 using static Sufni.App.Tests.TestSupport.Fixtures.PlotTestHelpers;
 
-using Sufni.App.Sessions.Graph.ViewModels.Editors;
+using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.Sessions.Plots.Views.Plots;

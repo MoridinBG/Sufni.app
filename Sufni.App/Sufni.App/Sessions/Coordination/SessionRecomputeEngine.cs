@@ -7,14 +7,14 @@ using Serilog;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Extensibility.Database;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.Services;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 using Sufni.App.SyncAndPairing.Services;
@@ -84,7 +84,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
     private readonly IRecordedSessionReprocessor recordedSessionReprocessor;
     private readonly IExtensionCascadeService? extensionCascadeService;
 
-    // Mirrors RecordedSessionGraph's stateGate pattern: a single lock guards the
+    // Mirrors RecordedSessionProjection's stateGate pattern: a single lock guards the
     // run map and the monotonic sequence; there is deliberately no per-id
     // SemaphoreSlim. The map is the source of truth for both currency (which run
     // may commit) and IsActive.
@@ -288,7 +288,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
                 return new SessionRecomputeResult.NotRecomputable(new SessionStaleness.MissingRawSource());
             }
 
-            // Reconcile a source row that changed on disk since the graph last read
+            // Reconcile a source row that changed on disk since the projection last read
             // it, then re-read the domain so the reprocess and its fingerprint see
             // the current source (baseline-conflict checks of the old code dropped).
             var loadedSourceSnapshot = RecordedSessionSourceSnapshot.From(source);

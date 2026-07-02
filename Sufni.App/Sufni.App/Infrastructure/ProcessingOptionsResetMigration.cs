@@ -2,12 +2,12 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.Telemetry;
 
 using Sufni.App.Sessions.Coordination;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Shell.Coordinators;
 namespace Sufni.App.Infrastructure;
@@ -98,7 +98,7 @@ internal sealed class ProcessingOptionsResetMigration(
                 }
 
                 // Keep the synchronously-read option cache coherent with the reset so
-                // the graph compares the recomputed fingerprint against 25 ms.
+                // the projection compares the recomputed fingerprint against 25 ms.
                 processingOptionCache.Set(sessionId, TelemetryProcessingOptions.Default);
 
                 // Drive the recompute through the engine; it serializes per session,

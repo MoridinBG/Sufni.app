@@ -7,21 +7,21 @@ namespace Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 
 public sealed partial class StrokesPageViewModel : PageViewModelBase
 {
-    public ISessionStatisticsWorkspace Workspace { get; }
+    public ISessionAnalysisWorkspace Workspace { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasBothStatisticsSides))]
+    [NotifyPropertyChangedFor(nameof(HasBothAnalysisSides))]
     public partial bool FrontSelectionAvailable { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasBothStatisticsSides))]
+    [NotifyPropertyChangedFor(nameof(HasBothAnalysisSides))]
     public partial bool RearSelectionAvailable { get; set; }
 
     [ObservableProperty] public partial SuspensionType SelectedSuspensionType { get; set; } = SuspensionType.Front;
 
     public bool ShowFrontStrokes => SelectedSuspensionType == SuspensionType.Front;
     public bool ShowRearStrokes => SelectedSuspensionType == SuspensionType.Rear;
-    public bool HasBothStatisticsSides => FrontSelectionAvailable && RearSelectionAvailable;
+    public bool HasBothAnalysisSides => FrontSelectionAvailable && RearSelectionAvailable;
 
     public bool FrontSideSelected
     {
@@ -47,7 +47,7 @@ public sealed partial class StrokesPageViewModel : PageViewModelBase
         }
     }
 
-    public StrokesPageViewModel(ISessionStatisticsWorkspace workspace)
+    public StrokesPageViewModel(ISessionAnalysisWorkspace workspace)
         : base("Strokes")
     {
         Workspace = workspace;
@@ -69,8 +69,8 @@ public sealed partial class StrokesPageViewModel : PageViewModelBase
 
     private void OnWorkspacePropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName is nameof(ISessionStatisticsWorkspace.FrontStatisticsState)
-            or nameof(ISessionStatisticsWorkspace.RearStatisticsState))
+        if (args.PropertyName is nameof(ISessionAnalysisWorkspace.FrontAnalysisState)
+            or nameof(ISessionAnalysisWorkspace.RearAnalysisState))
         {
             RefreshAvailableSides();
         }
@@ -78,8 +78,8 @@ public sealed partial class StrokesPageViewModel : PageViewModelBase
 
     private void RefreshAvailableSides()
     {
-        FrontSelectionAvailable = Workspace.FrontStatisticsState.ReservesLayout;
-        RearSelectionAvailable = Workspace.RearStatisticsState.ReservesLayout;
+        FrontSelectionAvailable = Workspace.FrontAnalysisState.ReservesLayout;
+        RearSelectionAvailable = Workspace.RearAnalysisState.ReservesLayout;
 
         if (SelectedSuspensionType == SuspensionType.Front && !FrontSelectionAvailable && RearSelectionAvailable)
         {

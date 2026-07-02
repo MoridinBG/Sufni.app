@@ -33,13 +33,13 @@ public sealed class LiveTravelPlot : LiveStreamingPlotBase
         rearChannel = CreateChannel(TelemetryPlot.RearColor, "Rear");
         ShowSourceLegend();
         EnableInteractiveSourceLegendForChannels(
-            TelemetryGraphRowIds.Travel,
+            SignalRowIds.Travel,
             (frontChannel, TelemetrySourceKeys.Front),
             (rearChannel, TelemetrySourceKeys.Rear));
         ApplyAutoLimits();
     }
 
-    public void Append(LiveGraphBatch batch)
+    public void Append(LiveSignalBatch batch)
     {
         if (batch.FrontTravel.Count == 0 && batch.RearTravel.Count == 0)
         {

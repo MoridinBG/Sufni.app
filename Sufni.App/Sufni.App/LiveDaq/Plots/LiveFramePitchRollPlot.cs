@@ -35,7 +35,7 @@ public sealed class LiveFramePitchRollPlot : LiveStreamingPlotBase
         ApplyAutoLimits();
     }
 
-    public void Append(LiveGraphBatch batch)
+    public void Append(LiveSignalBatch batch)
     {
         if (batch.FramePitchRollTimes.Count == 0 ||
             batch.FramePitchDegrees.Count == 0 ||

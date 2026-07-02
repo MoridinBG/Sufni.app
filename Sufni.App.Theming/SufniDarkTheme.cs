@@ -49,29 +49,29 @@ public static class SufniDarkTheme
             FieldBorderDisabled: Coal,
             DragHeader: DragHeader,
             DropTargetHeader: DropTargetTeal,
-            GraphRowRootPlotData: surface.Input,
-            GraphRowHostedLevel1: new SufniGraphRowDepthTheme(
+            SignalRowRootPlotData: surface.Input,
+            SignalRowHostedLevel1: new SufniSignalRowDepthTheme(
                 Container: TarContainer,
                 Header: TarHeader,
                 PlotFigure: TarFigure,
                 PlotData: TarData),
-            GraphRowHostedLevel2: new SufniGraphRowDepthTheme(
+            SignalRowHostedLevel2: new SufniSignalRowDepthTheme(
                 Container: PitchContainer,
                 Header: PitchHeader,
                 PlotFigure: PitchFigure,
                 PlotData: PitchData),
-            GraphRowHostedLevel3Plus: new SufniGraphRowDepthTheme(
+            SignalRowHostedLevel3Plus: new SufniSignalRowDepthTheme(
                 Container: VoidContainer,
                 Header: VoidHeader,
                 PlotFigure: VoidFigure,
                 PlotData: VoidData),
-            GraphRowConnector: SlateGray,
+            SignalRowConnector: SlateGray,
             PlotGridMajor: SteelGray,
             PlotGridMinor: Gunmetal,
             PlotAxisLine: SteelGray,
             PlotMarkerBlue: MarkerBlue,
-            PlotStatisticsSelectionFrontBase: Indigo,
-            PlotStatisticsSelectionRearBase: Lagoon,
+            PlotAnalysisSelectionFrontBase: Indigo,
+            PlotAnalysisSelectionRearBase: Lagoon,
             PlotDampingSelectionFill: WarningGold.WithAlpha(0.22),
             PlotDampingSelectionOutline: WarningGold.WithAlpha(0.65),
             PlotAnalysisSelectedFillOpacity: 0.16,

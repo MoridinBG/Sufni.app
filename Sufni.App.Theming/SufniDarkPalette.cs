@@ -25,7 +25,7 @@ public static class SufniDarkPalette
     public static readonly Color Charcoal = C("#404040");
     public static readonly Color Coal     = C("#303030");
 
-    // Cool slate grays (graph connectors, grid, subtle lines).
+    // Cool slate grays (signal connectors, grid, subtle lines).
     public static readonly Color SlateGray     = C("#63727A");
     public static readonly Color SteelGray     = C("#505558");
     public static readonly Color Gunmetal      = C("#3A3F42");
@@ -42,19 +42,19 @@ public static class SufniDarkPalette
     public static readonly Color OverlayScrim  = C("#99000000");
     public static readonly Color PlaceholderPreviewSurface = C("#2C3946");
 
-    // Hosted graph-row depth ramp, level 1 (lightest of the three deeps).
+    // Hosted signal-row depth ramp, level 1 (lightest of the three deeps).
     public static readonly Color TarContainer = C("#0F1314");
     public static readonly Color TarHeader    = C("#101416");
     public static readonly Color TarFigure    = C("#101518");
     public static readonly Color TarData      = C("#1B2126");
 
-    // Hosted graph-row depth ramp, level 2.
+    // Hosted signal-row depth ramp, level 2.
     public static readonly Color PitchContainer = C("#0A0C0D");
     public static readonly Color PitchHeader    = C("#07090A");
     public static readonly Color PitchFigure    = C("#0A0D0F");
     public static readonly Color PitchData      = C("#11161A");
 
-    // Hosted graph-row depth ramp, level 3+ (deepest, near-black).
+    // Hosted signal-row depth ramp, level 3+ (deepest, near-black).
     public static readonly Color VoidContainer = C("#050607");
     public static readonly Color VoidHeader    = C("#030404");
     public static readonly Color VoidFigure    = C("#050708");

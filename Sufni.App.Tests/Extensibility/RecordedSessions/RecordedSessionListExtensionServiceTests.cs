@@ -1,5 +1,5 @@
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Extensibility.RecordedSessions;
 using Sufni.App.Tests.TestSupport.Doubles;

@@ -1,0 +1,105 @@
+<UserControl
+x:Name="Root"
+x:Class="Sufni.App.Sessions.Analysis.Views.Controls.DampingAnalysisHost"
+x:DataType="analysisControls:DampingAnalysisHost"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:analysisControls="clr-namespace:Sufni.App.Sessions.Analysis.Views.Controls"
+xmlns:behaviors="clr-namespace:Sufni.App.Shell.Behaviors"
+xmlns:controls="clr-namespace:Sufni.App.Shared.Views.Overlays"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:plots="clr-namespace:Sufni.App.Sessions.Plots.Views.Plots"
+d:DesignHeight="450"
+d:DesignWidth="800"
+mc:Ignorable="d">
+
+    <controls:PlaceholderOverlayContainer PresentationState="{Binding #Root.PresentationState}">
+        <controls:PlaceholderOverlayContainer.ReadyContent>
+            <Grid ClipToBounds="True" ColumnDefinitions="* auto" RowDefinitions="auto *">
+                <plots:TravelPercentageLegend
+                Grid.Row="0"
+                Grid.Column="0"
+                Margin="38,0,8,0"
+                IsVisible="{Binding #Root.ShowTravelLegend}" />
+
+                <Grid Grid.Row="1" Grid.Column="0">
+                    <plots:AnalysisPlotView
+                    AnalysisRange="{Binding #Root.AnalysisRange}"
+                    DampingSpeedCutoffs="{Binding #Root.PlotDampingSpeedCutoffs}"
+                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                    Height="{Binding #Root.PlotHeight}"
+                    IsVisible="{Binding #Root.HasAnalysisData}"
+                    AnalysisPlotKind="VelocityDistribution"
+                    SelectAnalysisRangeCommand="{Binding #Root.SelectAnalysisRangeCommand}"
+                    ActiveAnalysisSelection="{Binding #Root.ActiveAnalysisSelection}"
+                    SuspensionType="{Binding #Root.SuspensionType}"
+                    Telemetry="{Binding #Root.Telemetry}"
+                    VelocityAverageMode="{Binding #Root.VelocityAverageMode}" />
+
+                    <Svg
+                    IsVisible="{Binding !#Root.HasAnalysisData}"
+                    Source="{Binding #Root.StaticSource}" />
+                </Grid>
+
+                <Canvas
+                Name="PART_DampingGuideLayer"
+                Grid.Row="1"
+                Grid.Column="0"
+                ClipToBounds="True"
+                IsHitTestVisible="False">
+                    <Line
+                    Name="PART_DampingGuide"
+                    IsVisible="{Binding #VelocityBand.IsDampingGuideVisible}"
+                    Stroke="{DynamicResource SufniAccentColor}"
+                    StrokeDashArray="5,3"
+                    StrokeThickness="1"
+                    StartPoint="{Binding #VelocityBand.DampingGuideStartPoint}"
+                    EndPoint="{Binding #VelocityBand.DampingGuideEndPoint}" />
+
+                    <Border
+                    Name="PART_DampingGuideLabel"
+                    Canvas.Left="72"
+                    Canvas.Top="{Binding #VelocityBand.DampingGuideLabelTop}"
+                    Padding="6,2"
+                    Background="{DynamicResource SufniSurfaceInputBrush}"
+                    BorderBrush="{DynamicResource SufniLineDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    IsVisible="{Binding #VelocityBand.IsDampingGuideVisible}"
+                    Opacity="0.92">
+                        <TextBlock
+                        FontSize="11"
+                        FontWeight="Bold"
+                        Foreground="{DynamicResource SufniTextPrimaryBrush}"
+                        Text="{Binding #VelocityBand.DampingGuideLabel}" />
+                    </Border>
+                </Canvas>
+
+                <plots:VelocityBandView
+                Name="VelocityBand"
+                Grid.Row="1"
+                Grid.Column="1"
+                behaviors:HapticFeedbackBehavior.IsEnabled="True"
+                CanEditDampingSpeedCutoffs="{Binding #Root.AnalysisWorkspace.CanEditDampingSpeedCutoffs}"
+                DampingSpeedCutoffs="{Binding #Root.DampingSpeedCutoffs}"
+                HscPercentage="{Binding #Root.HscPercentage}"
+                HscMetricAnnotations="{Binding #Root.HscMetricAnnotations}"
+                HsrPercentage="{Binding #Root.HsrPercentage}"
+                HsrMetricAnnotations="{Binding #Root.HsrMetricAnnotations}"
+                LscPercentage="{Binding #Root.LscPercentage}"
+                LscMetricAnnotations="{Binding #Root.LscMetricAnnotations}"
+                LsrPercentage="{Binding #Root.LsrPercentage}"
+                LsrMetricAnnotations="{Binding #Root.LsrMetricAnnotations}"
+                AnalysisWorkspace="{Binding #Root.AnalysisWorkspace}"
+                SuspensionType="{Binding #Root.SuspensionType}" />
+            </Grid>
+        </controls:PlaceholderOverlayContainer.ReadyContent>
+        <controls:PlaceholderOverlayContainer.PlaceholderContent>
+            <controls:SurfacePlaceholderCard
+            Margin="{Binding #Root.PlaceholderMargin}"
+            MinCardHeight="{Binding #Root.MinCardHeight}"
+            Title="{Binding #Root.Title}" />
+        </controls:PlaceholderOverlayContainer.PlaceholderContent>
+    </controls:PlaceholderOverlayContainer>
+</UserControl>

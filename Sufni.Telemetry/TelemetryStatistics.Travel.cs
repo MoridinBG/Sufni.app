@@ -21,8 +21,8 @@ public static partial class TelemetryStatistics
 
         return options.HistogramMode switch
         {
-            TravelHistogramMode.DynamicSag => CalculateDynamicSagTravelHistogram(telemetryData, suspension, options.Range),
-            TravelHistogramMode.ActiveSuspension => CalculateActiveSuspensionTravelHistogram(telemetryData, suspension, options.Range),
+            TravelDistributionMode.DynamicSag => CalculateDynamicSagTravelHistogram(telemetryData, suspension, options.Range),
+            TravelDistributionMode.ActiveSuspension => CalculateActiveSuspensionTravelHistogram(telemetryData, suspension, options.Range),
             _ => throw new ArgumentOutOfRangeException(nameof(options), options.HistogramMode, null),
         };
     }
@@ -130,8 +130,8 @@ public static partial class TelemetryStatistics
 
         return options.HistogramMode switch
         {
-            TravelHistogramMode.DynamicSag => CalculateDynamicSagTravelStatistics(telemetryData, suspension, options.Range),
-            TravelHistogramMode.ActiveSuspension => CalculateActiveSuspensionTravelStatistics(telemetryData, suspension, options.Range),
+            TravelDistributionMode.DynamicSag => CalculateDynamicSagTravelStatistics(telemetryData, suspension, options.Range),
+            TravelDistributionMode.ActiveSuspension => CalculateActiveSuspensionTravelStatistics(telemetryData, suspension, options.Range),
             _ => throw new ArgumentOutOfRangeException(nameof(options), options.HistogramMode, null),
         };
     }

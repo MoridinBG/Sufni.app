@@ -32,7 +32,7 @@ public class RecordedCursorReadoutTests
     public void TravelPlot_SetCursorPositionWithReadout_ExcludesHiddenSources()
     {
         var visibility = new TelemetrySourceVisibilityStore();
-        visibility.SetVisible(TelemetryGraphRowIds.Travel, TelemetrySourceKeys.Rear, visible: false);
+        visibility.SetVisible(SignalRowIds.Travel, TelemetrySourceKeys.Rear, visible: false);
         var plot = new Plot();
         var sut = new TravelPlot(plot)
         {

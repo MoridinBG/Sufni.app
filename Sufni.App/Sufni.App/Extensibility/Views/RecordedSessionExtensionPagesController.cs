@@ -28,7 +28,7 @@ internal sealed class RecordedSessionExtensionPagesController
         this.manager = manager;
         this.context = context;
         manager.ExtensionSlots.Pages.CollectionChanged += OnRecordedSessionExtensionPagesChanged;
-        manager.ExtensionSlots.StatisticsTabs.CollectionChanged += OnRecordedSessionExtensionPagesChanged;
+        manager.ExtensionSlots.AnalysisTabs.CollectionChanged += OnRecordedSessionExtensionPagesChanged;
     }
 
     public void RequestRecordedSessionExtensionPageSelection(string contributionId)
@@ -72,13 +72,13 @@ internal sealed class RecordedSessionExtensionPagesController
                 contribution.Order,
                 contribution.ExtensionId,
                 contribution.ContributionId));
-        var statisticsTabEntries = manager.ExtensionSlots.StatisticsTabs
+        var analysisTabEntries = manager.ExtensionSlots.AnalysisTabs
             .OrderBy(contribution => contribution.RequestedIndex)
             .ThenBy(contribution => contribution.Order)
             .ThenBy(contribution => contribution.ExtensionId, StringComparer.Ordinal)
             .ThenBy(contribution => contribution.ContributionId, StringComparer.Ordinal)
             .Select(contribution => new ExtensionPageEntry(
-                StatisticsTabPageKey(contribution),
+                AnalysisTabPageKey(contribution),
                 contribution.DisplayName,
                 contribution.ViewModel,
                 contribution.RequestedIndex + 1,
@@ -87,7 +87,7 @@ internal sealed class RecordedSessionExtensionPagesController
                 contribution.ExtensionId,
                 contribution.ContributionId));
         var entries = pageEntries
-            .Concat(statisticsTabEntries)
+            .Concat(analysisTabEntries)
             .OrderBy(entry => entry.RequestedIndex)
             .ThenBy(entry => entry.FamilyOrder)
             .ThenBy(entry => entry.Order)
@@ -129,9 +129,9 @@ internal sealed class RecordedSessionExtensionPagesController
         return $"page:{contribution.ExtensionId}\u001f{contribution.ContributionId}";
     }
 
-    private static string StatisticsTabPageKey(RecordedSessionStatisticsTabContribution contribution)
+    private static string AnalysisTabPageKey(RecordedSessionAnalysisTabContribution contribution)
     {
-        return $"statistics:{contribution.ExtensionId}\u001f{contribution.ContributionId}";
+        return $"analysis:{contribution.ExtensionId}\u001f{contribution.ContributionId}";
     }
 
     private sealed record ExtensionPageEntry(

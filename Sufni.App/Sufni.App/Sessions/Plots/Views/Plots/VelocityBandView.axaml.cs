@@ -25,10 +25,10 @@ public class VelocityBandView : TemplatedControl
     private const double GuideLabelMinimumTop = 2.0;
     private const double ClickMovementThresholdPixels = 4.0;
     private const double GuideEndX = 10000.0;
-    private const double VelocityLimit = SessionDampingSettings.VelocityHistogramLimitMmPerSecond;
+    private const double VelocityLimit = SessionDampingSettings.VelocityDistributionLimitMmPerSecond;
 
     private static readonly GridLength highSpeedZoneLength = CreateZoneLength(
-        SessionDampingSettings.VelocityHistogramLimitMmPerSecond -
+        SessionDampingSettings.VelocityDistributionLimitMmPerSecond -
         SessionDampingSettings.HighSpeedThresholdMmPerSecond);
 
     private static readonly GridLength lowSpeedZoneLength = CreateZoneLength(
@@ -210,13 +210,13 @@ public class VelocityBandView : TemplatedControl
         set => SetValue(CanEditDampingSpeedCutoffsProperty, value);
     }
 
-    public static readonly StyledProperty<ISessionStatisticsWorkspace?> StatisticsWorkspaceProperty =
-        AvaloniaProperty.Register<VelocityBandView, ISessionStatisticsWorkspace?>(nameof(StatisticsWorkspace));
+    public static readonly StyledProperty<ISessionAnalysisWorkspace?> AnalysisWorkspaceProperty =
+        AvaloniaProperty.Register<VelocityBandView, ISessionAnalysisWorkspace?>(nameof(AnalysisWorkspace));
 
-    public ISessionStatisticsWorkspace? StatisticsWorkspace
+    public ISessionAnalysisWorkspace? AnalysisWorkspace
     {
-        get => GetValue(StatisticsWorkspaceProperty);
-        set => SetValue(StatisticsWorkspaceProperty, value);
+        get => GetValue(AnalysisWorkspaceProperty);
+        set => SetValue(AnalysisWorkspaceProperty, value);
     }
 
     public static readonly StyledProperty<double?> HsrPercentageProperty = AvaloniaProperty.Register<VelocityBandView, double?>(
@@ -255,45 +255,45 @@ public class VelocityBandView : TemplatedControl
         set => SetValue(HscPercentageProperty, value);
     }
 
-    public static readonly StyledProperty<IReadOnlyList<RecordedSessionStatisticsMetricContribution>> HsrMetricAnnotationsProperty =
-        AvaloniaProperty.Register<VelocityBandView, IReadOnlyList<RecordedSessionStatisticsMetricContribution>>(
+    public static readonly StyledProperty<IReadOnlyList<RecordedSessionAnalysisMetricContribution>> HsrMetricAnnotationsProperty =
+        AvaloniaProperty.Register<VelocityBandView, IReadOnlyList<RecordedSessionAnalysisMetricContribution>>(
             nameof(HsrMetricAnnotations),
-            Array.Empty<RecordedSessionStatisticsMetricContribution>());
+            Array.Empty<RecordedSessionAnalysisMetricContribution>());
 
-    public IReadOnlyList<RecordedSessionStatisticsMetricContribution> HsrMetricAnnotations
+    public IReadOnlyList<RecordedSessionAnalysisMetricContribution> HsrMetricAnnotations
     {
         get => GetValue(HsrMetricAnnotationsProperty);
         set => SetValue(HsrMetricAnnotationsProperty, value);
     }
 
-    public static readonly StyledProperty<IReadOnlyList<RecordedSessionStatisticsMetricContribution>> LsrMetricAnnotationsProperty =
-        AvaloniaProperty.Register<VelocityBandView, IReadOnlyList<RecordedSessionStatisticsMetricContribution>>(
+    public static readonly StyledProperty<IReadOnlyList<RecordedSessionAnalysisMetricContribution>> LsrMetricAnnotationsProperty =
+        AvaloniaProperty.Register<VelocityBandView, IReadOnlyList<RecordedSessionAnalysisMetricContribution>>(
             nameof(LsrMetricAnnotations),
-            Array.Empty<RecordedSessionStatisticsMetricContribution>());
+            Array.Empty<RecordedSessionAnalysisMetricContribution>());
 
-    public IReadOnlyList<RecordedSessionStatisticsMetricContribution> LsrMetricAnnotations
+    public IReadOnlyList<RecordedSessionAnalysisMetricContribution> LsrMetricAnnotations
     {
         get => GetValue(LsrMetricAnnotationsProperty);
         set => SetValue(LsrMetricAnnotationsProperty, value);
     }
 
-    public static readonly StyledProperty<IReadOnlyList<RecordedSessionStatisticsMetricContribution>> LscMetricAnnotationsProperty =
-        AvaloniaProperty.Register<VelocityBandView, IReadOnlyList<RecordedSessionStatisticsMetricContribution>>(
+    public static readonly StyledProperty<IReadOnlyList<RecordedSessionAnalysisMetricContribution>> LscMetricAnnotationsProperty =
+        AvaloniaProperty.Register<VelocityBandView, IReadOnlyList<RecordedSessionAnalysisMetricContribution>>(
             nameof(LscMetricAnnotations),
-            Array.Empty<RecordedSessionStatisticsMetricContribution>());
+            Array.Empty<RecordedSessionAnalysisMetricContribution>());
 
-    public IReadOnlyList<RecordedSessionStatisticsMetricContribution> LscMetricAnnotations
+    public IReadOnlyList<RecordedSessionAnalysisMetricContribution> LscMetricAnnotations
     {
         get => GetValue(LscMetricAnnotationsProperty);
         set => SetValue(LscMetricAnnotationsProperty, value);
     }
 
-    public static readonly StyledProperty<IReadOnlyList<RecordedSessionStatisticsMetricContribution>> HscMetricAnnotationsProperty =
-        AvaloniaProperty.Register<VelocityBandView, IReadOnlyList<RecordedSessionStatisticsMetricContribution>>(
+    public static readonly StyledProperty<IReadOnlyList<RecordedSessionAnalysisMetricContribution>> HscMetricAnnotationsProperty =
+        AvaloniaProperty.Register<VelocityBandView, IReadOnlyList<RecordedSessionAnalysisMetricContribution>>(
             nameof(HscMetricAnnotations),
-            Array.Empty<RecordedSessionStatisticsMetricContribution>());
+            Array.Empty<RecordedSessionAnalysisMetricContribution>());
 
-    public IReadOnlyList<RecordedSessionStatisticsMetricContribution> HscMetricAnnotations
+    public IReadOnlyList<RecordedSessionAnalysisMetricContribution> HscMetricAnnotations
     {
         get => GetValue(HscMetricAnnotationsProperty);
         set => SetValue(HscMetricAnnotationsProperty, value);
@@ -384,7 +384,7 @@ public class VelocityBandView : TemplatedControl
         isDragging = false;
         activeCircuit = null;
         activeGuideCutoff = null;
-        StatisticsWorkspace?.CancelDampingSpeedCutoffPreview();
+        AnalysisWorkspace?.CancelDampingSpeedCutoffPreview();
         RefreshGuide();
     }
 
@@ -445,7 +445,7 @@ public class VelocityBandView : TemplatedControl
     private bool CanStartDrag(PointerEventArgs e)
     {
         return CanEditDampingSpeedCutoffs &&
-               StatisticsWorkspace is not null &&
+               AnalysisWorkspace is not null &&
                IsPrimaryPointerPressed(e);
     }
 
@@ -500,18 +500,18 @@ public class VelocityBandView : TemplatedControl
     private void PreviewCutoff(DampingSpeedCircuit circuit, double cutoff)
     {
         activeGuideCutoff = DampingCutoffEditing.RoundDragValue(cutoff);
-        StatisticsWorkspace?.PreviewDampingSpeedCutoff(SuspensionType, circuit, cutoff);
+        AnalysisWorkspace?.PreviewDampingSpeedCutoff(SuspensionType, circuit, cutoff);
         RefreshGuide();
     }
 
     private async Task CommitAsync(DampingSpeedCircuit circuit, double cutoff)
     {
-        if (StatisticsWorkspace is null)
+        if (AnalysisWorkspace is null)
         {
             return;
         }
 
-        await StatisticsWorkspace.CommitDampingSpeedCutoffAsync(SuspensionType, circuit, cutoff);
+        await AnalysisWorkspace.CommitDampingSpeedCutoffAsync(SuspensionType, circuit, cutoff);
     }
 
     private double GetCutoffFromPointer(PointerEventArgs e, DampingSpeedCircuit circuit) =>

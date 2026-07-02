@@ -9,7 +9,7 @@ public sealed record RecordedSessionHostState(
     RecordedSessionIdentityState Identity,
     RecordedSessionSelectionState Selection,
     RecordedSessionTimelineState Timeline,
-    RecordedSessionStatisticsState Statistics);
+    RecordedSessionAnalysisState Analysis);
 
 public sealed record RecordedSessionIdentityState(
     Guid SessionId,
@@ -42,8 +42,8 @@ public sealed record RecordedSessionTimelineState
     public RecordedSessionTimelineAlignmentState Alignment { get; init; }
 }
 
-public sealed record RecordedSessionStatisticsState(
-    SessionDamperPercentages DamperPercentages,
+public sealed record RecordedSessionAnalysisState(
+    SessionDampingPercentages DampingPercentages,
     DampingSpeedCutoffs DampingSpeedCutoffs,
     VelocityAverageMode VelocityAverageMode,
-    TravelHistogramMode TravelHistogramMode);
+    TravelDistributionMode TravelDistributionMode);

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Sufni.Telemetry;
 using Serilog;
 using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Acquisition.Services;
@@ -14,7 +14,7 @@ using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.Services;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;

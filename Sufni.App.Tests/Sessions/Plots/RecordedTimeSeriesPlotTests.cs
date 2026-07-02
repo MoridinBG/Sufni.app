@@ -225,7 +225,7 @@ public class RecordedTimeSeriesPlotTests
     }
 
     [Fact]
-    public void StatisticsSelectionRangeOverlay_UsesSuspensionSpecificStylesAndVisibility()
+    public void AnalysisSelectionRangeOverlay_UsesSuspensionSpecificStylesAndVisibility()
     {
         var plot = new Plot();
         var sut = new TestRecordedTimeSeriesPlot(plot);
@@ -244,7 +244,7 @@ public class RecordedTimeSeriesPlotTests
             ]));
 
         var theme = SufniThemes.Dark.Plot;
-        var registration = RecordedTimeRangeOverlayFactory.CreateStatisticsSelectionRegistration(
+        var registration = RecordedTimeRangeOverlayFactory.CreateAnalysisSelectionRegistration(
             [
                 new TelemetryHighlightRange(0.25, 0.5, SuspensionType.Front),
                 new TelemetryHighlightRange(0.75, 1.0, SuspensionType.Rear),
@@ -257,10 +257,10 @@ public class RecordedTimeSeriesPlotTests
         var spans = plot.PlottableList.OfType<HorizontalSpan>().ToArray();
         Assert.Equal(2, spans.Length);
         Assert.All(spans, span => Assert.False(span.IsVisible));
-        Assert.Equal(theme.Marker.StatisticsSelectionFrontFill.ToScottPlotColor(), spans[0].FillColor);
-        Assert.Equal(theme.Marker.StatisticsSelectionFrontOutline.ToScottPlotColor(), spans[0].LineStyle.Color);
-        Assert.Equal(theme.Marker.StatisticsSelectionRearFill.ToScottPlotColor(), spans[1].FillColor);
-        Assert.Equal(theme.Marker.StatisticsSelectionRearOutline.ToScottPlotColor(), spans[1].LineStyle.Color);
+        Assert.Equal(theme.Marker.AnalysisSelectionFrontFill.ToScottPlotColor(), spans[0].FillColor);
+        Assert.Equal(theme.Marker.AnalysisSelectionFrontOutline.ToScottPlotColor(), spans[0].LineStyle.Color);
+        Assert.Equal(theme.Marker.AnalysisSelectionRearFill.ToScottPlotColor(), spans[1].FillColor);
+        Assert.Equal(theme.Marker.AnalysisSelectionRearOutline.ToScottPlotColor(), spans[1].LineStyle.Color);
 
         sut.SetRangeOverlayVisibility(RecordedTimeRangeOverlayIds.StatisticsSelection, true);
 

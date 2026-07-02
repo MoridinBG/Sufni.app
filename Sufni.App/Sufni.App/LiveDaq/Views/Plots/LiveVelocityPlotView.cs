@@ -5,7 +5,7 @@ using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.LiveDaq.Plots;
 namespace Sufni.App.LiveDaq.Views.Plots;
 
-public sealed class LiveVelocityPlotView : LiveGraphPlotViewBase
+public sealed class LiveVelocityPlotView : LiveSignalPlotViewBase
 {
     protected override void CreatePlot()
     {
@@ -21,7 +21,7 @@ public sealed class LiveVelocityPlotView : LiveGraphPlotViewBase
         InitializeInteractions();
     }
 
-    protected override void ApplyGraphBatch(LiveGraphBatch batch)
+    protected override void ApplySignalBatch(LiveSignalBatch batch)
     {
         ((LiveVelocityPlot)Plot!).Append(batch);
     }

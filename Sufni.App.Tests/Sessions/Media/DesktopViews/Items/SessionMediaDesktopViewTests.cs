@@ -15,7 +15,7 @@ using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.ViewModels;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
-using Sufni.App.Sessions.Graph.ViewModels.Editors;
+using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Sessions.Media.DesktopViews.Items;
 using Sufni.App.Shared.DesktopViews.Controls;
 using Sufni.App.MapsAndTracks.Models;

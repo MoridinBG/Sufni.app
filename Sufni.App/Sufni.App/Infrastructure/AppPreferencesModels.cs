@@ -22,30 +22,30 @@ public sealed record SessionPreferences
     }
 
     public SessionPreferences(
-        SessionPlotPreferences? plots = null,
-        SessionStatisticsPreferences? statistics = null,
+        SignalDisplayPreferences? signalDisplay = null,
+        AnalysisPreferences? analysis = null,
         SessionProcessingPreferences? processing = null,
-        SessionGraphPreferences? graph = null,
+        SignalLayoutPreferences? signalLayout = null,
         SessionLayoutPreferences? layout = null)
     {
-        Plots = plots ?? new SessionPlotPreferences();
-        Statistics = statistics ?? new SessionStatisticsPreferences();
+        SignalDisplay = signalDisplay ?? new SignalDisplayPreferences();
+        Analysis = analysis ?? new AnalysisPreferences();
         Processing = processing ?? new SessionProcessingPreferences();
-        Graph = graph ?? SessionGraphPreferences.Default;
+        SignalLayout = signalLayout ?? SignalLayoutPreferences.Default;
         Layout = layout ?? SessionLayoutPreferences.Default;
     }
 
-    [JsonPropertyName("plots")]
-    public SessionPlotPreferences Plots { get; init; } = new();
+    [JsonPropertyName("signal_display")]
+    public SignalDisplayPreferences SignalDisplay { get; init; } = new();
 
-    [JsonPropertyName("statistics")]
-    public SessionStatisticsPreferences Statistics { get; init; } = new();
+    [JsonPropertyName("analysis")]
+    public AnalysisPreferences Analysis { get; init; } = new();
 
     [JsonPropertyName("processing")]
     public SessionProcessingPreferences Processing { get; init; } = new();
 
-    [JsonPropertyName("graph")]
-    public SessionGraphPreferences Graph { get; init; } = SessionGraphPreferences.Default;
+    [JsonPropertyName("signal_layout")]
+    public SignalLayoutPreferences SignalLayout { get; init; } = SignalLayoutPreferences.Default;
 
     [JsonPropertyName("layout")]
     public SessionLayoutPreferences Layout { get; init; } = SessionLayoutPreferences.Default;
@@ -53,7 +53,7 @@ public sealed record SessionPreferences
     public static SessionPreferences Default => new();
 }
 
-public sealed record SessionPlotPreferences(
+public sealed record SignalDisplayPreferences(
     [property: JsonPropertyName("travel")] bool Travel = true,
     [property: JsonPropertyName("velocity")] bool Velocity = true,
     [property: JsonPropertyName("imu")] bool Imu = true,
@@ -67,12 +67,12 @@ public sealed record SessionPlotPreferences(
     [property: JsonPropertyName("speed_smoothing")] PlotSmoothingLevel SpeedSmoothing = PlotSmoothingLevel.Off,
     [property: JsonPropertyName("elevation_smoothing")] PlotSmoothingLevel ElevationSmoothing = PlotSmoothingLevel.Off);
 
-public sealed record SessionStatisticsPreferences(
-    [property: JsonPropertyName("travel_histogram_mode")] TravelHistogramMode TravelHistogramMode = TravelHistogramMode.ActiveSuspension,
+public sealed record AnalysisPreferences(
+    [property: JsonPropertyName("travel_distribution_mode")] TravelDistributionMode TravelDistributionMode = TravelDistributionMode.ActiveSuspension,
     [property: JsonPropertyName("velocity_average_mode")] VelocityAverageMode VelocityAverageMode = VelocityAverageMode.SampleAveraged,
     [property: JsonPropertyName("balance_displacement_mode")] BalanceDisplacementMode BalanceDisplacementMode = BalanceDisplacementMode.Zenith,
     [property: JsonPropertyName("balance_speed_mode")] BalanceSpeedMode BalanceSpeedMode = BalanceSpeedMode.Both,
-    [property: JsonPropertyName("session_analysis_target_profile")] SessionAnalysisTargetProfile SessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Trail);
+    [property: JsonPropertyName("session_insights_target_profile")] SessionInsightsTargetProfile SessionInsightsTargetProfile = SessionInsightsTargetProfile.Trail);
 
 public sealed record SessionProcessingPreferences(
     [property: JsonPropertyName("velocity_filter_window_ms")] int VelocityFilterWindowMilliseconds = TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds)
@@ -83,24 +83,24 @@ public sealed record SessionProcessingPreferences(
     }
 }
 
-public sealed record SessionGraphPreferences
+public sealed record SignalLayoutPreferences
 {
-    public SessionGraphPreferences()
+    public SignalLayoutPreferences()
         : this(CreateDefaultRows())
     {
     }
 
-    public SessionGraphPreferences(IReadOnlyList<SessionGraphRowPreferences>? rows)
+    public SignalLayoutPreferences(IReadOnlyList<SignalLayoutRowPreferences>? rows)
     {
         Rows = rows?.ToArray() ?? CreateDefaultRows();
     }
 
     [JsonPropertyName("rows")]
-    public IReadOnlyList<SessionGraphRowPreferences> Rows { get; init; } = CreateDefaultRows();
+    public IReadOnlyList<SignalLayoutRowPreferences> Rows { get; init; } = CreateDefaultRows();
 
-    public static SessionGraphPreferences Default => new();
+    public static SignalLayoutPreferences Default => new();
 
-    public bool Equals(SessionGraphPreferences? other)
+    public bool Equals(SignalLayoutPreferences? other)
     {
         return other is not null && Rows.SequenceEqual(other.Rows);
     }
@@ -116,42 +116,42 @@ public sealed record SessionGraphPreferences
         return hash.ToHashCode();
     }
 
-    public static IReadOnlyList<SessionGraphRowPreferences> CreateDefaultRows()
+    public static IReadOnlyList<SignalLayoutRowPreferences> CreateDefaultRows()
     {
         return
         [
-            new SessionGraphRowPreferences(
-                TelemetryGraphRowIds.Travel,
+            new SignalLayoutRowPreferences(
+                SignalRowIds.Travel,
                 children:
                 [
-                    new SessionGraphRowPreferences(TelemetryGraphRowIds.Velocity),
+                    new SignalLayoutRowPreferences(SignalRowIds.Velocity),
                 ]),
-            new SessionGraphRowPreferences(
-                TelemetryGraphRowIds.Imu,
+            new SignalLayoutRowPreferences(
+                SignalRowIds.Imu,
                 children:
                 [
-                    new SessionGraphRowPreferences(TelemetryGraphRowIds.PitchRoll),
+                    new SignalLayoutRowPreferences(SignalRowIds.PitchRoll),
                 ]),
-            new SessionGraphRowPreferences(
-                TelemetryGraphRowIds.Speed,
+            new SignalLayoutRowPreferences(
+                SignalRowIds.Speed,
                 children:
                 [
-                    new SessionGraphRowPreferences(TelemetryGraphRowIds.Elevation),
+                    new SignalLayoutRowPreferences(SignalRowIds.Elevation),
                 ]),
         ];
     }
 }
 
-public sealed record SessionGraphRowPreferences
+public sealed record SignalLayoutRowPreferences
 {
-    public SessionGraphRowPreferences()
+    public SignalLayoutRowPreferences()
     {
     }
 
-    public SessionGraphRowPreferences(
+    public SignalLayoutRowPreferences(
         string rowId,
         bool isExpanded = true,
-        IReadOnlyList<SessionGraphRowPreferences>? children = null,
+        IReadOnlyList<SignalLayoutRowPreferences>? children = null,
         double? heightRatio = null)
     {
         RowId = rowId;
@@ -167,12 +167,12 @@ public sealed record SessionGraphRowPreferences
     public bool IsExpanded { get; init; } = true;
 
     [JsonPropertyName("children")]
-    public IReadOnlyList<SessionGraphRowPreferences> Children { get; init; } = [];
+    public IReadOnlyList<SignalLayoutRowPreferences> Children { get; init; } = [];
 
     [JsonPropertyName("height_ratio")]
     public double? HeightRatio { get; init; }
 
-    public bool Equals(SessionGraphRowPreferences? other)
+    public bool Equals(SignalLayoutRowPreferences? other)
     {
         return other is not null &&
                RowId == other.RowId &&
@@ -207,24 +207,24 @@ public sealed record SessionLayoutPreferences
 
     public SessionLayoutPreferences(
         SessionPaneGroupPreferences? desktopShellRows = null,
-        SessionPaneGroupPreferences? desktopGraphMediaColumns = null,
-        SessionPaneGroupPreferences? desktopStatisticsSidebarColumns = null,
+        SessionPaneGroupPreferences? desktopSignalsMediaColumns = null,
+        SessionPaneGroupPreferences? desktopAnalysisSidebarColumns = null,
         SessionPaneGroupPreferences? desktopMediaRows = null)
     {
         DesktopShellRows = desktopShellRows;
-        DesktopGraphMediaColumns = desktopGraphMediaColumns;
-        DesktopStatisticsSidebarColumns = desktopStatisticsSidebarColumns;
+        DesktopSignalsMediaColumns = desktopSignalsMediaColumns;
+        DesktopAnalysisSidebarColumns = desktopAnalysisSidebarColumns;
         DesktopMediaRows = desktopMediaRows;
     }
 
     [JsonPropertyName("desktop_shell_rows")]
     public SessionPaneGroupPreferences? DesktopShellRows { get; init; }
 
-    [JsonPropertyName("desktop_graph_media_columns")]
-    public SessionPaneGroupPreferences? DesktopGraphMediaColumns { get; init; }
+    [JsonPropertyName("desktop_signals_media_columns")]
+    public SessionPaneGroupPreferences? DesktopSignalsMediaColumns { get; init; }
 
-    [JsonPropertyName("desktop_statistics_sidebar_columns")]
-    public SessionPaneGroupPreferences? DesktopStatisticsSidebarColumns { get; init; }
+    [JsonPropertyName("desktop_analysis_sidebar_columns")]
+    public SessionPaneGroupPreferences? DesktopAnalysisSidebarColumns { get; init; }
 
     [JsonPropertyName("desktop_media_rows")]
     public SessionPaneGroupPreferences? DesktopMediaRows { get; init; }
@@ -238,9 +238,10 @@ public sealed record SessionPaneGroupPreferences
     {
     }
 
+    [JsonConstructor]
     public SessionPaneGroupPreferences(IReadOnlyList<SessionPaneSizePreference>? panes)
     {
-        Panes = panes?.ToArray() ?? [];
+        Panes = NormalizePanes(panes);
     }
 
     [JsonPropertyName("panes")]
@@ -251,7 +252,8 @@ public sealed record SessionPaneGroupPreferences
         out IReadOnlyList<SessionPaneStatePreference> states)
     {
         states = [];
-        if (paneIds.Count == 0 || Panes.Count != paneIds.Count)
+        var requestedPaneIds = paneIds.Select(SessionLayoutPaneIds.Normalize).ToArray();
+        if (requestedPaneIds.Length == 0 || Panes.Count != requestedPaneIds.Length)
         {
             return false;
         }
@@ -270,10 +272,10 @@ public sealed record SessionPaneGroupPreferences
             }
         }
 
-        var values = new SessionPaneStatePreference[paneIds.Count];
-        for (var i = 0; i < paneIds.Count; i++)
+        var values = new SessionPaneStatePreference[requestedPaneIds.Length];
+        for (var i = 0; i < requestedPaneIds.Length; i++)
         {
-            if (!statesById.TryGetValue(paneIds[i], out var state))
+            if (!statesById.TryGetValue(requestedPaneIds[i], out var state))
             {
                 return false;
             }
@@ -312,6 +314,35 @@ public sealed record SessionPaneGroupPreferences
 
         return hash.ToHashCode();
     }
+
+    private static IReadOnlyList<SessionPaneSizePreference> NormalizePanes(IReadOnlyList<SessionPaneSizePreference>? panes)
+    {
+        if (panes is null || panes.Count == 0)
+        {
+            return [];
+        }
+
+        var byPaneId = new Dictionary<string, (SessionPaneSizePreference Pane, bool IsLegacy, int Index)>(StringComparer.Ordinal);
+        for (var i = 0; i < panes.Count; i++)
+        {
+            var pane = panes[i];
+            var normalizedPaneId = SessionLayoutPaneIds.Normalize(pane.PaneId);
+            var normalizedPane = pane with { PaneId = normalizedPaneId };
+            var isLegacy = SessionLayoutPaneIds.IsLegacy(pane.PaneId);
+
+            if (!byPaneId.TryGetValue(normalizedPaneId, out var current) ||
+                (current.IsLegacy && !isLegacy) ||
+                current.IsLegacy == isLegacy)
+            {
+                byPaneId[normalizedPaneId] = (normalizedPane, isLegacy, i);
+            }
+        }
+
+        return byPaneId.Values
+            .OrderBy(value => value.Index)
+            .Select(value => value.Pane)
+            .ToArray();
+    }
 }
 
 public sealed record SessionPaneStatePreference(
@@ -326,17 +357,52 @@ public sealed record SessionPaneSizePreference(
 
 public static class SessionLayoutPaneIds
 {
-    public const string Graph = "graph";
+    public const string Signals = "signals";
     public const string Media = "media";
     public const string Map = "map";
     public const string ExtensionMedia = "extension_media";
-    public const string GraphMediaArea = "graph_media_area";
-    public const string StatisticsSidebarArea = "statistics_sidebar_area";
-    public const string Statistics = "statistics";
+    public const string SignalsMediaArea = "signals_media_area";
+    public const string AnalysisSidebarArea = "analysis_sidebar_area";
+    public const string Analysis = "analysis";
     public const string Sidebar = "sidebar";
+
+    internal const string LegacyGraph = "graph";
+    internal const string LegacyGraphMediaArea = "graph_media_area";
+    internal const string LegacyAnalysisSidebarArea = "statistics_sidebar_area";
+    internal const string LegacyAnalysis = "statistics";
+
+    internal static string Normalize(string? paneId)
+    {
+        return paneId switch
+        {
+            LegacyGraph => Signals,
+            LegacyGraphMediaArea => SignalsMediaArea,
+            LegacyAnalysisSidebarArea => AnalysisSidebarArea,
+            LegacyAnalysis => Analysis,
+            null => "",
+            _ => paneId,
+        };
+    }
+
+    internal static string ToLegacy(string? paneId)
+    {
+        return Normalize(paneId) switch
+        {
+            Signals => LegacyGraph,
+            SignalsMediaArea => LegacyGraphMediaArea,
+            AnalysisSidebarArea => LegacyAnalysisSidebarArea,
+            Analysis => LegacyAnalysis,
+            var value => value,
+        };
+    }
+
+    internal static bool IsLegacy(string? paneId)
+    {
+        return paneId is LegacyGraph or LegacyGraphMediaArea or LegacyAnalysisSidebarArea or LegacyAnalysis;
+    }
 }
 
-public static class TelemetryGraphRowIds
+public static class SignalRowIds
 {
     public const string Travel = "travel";
     public const string Velocity = "velocity";

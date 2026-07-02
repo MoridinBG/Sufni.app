@@ -13,7 +13,7 @@ using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Acquisition.Services;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Sessions.Processing.Services;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Models;
 using Sufni.App.Shell.Coordinators;

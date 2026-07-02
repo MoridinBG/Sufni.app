@@ -6,21 +6,21 @@ namespace Sufni.App.Tests.TestSupport.Doubles;
 internal sealed class StubLiveSessionService : ILiveSessionService
 {
     private readonly BehaviorSubject<LiveSessionPresentationSnapshot> snapshots;
-    private readonly ISubject<LiveGraphBatch> graphBatches;
+    private readonly ISubject<LiveSignalBatch> signalBatches;
 
     private StubLiveSessionService(
         LiveSessionPresentationSnapshot initialSnapshot,
-        ISubject<LiveGraphBatch>? graphBatches,
+        ISubject<LiveSignalBatch>? signalBatches,
         LiveSessionCapturePackage? capturePackage)
     {
         Current = initialSnapshot;
         snapshots = new BehaviorSubject<LiveSessionPresentationSnapshot>(initialSnapshot);
-        this.graphBatches = graphBatches ?? new Subject<LiveGraphBatch>();
+        this.signalBatches = signalBatches ?? new Subject<LiveSignalBatch>();
         CapturePackage = capturePackage;
     }
 
     public IObservable<LiveSessionPresentationSnapshot> Snapshots => snapshots;
-    public IObservable<LiveGraphBatch> GraphBatches => graphBatches;
+    public IObservable<LiveSignalBatch> SignalBatches => signalBatches;
     public LiveSessionPresentationSnapshot Current { get; private set; }
 
     public LiveSessionCapturePackage? CapturePackage { get; set; }
@@ -31,9 +31,9 @@ internal sealed class StubLiveSessionService : ILiveSessionService
 
     public static StubLiveSessionService WithDefaultLiveStream(
         LiveSessionPresentationSnapshot? initialSnapshot = null,
-        ISubject<LiveGraphBatch>? graphBatches = null,
+        ISubject<LiveSignalBatch>? signalBatches = null,
         LiveSessionCapturePackage? capturePackage = null) =>
-        new(initialSnapshot ?? LiveSessionPresentationSnapshot.Empty, graphBatches, capturePackage);
+        new(initialSnapshot ?? LiveSessionPresentationSnapshot.Empty, signalBatches, capturePackage);
 
     public void PublishSnapshot(LiveSessionPresentationSnapshot snapshot)
     {
@@ -41,9 +41,9 @@ internal sealed class StubLiveSessionService : ILiveSessionService
         snapshots.OnNext(snapshot);
     }
 
-    public void PublishGraphBatch(LiveGraphBatch batch)
+    public void PublishSignalBatch(LiveSignalBatch batch)
     {
-        graphBatches.OnNext(batch);
+        signalBatches.OnNext(batch);
     }
 
     public Task EnsureAttachedAsync(CancellationToken cancellationToken = default)
@@ -72,7 +72,7 @@ internal sealed class StubLiveSessionService : ILiveSessionService
     {
         DisposeCallCount++;
         snapshots.OnCompleted();
-        graphBatches.OnCompleted();
+        signalBatches.OnCompleted();
         return ValueTask.CompletedTask;
     }
 }

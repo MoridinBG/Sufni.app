@@ -72,7 +72,7 @@ public static class RecordedTimeRangeOverlayFactory
             IsVisible: true);
     }
 
-    public static RecordedTimeRangeOverlaySetRegistration CreateStatisticsSelectionRegistration(
+    public static RecordedTimeRangeOverlaySetRegistration CreateAnalysisSelectionRegistration(
         IEnumerable<TelemetryHighlightRange> ranges,
         SufniPlotTheme plotTheme,
         bool isVisible = false)
@@ -84,7 +84,7 @@ public static class RecordedTimeRangeOverlayFactory
                     .Select(range => new RecordedTimeRangeOverlay(
                         range.StartSeconds,
                         range.EndSeconds,
-                        Style: CreateStatisticsSelectionStyle(range.SuspensionType, plotTheme)))
+                        Style: CreateAnalysisSelectionStyle(range.SuspensionType, plotTheme)))
                     .ToArray(),
                 new RecordedTimeRangeOverlayStyle(
                     plotTheme.Marker.DampingSelectionFill.ToRecordedTimeRangeOverlayColor(),
@@ -93,19 +93,19 @@ public static class RecordedTimeRangeOverlayFactory
             isVisible);
     }
 
-    private static RecordedTimeRangeOverlayStyle? CreateStatisticsSelectionStyle(
+    private static RecordedTimeRangeOverlayStyle? CreateAnalysisSelectionStyle(
         SuspensionType? suspensionType,
         SufniPlotTheme plotTheme)
     {
         return suspensionType switch
         {
             SuspensionType.Front => new RecordedTimeRangeOverlayStyle(
-                plotTheme.Marker.StatisticsSelectionFrontFill.ToRecordedTimeRangeOverlayColor(),
-                plotTheme.Marker.StatisticsSelectionFrontOutline.ToRecordedTimeRangeOverlayColor(),
+                plotTheme.Marker.AnalysisSelectionFrontFill.ToRecordedTimeRangeOverlayColor(),
+                plotTheme.Marker.AnalysisSelectionFrontOutline.ToRecordedTimeRangeOverlayColor(),
                 1.0f),
             SuspensionType.Rear => new RecordedTimeRangeOverlayStyle(
-                plotTheme.Marker.StatisticsSelectionRearFill.ToRecordedTimeRangeOverlayColor(),
-                plotTheme.Marker.StatisticsSelectionRearOutline.ToRecordedTimeRangeOverlayColor(),
+                plotTheme.Marker.AnalysisSelectionRearFill.ToRecordedTimeRangeOverlayColor(),
+                plotTheme.Marker.AnalysisSelectionRearOutline.ToRecordedTimeRangeOverlayColor(),
                 1.0f),
             _ => null,
         };

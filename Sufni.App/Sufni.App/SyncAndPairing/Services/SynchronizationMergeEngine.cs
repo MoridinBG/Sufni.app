@@ -11,7 +11,7 @@ using static Sufni.App.Infrastructure.PersistenceGuards;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Bikes.Models;

@@ -41,13 +41,13 @@ public class LiveTravelPlotTests
         AssertYRange(plot, expectedMinimum: 0, expectedMaximum: 5);
     }
 
-    private static LiveGraphBatch CreateTravelBatch(IReadOnlyList<double> frontTravel)
+    private static LiveSignalBatch CreateTravelBatch(IReadOnlyList<double> frontTravel)
     {
         var times = Enumerable.Range(0, frontTravel.Count)
             .Select(index => index * 0.01)
             .ToArray();
 
-        return LiveGraphBatch.Empty with
+        return LiveSignalBatch.Empty with
         {
             Revision = 1,
             TravelTimes = times,

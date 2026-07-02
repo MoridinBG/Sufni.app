@@ -3,7 +3,7 @@ using Avalonia.Media;
 
 namespace Sufni.App.Theming;
 
-// Immutable root object for every app, graph, and plot theme token.
+// Immutable root object for every app, signal, and plot theme token.
 public sealed record SufniTheme(
     SufniThemeMode Mode,
     SufniPalette Palette,
@@ -21,7 +21,7 @@ public sealed record SufniTheme(
     SufniSplitterTheme Splitter,
     SufniFieldTheme Field,
     SufniDragDropTheme DragDrop,
-    SufniGraphRowTheme GraphRow,
+    SufniSignalRowTheme SignalRow,
     SufniPlotTheme Plot,
     SufniTypographyTheme Typography,
     SufniSpacingTheme Spacing);
@@ -105,7 +105,7 @@ public sealed record SufniTabTheme(
     Color Indicator,
     double IndicatorBleed,
     double WindowFontSize,
-    double StatisticsFontSize,
+    double AnalysisFontSize,
     double NavFontSize);
 
 public sealed record SufniNavRailTheme(
@@ -152,17 +152,17 @@ public sealed record SufniDragDropTheme(
     Color DropTargetHeader,
     Color DropPositionIndicator);
 
-// Per-depth graph row chrome used by recorded and hosted telemetry rows.
-public sealed record SufniGraphRowTheme(
-    SufniGraphRowDepthTheme Root,
-    SufniGraphRowDepthTheme HostedLevel1,
-    SufniGraphRowDepthTheme HostedLevel2,
-    SufniGraphRowDepthTheme HostedLevel3Plus,
+// Per-depth signal row chrome used by recorded and hosted telemetry rows.
+public sealed record SufniSignalRowTheme(
+    SufniSignalRowDepthTheme Root,
+    SufniSignalRowDepthTheme HostedLevel1,
+    SufniSignalRowDepthTheme HostedLevel2,
+    SufniSignalRowDepthTheme HostedLevel3Plus,
     Color Connector,
     Color DividerBetweenRoots)
 {
     // Clamps arbitrary nesting levels into the deepest defined row style.
-    public SufniGraphRowDepthTheme ByDepth(int depth)
+    public SufniSignalRowDepthTheme ByDepth(int depth)
         => depth switch
         {
             <= 0 => Root,
@@ -172,7 +172,7 @@ public sealed record SufniGraphRowTheme(
         };
 }
 
-public sealed record SufniGraphRowDepthTheme(
+public sealed record SufniSignalRowDepthTheme(
     Color Container,
     Color Header,
     Color PlotFigure,
@@ -227,10 +227,10 @@ public sealed record SufniPlotMarkerTheme(
     Color Line,
     Color AirtimeFill,
     Color AirtimeOutline,
-    Color StatisticsSelectionFrontFill,
-    Color StatisticsSelectionFrontOutline,
-    Color StatisticsSelectionRearFill,
-    Color StatisticsSelectionRearOutline,
+    Color AnalysisSelectionFrontFill,
+    Color AnalysisSelectionFrontOutline,
+    Color AnalysisSelectionRearFill,
+    Color AnalysisSelectionRearOutline,
     Color DampingSelectionFill,
     Color DampingSelectionOutline);
 

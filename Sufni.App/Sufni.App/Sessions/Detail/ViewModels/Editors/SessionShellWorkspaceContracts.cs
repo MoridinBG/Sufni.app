@@ -15,14 +15,14 @@ using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.MapsAndTracks.ViewModels;
-using Sufni.App.Sessions.Graph.ViewModels.Editors;
+using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Shared.Base;
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
-public sealed record TravelHistogramModeOption(TravelHistogramMode Value, string DisplayName, string Description);
+public sealed record TravelDistributionModeOption(TravelDistributionMode Value, string DisplayName, string Description);
 public sealed record BalanceDisplacementModeOption(BalanceDisplacementMode Value, string DisplayName, string Description);
 public sealed record BalanceSpeedModeOption(BalanceSpeedMode Value, string DisplayName, string Description);
 public sealed record VelocityAverageModeOption(VelocityAverageMode Value, string DisplayName, string Description);
@@ -45,44 +45,44 @@ public interface ISessionShellMobileWorkspace
     SessionOperationPresentationState SessionOperationState { get; }
 }
 
-public interface IRecordedSessionGraphWorkspace
+public interface IRecordedSessionSignalsWorkspace
 {
     TelemetryData? TelemetryData { get; }
     TelemetryTimeRange? AnalysisRange { get; }
     IReadOnlyList<TrackPoint>? TrackPoints { get; }
     TrackTimeRange? TrackTimelineContext { get; }
-    SurfacePresentationState TravelGraphState { get; }
-    SurfacePresentationState VelocityGraphState { get; }
-    SurfacePresentationState ImuGraphState { get; }
-    SurfacePresentationState PitchRollGraphState { get; }
-    SurfacePresentationState SpeedGraphState { get; }
-    SurfacePresentationState ElevationGraphState { get; }
-    SessionPlotPreferences PlotPreferences { get; }
-    SessionGraphPreferences GraphPreferences { get; set; }
+    SurfacePresentationState TravelSignalState { get; }
+    SurfacePresentationState VelocitySignalState { get; }
+    SurfacePresentationState ImuSignalState { get; }
+    SurfacePresentationState PitchRollSignalState { get; }
+    SurfacePresentationState SpeedSignalState { get; }
+    SurfacePresentationState ElevationSignalState { get; }
+    SignalDisplayPreferences SignalDisplayPreferences { get; }
+    SignalLayoutPreferences SignalLayoutPreferences { get; set; }
     TelemetrySourceVisibilityStore SourceVisibility { get; }
     SessionTimelineLinkViewModel Timeline { get; }
     RecordedSessionExtensionSlots ExtensionSlots { get; }
-    IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> PlotContextMenuActionsByRowId { get; }
+    IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; }
     bool ShowAirtime { get; }
     bool ShowVelocityAirtime { get; }
     bool ShowImuAirtime { get; }
     bool ShowPitchRollAirtime { get; }
     bool ShowSpeedAirtime { get; }
     bool ShowElevationAirtime { get; }
-    IReadOnlyList<TelemetryHighlightRange> StatisticsSelectionHighlightRanges { get; }
-    bool HasStatisticsSelection { get; }
-    bool ShowStatisticsSelection { get; }
-    bool ShowVelocityStatisticsSelection { get; }
-    bool ShowImuStatisticsSelection { get; }
-    bool ShowPitchRollStatisticsSelection { get; }
-    bool ShowSpeedStatisticsSelection { get; }
-    bool ShowElevationStatisticsSelection { get; }
-    IReadOnlyList<TelemetryPlotRowAction> TravelHeaderActions { get; }
-    IReadOnlyList<TelemetryPlotRowAction> VelocityHeaderActions { get; }
-    IReadOnlyList<TelemetryPlotRowAction> ImuHeaderActions { get; }
-    IReadOnlyList<TelemetryPlotRowAction> PitchRollHeaderActions { get; }
-    IReadOnlyList<TelemetryPlotRowAction> SpeedHeaderActions { get; }
-    IReadOnlyList<TelemetryPlotRowAction> ElevationHeaderActions { get; }
+    IReadOnlyList<TelemetryHighlightRange> AnalysisSelectionHighlightRanges { get; }
+    bool HasAnalysisSelection { get; }
+    bool ShowAnalysisSelection { get; }
+    bool ShowVelocityAnalysisSelection { get; }
+    bool ShowImuAnalysisSelection { get; }
+    bool ShowPitchRollAnalysisSelection { get; }
+    bool ShowSpeedAnalysisSelection { get; }
+    bool ShowElevationAnalysisSelection { get; }
+    IReadOnlyList<SignalRowAction> TravelHeaderActions { get; }
+    IReadOnlyList<SignalRowAction> VelocityHeaderActions { get; }
+    IReadOnlyList<SignalRowAction> ImuHeaderActions { get; }
+    IReadOnlyList<SignalRowAction> PitchRollHeaderActions { get; }
+    IReadOnlyList<SignalRowAction> SpeedHeaderActions { get; }
+    IReadOnlyList<SignalRowAction> ElevationHeaderActions { get; }
     void SetAnalysisRange(double startSeconds, double endSeconds);
     void ClearAnalysisRange();
     void SetAnalysisRangeBoundary(double boundarySeconds);
@@ -100,39 +100,39 @@ public interface ISessionMediaWorkspace
     string? MediaUrl { get; }
 }
 
-public interface ISessionStatisticsWorkspace
+public interface ISessionAnalysisWorkspace
 {
     TelemetryData? TelemetryData { get; }
     TelemetryTimeRange? AnalysisRange { get; }
-    TravelHistogramMode SelectedTravelHistogramMode { get; set; }
+    TravelDistributionMode SelectedTravelDistributionMode { get; set; }
     BalanceDisplacementMode SelectedBalanceDisplacementMode { get; set; }
     BalanceSpeedMode SelectedBalanceSpeedMode { get; set; }
     VelocityAverageMode SelectedVelocityAverageMode { get; set; }
-    SessionAnalysisTargetProfile SelectedSessionAnalysisTargetProfile { get; set; }
+    SessionInsightsTargetProfile SelectedSessionInsightsTargetProfile { get; set; }
     RecordedSessionExtensionSlots ExtensionSlots { get; }
-    IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; }
+    IReadOnlyList<TravelDistributionModeOption> TravelDistributionModeOptions { get; }
     IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; }
     IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; }
     IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; }
-    IReadOnlyList<SessionAnalysisTargetProfileOption> SessionAnalysisTargetProfileOptions { get; }
+    IReadOnlyList<SessionInsightsTargetProfileOption> SessionInsightsTargetProfileOptions { get; }
     string SessionAnalysisRangeText { get; }
     string SessionAnalysisModesText { get; }
-    SurfacePresentationState FrontStatisticsState { get; }
-    SurfacePresentationState RearStatisticsState { get; }
+    SurfacePresentationState FrontAnalysisState { get; }
+    SurfacePresentationState RearAnalysisState { get; }
     SurfacePresentationState CompressionBalanceState { get; }
     SurfacePresentationState ReboundBalanceState { get; }
     SurfacePresentationState FrontForkVibrationState { get; }
     SurfacePresentationState FrontFrameVibrationState { get; }
     SurfacePresentationState RearForkVibrationState { get; }
     SurfacePresentationState RearFrameVibrationState { get; }
-    SessionDamperPercentages DamperPercentages { get; }
+    SessionDampingPercentages DampingPercentages { get; }
     DampingSpeedCutoffs DampingSpeedCutoffs { get; }
     DampingSpeedCutoffs PlotDampingSpeedCutoffs { get; }
     bool CanEditDampingSpeedCutoffs { get; }
-    SessionAnalysisResult SessionAnalysis { get; }
-    IRelayCommand<TelemetryRangeSelection?> SelectTelemetryRangeSelectionCommand { get; }
-    TelemetryRangeSelection? SelectedFrontRangeSelection { get; }
-    TelemetryRangeSelection? SelectedRearRangeSelection { get; }
+    SessionInsightsResult SessionInsights { get; }
+    IRelayCommand<TelemetryRangeSelection?> SelectAnalysisRangeCommand { get; }
+    TelemetryRangeSelection? ActiveFrontAnalysisSelection { get; }
+    TelemetryRangeSelection? ActiveRearAnalysisSelection { get; }
     void PreviewDampingSpeedCutoff(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond);
     void CancelDampingSpeedCutoffPreview();
     Task CommitDampingSpeedCutoffAsync(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond);
@@ -150,20 +150,20 @@ public interface ISessionSidebarWorkspace
     IAsyncRelayCommand ResetCommand { get; }
 }
 
-public interface ILiveSessionGraphWorkspace
+public interface ILiveSessionSignalsWorkspace
 {
-    IObservable<LiveGraphBatch> GraphBatches { get; }
+    IObservable<LiveSignalBatch> SignalBatches { get; }
     LiveSessionPlotRanges PlotRanges { get; }
     IReadOnlyList<TrackPoint> TrackPoints { get; }
     TrackTimeRange? TrackTimelineContext { get; }
-    SurfacePresentationState TravelGraphState { get; }
-    SurfacePresentationState VelocityGraphState { get; }
-    SurfacePresentationState ImuGraphState { get; }
-    SurfacePresentationState PitchRollGraphState { get; }
-    SurfacePresentationState SpeedGraphState { get; }
-    SurfacePresentationState ElevationGraphState { get; }
-    SessionPlotPreferences PlotPreferences { get; }
-    SessionGraphPreferences GraphPreferences { get; set; }
+    SurfacePresentationState TravelSignalState { get; }
+    SurfacePresentationState VelocitySignalState { get; }
+    SurfacePresentationState ImuSignalState { get; }
+    SurfacePresentationState PitchRollSignalState { get; }
+    SurfacePresentationState SpeedSignalState { get; }
+    SurfacePresentationState ElevationSignalState { get; }
+    SignalDisplayPreferences SignalDisplayPreferences { get; }
+    SignalLayoutPreferences SignalLayoutPreferences { get; set; }
     TelemetrySourceVisibilityStore SourceVisibility { get; }
     SessionTimelineLinkViewModel Timeline { get; }
 }

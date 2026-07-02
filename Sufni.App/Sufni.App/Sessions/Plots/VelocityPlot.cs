@@ -57,7 +57,7 @@ public class VelocityPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSer
             ],
             ShowLegendWhenSingleSource: true,
             EnableInteractiveLegend: true,
-            InteractiveLegendRowId: TelemetryGraphRowIds.Velocity));
+            InteractiveLegendRowId: SignalRowIds.Velocity));
     }
 
     private static RecordedTimeSeriesValues CreateSegmentAwareValues(

@@ -6,7 +6,7 @@ using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.LiveDaq.Queries;
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 
-public sealed record LiveGraphBatch(
+public sealed record LiveSignalBatch(
     long Revision,
     IReadOnlyList<double> TravelTimes,
     IReadOnlyList<double> FrontTravel,
@@ -20,7 +20,7 @@ public sealed record LiveGraphBatch(
     IReadOnlyList<double> FramePitchDegrees,
     IReadOnlyList<double> FrameRollDegrees)
 {
-    public static readonly LiveGraphBatch Empty = new(
+    public static readonly LiveSignalBatch Empty = new(
         Revision: 0,
         TravelTimes: [],
         FrontTravel: [],
@@ -47,16 +47,16 @@ public abstract record LiveSessionStreamPresentation
 
 public sealed record LiveSessionPresentationSnapshot(
     LiveSessionStreamPresentation Stream,
-    TelemetryData? StatisticsTelemetry,
-    SessionDamperPercentages DamperPercentages,
+    TelemetryData? AnalysisTelemetry,
+    SessionDampingPercentages DampingPercentages,
     IReadOnlyList<TrackPoint> SessionTrackPoints,
     LiveSessionControlState Controls,
     long CaptureRevision)
 {
     public static readonly LiveSessionPresentationSnapshot Empty = new(
         Stream: new LiveSessionStreamPresentation.Idle(),
-        StatisticsTelemetry: null,
-        DamperPercentages: SessionDamperPercentages.Empty,
+        AnalysisTelemetry: null,
+        DampingPercentages: SessionDampingPercentages.Empty,
         SessionTrackPoints: [],
         Controls: LiveSessionControlState.Empty,
         CaptureRevision: 0);

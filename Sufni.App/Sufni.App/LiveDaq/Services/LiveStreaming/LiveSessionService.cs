@@ -22,7 +22,7 @@ namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 internal sealed class LiveSessionServiceFactory(
     ISessionPresentationService sessionPresentationService,
     IBackgroundTaskRunner backgroundTaskRunner,
-    LiveGraphPipelineFactory liveGraphPipelineFactory) : ILiveSessionServiceFactory
+    LiveSignalPipelineFactory liveSignalPipelineFactory) : ILiveSessionServiceFactory
 {
     public ILiveSessionService Create(LiveDaqSessionContext context, ILiveDaqSharedStream sharedStream)
     {
@@ -31,7 +31,7 @@ internal sealed class LiveSessionServiceFactory(
             sharedStream,
             sessionPresentationService,
             backgroundTaskRunner,
-            liveGraphPipelineFactory.Create());
+            liveSignalPipelineFactory.Create());
     }
 }
 
@@ -41,7 +41,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     private const int ImuChunkSize = 2048;
     private const int GpsChunkSize = 256;
     private const int DisplayUpdateQueueCapacity = 8;
-    private static readonly TimeSpan StatisticsPressureQuietPeriod = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan AnalysisPressureQuietPeriod = TimeSpan.FromMilliseconds(500);
 
     private static readonly ILogger logger = Log.ForContext<LiveSessionService>();
 
@@ -81,7 +81,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     private readonly ILiveDaqSharedStream sharedStream;
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
-    private readonly ILiveGraphPipeline graphPipeline;
+    private readonly ILiveSignalPipeline signalPipeline;
     private readonly LiveImuDisplaySignalProcessor imuDisplaySignalProcessor = new();
     private readonly System.Threading.Lock gate = new();
     private readonly System.Threading.Lock displayQueueGate = new();
@@ -109,8 +109,8 @@ internal sealed class LiveSessionService : ILiveSessionService
     private LiveSessionPresentationSnapshot current = LiveSessionPresentationSnapshot.Empty;
     private LiveSessionHeader? sessionHeader;
     private LiveSessionStats? latestSessionStats;
-    private TelemetryData? statisticsTelemetry;
-    private SessionDamperPercentages damperPercentages = SessionDamperPercentages.Empty;
+    private TelemetryData? analysisTelemetry;
+    private SessionDampingPercentages dampingPercentages = SessionDampingPercentages.Empty;
     private TrackPoint[] sessionTrackPoints = [];
     private TrackPointGeoCoordinate? previousAcceptedGpsCoordinate;
     private LiveDaqClientDropCounters sharedClientDropCounters = LiveDaqClientDropCounters.Empty;
@@ -121,19 +121,19 @@ internal sealed class LiveSessionService : ILiveSessionService
     private long captureRevision;
     private long displayEpoch;
     private int queuedDisplayUpdates;
-    private long latestStatisticsRevision = -1;
-    private long queuedStatisticsRevision = -1;
-    private long runningStatisticsRevision = -1;
-    private ulong statisticsRecomputesSkipped;
-    private ulong graphBatchesCoalesced;
-    private ulong graphSamplesDiscarded;
-    private Task? statisticsLoopTask;
+    private long latestAnalysisRevision = -1;
+    private long queuedAnalysisRevision = -1;
+    private long runningAnalysisRevision = -1;
+    private ulong analysisRecomputesSkipped;
+    private ulong signalBatchesCoalesced;
+    private ulong signalSamplesDiscarded;
+    private Task? analysisLoopTask;
 
     private bool hasPublishedSaveableCapture;
     private bool isTerminalClosed;
     private bool isAttached;
     private bool isDisposed;
-    private DateTimeOffset nextStatisticsRunAt = DateTimeOffset.MinValue;
+    private DateTimeOffset nextAnalysisRunAt = DateTimeOffset.MinValue;
     private DateTimeOffset lastClientPressureUtc = DateTimeOffset.MinValue;
 
     public LiveSessionService(
@@ -141,18 +141,18 @@ internal sealed class LiveSessionService : ILiveSessionService
         ILiveDaqSharedStream sharedStream,
         ISessionPresentationService sessionPresentationService,
         IBackgroundTaskRunner backgroundTaskRunner,
-        ILiveGraphPipeline graphPipeline)
+        ILiveSignalPipeline signalPipeline)
     {
         this.context = context;
         this.sharedStream = sharedStream;
         this.sessionPresentationService = sessionPresentationService;
         this.backgroundTaskRunner = backgroundTaskRunner;
-        this.graphPipeline = graphPipeline;
+        this.signalPipeline = signalPipeline;
     }
 
     public IObservable<LiveSessionPresentationSnapshot> Snapshots => snapshotsSubject.AsObservable();
 
-    public IObservable<LiveGraphBatch> GraphBatches => graphPipeline.GraphBatches;
+    public IObservable<LiveSignalBatch> SignalBatches => signalPipeline.SignalBatches;
 
     public LiveSessionPresentationSnapshot Current => current;
 
@@ -174,7 +174,7 @@ internal sealed class LiveSessionService : ILiveSessionService
                 {
                     attachedObserverLease = sharedStream.AcquireLease();
                     attachedConfigurationLockLease = sharedStream.AcquireConfigurationLock();
-                    graphPipeline.Start();
+                    signalPipeline.Start();
                     displayLoopTask ??= Task.Run(() => RunDisplayLoopAsync(disposalCts.Token));
                     attachedFramesSubscription = sharedStream.Frames.Subscribe(HandleFrame);
                     attachedStatesSubscription = sharedStream.States.Subscribe(HandleSharedStreamState);
@@ -257,27 +257,27 @@ internal sealed class LiveSessionService : ILiveSessionService
             imuRecords.Clear();
             gpsRecords.Clear();
             imuDisplaySignalProcessor.Reset();
-            statisticsTelemetry = null;
-            damperPercentages = SessionDamperPercentages.Empty;
+            analysisTelemetry = null;
+            dampingPercentages = SessionDampingPercentages.Empty;
             sessionTrackPoints = [];
             previousAcceptedGpsCoordinate = null;
             captureStartMonotonicUs = null;
             captureStartUtc = null;
             captureRevision++;
             displayEpoch++;
-            latestStatisticsRevision = captureRevision;
-            queuedStatisticsRevision = -1;
-            runningStatisticsRevision = -1;
-            statisticsRecomputesSkipped = 0;
-            graphBatchesCoalesced = 0;
-            graphSamplesDiscarded = 0;
-            nextStatisticsRunAt = DateTimeOffset.MinValue;
+            latestAnalysisRevision = captureRevision;
+            queuedAnalysisRevision = -1;
+            runningAnalysisRevision = -1;
+            analysisRecomputesSkipped = 0;
+            signalBatchesCoalesced = 0;
+            signalSamplesDiscarded = 0;
+            nextAnalysisRunAt = DateTimeOffset.MinValue;
             lastClientPressureUtc = DateTimeOffset.MinValue;
             hasPublishedSaveableCapture = false;
             snapshot = BuildSnapshotLocked();
         }
 
-        graphPipeline.Reset();
+        signalPipeline.Reset();
         PublishSnapshot(snapshot);
         return Task.CompletedTask;
     }
@@ -309,7 +309,7 @@ internal sealed class LiveSessionService : ILiveSessionService
         IDisposable? states;
         ILiveDaqSharedStreamLease? configurationLock;
         ILiveDaqSharedStreamLease? observer;
-        Task? statisticsLoop;
+        Task? analysisLoop;
         Task? displayLoop;
 
         lock (gate)
@@ -324,13 +324,13 @@ internal sealed class LiveSessionService : ILiveSessionService
             states = statesSubscription;
             configurationLock = configurationLockLease;
             observer = observerLease;
-            statisticsLoop = statisticsLoopTask;
+            analysisLoop = analysisLoopTask;
             displayLoop = displayLoopTask;
             framesSubscription = null;
             statesSubscription = null;
             configurationLockLease = null;
             observerLease = null;
-            statisticsLoopTask = null;
+            analysisLoopTask = null;
             displayLoopTask = null;
         }
 
@@ -340,11 +340,11 @@ internal sealed class LiveSessionService : ILiveSessionService
         disposalCts.Cancel();
         displayUpdates.Writer.TryComplete();
 
-        if (statisticsLoop is not null)
+        if (analysisLoop is not null)
         {
             try
             {
-                await statisticsLoop;
+                await analysisLoop;
             }
             catch (OperationCanceledException)
             {
@@ -372,7 +372,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             await observer.DisposeAsync();
         }
 
-        await graphPipeline.DisposeAsync();
+        await signalPipeline.DisposeAsync();
 
         snapshotsSubject.OnCompleted();
         snapshotsSubject.Dispose();
@@ -431,7 +431,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     {
         LiveSessionPresentationSnapshot? snapshotToPublish = null;
         LiveDisplayUpdate? displayUpdate = null;
-        var shouldQueueStatistics = false;
+        var shouldQueueAnalysis = false;
 
         lock (gate)
         {
@@ -444,7 +444,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             {
                 case LiveTravelBatchFrame travelBatchFrame:
                     displayUpdate = ApplyTravelBatchLocked(travelBatchFrame);
-                    shouldQueueStatistics = CanBuildStatisticsLocked();
+                    shouldQueueAnalysis = CanBuildAnalysisLocked();
                     if (CanSaveLocked() && !hasPublishedSaveableCapture)
                     {
                         hasPublishedSaveableCapture = true;
@@ -483,9 +483,9 @@ internal sealed class LiveSessionService : ILiveSessionService
             PublishSnapshot(snapshotToPublish);
         }
 
-        if (shouldQueueStatistics)
+        if (shouldQueueAnalysis)
         {
-            QueueStatisticsRecompute();
+            QueueAnalysisRecompute();
         }
     }
 
@@ -729,8 +729,8 @@ internal sealed class LiveSessionService : ILiveSessionService
         {
             lock (gate)
             {
-                graphBatchesCoalesced++;
-                graphSamplesDiscarded += (ulong)update.SampleCount;
+                signalBatchesCoalesced++;
+                signalSamplesDiscarded += (ulong)update.SampleCount;
                 lastClientPressureUtc = DateTimeOffset.UtcNow;
             }
         }
@@ -768,7 +768,7 @@ internal sealed class LiveSessionService : ILiveSessionService
                 switch (update)
                 {
                     case LiveDisplayUpdate.Travel travel:
-                        graphPipeline.AppendTravelSamples(travel.Times, travel.FrontTravel, travel.RearTravel);
+                        signalPipeline.AppendTravelSamples(travel.Times, travel.FrontTravel, travel.RearTravel);
                         break;
 
                     case LiveDisplayUpdate.Imu imu:
@@ -781,12 +781,12 @@ internal sealed class LiveSessionService : ILiveSessionService
 
                             var times = entry.Value as double[] ?? entry.Value.ToArray();
                             var vibrationValues = vibrationRms as double[] ?? vibrationRms.ToArray();
-                            graphPipeline.AppendImuSamples(entry.Key, times, vibrationValues);
+                            signalPipeline.AppendImuSamples(entry.Key, times, vibrationValues);
                         }
 
                         if (imu.FramePitchRoll is { } pitchRoll)
                         {
-                            graphPipeline.AppendFramePitchRollSamples(
+                            signalPipeline.AppendFramePitchRollSamples(
                                 pitchRoll.Times,
                                 pitchRoll.PitchDegrees,
                                 pitchRoll.RollDegrees);
@@ -800,37 +800,37 @@ internal sealed class LiveSessionService : ILiveSessionService
         }
     }
 
-    private void QueueStatisticsRecompute()
+    private void QueueAnalysisRecompute()
     {
         lock (gate)
         {
-            if (!CanBuildStatisticsLocked() || isDisposed)
+            if (!CanBuildAnalysisLocked() || isDisposed)
             {
                 return;
             }
 
-            if (IsStatisticsPressureQuietPeriodActiveLocked(DateTimeOffset.UtcNow))
+            if (IsAnalysisPressureQuietPeriodActiveLocked(DateTimeOffset.UtcNow))
             {
-                statisticsRecomputesSkipped++;
+                analysisRecomputesSkipped++;
                 return;
             }
 
             var nextRevision = captureRevision;
-            var activeRevision = Math.Max(latestStatisticsRevision, runningStatisticsRevision);
-            if (queuedStatisticsRevision > activeRevision && nextRevision > queuedStatisticsRevision)
+            var activeRevision = Math.Max(latestAnalysisRevision, runningAnalysisRevision);
+            if (queuedAnalysisRevision > activeRevision && nextRevision > queuedAnalysisRevision)
             {
-                statisticsRecomputesSkipped += (ulong)(nextRevision - queuedStatisticsRevision);
+                analysisRecomputesSkipped += (ulong)(nextRevision - queuedAnalysisRevision);
             }
 
-            queuedStatisticsRevision = nextRevision;
-            if (statisticsLoopTask is null || statisticsLoopTask.IsCompleted)
+            queuedAnalysisRevision = nextRevision;
+            if (analysisLoopTask is null || analysisLoopTask.IsCompleted)
             {
-                statisticsLoopTask = Task.Run(() => RunStatisticsLoopAsync(disposalCts.Token));
+                analysisLoopTask = Task.Run(() => RunAnalysisLoopAsync(disposalCts.Token));
             }
         }
     }
 
-    private async Task RunStatisticsLoopAsync(CancellationToken cancellationToken)
+    private async Task RunAnalysisLoopAsync(CancellationToken cancellationToken)
     {
         while (true)
         {
@@ -840,13 +840,13 @@ internal sealed class LiveSessionService : ILiveSessionService
 
             lock (gate)
             {
-                if (isDisposed || !CanBuildStatisticsLocked() || queuedStatisticsRevision <= latestStatisticsRevision)
+                if (isDisposed || !CanBuildAnalysisLocked() || queuedAnalysisRevision <= latestAnalysisRevision)
                 {
                     return;
                 }
 
                 var now = DateTimeOffset.UtcNow;
-                delay = nextStatisticsRunAt > now ? nextStatisticsRunAt - now : TimeSpan.Zero;
+                delay = nextAnalysisRunAt > now ? nextAnalysisRunAt - now : TimeSpan.Zero;
             }
 
             if (delay > TimeSpan.Zero)
@@ -863,15 +863,15 @@ internal sealed class LiveSessionService : ILiveSessionService
 
             lock (gate)
             {
-                if (isDisposed || !CanBuildStatisticsLocked() || queuedStatisticsRevision <= latestStatisticsRevision)
+                if (isDisposed || !CanBuildAnalysisLocked() || queuedAnalysisRevision <= latestAnalysisRevision)
                 {
                     return;
                 }
 
-                revision = queuedStatisticsRevision;
+                revision = queuedAnalysisRevision;
                 capture = CreateCaptureSnapshotLocked();
-                runningStatisticsRevision = revision;
-                nextStatisticsRunAt = DateTimeOffset.UtcNow.AddMilliseconds(PlotSettings.LiveStatisticsRefreshIntervalMs);
+                runningAnalysisRevision = revision;
+                nextAnalysisRunAt = DateTimeOffset.UtcNow.AddMilliseconds(PlotSettings.LiveAnalysisRefreshIntervalMs);
             }
 
             try
@@ -879,7 +879,7 @@ internal sealed class LiveSessionService : ILiveSessionService
                 var telemetryData = await backgroundTaskRunner.RunAsync(
                     () => TelemetryData.FromLiveCapture(BuildCapture(capture)),
                     cancellationToken);
-                var percentages = sessionPresentationService.CalculateDamperPercentages(
+                var percentages = sessionPresentationService.CalculateDampingPercentages(
                     telemetryData,
                     dampingSpeedCutoffs: context.DampingSpeedCutoffs);
 
@@ -892,20 +892,20 @@ internal sealed class LiveSessionService : ILiveSessionService
                         return;
                     }
 
-                    if (revision >= latestStatisticsRevision)
+                    if (revision >= latestAnalysisRevision)
                     {
-                        statisticsTelemetry = telemetryData;
-                        damperPercentages = percentages;
-                        latestStatisticsRevision = revision;
+                        analysisTelemetry = telemetryData;
+                        dampingPercentages = percentages;
+                        latestAnalysisRevision = revision;
                     }
 
-                    if (runningStatisticsRevision == revision)
+                    if (runningAnalysisRevision == revision)
                     {
-                        runningStatisticsRevision = -1;
+                        runningAnalysisRevision = -1;
                     }
 
                     snapshot = BuildSnapshotLocked();
-                    shouldContinue = queuedStatisticsRevision > revision;
+                    shouldContinue = queuedAnalysisRevision > revision;
                 }
 
                 PublishSnapshot(snapshot);
@@ -921,16 +921,16 @@ internal sealed class LiveSessionService : ILiveSessionService
             }
             catch (Exception ex)
             {
-                logger.Warning(ex, "Live session statistics recompute failed for {IdentityKey}", context.IdentityKey);
+                logger.Warning(ex, "Live session analysis recompute failed for {IdentityKey}", context.IdentityKey);
 
                 lock (gate)
                 {
-                    if (runningStatisticsRevision == revision)
+                    if (runningAnalysisRevision == revision)
                     {
-                        runningStatisticsRevision = -1;
+                        runningAnalysisRevision = -1;
                     }
 
-                    if (queuedStatisticsRevision <= revision)
+                    if (queuedAnalysisRevision <= revision)
                     {
                         return;
                     }
@@ -943,8 +943,8 @@ internal sealed class LiveSessionService : ILiveSessionService
     {
         return new LiveSessionPresentationSnapshot(
             Stream: BuildStreamPresentationLocked(),
-            StatisticsTelemetry: statisticsTelemetry,
-            DamperPercentages: damperPercentages,
+            AnalysisTelemetry: analysisTelemetry,
+            DampingPercentages: dampingPercentages,
             SessionTrackPoints: sessionTrackPoints,
             Controls: BuildControlsLocked(),
             CaptureRevision: captureRevision);
@@ -986,25 +986,25 @@ internal sealed class LiveSessionService : ILiveSessionService
             ClientDropCounters = sharedClientDropCounters.Add(
                 LiveDaqClientDropCounters.Empty with
                 {
-                    GraphBatchesCoalesced = graphBatchesCoalesced,
-                    GraphSamplesDiscarded = graphSamplesDiscarded,
-                    StatisticsRecomputesSkipped = statisticsRecomputesSkipped,
+                    SignalBatchesCoalesced = signalBatchesCoalesced,
+                    SignalSamplesDiscarded = signalSamplesDiscarded,
+                    AnalysisRecomputesSkipped = analysisRecomputesSkipped,
                 }),
         };
     }
 
-    private bool IsStatisticsPressureQuietPeriodActiveLocked(DateTimeOffset now)
+    private bool IsAnalysisPressureQuietPeriodActiveLocked(DateTimeOffset now)
     {
         return lastClientPressureUtc != DateTimeOffset.MinValue
-            && now - lastClientPressureUtc < StatisticsPressureQuietPeriod;
+            && now - lastClientPressureUtc < AnalysisPressureQuietPeriod;
     }
 
     private static ulong GetPressureDropTotal(LiveDaqClientDropCounters counters) =>
         counters.RawTelemetryFramesSkipped
         + counters.ParsedTelemetryFramesDropped
         + counters.SubscriberFramesDropped
-        + counters.GraphBatchesCoalesced
-        + counters.GraphSamplesDiscarded;
+        + counters.SignalBatchesCoalesced
+        + counters.SignalSamplesDiscarded;
 
     private LiveCaptureSnapshot CreateCaptureSnapshotLocked()
     {
@@ -1139,7 +1139,7 @@ internal sealed class LiveSessionService : ILiveSessionService
         return frontMeasurements.Count >= 5 || rearMeasurements.Count >= 5;
     }
 
-    private bool CanBuildStatisticsLocked()
+    private bool CanBuildAnalysisLocked()
     {
         return CanSaveLocked() && sessionHeader is not null && sessionHeader.AcceptedTravelHz > 0;
     }

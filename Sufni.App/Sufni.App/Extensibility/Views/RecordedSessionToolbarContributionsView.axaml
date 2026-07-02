@@ -15,24 +15,24 @@ mc:Ignorable="d">
     Name="RecordedSessionToolbarContributionsRoot"
     ColumnDefinitions="Auto,*,Auto">
         <CommandBar
-        Name="LeadingGraphToolbarCommandBar"
+        Name="LeadingSignalToolbarCommandBar"
         Grid.Column="0"
         Background="Transparent">
             <CommandBar.Content>
                 <StackPanel
-                Name="LeadingGraphToolbarViewsHost"
+                Name="LeadingSignalToolbarViewsHost"
                 Orientation="Horizontal"
                 Spacing="6" />
             </CommandBar.Content>
         </CommandBar>
 
         <CommandBar
-        Name="TrailingGraphToolbarCommandBar"
+        Name="TrailingSignalToolbarCommandBar"
         Grid.Column="2"
         Background="Transparent">
             <CommandBar.Content>
                 <StackPanel
-                Name="TrailingGraphToolbarViewsHost"
+                Name="TrailingSignalToolbarViewsHost"
                 Orientation="Horizontal"
                 Spacing="6" />
             </CommandBar.Content>

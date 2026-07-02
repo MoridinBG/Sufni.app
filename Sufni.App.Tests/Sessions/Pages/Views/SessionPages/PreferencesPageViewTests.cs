@@ -14,7 +14,7 @@ public class PreferencesPageViewTests
     public async Task PreferencesPageView_BindsPlotSelectionAndAvailability()
     {
         var viewModel = new PreferencesPageViewModel();
-        viewModel.ApplyPlotPreferences(new SessionPlotPreferences(
+        viewModel.ApplySignalDisplayPreferences(new SignalDisplayPreferences(
             Travel: false,
             Velocity: true,
             Imu: false,
@@ -27,7 +27,7 @@ public class PreferencesPageViewTests
             PitchRollSmoothing: PlotSmoothingLevel.Light,
             SpeedSmoothing: PlotSmoothingLevel.Strong,
             ElevationSmoothing: PlotSmoothingLevel.Light));
-        viewModel.ApplyPlotAvailability(
+        viewModel.ApplySignalAvailability(
             travelAvailable: true,
             velocityAvailable: false,
             imuAvailable: true,
@@ -37,8 +37,8 @@ public class PreferencesPageViewTests
 
         await using var mounted = await MountAsync(viewModel);
 
-        var travelCheckBox = mounted.View.FindControl<CheckBox>("TravelPlotCheckBox");
-        var travelSmoothingComboBox = mounted.View.FindControl<ComboBox>("TravelPlotSmoothingComboBox");
+        var travelCheckBox = mounted.View.FindControl<CheckBox>("TravelSignalCheckBox");
+        var travelSmoothingComboBox = mounted.View.FindControl<ComboBox>("TravelSignalSmoothingComboBox");
 
         Assert.NotNull(travelCheckBox);
         Assert.NotNull(travelSmoothingComboBox);
@@ -51,7 +51,7 @@ public class PreferencesPageViewTests
         travelSmoothingComboBox.SelectedValue = PlotSmoothingLevel.Strong;
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var preferences = viewModel.CreatePlotPreferences();
+        var preferences = viewModel.CreateSignalDisplayPreferences();
         Assert.True(preferences.Travel);
         Assert.Equal(PlotSmoothingLevel.Strong, preferences.TravelSmoothing);
     }

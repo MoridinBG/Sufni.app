@@ -122,7 +122,7 @@ public class AppPreferencesTests
     }
 
     [Fact]
-    public async Task SessionPreferences_UpdateRecorded_PersistsAllPlotVisibilityValues()
+    public async Task SessionPreferences_UpdateRecorded_PersistsAllSignalDisplayVisibilityValues()
     {
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
@@ -132,7 +132,7 @@ public class AppPreferencesTests
 
         await preferences.Session.UpdateRecordedAsync(sessionId, current => current with
         {
-            Plots = current.Plots with
+            SignalDisplay = current.SignalDisplay with
             {
                 Travel = false,
                 Velocity = true,
@@ -145,23 +145,28 @@ public class AppPreferencesTests
         var reloaded = new AppPreferences(preferencesPath);
         var stored = await reloaded.Session.GetRecordedAsync(sessionId);
 
-        Assert.False(stored.Plots.Travel);
-        Assert.True(stored.Plots.Velocity);
-        Assert.False(stored.Plots.Imu);
-        Assert.True(stored.Plots.Speed);
-        Assert.False(stored.Plots.Elevation);
+        Assert.False(stored.SignalDisplay.Travel);
+        Assert.True(stored.SignalDisplay.Velocity);
+        Assert.False(stored.SignalDisplay.Imu);
+        Assert.True(stored.SignalDisplay.Speed);
+        Assert.False(stored.SignalDisplay.Elevation);
 
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
-        var plots = json.RootElement
+        var session = json.RootElement
             .GetProperty("session")
             .GetProperty("sessions")
-            .GetProperty(sessionId.ToString("D"))
-            .GetProperty("plots");
-        Assert.False(plots.GetProperty("travel").GetBoolean());
-        Assert.True(plots.GetProperty("velocity").GetBoolean());
-        Assert.False(plots.GetProperty("imu").GetBoolean());
-        Assert.True(plots.GetProperty("speed").GetBoolean());
-        Assert.False(plots.GetProperty("elevation").GetBoolean());
+            .GetProperty(sessionId.ToString("D"));
+        AssertSignalDisplayValues(session.GetProperty("signalDisplay"));
+        AssertSignalDisplayValues(session.GetProperty("plots"));
+
+        static void AssertSignalDisplayValues(JsonElement signalDisplay)
+        {
+            Assert.False(signalDisplay.GetProperty("travel").GetBoolean());
+            Assert.True(signalDisplay.GetProperty("velocity").GetBoolean());
+            Assert.False(signalDisplay.GetProperty("imu").GetBoolean());
+            Assert.True(signalDisplay.GetProperty("speed").GetBoolean());
+            Assert.False(signalDisplay.GetProperty("elevation").GetBoolean());
+        }
     }
 
     [Fact]
@@ -176,25 +181,25 @@ public class AppPreferencesTests
 
         await preferences.Session.UpdateRecordedAsync(firstSessionId, current => current with
         {
-            Plots = current.Plots with { Imu = false },
+            SignalDisplay = current.SignalDisplay with { Imu = false },
         });
         await preferences.Session.UpdateRecordedAsync(secondSessionId, current => current with
         {
-            Statistics = current.Statistics with
+            Analysis = current.Analysis with
             {
-                TravelHistogramMode = TravelHistogramMode.DynamicSag,
-                SessionAnalysisTargetProfile = SessionAnalysisTargetProfile.Enduro,
+                TravelDistributionMode = TravelDistributionMode.DynamicSag,
+                SessionInsightsTargetProfile = SessionInsightsTargetProfile.Enduro,
             },
         });
 
         var first = await preferences.Session.GetRecordedAsync(firstSessionId);
         var second = await preferences.Session.GetRecordedAsync(secondSessionId);
 
-        Assert.False(first.Plots.Imu);
-        Assert.Equal(TravelHistogramMode.ActiveSuspension, first.Statistics.TravelHistogramMode);
-        Assert.True(second.Plots.Imu);
-        Assert.Equal(TravelHistogramMode.DynamicSag, second.Statistics.TravelHistogramMode);
-        Assert.Equal(SessionAnalysisTargetProfile.Enduro, second.Statistics.SessionAnalysisTargetProfile);
+        Assert.False(first.SignalDisplay.Imu);
+        Assert.Equal(TravelDistributionMode.ActiveSuspension, first.Analysis.TravelDistributionMode);
+        Assert.True(second.SignalDisplay.Imu);
+        Assert.Equal(TravelDistributionMode.DynamicSag, second.Analysis.TravelDistributionMode);
+        Assert.Equal(SessionInsightsTargetProfile.Enduro, second.Analysis.SessionInsightsTargetProfile);
 
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
         var sessions = json.RootElement.GetProperty("session").GetProperty("sessions");
@@ -202,7 +207,7 @@ public class AppPreferencesTests
     }
 
     [Fact]
-    public async Task SessionPreferences_UpdateRecorded_PersistsPlotSmoothingLevels()
+    public async Task SessionPreferences_UpdateRecorded_PersistsSignalSmoothingLevels()
     {
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
@@ -212,7 +217,7 @@ public class AppPreferencesTests
 
         await preferences.Session.UpdateRecordedAsync(sessionId, current => current with
         {
-            Plots = current.Plots with
+            SignalDisplay = current.SignalDisplay with
             {
                 TravelSmoothing = PlotSmoothingLevel.Light,
                 VelocitySmoothing = PlotSmoothingLevel.Strong,
@@ -225,23 +230,28 @@ public class AppPreferencesTests
         var reloaded = new AppPreferences(preferencesPath);
         var stored = await reloaded.Session.GetRecordedAsync(sessionId);
 
-        Assert.Equal(PlotSmoothingLevel.Light, stored.Plots.TravelSmoothing);
-        Assert.Equal(PlotSmoothingLevel.Strong, stored.Plots.VelocitySmoothing);
-        Assert.Equal(PlotSmoothingLevel.Off, stored.Plots.ImuSmoothing);
-        Assert.Equal(PlotSmoothingLevel.Light, stored.Plots.SpeedSmoothing);
-        Assert.Equal(PlotSmoothingLevel.Strong, stored.Plots.ElevationSmoothing);
+        Assert.Equal(PlotSmoothingLevel.Light, stored.SignalDisplay.TravelSmoothing);
+        Assert.Equal(PlotSmoothingLevel.Strong, stored.SignalDisplay.VelocitySmoothing);
+        Assert.Equal(PlotSmoothingLevel.Off, stored.SignalDisplay.ImuSmoothing);
+        Assert.Equal(PlotSmoothingLevel.Light, stored.SignalDisplay.SpeedSmoothing);
+        Assert.Equal(PlotSmoothingLevel.Strong, stored.SignalDisplay.ElevationSmoothing);
 
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
-        var plots = json.RootElement
+        var session = json.RootElement
             .GetProperty("session")
             .GetProperty("sessions")
-            .GetProperty(sessionId.ToString("D"))
-            .GetProperty("plots");
-        Assert.Equal("Light", plots.GetProperty("travelSmoothing").GetString());
-        Assert.Equal("Strong", plots.GetProperty("velocitySmoothing").GetString());
-        Assert.Equal("Off", plots.GetProperty("imuSmoothing").GetString());
-        Assert.Equal("Light", plots.GetProperty("speedSmoothing").GetString());
-        Assert.Equal("Strong", plots.GetProperty("elevationSmoothing").GetString());
+            .GetProperty(sessionId.ToString("D"));
+        AssertSmoothingValues(session.GetProperty("signalDisplay"));
+        AssertSmoothingValues(session.GetProperty("plots"));
+
+        static void AssertSmoothingValues(JsonElement signalDisplay)
+        {
+            Assert.Equal("Light", signalDisplay.GetProperty("travelSmoothing").GetString());
+            Assert.Equal("Strong", signalDisplay.GetProperty("velocitySmoothing").GetString());
+            Assert.Equal("Off", signalDisplay.GetProperty("imuSmoothing").GetString());
+            Assert.Equal("Light", signalDisplay.GetProperty("speedSmoothing").GetString());
+            Assert.Equal("Strong", signalDisplay.GetProperty("elevationSmoothing").GetString());
+        }
     }
 
     [Fact]
@@ -273,25 +283,25 @@ public class AppPreferencesTests
     }
 
     [Fact]
-    public async Task SessionPreferences_UpdateRecorded_PersistsGraphHierarchyAndExpansion()
+    public async Task SessionPreferences_UpdateRecorded_PersistsSignalLayoutHierarchyAndExpansion()
     {
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
         var sessionId = Guid.NewGuid();
-        var graph = new SessionGraphPreferences(
+        var signalLayout = new SignalLayoutPreferences(
         [
-            new SessionGraphRowPreferences(
-                TelemetryGraphRowIds.Imu,
+            new SignalLayoutRowPreferences(
+                SignalRowIds.Imu,
                 isExpanded: false,
                 children:
                 [
-                    new SessionGraphRowPreferences(TelemetryGraphRowIds.Velocity),
+                    new SignalLayoutRowPreferences(SignalRowIds.Velocity),
                 ]),
-            new SessionGraphRowPreferences(
-                TelemetryGraphRowIds.Travel,
+            new SignalLayoutRowPreferences(
+                SignalRowIds.Travel,
                 children:
                 [
-                    new SessionGraphRowPreferences(TelemetryGraphRowIds.Speed, isExpanded: false),
+                    new SignalLayoutRowPreferences(SignalRowIds.Speed, isExpanded: false),
                 ]),
         ]);
 
@@ -299,58 +309,60 @@ public class AppPreferencesTests
 
         await preferences.Session.UpdateRecordedAsync(sessionId, current => current with
         {
-            Graph = graph,
+            SignalLayout = signalLayout,
         });
 
         var reloaded = new AppPreferences(preferencesPath);
         var stored = await reloaded.Session.GetRecordedAsync(sessionId);
 
-        Assert.Equal(graph, stored.Graph);
+        Assert.Equal(signalLayout, stored.SignalLayout);
 
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
-        var rows = json.RootElement
+        var session = json.RootElement
             .GetProperty("session")
             .GetProperty("sessions")
-            .GetProperty(sessionId.ToString("D"))
-            .GetProperty("graph")
+            .GetProperty(sessionId.ToString("D"));
+        Assert.True(session.TryGetProperty("graph", out _));
+        var rows = session
+            .GetProperty("signalLayout")
             .GetProperty("rows");
 
-        Assert.Equal(TelemetryGraphRowIds.Imu, rows[0].GetProperty("rowId").GetString());
+        Assert.Equal(SignalRowIds.Imu, rows[0].GetProperty("rowId").GetString());
         Assert.False(rows[0].GetProperty("isExpanded").GetBoolean());
-        Assert.Equal(TelemetryGraphRowIds.Velocity, rows[0].GetProperty("children")[0].GetProperty("rowId").GetString());
-        Assert.Equal(TelemetryGraphRowIds.Travel, rows[1].GetProperty("rowId").GetString());
+        Assert.Equal(SignalRowIds.Velocity, rows[0].GetProperty("children")[0].GetProperty("rowId").GetString());
+        Assert.Equal(SignalRowIds.Travel, rows[1].GetProperty("rowId").GetString());
         Assert.False(rows[1].GetProperty("children")[0].GetProperty("isExpanded").GetBoolean());
     }
 
     [Fact]
-    public async Task SessionPreferences_UpdateRecorded_PersistsLayoutAndGraphPaneRatios()
+    public async Task SessionPreferences_UpdateRecorded_PersistsLayoutAndSignalPaneRatios()
     {
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
         var sessionId = Guid.NewGuid();
-        var graph = new SessionGraphPreferences(
+        var signalLayout = new SignalLayoutPreferences(
         [
-            new SessionGraphRowPreferences(
-                TelemetryGraphRowIds.Travel,
+            new SignalLayoutRowPreferences(
+                SignalRowIds.Travel,
                 heightRatio: 0.25),
-            new SessionGraphRowPreferences(
-                TelemetryGraphRowIds.Imu,
+            new SignalLayoutRowPreferences(
+                SignalRowIds.Imu,
                 heightRatio: 0.75),
         ]);
         var layout = new SessionLayoutPreferences(
             desktopShellRows: new SessionPaneGroupPreferences(
             [
-                new SessionPaneSizePreference(SessionLayoutPaneIds.GraphMediaArea, 0.6),
-                new SessionPaneSizePreference(SessionLayoutPaneIds.StatisticsSidebarArea, 0.4),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.SignalsMediaArea, 0.6),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.AnalysisSidebarArea, 0.4),
             ]),
-            desktopGraphMediaColumns: new SessionPaneGroupPreferences(
+            desktopSignalsMediaColumns: new SessionPaneGroupPreferences(
             [
-                new SessionPaneSizePreference(SessionLayoutPaneIds.Graph, 0.7),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Signals, 0.7),
                 new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.3, IsCollapsed: true),
             ]),
-            desktopStatisticsSidebarColumns: new SessionPaneGroupPreferences(
+            desktopAnalysisSidebarColumns: new SessionPaneGroupPreferences(
             [
-                new SessionPaneSizePreference(SessionLayoutPaneIds.Statistics, 0.65),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Analysis, 0.65),
                 new SessionPaneSizePreference(SessionLayoutPaneIds.Sidebar, 0.35),
             ]),
             desktopMediaRows: new SessionPaneGroupPreferences(
@@ -363,14 +375,14 @@ public class AppPreferencesTests
 
         await preferences.Session.UpdateRecordedAsync(sessionId, current => current with
         {
-            Graph = graph,
+            SignalLayout = signalLayout,
             Layout = layout,
         });
 
         var reloaded = new AppPreferences(preferencesPath);
         var stored = await reloaded.Session.GetRecordedAsync(sessionId);
 
-        Assert.Equal(graph, stored.Graph);
+        Assert.Equal(signalLayout, stored.SignalLayout);
         Assert.Equal(layout, stored.Layout);
 
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
@@ -379,18 +391,20 @@ public class AppPreferencesTests
             .GetProperty("sessions")
             .GetProperty(sessionId.ToString("D"));
 
-        Assert.Equal(0.25, session.GetProperty("graph").GetProperty("rows")[0].GetProperty("heightRatio").GetDouble());
+        Assert.True(session.TryGetProperty("graph", out _));
+        Assert.Equal(0.25, session.GetProperty("signalLayout").GetProperty("rows")[0].GetProperty("heightRatio").GetDouble());
         var layoutJson = session.GetProperty("layout");
+        Assert.True(layoutJson.TryGetProperty("desktopGraphMediaColumns", out _));
         Assert.Equal(
-            SessionLayoutPaneIds.Graph,
-            layoutJson.GetProperty("desktopGraphMediaColumns").GetProperty("panes")[0].GetProperty("paneId").GetString());
+            SessionLayoutPaneIds.LegacyGraph,
+            layoutJson.GetProperty("desktopSignalsMediaColumns").GetProperty("panes")[0].GetProperty("paneId").GetString());
         Assert.Equal(
             0.3,
-            layoutJson.GetProperty("desktopGraphMediaColumns").GetProperty("panes")[1].GetProperty("ratio").GetDouble());
+            layoutJson.GetProperty("desktopSignalsMediaColumns").GetProperty("panes")[1].GetProperty("ratio").GetDouble());
         Assert.True(
-            layoutJson.GetProperty("desktopGraphMediaColumns").GetProperty("panes")[1].GetProperty("isCollapsed").GetBoolean());
+            layoutJson.GetProperty("desktopSignalsMediaColumns").GetProperty("panes")[1].GetProperty("isCollapsed").GetBoolean());
         Assert.False(
-            layoutJson.GetProperty("desktopGraphMediaColumns").GetProperty("panes")[0].GetProperty("isCollapsed").GetBoolean());
+            layoutJson.GetProperty("desktopSignalsMediaColumns").GetProperty("panes")[0].GetProperty("isCollapsed").GetBoolean());
         Assert.Equal(
             SessionLayoutPaneIds.ExtensionMedia,
             layoutJson.GetProperty("desktopMediaRows").GetProperty("panes")[1].GetProperty("paneId").GetString());
@@ -415,7 +429,7 @@ public class AppPreferencesTests
                       "desktopGraphMediaColumns": {
                         "panes": [
                           {
-                            "paneId": "{{SessionLayoutPaneIds.Graph}}",
+                            "paneId": "{{SessionLayoutPaneIds.LegacyGraph}}",
                             "ratio": 0.7
                           },
                           {
@@ -434,8 +448,374 @@ public class AppPreferencesTests
 
         var stored = await preferences.Session.GetRecordedAsync(sessionId);
 
-        Assert.NotNull(stored.Layout.DesktopGraphMediaColumns);
-        Assert.All(stored.Layout.DesktopGraphMediaColumns!.Panes, pane => Assert.False(pane.IsCollapsed));
+        Assert.NotNull(stored.Layout.DesktopSignalsMediaColumns);
+        Assert.All(stored.Layout.DesktopSignalsMediaColumns!.Panes, pane => Assert.False(pane.IsCollapsed));
+    }
+
+    [Fact]
+    public async Task SessionPreferences_LoadsLegacyDocumentPreferenceKeys()
+    {
+        using var tempDirectory = new TempDirectory("sufni-preferences-test");
+        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
+        var sessionId = Guid.NewGuid();
+
+        await File.WriteAllTextAsync(
+            preferencesPath,
+            $$"""
+            {
+              "version": 1,
+              "session": {
+                "sessions": {
+                  "{{sessionId:D}}": {
+                    "plots": {
+                      "travel": false,
+                      "travelSmoothing": "Strong"
+                    },
+                    "statistics": {
+                      "travelHistogramMode": "DynamicSag",
+                      "sessionAnalysisTargetProfile": "Enduro"
+                    },
+                    "graph": {
+                      "rows": [
+                        {
+                          "rowId": "{{SignalRowIds.Travel}}",
+                          "isExpanded": false,
+                          "heightRatio": 0.4,
+                          "children": [
+                            {
+                              "rowId": "{{SignalRowIds.Velocity}}"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "layout": {
+                      "desktopGraphMediaColumns": {
+                        "panes": [
+                          {
+                            "paneId": "{{SessionLayoutPaneIds.LegacyGraph}}",
+                            "ratio": 0.7
+                          },
+                          {
+                            "paneId": "{{SessionLayoutPaneIds.Media}}",
+                            "ratio": 0.3
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        var preferences = new AppPreferences(preferencesPath);
+
+        var stored = await preferences.Session.GetRecordedAsync(sessionId);
+
+        Assert.False(stored.SignalDisplay.Travel);
+        Assert.Equal(PlotSmoothingLevel.Strong, stored.SignalDisplay.TravelSmoothing);
+        Assert.Equal(TravelDistributionMode.DynamicSag, stored.Analysis.TravelDistributionMode);
+        Assert.Equal(SessionInsightsTargetProfile.Enduro, stored.Analysis.SessionInsightsTargetProfile);
+        Assert.Equal(SignalRowIds.Travel, stored.SignalLayout.Rows[0].RowId);
+        Assert.False(stored.SignalLayout.Rows[0].IsExpanded);
+        Assert.Equal(0.4, stored.SignalLayout.Rows[0].HeightRatio);
+        Assert.Equal(SignalRowIds.Velocity, stored.SignalLayout.Rows[0].Children[0].RowId);
+        Assert.NotNull(stored.Layout.DesktopSignalsMediaColumns);
+        Assert.Equal(SessionLayoutPaneIds.Signals, stored.Layout.DesktopSignalsMediaColumns!.Panes[0].PaneId);
+    }
+
+    [Fact]
+    public async Task SessionPreferences_DocumentNewKeysWinOverLegacyKeys()
+    {
+        using var tempDirectory = new TempDirectory("sufni-preferences-test");
+        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
+        var sessionId = Guid.NewGuid();
+
+        await File.WriteAllTextAsync(
+            preferencesPath,
+            $$"""
+            {
+              "version": 2,
+              "session": {
+                "sessions": {
+                  "{{sessionId:D}}": {
+                    "plots": {
+                      "travel": true
+                    },
+                    "signalDisplay": {
+                      "travel": false
+                    },
+                    "statistics": {
+                      "travelHistogramMode": "DynamicSag",
+                      "sessionAnalysisTargetProfile": "Enduro"
+                    },
+                    "analysis": {
+                      "travelDistributionMode": "ActiveSuspension",
+                      "sessionInsightsTargetProfile": "DH"
+                    },
+                    "graph": {
+                      "rows": [
+                        {
+                          "rowId": "{{SignalRowIds.Imu}}"
+                        }
+                      ]
+                    },
+                    "signalLayout": {
+                      "rows": [
+                        {
+                          "rowId": "{{SignalRowIds.Speed}}"
+                        }
+                      ]
+                    },
+                    "layout": {
+                      "desktopGraphMediaColumns": {
+                        "panes": [
+                          {
+                            "paneId": "{{SessionLayoutPaneIds.LegacyGraph}}",
+                            "ratio": 0.2
+                          },
+                          {
+                            "paneId": "{{SessionLayoutPaneIds.Media}}",
+                            "ratio": 0.8
+                          }
+                        ]
+                      },
+                      "desktopSignalsMediaColumns": {
+                        "panes": [
+                          {
+                            "paneId": "{{SessionLayoutPaneIds.Signals}}",
+                            "ratio": 0.75
+                          },
+                          {
+                            "paneId": "{{SessionLayoutPaneIds.Media}}",
+                            "ratio": 0.25
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        var preferences = new AppPreferences(preferencesPath);
+
+        var stored = await preferences.Session.GetRecordedAsync(sessionId);
+
+        Assert.False(stored.SignalDisplay.Travel);
+        Assert.Equal(TravelDistributionMode.ActiveSuspension, stored.Analysis.TravelDistributionMode);
+        Assert.Equal(SessionInsightsTargetProfile.DH, stored.Analysis.SessionInsightsTargetProfile);
+        Assert.Equal(SignalRowIds.Speed, stored.SignalLayout.Rows[0].RowId);
+        Assert.NotNull(stored.Layout.DesktopSignalsMediaColumns);
+        Assert.Equal(0.75, stored.Layout.DesktopSignalsMediaColumns!.Panes[0].Ratio);
+    }
+
+    [Fact]
+    public async Task SessionPreferences_DocumentWritesNewOnlyKeysAfterVersionGate()
+    {
+        using var tempDirectory = new TempDirectory("sufni-preferences-test");
+        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
+        var sessionId = Guid.NewGuid();
+        var preferences = new AppPreferences(preferencesPath, AppPreferenceSerialization.NewPreferenceKeysVersion);
+
+        await preferences.Session.UpdateRecordedAsync(sessionId, current => current with
+        {
+            SignalDisplay = current.SignalDisplay with { Travel = false },
+            Analysis = current.Analysis with
+            {
+                TravelDistributionMode = TravelDistributionMode.DynamicSag,
+                SessionInsightsTargetProfile = SessionInsightsTargetProfile.Enduro,
+            },
+            SignalLayout = new SignalLayoutPreferences(
+            [
+                new SignalLayoutRowPreferences(SignalRowIds.Imu, isExpanded: false),
+            ]),
+            Layout = new SessionLayoutPreferences(
+                desktopSignalsMediaColumns: new SessionPaneGroupPreferences(
+                [
+                    new SessionPaneSizePreference(SessionLayoutPaneIds.Signals, 0.7),
+                    new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.3),
+                ])),
+        });
+
+        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+        Assert.Equal(AppPreferenceSerialization.NewPreferenceKeysVersion, json.RootElement.GetProperty("version").GetInt32());
+        var session = json.RootElement
+            .GetProperty("session")
+            .GetProperty("sessions")
+            .GetProperty(sessionId.ToString("D"));
+
+        Assert.False(session.TryGetProperty("plots", out _));
+        Assert.False(session.TryGetProperty("statistics", out _));
+        Assert.False(session.TryGetProperty("graph", out _));
+        Assert.True(session.TryGetProperty("signalDisplay", out _));
+        Assert.True(session.TryGetProperty("analysis", out var analysis));
+        Assert.True(session.TryGetProperty("signalLayout", out _));
+        Assert.False(analysis.TryGetProperty("travelHistogramMode", out _));
+        Assert.False(analysis.TryGetProperty("sessionAnalysisTargetProfile", out _));
+        Assert.Equal("DynamicSag", analysis.GetProperty("travelDistributionMode").GetString());
+        Assert.Equal("Enduro", analysis.GetProperty("sessionInsightsTargetProfile").GetString());
+
+        var layout = session.GetProperty("layout");
+        Assert.False(layout.TryGetProperty("desktopGraphMediaColumns", out _));
+        var panes = layout.GetProperty("desktopSignalsMediaColumns").GetProperty("panes");
+        Assert.Equal(SessionLayoutPaneIds.Signals, panes[0].GetProperty("paneId").GetString());
+    }
+
+    [Fact]
+    public void SessionPreferences_SyncModelDeserializesLegacyKeys()
+    {
+        const string json = """
+            {
+              "plots": {
+                "travel": false,
+                "travel_smoothing": "strong"
+              },
+              "statistics": {
+                "travel_histogram_mode": "dynamic_sag",
+                "session_analysis_target_profile": "enduro"
+              },
+              "graph": {
+                "rows": [
+                  {
+                    "row_id": "travel",
+                    "is_expanded": false
+                  }
+                ]
+              },
+              "layout": {
+                "desktop_graph_media_columns": {
+                  "panes": [
+                    {
+                      "pane_id": "graph",
+                      "ratio": 0.7
+                    },
+                    {
+                      "pane_id": "media",
+                      "ratio": 0.3
+                    }
+                  ]
+                }
+              }
+            }
+            """;
+
+        var preferences = JsonSerializer.Deserialize<SessionPreferences>(
+            json,
+            AppJson.CreatePreferenceOptionsForVersion(AppPreferenceSerialization.CurrentVersion));
+
+        Assert.NotNull(preferences);
+        Assert.False(preferences!.SignalDisplay.Travel);
+        Assert.Equal(PlotSmoothingLevel.Strong, preferences.SignalDisplay.TravelSmoothing);
+        Assert.Equal(TravelDistributionMode.DynamicSag, preferences.Analysis.TravelDistributionMode);
+        Assert.Equal(SessionInsightsTargetProfile.Enduro, preferences.Analysis.SessionInsightsTargetProfile);
+        Assert.Equal(SignalRowIds.Travel, preferences.SignalLayout.Rows[0].RowId);
+        Assert.False(preferences.SignalLayout.Rows[0].IsExpanded);
+        Assert.NotNull(preferences.Layout.DesktopSignalsMediaColumns);
+        Assert.Equal(SessionLayoutPaneIds.Signals, preferences.Layout.DesktopSignalsMediaColumns!.Panes[0].PaneId);
+    }
+
+    [Fact]
+    public void SessionPreferences_SyncModelDualWritesCompatibilityKeys()
+    {
+        var preferences = new SessionPreferences(
+            signalDisplay: new SignalDisplayPreferences(Travel: false, TravelSmoothing: PlotSmoothingLevel.Strong),
+            analysis: new AnalysisPreferences(
+                TravelDistributionMode.DynamicSag,
+                SessionInsightsTargetProfile: SessionInsightsTargetProfile.Enduro),
+            signalLayout: new SignalLayoutPreferences(
+            [
+                new SignalLayoutRowPreferences(SignalRowIds.Travel, isExpanded: false),
+            ]),
+            layout: new SessionLayoutPreferences(
+                desktopSignalsMediaColumns: new SessionPaneGroupPreferences(
+                [
+                    new SessionPaneSizePreference(SessionLayoutPaneIds.Signals, 0.7),
+                    new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.3),
+                ])));
+
+        using var json = JsonDocument.Parse(AppJson.Serialize(preferences));
+
+        Assert.True(json.RootElement.TryGetProperty("plots", out _));
+        Assert.True(json.RootElement.TryGetProperty("signal_display", out _));
+        Assert.True(json.RootElement.TryGetProperty("statistics", out var statistics));
+        Assert.True(json.RootElement.TryGetProperty("analysis", out var analysis));
+        Assert.True(json.RootElement.TryGetProperty("graph", out _));
+        Assert.True(json.RootElement.TryGetProperty("signal_layout", out _));
+        Assert.Equal("dynamic_sag", statistics.GetProperty("travel_histogram_mode").GetString());
+        Assert.Equal("dynamic_sag", analysis.GetProperty("travel_distribution_mode").GetString());
+        Assert.Equal("enduro", statistics.GetProperty("session_analysis_target_profile").GetString());
+        Assert.Equal("enduro", analysis.GetProperty("session_insights_target_profile").GetString());
+
+        var layout = json.RootElement.GetProperty("layout");
+        Assert.True(layout.TryGetProperty("desktop_graph_media_columns", out _));
+        var panes = layout.GetProperty("desktop_signals_media_columns").GetProperty("panes");
+        Assert.Equal(SessionLayoutPaneIds.LegacyGraph, panes[0].GetProperty("pane_id").GetString());
+    }
+
+    [Fact]
+    public void SessionPreferences_SyncModelWritesNewOnlyKeysAfterVersionGate()
+    {
+        var preferences = new SessionPreferences(
+            signalDisplay: new SignalDisplayPreferences(Travel: false),
+            analysis: new AnalysisPreferences(
+                TravelDistributionMode.DynamicSag,
+                SessionInsightsTargetProfile: SessionInsightsTargetProfile.Enduro),
+            signalLayout: new SignalLayoutPreferences(
+            [
+                new SignalLayoutRowPreferences(SignalRowIds.Imu),
+            ]),
+            layout: new SessionLayoutPreferences(
+                desktopSignalsMediaColumns: new SessionPaneGroupPreferences(
+                [
+                    new SessionPaneSizePreference(SessionLayoutPaneIds.Signals, 0.7),
+                    new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.3),
+                ])));
+
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(
+            preferences,
+            AppJson.CreatePreferenceOptionsForVersion(AppPreferenceSerialization.NewPreferenceKeysVersion)));
+
+        Assert.False(json.RootElement.TryGetProperty("plots", out _));
+        Assert.False(json.RootElement.TryGetProperty("statistics", out _));
+        Assert.False(json.RootElement.TryGetProperty("graph", out _));
+        Assert.True(json.RootElement.TryGetProperty("signal_display", out _));
+        Assert.True(json.RootElement.TryGetProperty("analysis", out var analysis));
+        Assert.True(json.RootElement.TryGetProperty("signal_layout", out _));
+        Assert.False(analysis.TryGetProperty("travel_histogram_mode", out _));
+        Assert.False(analysis.TryGetProperty("session_analysis_target_profile", out _));
+
+        var layout = json.RootElement.GetProperty("layout");
+        Assert.False(layout.TryGetProperty("desktop_graph_media_columns", out _));
+        var panes = layout.GetProperty("desktop_signals_media_columns").GetProperty("panes");
+        Assert.Equal(SessionLayoutPaneIds.Signals, panes[0].GetProperty("pane_id").GetString());
+    }
+
+    [Fact]
+    public void SignalRowIds_KeepPersistedStringValues()
+    {
+        Assert.Equal("travel", SignalRowIds.Travel);
+        Assert.Equal("velocity", SignalRowIds.Velocity);
+        Assert.Equal("imu", SignalRowIds.Imu);
+        Assert.Equal("pitch_roll", SignalRowIds.PitchRoll);
+        Assert.Equal("speed", SignalRowIds.Speed);
+        Assert.Equal("elevation", SignalRowIds.Elevation);
+    }
+
+    [Fact]
+    public void SessionPaneGroupPreferences_NormalizesLegacyPaneIdsAndPrefersNewDuplicates()
+    {
+        var preferences = new SessionPaneGroupPreferences(
+        [
+            new SessionPaneSizePreference(SessionLayoutPaneIds.LegacyGraph, 0.2),
+            new SessionPaneSizePreference(SessionLayoutPaneIds.Signals, 0.8, IsCollapsed: true),
+            new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.2),
+        ]);
+
+        Assert.Equal(2, preferences.Panes.Count);
+        Assert.Equal(SessionLayoutPaneIds.Signals, preferences.Panes[0].PaneId);
+        Assert.Equal(0.8, preferences.Panes[0].Ratio);
+        Assert.True(preferences.Panes[0].IsCollapsed);
     }
 
     [Fact]
@@ -450,14 +830,14 @@ public class AppPreferencesTests
         await Task.WhenAll(sessionIds.Select((sessionId, index) =>
             preferences.Session.UpdateRecordedAsync(sessionId, current => current with
             {
-                Plots = current.Plots with { Travel = index % 2 == 0 },
-                Statistics = current.Statistics with { VelocityAverageMode = VelocityAverageMode.StrokePeakAveraged },
+                SignalDisplay = current.SignalDisplay with { Travel = index % 2 == 0 },
+                Analysis = current.Analysis with { VelocityAverageMode = VelocityAverageMode.StrokePeakAveraged },
             })));
 
         foreach (var sessionId in sessionIds)
         {
             var stored = await preferences.Session.GetRecordedAsync(sessionId);
-            Assert.Equal(VelocityAverageMode.StrokePeakAveraged, stored.Statistics.VelocityAverageMode);
+            Assert.Equal(VelocityAverageMode.StrokePeakAveraged, stored.Analysis.VelocityAverageMode);
         }
 
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
@@ -480,11 +860,11 @@ public class AppPreferencesTests
 
         await preferences.Session.UpdateRecordedAsync(sessionId, current => current with
         {
-            Plots = current.Plots with { Travel = false },
+            SignalDisplay = current.SignalDisplay with { Travel = false },
         });
 
         var updated = await preferences.Session.GetRecordedAsync(sessionId);
-        Assert.False(updated.Plots.Travel);
+        Assert.False(updated.SignalDisplay.Travel);
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
         Assert.True(json.RootElement.TryGetProperty("session", out _));
     }
@@ -531,20 +911,20 @@ public class AppPreferencesTests
 
         var stored = await preferences.Session.GetRecordedAsync(sessionId);
 
-        Assert.False(stored.Plots.Travel);
-        Assert.True(stored.Plots.Velocity);
-        Assert.False(stored.Plots.Imu);
-        Assert.False(stored.Plots.Speed);
-        Assert.True(stored.Plots.Elevation);
-        Assert.Equal(PlotSmoothingLevel.Off, stored.Plots.TravelSmoothing);
-        Assert.Equal(PlotSmoothingLevel.Off, stored.Plots.VelocitySmoothing);
-        Assert.Equal(PlotSmoothingLevel.Off, stored.Plots.ImuSmoothing);
-        Assert.Equal(PlotSmoothingLevel.Off, stored.Plots.SpeedSmoothing);
-        Assert.Equal(PlotSmoothingLevel.Off, stored.Plots.ElevationSmoothing);
-        Assert.Equal(TravelHistogramMode.ActiveSuspension, stored.Statistics.TravelHistogramMode);
-        Assert.Equal(VelocityAverageMode.SampleAveraged, stored.Statistics.VelocityAverageMode);
-        Assert.Equal(BalanceDisplacementMode.Zenith, stored.Statistics.BalanceDisplacementMode);
-        Assert.Equal(SessionAnalysisTargetProfile.Trail, stored.Statistics.SessionAnalysisTargetProfile);
+        Assert.False(stored.SignalDisplay.Travel);
+        Assert.True(stored.SignalDisplay.Velocity);
+        Assert.False(stored.SignalDisplay.Imu);
+        Assert.False(stored.SignalDisplay.Speed);
+        Assert.True(stored.SignalDisplay.Elevation);
+        Assert.Equal(PlotSmoothingLevel.Off, stored.SignalDisplay.TravelSmoothing);
+        Assert.Equal(PlotSmoothingLevel.Off, stored.SignalDisplay.VelocitySmoothing);
+        Assert.Equal(PlotSmoothingLevel.Off, stored.SignalDisplay.ImuSmoothing);
+        Assert.Equal(PlotSmoothingLevel.Off, stored.SignalDisplay.SpeedSmoothing);
+        Assert.Equal(PlotSmoothingLevel.Off, stored.SignalDisplay.ElevationSmoothing);
+        Assert.Equal(TravelDistributionMode.ActiveSuspension, stored.Analysis.TravelDistributionMode);
+        Assert.Equal(VelocityAverageMode.SampleAveraged, stored.Analysis.VelocityAverageMode);
+        Assert.Equal(BalanceDisplacementMode.Zenith, stored.Analysis.BalanceDisplacementMode);
+        Assert.Equal(SessionInsightsTargetProfile.Trail, stored.Analysis.SessionInsightsTargetProfile);
     }
 
     [Fact]
@@ -570,7 +950,7 @@ public class AppPreferencesTests
         await preferences.Map.SetCustomLayersAsync([layer]);
         await preferences.Session.UpdateRecordedAsync(sessionId, current => current with
         {
-            Plots = current.Plots with { Velocity = false },
+            SignalDisplay = current.SignalDisplay with { Velocity = false },
         });
 
         var snapshot = await preferences.GetSyncDataAsync(0);
@@ -579,7 +959,7 @@ public class AppPreferencesTests
         Assert.True(snapshot!.Updated > 0);
         Assert.Equal(layer.Id, snapshot.Maps.SelectedLayerId);
         Assert.Single(snapshot.Maps.CustomLayers);
-        Assert.False(snapshot.Session.Sessions[sessionId].Plots.Velocity);
+        Assert.False(snapshot.Session.Sessions[sessionId].SignalDisplay.Velocity);
     }
 
     [Fact]
@@ -636,9 +1016,9 @@ public class AppPreferencesTests
                 {
                     [sessionId] = SessionPreferences.Default with
                     {
-                        Statistics = SessionPreferences.Default.Statistics with
+                        Analysis = SessionPreferences.Default.Analysis with
                         {
-                            TravelHistogramMode = TravelHistogramMode.DynamicSag,
+                            TravelDistributionMode = TravelDistributionMode.DynamicSag,
                         },
                     },
                 },
@@ -656,7 +1036,7 @@ public class AppPreferencesTests
 
         Assert.Equal(selectedLayerId, await preferences.Map.GetSelectedLayerIdAsync());
         var stored = await preferences.Session.GetRecordedAsync(sessionId);
-        Assert.Equal(TravelHistogramMode.DynamicSag, stored.Statistics.TravelHistogramMode);
+        Assert.Equal(TravelDistributionMode.DynamicSag, stored.Analysis.TravelDistributionMode);
     }
 
     [Fact]
@@ -727,9 +1107,9 @@ public class AppPreferencesTests
                 {
                     [sessionId] = SessionPreferences.Default with
                     {
-                        Statistics = SessionPreferences.Default.Statistics with
+                        Analysis = SessionPreferences.Default.Analysis with
                         {
-                            TravelHistogramMode = TravelHistogramMode.DynamicSag,
+                            TravelDistributionMode = TravelDistributionMode.DynamicSag,
                         },
                     },
                 },
@@ -737,7 +1117,7 @@ public class AppPreferencesTests
         });
 
         var observed = await next.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(TravelHistogramMode.DynamicSag, observed.Statistics.TravelHistogramMode);
+        Assert.Equal(TravelDistributionMode.DynamicSag, observed.Analysis.TravelDistributionMode);
     }
 
     [Fact]
@@ -755,7 +1135,7 @@ public class AppPreferencesTests
         await preferences.Session.UpdateRecordedAsync(sessionId, current =>
             current with
             {
-                Statistics = current.Statistics with { TravelHistogramMode = TravelHistogramMode.DynamicSag },
+                Analysis = current.Analysis with { TravelDistributionMode = TravelDistributionMode.DynamicSag },
             });
 
         Assert.Equal(0, emissions);
@@ -805,9 +1185,9 @@ public class AppPreferencesTests
 
         var stored = SessionPreferences.Default with
         {
-            Statistics = SessionPreferences.Default.Statistics with
+            Analysis = SessionPreferences.Default.Analysis with
             {
-                TravelHistogramMode = TravelHistogramMode.DynamicSag,
+                TravelDistributionMode = TravelDistributionMode.DynamicSag,
             },
         };
         await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
@@ -859,13 +1239,13 @@ public class AppPreferencesTests
                     {
                         [sessionId] = SessionPreferences.Default with
                         {
-                            Plots = SessionPreferences.Default.Plots with
+                            SignalDisplay = SessionPreferences.Default.SignalDisplay with
                             {
                                 TravelSmoothing = PlotSmoothingLevel.Strong,
                             },
-                            Graph = new SessionGraphPreferences(
+                            SignalLayout = new SignalLayoutPreferences(
                             [
-                                new SessionGraphRowPreferences(TelemetryGraphRowIds.Imu, isExpanded: false),
+                                new SignalLayoutRowPreferences(SignalRowIds.Imu, isExpanded: false),
                             ]),
                         },
                     },
@@ -878,41 +1258,41 @@ public class AppPreferencesTests
         Assert.NotNull(roundTripped?.AppPreferences);
         Assert.Equal(42, roundTripped!.AppPreferences!.Updated);
         Assert.Equal(selectedLayerId, roundTripped.AppPreferences.Maps.SelectedLayerId);
-        Assert.Equal(PlotSmoothingLevel.Strong, roundTripped.AppPreferences.Session.Sessions[sessionId].Plots.TravelSmoothing);
-        Assert.False(roundTripped.AppPreferences.Session.Sessions[sessionId].Graph.Rows[0].IsExpanded);
+        Assert.Equal(PlotSmoothingLevel.Strong, roundTripped.AppPreferences.Session.Sessions[sessionId].SignalDisplay.TravelSmoothing);
+        Assert.False(roundTripped.AppPreferences.Session.Sessions[sessionId].SignalLayout.Rows[0].IsExpanded);
     }
 
     private static void AssertDefaultSessionPreferences(SessionPreferences preferences)
     {
-        Assert.True(preferences.Plots.Travel);
-        Assert.True(preferences.Plots.Velocity);
-        Assert.True(preferences.Plots.Imu);
-        Assert.True(preferences.Plots.PitchRoll);
-        Assert.True(preferences.Plots.Speed);
-        Assert.True(preferences.Plots.Elevation);
-        Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.TravelSmoothing);
-        Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.VelocitySmoothing);
-        Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.ImuSmoothing);
-        Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.PitchRollSmoothing);
-        Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.SpeedSmoothing);
-        Assert.Equal(PlotSmoothingLevel.Off, preferences.Plots.ElevationSmoothing);
-        Assert.Equal(TravelHistogramMode.ActiveSuspension, preferences.Statistics.TravelHistogramMode);
-        Assert.Equal(VelocityAverageMode.SampleAveraged, preferences.Statistics.VelocityAverageMode);
-        Assert.Equal(BalanceDisplacementMode.Zenith, preferences.Statistics.BalanceDisplacementMode);
-        Assert.Equal(SessionAnalysisTargetProfile.Trail, preferences.Statistics.SessionAnalysisTargetProfile);
+        Assert.True(preferences.SignalDisplay.Travel);
+        Assert.True(preferences.SignalDisplay.Velocity);
+        Assert.True(preferences.SignalDisplay.Imu);
+        Assert.True(preferences.SignalDisplay.PitchRoll);
+        Assert.True(preferences.SignalDisplay.Speed);
+        Assert.True(preferences.SignalDisplay.Elevation);
+        Assert.Equal(PlotSmoothingLevel.Off, preferences.SignalDisplay.TravelSmoothing);
+        Assert.Equal(PlotSmoothingLevel.Off, preferences.SignalDisplay.VelocitySmoothing);
+        Assert.Equal(PlotSmoothingLevel.Off, preferences.SignalDisplay.ImuSmoothing);
+        Assert.Equal(PlotSmoothingLevel.Off, preferences.SignalDisplay.PitchRollSmoothing);
+        Assert.Equal(PlotSmoothingLevel.Off, preferences.SignalDisplay.SpeedSmoothing);
+        Assert.Equal(PlotSmoothingLevel.Off, preferences.SignalDisplay.ElevationSmoothing);
+        Assert.Equal(TravelDistributionMode.ActiveSuspension, preferences.Analysis.TravelDistributionMode);
+        Assert.Equal(VelocityAverageMode.SampleAveraged, preferences.Analysis.VelocityAverageMode);
+        Assert.Equal(BalanceDisplacementMode.Zenith, preferences.Analysis.BalanceDisplacementMode);
+        Assert.Equal(SessionInsightsTargetProfile.Trail, preferences.Analysis.SessionInsightsTargetProfile);
         Assert.Equal(
             TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds,
             preferences.Processing.VelocityFilterWindowMilliseconds);
         Assert.Equal(
-            [TelemetryGraphRowIds.Travel, TelemetryGraphRowIds.Imu, TelemetryGraphRowIds.Speed],
-            preferences.Graph.Rows.Select(row => row.RowId).ToArray());
-        Assert.Equal([TelemetryGraphRowIds.Velocity], preferences.Graph.Rows[0].Children.Select(row => row.RowId).ToArray());
-        Assert.Equal([TelemetryGraphRowIds.PitchRoll], preferences.Graph.Rows[1].Children.Select(row => row.RowId).ToArray());
-        Assert.Equal([TelemetryGraphRowIds.Elevation], preferences.Graph.Rows[2].Children.Select(row => row.RowId).ToArray());
-        Assert.All(preferences.Graph.Rows, row => Assert.True(row.IsExpanded));
+            [SignalRowIds.Travel, SignalRowIds.Imu, SignalRowIds.Speed],
+            preferences.SignalLayout.Rows.Select(row => row.RowId).ToArray());
+        Assert.Equal([SignalRowIds.Velocity], preferences.SignalLayout.Rows[0].Children.Select(row => row.RowId).ToArray());
+        Assert.Equal([SignalRowIds.PitchRoll], preferences.SignalLayout.Rows[1].Children.Select(row => row.RowId).ToArray());
+        Assert.Equal([SignalRowIds.Elevation], preferences.SignalLayout.Rows[2].Children.Select(row => row.RowId).ToArray());
+        Assert.All(preferences.SignalLayout.Rows, row => Assert.True(row.IsExpanded));
         Assert.Null(preferences.Layout.DesktopShellRows);
-        Assert.Null(preferences.Layout.DesktopGraphMediaColumns);
-        Assert.Null(preferences.Layout.DesktopStatisticsSidebarColumns);
+        Assert.Null(preferences.Layout.DesktopSignalsMediaColumns);
+        Assert.Null(preferences.Layout.DesktopAnalysisSidebarColumns);
         Assert.Null(preferences.Layout.DesktopMediaRows);
     }
 

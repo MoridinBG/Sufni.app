@@ -6,9 +6,9 @@ using Sufni.Telemetry;
 using Sufni.App.Infrastructure;
 namespace Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 
-public sealed record PlotSmoothingOption(PlotSmoothingLevel Value, string DisplayName);
+public sealed record SignalSmoothingOption(PlotSmoothingLevel Value, string DisplayName);
 
-public sealed partial class PlotPreferenceItemViewModel(string displayName) : ObservableObject
+public sealed partial class SignalPreferenceItemViewModel(string displayName) : ObservableObject
 {
     public string DisplayName { get; } = displayName;
 
@@ -21,13 +21,13 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
 {
     private int committedVelocityFilterWindowMilliseconds = TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds;
 
-    public PlotPreferenceItemViewModel TravelPlot { get; } = new("Travel");
-    public PlotPreferenceItemViewModel VelocityPlot { get; } = new("Velocity");
-    public PlotPreferenceItemViewModel ImuPlot { get; } = new("IMU");
-    public PlotPreferenceItemViewModel PitchRollPlot { get; } = new("Pitch/roll");
-    public PlotPreferenceItemViewModel SpeedPlot { get; } = new("Speed");
-    public PlotPreferenceItemViewModel ElevationPlot { get; } = new("Elevation");
-    public IReadOnlyList<PlotSmoothingOption> SmoothingOptions { get; } =
+    public SignalPreferenceItemViewModel TravelSignal { get; } = new("Travel");
+    public SignalPreferenceItemViewModel VelocitySignal { get; } = new("Velocity");
+    public SignalPreferenceItemViewModel ImuSignal { get; } = new("Vibration RMS");
+    public SignalPreferenceItemViewModel PitchRollSignal { get; } = new("Frame pitch/roll");
+    public SignalPreferenceItemViewModel SpeedSignal { get; } = new("GPS speed");
+    public SignalPreferenceItemViewModel ElevationSignal { get; } = new("Elevation");
+    public IReadOnlyList<SignalSmoothingOption> SmoothingOptions { get; } =
     [
         new(PlotSmoothingLevel.Off, "Off"),
         new(PlotSmoothingLevel.Light, "Light"),
@@ -69,21 +69,21 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
     {
     }
 
-    public SessionPlotPreferences CreatePlotPreferences()
+    public SignalDisplayPreferences CreateSignalDisplayPreferences()
     {
-        return new SessionPlotPreferences(
-            Travel: TravelPlot.Selected,
-            Velocity: VelocityPlot.Selected,
-            Imu: ImuPlot.Selected,
-            PitchRoll: PitchRollPlot.Selected,
-            TravelSmoothing: TravelPlot.SelectedSmoothing,
-            VelocitySmoothing: VelocityPlot.SelectedSmoothing,
-            ImuSmoothing: ImuPlot.SelectedSmoothing,
-            PitchRollSmoothing: PitchRollPlot.SelectedSmoothing,
-            Speed: SpeedPlot.Selected,
-            Elevation: ElevationPlot.Selected,
-            SpeedSmoothing: SpeedPlot.SelectedSmoothing,
-            ElevationSmoothing: ElevationPlot.SelectedSmoothing);
+        return new SignalDisplayPreferences(
+            Travel: TravelSignal.Selected,
+            Velocity: VelocitySignal.Selected,
+            Imu: ImuSignal.Selected,
+            PitchRoll: PitchRollSignal.Selected,
+            TravelSmoothing: TravelSignal.SelectedSmoothing,
+            VelocitySmoothing: VelocitySignal.SelectedSmoothing,
+            ImuSmoothing: ImuSignal.SelectedSmoothing,
+            PitchRollSmoothing: PitchRollSignal.SelectedSmoothing,
+            Speed: SpeedSignal.Selected,
+            Elevation: ElevationSignal.Selected,
+            SpeedSmoothing: SpeedSignal.SelectedSmoothing,
+            ElevationSmoothing: ElevationSignal.SelectedSmoothing);
     }
 
     public SessionProcessingPreferences CreateProcessingPreferences()
@@ -110,23 +110,23 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
         ProcessingPreferenceChangeCommitted?.Invoke(this, EventArgs.Empty);
     }
 
-    public void ApplyPlotPreferences(SessionPlotPreferences preferences)
+    public void ApplySignalDisplayPreferences(SignalDisplayPreferences preferences)
     {
-        TravelPlot.Selected = preferences.Travel;
-        VelocityPlot.Selected = preferences.Velocity;
-        ImuPlot.Selected = preferences.Imu;
-        PitchRollPlot.Selected = preferences.PitchRoll;
-        SpeedPlot.Selected = preferences.Speed;
-        ElevationPlot.Selected = preferences.Elevation;
-        TravelPlot.SelectedSmoothing = preferences.TravelSmoothing;
-        VelocityPlot.SelectedSmoothing = preferences.VelocitySmoothing;
-        ImuPlot.SelectedSmoothing = preferences.ImuSmoothing;
-        PitchRollPlot.SelectedSmoothing = preferences.PitchRollSmoothing;
-        SpeedPlot.SelectedSmoothing = preferences.SpeedSmoothing;
-        ElevationPlot.SelectedSmoothing = preferences.ElevationSmoothing;
+        TravelSignal.Selected = preferences.Travel;
+        VelocitySignal.Selected = preferences.Velocity;
+        ImuSignal.Selected = preferences.Imu;
+        PitchRollSignal.Selected = preferences.PitchRoll;
+        SpeedSignal.Selected = preferences.Speed;
+        ElevationSignal.Selected = preferences.Elevation;
+        TravelSignal.SelectedSmoothing = preferences.TravelSmoothing;
+        VelocitySignal.SelectedSmoothing = preferences.VelocitySmoothing;
+        ImuSignal.SelectedSmoothing = preferences.ImuSmoothing;
+        PitchRollSignal.SelectedSmoothing = preferences.PitchRollSmoothing;
+        SpeedSignal.SelectedSmoothing = preferences.SpeedSmoothing;
+        ElevationSignal.SelectedSmoothing = preferences.ElevationSmoothing;
     }
 
-    public void ApplyPlotAvailability(
+    public void ApplySignalAvailability(
         bool travelAvailable,
         bool velocityAvailable,
         bool imuAvailable,
@@ -134,11 +134,11 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
         bool speedAvailable,
         bool elevationAvailable)
     {
-        TravelPlot.Available = travelAvailable;
-        VelocityPlot.Available = velocityAvailable;
-        ImuPlot.Available = imuAvailable;
-        PitchRollPlot.Available = pitchRollAvailable;
-        SpeedPlot.Available = speedAvailable;
-        ElevationPlot.Available = elevationAvailable;
+        TravelSignal.Available = travelAvailable;
+        VelocitySignal.Available = velocityAvailable;
+        ImuSignal.Available = imuAvailable;
+        PitchRollSignal.Available = pitchRollAvailable;
+        SpeedSignal.Available = speedAvailable;
+        ElevationSignal.Available = elevationAvailable;
     }
 }

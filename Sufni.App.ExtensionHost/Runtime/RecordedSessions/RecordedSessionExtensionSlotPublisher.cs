@@ -8,60 +8,60 @@ namespace Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
 public sealed class RecordedSessionExtensionSlotBuilder
 {
-    public List<RecordedSessionToolbarCommandContribution> GraphToolbarCommands { get; } = [];
-    public List<RecordedSessionToolbarViewContribution> GraphToolbarViews { get; } = [];
+    public List<RecordedSessionToolbarCommandContribution> SignalToolbarCommands { get; } = [];
+    public List<RecordedSessionToolbarViewContribution> SignalToolbarViews { get; } = [];
     public List<RecordedSessionPageContribution> Pages { get; } = [];
     public List<RecordedSessionMediaPaneContribution> MediaPanes { get; } = [];
     public List<RecordedSessionMapOverlayContribution> MapOverlays { get; } = [];
-    public List<RecordedSessionStatisticsBannerContribution> StatisticsBanners { get; } = [];
-    public List<RecordedSessionStatisticsTabContribution> StatisticsTabs { get; } = [];
-    public List<RecordedSessionStatisticsOverlayContribution> StatisticsOverlays { get; } = [];
-    public List<RecordedSessionStatisticsMetricContribution> StatisticsMetrics { get; } = [];
+    public List<RecordedSessionAnalysisBannerContribution> AnalysisBanners { get; } = [];
+    public List<RecordedSessionAnalysisTabContribution> AnalysisTabs { get; } = [];
+    public List<RecordedSessionAnalysisOverlayContribution> AnalysisOverlays { get; } = [];
+    public List<RecordedSessionAnalysisMetricContribution> AnalysisMetrics { get; } = [];
     public List<RecordedSessionListIndicatorContribution> SessionListIndicators { get; } = [];
     public List<RecordedSessionListActionContribution> SessionListActions { get; } = [];
-    public List<RecordedSessionPlotContextMenuContribution> PlotContextMenuActions { get; } = [];
-    public List<RecordedSessionPlotRowActionContribution> PlotRowHeaderActions { get; } = [];
-    public List<RecordedSessionHostedGraphRowContribution> HostedGraphRows { get; } = [];
-    public List<RecordedSessionTimeRangeOverlayContribution> TimeRangeOverlays { get; } = [];
+    public List<RecordedSessionSignalPlotContextMenuContribution> SignalPlotContextMenuActions { get; } = [];
+    public List<RecordedSessionSignalRowActionContribution> SignalRowHeaderActions { get; } = [];
+    public List<RecordedSessionHostedSignalRowContribution> HostedSignalRows { get; } = [];
+    public List<RecordedSessionTimeRangeOverlayContribution> SignalTimeRangeOverlays { get; } = [];
 
     public void AddFrom(RecordedSessionExtensionSlots slots)
     {
         ArgumentNullException.ThrowIfNull(slots);
 
-        GraphToolbarCommands.AddRange(slots.GraphToolbarCommands);
-        GraphToolbarViews.AddRange(slots.GraphToolbarViews);
+        SignalToolbarCommands.AddRange(slots.SignalToolbarCommands);
+        SignalToolbarViews.AddRange(slots.SignalToolbarViews);
         Pages.AddRange(slots.Pages);
         MediaPanes.AddRange(slots.MediaPanes);
         MapOverlays.AddRange(slots.MapOverlays);
-        StatisticsBanners.AddRange(slots.StatisticsBanners);
-        StatisticsTabs.AddRange(slots.StatisticsTabs);
-        StatisticsOverlays.AddRange(slots.StatisticsOverlays);
-        StatisticsMetrics.AddRange(slots.StatisticsMetrics);
+        AnalysisBanners.AddRange(slots.AnalysisBanners);
+        AnalysisTabs.AddRange(slots.AnalysisTabs);
+        AnalysisOverlays.AddRange(slots.AnalysisOverlays);
+        AnalysisMetrics.AddRange(slots.AnalysisMetrics);
         SessionListIndicators.AddRange(slots.SessionListIndicators);
         SessionListActions.AddRange(slots.SessionListActions);
-        PlotContextMenuActions.AddRange(slots.PlotContextMenuActions);
-        PlotRowHeaderActions.AddRange(slots.PlotRowHeaderActions);
-        HostedGraphRows.AddRange(slots.HostedGraphRows);
-        TimeRangeOverlays.AddRange(slots.TimeRangeOverlays);
+        SignalPlotContextMenuActions.AddRange(slots.SignalPlotContextMenuActions);
+        SignalRowHeaderActions.AddRange(slots.SignalRowHeaderActions);
+        HostedSignalRows.AddRange(slots.HostedSignalRows);
+        SignalTimeRangeOverlays.AddRange(slots.SignalTimeRangeOverlays);
     }
 
     internal void PublishTo(RecordedSessionExtensionSlots slots)
     {
-        slots.GraphToolbarCommands.ReplaceWith(GraphToolbarCommands);
-        slots.GraphToolbarViews.ReplaceWith(GraphToolbarViews);
+        slots.SignalToolbarCommands.ReplaceWith(SignalToolbarCommands);
+        slots.SignalToolbarViews.ReplaceWith(SignalToolbarViews);
         slots.Pages.ReplaceWith(Pages);
         slots.MediaPanes.ReplaceWith(MediaPanes);
         slots.MapOverlays.ReplaceWith(MapOverlays);
-        slots.StatisticsBanners.ReplaceWith(StatisticsBanners);
-        slots.StatisticsTabs.ReplaceWith(StatisticsTabs);
-        slots.StatisticsOverlays.ReplaceWith(StatisticsOverlays);
-        slots.StatisticsMetrics.ReplaceWith(StatisticsMetrics);
+        slots.AnalysisBanners.ReplaceWith(AnalysisBanners);
+        slots.AnalysisTabs.ReplaceWith(AnalysisTabs);
+        slots.AnalysisOverlays.ReplaceWith(AnalysisOverlays);
+        slots.AnalysisMetrics.ReplaceWith(AnalysisMetrics);
         slots.SessionListIndicators.ReplaceWith(SessionListIndicators);
         slots.SessionListActions.ReplaceWith(SessionListActions);
-        slots.PlotContextMenuActions.ReplaceWith(PlotContextMenuActions);
-        slots.PlotRowHeaderActions.ReplaceWith(PlotRowHeaderActions);
-        slots.HostedGraphRows.ReplaceWith(HostedGraphRows);
-        slots.TimeRangeOverlays.ReplaceWith(TimeRangeOverlays);
+        slots.SignalPlotContextMenuActions.ReplaceWith(SignalPlotContextMenuActions);
+        slots.SignalRowHeaderActions.ReplaceWith(SignalRowHeaderActions);
+        slots.HostedSignalRows.ReplaceWith(HostedSignalRows);
+        slots.SignalTimeRangeOverlays.ReplaceWith(SignalTimeRangeOverlays);
     }
 }
 

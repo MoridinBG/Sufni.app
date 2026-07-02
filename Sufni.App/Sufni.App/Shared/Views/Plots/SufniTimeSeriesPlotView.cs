@@ -30,11 +30,11 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     private TelemetryPlot? plot;
     private bool hasPendingLoad;
     private bool isSelectingAnalysisRange;
-    private bool isGraphClickCandidate;
+    private bool isPlotClickCandidate;
     private bool isPlaybackStopClickCandidate;
-    private bool suppressGraphClickClear;
+    private bool suppressPlotClickClear;
     private bool suppressLegendTogglePointerRelease;
-    private Point graphClickStartPoint;
+    private Point plotClickStartPoint;
     private Point playbackStopClickStartPoint;
     private double selectionStartSeconds;
     private double selectionEndSeconds;
@@ -49,13 +49,13 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     protected override TelemetryPlot? TimelinePlot => plot;
     public bool IsPlotReady => plot is not null && HasPlotControl;
 
-    public static readonly StyledProperty<string?> PlotRowIdProperty =
-        AvaloniaProperty.Register<SufniTimeSeriesPlotView, string?>(nameof(PlotRowId));
+    public static readonly StyledProperty<string?> SignalRowIdProperty =
+        AvaloniaProperty.Register<SufniTimeSeriesPlotView, string?>(nameof(SignalRowId));
 
-    public string? PlotRowId
+    public string? SignalRowId
     {
-        get => GetValue(PlotRowIdProperty);
-        set => SetValue(PlotRowIdProperty, value);
+        get => GetValue(SignalRowIdProperty);
+        set => SetValue(SignalRowIdProperty, value);
     }
 
     public static readonly StyledProperty<PlotSmoothingLevel> SmoothingLevelProperty =
@@ -104,23 +104,23 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         set => SetValue(TimeRangeOverlaysProperty, value);
     }
 
-    public static readonly StyledProperty<IReadOnlyList<TelemetryHighlightRange>?> StatisticsSelectionHighlightRangesProperty =
+    public static readonly StyledProperty<IReadOnlyList<TelemetryHighlightRange>?> AnalysisSelectionHighlightRangesProperty =
         AvaloniaProperty.Register<SufniTimeSeriesPlotView, IReadOnlyList<TelemetryHighlightRange>?>(
-            nameof(StatisticsSelectionHighlightRanges));
+            nameof(AnalysisSelectionHighlightRanges));
 
-    public IReadOnlyList<TelemetryHighlightRange>? StatisticsSelectionHighlightRanges
+    public IReadOnlyList<TelemetryHighlightRange>? AnalysisSelectionHighlightRanges
     {
-        get => GetValue(StatisticsSelectionHighlightRangesProperty);
-        set => SetValue(StatisticsSelectionHighlightRangesProperty, value);
+        get => GetValue(AnalysisSelectionHighlightRangesProperty);
+        set => SetValue(AnalysisSelectionHighlightRangesProperty, value);
     }
 
-    public static readonly StyledProperty<bool> ShowStatisticsSelectionProperty =
-        AvaloniaProperty.Register<SufniTimeSeriesPlotView, bool>(nameof(ShowStatisticsSelection));
+    public static readonly StyledProperty<bool> ShowAnalysisSelectionProperty =
+        AvaloniaProperty.Register<SufniTimeSeriesPlotView, bool>(nameof(ShowAnalysisSelection));
 
-    public bool ShowStatisticsSelection
+    public bool ShowAnalysisSelection
     {
-        get => GetValue(ShowStatisticsSelectionProperty);
-        set => SetValue(ShowStatisticsSelectionProperty, value);
+        get => GetValue(ShowAnalysisSelectionProperty);
+        set => SetValue(ShowAnalysisSelectionProperty, value);
     }
 
     public static readonly StyledProperty<IReadOnlyList<TelemetryPlotContextMenuAction>?> AdditionalContextMenuActionsProperty =
@@ -133,13 +133,13 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         set => SetValue(AdditionalContextMenuActionsProperty, value);
     }
 
-    public static readonly StyledProperty<IRecordedSessionGraphWorkspace?> GraphWorkspaceProperty =
-        AvaloniaProperty.Register<SufniTimeSeriesPlotView, IRecordedSessionGraphWorkspace?>(nameof(GraphWorkspace));
+    public static readonly StyledProperty<IRecordedSessionSignalsWorkspace?> SignalsWorkspaceProperty =
+        AvaloniaProperty.Register<SufniTimeSeriesPlotView, IRecordedSessionSignalsWorkspace?>(nameof(SignalsWorkspace));
 
-    public IRecordedSessionGraphWorkspace? GraphWorkspace
+    public IRecordedSessionSignalsWorkspace? SignalsWorkspace
     {
-        get => GetValue(GraphWorkspaceProperty);
-        set => SetValue(GraphWorkspaceProperty, value);
+        get => GetValue(SignalsWorkspaceProperty);
+        set => SetValue(SignalsWorkspaceProperty, value);
     }
 
     public static readonly StyledProperty<TelemetrySourceVisibilityStore?> SourceVisibilityProperty =
@@ -169,12 +169,12 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                     ApplyAirtimeVisibility(refresh: true);
                     break;
 
-                case nameof(ShowStatisticsSelection):
-                    ApplyStatisticsSelectionVisibility(refresh: true);
+                case nameof(ShowAnalysisSelection):
+                    ApplyAnalysisSelectionVisibility(refresh: true);
                     break;
 
-                case nameof(StatisticsSelectionHighlightRanges):
-                    ApplyStatisticsSelectionRanges(refresh: true);
+                case nameof(AnalysisSelectionHighlightRanges):
+                    ApplyAnalysisSelectionRanges(refresh: true);
                     break;
 
                 case nameof(PlotFigureBackground):
@@ -317,7 +317,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
                 UpdateCursor(args);
 
-                var workspace = GraphWorkspace;
+                var workspace = SignalsWorkspace;
                 if (!IsPrimaryPointerPressed(args) || workspace is null || TimelineDurationSeconds is not > 0)
                 {
                     return;
@@ -327,15 +327,15 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                 if (UsesMobileAnalysisRangeGestures())
                 {
                     StartMobileAnalysisRangeLongPress(args, point);
-                    isGraphClickCandidate = true;
-                    graphClickStartPoint = point;
+                    isPlotClickCandidate = true;
+                    plotClickStartPoint = point;
                     return;
                 }
 
                 if (args.KeyModifiers.HasFlag(KeyModifiers.Shift))
                 {
                     isSelectingAnalysisRange = true;
-                    isGraphClickCandidate = false;
+                    isPlotClickCandidate = false;
                     selectionStartSeconds = GetClampedTimeSeconds(args);
                     selectionEndSeconds = selectionStartSeconds;
                     SetPreviewRange(selectionStartSeconds, selectionEndSeconds);
@@ -349,13 +349,13 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                 if (TryGetHitMarkerSeconds(args, out var markerSeconds))
                 {
                     workspace.SetAnalysisRangeBoundary(markerSeconds);
-                    isGraphClickCandidate = false;
+                    isPlotClickCandidate = false;
                     args.Handled = true;
                     return;
                 }
 
-                isGraphClickCandidate = true;
-                graphClickStartPoint = point;
+                isPlotClickCandidate = true;
+                plotClickStartPoint = point;
             },
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
@@ -377,10 +377,10 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                 return;
             }
 
-            if (isGraphClickCandidate && HasExceededClickMovement(args))
+            if (isPlotClickCandidate && HasExceededClickMovement(args))
             {
                 CancelMobileAnalysisRangeLongPress();
-                isGraphClickCandidate = false;
+                isPlotClickCandidate = false;
             }
         };
         PlotControl.PointerExited += (_, _) => HideCursorReadout();
@@ -415,17 +415,17 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                     return;
                 }
 
-                if (isGraphClickCandidate && !HasExceededClickMovement(args))
+                if (isPlotClickCandidate && !HasExceededClickMovement(args))
                 {
-                    if (!suppressGraphClickClear)
+                    if (!suppressPlotClickClear)
                     {
-                        GraphWorkspace?.ClearAnalysisRange();
+                        SignalsWorkspace?.ClearAnalysisRange();
                     }
                 }
 
                 CancelMobileAnalysisRangeLongPress();
-                suppressGraphClickClear = false;
-                isGraphClickCandidate = false;
+                suppressPlotClickClear = false;
+                isPlotClickCandidate = false;
                 UpdateTimelineRange();
             },
             RoutingStrategies.Tunnel,
@@ -440,9 +440,9 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                 UpdateTimelineRange();
             }
 
-            isGraphClickCandidate = false;
+            isPlotClickCandidate = false;
             isPlaybackStopClickCandidate = false;
-            suppressGraphClickClear = false;
+            suppressPlotClickClear = false;
             CancelMobileAnalysisRangeLongPress();
             PlotControl.Cursor = Cursor.Default;
             SetPreviewRange(null, null);
@@ -577,38 +577,38 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         }
     }
 
-    private void ApplyStatisticsSelectionVisibility(bool refresh)
+    private void ApplyAnalysisSelectionVisibility(bool refresh)
     {
         if (plot is not RecordedTimeSeriesPlot recordedPlot || !HasPlotControl)
         {
             return;
         }
 
-        recordedPlot.SetRangeOverlayVisibility(RecordedTimeRangeOverlayIds.StatisticsSelection, ShowStatisticsSelection);
+        recordedPlot.SetRangeOverlayVisibility(RecordedTimeRangeOverlayIds.StatisticsSelection, ShowAnalysisSelection);
         if (refresh)
         {
             RefreshPlot();
         }
     }
 
-    private void ApplyStatisticsSelectionRanges(bool refresh)
+    private void ApplyAnalysisSelectionRanges(bool refresh)
     {
         if (plot is not RecordedTimeSeriesPlot recordedPlot || !IsPlotReady)
         {
             return;
         }
 
-        var ranges = StatisticsSelectionHighlightRanges ?? [];
+        var ranges = AnalysisSelectionHighlightRanges ?? [];
         if (ranges.Count == 0)
         {
             recordedPlot.ClearRangeOverlaySet(RecordedTimeRangeOverlayIds.StatisticsSelection);
         }
         else
         {
-            var registration = RecordedTimeRangeOverlayFactory.CreateStatisticsSelectionRegistration(
+            var registration = RecordedTimeRangeOverlayFactory.CreateAnalysisSelectionRegistration(
                 ranges,
                 CurrentTheme.Plot,
-                ShowStatisticsSelection);
+                ShowAnalysisSelection);
             recordedPlot.SetRangeOverlaySet(registration.Id, registration.Set);
             recordedPlot.SetRangeOverlayVisibility(registration.Id, registration.IsVisible);
         }
@@ -643,7 +643,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     private void StartMobileAnalysisRangeLongPress(PointerEventArgs args, Point startPoint)
     {
         CancelMobileAnalysisRangeLongPress();
-        suppressGraphClickClear = false;
+        suppressPlotClickClear = false;
         mobileAnalysisRangeLongPressStartPoint = startPoint;
         mobileAnalysisRangeLongPressSeconds = GetClampedTimeSeconds(args);
         mobileAnalysisRangeLongPress = ScheduleMobileAnalysisRangeLongPress(CompleteMobileAnalysisRangeLongPress);
@@ -669,8 +669,8 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private TelemetryPlotContextMenuContext? TryCreateContextMenuContext(ScottPlotPixel pixel)
     {
-        if (string.IsNullOrWhiteSpace(PlotRowId) ||
-            GraphWorkspace is null ||
+        if (string.IsNullOrWhiteSpace(SignalRowId) ||
+            SignalsWorkspace is null ||
             !IsPlotReady ||
             TimelineDurationSeconds is not { } duration ||
             !double.IsFinite(duration) ||
@@ -686,12 +686,12 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             return null;
         }
 
-        return new TelemetryPlotContextMenuContext(PlotRowId, seconds, duration, AnalysisRange);
+        return new TelemetryPlotContextMenuContext(SignalRowId, seconds, duration, AnalysisRange);
     }
 
     private IReadOnlyList<TelemetryPlotContextMenuAction> GetContextMenuActions(TelemetryPlotContextMenuContext context)
     {
-        var workspaceActions = GraphWorkspace?.PlotContextMenuActionsByRowId.TryGetValue(context.RowId, out var actions) == true
+        var workspaceActions = SignalsWorkspace?.SignalPlotContextMenuActionsBySignalRowId.TryGetValue(context.RowId, out var actions) == true
             ? actions
             : [];
         return AdditionalContextMenuActions is { Count: > 0 } additionalActions
@@ -731,8 +731,8 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         }
 
         CancelMobileAnalysisRangeLongPress();
-        isGraphClickCandidate = false;
-        suppressGraphClickClear = true;
+        isPlotClickCandidate = false;
+        suppressPlotClickClear = true;
         if (PlotControl.Menu is not { } menu)
         {
             return false;
@@ -781,8 +781,8 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
         CancelMobileAnalysisRangeLongPress();
         isSelectingAnalysisRange = false;
-        isGraphClickCandidate = false;
-        suppressGraphClickClear = false;
+        isPlotClickCandidate = false;
+        suppressPlotClickClear = false;
         suppressLegendTogglePointerRelease = true;
         PlotControl.Cursor = Cursor.Default;
         SetPreviewRange(null, null);
@@ -796,7 +796,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     private void CompleteMobileAnalysisRangeLongPress()
     {
         CancelMobileAnalysisRangeLongPress();
-        if (GraphWorkspace is null ||
+        if (SignalsWorkspace is null ||
             TimelineDurationSeconds is not { } duration ||
             duration <= 0 ||
             !IsPlotReady)
@@ -812,10 +812,10 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             return;
         }
 
-        GraphWorkspace.SetAnalysisRangeBoundary(mobileAnalysisRangeLongPressSeconds);
+        SignalsWorkspace.SetAnalysisRangeBoundary(mobileAnalysisRangeLongPressSeconds);
         RaiseEvent(new RoutedEventArgs(HapticFeedbackBehavior.LongPressFeedbackRequestedEvent));
-        suppressGraphClickClear = true;
-        isGraphClickCandidate = false;
+        suppressPlotClickClear = true;
+        isPlotClickCandidate = false;
         RefreshPlot();
     }
 
@@ -871,7 +871,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         var point = args.GetPosition(PlotControl);
         var startPoint = mobileAnalysisRangeLongPress is not null
             ? mobileAnalysisRangeLongPressStartPoint
-            : graphClickStartPoint;
+            : plotClickStartPoint;
         var delta = point - startPoint;
         return Math.Abs(delta.X) > ClickMovementThresholdPixels ||
                Math.Abs(delta.Y) > ClickMovementThresholdPixels;
@@ -883,7 +883,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         PlotControl.Cursor = Cursor.Default;
         SetPreviewRange(null, null);
 
-        if (GraphWorkspace is null || TimelineDurationSeconds is not { } duration || duration <= 0)
+        if (SignalsWorkspace is null || TimelineDurationSeconds is not { } duration || duration <= 0)
         {
             return;
         }
@@ -894,7 +894,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                 duration,
                 out var range))
         {
-            GraphWorkspace.SetAnalysisRange(range.StartSeconds, range.EndSeconds);
+            SignalsWorkspace.SetAnalysisRange(range.StartSeconds, range.EndSeconds);
         }
 
         RefreshPlot();
@@ -947,8 +947,8 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         }
 
         ApplyTimeRangeOverlays(refresh: false);
-        ApplyStatisticsSelectionRanges(refresh: false);
-        ApplyStatisticsSelectionVisibility(refresh: false);
+        ApplyAnalysisSelectionRanges(refresh: false);
+        ApplyAnalysisSelectionVisibility(refresh: false);
         ApplyAirtimeVisibility(refresh: false);
     }
 

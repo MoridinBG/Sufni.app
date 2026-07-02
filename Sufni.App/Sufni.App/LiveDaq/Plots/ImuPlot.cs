@@ -69,7 +69,7 @@ public class ImuPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPl
                 RecordedTimeRangeOverlayFactory.CreateAirtimeRegistration(telemetryData.Airtimes, PlotTheme),
             ],
             EnableInteractiveLegend: true,
-            InteractiveLegendRowId: TelemetryGraphRowIds.Imu));
+            InteractiveLegendRowId: SignalRowIds.Imu));
     }
 
     private void ShowEmptyState(double durationSeconds)

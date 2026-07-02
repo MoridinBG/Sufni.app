@@ -3,7 +3,7 @@ x:Class="Sufni.App.Sessions.Pages.Views.SessionPages.BalancePageView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:views="clr-namespace:Sufni.App.Extensibility.Views"
-xmlns:controls="clr-namespace:Sufni.App.Sessions.Statistics.Views.Controls"
+xmlns:controls="clr-namespace:Sufni.App.Sessions.Analysis.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:vm="clr-namespace:Sufni.App.Sessions.Pages.ViewModels.SessionPages"
@@ -19,17 +19,17 @@ mc:Ignorable="d">
     HorizontalScrollBarVisibility="Disabled"
     IsScrollChainingEnabled="False">
         <StackPanel
-        Name="MobileBalanceStatisticsContent"
+        Name="MobileBalanceAnalysisContent"
         Width="{Binding #PageScrollViewer.Bounds.Width}"
         ClipToBounds="True"
         Orientation="Vertical"
         Spacing="8">
-            <views:RecordedSessionStatisticsContributionsView ExtensionSlots="{Binding StatisticsWorkspace.ExtensionSlots}" />
+            <views:RecordedSessionAnalysisContributionsView ExtensionSlots="{Binding AnalysisWorkspace.ExtensionSlots}" />
 
             <StackPanel
             Name="MobileBalanceModeRadioButtons"
             Margin="0,8,0,0"
-            IsVisible="{Binding HasDynamicStatistics}"
+            IsVisible="{Binding HasAnalysisData}"
             Spacing="4">
                 <StackPanel
                 Name="MobileBalanceDisplacementModeRadioButtons"
@@ -80,41 +80,41 @@ mc:Ignorable="d">
                 </StackPanel>
             </StackPanel>
 
-            <controls:BalanceStatisticsHost
-            AnalysisRange="{Binding StatisticsWorkspace.AnalysisRange}"
-            BalanceDisplacementMode="{Binding StatisticsWorkspace.SelectedBalanceDisplacementMode}"
-            BalanceSpeedMode="{Binding StatisticsWorkspace.SelectedBalanceSpeedMode}"
+            <controls:BalanceAnalysisHost
+            AnalysisRange="{Binding AnalysisWorkspace.AnalysisRange}"
+            BalanceDisplacementMode="{Binding AnalysisWorkspace.SelectedBalanceDisplacementMode}"
+            BalanceSpeedMode="{Binding AnalysisWorkspace.SelectedBalanceSpeedMode}"
             BalanceType="Compression"
-            DampingSpeedCutoffs="{Binding StatisticsWorkspace.DampingSpeedCutoffs}"
-            ExtensionSlots="{Binding StatisticsWorkspace.ExtensionSlots}"
-            HasDynamicStatistics="{Binding HasDynamicStatistics}"
+            DampingSpeedCutoffs="{Binding AnalysisWorkspace.DampingSpeedCutoffs}"
+            ExtensionSlots="{Binding AnalysisWorkspace.ExtensionSlots}"
+            HasAnalysisData="{Binding HasAnalysisData}"
             MinCardHeight="220"
             PlaceholderMargin="0,0,0,12"
             PlotName="CompressionBalancePlot"
             PlotHeight="380"
-            PlotDampingSpeedCutoffs="{Binding StatisticsWorkspace.PlotDampingSpeedCutoffs}"
+            PlotDampingSpeedCutoffs="{Binding AnalysisWorkspace.PlotDampingSpeedCutoffs}"
             PresentationState="{Binding CompressionPresentationState}"
             StaticSource="{Binding CompressionBalance}"
             StaticSourceName="CompressionBalanceSvg"
-            Telemetry="{Binding StatisticsWorkspace.TelemetryData}"
+            Telemetry="{Binding AnalysisWorkspace.TelemetryData}"
             Title="Compression balance" />
 
-            <controls:BalanceStatisticsHost
-            AnalysisRange="{Binding StatisticsWorkspace.AnalysisRange}"
-            BalanceDisplacementMode="{Binding StatisticsWorkspace.SelectedBalanceDisplacementMode}"
-            BalanceSpeedMode="{Binding StatisticsWorkspace.SelectedBalanceSpeedMode}"
+            <controls:BalanceAnalysisHost
+            AnalysisRange="{Binding AnalysisWorkspace.AnalysisRange}"
+            BalanceDisplacementMode="{Binding AnalysisWorkspace.SelectedBalanceDisplacementMode}"
+            BalanceSpeedMode="{Binding AnalysisWorkspace.SelectedBalanceSpeedMode}"
             BalanceType="Rebound"
-            DampingSpeedCutoffs="{Binding StatisticsWorkspace.DampingSpeedCutoffs}"
-            ExtensionSlots="{Binding StatisticsWorkspace.ExtensionSlots}"
-            HasDynamicStatistics="{Binding HasDynamicStatistics}"
+            DampingSpeedCutoffs="{Binding AnalysisWorkspace.DampingSpeedCutoffs}"
+            ExtensionSlots="{Binding AnalysisWorkspace.ExtensionSlots}"
+            HasAnalysisData="{Binding HasAnalysisData}"
             MinCardHeight="220"
             PlotName="ReboundBalancePlot"
             PlotHeight="380"
-            PlotDampingSpeedCutoffs="{Binding StatisticsWorkspace.PlotDampingSpeedCutoffs}"
+            PlotDampingSpeedCutoffs="{Binding AnalysisWorkspace.PlotDampingSpeedCutoffs}"
             PresentationState="{Binding ReboundPresentationState}"
             StaticSource="{Binding ReboundBalance}"
             StaticSourceName="ReboundBalanceSvg"
-            Telemetry="{Binding StatisticsWorkspace.TelemetryData}"
+            Telemetry="{Binding AnalysisWorkspace.TelemetryData}"
             Title="Rebound balance" />
         </StackPanel>
     </ScrollViewer>

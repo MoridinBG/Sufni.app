@@ -4,9 +4,9 @@ namespace Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 
 public sealed class VibrationPageViewModel : PageViewModelBase
 {
-    public ISessionStatisticsWorkspace Workspace { get; }
+    public ISessionAnalysisWorkspace Workspace { get; }
 
-    public VibrationPageViewModel(ISessionStatisticsWorkspace workspace)
+    public VibrationPageViewModel(ISessionAnalysisWorkspace workspace)
         : base("Vibration")
     {
         Workspace = workspace;

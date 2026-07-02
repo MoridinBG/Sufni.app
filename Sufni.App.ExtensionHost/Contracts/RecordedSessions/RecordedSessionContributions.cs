@@ -85,29 +85,29 @@ public sealed record RecordedSessionMapPointStyle(
     double StrokeWidth = 1.0,
     double Opacity = 1.0);
 
-public sealed record RecordedSessionStatisticsBannerContribution(
+public sealed record RecordedSessionAnalysisBannerContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
-    IRecordedSessionStatisticsBannerContributionViewModel ViewModel) : IRecordedSessionContribution;
+    IRecordedSessionAnalysisBannerContributionViewModel ViewModel) : IRecordedSessionContribution;
 
-public sealed record RecordedSessionStatisticsTabContribution(
+public sealed record RecordedSessionAnalysisTabContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
     string DisplayName,
     int RequestedIndex,
-    IRecordedSessionStatisticsTabContributionViewModel ViewModel) : IRecordedSessionContribution;
+    IRecordedSessionAnalysisTabContributionViewModel ViewModel) : IRecordedSessionContribution;
 
-public sealed record RecordedSessionStatisticsOverlayContribution(
+public sealed record RecordedSessionAnalysisOverlayContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
-    RecordedSessionStatisticsPlotTarget TargetPlot,
-    IRecordedSessionStatisticsOverlayContributionViewModel? ViewModel,
-    RecordedSessionStatisticsPlotOverlayDescriptor? Overlay) : IRecordedSessionContribution;
+    RecordedSessionAnalysisPlotTarget TargetPlot,
+    IRecordedSessionAnalysisOverlayContributionViewModel? ViewModel,
+    RecordedSessionAnalysisPlotOverlayDescriptor? Overlay) : IRecordedSessionContribution;
 
-public sealed record RecordedSessionStatisticsPlotOverlayDescriptor(
+public sealed record RecordedSessionAnalysisPlotOverlayDescriptor(
     IReadOnlyList<RecordedSessionPlotLineOverlay> Lines,
     IReadOnlyList<RecordedSessionPlotBandOverlay> Bands,
     IReadOnlyList<RecordedSessionPlotLabelOverlay> Labels);
@@ -166,11 +166,11 @@ public sealed record RecordedSessionPlotOverlayStyle(
     double Width = 1.0,
     double Opacity = 1.0);
 
-public sealed record RecordedSessionStatisticsMetricContribution(
+public sealed record RecordedSessionAnalysisMetricContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
-    RecordedSessionStatisticsMetricTarget TargetMetric,
+    RecordedSessionAnalysisMetricTarget TargetMetric,
     string DisplayValue,
     string? DeltaValue,
     RecordedSessionMetricTone Tone) : IRecordedSessionContribution
@@ -189,7 +189,7 @@ public enum RecordedSessionMetricTone
     Accent,
 }
 
-public enum RecordedSessionStatisticsMetricTarget
+public enum RecordedSessionAnalysisMetricTarget
 {
     FrontHscPercentage,
     FrontHsrPercentage,
@@ -213,29 +213,29 @@ public sealed record RecordedSessionListActionContribution(
     int Order,
     IRecordedSessionListActionContributionViewModel ViewModel) : IRecordedSessionContribution;
 
-public sealed record RecordedSessionPlotContextMenuContribution(
+public sealed record RecordedSessionSignalPlotContextMenuContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
-    RecordedSessionBuiltInGraphRow TargetRow,
+    RecordedSessionBuiltInSignalRow TargetRow,
     TelemetryPlotContextMenuAction Action) : IRecordedSessionContribution;
 
-public sealed record RecordedSessionPlotRowActionContribution(
+public sealed record RecordedSessionSignalRowActionContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
-    RecordedSessionGraphRowTarget TargetRow,
-    TelemetryPlotRowAction Action) : IRecordedSessionContribution;
+    RecordedSessionSignalRowTarget TargetRow,
+    SignalRowAction Action) : IRecordedSessionContribution;
 
-public sealed record RecordedSessionHostedGraphRowContribution(
+public sealed record RecordedSessionHostedSignalRowContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
-    RecordedSessionBuiltInGraphRow ParentRow,
-    RecordedSessionGraphRowTarget RowTarget,
+    RecordedSessionBuiltInSignalRow ParentRow,
+    RecordedSessionSignalRowTarget RowTarget,
     string Title,
     SurfacePresentationState PresentationState,
-    IRecordedSessionHostedGraphRowContributionViewModel ViewModel,
+    IRecordedSessionHostedSignalRowContributionViewModel ViewModel,
     bool IsInitiallyExpanded) : IRecordedSessionContribution
 {
     public object? TitleToolTip { get; init; }
@@ -245,5 +245,5 @@ public sealed record RecordedSessionTimeRangeOverlayContribution(
     string ExtensionId,
     string ContributionId,
     int Order,
-    RecordedSessionGraphRowTarget TargetRow,
+    RecordedSessionSignalRowTarget TargetRow,
     RecordedTimeRangeOverlaySetRegistration Registration) : IRecordedSessionContribution;

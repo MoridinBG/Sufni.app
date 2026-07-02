@@ -7,7 +7,7 @@ namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 public interface ILiveSessionService : IAsyncDisposable
 {
     IObservable<LiveSessionPresentationSnapshot> Snapshots { get; }
-    IObservable<LiveGraphBatch> GraphBatches { get; }
+    IObservable<LiveSignalBatch> SignalBatches { get; }
     LiveSessionPresentationSnapshot Current { get; }
 
     Task EnsureAttachedAsync(CancellationToken cancellationToken = default);

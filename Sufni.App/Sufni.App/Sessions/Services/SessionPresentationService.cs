@@ -10,19 +10,19 @@ namespace Sufni.App.Sessions.Services;
 
 public sealed class SessionPresentationService : ISessionPresentationService
 {
-    public SessionDamperPercentages CalculateDamperPercentages(
+    public SessionDampingPercentages CalculateDampingPercentages(
         TelemetryData telemetryData,
         TelemetryTimeRange? range = null,
         VelocityAverageMode velocityAverageMode = VelocityAverageMode.SampleAveraged,
         DampingSpeedCutoffs? dampingSpeedCutoffs = null)
     {
         var cutoffs = dampingSpeedCutoffs ?? DampingSpeedCutoffs.Default;
-        return SessionDamperPercentages.FromSides(
+        return SessionDampingPercentages.FromSides(
             CalculateDamperSidePercentages(telemetryData, SuspensionType.Front, range, velocityAverageMode, cutoffs.Front),
             CalculateDamperSidePercentages(telemetryData, SuspensionType.Rear, range, velocityAverageMode, cutoffs.Rear));
     }
 
-    private static SessionDamperSidePercentages CalculateDamperSidePercentages(
+    private static SessionDampingSidePercentages CalculateDamperSidePercentages(
         TelemetryData telemetryData,
         SuspensionType suspensionType,
         TelemetryTimeRange? range,
@@ -31,7 +31,7 @@ public sealed class SessionPresentationService : ISessionPresentationService
     {
         if (!TelemetryStatistics.HasStrokeData(telemetryData, suspensionType, range))
         {
-            return SessionDamperSidePercentages.Empty;
+            return SessionDampingSidePercentages.Empty;
         }
 
         var options = new VelocityStatisticsOptions(
@@ -43,7 +43,7 @@ public sealed class SessionPresentationService : ISessionPresentationService
             telemetryData,
             suspensionType,
             options);
-        return new SessionDamperSidePercentages(
+        return new SessionDampingSidePercentages(
             bands.HighSpeedCompression,
             bands.LowSpeedCompression,
             bands.LowSpeedRebound,
@@ -59,30 +59,30 @@ public sealed class SessionPresentationService : ISessionPresentationService
         cancellationToken.ThrowIfCancellationRequested();
 
         var cutoffs = dampingSpeedCutoffs ?? DampingSpeedCutoffs.Default;
-        var damperPercentages = CalculateDamperPercentages(telemetryData, dampingSpeedCutoffs: cutoffs);
+        var dampingPercentages = CalculateDampingPercentages(telemetryData, dampingSpeedCutoffs: cutoffs);
 
-        string? frontTravelHistogram = null;
-        string? rearTravelHistogram = null;
-        string? frontVelocityHistogram = null;
-        string? rearVelocityHistogram = null;
+        string? frontTravelDistribution = null;
+        string? rearTravelDistribution = null;
+        string? frontVelocityDistribution = null;
+        string? rearVelocityDistribution = null;
         string? compressionBalance = null;
         string? reboundBalance = null;
 
         if (TelemetryStatistics.HasStrokeData(telemetryData, SuspensionType.Front))
         {
-            frontTravelHistogram = RenderTravelHistogram(telemetryData, SuspensionType.Front, dimensions);
+            frontTravelDistribution = RenderTravelDistribution(telemetryData, SuspensionType.Front, dimensions);
             cancellationToken.ThrowIfCancellationRequested();
 
-            frontVelocityHistogram = RenderVelocityHistogram(telemetryData, SuspensionType.Front, dimensions, cutoffs);
+            frontVelocityDistribution = RenderVelocityDistribution(telemetryData, SuspensionType.Front, dimensions, cutoffs);
             cancellationToken.ThrowIfCancellationRequested();
         }
 
         if (TelemetryStatistics.HasStrokeData(telemetryData, SuspensionType.Rear))
         {
-            rearTravelHistogram = RenderTravelHistogram(telemetryData, SuspensionType.Rear, dimensions);
+            rearTravelDistribution = RenderTravelDistribution(telemetryData, SuspensionType.Rear, dimensions);
             cancellationToken.ThrowIfCancellationRequested();
 
-            rearVelocityHistogram = RenderVelocityHistogram(telemetryData, SuspensionType.Rear, dimensions, cutoffs);
+            rearVelocityDistribution = RenderVelocityDistribution(telemetryData, SuspensionType.Rear, dimensions, cutoffs);
             cancellationToken.ThrowIfCancellationRequested();
         }
 
@@ -103,43 +103,43 @@ public sealed class SessionPresentationService : ISessionPresentationService
         var balanceAvailable = compressionBalanceAvailable || reboundBalanceAvailable;
 
         return new SessionCachePresentationData(
-            frontTravelHistogram,
-            rearTravelHistogram,
-            frontVelocityHistogram,
-            rearVelocityHistogram,
+            frontTravelDistribution,
+            rearTravelDistribution,
+            frontVelocityDistribution,
+            rearVelocityDistribution,
             compressionBalance,
             reboundBalance,
-            damperPercentages,
+            dampingPercentages,
             cutoffs,
             balanceAvailable);
     }
 
-    private static string RenderTravelHistogram(
+    private static string RenderTravelDistribution(
         TelemetryData telemetryData,
         SuspensionType type,
         SessionPresentationDimensions dimensions)
     {
-        var plot = new TravelHistogramPlot(new Plot(), type)
+        var plot = new TravelDistributionPlot(new Plot(), type)
         {
-            HistogramMode = TravelHistogramMode.ActiveSuspension,
+            HistogramMode = TravelDistributionMode.ActiveSuspension,
         };
         plot.LoadTelemetryData(telemetryData);
-        return plot.GetSvgXml(dimensions.TravelHistogramWidth, dimensions.TravelHistogramHeight);
+        return plot.GetSvgXml(dimensions.TravelDistributionWidth, dimensions.TravelDistributionHeight);
     }
 
-    private static string RenderVelocityHistogram(
+    private static string RenderVelocityDistribution(
         TelemetryData telemetryData,
         SuspensionType type,
         SessionPresentationDimensions dimensions,
         DampingSpeedCutoffs dampingSpeedCutoffs)
     {
-        var plot = new VelocityHistogramPlot(new Plot(), type)
+        var plot = new VelocityDistributionPlot(new Plot(), type)
         {
             AverageMode = VelocityAverageMode.SampleAveraged,
             DampingSpeedCutoffs = dampingSpeedCutoffs,
         };
         plot.LoadTelemetryData(telemetryData);
-        return plot.GetSvgXml(dimensions.VelocityHistogramWidth, dimensions.VelocityHistogramHeight);
+        return plot.GetSvgXml(dimensions.VelocityDistributionWidth, dimensions.VelocityDistributionHeight);
     }
 
     private static string RenderBalance(
@@ -154,6 +154,6 @@ public sealed class SessionPresentationService : ISessionPresentationService
             DampingSpeedCutoffs = dampingSpeedCutoffs,
         };
         plot.LoadTelemetryData(telemetryData);
-        return plot.GetSvgXml(dimensions.TravelHistogramWidth, dimensions.TravelHistogramHeight);
+        return plot.GetSvgXml(dimensions.TravelDistributionWidth, dimensions.TravelDistributionHeight);
     }
 }

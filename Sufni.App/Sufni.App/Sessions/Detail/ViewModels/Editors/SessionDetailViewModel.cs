@@ -29,25 +29,25 @@ using Sufni.App.Extensibility.Views;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.ViewModels;
-using Sufni.App.Sessions.Analysis.Services;
-using Sufni.App.Sessions.Analysis.ViewModels.SessionPages;
+using Sufni.App.Sessions.Insights.Services;
+using Sufni.App.Sessions.Insights.ViewModels.SessionPages;
 using Sufni.App.Sessions.Coordination;
-using Sufni.App.Sessions.Graph.ViewModels.Editors;
-using Sufni.App.Sessions.Graph.ViewModels.SessionPages;
+using Sufni.App.Sessions.Signals.ViewModels.Editors;
+using Sufni.App.Sessions.Signals.ViewModels.SessionPages;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Pages.ViewModels.Editors;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Processing.SessionDetails;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
-using Sufni.App.Sessions.Statistics.ViewModels.Editors;
+using Sufni.App.Sessions.Analysis.ViewModels.Editors;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Shared.Base;
 using Sufni.App.Shared.Common;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Sessions.Media.ViewModels.Editors;
 using Sufni.App.MapsAndTracks.Models;
-using Sufni.App.Sessions.Analysis.ViewModels.Editors;
+using Sufni.App.Sessions.Insights.ViewModels.Editors;
 using Sufni.App.Sessions.Presentation;
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
@@ -72,9 +72,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public SuspensionSettings ShockSettings => NotesPage.ShockSettings;
     public RecordedSessionContext SessionContext { get; } = new();
     public ISessionShellMobileWorkspace MobileWorkspace { get; }
-    public IRecordedSessionGraphWorkspace GraphWorkspace { get; }
+    public IRecordedSessionSignalsWorkspace SignalsWorkspace { get; }
     public ISessionMediaWorkspace MediaWorkspace { get; }
-    public ISessionStatisticsWorkspace StatisticsWorkspace { get; }
+    public ISessionAnalysisWorkspace AnalysisWorkspace { get; }
     public ISessionSidebarWorkspace SidebarWorkspace { get; }
     public SessionTimelineLinkViewModel Timeline => SessionContext.Timeline;
 
@@ -84,9 +84,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly ITrackCoordinator trackCoordinator;
     private readonly IBikeCoordinator? bikeCoordinator;
     private readonly ISessionStore sessionStore;
-    private readonly IRecordedSessionGraph recordedSessionGraph;
+    private readonly IRecordedSessionProjection recordedSessionProjection;
     private readonly ISessionPresentationService sessionPresentationService;
-    private readonly ISessionAnalysisService sessionAnalysisService;
+    private readonly ISessionInsightsService sessionAnalysisService;
     private readonly RecordedSessionExtensionSlots emptyExtensionSlots = new();
     private readonly RecordedSessionExtensionManager? recordedSessionExtensions;
     private readonly RecordedSessionOperationCoordinator? recordedSessionOperationCoordinator;
@@ -94,25 +94,25 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache;
     private bool observedInitialDomain;
     private RecordedSessionDomainSnapshot? deferredDomain;
-    private readonly StatisticsSelectionController statisticsSelectionController = new();
+    private readonly AnalysisSelectionController analysisSelectionController = new();
     private readonly RecordedPresentationApplier presentationApplier;
     private readonly RecordedPreferenceStore recordedPreferenceStore;
     private readonly RecordedSessionExtensionPagesController? extensionPagesController;
     private readonly ProcessingPreferenceWorkflow processingPreferenceWorkflow;
     private Session session;
-    private RecordedGraphPageViewModel GraphPage { get; }
+    private RecordedSignalsPageViewModel SignalsPage { get; }
     private StrokesPageViewModel StrokesPage { get; }
     private SpringPageViewModel SpringPage { get; }
     private BalancePageViewModel BalancePage { get; }
     private VibrationPageViewModel VibrationPage { get; }
-    private SessionAnalysisPageViewModel AnalysisPage { get; }
+    private SessionInsightsPageViewModel AnalysisPage { get; }
 
     private readonly CancellableOperation loadOperation = new();
     private SessionPresentationDimensions? lastPresentationDimensions;
     private double? pendingAnalysisRangeBoundary;
     private RecordedSessionTimelineAlignmentMark? pendingTimelineAlignmentMark;
     private bool suppressDirtinessEvaluation;
-    private bool suppressAnalysisRecompute;
+    private bool suppressInsightsRecompute;
     // Set when the user declines to reload after an external metadata edit landed
     // on a dirty draft: BaselineUpdated is pinned below that edit so the next save
     // still conflicts. A later derived-only emission must not advance the baseline
@@ -120,8 +120,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private bool metadataConflictPending;
     private bool viewLoaded;
     private bool hasBeenActivated;
-    private readonly SessionPlotRowActionsController plotRowActions;
-    private readonly PlotAutozoomController plotAutozoomController;
+    private readonly SignalRowActionsController signalRowActions;
+    private readonly SignalAutozoomController signalAutozoomController;
     private readonly IRelayCommand<TelemetryPlotContextMenuContext?> markGpsEventCommand;
     private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markGpsTelemetryEventCommand;
     private readonly DamperCutoffWorkflow damperCutoffWorkflow;
@@ -131,21 +131,21 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     #region Public fields
 
-    public DamperPageViewModel DamperPage { get; }
+    public DampingPageViewModel DampingPage { get; }
     public NotesPageViewModel NotesPage { get; } = new();
-    public SessionPlotPreferences PlotPreferences
+    public SignalDisplayPreferences SignalDisplayPreferences
     {
         get => field;
         private set
         {
             if (SetProperty(ref field, value))
             {
-                SessionContext.PlotPreferences = value;
+                SessionContext.SignalDisplayPreferences = value;
             }
         }
-    } = SessionPreferences.Default.Plots;
+    } = SessionPreferences.Default.SignalDisplay;
 
-    public SessionGraphPreferences GraphPreferences
+    public SignalLayoutPreferences SignalLayoutPreferences
     {
         get => field;
         set
@@ -155,11 +155,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 return;
             }
 
-            recordedPreferenceStore.UpdateCurrent(current => current with { Graph = value });
-            SessionContext.GraphPreferences = value;
-            recordedPreferenceStore.PersistChangeIfEnabled(current => current with { Graph = value });
+            recordedPreferenceStore.UpdateCurrent(current => current with { SignalLayout = value });
+            SessionContext.SignalLayoutPreferences = value;
+            recordedPreferenceStore.PersistChangeIfEnabled(current => current with { SignalLayout = value });
         }
-    } = SessionPreferences.Default.Graph;
+    } = SessionPreferences.Default.SignalLayout;
 
     public SessionLayoutPreferences LayoutPreferences
     {
@@ -187,15 +187,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public TelemetrySourceVisibilityStore SourceVisibility => SessionContext.SourceVisibility;
     public PreferencesPageViewModel PreferencesPage { get; } = new();
     public MapViewModel? MapViewModel => SessionContext.MapViewModel;
-    public IReadOnlyList<TelemetryPlotRowAction> TravelHeaderActions => plotRowActions.TravelHeaderActions;
-    public IReadOnlyList<TelemetryPlotRowAction> VelocityHeaderActions => plotRowActions.VelocityHeaderActions;
-    public IReadOnlyList<TelemetryPlotRowAction> ImuHeaderActions => plotRowActions.ImuHeaderActions;
-    public IReadOnlyList<TelemetryPlotRowAction> PitchRollHeaderActions => plotRowActions.PitchRollHeaderActions;
-    public IReadOnlyList<TelemetryPlotRowAction> SpeedHeaderActions => plotRowActions.SpeedHeaderActions;
-    public IReadOnlyList<TelemetryPlotRowAction> ElevationHeaderActions => plotRowActions.ElevationHeaderActions;
-    public TelemetryRangeSelection? SelectedFrontRangeSelection => statisticsSelectionController.SelectedFrontRangeSelection;
-    public TelemetryRangeSelection? SelectedRearRangeSelection => statisticsSelectionController.SelectedRearRangeSelection;
-    public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> PlotContextMenuActionsByRowId { get; }
+    public IReadOnlyList<SignalRowAction> TravelHeaderActions => signalRowActions.TravelHeaderActions;
+    public IReadOnlyList<SignalRowAction> VelocityHeaderActions => signalRowActions.VelocityHeaderActions;
+    public IReadOnlyList<SignalRowAction> ImuHeaderActions => signalRowActions.ImuHeaderActions;
+    public IReadOnlyList<SignalRowAction> PitchRollHeaderActions => signalRowActions.PitchRollHeaderActions;
+    public IReadOnlyList<SignalRowAction> SpeedHeaderActions => signalRowActions.SpeedHeaderActions;
+    public IReadOnlyList<SignalRowAction> ElevationHeaderActions => signalRowActions.ElevationHeaderActions;
+    public TelemetryRangeSelection? ActiveFrontAnalysisSelection => analysisSelectionController.ActiveFrontAnalysisSelection;
+    public TelemetryRangeSelection? ActiveRearAnalysisSelection => analysisSelectionController.ActiveRearAnalysisSelection;
+    public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; }
     public bool CanEditDampingSpeedCutoffs => damperCutoffWorkflow.CanEdit;
     public RecordedSessionExtensionSlots ExtensionSlots => recordedSessionExtensions?.ExtensionSlots ?? emptyExtensionSlots;
 
@@ -204,16 +204,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     #region Observable properties
 
     [ObservableProperty] public partial bool IsComplete { get; set; }
-    public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } = SessionAnalysisPresentation.TravelHistogramModeOptions;
-    public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } = SessionAnalysisPresentation.BalanceDisplacementModeOptions;
-    public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } = SessionAnalysisPresentation.BalanceSpeedModeOptions;
-    public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } = SessionAnalysisPresentation.VelocityAverageModeOptions;
-    public IReadOnlyList<SessionAnalysisTargetProfileOption> SessionAnalysisTargetProfileOptions { get; } = SessionAnalysisPresentation.SessionAnalysisTargetProfileOptions;
+    public IReadOnlyList<TravelDistributionModeOption> TravelDistributionModeOptions { get; } = SessionInsightsPresentation.TravelDistributionModeOptions;
+    public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } = SessionInsightsPresentation.BalanceDisplacementModeOptions;
+    public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } = SessionInsightsPresentation.BalanceSpeedModeOptions;
+    public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } = SessionInsightsPresentation.VelocityAverageModeOptions;
+    public IReadOnlyList<SessionInsightsTargetProfileOption> SessionInsightsTargetProfileOptions { get; } = SessionInsightsPresentation.SessionInsightsTargetProfileOptions;
     public string SessionAnalysisRangeText => SessionContext.AnalysisRange is { } range
         ? $"Selected range {FormatSeconds(range.StartSeconds)}-{FormatSeconds(range.EndSeconds)}s"
         : "Full session";
-    public string SessionAnalysisModesText => SessionAnalysisPresentation.DescribeModes(
-        SessionContext.SelectedTravelHistogramMode,
+    public string SessionAnalysisModesText => SessionInsightsPresentation.DescribeModes(
+        SessionContext.SelectedTravelDistributionMode,
         SessionContext.SelectedVelocityAverageMode,
         SessionContext.SelectedBalanceDisplacementMode,
         SessionContext.SelectedBalanceSpeedMode);
@@ -233,10 +233,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         return new SessionPresentationDimensions((int)rect.Width, (int)(rect.Height / 2.0));
     }
 
-    internal void ApplyDamperPercentages(SessionDamperPercentages percentages)
+    internal void ApplyDampingPercentages(SessionDampingPercentages percentages)
     {
-        SessionContext.DamperPercentages = percentages;
-        DamperPage.ApplyDamperPercentages(percentages);
+        SessionContext.DampingPercentages = percentages;
+        DampingPage.ApplyDampingPercentages(percentages);
         UpdateRecordedSessionExtensionHostState();
     }
 
@@ -262,64 +262,64 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         double cutoffMmPerSecond) =>
         damperCutoffWorkflow.CommitAsync(side, circuit, cutoffMmPerSecond);
 
-    private void ClearDamperPercentages()
+    private void ClearDampingPercentages()
     {
-        ApplyDamperPercentages(SessionDamperPercentages.Empty);
+        ApplyDampingPercentages(SessionDampingPercentages.Empty);
     }
 
-    private void RecomputeDamperPercentagesForAnalysisRange()
+    private void RecomputeDampingPercentagesForAnalysisRange()
     {
         if (SessionContext.TelemetryData is null)
         {
-            ClearDamperPercentages();
+            ClearDampingPercentages();
             return;
         }
 
-        ApplyDamperPercentages(sessionPresentationService.CalculateDamperPercentages(
+        ApplyDampingPercentages(sessionPresentationService.CalculateDampingPercentages(
             SessionContext.TelemetryData,
             SessionContext.AnalysisRange,
             SessionContext.SelectedVelocityAverageMode,
             SessionContext.DampingSpeedCutoffs));
     }
 
-    internal void ApplyModeAwareDamperPercentages(SessionDamperPercentages sampleAveragedPercentages)
+    internal void ApplyModeAwareDampingPercentages(SessionDampingPercentages sampleAveragedPercentages)
     {
         if (SessionContext.TelemetryData is null)
         {
-            ClearDamperPercentages();
+            ClearDampingPercentages();
             return;
         }
 
         if (SessionContext.AnalysisRange is null && SessionContext.SelectedVelocityAverageMode == VelocityAverageMode.SampleAveraged)
         {
-            ApplyDamperPercentages(sampleAveragedPercentages);
+            ApplyDampingPercentages(sampleAveragedPercentages);
             return;
         }
 
-        RecomputeDamperPercentagesForAnalysisRange();
+        RecomputeDampingPercentagesForAnalysisRange();
     }
 
-    private void RecomputeSessionAnalysisIfAllowed()
+    private void RecomputeSessionInsightsIfAllowed()
     {
-        if (suppressAnalysisRecompute)
+        if (suppressInsightsRecompute)
         {
             return;
         }
 
-        RecomputeSessionAnalysis();
+        RecomputeSessionInsights();
     }
 
-    internal void RecomputeSessionAnalysis()
+    internal void RecomputeSessionInsights()
     {
-        SessionContext.SessionAnalysis = sessionAnalysisService.Analyze(new SessionAnalysisRequest(
+        SessionContext.SessionInsights = sessionAnalysisService.Analyze(new SessionInsightsRequest(
             SessionContext.TelemetryData,
             SessionContext.AnalysisRange,
-            SessionContext.SelectedTravelHistogramMode,
+            SessionContext.SelectedTravelDistributionMode,
             SessionContext.SelectedVelocityAverageMode,
             SessionContext.SelectedBalanceDisplacementMode,
             SessionContext.SelectedBalanceSpeedMode,
-            SessionContext.DamperPercentages,
-            SessionContext.SelectedSessionAnalysisTargetProfile)
+            SessionContext.DampingPercentages,
+            SessionContext.SelectedSessionInsightsTargetProfile)
         {
             DampingSpeedCutoffs = SessionContext.DampingSpeedCutoffs,
         });
@@ -327,23 +327,23 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     internal Guid? CurrentSessionFullTrack => session.FullTrack;
 
-    internal SessionPlotPreferences RecordedPlotPreferences => recordedPreferenceStore.Current.Plots;
+    internal SignalDisplayPreferences RecordedSignalDisplayPreferences => recordedPreferenceStore.Current.SignalDisplay;
 
     internal void SetSessionFullTrack(Guid? fullTrackId)
     {
         session.FullTrack = fullTrackId;
     }
 
-    internal void ApplyTelemetryDataWithoutAnalysisRecompute(TelemetryData? value)
+    internal void ApplyTelemetryDataWithoutInsightsRecompute(TelemetryData? value)
     {
-        suppressAnalysisRecompute = true;
+        suppressInsightsRecompute = true;
         try
         {
             SessionContext.TelemetryData = value;
         }
         finally
         {
-            suppressAnalysisRecompute = false;
+            suppressInsightsRecompute = false;
         }
     }
 
@@ -362,7 +362,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         return seconds.ToString("F1", CultureInfo.InvariantCulture);
     }
 
-    private static IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> CreatePlotContextMenuActionsByRowId(
+    private static IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> CreateSignalPlotContextMenuActionsBySignalRowId(
         IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> baseActions,
         IRelayCommand<TelemetryPlotContextMenuContext?> markGpsEventCommand,
         IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markGpsTelemetryEventCommand)
@@ -376,25 +376,25 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             "Mark telemetry event here",
             markGpsTelemetryEventCommand);
 
-        return CreatePlotContextMenuActionsByRowId(
+        return CreateSignalPlotContextMenuActionsBySignalRowId(
             baseActions,
             markGpsEvent,
             markGpsTelemetryEvent);
     }
 
-    private static IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> CreatePlotContextMenuActionsByRowId(
+    private static IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> CreateSignalPlotContextMenuActionsBySignalRowId(
         IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> baseActions,
         TelemetryPlotContextMenuAction markGpsEvent,
         TelemetryPlotContextMenuAction markGpsTelemetryEvent)
     {
         return new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>
         {
-            [TelemetryGraphRowIds.Travel] = AppendContextMenuActions(baseActions, TelemetryGraphRowIds.Travel, markGpsEvent, markGpsTelemetryEvent),
-            [TelemetryGraphRowIds.Velocity] = AppendContextMenuActions(baseActions, TelemetryGraphRowIds.Velocity, markGpsEvent, markGpsTelemetryEvent),
-            [TelemetryGraphRowIds.Imu] = AppendContextMenuActions(baseActions, TelemetryGraphRowIds.Imu, markGpsEvent, markGpsTelemetryEvent),
-            [TelemetryGraphRowIds.PitchRoll] = AppendContextMenuActions(baseActions, TelemetryGraphRowIds.PitchRoll, markGpsEvent, markGpsTelemetryEvent),
-            [TelemetryGraphRowIds.Speed] = AppendContextMenuActions(baseActions, TelemetryGraphRowIds.Speed, markGpsEvent, markGpsTelemetryEvent),
-            [TelemetryGraphRowIds.Elevation] = AppendContextMenuActions(baseActions, TelemetryGraphRowIds.Elevation, markGpsEvent, markGpsTelemetryEvent),
+            [SignalRowIds.Travel] = AppendContextMenuActions(baseActions, SignalRowIds.Travel, markGpsEvent, markGpsTelemetryEvent),
+            [SignalRowIds.Velocity] = AppendContextMenuActions(baseActions, SignalRowIds.Velocity, markGpsEvent, markGpsTelemetryEvent),
+            [SignalRowIds.Imu] = AppendContextMenuActions(baseActions, SignalRowIds.Imu, markGpsEvent, markGpsTelemetryEvent),
+            [SignalRowIds.PitchRoll] = AppendContextMenuActions(baseActions, SignalRowIds.PitchRoll, markGpsEvent, markGpsTelemetryEvent),
+            [SignalRowIds.Speed] = AppendContextMenuActions(baseActions, SignalRowIds.Speed, markGpsEvent, markGpsTelemetryEvent),
+            [SignalRowIds.Elevation] = AppendContextMenuActions(baseActions, SignalRowIds.Elevation, markGpsEvent, markGpsTelemetryEvent),
         };
     }
 
@@ -454,7 +454,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         UpdateRecordedSessionExtensionHostState();
     }
 
-    // Single entry point for graph emissions on the opened session. It treats the
+    // Single entry point for projection emissions on the opened session. It treats the
     // derived and metadata axes orthogonally: derived telemetry always refreshes
     // (even while a metadata prompt is pending), and the metadata prompt is decided
     // independently so unsaved edits are never silently discarded.
@@ -611,11 +611,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 timelineDurationSeconds,
                 Timeline,
                 new RecordedSessionTimelineAlignmentState(pendingTimelineAlignmentMark)),
-            new RecordedSessionStatisticsState(
-                SessionContext.DamperPercentages,
+            new RecordedSessionAnalysisState(
+                SessionContext.DampingPercentages,
                 SessionContext.DampingSpeedCutoffs,
                 SessionContext.SelectedVelocityAverageMode,
-                SessionContext.SelectedTravelHistogramMode));
+                SessionContext.SelectedTravelDistributionMode));
     }
 
     private void UpdateRecordedSessionExtensionHostState()
@@ -691,12 +691,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         return context is { ClickSeconds: >= 0 } &&
                double.IsFinite(context.ClickSeconds) &&
-               context.RowId is TelemetryGraphRowIds.Travel or
-                   TelemetryGraphRowIds.Velocity or
-                   TelemetryGraphRowIds.Imu or
-                   TelemetryGraphRowIds.PitchRoll or
-                   TelemetryGraphRowIds.Speed or
-                   TelemetryGraphRowIds.Elevation;
+               context.RowId is SignalRowIds.Travel or
+                   SignalRowIds.Velocity or
+                   SignalRowIds.Imu or
+                   SignalRowIds.PitchRoll or
+                   SignalRowIds.Speed or
+                   SignalRowIds.Elevation;
     }
 
     private bool CanMarkGpsEventFromPlotContext(TelemetryPlotContextMenuContext? context)
@@ -845,8 +845,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     void ISessionOperationGateway.UpdateExtensionHostState() => UpdateRecordedSessionExtensionHostState();
 
-    void ISessionOperationGateway.SetGraphPreferences(SessionGraphPreferences preferences) =>
-        GraphPreferences = preferences;
+    void ISessionOperationGateway.SetSignalLayoutPreferences(SignalLayoutPreferences preferences) =>
+        SignalLayoutPreferences = preferences;
 
     #endregion
 
@@ -857,9 +857,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         ISessionCoordinator sessionCoordinator,
         ITrackCoordinator trackCoordinator,
         ISessionStore sessionStore,
-        IRecordedSessionGraph recordedSessionGraph,
+        IRecordedSessionProjection recordedSessionProjection,
         ISessionPresentationService sessionPresentationService,
-        ISessionAnalysisService sessionAnalysisService,
+        ISessionInsightsService sessionAnalysisService,
         IMapViewModelFactory mapViewModelFactory,
         IShellCoordinator shell,
         IDialogService dialogService,
@@ -878,7 +878,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         this.trackCoordinator = trackCoordinator;
         this.bikeCoordinator = bikeCoordinator;
         this.sessionStore = sessionStore;
-        this.recordedSessionGraph = recordedSessionGraph;
+        this.recordedSessionProjection = recordedSessionProjection;
         this.sessionPresentationService = sessionPresentationService;
         this.sessionAnalysisService = sessionAnalysisService;
         this.recordedSessionProcessingOptionCache = recordedSessionProcessingOptionCache;
@@ -886,32 +886,32 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             sessionPreferences,
             () => Id,
             ErrorMessages.Add);
-        plotRowActions = new SessionPlotRowActionsController(SessionContext);
-        plotAutozoomController = new PlotAutozoomController(Timeline);
+        signalRowActions = new SignalRowActionsController(SessionContext);
+        signalAutozoomController = new SignalAutozoomController(Timeline);
         markGpsEventCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
             MarkGpsEventFromPlotContext,
             CanMarkGpsEventFromPlotContext);
         markGpsTelemetryEventCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
             MarkGpsTelemetryEventFromPlotContextAsync,
             CanMarkGpsTelemetryEventFromPlotContext);
-        PlotContextMenuActionsByRowId = CreatePlotContextMenuActionsByRowId(
-            plotAutozoomController.ActionsByRowId,
+        SignalPlotContextMenuActionsBySignalRowId = CreateSignalPlotContextMenuActionsBySignalRowId(
+            signalAutozoomController.ActionsBySignalRowId,
             markGpsEventCommand,
             markGpsTelemetryEventCommand);
-        SessionContext.PlotContextMenuActionsByRowId = PlotContextMenuActionsByRowId;
+        SessionContext.SignalPlotContextMenuActionsBySignalRowId = SignalPlotContextMenuActionsBySignalRowId;
         session = SessionFromSnapshot(snapshot);
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
         SessionContext.SessionSnapshot = snapshot;
         MobileWorkspace = new SessionShellMobileWorkspaceViewModel(this, SessionContext);
-        GraphWorkspace = new RecordedSessionGraphWorkspaceViewModel(
+        SignalsWorkspace = new RecordedSessionSignalsWorkspaceViewModel(
             SessionContext,
             this);
         MediaWorkspace = new SessionMediaWorkspaceViewModel(SessionContext);
-        StatisticsWorkspace = new SessionStatisticsWorkspaceViewModel(
+        AnalysisWorkspace = new SessionAnalysisWorkspaceViewModel(
             SessionContext,
             this,
-            SelectTelemetryRangeSelectionCommand);
+            SelectAnalysisRangeCommand);
         SidebarWorkspace = new SessionSidebarWorkspaceViewModel(
             this,
             () => Name,
@@ -954,28 +954,28 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SessionContext.ExtensionSlots = ExtensionSlots;
         SessionContext.PropertyChanged += OnSessionContextPropertyChanged;
 
-        GraphPage = new RecordedGraphPageViewModel(GraphWorkspace, MediaWorkspace);
-        SpringPage = new SpringPageViewModel(StatisticsWorkspace);
-        StrokesPage = new StrokesPageViewModel(StatisticsWorkspace);
-        DamperPage = new DamperPageViewModel(StatisticsWorkspace);
-        BalancePage = new BalancePageViewModel(StatisticsWorkspace);
-        VibrationPage = new VibrationPageViewModel(StatisticsWorkspace);
-        AnalysisPage = new SessionAnalysisPageViewModel(StatisticsWorkspace);
+        SignalsPage = new RecordedSignalsPageViewModel(SignalsWorkspace, MediaWorkspace);
+        SpringPage = new SpringPageViewModel(AnalysisWorkspace);
+        StrokesPage = new StrokesPageViewModel(AnalysisWorkspace);
+        DampingPage = new DampingPageViewModel(AnalysisWorkspace);
+        BalancePage = new BalancePageViewModel(AnalysisWorkspace);
+        VibrationPage = new VibrationPageViewModel(AnalysisWorkspace);
+        AnalysisPage = new SessionInsightsPageViewModel(AnalysisWorkspace);
         presentationApplier = new RecordedPresentationApplier(
             this,
             SessionContext,
             Pages,
             SpringPage,
-            DamperPage,
+            DampingPage,
             BalancePage,
             VibrationPage,
             AnalysisPage,
             NotesPage,
             PreferencesPage);
-        Pages.Add(GraphPage);
+        Pages.Add(SignalsPage);
         Pages.Add(SpringPage);
         Pages.Add(StrokesPage);
-        Pages.Add(DamperPage);
+        Pages.Add(DampingPage);
         Pages.Add(BalancePage);
         Pages.Add(VibrationPage);
         Pages.Add(AnalysisPage);
@@ -991,12 +991,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         NotesPage.ForkSettings.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();
         NotesPage.ShockSettings.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();
         NotesPage.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();
-        PreferencesPage.TravelPlot.PropertyChanged += OnPlotPreferenceChanged;
-        PreferencesPage.VelocityPlot.PropertyChanged += OnPlotPreferenceChanged;
-        PreferencesPage.ImuPlot.PropertyChanged += OnPlotPreferenceChanged;
-        PreferencesPage.PitchRollPlot.PropertyChanged += OnPlotPreferenceChanged;
-        PreferencesPage.SpeedPlot.PropertyChanged += OnPlotPreferenceChanged;
-        PreferencesPage.ElevationPlot.PropertyChanged += OnPlotPreferenceChanged;
+        PreferencesPage.TravelSignal.PropertyChanged += OnSignalPreferenceChanged;
+        PreferencesPage.VelocitySignal.PropertyChanged += OnSignalPreferenceChanged;
+        PreferencesPage.ImuSignal.PropertyChanged += OnSignalPreferenceChanged;
+        PreferencesPage.PitchRollSignal.PropertyChanged += OnSignalPreferenceChanged;
+        PreferencesPage.SpeedSignal.PropertyChanged += OnSignalPreferenceChanged;
+        PreferencesPage.ElevationSignal.PropertyChanged += OnSignalPreferenceChanged;
         PreferencesPage.ProcessingPreferenceChangeCommitted += OnProcessingPreferenceChangeCommitted;
 
         ResetImplementation();
@@ -1028,37 +1028,37 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         return s;
     }
 
-    private void ClearStatisticsSelections()
+    private void ClearAnalysisSelections()
     {
-        statisticsSelectionController.Clear();
-        SyncStatisticsSelectionController();
-        plotRowActions.ClearStatisticsSelectionToggles();
-        plotRowActions.RefreshStatisticsSelectionActionStates();
+        analysisSelectionController.Clear();
+        SyncAnalysisSelectionController();
+        signalRowActions.ClearAnalysisSelectionToggles();
+        signalRowActions.RefreshAnalysisSelectionActionStates();
     }
 
     private void ClearDampingRangeSelections()
     {
-        if (!statisticsSelectionController.ClearDampingRangeSelections(SessionContext.TelemetryData, SessionContext.AnalysisRange))
+        if (!analysisSelectionController.ClearDampingRangeSelections(SessionContext.TelemetryData, SessionContext.AnalysisRange))
         {
             return;
         }
 
-        SyncStatisticsSelectionController();
-        if (!SessionContext.HasStatisticsSelection)
+        SyncAnalysisSelectionController();
+        if (!SessionContext.HasAnalysisSelection)
         {
-            plotRowActions.ClearStatisticsSelectionToggles();
+            signalRowActions.ClearAnalysisSelectionToggles();
         }
 
-        plotRowActions.RefreshStatisticsSelectionActionStates();
+        signalRowActions.RefreshAnalysisSelectionActionStates();
     }
 
-    private void SyncStatisticsSelectionController()
+    private void SyncAnalysisSelectionController()
     {
-        SessionContext.SelectedFrontRangeSelection = statisticsSelectionController.SelectedFrontRangeSelection;
-        SessionContext.SelectedRearRangeSelection = statisticsSelectionController.SelectedRearRangeSelection;
-        OnPropertyChanged(nameof(SelectedFrontRangeSelection));
-        OnPropertyChanged(nameof(SelectedRearRangeSelection));
-        SessionContext.StatisticsSelectionHighlightRanges = statisticsSelectionController.HighlightRanges;
+        SessionContext.ActiveFrontAnalysisSelection = analysisSelectionController.ActiveFrontAnalysisSelection;
+        SessionContext.ActiveRearAnalysisSelection = analysisSelectionController.ActiveRearAnalysisSelection;
+        OnPropertyChanged(nameof(ActiveFrontAnalysisSelection));
+        OnPropertyChanged(nameof(ActiveRearAnalysisSelection));
+        SessionContext.AnalysisSelectionHighlightRanges = analysisSelectionController.HighlightRanges;
     }
 
     private void OnSessionContextPropertyChanged(object? sender, PropertyChangedEventArgs args)
@@ -1069,12 +1069,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 IsComplete = SessionContext.TelemetryData != null;
                 NotesPage.SetTemperatureAverages(SessionContext.TelemetryData?.TemperatureAverages ?? []);
                 pendingAnalysisRangeBoundary = null;
-                ClearStatisticsSelections();
+                ClearAnalysisSelections();
                 RefreshTrackTimelineContext();
                 NotifyTimelineAlignmentCommandsCanExecuteChanged();
                 if (SessionContext.TelemetryData is null)
                 {
-                    SessionContext.SessionAnalysis = SessionAnalysisResult.Hidden;
+                    SessionContext.SessionInsights = SessionInsightsResult.Hidden;
                     UpdateRecordedSessionExtensionHostState();
                     break;
                 }
@@ -1085,45 +1085,45 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                     break;
                 }
 
-                RecomputeDamperPercentagesForAnalysisRange();
-                RecomputeSessionAnalysisIfAllowed();
+                RecomputeDampingPercentagesForAnalysisRange();
+                RecomputeSessionInsightsIfAllowed();
                 UpdateRecordedSessionExtensionHostState();
                 break;
             case nameof(RecordedSessionContext.AnalysisRange):
                 OnPropertyChanged(nameof(SessionAnalysisRangeText));
-                ClearStatisticsSelections();
+                ClearAnalysisSelections();
                 presentationApplier.RefreshAnalysisRangeStates();
-                RecomputeDamperPercentagesForAnalysisRange();
-                RecomputeSessionAnalysisIfAllowed();
+                RecomputeDampingPercentagesForAnalysisRange();
+                RecomputeSessionInsightsIfAllowed();
                 UpdateRecordedSessionExtensionHostState();
                 break;
-            case nameof(RecordedSessionContext.SelectedTravelHistogramMode):
+            case nameof(RecordedSessionContext.SelectedTravelDistributionMode):
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
-                RecomputeSessionAnalysis();
-                PersistRecordedStatisticsPreferencesIfEnabled();
+                RecomputeSessionInsights();
+                PersistRecordedAnalysisPreferencesIfEnabled();
                 UpdateRecordedSessionExtensionHostState();
                 break;
             case nameof(RecordedSessionContext.SelectedBalanceDisplacementMode):
             case nameof(RecordedSessionContext.SelectedBalanceSpeedMode):
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
-                RecomputeSessionAnalysis();
-                PersistRecordedStatisticsPreferencesIfEnabled();
+                RecomputeSessionInsights();
+                PersistRecordedAnalysisPreferencesIfEnabled();
                 break;
             case nameof(RecordedSessionContext.SelectedVelocityAverageMode):
                 ClearDampingRangeSelections();
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
-                RecomputeDamperPercentagesForAnalysisRange();
-                RecomputeSessionAnalysis();
-                PersistRecordedStatisticsPreferencesIfEnabled();
+                RecomputeDampingPercentagesForAnalysisRange();
+                RecomputeSessionInsights();
+                PersistRecordedAnalysisPreferencesIfEnabled();
                 UpdateRecordedSessionExtensionHostState();
                 break;
-            case nameof(RecordedSessionContext.SelectedSessionAnalysisTargetProfile):
-                RecomputeSessionAnalysis();
-                PersistRecordedStatisticsPreferencesIfEnabled();
+            case nameof(RecordedSessionContext.SelectedSessionInsightsTargetProfile):
+                RecomputeSessionInsights();
+                PersistRecordedAnalysisPreferencesIfEnabled();
                 break;
             case nameof(RecordedSessionContext.DampingSpeedCutoffs):
-                RecomputeDamperPercentagesForAnalysisRange();
-                RecomputeSessionAnalysisIfAllowed();
+                RecomputeDampingPercentagesForAnalysisRange();
+                RecomputeSessionInsightsIfAllowed();
                 UpdateRecordedSessionExtensionHostState();
                 break;
             case nameof(RecordedSessionContext.FullTrackPoints):
@@ -1137,7 +1137,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 NotifyTimelineAlignmentCommandsCanExecuteChanged();
                 if (SessionContext.TelemetryData is not null)
                 {
-                    presentationApplier.ApplyRecordedTrackGraphStates();
+                    presentationApplier.ApplyRecordedTrackSignalStates();
                 }
 
                 break;
@@ -1166,61 +1166,61 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void ApplyRecordedPreferences(SessionPreferences preferences)
     {
-        PlotPreferences = preferences.Plots;
-        GraphPreferences = preferences.Graph;
+        SignalDisplayPreferences = preferences.SignalDisplay;
+        SignalLayoutPreferences = preferences.SignalLayout;
         LayoutPreferences = preferences.Layout;
-        PreferencesPage.ApplyPlotPreferences(preferences.Plots);
+        PreferencesPage.ApplySignalDisplayPreferences(preferences.SignalDisplay);
         PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
-        ApplyRecordedStatisticsPreferences(preferences.Statistics);
-        presentationApplier.RefreshRecordedGraphStates(recordedPreferenceStore.Current.Plots);
+        ApplyRecordedAnalysisPreferences(preferences.Analysis);
+        presentationApplier.RefreshRecordedSignalStates(recordedPreferenceStore.Current.SignalDisplay);
     }
 
-    private void ApplyRecordedStatisticsPreferences(SessionStatisticsPreferences preferences)
+    private void ApplyRecordedAnalysisPreferences(AnalysisPreferences preferences)
     {
-        suppressAnalysisRecompute = true;
+        suppressInsightsRecompute = true;
         try
         {
-            SessionContext.SelectedTravelHistogramMode = preferences.TravelHistogramMode;
+            SessionContext.SelectedTravelDistributionMode = preferences.TravelDistributionMode;
             SessionContext.SelectedVelocityAverageMode = preferences.VelocityAverageMode;
             SessionContext.SelectedBalanceDisplacementMode = preferences.BalanceDisplacementMode;
             SessionContext.SelectedBalanceSpeedMode = preferences.BalanceSpeedMode;
-            SessionContext.SelectedSessionAnalysisTargetProfile = preferences.SessionAnalysisTargetProfile;
+            SessionContext.SelectedSessionInsightsTargetProfile = preferences.SessionInsightsTargetProfile;
         }
         finally
         {
-            suppressAnalysisRecompute = false;
+            suppressInsightsRecompute = false;
         }
     }
 
-    private void OnPlotPreferenceChanged(object? sender, PropertyChangedEventArgs args)
+    private void OnSignalPreferenceChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName is not (nameof(PlotPreferenceItemViewModel.Selected) or nameof(PlotPreferenceItemViewModel.SelectedSmoothing)))
+        if (args.PropertyName is not (nameof(SignalPreferenceItemViewModel.Selected) or nameof(SignalPreferenceItemViewModel.SelectedSmoothing)))
         {
             return;
         }
 
-        var plots = PreferencesPage.CreatePlotPreferences();
-        PlotPreferences = plots;
-        recordedPreferenceStore.UpdateCurrent(current => current with { Plots = plots });
-        presentationApplier.RefreshRecordedGraphStates(recordedPreferenceStore.Current.Plots);
-        recordedPreferenceStore.PersistChangeIfEnabled(current => current with { Plots = plots });
+        var signalDisplay = PreferencesPage.CreateSignalDisplayPreferences();
+        SignalDisplayPreferences = signalDisplay;
+        recordedPreferenceStore.UpdateCurrent(current => current with { SignalDisplay = signalDisplay });
+        presentationApplier.RefreshRecordedSignalStates(recordedPreferenceStore.Current.SignalDisplay);
+        recordedPreferenceStore.PersistChangeIfEnabled(current => current with { SignalDisplay = signalDisplay });
     }
 
-    private SessionStatisticsPreferences CreateStatisticsPreferences()
+    private AnalysisPreferences CreateAnalysisPreferences()
     {
-        return new SessionStatisticsPreferences(
-            SessionContext.SelectedTravelHistogramMode,
+        return new AnalysisPreferences(
+            SessionContext.SelectedTravelDistributionMode,
             SessionContext.SelectedVelocityAverageMode,
             SessionContext.SelectedBalanceDisplacementMode,
             SessionContext.SelectedBalanceSpeedMode,
-            SessionContext.SelectedSessionAnalysisTargetProfile);
+            SessionContext.SelectedSessionInsightsTargetProfile);
     }
 
-    private void PersistRecordedStatisticsPreferencesIfEnabled()
+    private void PersistRecordedAnalysisPreferencesIfEnabled()
     {
-        var statistics = CreateStatisticsPreferences();
-        recordedPreferenceStore.UpdateCurrent(current => current with { Statistics = statistics });
-        recordedPreferenceStore.PersistChangeIfEnabled(current => current with { Statistics = statistics });
+        var analysis = CreateAnalysisPreferences();
+        recordedPreferenceStore.UpdateCurrent(current => current with { Analysis = analysis });
+        recordedPreferenceStore.PersistChangeIfEnabled(current => current with { Analysis = analysis });
     }
 
     private void OnProcessingPreferenceChangeCommitted(object? sender, EventArgs args) =>
@@ -1352,18 +1352,18 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     #region Commands
 
     [RelayCommand]
-    private void SelectTelemetryRangeSelection(TelemetryRangeSelection? selection)
+    private void SelectAnalysisRange(TelemetryRangeSelection? selection)
     {
-        if (!statisticsSelectionController.Select(selection, SessionContext.TelemetryData, SessionContext.AnalysisRange)) return;
+        if (!analysisSelectionController.Select(selection, SessionContext.TelemetryData, SessionContext.AnalysisRange)) return;
 
-        SyncStatisticsSelectionController();
-        plotRowActions.ClearStatisticsSelectionToggles();
-        if (SessionContext.HasStatisticsSelection)
+        SyncAnalysisSelectionController();
+        signalRowActions.ClearAnalysisSelectionToggles();
+        if (SessionContext.HasAnalysisSelection)
         {
-            SessionContext.ShowStatisticsSelection = true;
+            SessionContext.ShowAnalysisSelection = true;
         }
 
-        plotRowActions.RefreshStatisticsSelectionActionStates();
+        signalRowActions.RefreshAnalysisSelectionActionStates();
     }
 
     public void SetAnalysisRange(double startSeconds, double endSeconds)
@@ -1442,7 +1442,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         // Subscribe before the awaited restore so a remote sync apply that
         // lands while restore is in flight is not missed.
-        var watch = recordedSessionGraph.WatchSession(Id);
+        var watch = recordedSessionProjection.WatchSession(Id);
         if (SynchronizationContext.Current is { } synchronizationContext)
         {
             watch = watch.ObserveOn(synchronizationContext);

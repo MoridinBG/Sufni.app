@@ -27,7 +27,7 @@ using Sufni.App.Sessions.Detail.DesktopViews.Items;
 using Sufni.App.Sessions.Media.DesktopViews.Items;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Services;
-using Sufni.App.Sessions.Statistics.DesktopViews.Items;
+using Sufni.App.Sessions.Analysis.DesktopViews.Items;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.Tests.TestSupport.Doubles;
@@ -47,9 +47,9 @@ public class LiveSessionDetailDesktopViewTests
 
         var shellView = mounted.View.GetVisualDescendants().OfType<SessionShellDesktopView>().Single();
 
-        Assert.IsType<LiveSessionGraphDesktopView>(shellView.GraphContent);
+        Assert.IsType<LiveSessionSignalsDesktopView>(shellView.SignalsContent);
         Assert.IsType<SessionMediaDesktopView>(shellView.MediaContent);
-        Assert.IsType<SessionStatisticsDesktopView>(shellView.StatisticsContent);
+        Assert.IsType<SessionAnalysisDesktopView>(shellView.AnalysisContent);
         Assert.IsType<LiveSessionControlsDesktopView>(shellView.ControlContent);
         Assert.IsType<SessionSidebarDesktopView>(shellView.SidebarContent);
     }
@@ -74,12 +74,12 @@ public class LiveSessionDetailDesktopViewTests
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
         var shell = Substitute.For<IShellCoordinator>();
         var dialogService = Substitute.For<IDialogService>();
-        var graphBatches = new ReplaySubject<LiveGraphBatch>(1);
+        var signalBatches = new ReplaySubject<LiveSignalBatch>(1);
         var header = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 909);
         var snapshot = new LiveSessionPresentationSnapshot(
             Stream: new LiveSessionStreamPresentation.Streaming(header.SessionStartUtc.LocalDateTime, header),
-            StatisticsTelemetry: null,
-            DamperPercentages: SessionDamperPercentages.Empty,
+            AnalysisTelemetry: null,
+            DampingPercentages: SessionDampingPercentages.Empty,
             SessionTrackPoints: [],
             Controls: new LiveSessionControlState(
                 ConnectionState: LiveConnectionState.Connected,
@@ -96,12 +96,12 @@ public class LiveSessionDetailDesktopViewTests
                 CanSave: true),
             CaptureRevision: 1);
 
-        var liveSessionService = StubLiveSessionService.WithDefaultLiveStream(snapshot, graphBatches);
+        var liveSessionService = StubLiveSessionService.WithDefaultLiveStream(snapshot, signalBatches);
 
         tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
         tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
 
-        graphBatches.OnNext(new LiveGraphBatch(
+        signalBatches.OnNext(new LiveSignalBatch(
             Revision: 1,
             TravelTimes: [0.0, 0.01],
             FrontTravel: [10.0, 11.0],

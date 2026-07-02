@@ -8,13 +8,13 @@ namespace Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 
 public partial class BalancePageViewModel : PageViewModelBase
 {
-    public ISessionStatisticsWorkspace? StatisticsWorkspace { get; }
-    public bool HasDynamicStatistics => StatisticsWorkspace?.TelemetryData is not null;
-    public SurfacePresentationState CompressionPresentationState => HasDynamicStatistics
-        ? StatisticsWorkspace!.CompressionBalanceState
+    public ISessionAnalysisWorkspace? AnalysisWorkspace { get; }
+    public bool HasAnalysisData => AnalysisWorkspace?.TelemetryData is not null;
+    public SurfacePresentationState CompressionPresentationState => HasAnalysisData
+        ? AnalysisWorkspace!.CompressionBalanceState
         : CompressionBalanceState;
-    public SurfacePresentationState ReboundPresentationState => HasDynamicStatistics
-        ? StatisticsWorkspace!.ReboundBalanceState
+    public SurfacePresentationState ReboundPresentationState => HasAnalysisData
+        ? AnalysisWorkspace!.ReboundBalanceState
         : ReboundBalanceState;
 
     [ObservableProperty] public partial string? CompressionBalance { get; set; }
@@ -24,7 +24,7 @@ public partial class BalancePageViewModel : PageViewModelBase
 
     public bool ZenithModeSelected
     {
-        get => StatisticsWorkspace?.SelectedBalanceDisplacementMode == BalanceDisplacementMode.Zenith;
+        get => AnalysisWorkspace?.SelectedBalanceDisplacementMode == BalanceDisplacementMode.Zenith;
         set
         {
             if (value)
@@ -36,7 +36,7 @@ public partial class BalancePageViewModel : PageViewModelBase
 
     public bool TravelModeSelected
     {
-        get => StatisticsWorkspace?.SelectedBalanceDisplacementMode == BalanceDisplacementMode.Travel;
+        get => AnalysisWorkspace?.SelectedBalanceDisplacementMode == BalanceDisplacementMode.Travel;
         set
         {
             if (value)
@@ -48,7 +48,7 @@ public partial class BalancePageViewModel : PageViewModelBase
 
     public bool SpeedModeSelected
     {
-        get => StatisticsWorkspace?.SelectedBalanceDisplacementMode == BalanceDisplacementMode.Speed;
+        get => AnalysisWorkspace?.SelectedBalanceDisplacementMode == BalanceDisplacementMode.Speed;
         set
         {
             if (value)
@@ -60,7 +60,7 @@ public partial class BalancePageViewModel : PageViewModelBase
 
     public bool BothSpeedModeSelected
     {
-        get => StatisticsWorkspace?.SelectedBalanceSpeedMode == BalanceSpeedMode.Both;
+        get => AnalysisWorkspace?.SelectedBalanceSpeedMode == BalanceSpeedMode.Both;
         set
         {
             if (value)
@@ -72,7 +72,7 @@ public partial class BalancePageViewModel : PageViewModelBase
 
     public bool LowSpeedModeSelected
     {
-        get => StatisticsWorkspace?.SelectedBalanceSpeedMode == BalanceSpeedMode.LowSpeed;
+        get => AnalysisWorkspace?.SelectedBalanceSpeedMode == BalanceSpeedMode.LowSpeed;
         set
         {
             if (value)
@@ -84,7 +84,7 @@ public partial class BalancePageViewModel : PageViewModelBase
 
     public bool HighSpeedModeSelected
     {
-        get => StatisticsWorkspace?.SelectedBalanceSpeedMode == BalanceSpeedMode.HighSpeed;
+        get => AnalysisWorkspace?.SelectedBalanceSpeedMode == BalanceSpeedMode.HighSpeed;
         set
         {
             if (value)
@@ -94,11 +94,11 @@ public partial class BalancePageViewModel : PageViewModelBase
         }
     }
 
-    public BalancePageViewModel(ISessionStatisticsWorkspace? statisticsWorkspace = null)
+    public BalancePageViewModel(ISessionAnalysisWorkspace? analysisWorkspace = null)
         : base("Balance")
     {
-        StatisticsWorkspace = statisticsWorkspace;
-        if (statisticsWorkspace is INotifyPropertyChanged observableWorkspace)
+        AnalysisWorkspace = analysisWorkspace;
+        if (analysisWorkspace is INotifyPropertyChanged observableWorkspace)
         {
             observableWorkspace.PropertyChanged += OnWorkspacePropertyChanged;
         }
@@ -116,25 +116,25 @@ public partial class BalancePageViewModel : PageViewModelBase
 
     private void OnWorkspacePropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName is nameof(ISessionStatisticsWorkspace.TelemetryData))
+        if (args.PropertyName is nameof(ISessionAnalysisWorkspace.TelemetryData))
         {
-            OnPropertyChanged(nameof(HasDynamicStatistics));
+            OnPropertyChanged(nameof(HasAnalysisData));
             OnPropertyChanged(nameof(CompressionPresentationState));
             OnPropertyChanged(nameof(ReboundPresentationState));
         }
-        else if (args.PropertyName is nameof(ISessionStatisticsWorkspace.CompressionBalanceState))
+        else if (args.PropertyName is nameof(ISessionAnalysisWorkspace.CompressionBalanceState))
         {
             OnPropertyChanged(nameof(CompressionPresentationState));
         }
-        else if (args.PropertyName is nameof(ISessionStatisticsWorkspace.ReboundBalanceState))
+        else if (args.PropertyName is nameof(ISessionAnalysisWorkspace.ReboundBalanceState))
         {
             OnPropertyChanged(nameof(ReboundPresentationState));
         }
-        else if (args.PropertyName is nameof(ISessionStatisticsWorkspace.SelectedBalanceDisplacementMode))
+        else if (args.PropertyName is nameof(ISessionAnalysisWorkspace.SelectedBalanceDisplacementMode))
         {
             RefreshBalanceDisplacementModeSelection();
         }
-        else if (args.PropertyName is nameof(ISessionStatisticsWorkspace.SelectedBalanceSpeedMode))
+        else if (args.PropertyName is nameof(ISessionAnalysisWorkspace.SelectedBalanceSpeedMode))
         {
             RefreshBalanceSpeedModeSelection();
         }
@@ -142,23 +142,23 @@ public partial class BalancePageViewModel : PageViewModelBase
 
     private void SelectBalanceDisplacementMode(BalanceDisplacementMode mode)
     {
-        if (StatisticsWorkspace is null || StatisticsWorkspace.SelectedBalanceDisplacementMode == mode)
+        if (AnalysisWorkspace is null || AnalysisWorkspace.SelectedBalanceDisplacementMode == mode)
         {
             return;
         }
 
-        StatisticsWorkspace.SelectedBalanceDisplacementMode = mode;
+        AnalysisWorkspace.SelectedBalanceDisplacementMode = mode;
         RefreshBalanceDisplacementModeSelection();
     }
 
     private void SelectBalanceSpeedMode(BalanceSpeedMode mode)
     {
-        if (StatisticsWorkspace is null || StatisticsWorkspace.SelectedBalanceSpeedMode == mode)
+        if (AnalysisWorkspace is null || AnalysisWorkspace.SelectedBalanceSpeedMode == mode)
         {
             return;
         }
 
-        StatisticsWorkspace.SelectedBalanceSpeedMode = mode;
+        AnalysisWorkspace.SelectedBalanceSpeedMode = mode;
         RefreshBalanceSpeedModeSelection();
     }
 

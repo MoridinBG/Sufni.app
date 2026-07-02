@@ -22,9 +22,9 @@ public class VibrationThirdsPlot(Plot plot, SuspensionType type, ImuLocation loc
 
         base.LoadTelemetryData(telemetryData);
 
-        SetTitle(StatisticsPlotTitles.VibrationThirds(type, location));
+        SetTitle(AnalysisPlotTitles.VibrationDistribution(type, location));
         SetAxisLabels("Stroke group", "Vibration (%)");
-        Plot.Layout.Fixed(CreateStatisticsPlotPadding(titleTop: 45));
+        Plot.Layout.Fixed(CreateAnalysisPlotPadding(titleTop: 45));
 
         var groups = new[]
         {
@@ -67,7 +67,7 @@ public class VibrationThirdsPlot(Plot plot, SuspensionType type, ImuLocation loc
         Plot.Add.Bars(bars);
         Plot.Axes.SetLimits(left: -0.5, right: 2.5, bottom: 0, top: 100);
         Plot.Axes.Rules.Add(new BoundedZoomRule(Plot.Axes.Bottom, Plot.Axes.Left,
-            -0.5, 2.5, 0, 100, ZoomFractions.Statistics));
+            -0.5, 2.5, 0, 100, ZoomFractions.Analysis));
         Plot.Axes.Bottom.SetTicks([0, 1, 2], ["Compression", "Rebound", "Overall"]);
     }
 }

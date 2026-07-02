@@ -18,15 +18,15 @@ public class SessionPresentationServiceTests
 
         var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180));
 
-        Assert.NotNull(result.FrontTravelHistogram);
-        Assert.NotNull(result.FrontVelocityHistogram);
-        Assert.Null(result.RearTravelHistogram);
-        Assert.Null(result.RearVelocityHistogram);
+        Assert.NotNull(result.FrontTravelDistribution);
+        Assert.NotNull(result.FrontVelocityDistribution);
+        Assert.Null(result.RearTravelDistribution);
+        Assert.Null(result.RearVelocityDistribution);
         Assert.False(result.BalanceAvailable);
         Assert.Null(result.CompressionBalance);
         Assert.Null(result.ReboundBalance);
-        Assert.NotNull(result.DamperPercentages.FrontHscPercentage);
-        Assert.Null(result.DamperPercentages.RearHscPercentage);
+        Assert.NotNull(result.DampingPercentages.FrontHscPercentage);
+        Assert.Null(result.DampingPercentages.RearHscPercentage);
     }
 
     [Fact]
@@ -36,15 +36,15 @@ public class SessionPresentationServiceTests
 
         var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180));
 
-        Assert.Null(result.FrontTravelHistogram);
-        Assert.Null(result.FrontVelocityHistogram);
-        Assert.NotNull(result.RearTravelHistogram);
-        Assert.NotNull(result.RearVelocityHistogram);
+        Assert.Null(result.FrontTravelDistribution);
+        Assert.Null(result.FrontVelocityDistribution);
+        Assert.NotNull(result.RearTravelDistribution);
+        Assert.NotNull(result.RearVelocityDistribution);
         Assert.False(result.BalanceAvailable);
         Assert.Null(result.CompressionBalance);
         Assert.Null(result.ReboundBalance);
-        Assert.Null(result.DamperPercentages.FrontHscPercentage);
-        Assert.NotNull(result.DamperPercentages.RearHscPercentage);
+        Assert.Null(result.DampingPercentages.FrontHscPercentage);
+        Assert.NotNull(result.DampingPercentages.RearHscPercentage);
     }
 
     [Fact]
@@ -54,15 +54,15 @@ public class SessionPresentationServiceTests
 
         var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180));
 
-        Assert.NotNull(result.FrontTravelHistogram);
-        Assert.NotNull(result.RearTravelHistogram);
-        Assert.NotNull(result.FrontVelocityHistogram);
-        Assert.NotNull(result.RearVelocityHistogram);
+        Assert.NotNull(result.FrontTravelDistribution);
+        Assert.NotNull(result.RearTravelDistribution);
+        Assert.NotNull(result.FrontVelocityDistribution);
+        Assert.NotNull(result.RearVelocityDistribution);
         Assert.True(result.BalanceAvailable);
         Assert.NotNull(result.CompressionBalance);
         Assert.NotNull(result.ReboundBalance);
-        Assert.NotNull(result.DamperPercentages.FrontHscPercentage);
-        Assert.NotNull(result.DamperPercentages.RearHscPercentage);
+        Assert.NotNull(result.DampingPercentages.FrontHscPercentage);
+        Assert.NotNull(result.DampingPercentages.RearHscPercentage);
     }
 
     [Fact]
@@ -72,10 +72,10 @@ public class SessionPresentationServiceTests
 
         var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180));
 
-        Assert.NotNull(result.FrontTravelHistogram);
-        Assert.NotNull(result.RearTravelHistogram);
-        Assert.NotNull(result.FrontVelocityHistogram);
-        Assert.NotNull(result.RearVelocityHistogram);
+        Assert.NotNull(result.FrontTravelDistribution);
+        Assert.NotNull(result.RearTravelDistribution);
+        Assert.NotNull(result.FrontVelocityDistribution);
+        Assert.NotNull(result.RearVelocityDistribution);
         Assert.False(result.BalanceAvailable);
         Assert.Null(result.CompressionBalance);
         Assert.Null(result.ReboundBalance);
@@ -88,19 +88,19 @@ public class SessionPresentationServiceTests
 
         var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180));
 
-        Assert.Null(result.FrontTravelHistogram);
-        Assert.Null(result.RearTravelHistogram);
-        Assert.Null(result.FrontVelocityHistogram);
-        Assert.Null(result.RearVelocityHistogram);
+        Assert.Null(result.FrontTravelDistribution);
+        Assert.Null(result.RearTravelDistribution);
+        Assert.Null(result.FrontVelocityDistribution);
+        Assert.Null(result.RearVelocityDistribution);
         Assert.False(result.BalanceAvailable);
         Assert.Null(result.CompressionBalance);
         Assert.Null(result.ReboundBalance);
-        Assert.Null(result.DamperPercentages.FrontHscPercentage);
-        Assert.Null(result.DamperPercentages.RearHscPercentage);
+        Assert.Null(result.DampingPercentages.FrontHscPercentage);
+        Assert.Null(result.DampingPercentages.RearHscPercentage);
     }
 
     [Fact]
-    public void CalculateDamperPercentages_UsesDampingSpeedCutoffs()
+    public void CalculateDampingPercentages_UsesDampingSpeedCutoffs()
     {
         var telemetry = new TelemetryData
         {
@@ -114,7 +114,7 @@ public class SessionPresentationServiceTests
             new DampingSpeedCutoffSide(200, 200),
             new DampingSpeedCutoffSide(400, 400));
 
-        var result = service.CalculateDamperPercentages(telemetry, dampingSpeedCutoffs: cutoffs);
+        var result = service.CalculateDampingPercentages(telemetry, dampingSpeedCutoffs: cutoffs);
 
         Assert.Equal(25, result.FrontLscPercentage);
         Assert.Equal(25, result.FrontHscPercentage);
@@ -132,10 +132,10 @@ public class SessionPresentationServiceTests
         var cache = new SessionCache
         {
             SessionId = Guid.NewGuid(),
-            FrontTravelHistogram = "front-travel",
-            RearTravelHistogram = "rear-travel",
-            FrontVelocityHistogram = "front-velocity",
-            RearVelocityHistogram = "rear-velocity",
+            FrontTravelDistribution = "front-travel",
+            RearTravelDistribution = "rear-travel",
+            FrontVelocityDistribution = "front-velocity",
+            RearVelocityDistribution = "rear-velocity",
             CompressionBalance = "compression",
             ReboundBalance = "rebound",
             FrontHscPercentage = 1,
@@ -152,10 +152,10 @@ public class SessionPresentationServiceTests
         var roundTripped = presentation.ToCache(cache.SessionId);
 
         Assert.True(presentation.BalanceAvailable);
-        Assert.Equal(cache.FrontTravelHistogram, roundTripped.FrontTravelHistogram);
-        Assert.Equal(cache.RearTravelHistogram, roundTripped.RearTravelHistogram);
-        Assert.Equal(cache.FrontVelocityHistogram, roundTripped.FrontVelocityHistogram);
-        Assert.Equal(cache.RearVelocityHistogram, roundTripped.RearVelocityHistogram);
+        Assert.Equal(cache.FrontTravelDistribution, roundTripped.FrontTravelDistribution);
+        Assert.Equal(cache.RearTravelDistribution, roundTripped.RearTravelDistribution);
+        Assert.Equal(cache.FrontVelocityDistribution, roundTripped.FrontVelocityDistribution);
+        Assert.Equal(cache.RearVelocityDistribution, roundTripped.RearVelocityDistribution);
         Assert.Equal(cache.CompressionBalance, roundTripped.CompressionBalance);
         Assert.Equal(cache.ReboundBalance, roundTripped.ReboundBalance);
         Assert.Equal(cache.FrontHscPercentage, roundTripped.FrontHscPercentage);

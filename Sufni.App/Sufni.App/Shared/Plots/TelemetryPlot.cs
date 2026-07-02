@@ -17,7 +17,7 @@ namespace Sufni.App.Shared.Plots;
 internal static class ZoomFractions
 {
     public const double TimeSeries = 0.01;
-    public const double Statistics = 0.10;
+    public const double Analysis = 0.10;
 }
 
 internal static class AxisRangeConstraints
@@ -371,7 +371,7 @@ public class TelemetryPlot : SufniPlot
         HideCursorReadout();
     }
 
-    public void ApplyStatisticsOverlayDescriptor(RecordedSessionStatisticsPlotOverlayDescriptor? descriptor)
+    public void ApplyStatisticsOverlayDescriptor(RecordedSessionAnalysisPlotOverlayDescriptor? descriptor)
     {
         ClearStatisticsOverlayDescriptor();
         if (descriptor is null)
@@ -622,7 +622,7 @@ public class TelemetryPlot : SufniPlot
         string header,
         params CursorReadoutLine[] lines)
     {
-        pointerReadoutTargets.Add(StatisticsBarReadout.FromBar(bar, header, lines));
+        pointerReadoutTargets.Add(AnalysisBarReadout.FromBar(bar, header, lines));
     }
 
     private protected void AddPointerReadoutTarget(IPointerReadoutTarget readoutTarget)
@@ -797,7 +797,7 @@ public class TelemetryPlot : SufniPlot
         float cursorPixelY,
         PixelRect dataRect)
     {
-        const float graphInset = 8f;
+        const float plotInset = 8f;
         const float pixelOffset = 12f;
 
         var (estimatedWidth, estimatedHeight) = EstimateTooltipSize(FormatCursorReadout(readout));
@@ -808,7 +808,7 @@ public class TelemetryPlot : SufniPlot
             : cursorPixelX - pixelOffset;
 
         var dataWidth = Math.Abs(dataRect.Right - dataRect.Left);
-        if (estimatedWidth >= dataWidth - graphInset * 2)
+        if (estimatedWidth >= dataWidth - plotInset * 2)
         {
             alignment = Alignment.MiddleCenter;
             labelPixelX = dataRect.Center.X;
@@ -817,20 +817,20 @@ public class TelemetryPlot : SufniPlot
         {
             labelPixelX = Math.Clamp(
                 labelPixelX,
-                dataRect.Left + graphInset,
-                dataRect.Right - estimatedWidth - graphInset);
+                dataRect.Left + plotInset,
+                dataRect.Right - estimatedWidth - plotInset);
         }
         else
         {
             labelPixelX = Math.Clamp(
                 labelPixelX,
-                dataRect.Left + estimatedWidth + graphInset,
-                dataRect.Right - graphInset);
+                dataRect.Left + estimatedWidth + plotInset,
+                dataRect.Right - plotInset);
         }
 
         var halfHeight = estimatedHeight / 2.0f;
-        var minY = dataRect.Top + halfHeight + graphInset;
-        var maxY = dataRect.Bottom - halfHeight - graphInset;
+        var minY = dataRect.Top + halfHeight + plotInset;
+        var maxY = dataRect.Bottom - halfHeight - plotInset;
         var labelPixelY = minY <= maxY
             ? Math.Clamp(cursorPixelY, minY, maxY)
             : dataRect.Center.Y;

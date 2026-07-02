@@ -49,29 +49,29 @@ public static class SufniLightTheme
             FieldBorderDisabled: Frost,
             DragHeader: Glacier,
             DropTargetHeader: DropTargetBlue,
-            GraphRowRootPlotData: Vapor,
-            GraphRowHostedLevel1: new SufniGraphRowDepthTheme(
+            SignalRowRootPlotData: Vapor,
+            SignalRowHostedLevel1: new SufniSignalRowDepthTheme(
                 Container: Alabaster,
                 Header: SandHeader,
                 PlotFigure: SandFigure,
                 PlotData: SandData),
-            GraphRowHostedLevel2: new SufniGraphRowDepthTheme(
+            SignalRowHostedLevel2: new SufniSignalRowDepthTheme(
                 Container: ClayContainer,
                 Header: Stone,
                 PlotFigure: ClayFigure,
                 PlotData: ClayData),
-            GraphRowHostedLevel3Plus: new SufniGraphRowDepthTheme(
+            SignalRowHostedLevel3Plus: new SufniSignalRowDepthTheme(
                 Container: EarthContainer,
                 Header: EarthHeader,
                 PlotFigure: EarthFigure,
                 PlotData: EarthData),
-            GraphRowConnector: SlateDark,
+            SignalRowConnector: SlateDark,
             PlotGridMajor: Pewter,
             PlotGridMinor: Smoke,
             PlotAxisLine: Pewter,
             PlotMarkerBlue: MarkerBlue,
-            PlotStatisticsSelectionFrontBase: Indigo,
-            PlotStatisticsSelectionRearBase: Lagoon,
+            PlotAnalysisSelectionFrontBase: Indigo,
+            PlotAnalysisSelectionRearBase: Lagoon,
             PlotDampingSelectionFill: WarningOchre.WithAlpha(0.20),
             PlotDampingSelectionOutline: WarningOchre.WithAlpha(0.62),
             PlotAnalysisSelectedFillOpacity: 0.2,

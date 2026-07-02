@@ -13,7 +13,7 @@ public class TelemetryPlotContextMenuTests
     public void ShowContextMenu_AppendsExecutableWorkspaceActionsAfterDefaults()
     {
         var context = new TelemetryPlotContextMenuContext(
-            TelemetryGraphRowIds.Travel,
+            SignalRowIds.Travel,
             ClickSeconds: 2,
             DurationSeconds: 10,
             AnalysisRange: new TelemetryTimeRange(1, 3));
@@ -56,7 +56,7 @@ public class TelemetryPlotContextMenuTests
     public void ShowContextMenu_OmitsNonExecutableAndBlankLabelActions()
     {
         var context = new TelemetryPlotContextMenuContext(
-            TelemetryGraphRowIds.Travel,
+            SignalRowIds.Travel,
             ClickSeconds: 2,
             DurationSeconds: 10,
             AnalysisRange: null);

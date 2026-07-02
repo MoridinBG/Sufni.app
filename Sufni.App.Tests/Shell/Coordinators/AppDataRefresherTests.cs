@@ -1,7 +1,7 @@
 using NSubstitute;
 
 using Sufni.App.Bikes.Stores;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Shell.Coordinators;
@@ -29,7 +29,7 @@ public class AppDataRefresherTests
 
         await refresher.RefreshAsync();
 
-        // The option cache must hydrate before stores refresh so the graph's
+        // The option cache must hydrate before stores refresh so the projection's
         // first sweep sees each session's real option.
         await processingOptionCache.Received(1).HydrateAsync();
         await bikeStore.Received(1).RefreshAsync();

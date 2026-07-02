@@ -5,12 +5,12 @@ using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using Sufni.Telemetry;
 
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 namespace Sufni.App.Tests.TestSupport.Persistence;
 
 // Controllable in-memory IRecordedSessionProcessingOptionCache for tests. Get
 // mirrors production (a cache miss is the 25 ms default); Set updates the value
-// and publishes through OptionChanged so graph/domain reactions to a preference
+// and publishes through OptionChanged so projection/domain reactions to a preference
 // change can be exercised deterministically.
 internal sealed class InMemoryRecordedSessionProcessingOptionCache : IRecordedSessionProcessingOptionCache
 {

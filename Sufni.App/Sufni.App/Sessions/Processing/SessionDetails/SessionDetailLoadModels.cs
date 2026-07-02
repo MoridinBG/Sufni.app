@@ -15,7 +15,7 @@ public sealed record SessionTelemetryPresentationData(
     List<TrackPoint>? FullTrackPoints,
     List<TrackPoint>? TrackPoints,
     double? MediaColumnWidth,
-    SessionDamperPercentages DamperPercentages,
+    SessionDampingPercentages DampingPercentages,
     DampingSpeedCutoffs DampingSpeedCutoffs,
     DampingSpeedCutoffOwner? DampingSpeedCutoffOwner)
 {
@@ -25,14 +25,14 @@ public sealed record SessionTelemetryPresentationData(
         List<TrackPoint>? FullTrackPoints,
         List<TrackPoint>? TrackPoints,
         double? MediaColumnWidth,
-        SessionDamperPercentages DamperPercentages)
+        SessionDampingPercentages DampingPercentages)
         : this(
             TelemetryData,
             FullTrackId,
             FullTrackPoints,
             TrackPoints,
             MediaColumnWidth,
-            DamperPercentages,
+            DampingPercentages,
             DampingSpeedCutoffs.Default,
             null)
     {
@@ -46,34 +46,34 @@ public sealed record SessionTrackPresentationData(
     double? MediaColumnWidth);
 
 public sealed record SessionCachePresentationData(
-    string? FrontTravelHistogram,
-    string? RearTravelHistogram,
-    string? FrontVelocityHistogram,
-    string? RearVelocityHistogram,
+    string? FrontTravelDistribution,
+    string? RearTravelDistribution,
+    string? FrontVelocityDistribution,
+    string? RearVelocityDistribution,
     string? CompressionBalance,
     string? ReboundBalance,
-    SessionDamperPercentages DamperPercentages,
+    SessionDampingPercentages DampingPercentages,
     DampingSpeedCutoffs DampingSpeedCutoffs,
     bool BalanceAvailable,
     DampingSpeedCutoffOwner? DampingSpeedCutoffOwner = null)
 {
     public SessionCachePresentationData(
-        string? FrontTravelHistogram,
-        string? RearTravelHistogram,
-        string? FrontVelocityHistogram,
-        string? RearVelocityHistogram,
+        string? FrontTravelDistribution,
+        string? RearTravelDistribution,
+        string? FrontVelocityDistribution,
+        string? RearVelocityDistribution,
         string? CompressionBalance,
         string? ReboundBalance,
-        SessionDamperPercentages DamperPercentages,
+        SessionDampingPercentages DampingPercentages,
         bool BalanceAvailable)
         : this(
-            FrontTravelHistogram,
-            RearTravelHistogram,
-            FrontVelocityHistogram,
-            RearVelocityHistogram,
+            FrontTravelDistribution,
+            RearTravelDistribution,
+            FrontVelocityDistribution,
+            RearVelocityDistribution,
             CompressionBalance,
             ReboundBalance,
-            DamperPercentages,
+            DampingPercentages,
             DampingSpeedCutoffs.Default,
             BalanceAvailable)
     {
@@ -84,13 +84,13 @@ public sealed record SessionCachePresentationData(
         var balanceAvailable = cache.CompressionBalance is not null && cache.ReboundBalance is not null;
 
         return new SessionCachePresentationData(
-            cache.FrontTravelHistogram,
-            cache.RearTravelHistogram,
-            cache.FrontVelocityHistogram,
-            cache.RearVelocityHistogram,
+            cache.FrontTravelDistribution,
+            cache.RearTravelDistribution,
+            cache.FrontVelocityDistribution,
+            cache.RearVelocityDistribution,
             cache.CompressionBalance,
             cache.ReboundBalance,
-            cache.DamperPercentages,
+            cache.DampingPercentages,
             cache.DampingSpeedCutoffs,
             balanceAvailable);
     }
@@ -100,13 +100,13 @@ public sealed record SessionCachePresentationData(
         return new SessionCache
         {
             SessionId = sessionId,
-            FrontTravelHistogram = FrontTravelHistogram,
-            RearTravelHistogram = RearTravelHistogram,
-            FrontVelocityHistogram = FrontVelocityHistogram,
-            RearVelocityHistogram = RearVelocityHistogram,
+            FrontTravelDistribution = FrontTravelDistribution,
+            RearTravelDistribution = RearTravelDistribution,
+            FrontVelocityDistribution = FrontVelocityDistribution,
+            RearVelocityDistribution = RearVelocityDistribution,
             CompressionBalance = BalanceAvailable ? CompressionBalance : null,
             ReboundBalance = BalanceAvailable ? ReboundBalance : null,
-            DamperPercentages = this.DamperPercentages,
+            DampingPercentages = this.DampingPercentages,
             DampingSpeedCutoffs = this.DampingSpeedCutoffs,
         };
     }
@@ -114,10 +114,10 @@ public sealed record SessionCachePresentationData(
 
 public readonly record struct SessionPresentationDimensions(int Width, int Height)
 {
-    public int TravelHistogramWidth => Math.Max(1, Width);
-    public int TravelHistogramHeight => Math.Max(1, Height);
-    public int VelocityHistogramWidth => Math.Max(1, Width - 64);
-    public int VelocityHistogramHeight => 478;
+    public int TravelDistributionWidth => Math.Max(1, Width);
+    public int TravelDistributionHeight => Math.Max(1, Height);
+    public int VelocityDistributionWidth => Math.Max(1, Width - 64);
+    public int VelocityDistributionHeight => 478;
 }
 
 public abstract record SessionDesktopLoadResult

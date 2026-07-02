@@ -55,14 +55,14 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
     public List<(double StartSeconds, double EndSeconds)> AnalysisRanges { get; } = [];
     public int AnalysisRangeClearCount { get; private set; }
     public List<double> AnalysisRangeBoundaries { get; } = [];
-    public List<SessionGraphPreferences> GraphPreferences { get; } = [];
+    public List<SignalLayoutPreferences> SignalLayoutPreferences { get; } = [];
 
     public void SetAnalysisRange(double startSeconds, double endSeconds) =>
         AnalysisRanges.Add((startSeconds, endSeconds));
 
     public void ClearAnalysisRange() => AnalysisRangeClearCount++;
 
-    public void SetGraphPreferences(SessionGraphPreferences preferences) => GraphPreferences.Add(preferences);
+    public void SetSignalLayoutPreferences(SignalLayoutPreferences preferences) => SignalLayoutPreferences.Add(preferences);
 
     public void SetAnalysisRangeBoundary(double boundarySeconds) => AnalysisRangeBoundaries.Add(boundarySeconds);
 

@@ -4,5 +4,5 @@ namespace Sufni.App.Sessions.Processing.SessionDetails;
 public static class SessionDampingSettings
 {
     public const double HighSpeedThresholdMmPerSecond = DampingSpeedCutoffs.DefaultMmPerSecond;
-    public const double VelocityHistogramLimitMmPerSecond = DampingSpeedCutoffs.MaximumMmPerSecond;
+    public const double VelocityDistributionLimitMmPerSecond = DampingSpeedCutoffs.MaximumMmPerSecond;
 }

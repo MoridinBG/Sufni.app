@@ -33,19 +33,19 @@ using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Shared.Base;
 using Sufni.App.Shell.Coordinators;
-using Sufni.App.Sessions.Graph.ViewModels.Editors;
-using Sufni.App.Sessions.Analysis.ViewModels.Editors;
+using Sufni.App.Sessions.Signals.ViewModels.Editors;
+using Sufni.App.Sessions.Insights.ViewModels.Editors;
 using Sufni.App.Shared.Common;
 using Sufni.App.Shared.Plots;
 namespace Sufni.App.LiveDaq.ViewModels.Editors;
 
 public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     ISessionShellMobileWorkspace,
-    ISessionStatisticsWorkspace,
+    ISessionAnalysisWorkspace,
     ISessionSidebarWorkspace,
     ILiveSessionControlsWorkspace
 {
-    private readonly LiveSessionGraphWorkspaceViewModel graphWorkspace;
+    private readonly LiveSessionSignalsWorkspaceViewModel signalsWorkspace;
     private readonly LiveSessionMediaWorkspaceViewModel mediaWorkspace;
     private readonly ILiveSessionService liveSessionService;
     private readonly ISessionCoordinator sessionCoordinator;
@@ -54,13 +54,13 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private IDisposable? uiRefreshTimer;
     private readonly System.Threading.Lock presentationGate = new();
-    private readonly System.Threading.Lock graphBatchRefreshGate = new();
+    private readonly System.Threading.Lock signalBatchRefreshGate = new();
     private bool hasLoaded;
     private long? blockedSavedCaptureRevision;
     private LiveSessionPresentationSnapshot pendingPresentation = LiveSessionPresentationSnapshot.Empty;
     private bool hasPendingPresentation;
-    private GraphBatchPresence pendingGraphBatchPresence;
-    private bool hasPendingGraphBatchRefresh;
+    private SignalBatchPresence pendingSignalBatchPresence;
+    private bool hasPendingSignalBatchRefresh;
     private readonly bool hasFrontTravelCalibration;
     private readonly bool hasRearTravelCalibration;
     private SessionPresentationDimensions? lastPresentationDimensions;
@@ -79,19 +79,19 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public Guid BikeId { get; }
     public string? BikeName { get; }
     public bool CanEditDampingSpeedCutoffs => dampingSpeedCutoffOwner is not null;
-    public IRelayCommand<TelemetryRangeSelection?> SelectTelemetryRangeSelectionCommand { get; } =
+    public IRelayCommand<TelemetryRangeSelection?> SelectAnalysisRangeCommand { get; } =
         new RelayCommand<TelemetryRangeSelection?>(_ => { });
-    public TelemetryRangeSelection? SelectedFrontRangeSelection => null;
-    public TelemetryRangeSelection? SelectedRearRangeSelection => null;
+    public TelemetryRangeSelection? ActiveFrontAnalysisSelection => null;
+    public TelemetryRangeSelection? ActiveRearAnalysisSelection => null;
 
-    public ILiveSessionGraphWorkspace GraphWorkspace => graphWorkspace;
+    public ILiveSessionSignalsWorkspace SignalsWorkspace => signalsWorkspace;
     public ISessionMediaWorkspace MediaWorkspace => mediaWorkspace;
     public NotesPageViewModel NotesPage { get; } = new();
     public PreferencesPageViewModel PreferencesPage { get; } = new();
     public SpringPageViewModel SpringPage { get; }
-    public DamperPageViewModel DamperPage { get; }
+    public DampingPageViewModel DampingPage { get; }
     public BalancePageViewModel BalancePage { get; }
-    public LiveGraphPageViewModel LiveGraphPage { get; }
+    public LiveSignalsPageViewModel LiveSignalsPage { get; }
     public ObservableCollection<PageViewModelBase> Pages { get; }
     public int SelectedPageIndex
     {
@@ -113,17 +113,17 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FrontStatisticsState))]
-    [NotifyPropertyChangedFor(nameof(RearStatisticsState))]
+    [NotifyPropertyChangedFor(nameof(FrontAnalysisState))]
+    [NotifyPropertyChangedFor(nameof(RearAnalysisState))]
     [NotifyPropertyChangedFor(nameof(CompressionBalanceState))]
     [NotifyPropertyChangedFor(nameof(ReboundBalanceState))]
     public partial TelemetryData? TelemetryData { get; set; }
 
     [ObservableProperty]
-    public partial SessionDamperPercentages DamperPercentages { get; set; } = SessionDamperPercentages.Empty;
+    public partial SessionDampingPercentages DampingPercentages { get; set; } = SessionDampingPercentages.Empty;
 
     // Kept in field form: the constructor writes the backing field directly to seed the
-    // initial value WITHOUT firing OnDampingSpeedCutoffsChanged, which recomputes damper
+    // initial value WITHOUT firing OnDampingSpeedCutoffsChanged, which recomputes damping
     // percentages against state not yet initialized at construction time (NRE otherwise).
     // All runtime writes still go through the generated DampingSpeedCutoffs property.
     [ObservableProperty]
@@ -132,7 +132,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     [ObservableProperty]
     private DampingSpeedCutoffs plotDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
 
-    public TravelHistogramMode SelectedTravelHistogramMode
+    public TravelDistributionMode SelectedTravelDistributionMode
     {
         get => field;
         set
@@ -142,7 +142,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
             }
         }
-    } = TravelHistogramMode.ActiveSuspension;
+    } = TravelDistributionMode.ActiveSuspension;
 
     public BalanceDisplacementMode SelectedBalanceDisplacementMode
     {
@@ -176,26 +176,26 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
-                RecomputeDamperPercentagesForSelectedVelocityAverageMode();
+                RecomputeDampingPercentagesForSelectedVelocityAverageMode();
             }
         }
     } = VelocityAverageMode.SampleAveraged;
 
-    public SessionAnalysisTargetProfile SelectedSessionAnalysisTargetProfile
+    public SessionInsightsTargetProfile SelectedSessionInsightsTargetProfile
     {
         get => field;
         set => SetProperty(ref field, value);
-    } = SessionAnalysisTargetProfile.Trail;
+    } = SessionInsightsTargetProfile.Trail;
 
-    public IReadOnlyList<TravelHistogramModeOption> TravelHistogramModeOptions { get; } = SessionAnalysisPresentation.TravelHistogramModeOptions;
-    public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } = SessionAnalysisPresentation.BalanceDisplacementModeOptions;
-    public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } = SessionAnalysisPresentation.BalanceSpeedModeOptions;
-    public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } = SessionAnalysisPresentation.VelocityAverageModeOptions;
-    public IReadOnlyList<SessionAnalysisTargetProfileOption> SessionAnalysisTargetProfileOptions { get; } = SessionAnalysisPresentation.SessionAnalysisTargetProfileOptions;
+    public IReadOnlyList<TravelDistributionModeOption> TravelDistributionModeOptions { get; } = SessionInsightsPresentation.TravelDistributionModeOptions;
+    public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } = SessionInsightsPresentation.BalanceDisplacementModeOptions;
+    public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } = SessionInsightsPresentation.BalanceSpeedModeOptions;
+    public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } = SessionInsightsPresentation.VelocityAverageModeOptions;
+    public IReadOnlyList<SessionInsightsTargetProfileOption> SessionInsightsTargetProfileOptions { get; } = SessionInsightsPresentation.SessionInsightsTargetProfileOptions;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FrontStatisticsState))]
-    [NotifyPropertyChangedFor(nameof(RearStatisticsState))]
+    [NotifyPropertyChangedFor(nameof(FrontAnalysisState))]
+    [NotifyPropertyChangedFor(nameof(RearAnalysisState))]
     [NotifyPropertyChangedFor(nameof(CompressionBalanceState))]
     [NotifyPropertyChangedFor(nameof(ReboundBalanceState))]
     public partial LiveSessionControlState ControlState { get; set; } = LiveSessionControlState.Empty;
@@ -205,19 +205,19 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     public SessionOperationPresentationState SessionOperationState => SessionOperationPresentationState.Hidden;
 
-    public SurfacePresentationState FrontStatisticsState => SessionStatisticsSurfaceState.ForSuspension(IsTravelStatisticsExpected(hasFrontTravelCalibration), TelemetryData, SuspensionType.Front);
-    public SurfacePresentationState RearStatisticsState => SessionStatisticsSurfaceState.ForSuspension(IsTravelStatisticsExpected(hasRearTravelCalibration), TelemetryData, SuspensionType.Rear);
-    public SurfacePresentationState CompressionBalanceState => SessionStatisticsSurfaceState.ForBalance(IsBalanceStatisticsExpected(), TelemetryData, BalanceType.Compression);
-    public SurfacePresentationState ReboundBalanceState => SessionStatisticsSurfaceState.ForBalance(IsBalanceStatisticsExpected(), TelemetryData, BalanceType.Rebound);
+    public SurfacePresentationState FrontAnalysisState => AnalysisSurfaceState.ForSuspension(IsTravelAnalysisExpected(hasFrontTravelCalibration), TelemetryData, SuspensionType.Front);
+    public SurfacePresentationState RearAnalysisState => AnalysisSurfaceState.ForSuspension(IsTravelAnalysisExpected(hasRearTravelCalibration), TelemetryData, SuspensionType.Rear);
+    public SurfacePresentationState CompressionBalanceState => AnalysisSurfaceState.ForBalance(IsBalanceAnalysisExpected(), TelemetryData, BalanceType.Compression);
+    public SurfacePresentationState ReboundBalanceState => AnalysisSurfaceState.ForBalance(IsBalanceAnalysisExpected(), TelemetryData, BalanceType.Rebound);
     public SurfacePresentationState FrontForkVibrationState => SurfacePresentationState.Hidden;
     public SurfacePresentationState FrontFrameVibrationState => SurfacePresentationState.Hidden;
     public SurfacePresentationState RearForkVibrationState => SurfacePresentationState.Hidden;
     public SurfacePresentationState RearFrameVibrationState => SurfacePresentationState.Hidden;
     public TelemetryTimeRange? AnalysisRange => null;
-    public SessionAnalysisResult SessionAnalysis => SessionAnalysisResult.Hidden;
+    public SessionInsightsResult SessionInsights => SessionInsightsResult.Hidden;
     public string SessionAnalysisRangeText => "Live session";
-    public string SessionAnalysisModesText => SessionAnalysisPresentation.DescribeModes(
-        SelectedTravelHistogramMode,
+    public string SessionAnalysisModesText => SessionInsightsPresentation.DescribeModes(
+        SelectedTravelDistributionMode,
         SelectedVelocityAverageMode,
         SelectedBalanceDisplacementMode,
         SelectedBalanceSpeedMode);
@@ -253,14 +253,14 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         hasRearTravelCalibration = context.TravelCalibration.Rear is not null;
 
         var timeline = new SessionTimelineLinkViewModel();
-        graphWorkspace = new LiveSessionGraphWorkspaceViewModel(timeline, CreatePlotRanges(context), liveSessionService.GraphBatches);
+        signalsWorkspace = new LiveSessionSignalsWorkspaceViewModel(timeline, CreatePlotRanges(context), liveSessionService.SignalBatches);
         mediaWorkspace = new LiveSessionMediaWorkspaceViewModel(mapViewModelFactory, timeline);
         Name = CreateDefaultName(DateTimeOffset.Now);
-        LiveGraphPage = new LiveGraphPageViewModel(graphWorkspace, mediaWorkspace);
+        LiveSignalsPage = new LiveSignalsPageViewModel(signalsWorkspace, mediaWorkspace);
         SpringPage = new SpringPageViewModel(this);
-        DamperPage = new DamperPageViewModel(this);
+        DampingPage = new DampingPageViewModel(this);
         BalancePage = new BalancePageViewModel(this);
-        Pages = [LiveGraphPage, SpringPage, DamperPage, NotesPage, PreferencesPage];
+        Pages = [LiveSignalsPage, SpringPage, DampingPage, NotesPage, PreferencesPage];
         Pages.CollectionChanged += OnPagesChanged;
         WireNotesPageForwarding();
         WireRuntimePreferenceForwarding();
@@ -302,7 +302,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         EnsureScopedSubscription(disposables =>
         {
             disposables.Add(liveSessionService.Snapshots.Subscribe(QueuePresentationRefresh));
-            disposables.Add(liveSessionService.GraphBatches.Subscribe(QueueGraphBatchRefresh));
+            disposables.Add(liveSessionService.SignalBatches.Subscribe(QueueSignalBatchRefresh));
         });
 
         if (hasLoaded)
@@ -544,25 +544,25 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     private void WireRuntimePreferenceForwarding()
     {
-        PreferencesPage.TravelPlot.PropertyChanged += OnPlotPreferenceChanged;
-        PreferencesPage.VelocityPlot.PropertyChanged += OnPlotPreferenceChanged;
-        PreferencesPage.ImuPlot.PropertyChanged += OnPlotPreferenceChanged;
-        PreferencesPage.PitchRollPlot.PropertyChanged += OnPlotPreferenceChanged;
-        PreferencesPage.SpeedPlot.PropertyChanged += OnPlotPreferenceChanged;
-        PreferencesPage.ElevationPlot.PropertyChanged += OnPlotPreferenceChanged;
+        PreferencesPage.TravelSignal.PropertyChanged += OnSignalPreferenceChanged;
+        PreferencesPage.VelocitySignal.PropertyChanged += OnSignalPreferenceChanged;
+        PreferencesPage.ImuSignal.PropertyChanged += OnSignalPreferenceChanged;
+        PreferencesPage.PitchRollSignal.PropertyChanged += OnSignalPreferenceChanged;
+        PreferencesPage.SpeedSignal.PropertyChanged += OnSignalPreferenceChanged;
+        PreferencesPage.ElevationSignal.PropertyChanged += OnSignalPreferenceChanged;
     }
 
-    private void OnPlotPreferenceChanged(object? sender, PropertyChangedEventArgs args)
+    private void OnSignalPreferenceChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName is not (nameof(PlotPreferenceItemViewModel.Selected) or nameof(PlotPreferenceItemViewModel.SelectedSmoothing)))
+        if (args.PropertyName is not (nameof(SignalPreferenceItemViewModel.Selected) or nameof(SignalPreferenceItemViewModel.SelectedSmoothing)))
         {
             return;
         }
 
-        graphWorkspace.ApplyPlotPreferences(PreferencesPage.CreatePlotPreferences());
+        signalsWorkspace.ApplySignalDisplayPreferences(PreferencesPage.CreateSignalDisplayPreferences());
     }
 
-    private void ApplyPlotAvailability(LiveSessionHeader? sessionHeader)
+    private void ApplySignalAvailability(LiveSessionHeader? sessionHeader)
     {
         var travelAvailable = sessionHeader is { AcceptedTravelHz: > 0 };
         var imuAvailable = sessionHeader is { AcceptedImuHz: > 0 } &&
@@ -570,7 +570,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         var pitchRollAvailable = HasLiveFramePitchRollSource(sessionHeader);
         var gpsAvailable = sessionHeader is { AcceptedGpsFixHz: > 0 };
 
-        PreferencesPage.ApplyPlotAvailability(
+        PreferencesPage.ApplySignalAvailability(
             travelAvailable,
             travelAvailable,
             imuAvailable,
@@ -594,15 +594,15 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private SessionPreferences CreateCurrentSessionPreferences()
     {
         return new SessionPreferences(
-            PreferencesPage.CreatePlotPreferences(),
-            new SessionStatisticsPreferences(
-                SelectedTravelHistogramMode,
+            PreferencesPage.CreateSignalDisplayPreferences(),
+            new AnalysisPreferences(
+                SelectedTravelDistributionMode,
                 SelectedVelocityAverageMode,
                 SelectedBalanceDisplacementMode,
                 SelectedBalanceSpeedMode,
-                SelectedSessionAnalysisTargetProfile),
+                SelectedSessionInsightsTargetProfile),
             PreferencesPage.CreateProcessingPreferences(),
-            graphWorkspace.GraphPreferences);
+            signalsWorkspace.SignalLayoutPreferences);
     }
 
     private static string CreateDefaultName(DateTimeOffset localTime)
@@ -645,56 +645,56 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             PitchRollMaximum: 15);
     }
 
-    private bool IsTravelStatisticsExpected(bool sideConfigured)
+    private bool IsTravelAnalysisExpected(bool sideConfigured)
     {
         return sideConfigured && ControlState.SessionHeader is { AcceptedTravelHz: > 0 };
     }
 
-    private bool IsBalanceStatisticsExpected()
+    private bool IsBalanceAnalysisExpected()
     {
         return hasFrontTravelCalibration &&
             hasRearTravelCalibration &&
             ControlState.SessionHeader is { AcceptedTravelHz: > 0 };
     }
 
-    private void QueueGraphBatchRefresh(LiveGraphBatch batch)
+    private void QueueSignalBatchRefresh(LiveSignalBatch batch)
     {
-        var presence = GraphBatchPresence.FromBatch(batch);
+        var presence = SignalBatchPresence.FromBatch(batch);
         if (!presence.HasAnyData)
         {
             return;
         }
 
         var shouldPost = false;
-        lock (graphBatchRefreshGate)
+        lock (signalBatchRefreshGate)
         {
-            pendingGraphBatchPresence = pendingGraphBatchPresence.Combine(presence);
-            if (!hasPendingGraphBatchRefresh)
+            pendingSignalBatchPresence = pendingSignalBatchPresence.Combine(presence);
+            if (!hasPendingSignalBatchRefresh)
             {
-                hasPendingGraphBatchRefresh = true;
+                hasPendingSignalBatchRefresh = true;
                 shouldPost = true;
             }
         }
 
         if (shouldPost)
         {
-            UiThreadDispatcher.Post(FlushGraphBatchRefresh);
+            UiThreadDispatcher.Post(FlushSignalBatchRefresh);
         }
     }
 
-    private void FlushGraphBatchRefresh()
+    private void FlushSignalBatchRefresh()
     {
-        GraphBatchPresence presence;
-        lock (graphBatchRefreshGate)
+        SignalBatchPresence presence;
+        lock (signalBatchRefreshGate)
         {
-            presence = pendingGraphBatchPresence;
-            pendingGraphBatchPresence = default;
-            hasPendingGraphBatchRefresh = false;
+            presence = pendingSignalBatchPresence;
+            pendingSignalBatchPresence = default;
+            hasPendingSignalBatchRefresh = false;
         }
 
         if (presence.HasAnyData)
         {
-            graphWorkspace.ApplyGraphDataPresence(
+            signalsWorkspace.ApplySignalDataPresence(
                 presence.HasTravelData,
                 presence.HasImuData,
                 presence.HasPitchRollData);
@@ -717,13 +717,13 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             blockedSavedCaptureRevision = null;
         }
 
-        graphWorkspace.ApplySessionHeader(snapshot.Controls.SessionHeader);
-        ApplyPlotAvailability(snapshot.Controls.SessionHeader);
+        signalsWorkspace.ApplySessionHeader(snapshot.Controls.SessionHeader);
+        ApplySignalAvailability(snapshot.Controls.SessionHeader);
         mediaWorkspace.ApplySessionHeader(snapshot.Controls.SessionHeader);
-        TelemetryData = snapshot.StatisticsTelemetry;
-        ApplyModeAwareDamperPercentages(snapshot.DamperPercentages);
+        TelemetryData = snapshot.AnalysisTelemetry;
+        ApplyModeAwareDampingPercentages(snapshot.DampingPercentages);
         var trackTimelineContext = CreateLiveTrackTimelineContext(snapshot.Controls);
-        graphWorkspace.ApplyTrackPresentation(snapshot.SessionTrackPoints, trackTimelineContext);
+        signalsWorkspace.ApplyTrackPresentation(snapshot.SessionTrackPoints, trackTimelineContext);
         mediaWorkspace.SetTrackPoints(snapshot.SessionTrackPoints, trackTimelineContext);
 
         if (snapshot.Controls.SessionHeader is { } header)
@@ -735,7 +735,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         EvaluateDirtiness();
         RefreshCommandState();
 
-        MaybeQueueBake(snapshot.StatisticsTelemetry);
+        MaybeQueueBake(snapshot.AnalysisTelemetry);
     }
 
     private void MaybeQueueBake(TelemetryData? telemetryData)
@@ -794,7 +794,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         }
         catch (Exception e)
         {
-            UiThreadDispatcher.Post(() => ErrorMessages.Add($"Live statistics render failed: {e.Message}"));
+            UiThreadDispatcher.Post(() => ErrorMessages.Add($"Live analysis render failed: {e.Message}"));
         }
     }
 
@@ -830,29 +830,29 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     private void ApplyCachePresentation(SessionCachePresentationData data)
     {
-        var hasFrontTravelHistogram = !string.IsNullOrWhiteSpace(data.FrontTravelHistogram);
-        var hasRearTravelHistogram = !string.IsNullOrWhiteSpace(data.RearTravelHistogram);
-        var hasFrontVelocityHistogram = !string.IsNullOrWhiteSpace(data.FrontVelocityHistogram);
-        var hasRearVelocityHistogram = !string.IsNullOrWhiteSpace(data.RearVelocityHistogram);
+        var hasFrontTravelDistribution = !string.IsNullOrWhiteSpace(data.FrontTravelDistribution);
+        var hasRearTravelDistribution = !string.IsNullOrWhiteSpace(data.RearTravelDistribution);
+        var hasFrontVelocityDistribution = !string.IsNullOrWhiteSpace(data.FrontVelocityDistribution);
+        var hasRearVelocityDistribution = !string.IsNullOrWhiteSpace(data.RearVelocityDistribution);
         var hasCompressionBalance = !string.IsNullOrWhiteSpace(data.CompressionBalance);
         var hasReboundBalance = !string.IsNullOrWhiteSpace(data.ReboundBalance);
 
-        var frontStats = FrontStatisticsState;
-        var rearStats = RearStatisticsState;
+        var frontAnalysis = FrontAnalysisState;
+        var rearAnalysis = RearAnalysisState;
         var compressionBalance = CompressionBalanceState;
         var reboundBalance = ReboundBalanceState;
 
-        SpringPage.FrontTravelHistogram = data.FrontTravelHistogram;
-        SpringPage.RearTravelHistogram = data.RearTravelHistogram;
-        SpringPage.FrontHistogramState = ResolveSurfaceState(hasFrontTravelHistogram, frontStats);
-        SpringPage.RearHistogramState = ResolveSurfaceState(hasRearTravelHistogram, rearStats);
+        SpringPage.FrontTravelDistribution = data.FrontTravelDistribution;
+        SpringPage.RearTravelDistribution = data.RearTravelDistribution;
+        SpringPage.FrontDistributionState = ResolveSurfaceState(hasFrontTravelDistribution, frontAnalysis);
+        SpringPage.RearDistributionState = ResolveSurfaceState(hasRearTravelDistribution, rearAnalysis);
 
-        DamperPage.FrontVelocityHistogram = data.FrontVelocityHistogram;
-        DamperPage.RearVelocityHistogram = data.RearVelocityHistogram;
-        DamperPage.FrontHistogramState = ResolveSurfaceState(hasFrontVelocityHistogram, frontStats);
-        DamperPage.RearHistogramState = ResolveSurfaceState(hasRearVelocityHistogram, rearStats);
+        DampingPage.FrontVelocityDistribution = data.FrontVelocityDistribution;
+        DampingPage.RearVelocityDistribution = data.RearVelocityDistribution;
+        DampingPage.FrontDistributionState = ResolveSurfaceState(hasFrontVelocityDistribution, frontAnalysis);
+        DampingPage.RearDistributionState = ResolveSurfaceState(hasRearVelocityDistribution, rearAnalysis);
 
-        ApplyModeAwareDamperPercentages(data.DamperPercentages);
+        ApplyModeAwareDampingPercentages(data.DampingPercentages);
 
         BalancePage.CompressionBalance = data.CompressionBalance;
         BalancePage.ReboundBalance = data.ReboundBalance;
@@ -875,10 +875,10 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         return workspaceState.IsHidden ? SurfacePresentationState.Hidden : workspaceState;
     }
 
-    private void ApplyDamperPercentages(SessionDamperPercentages percentages)
+    private void ApplyDampingPercentages(SessionDampingPercentages percentages)
     {
-        DamperPercentages = percentages;
-        DamperPage.ApplyDamperPercentages(percentages);
+        DampingPercentages = percentages;
+        DampingPage.ApplyDampingPercentages(percentages);
     }
 
     public void PreviewDampingSpeedCutoff(
@@ -963,32 +963,32 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
     }
 
-    private void ApplyModeAwareDamperPercentages(SessionDamperPercentages sampleAveragedPercentages)
+    private void ApplyModeAwareDampingPercentages(SessionDampingPercentages sampleAveragedPercentages)
     {
         if (TelemetryData is null)
         {
-            ApplyDamperPercentages(SessionDamperPercentages.Empty);
+            ApplyDampingPercentages(SessionDampingPercentages.Empty);
             return;
         }
 
         if (SelectedVelocityAverageMode == VelocityAverageMode.SampleAveraged)
         {
-            ApplyDamperPercentages(sampleAveragedPercentages);
+            ApplyDampingPercentages(sampleAveragedPercentages);
             return;
         }
 
-        RecomputeDamperPercentagesForSelectedVelocityAverageMode();
+        RecomputeDampingPercentagesForSelectedVelocityAverageMode();
     }
 
-    private void RecomputeDamperPercentagesForSelectedVelocityAverageMode()
+    private void RecomputeDampingPercentagesForSelectedVelocityAverageMode()
     {
         if (TelemetryData is null)
         {
-            ApplyDamperPercentages(SessionDamperPercentages.Empty);
+            ApplyDampingPercentages(SessionDampingPercentages.Empty);
             return;
         }
 
-        ApplyDamperPercentages(sessionPresentationService.CalculateDamperPercentages(
+        ApplyDampingPercentages(sessionPresentationService.CalculateDampingPercentages(
             TelemetryData,
             AnalysisRange,
             SelectedVelocityAverageMode,
@@ -997,7 +997,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     partial void OnDampingSpeedCutoffsChanged(DampingSpeedCutoffs value)
     {
-        RecomputeDamperPercentagesForSelectedVelocityAverageMode();
+        RecomputeDampingPercentagesForSelectedVelocityAverageMode();
     }
 
     partial void OnPlotDampingSpeedCutoffsChanged(DampingSpeedCutoffs value)
@@ -1061,30 +1061,30 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     {
         CancelBake();
         lastBakedTelemetryData = null;
-        ClearStatisticsPages();
-        graphWorkspace.Timeline.Reset();
+        ClearAnalysisPages();
+        signalsWorkspace.Timeline.Reset();
         ApplyPresentation(liveSessionService.Current);
     }
 
-    private void ClearStatisticsPages()
+    private void ClearAnalysisPages()
     {
-        SpringPage.FrontTravelHistogram = null;
-        SpringPage.RearTravelHistogram = null;
-        SpringPage.FrontHistogramState = SurfacePresentationState.Hidden;
-        SpringPage.RearHistogramState = SurfacePresentationState.Hidden;
+        SpringPage.FrontTravelDistribution = null;
+        SpringPage.RearTravelDistribution = null;
+        SpringPage.FrontDistributionState = SurfacePresentationState.Hidden;
+        SpringPage.RearDistributionState = SurfacePresentationState.Hidden;
 
-        DamperPage.FrontVelocityHistogram = null;
-        DamperPage.RearVelocityHistogram = null;
-        DamperPage.FrontHistogramState = SurfacePresentationState.Hidden;
-        DamperPage.RearHistogramState = SurfacePresentationState.Hidden;
-        DamperPage.ClearDamperPercentages();
+        DampingPage.FrontVelocityDistribution = null;
+        DampingPage.RearVelocityDistribution = null;
+        DampingPage.FrontDistributionState = SurfacePresentationState.Hidden;
+        DampingPage.RearDistributionState = SurfacePresentationState.Hidden;
+        DampingPage.ClearDampingPercentages();
 
         BalancePage.CompressionBalance = null;
         BalancePage.ReboundBalance = null;
         BalancePage.CompressionBalanceState = SurfacePresentationState.Hidden;
         BalancePage.ReboundBalanceState = SurfacePresentationState.Hidden;
 
-        DamperPercentages = SessionDamperPercentages.Empty;
+        DampingPercentages = SessionDampingPercentages.Empty;
         EnsureBalancePage(balanceAvailable: false);
     }
 
@@ -1099,13 +1099,13 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         return duration < TimeSpan.Zero ? TimeSpan.Zero : duration;
     }
 
-    private readonly record struct GraphBatchPresence(bool HasTravelData, bool HasImuData, bool HasPitchRollData)
+    private readonly record struct SignalBatchPresence(bool HasTravelData, bool HasImuData, bool HasPitchRollData)
     {
         public bool HasAnyData => HasTravelData || HasImuData || HasPitchRollData;
 
-        public static GraphBatchPresence FromBatch(LiveGraphBatch batch)
+        public static SignalBatchPresence FromBatch(LiveSignalBatch batch)
         {
-            return new GraphBatchPresence(
+            return new SignalBatchPresence(
                 HasTravelData: batch.TravelTimes.Count > 0
                     || batch.FrontTravel.Count > 0
                     || batch.RearTravel.Count > 0
@@ -1116,19 +1116,19 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                 HasPitchRollData: HasAnyPitchRollData(batch));
         }
 
-        public GraphBatchPresence Combine(GraphBatchPresence other) => new(
+        public SignalBatchPresence Combine(SignalBatchPresence other) => new(
             HasTravelData || other.HasTravelData,
             HasImuData || other.HasImuData,
             HasPitchRollData || other.HasPitchRollData);
 
-        private static bool HasAnyPitchRollData(LiveGraphBatch batch)
+        private static bool HasAnyPitchRollData(LiveSignalBatch batch)
         {
             return batch.FramePitchRollTimes.Count > 0 ||
                 batch.FramePitchDegrees.Count > 0 ||
                 batch.FrameRollDegrees.Count > 0;
         }
 
-        private static bool HasAnyImuData(LiveGraphBatch batch)
+        private static bool HasAnyImuData(LiveSignalBatch batch)
         {
             foreach (var series in batch.ImuTimes.Values)
             {

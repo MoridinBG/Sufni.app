@@ -18,7 +18,7 @@ mc:Ignorable="d">
         <TextBlock
         FontSize="14"
         FontWeight="SemiBold"
-        Text="Plots" />
+        Text="Signals" />
 
         <Grid ColumnDefinitions="*,120">
             <TextBlock
@@ -30,20 +30,20 @@ mc:Ignorable="d">
 
         <Grid ColumnDefinitions="*,120">
             <CheckBox
-            Name="TravelPlotCheckBox"
-            Content="{Binding TravelPlot.DisplayName}"
-            IsChecked="{Binding TravelPlot.Selected, Mode=TwoWay}"
-            IsEnabled="{Binding TravelPlot.Available}" />
+            Name="TravelSignalCheckBox"
+            Content="{Binding TravelSignal.DisplayName}"
+            IsChecked="{Binding TravelSignal.Selected, Mode=TwoWay}"
+            IsEnabled="{Binding TravelSignal.Available}" />
 
             <ComboBox
-            Name="TravelPlotSmoothingComboBox"
+            Name="TravelSignalSmoothingComboBox"
             Grid.Column="1"
-            IsEnabled="{Binding TravelPlot.Available}"
+            IsEnabled="{Binding TravelSignal.Available}"
             ItemsSource="{Binding SmoothingOptions}"
-            SelectedValue="{Binding TravelPlot.SelectedSmoothing, Mode=TwoWay}"
-            SelectedValueBinding="{Binding Value, DataType=vm:PlotSmoothingOption}">
+            SelectedValue="{Binding TravelSignal.SelectedSmoothing, Mode=TwoWay}"
+            SelectedValueBinding="{Binding Value, DataType=vm:SignalSmoothingOption}">
                 <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:PlotSmoothingOption">
+                    <DataTemplate x:DataType="vm:SignalSmoothingOption">
                         <TextBlock Text="{Binding DisplayName}" />
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
@@ -52,20 +52,20 @@ mc:Ignorable="d">
 
         <Grid ColumnDefinitions="*,120">
             <CheckBox
-            Name="VelocityPlotCheckBox"
-            Content="{Binding VelocityPlot.DisplayName}"
-            IsChecked="{Binding VelocityPlot.Selected, Mode=TwoWay}"
-            IsEnabled="{Binding VelocityPlot.Available}" />
+            Name="VelocitySignalCheckBox"
+            Content="{Binding VelocitySignal.DisplayName}"
+            IsChecked="{Binding VelocitySignal.Selected, Mode=TwoWay}"
+            IsEnabled="{Binding VelocitySignal.Available}" />
 
             <ComboBox
-            Name="VelocityPlotSmoothingComboBox"
+            Name="VelocitySignalSmoothingComboBox"
             Grid.Column="1"
-            IsEnabled="{Binding VelocityPlot.Available}"
+            IsEnabled="{Binding VelocitySignal.Available}"
             ItemsSource="{Binding SmoothingOptions}"
-            SelectedValue="{Binding VelocityPlot.SelectedSmoothing, Mode=TwoWay}"
-            SelectedValueBinding="{Binding Value, DataType=vm:PlotSmoothingOption}">
+            SelectedValue="{Binding VelocitySignal.SelectedSmoothing, Mode=TwoWay}"
+            SelectedValueBinding="{Binding Value, DataType=vm:SignalSmoothingOption}">
                 <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:PlotSmoothingOption">
+                    <DataTemplate x:DataType="vm:SignalSmoothingOption">
                         <TextBlock Text="{Binding DisplayName}" />
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
@@ -74,20 +74,20 @@ mc:Ignorable="d">
 
         <Grid ColumnDefinitions="*,120">
             <CheckBox
-            Name="ImuPlotCheckBox"
-            Content="{Binding ImuPlot.DisplayName}"
-            IsChecked="{Binding ImuPlot.Selected, Mode=TwoWay}"
-            IsEnabled="{Binding ImuPlot.Available}" />
+            Name="ImuSignalCheckBox"
+            Content="{Binding ImuSignal.DisplayName}"
+            IsChecked="{Binding ImuSignal.Selected, Mode=TwoWay}"
+            IsEnabled="{Binding ImuSignal.Available}" />
 
             <ComboBox
-            Name="ImuPlotSmoothingComboBox"
+            Name="ImuSignalSmoothingComboBox"
             Grid.Column="1"
-            IsEnabled="{Binding ImuPlot.Available}"
+            IsEnabled="{Binding ImuSignal.Available}"
             ItemsSource="{Binding SmoothingOptions}"
-            SelectedValue="{Binding ImuPlot.SelectedSmoothing, Mode=TwoWay}"
-            SelectedValueBinding="{Binding Value, DataType=vm:PlotSmoothingOption}">
+            SelectedValue="{Binding ImuSignal.SelectedSmoothing, Mode=TwoWay}"
+            SelectedValueBinding="{Binding Value, DataType=vm:SignalSmoothingOption}">
                 <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:PlotSmoothingOption">
+                    <DataTemplate x:DataType="vm:SignalSmoothingOption">
                         <TextBlock Text="{Binding DisplayName}" />
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
@@ -96,20 +96,20 @@ mc:Ignorable="d">
 
         <Grid ColumnDefinitions="*,120">
             <CheckBox
-            Name="PitchRollPlotCheckBox"
-            Content="{Binding PitchRollPlot.DisplayName}"
-            IsChecked="{Binding PitchRollPlot.Selected, Mode=TwoWay}"
-            IsEnabled="{Binding PitchRollPlot.Available}" />
+            Name="PitchRollSignalCheckBox"
+            Content="{Binding PitchRollSignal.DisplayName}"
+            IsChecked="{Binding PitchRollSignal.Selected, Mode=TwoWay}"
+            IsEnabled="{Binding PitchRollSignal.Available}" />
 
             <ComboBox
-            Name="PitchRollPlotSmoothingComboBox"
+            Name="PitchRollSignalSmoothingComboBox"
             Grid.Column="1"
-            IsEnabled="{Binding PitchRollPlot.Available}"
+            IsEnabled="{Binding PitchRollSignal.Available}"
             ItemsSource="{Binding SmoothingOptions}"
-            SelectedValue="{Binding PitchRollPlot.SelectedSmoothing, Mode=TwoWay}"
-            SelectedValueBinding="{Binding Value, DataType=vm:PlotSmoothingOption}">
+            SelectedValue="{Binding PitchRollSignal.SelectedSmoothing, Mode=TwoWay}"
+            SelectedValueBinding="{Binding Value, DataType=vm:SignalSmoothingOption}">
                 <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:PlotSmoothingOption">
+                    <DataTemplate x:DataType="vm:SignalSmoothingOption">
                         <TextBlock Text="{Binding DisplayName}" />
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
@@ -118,20 +118,20 @@ mc:Ignorable="d">
 
         <Grid ColumnDefinitions="*,120">
             <CheckBox
-            Name="SpeedPlotCheckBox"
-            Content="{Binding SpeedPlot.DisplayName}"
-            IsChecked="{Binding SpeedPlot.Selected, Mode=TwoWay}"
-            IsEnabled="{Binding SpeedPlot.Available}" />
+            Name="SpeedSignalCheckBox"
+            Content="{Binding SpeedSignal.DisplayName}"
+            IsChecked="{Binding SpeedSignal.Selected, Mode=TwoWay}"
+            IsEnabled="{Binding SpeedSignal.Available}" />
 
             <ComboBox
-            Name="SpeedPlotSmoothingComboBox"
+            Name="SpeedSignalSmoothingComboBox"
             Grid.Column="1"
-            IsEnabled="{Binding SpeedPlot.Available}"
+            IsEnabled="{Binding SpeedSignal.Available}"
             ItemsSource="{Binding SmoothingOptions}"
-            SelectedValue="{Binding SpeedPlot.SelectedSmoothing, Mode=TwoWay}"
-            SelectedValueBinding="{Binding Value, DataType=vm:PlotSmoothingOption}">
+            SelectedValue="{Binding SpeedSignal.SelectedSmoothing, Mode=TwoWay}"
+            SelectedValueBinding="{Binding Value, DataType=vm:SignalSmoothingOption}">
                 <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:PlotSmoothingOption">
+                    <DataTemplate x:DataType="vm:SignalSmoothingOption">
                         <TextBlock Text="{Binding DisplayName}" />
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
@@ -140,20 +140,20 @@ mc:Ignorable="d">
 
         <Grid ColumnDefinitions="*,120">
             <CheckBox
-            Name="ElevationPlotCheckBox"
-            Content="{Binding ElevationPlot.DisplayName}"
-            IsChecked="{Binding ElevationPlot.Selected, Mode=TwoWay}"
-            IsEnabled="{Binding ElevationPlot.Available}" />
+            Name="ElevationSignalCheckBox"
+            Content="{Binding ElevationSignal.DisplayName}"
+            IsChecked="{Binding ElevationSignal.Selected, Mode=TwoWay}"
+            IsEnabled="{Binding ElevationSignal.Available}" />
 
             <ComboBox
-            Name="ElevationPlotSmoothingComboBox"
+            Name="ElevationSignalSmoothingComboBox"
             Grid.Column="1"
-            IsEnabled="{Binding ElevationPlot.Available}"
+            IsEnabled="{Binding ElevationSignal.Available}"
             ItemsSource="{Binding SmoothingOptions}"
-            SelectedValue="{Binding ElevationPlot.SelectedSmoothing, Mode=TwoWay}"
-            SelectedValueBinding="{Binding Value, DataType=vm:PlotSmoothingOption}">
+            SelectedValue="{Binding ElevationSignal.SelectedSmoothing, Mode=TwoWay}"
+            SelectedValueBinding="{Binding Value, DataType=vm:SignalSmoothingOption}">
                 <ComboBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:PlotSmoothingOption">
+                    <DataTemplate x:DataType="vm:SignalSmoothingOption">
                         <TextBlock Text="{Binding DisplayName}" />
                     </DataTemplate>
                 </ComboBox.ItemTemplate>

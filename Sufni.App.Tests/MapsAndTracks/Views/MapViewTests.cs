@@ -17,7 +17,7 @@ using Sufni.App.MapsAndTracks.ViewModels;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.MapsAndTracks.Views;
-using Sufni.App.Sessions.Graph.ViewModels.Editors;
+using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.Tests.TestSupport.Extensions;
 

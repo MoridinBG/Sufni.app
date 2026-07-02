@@ -20,14 +20,14 @@ public partial class SessionShellDesktopView : UserControl
             nameof(MediaColumnWidth),
             defaultValue: DefaultMediaColumnWidth);
 
-    public static readonly StyledProperty<Control?> GraphContentProperty =
-        AvaloniaProperty.Register<SessionShellDesktopView, Control?>(nameof(GraphContent));
+    public static readonly StyledProperty<Control?> SignalsContentProperty =
+        AvaloniaProperty.Register<SessionShellDesktopView, Control?>(nameof(SignalsContent));
 
     public static readonly StyledProperty<Control?> MediaContentProperty =
         AvaloniaProperty.Register<SessionShellDesktopView, Control?>(nameof(MediaContent));
 
-    public static readonly StyledProperty<Control?> StatisticsContentProperty =
-        AvaloniaProperty.Register<SessionShellDesktopView, Control?>(nameof(StatisticsContent));
+    public static readonly StyledProperty<Control?> AnalysisContentProperty =
+        AvaloniaProperty.Register<SessionShellDesktopView, Control?>(nameof(AnalysisContent));
 
     public static readonly StyledProperty<Control?> SidebarContentProperty =
         AvaloniaProperty.Register<SessionShellDesktopView, Control?>(nameof(SidebarContent));
@@ -47,10 +47,10 @@ public partial class SessionShellDesktopView : UserControl
         LayoutPreferencesProperty.Changed.AddClassHandler<SessionShellDesktopView>((view, _) => view.ApplyLayoutPreferences());
     }
 
-    public Control? GraphContent
+    public Control? SignalsContent
     {
-        get => GetValue(GraphContentProperty);
-        set => SetValue(GraphContentProperty, value);
+        get => GetValue(SignalsContentProperty);
+        set => SetValue(SignalsContentProperty, value);
     }
 
     public bool HasMediaContent
@@ -71,10 +71,10 @@ public partial class SessionShellDesktopView : UserControl
         set => SetValue(MediaContentProperty, value);
     }
 
-    public Control? StatisticsContent
+    public Control? AnalysisContent
     {
-        get => GetValue(StatisticsContentProperty);
-        set => SetValue(StatisticsContentProperty, value);
+        get => GetValue(AnalysisContentProperty);
+        set => SetValue(AnalysisContentProperty, value);
     }
 
     public Control? SidebarContent
@@ -99,15 +99,15 @@ public partial class SessionShellDesktopView : UserControl
     {
         InitializeComponent();
         ShellRowsSplit.PropertyChanged += OnShellRowsSplitPropertyChanged;
-        GraphMediaSplit.PropertyChanged += OnGraphMediaSplitPropertyChanged;
-        StatisticsSidebarSplit.PropertyChanged += OnStatisticsSidebarSplitPropertyChanged;
+        SignalsMediaSplit.PropertyChanged += OnSignalsMediaSplitPropertyChanged;
+        AnalysisSidebarSplit.PropertyChanged += OnAnalysisSidebarSplitPropertyChanged;
         ApplyMediaColumnWidth();
         ApplyLayoutPreferences();
     }
 
     private void ApplyMediaColumnWidth()
     {
-        GraphMediaSplit.DefaultSecondLength = new GridLength(NormalizeMediaColumnWidth(MediaColumnWidth));
+        SignalsMediaSplit.DefaultSecondLength = new GridLength(NormalizeMediaColumnWidth(MediaColumnWidth));
     }
 
     private void ApplyLayoutPreferences()
@@ -116,8 +116,8 @@ public partial class SessionShellDesktopView : UserControl
         try
         {
             ShellRowsSplit.Preferences = LayoutPreferences.DesktopShellRows;
-            GraphMediaSplit.Preferences = HasMediaContent ? LayoutPreferences.DesktopGraphMediaColumns : null;
-            StatisticsSidebarSplit.Preferences = LayoutPreferences.DesktopStatisticsSidebarColumns;
+            SignalsMediaSplit.Preferences = HasMediaContent ? LayoutPreferences.DesktopSignalsMediaColumns : null;
+            AnalysisSidebarSplit.Preferences = LayoutPreferences.DesktopAnalysisSidebarColumns;
         }
         finally
         {
@@ -133,19 +133,19 @@ public partial class SessionShellDesktopView : UserControl
         }
     }
 
-    private void OnGraphMediaSplitPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs args)
+    private void OnSignalsMediaSplitPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs args)
     {
         if (args.Property == CollapsibleSplitView.PreferencesProperty)
         {
-            UpdateGraphMediaPreferences(GraphMediaSplit.Preferences);
+            UpdateSignalsMediaPreferences(SignalsMediaSplit.Preferences);
         }
     }
 
-    private void OnStatisticsSidebarSplitPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs args)
+    private void OnAnalysisSidebarSplitPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs args)
     {
         if (args.Property == CollapsibleSplitView.PreferencesProperty)
         {
-            UpdateStatisticsSidebarPreferences(StatisticsSidebarSplit.Preferences);
+            UpdateAnalysisSidebarPreferences(AnalysisSidebarSplit.Preferences);
         }
     }
 
@@ -159,24 +159,24 @@ public partial class SessionShellDesktopView : UserControl
         LayoutPreferences = LayoutPreferences with { DesktopShellRows = value };
     }
 
-    private void UpdateGraphMediaPreferences(SessionPaneGroupPreferences? value)
+    private void UpdateSignalsMediaPreferences(SessionPaneGroupPreferences? value)
     {
         if (applyingLayoutPreferences)
         {
             return;
         }
 
-        LayoutPreferences = LayoutPreferences with { DesktopGraphMediaColumns = HasMediaContent ? value : null };
+        LayoutPreferences = LayoutPreferences with { DesktopSignalsMediaColumns = HasMediaContent ? value : null };
     }
 
-    private void UpdateStatisticsSidebarPreferences(SessionPaneGroupPreferences? value)
+    private void UpdateAnalysisSidebarPreferences(SessionPaneGroupPreferences? value)
     {
         if (applyingLayoutPreferences)
         {
             return;
         }
 
-        LayoutPreferences = LayoutPreferences with { DesktopStatisticsSidebarColumns = value };
+        LayoutPreferences = LayoutPreferences with { DesktopAnalysisSidebarColumns = value };
     }
 
     private static double NormalizeMediaColumnWidth(double width) =>

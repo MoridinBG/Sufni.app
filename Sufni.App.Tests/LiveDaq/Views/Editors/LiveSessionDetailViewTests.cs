@@ -55,7 +55,7 @@ public class LiveSessionDetailViewTests
         Assert.Same(editor.Pages, carousel!.ItemsSource);
         Assert.NotNull(pager);
         Assert.Equal(editor.PageCount, pager!.NumberOfPages);
-        Assert.Equal(["Graph", "Spring", "Damper", "Notes", "Preferences"], editor.Pages.Select(page => page.DisplayName));
+        Assert.Equal(["Signals", "Spring", "Damping", "Notes", "Preferences"], editor.Pages.Select(page => page.DisplayName));
 
         Assert.NotNull(mounted.View.GetVisualDescendants().OfType<EditableTitle>().FirstOrDefault());
         Assert.NotNull(mounted.View.GetVisualDescendants().OfType<ErrorMessagesBar>().FirstOrDefault());
@@ -71,12 +71,12 @@ public class LiveSessionDetailViewTests
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
         var shell = Substitute.For<IShellCoordinator>();
         var dialogService = Substitute.For<IDialogService>();
-        var graphBatches = new Subject<LiveGraphBatch>();
+        var signalBatches = new Subject<LiveSignalBatch>();
         var header = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 401);
         var snapshot = new LiveSessionPresentationSnapshot(
             Stream: new LiveSessionStreamPresentation.Streaming(header.SessionStartUtc.LocalDateTime, header),
-            StatisticsTelemetry: null,
-            DamperPercentages: SessionDamperPercentages.Empty,
+            AnalysisTelemetry: null,
+            DampingPercentages: SessionDampingPercentages.Empty,
             SessionTrackPoints: [],
             Controls: new LiveSessionControlState(
                 ConnectionState: LiveConnectionState.Connected,
@@ -93,7 +93,7 @@ public class LiveSessionDetailViewTests
                 CanSave: false),
             CaptureRevision: 1);
 
-        var liveSessionService = StubLiveSessionService.WithDefaultLiveStream(snapshot, graphBatches);
+        var liveSessionService = StubLiveSessionService.WithDefaultLiveStream(snapshot, signalBatches);
 
         tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
         tileLayerService.InitializeAsync().Returns(Task.CompletedTask);

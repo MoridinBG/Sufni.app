@@ -21,7 +21,7 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Sessions.Processing.SessionDetails;
-using Sufni.App.Sessions.Statistics.Views.Controls;
+using Sufni.App.Sessions.Analysis.Views.Controls;
 using Sufni.App.Shell.Behaviors;
 using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.Sessions.Plots.Views.Plots;
@@ -37,7 +37,7 @@ public class VelocityBandViewTests
         Assert.Equal(GridUnitType.Star, sut.HighSpeedZoneLength.GridUnitType);
         Assert.Equal(GridUnitType.Star, sut.LowSpeedZoneLength.GridUnitType);
         Assert.Equal(
-            SessionDampingSettings.VelocityHistogramLimitMmPerSecond -
+            SessionDampingSettings.VelocityDistributionLimitMmPerSecond -
             SessionDampingSettings.HighSpeedThresholdMmPerSecond,
             sut.HighSpeedZoneLength.Value);
         Assert.Equal(
@@ -209,21 +209,21 @@ public class VelocityBandViewTests
     }
 
     [AvaloniaFact]
-    public async Task VelocityStatisticsHost_EnablesHapticFeedbackOnDampingHandles()
+    public async Task DampingAnalysisHost_EnablesHapticFeedbackOnDampingHandles()
     {
         TestApp.SetIsDesktop(false);
         try
         {
-            var host = new VelocityStatisticsHost
+            var host = new DampingAnalysisHost
             {
                 Width = 600,
                 Height = 420,
                 PresentationState = SurfacePresentationState.Ready,
-                HasDynamicStatistics = false,
+                HasAnalysisData = false,
                 StaticSource = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"12\" />",
                 SuspensionType = SuspensionType.Front,
                 DampingSpeedCutoffs = DampingSpeedCutoffs.Default,
-                StatisticsWorkspace = CreateWorkspace(),
+                AnalysisWorkspace = CreateWorkspace(),
             };
 
             EnsureVelocityBandStyle();
@@ -247,45 +247,45 @@ public class VelocityBandViewTests
     }
 
     [AvaloniaFact]
-    public async Task VelocityStatisticsHost_RendersSortedMetricAnnotationsForCurrentSuspensionSide()
+    public async Task DampingAnalysisHost_RendersSortedMetricAnnotationsForCurrentSuspensionSide()
     {
         TestApp.SetIsDesktop(true);
         var slots = new RecordedSessionExtensionSlots();
-        slots.StatisticsMetrics.Add(new RecordedSessionStatisticsMetricContribution(
+        slots.AnalysisMetrics.Add(new RecordedSessionAnalysisMetricContribution(
             "extension-b",
             "second",
             Order: 20,
-            RecordedSessionStatisticsMetricTarget.FrontHscPercentage,
+            RecordedSessionAnalysisMetricTarget.FrontHscPercentage,
             "match second",
             null,
             RecordedSessionMetricTone.Default));
-        slots.StatisticsMetrics.Add(new RecordedSessionStatisticsMetricContribution(
+        slots.AnalysisMetrics.Add(new RecordedSessionAnalysisMetricContribution(
             "extension-a",
             "first",
             Order: 10,
-            RecordedSessionStatisticsMetricTarget.FrontHscPercentage,
+            RecordedSessionAnalysisMetricTarget.FrontHscPercentage,
             "match first",
             "+1.00",
             RecordedSessionMetricTone.Positive));
-        slots.StatisticsMetrics.Add(new RecordedSessionStatisticsMetricContribution(
+        slots.AnalysisMetrics.Add(new RecordedSessionAnalysisMetricContribution(
             "extension-a",
             "rear",
             Order: 10,
-            RecordedSessionStatisticsMetricTarget.RearHscPercentage,
+            RecordedSessionAnalysisMetricTarget.RearHscPercentage,
             "rear match",
             "-1.00",
             RecordedSessionMetricTone.Negative));
-        var host = new VelocityStatisticsHost
+        var host = new DampingAnalysisHost
         {
             Width = 600,
             Height = 420,
             PresentationState = SurfacePresentationState.Ready,
-            HasDynamicStatistics = false,
+            HasAnalysisData = false,
             StaticSource = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"12\" />",
             SuspensionType = SuspensionType.Front,
             DampingSpeedCutoffs = DampingSpeedCutoffs.Default,
             ExtensionSlots = slots,
-            StatisticsWorkspace = CreateWorkspace(),
+            AnalysisWorkspace = CreateWorkspace(),
         };
 
         EnsureVelocityBandStyle();
@@ -309,20 +309,20 @@ public class VelocityBandViewTests
     }
 
     [AvaloniaFact]
-    public async Task VelocityStatisticsHost_DashedGuideIsClippedToVelocityGraphColumn()
+    public async Task DampingAnalysisHost_DashedGuideIsClippedToVelocityPlotColumn()
     {
         TestApp.SetIsDesktop(true);
         var workspace = CreateWorkspace();
-        var host = new VelocityStatisticsHost
+        var host = new DampingAnalysisHost
         {
             Width = 600,
             Height = 420,
             PresentationState = SurfacePresentationState.Ready,
-            HasDynamicStatistics = false,
+            HasAnalysisData = false,
             StaticSource = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"12\" />",
             SuspensionType = SuspensionType.Front,
             DampingSpeedCutoffs = DampingSpeedCutoffs.Default,
-            StatisticsWorkspace = workspace,
+            AnalysisWorkspace = workspace,
         };
 
         EnsureVelocityBandStyle();
@@ -366,24 +366,24 @@ public class VelocityBandViewTests
         }
     }
 
-    private static VelocityBandView CreateMountedView(ISessionStatisticsWorkspace workspace) => new()
+    private static VelocityBandView CreateMountedView(ISessionAnalysisWorkspace workspace) => new()
     {
         Width = 80,
         Height = 420,
         SuspensionType = SuspensionType.Front,
         DampingSpeedCutoffs = DampingSpeedCutoffs.Default,
         CanEditDampingSpeedCutoffs = true,
-        StatisticsWorkspace = workspace,
+        AnalysisWorkspace = workspace,
     };
 
-    private static ISessionStatisticsWorkspace CreateWorkspace()
+    private static ISessionAnalysisWorkspace CreateWorkspace()
     {
-        var workspace = Substitute.For<ISessionStatisticsWorkspace>();
+        var workspace = Substitute.For<ISessionAnalysisWorkspace>();
         workspace.CanEditDampingSpeedCutoffs.Returns(true);
         workspace.DampingSpeedCutoffs.Returns(DampingSpeedCutoffs.Default);
-        workspace.DamperPercentages.Returns(SessionDamperPercentages.Empty);
-        workspace.FrontStatisticsState.Returns(SurfacePresentationState.Ready);
-        workspace.RearStatisticsState.Returns(SurfacePresentationState.Ready);
+        workspace.DampingPercentages.Returns(SessionDampingPercentages.Empty);
+        workspace.FrontAnalysisState.Returns(SurfacePresentationState.Ready);
+        workspace.RearAnalysisState.Returns(SurfacePresentationState.Ready);
         workspace.CompressionBalanceState.Returns(SurfacePresentationState.Ready);
         workspace.ReboundBalanceState.Returns(SurfacePresentationState.Ready);
         workspace.CommitDampingSpeedCutoffAsync(

@@ -1,0 +1,115 @@
+<UserControl
+x:Class="Sufni.App.Sessions.Insights.Views.SessionPages.SessionInsightsPageView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls2="clr-namespace:Sufni.App.Sessions.Insights.Views.Controls"
+    xmlns:views="clr-namespace:Sufni.App.Extensibility.Views"
+xmlns:controls="clr-namespace:Sufni.App.Shared.Views.Overlays"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:models="clr-namespace:Sufni.App.Sessions.Models"
+xmlns:vm="clr-namespace:Sufni.App.Sessions.Insights.ViewModels.SessionPages"
+d:DesignHeight="600"
+d:DesignWidth="500"
+x:DataType="vm:SessionInsightsPageViewModel"
+mc:Ignorable="d">
+
+    <ScrollViewer
+    x:Name="PageScrollViewer"
+    Width="{Binding $parent[ScrollViewer].Bounds.Width}"
+    ClipToBounds="True"
+    HorizontalScrollBarVisibility="Disabled"
+    IsScrollChainingEnabled="False">
+        <StackPanel
+        Name="MobileAnalysisContent"
+        Width="{Binding #PageScrollViewer.Bounds.Width}"
+        ClipToBounds="True"
+        Spacing="10">
+            <views:RecordedSessionAnalysisContributionsView ExtensionSlots="{Binding Workspace.ExtensionSlots}" />
+
+            <StackPanel Name="MobileAnalysisHeader" Spacing="4">
+                <TextBlock FontSize="16" FontWeight="SemiBold" Text="Insights" />
+                <TextBlock FontSize="12" Opacity="0.75" Text="{Binding Workspace.SessionAnalysisRangeText}" />
+                <TextBlock FontSize="12" Opacity="0.75" Text="{Binding Workspace.SessionAnalysisModesText}" />
+
+                <ComboBox
+                Name="MobileAnalysisTargetProfileComboBox"
+                HorizontalAlignment="Stretch"
+                ItemsSource="{Binding Workspace.SessionInsightsTargetProfileOptions}"
+                SelectedValue="{Binding Workspace.SelectedSessionInsightsTargetProfile, Mode=TwoWay}"
+                SelectedValueBinding="{Binding Value, DataType=models:SessionInsightsTargetProfileOption}"
+                ToolTip.Tip="Speed references are interpreted through the selected riding context.">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="models:SessionInsightsTargetProfileOption">
+                            <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+
+            <controls:PlaceholderOverlayContainer
+            Name="MobileAnalysisHost"
+            PresentationState="{Binding Workspace.SessionInsights.State}">
+                <controls:PlaceholderOverlayContainer.ReadyContent>
+                    <StackPanel>
+                        <ItemsControl
+                        Name="MobileSessionInsightsDataQualityItemsControl"
+                        IsVisible="{Binding Workspace.SessionInsights.HasDataQualityFindings}"
+                        ItemsSource="{Binding Workspace.SessionInsights.DataQualityFindings}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:SessionInsightsFinding">
+                                    <Border
+                                    Margin="0,0,0,8"
+                                    Padding="10"
+                                    BorderBrush="{DynamicResource SufniLineDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6">
+                                        <StackPanel>
+                                            <StackPanel Margin="0,0,0,6" Spacing="2">
+                                                <TextBlock
+                                                FontSize="15"
+                                                FontWeight="SemiBold"
+                                                Text="{Binding Title}"
+                                                TextWrapping="Wrap" />
+                                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding Severity}" />
+                                                <TextBlock FontSize="12" Opacity="0.7" Text="{Binding Confidence}" />
+                                            </StackPanel>
+
+                                            <TextBlock FontSize="12" Opacity="0.75" Text="{Binding Category}" />
+                                            <TextBlock Margin="0,8,0,0" Text="{Binding Observation}" TextWrapping="Wrap" />
+                                            <TextBlock Margin="0,6,0,0" Text="{Binding Recommendation}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <ItemsControl
+                        Name="MobileSessionInsightsStepsItemsControl"
+                        ItemsSource="{Binding Workspace.SessionInsights.Steps}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:SessionInsightsStep">
+                                    <controls2:SessionInsightsStepView />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <ContentControl
+                        Name="MobileSessionInsightsVibrationPanel"
+                        Content="{Binding Workspace.SessionInsights.Vibration}"
+                        IsVisible="{Binding Workspace.SessionInsights.HasVibration}">
+                            <ContentControl.ContentTemplate>
+                                <DataTemplate x:DataType="models:SessionInsightsVibrationPanel">
+                                    <controls2:SessionInsightsVibrationPanel />
+                                </DataTemplate>
+                            </ContentControl.ContentTemplate>
+                        </ContentControl>
+                    </StackPanel>
+                </controls:PlaceholderOverlayContainer.ReadyContent>
+                <controls:PlaceholderOverlayContainer.PlaceholderContent>
+                    <controls:SurfacePlaceholderCard Title="Insights" MinCardHeight="260" />
+                </controls:PlaceholderOverlayContainer.PlaceholderContent>
+            </controls:PlaceholderOverlayContainer>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

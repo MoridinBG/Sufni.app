@@ -1,0 +1,141 @@
+<UserControl
+x:Name="Root"
+x:Class="Sufni.App.LiveDaq.Views.Controls.LiveSignalRowsView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:overlays="clr-namespace:Sufni.App.Shared.Views.Overlays"
+    xmlns:plots2="clr-namespace:Sufni.App.MapsAndTracks.Views.Plots"
+xmlns:controls="clr-namespace:Sufni.App.Shared.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:models="clr-namespace:Sufni.App.Infrastructure"
+xmlns:plotModels="clr-namespace:Sufni.App.MapsAndTracks.Plots"
+xmlns:plots="clr-namespace:Sufni.App.LiveDaq.Views.Plots"
+xmlns:vm="clr-namespace:Sufni.App.Sessions.Detail.ViewModels.Editors"
+d:DesignHeight="450"
+d:DesignWidth="800"
+x:DataType="vm:ILiveSessionSignalsWorkspace"
+mc:Ignorable="d">
+
+    <controls:SignalRowsRoot x:Name="SignalRowsRoot" SignalLayoutPreferences="{Binding SignalLayoutPreferences, Mode=TwoWay}">
+        <controls:SignalRowsRoot.Rows>
+            <controls:SignalRow
+            RowId="{x:Static models:SignalRowIds.Travel}"
+            Title="Travel (mm)"
+            PresentationState="{Binding TravelSignalState}">
+                <controls:SignalRow.PlotContent>
+                    <plots:LiveTravelPlotView
+                    x:Name="TravelPlot"
+                    SignalBatches="{Binding SignalBatches}"
+                    HideRightAxis="{Binding #Root.HideRightAxis}"
+                    MaximumY="{Binding PlotRanges.TravelMaximum}"
+                    SourceVisibility="{Binding SourceVisibility}"
+                    SmoothingLevel="{Binding SignalDisplayPreferences.TravelSmoothing}"
+                    Timeline="{Binding Timeline}" />
+                </controls:SignalRow.PlotContent>
+                <controls:SignalRow.PlaceholderContent>
+                    <overlays:SurfacePlaceholderCard Title="Travel" />
+                </controls:SignalRow.PlaceholderContent>
+                <controls:SignalRow.ChildRows>
+                    <controls:SignalRow
+                    RowId="{x:Static models:SignalRowIds.Velocity}"
+                    Title="Velocity (m/s)"
+                    PresentationState="{Binding VelocitySignalState}">
+                        <controls:SignalRow.PlotContent>
+                            <plots:LiveVelocityPlotView
+                            x:Name="VelocityPlot"
+                            SignalBatches="{Binding SignalBatches}"
+                            HideRightAxis="{Binding #Root.HideRightAxis}"
+                            MinimumY="{Binding PlotRanges.VelocityMinimum}"
+                            MaximumY="{Binding PlotRanges.VelocityMaximum}"
+                            SourceVisibility="{Binding SourceVisibility}"
+                            SmoothingLevel="{Binding SignalDisplayPreferences.VelocitySmoothing}"
+                            Timeline="{Binding Timeline}" />
+                        </controls:SignalRow.PlotContent>
+                        <controls:SignalRow.PlaceholderContent>
+                            <overlays:SurfacePlaceholderCard Title="Velocity" />
+                        </controls:SignalRow.PlaceholderContent>
+                    </controls:SignalRow>
+                </controls:SignalRow.ChildRows>
+            </controls:SignalRow>
+
+            <controls:SignalRow
+            RowId="{x:Static models:SignalRowIds.Imu}"
+            Title="Vibration RMS (g)"
+            PresentationState="{Binding ImuSignalState}">
+                <controls:SignalRow.PlotContent>
+                    <plots:LiveImuPlotView
+                    x:Name="ImuPlot"
+                    SignalBatches="{Binding SignalBatches}"
+                    HideRightAxis="{Binding #Root.HideRightAxis}"
+                    MaximumY="{Binding PlotRanges.ImuMaximum}"
+                    SourceVisibility="{Binding SourceVisibility}"
+                    SmoothingLevel="{Binding SignalDisplayPreferences.ImuSmoothing}"
+                    Timeline="{Binding Timeline}" />
+                </controls:SignalRow.PlotContent>
+                <controls:SignalRow.PlaceholderContent>
+                    <overlays:SurfacePlaceholderCard Title="IMU" />
+                </controls:SignalRow.PlaceholderContent>
+                <controls:SignalRow.ChildRows>
+                    <controls:SignalRow
+                    RowId="{x:Static models:SignalRowIds.PitchRoll}"
+                    Title="Frame pitch/roll (deg)"
+                    PresentationState="{Binding PitchRollSignalState}">
+                        <controls:SignalRow.PlotContent>
+                            <plots:LiveFramePitchRollPlotView
+                            x:Name="PitchRollPlot"
+                            SignalBatches="{Binding SignalBatches}"
+                            HideRightAxis="{Binding #Root.HideRightAxis}"
+                            MaximumY="{Binding PlotRanges.PitchRollMaximum}"
+                            MinimumY="{Binding PlotRanges.PitchRollMinimum}"
+                            SmoothingLevel="{Binding SignalDisplayPreferences.PitchRollSmoothing}"
+                            Timeline="{Binding Timeline}" />
+                        </controls:SignalRow.PlotContent>
+                        <controls:SignalRow.PlaceholderContent>
+                            <overlays:SurfacePlaceholderCard Title="Pitch/roll" />
+                        </controls:SignalRow.PlaceholderContent>
+                    </controls:SignalRow>
+                </controls:SignalRow.ChildRows>
+            </controls:SignalRow>
+
+            <controls:SignalRow
+            RowId="{x:Static models:SignalRowIds.Speed}"
+            Title="GPS speed (km/h)"
+            PresentationState="{Binding SpeedSignalState}">
+                <controls:SignalRow.PlotContent>
+                    <plots2:TrackSignalPlotView
+                    x:Name="SpeedPlot"
+                    HideRightAxis="{Binding #Root.HideRightAxis}"
+                    SignalKind="{x:Static plotModels:TrackSignalKind.Speed}"
+                    SmoothingLevel="{Binding SignalDisplayPreferences.SpeedSmoothing}"
+                    Timeline="{Binding Timeline}"
+                    TimelineContext="{Binding TrackTimelineContext}"
+                    TrackPoints="{Binding TrackPoints}" />
+                </controls:SignalRow.PlotContent>
+                <controls:SignalRow.PlaceholderContent>
+                    <overlays:SurfacePlaceholderCard Title="Speed" />
+                </controls:SignalRow.PlaceholderContent>
+                <controls:SignalRow.ChildRows>
+                    <controls:SignalRow
+                    RowId="{x:Static models:SignalRowIds.Elevation}"
+                    Title="Elevation (m)"
+                    PresentationState="{Binding ElevationSignalState}">
+                        <controls:SignalRow.PlotContent>
+                            <plots2:TrackSignalPlotView
+                            x:Name="ElevationPlot"
+                            HideRightAxis="{Binding #Root.HideRightAxis}"
+                            SignalKind="{x:Static plotModels:TrackSignalKind.Elevation}"
+                            SmoothingLevel="{Binding SignalDisplayPreferences.ElevationSmoothing}"
+                            Timeline="{Binding Timeline}"
+                            TimelineContext="{Binding TrackTimelineContext}"
+                            TrackPoints="{Binding TrackPoints}" />
+                        </controls:SignalRow.PlotContent>
+                        <controls:SignalRow.PlaceholderContent>
+                            <overlays:SurfacePlaceholderCard Title="Elevation" />
+                        </controls:SignalRow.PlaceholderContent>
+                    </controls:SignalRow>
+                </controls:SignalRow.ChildRows>
+            </controls:SignalRow>
+        </controls:SignalRowsRoot.Rows>
+    </controls:SignalRowsRoot>
+</UserControl>

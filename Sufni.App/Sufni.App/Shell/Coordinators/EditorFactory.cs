@@ -20,10 +20,10 @@ using Sufni.App.LiveDaq.Stores;
 using Sufni.App.LiveDaq.ViewModels.Editors;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.ViewModels;
-using Sufni.App.Sessions.Analysis.Services;
+using Sufni.App.Sessions.Insights.Services;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
-using Sufni.App.Sessions.Processing.SessionGraph;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Coordinators;
@@ -39,9 +39,9 @@ internal sealed class EditorFactory(
     ISessionCoordinator sessionCoordinator,
     ITrackCoordinator trackCoordinator,
     ISessionStore sessionStore,
-    IRecordedSessionGraph recordedSessionGraph,
+    IRecordedSessionProjection recordedSessionProjection,
     ISessionPresentationService sessionPresentationService,
-    ISessionAnalysisService sessionAnalysisService,
+    ISessionInsightsService sessionAnalysisService,
     IMapViewModelFactory mapViewModelFactory,
     ISessionPreferences sessionPreferences,
     IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache,
@@ -144,7 +144,7 @@ internal sealed class EditorFactory(
             sessionCoordinator,
             trackCoordinator,
             sessionStore,
-            recordedSessionGraph,
+            recordedSessionProjection,
             sessionPresentationService,
             sessionAnalysisService,
             mapViewModelFactory,

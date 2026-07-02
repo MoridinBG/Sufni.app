@@ -26,8 +26,8 @@ public class SessionSidebarDesktopViewTests
             Name = "Recorded Session 01",
             DescriptionText = "Suspension notes",
         };
-        workspace.PreferencesPage.ApplyPlotPreferences(new SessionPlotPreferences(Travel: false, Velocity: true, Imu: true));
-        workspace.PreferencesPage.ApplyPlotAvailability(
+        workspace.PreferencesPage.ApplySignalDisplayPreferences(new SignalDisplayPreferences(Travel: false, Velocity: true, Imu: true));
+        workspace.PreferencesPage.ApplySignalAvailability(
             travelAvailable: true,
             velocityAvailable: false,
             imuAvailable: true,

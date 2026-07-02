@@ -19,7 +19,7 @@ internal interface ISessionOperationGateway : IRecordedSessionHostOperations
     bool IsViewLoaded { get; }
     bool ShouldDeferDomainHandling();
     void UpdateExtensionHostState();
-    void SetGraphPreferences(SessionGraphPreferences preferences);
+    void SetSignalLayoutPreferences(SignalLayoutPreferences preferences);
     void SetAnalysisRangeBoundary(double boundarySeconds);
     void PreviewDampingSpeedCutoff(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond);
     void CancelDampingSpeedCutoffPreview();

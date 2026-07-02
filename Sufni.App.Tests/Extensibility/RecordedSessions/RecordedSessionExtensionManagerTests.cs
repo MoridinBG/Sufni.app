@@ -131,56 +131,56 @@ public class RecordedSessionExtensionManagerTests
             Order: 1,
             RecordedSessionToolbarZone.Trailing,
             new TestContributionViewModel());
-        var metricContribution = new RecordedSessionStatisticsMetricContribution(
+        var metricContribution = new RecordedSessionAnalysisMetricContribution(
             "test",
             "metric",
             Order: 2,
-            RecordedSessionStatisticsMetricTarget.FrontLscPercentage,
+            RecordedSessionAnalysisMetricTarget.FrontLscPercentage,
             "match 12.00",
             "-2.00",
             RecordedSessionMetricTone.Negative);
-        var statisticsTabContribution = CreateStatisticsTabContribution("test", "tab");
+        var analysisTabContribution = CreateAnalysisTabContribution("test", "tab");
 
-        factory.Scope!.Slots.GraphToolbarViews.Add(contribution);
-        factory.Scope.Slots.StatisticsMetrics.Add(metricContribution);
-        factory.Scope.Slots.StatisticsTabs.Add(statisticsTabContribution);
+        factory.Scope!.Slots.SignalToolbarViews.Add(contribution);
+        factory.Scope.Slots.AnalysisMetrics.Add(metricContribution);
+        factory.Scope.Slots.AnalysisTabs.Add(analysisTabContribution);
 
-        Assert.Equal([contribution], manager.ExtensionSlots.GraphToolbarViews);
-        Assert.Equal([metricContribution], manager.ExtensionSlots.StatisticsMetrics);
-        Assert.Equal([statisticsTabContribution], manager.ExtensionSlots.StatisticsTabs);
+        Assert.Equal([contribution], manager.ExtensionSlots.SignalToolbarViews);
+        Assert.Equal([metricContribution], manager.ExtensionSlots.AnalysisMetrics);
+        Assert.Equal([analysisTabContribution], manager.ExtensionSlots.AnalysisTabs);
 
         await manager.DisposeScopesAsync();
 
-        Assert.Empty(manager.ExtensionSlots.GraphToolbarViews);
-        Assert.Empty(manager.ExtensionSlots.StatisticsMetrics);
-        Assert.Empty(manager.ExtensionSlots.StatisticsTabs);
+        Assert.Empty(manager.ExtensionSlots.SignalToolbarViews);
+        Assert.Empty(manager.ExtensionSlots.AnalysisMetrics);
+        Assert.Empty(manager.ExtensionSlots.AnalysisTabs);
     }
 
     [Fact]
-    public async Task ScopeSlotChanges_MirrorAndClearHostedGraphRowWithNeutralSeriesViewModel()
+    public async Task ScopeSlotChanges_MirrorAndClearHostedSignalRowWithNeutralSeriesViewModel()
     {
         var factory = new TestRecordedSessionExtensionFactory("owner");
         var manager = CreateManager([factory]);
         await manager.InitializeAsync(CreateState(isLoaded: true));
-        var contribution = new RecordedSessionHostedGraphRowContribution(
+        var contribution = new RecordedSessionHostedSignalRowContribution(
             "owner",
-            "neutral-series",
+            "neutral-signal",
             Order: 1,
-            RecordedSessionBuiltInGraphRow.Travel,
-            RecordedSessionGraphRowTarget.Extension("owner", "neutral-series"),
+            RecordedSessionBuiltInSignalRow.Travel,
+            RecordedSessionSignalRowTarget.Extension("owner", "neutral-signal"),
             "Matched travel",
             SurfacePresentationState.Ready,
-            new RecordedSessionSeriesGraphViewModel(
+            new RecordedSessionSignalPlotViewModel(
                 [], invertValueAxis: true, durationSeconds: 1, emptyMessage: "none", airtimeSpans: []),
             IsInitiallyExpanded: false);
 
-        factory.Scope!.Slots.HostedGraphRows.Add(contribution);
+        factory.Scope!.Slots.HostedSignalRows.Add(contribution);
 
-        Assert.Equal([contribution], manager.ExtensionSlots.HostedGraphRows);
+        Assert.Equal([contribution], manager.ExtensionSlots.HostedSignalRows);
 
         await manager.DisposeScopesAsync();
 
-        Assert.Empty(manager.ExtensionSlots.HostedGraphRows);
+        Assert.Empty(manager.ExtensionSlots.HostedSignalRows);
     }
 
     [Fact]
@@ -197,54 +197,54 @@ public class RecordedSessionExtensionManagerTests
     }
 
     [Fact]
-    public async Task ScopeSlotChanges_AcceptsStatisticsTabContributionFromOwner()
+    public async Task ScopeSlotChanges_AcceptsAnalysisTabContributionFromOwner()
     {
         var factory = new TestRecordedSessionExtensionFactory("owner");
         var manager = CreateManager([factory]);
         await manager.InitializeAsync(CreateState(isLoaded: true));
-        var contribution = CreateStatisticsTabContribution("owner", "tab");
+        var contribution = CreateAnalysisTabContribution("owner", "tab");
 
-        factory.Scope!.Slots.StatisticsTabs.Add(contribution);
+        factory.Scope!.Slots.AnalysisTabs.Add(contribution);
 
-        Assert.Equal([contribution], manager.ExtensionSlots.StatisticsTabs);
+        Assert.Equal([contribution], manager.ExtensionSlots.AnalysisTabs);
     }
 
     [Fact]
-    public async Task ScopeSlotChanges_RejectStatisticsTabContributionFromDifferentOwner()
+    public async Task ScopeSlotChanges_RejectAnalysisTabContributionFromDifferentOwner()
     {
         var factory = new TestRecordedSessionExtensionFactory("owner");
         var manager = CreateManager([factory]);
         await manager.InitializeAsync(CreateState(isLoaded: true));
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            factory.Scope!.Slots.StatisticsTabs.Add(CreateStatisticsTabContribution("other", "tab")));
+            factory.Scope!.Slots.AnalysisTabs.Add(CreateAnalysisTabContribution("other", "tab")));
 
         Assert.Contains("other:tab", exception.Message);
         Assert.Contains("owner", exception.Message);
-        Assert.Empty(manager.ExtensionSlots.StatisticsTabs);
+        Assert.Empty(manager.ExtensionSlots.AnalysisTabs);
     }
 
     [Fact]
-    public async Task ScopeSlotChanges_RejectStatisticsTabContributionWithBlankContributionId()
+    public async Task ScopeSlotChanges_RejectAnalysisTabContributionWithBlankContributionId()
     {
         var factory = new TestRecordedSessionExtensionFactory("owner");
         var manager = CreateManager([factory]);
         await manager.InitializeAsync(CreateState(isLoaded: true));
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            factory.Scope!.Slots.StatisticsTabs.Add(CreateStatisticsTabContribution("owner", " ")));
+            factory.Scope!.Slots.AnalysisTabs.Add(CreateAnalysisTabContribution("owner", " ")));
 
-        Assert.Contains("recorded-session statistics tabs contribution id is required", exception.Message);
-        Assert.Empty(manager.ExtensionSlots.StatisticsTabs);
+        Assert.Contains("recorded-session analysis tabs contribution id is required", exception.Message);
+        Assert.Empty(manager.ExtensionSlots.AnalysisTabs);
     }
 
     [Fact]
-    public async Task ScopeSlotChanges_RejectDuplicateContributionIdsAcrossStatisticsTabsAndOtherSlotFamilies()
+    public async Task ScopeSlotChanges_RejectDuplicateContributionIdsAcrossAnalysisTabsAndOtherSlotFamilies()
     {
         var factory = new TestRecordedSessionExtensionFactory("owner");
         var manager = CreateManager([factory]);
         await manager.InitializeAsync(CreateState(isLoaded: true));
-        factory.Scope!.Slots.StatisticsTabs.Add(CreateStatisticsTabContribution("owner", "duplicate"));
+        factory.Scope!.Slots.AnalysisTabs.Add(CreateAnalysisTabContribution("owner", "duplicate"));
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
             factory.Scope.Slots.Pages.Add(new RecordedSessionPageContribution(
@@ -268,7 +268,7 @@ public class RecordedSessionExtensionManagerTests
         await manager.InitializeAsync(CreateState(isLoaded: true));
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            factory.Scope!.Slots.GraphToolbarViews.Add(new RecordedSessionToolbarViewContribution(
+            factory.Scope!.Slots.SignalToolbarViews.Add(new RecordedSessionToolbarViewContribution(
                 "other",
                 "toolbar",
                 Order: 1,
@@ -277,7 +277,7 @@ public class RecordedSessionExtensionManagerTests
 
         Assert.Contains("other:toolbar", exception.Message);
         Assert.Contains("owner", exception.Message);
-        Assert.Empty(manager.ExtensionSlots.GraphToolbarViews);
+        Assert.Empty(manager.ExtensionSlots.SignalToolbarViews);
     }
 
     [Fact]
@@ -286,7 +286,7 @@ public class RecordedSessionExtensionManagerTests
         var factory = new TestRecordedSessionExtensionFactory("owner");
         var manager = CreateManager([factory]);
         await manager.InitializeAsync(CreateState(isLoaded: true));
-        factory.Scope!.Slots.GraphToolbarViews.Add(new RecordedSessionToolbarViewContribution(
+        factory.Scope!.Slots.SignalToolbarViews.Add(new RecordedSessionToolbarViewContribution(
             "owner",
             "duplicate",
             Order: 1,
@@ -306,26 +306,26 @@ public class RecordedSessionExtensionManagerTests
     }
 
     [Fact]
-    public async Task ScopeSlotChanges_RejectHostedGraphRowWithInvalidRowTarget()
+    public async Task ScopeSlotChanges_RejectHostedSignalRowWithInvalidRowTarget()
     {
         var factory = new TestRecordedSessionExtensionFactory("owner");
         var manager = CreateManager([factory]);
         await manager.InitializeAsync(CreateState(isLoaded: true));
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            factory.Scope!.Slots.HostedGraphRows.Add(new RecordedSessionHostedGraphRowContribution(
+            factory.Scope!.Slots.HostedSignalRows.Add(new RecordedSessionHostedSignalRowContribution(
                 "owner",
                 "hosted-row",
                 Order: 1,
-                RecordedSessionBuiltInGraphRow.Travel,
-                RecordedSessionGraphRowTarget.BuiltIn(RecordedSessionBuiltInGraphRow.Velocity),
+                RecordedSessionBuiltInSignalRow.Travel,
+                RecordedSessionSignalRowTarget.BuiltIn(RecordedSessionBuiltInSignalRow.Velocity),
                 "Hosted",
                 SurfacePresentationState.Ready,
                 new TestContributionViewModel(),
                 IsInitiallyExpanded: true)));
 
         Assert.Contains("hosted-row", exception.Message);
-        Assert.Empty(manager.ExtensionSlots.HostedGraphRows);
+        Assert.Empty(manager.ExtensionSlots.HostedSignalRows);
     }
 
     [Fact]
@@ -343,15 +343,15 @@ public class RecordedSessionExtensionManagerTests
             new TestContributionViewModel());
         var second = first with { ContributionId = "second", Order = 2 };
 
-        factory.Scope!.Slots.GraphToolbarViews.Add(first);
-        factory.Scope.Slots.GraphToolbarViews.Add(second);
+        factory.Scope!.Slots.SignalToolbarViews.Add(first);
+        factory.Scope.Slots.SignalToolbarViews.Add(second);
 
         Assert.Equal(1, dispatcher.PendingPostCount);
-        Assert.Empty(manager.ExtensionSlots.GraphToolbarViews);
+        Assert.Empty(manager.ExtensionSlots.SignalToolbarViews);
 
         dispatcher.RunPendingPosts();
 
-        Assert.Equal([first, second], manager.ExtensionSlots.GraphToolbarViews);
+        Assert.Equal([first, second], manager.ExtensionSlots.SignalToolbarViews);
     }
 
     [Fact]
@@ -415,18 +415,18 @@ public class RecordedSessionExtensionManagerTests
                 isActive),
             new RecordedSessionSelectionState(null),
             new RecordedSessionTimelineState(null, snapshot.DurationSeconds, null),
-            new RecordedSessionStatisticsState(
-                SessionDamperPercentages.Empty,
+            new RecordedSessionAnalysisState(
+                SessionDampingPercentages.Empty,
                 DampingSpeedCutoffs.Default,
                 VelocityAverageMode.SampleAveraged,
-                TravelHistogramMode.ActiveSuspension));
+                TravelDistributionMode.ActiveSuspension));
     }
 
-    private static RecordedSessionStatisticsTabContribution CreateStatisticsTabContribution(
+    private static RecordedSessionAnalysisTabContribution CreateAnalysisTabContribution(
         string extensionId,
         string contributionId)
     {
-        return new RecordedSessionStatisticsTabContribution(
+        return new RecordedSessionAnalysisTabContribution(
             extensionId,
             contributionId,
             Order: 1,

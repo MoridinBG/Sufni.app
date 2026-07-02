@@ -35,13 +35,13 @@ public sealed class LiveVelocityPlot : LiveStreamingPlotBase
         rearChannel = CreateChannel(TelemetryPlot.RearColor, "Rear");
         ShowSourceLegend();
         EnableInteractiveSourceLegendForChannels(
-            TelemetryGraphRowIds.Velocity,
+            SignalRowIds.Velocity,
             (frontChannel, TelemetrySourceKeys.Front),
             (rearChannel, TelemetrySourceKeys.Rear));
         ApplyAutoLimits();
     }
 
-    public void Append(LiveGraphBatch batch)
+    public void Append(LiveSignalBatch batch)
     {
         if (batch.FrontVelocity.Count == 0 && batch.RearVelocity.Count == 0)
         {

@@ -53,12 +53,12 @@ public class LiveSessionServiceTests
             return Task.FromResult<LivePreviewStartResult?>(
                 new LivePreviewStartResult.Started(sessionHeader));
         });
-        sessionPresentationService.CalculateDamperPercentages(
+        sessionPresentationService.CalculateDampingPercentages(
                 Arg.Any<TelemetryData>(),
                 Arg.Any<TelemetryTimeRange?>(),
                 Arg.Any<VelocityAverageMode>(),
                 Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(new SessionDamperPercentages(1, 2, 3, 4, 5, 6, 7, 8));
+            .Returns(new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8));
     }
 
     [Fact]
@@ -104,25 +104,25 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
-    public async Task Frames_AccumulateGraphTrackAndStatistics_AndRemainSaveableAfterTerminalClose()
+    public async Task Frames_AccumulateSignalTrackAndAnalysis_AndRemainSaveableAfterTerminalClose()
     {
         var service = CreateService();
-        var statisticsReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var analysisReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var snapshotSubscription = service.Snapshots.Subscribe(snapshot =>
         {
-            if (snapshot.StatisticsTelemetry is not null)
+            if (snapshot.AnalysisTelemetry is not null)
             {
-                statisticsReady.TrySetResult();
+                analysisReady.TrySetResult();
             }
         });
 
-        var travelBatch = WaitForGraphBatchAsync(
-            service.GraphBatches,
+        var travelBatch = WaitForSignalBatchAsync(
+            service.SignalBatches,
             batch => batch.FrontTravel.Count == 5 && batch.RearTravel.Count == 5,
             TimeSpan.FromSeconds(2));
-        var imuBatch = WaitForGraphBatchAsync(
-            service.GraphBatches,
+        var imuBatch = WaitForSignalBatchAsync(
+            service.SignalBatches,
             batch => batch.ImuTimes.TryGetValue(LiveImuLocation.Frame, out var imuTimes) && imuTimes.Count == 50,
             TimeSpan.FromSeconds(2));
 
@@ -138,10 +138,10 @@ public class LiveSessionServiceTests
             altitude: 601));
 
         await Task.WhenAll(travelBatch, imuBatch);
-        await statisticsReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await analysisReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.True(service.Current.Controls.CanSave);
-        Assert.NotNull(service.Current.StatisticsTelemetry);
+        Assert.NotNull(service.Current.AnalysisTelemetry);
         Assert.Equal(2, service.Current.SessionTrackPoints.Count);
         Assert.True(service.Current.SessionTrackPoints[0].Time < service.Current.SessionTrackPoints[1].Time);
 
@@ -159,24 +159,24 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
-    public async Task Frames_CalculateDamperPercentagesWithContextCutoffs()
+    public async Task Frames_CalculateDampingPercentagesWithContextCutoffs()
     {
         var cutoffs = DampingSpeedCutoffs.FromValues(150, 250, 350, 450);
         var service = CreateService(context: CreateSessionContext(cutoffs));
-        var statisticsReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var analysisReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var snapshotSubscription = service.Snapshots.Subscribe(snapshot =>
         {
-            if (snapshot.StatisticsTelemetry is not null)
+            if (snapshot.AnalysisTelemetry is not null)
             {
-                statisticsReady.TrySetResult();
+                analysisReady.TrySetResult();
             }
         });
 
         await service.EnsureAttachedAsync();
         frames.OnNext(CreateTravelBatchFrame());
-        await statisticsReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await analysisReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
-        sessionPresentationService.Received(1).CalculateDamperPercentages(
+        sessionPresentationService.Received(1).CalculateDampingPercentages(
             Arg.Any<TelemetryData>(),
             Arg.Any<TelemetryTimeRange?>(),
             Arg.Any<VelocityAverageMode>(),
@@ -184,7 +184,7 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
-    public async Task ResetCaptureAsync_ClearsAccumulatedCaptureAndStatistics()
+    public async Task ResetCaptureAsync_ClearsAccumulatedCaptureAndAnalysis()
     {
         var service = CreateService();
         await service.EnsureAttachedAsync();
@@ -197,7 +197,7 @@ public class LiveSessionServiceTests
         await service.ResetCaptureAsync();
 
         Assert.False(service.Current.Controls.CanSave);
-        Assert.Null(service.Current.StatisticsTelemetry);
+        Assert.Null(service.Current.AnalysisTelemetry);
         Assert.Empty(service.Current.SessionTrackPoints);
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.PrepareCaptureForSaveAsync());
     }
@@ -250,46 +250,46 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
-    public async Task TravelFrames_ThrottleStatisticsUpdatesToConfiguredInterval()
+    public async Task TravelFrames_ThrottleAnalysisUpdatesToConfiguredInterval()
     {
         var service = CreateService();
-        var firstStatisticsUpdate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var secondStatisticsUpdate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var statisticsUpdateCount = 0;
+        var firstAnalysisUpdate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondAnalysisUpdate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var analysisUpdateCount = 0;
 
         using var snapshotSubscription = service.Snapshots.Subscribe(snapshot =>
         {
-            if (snapshot.StatisticsTelemetry is null)
+            if (snapshot.AnalysisTelemetry is null)
             {
                 return;
             }
 
-            var count = Interlocked.Increment(ref statisticsUpdateCount);
+            var count = Interlocked.Increment(ref analysisUpdateCount);
             if (count == 1)
             {
-                firstStatisticsUpdate.TrySetResult();
+                firstAnalysisUpdate.TrySetResult();
             }
             else if (count == 2)
             {
-                secondStatisticsUpdate.TrySetResult();
+                secondAnalysisUpdate.TrySetResult();
             }
         });
 
         await service.EnsureAttachedAsync();
 
         frames.OnNext(CreateTravelBatchFrame());
-        await firstStatisticsUpdate.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await firstAnalysisUpdate.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         frames.OnNext(CreateTravelBatchFrame());
 
-        var secondUpdateArrivedTooSoon = await Task.WhenAny(secondStatisticsUpdate.Task, Task.Delay(250)) == secondStatisticsUpdate.Task;
+        var secondUpdateArrivedTooSoon = await Task.WhenAny(secondAnalysisUpdate.Task, Task.Delay(250)) == secondAnalysisUpdate.Task;
         Assert.False(secondUpdateArrivedTooSoon);
 
-        await secondStatisticsUpdate.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await secondAnalysisUpdate.Task.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
-    public async Task TravelFrames_SkipIntermediateStatisticsRevisions_WhenRecomputeAlreadyRunning()
+    public async Task TravelFrames_SkipIntermediateAnalysisRevisions_WhenRecomputeAlreadyRunning()
     {
         var blockingRunner = new BlockingOnceBackgroundTaskRunner();
         var service = CreateService(blockingRunner);
@@ -297,7 +297,7 @@ public class LiveSessionServiceTests
 
         using var snapshotSubscription = service.Snapshots.Subscribe(snapshot =>
         {
-            if (snapshot.Controls.ClientDropCounters.StatisticsRecomputesSkipped > 0)
+            if (snapshot.Controls.ClientDropCounters.AnalysisRecomputesSkipped > 0)
             {
                 skippedRecomputesReady.TrySetResult();
             }
@@ -317,7 +317,7 @@ public class LiveSessionServiceTests
 
             await skippedRecomputesReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
-            Assert.True(service.Current.Controls.ClientDropCounters.StatisticsRecomputesSkipped > 0);
+            Assert.True(service.Current.Controls.ClientDropCounters.AnalysisRecomputesSkipped > 0);
         }
         finally
         {
@@ -327,12 +327,12 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
-    public async Task ResetCaptureAsync_RebasesSubsequentGraphTimes_AndClearsCaptureDuration()
+    public async Task ResetCaptureAsync_RebasesSubsequentSignalTimes_AndClearsCaptureDuration()
     {
         var service = CreateService();
 
-        var firstBatchTask = WaitForGraphBatchAsync(
-            service.GraphBatches,
+        var firstBatchTask = WaitForSignalBatchAsync(
+            service.SignalBatches,
             batch => batch.FrontTravel.Count == 5,
             TimeSpan.FromSeconds(2));
 
@@ -342,8 +342,8 @@ public class LiveSessionServiceTests
 
         var firstBatch = await firstBatchTask;
 
-        var resetBatchTask = WaitForGraphBatchAsync(
-            service.GraphBatches,
+        var resetBatchTask = WaitForSignalBatchAsync(
+            service.SignalBatches,
             batch => batch.TravelTimes.Count == 0 && batch.Revision > firstBatch.Revision,
             TimeSpan.FromSeconds(2));
 
@@ -353,8 +353,8 @@ public class LiveSessionServiceTests
 
         Assert.Equal(TimeSpan.Zero, service.Current.Controls.CaptureDuration);
 
-        var rebasedBatchTask = WaitForGraphBatchAsync(
-            service.GraphBatches,
+        var rebasedBatchTask = WaitForSignalBatchAsync(
+            service.SignalBatches,
             batch => batch.FrontTravel.Count == 5 && batch.Revision > resetBatch.Revision,
             TimeSpan.FromSeconds(2));
 
@@ -365,9 +365,9 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
-    public async Task Frames_TwoTravelFramesBeforeFlush_ProduceSingleMergedBatchWithIndependentGraphRevision()
+    public async Task Frames_TwoTravelFramesBeforeFlush_ProduceSingleMergedBatchWithIndependentSignalRevision()
     {
-        var pipeline = new LiveGraphPipeline(TimeSpan.FromMilliseconds(200), Logger.None);
+        var pipeline = new LiveSignalPipeline(TimeSpan.FromMilliseconds(200), Logger.None);
         var service = new LiveSessionService(
             CreateSessionContext(),
             sharedStream,
@@ -375,8 +375,8 @@ public class LiveSessionServiceTests
             backgroundTaskRunner,
             pipeline);
 
-        var mergedBatchTask = WaitForGraphBatchAsync(
-            service.GraphBatches,
+        var mergedBatchTask = WaitForSignalBatchAsync(
+            service.SignalBatches,
             batch => batch.FrontTravel.Count == 10,
             TimeSpan.FromSeconds(2));
 
@@ -398,8 +398,8 @@ public class LiveSessionServiceTests
     {
         var service = CreateService();
 
-        var imuOnlyBatchTask = WaitForGraphBatchAsync(
-            service.GraphBatches,
+        var imuOnlyBatchTask = WaitForSignalBatchAsync(
+            service.SignalBatches,
             batch => batch.TravelTimes.Count == 0
                 && batch.FrontVelocity.Count == 0
                 && batch.RearVelocity.Count == 0
@@ -419,14 +419,14 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task TravelFrames_WhenDisplayPipelineStalls_CaptureContinuesAndDisplayDropsAreCounted()
     {
-        var graphPipeline = new BlockingGraphPipeline();
-        var service = CreateService(graphPipeline: graphPipeline);
+        var signalPipeline = new BlockingSignalPipeline();
+        var service = CreateService(signalPipeline: signalPipeline);
         var displayDropsReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var snapshotSubscription = service.Snapshots.Subscribe(snapshot =>
         {
-            if (snapshot.Controls.ClientDropCounters.GraphBatchesCoalesced > 0
-                && snapshot.Controls.ClientDropCounters.StatisticsRecomputesSkipped > 0)
+            if (snapshot.Controls.ClientDropCounters.SignalBatchesCoalesced > 0
+                && snapshot.Controls.ClientDropCounters.AnalysisRecomputesSkipped > 0)
             {
                 displayDropsReady.TrySetResult();
             }
@@ -437,7 +437,7 @@ public class LiveSessionServiceTests
             await service.EnsureAttachedAsync();
 
             frames.OnNext(CreateTravelBatchFrame());
-            await graphPipeline.AppendStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await signalPipeline.AppendStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
             for (var index = 0; index < 20; index++)
             {
@@ -448,26 +448,26 @@ public class LiveSessionServiceTests
             await displayDropsReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
             Assert.True(service.Current.Controls.CanSave);
-            Assert.True(service.Current.Controls.ClientDropCounters.GraphBatchesCoalesced > 0);
-            Assert.True(service.Current.Controls.ClientDropCounters.GraphSamplesDiscarded > 0);
-            Assert.True(service.Current.Controls.ClientDropCounters.StatisticsRecomputesSkipped > 0);
+            Assert.True(service.Current.Controls.ClientDropCounters.SignalBatchesCoalesced > 0);
+            Assert.True(service.Current.Controls.ClientDropCounters.SignalSamplesDiscarded > 0);
+            Assert.True(service.Current.Controls.ClientDropCounters.AnalysisRecomputesSkipped > 0);
 
             var capture = await service.PrepareCaptureForSaveAsync();
             Assert.Equal(105, capture.TelemetryCapture.FrontMeasurements.Length);
         }
         finally
         {
-            graphPipeline.Release();
+            signalPipeline.Release();
             await service.DisposeAsync();
         }
     }
 
     private ILiveSessionService CreateService(
         IBackgroundTaskRunner? runner = null,
-        ILiveGraphPipeline? graphPipeline = null,
+        ILiveSignalPipeline? signalPipeline = null,
         LiveDaqSessionContext? context = null)
     {
-        var pipeline = graphPipeline ?? new LiveGraphPipeline(TimeSpan.FromMilliseconds(5), Logger.None);
+        var pipeline = signalPipeline ?? new LiveSignalPipeline(TimeSpan.FromMilliseconds(5), Logger.None);
         return new LiveSessionService(
             context ?? CreateSessionContext(),
             sharedStream,
@@ -476,15 +476,15 @@ public class LiveSessionServiceTests
             pipeline);
     }
 
-    private sealed class BlockingGraphPipeline : ILiveGraphPipeline
+    private sealed class BlockingSignalPipeline : ILiveSignalPipeline
     {
-        private readonly Subject<LiveGraphBatch> graphBatches = new();
+        private readonly Subject<LiveSignalBatch> signalBatches = new();
         private readonly TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int shouldBlock = 1;
 
         public TaskCompletionSource AppendStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public IObservable<LiveGraphBatch> GraphBatches => graphBatches.AsObservable();
+        public IObservable<LiveSignalBatch> SignalBatches => signalBatches.AsObservable();
 
         public void Start()
         {
@@ -519,8 +519,8 @@ public class LiveSessionServiceTests
         public ValueTask DisposeAsync()
         {
             Release();
-            graphBatches.OnCompleted();
-            graphBatches.Dispose();
+            signalBatches.OnCompleted();
+            signalBatches.Dispose();
             return ValueTask.CompletedTask;
         }
     }
@@ -567,9 +567,9 @@ public class LiveSessionServiceTests
         }
     }
 
-    private static Task<LiveGraphBatch> WaitForGraphBatchAsync(
-        IObservable<LiveGraphBatch> source,
-        Func<LiveGraphBatch, bool> predicate,
+    private static Task<LiveSignalBatch> WaitForSignalBatchAsync(
+        IObservable<LiveSignalBatch> source,
+        Func<LiveSignalBatch, bool> predicate,
         TimeSpan timeout)
     {
         return source

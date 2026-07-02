@@ -72,7 +72,7 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
             ],
             ShowLegendWhenSingleSource: true,
             EnableInteractiveLegend: true,
-            InteractiveLegendRowId: TelemetryGraphRowIds.Travel));
+            InteractiveLegendRowId: SignalRowIds.Travel));
     }
 
     private static string FormatTravelCursorValue(double value, double maxTravel)

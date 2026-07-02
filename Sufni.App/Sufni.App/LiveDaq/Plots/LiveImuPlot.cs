@@ -35,14 +35,14 @@ public sealed class LiveImuPlot : LiveStreamingPlotBase
         rearChannel = CreateChannel(TelemetryPlot.RearColor, "Shock");
         ShowSourceLegend();
         EnableInteractiveSourceLegendForChannels(
-            TelemetryGraphRowIds.Imu,
+            SignalRowIds.Imu,
             (frameChannel, TelemetrySourceKeys.ImuLocation((int)LiveImuLocation.Frame)),
             (forkChannel, TelemetrySourceKeys.ImuLocation((int)LiveImuLocation.Fork)),
             (rearChannel, TelemetrySourceKeys.ImuLocation((int)LiveImuLocation.Rear)));
         ApplyAutoLimits();
     }
 
-    public void Append(LiveGraphBatch batch)
+    public void Append(LiveSignalBatch batch)
     {
         if (batch.ImuVibrationRms.Count == 0)
         {

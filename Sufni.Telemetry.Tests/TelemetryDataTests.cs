@@ -895,7 +895,7 @@ public class TelemetryDataTests
     {
         double[] travel = [0.0, 38.0, 39.0, 0.0, 38.5];
         var telemetry = CreateTelemetry(travel, maxTravel: 40, sampleRate: 10);
-        var options = new TravelStatisticsOptions(HistogramMode: TravelHistogramMode.DynamicSag);
+        var options = new TravelStatisticsOptions(HistogramMode: TravelDistributionMode.DynamicSag);
 
         var histogram = TelemetryStatistics.CalculateTravelHistogram(telemetry, SuspensionType.Front, options);
         var statistics = TelemetryStatistics.CalculateTravelStatistics(telemetry, SuspensionType.Front, options);
@@ -929,7 +929,7 @@ public class TelemetryDataTests
         ];
         var options = new TravelStatisticsOptions(
             Range: new TelemetryTimeRange(0.9, 1.2),
-            HistogramMode: TravelHistogramMode.DynamicSag);
+            HistogramMode: TravelDistributionMode.DynamicSag);
 
         var statistics = TelemetryStatistics.CalculateTravelStatistics(telemetry, SuspensionType.Front, options);
 

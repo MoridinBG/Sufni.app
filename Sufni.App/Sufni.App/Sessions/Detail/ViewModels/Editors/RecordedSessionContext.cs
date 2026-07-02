@@ -13,7 +13,7 @@ using Sufni.Telemetry;
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.ViewModels;
-using Sufni.App.Sessions.Graph.ViewModels.Editors;
+using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Presentation;
@@ -59,36 +59,36 @@ public sealed partial class RecordedSessionContext : ObservableObject
     [ObservableProperty] public partial SurfacePresentationState MapState { get; set; } = SurfacePresentationState.Hidden;
     [ObservableProperty] public partial SurfacePresentationState MediaPaneState { get; set; } = SurfacePresentationState.Hidden;
     [ObservableProperty] public partial RecordedSessionExtensionSlots ExtensionSlots { get; set; } = new();
-    [ObservableProperty] public partial SurfacePresentationState TravelGraphState { get; set; } = SurfacePresentationState.Hidden;
-    [ObservableProperty] public partial SurfacePresentationState VelocityGraphState { get; set; } = SurfacePresentationState.Hidden;
-    [ObservableProperty] public partial SurfacePresentationState ImuGraphState { get; set; } = SurfacePresentationState.Hidden;
-    [ObservableProperty] public partial SurfacePresentationState PitchRollGraphState { get; set; } = SurfacePresentationState.Hidden;
-    [ObservableProperty] public partial SurfacePresentationState SpeedGraphState { get; set; } = SurfacePresentationState.Hidden;
-    [ObservableProperty] public partial SurfacePresentationState ElevationGraphState { get; set; } = SurfacePresentationState.Hidden;
-    [ObservableProperty] public partial SurfacePresentationState FrontStatisticsState { get; set; } = SurfacePresentationState.Hidden;
-    [ObservableProperty] public partial SurfacePresentationState RearStatisticsState { get; set; } = SurfacePresentationState.Hidden;
+    [ObservableProperty] public partial SurfacePresentationState TravelSignalState { get; set; } = SurfacePresentationState.Hidden;
+    [ObservableProperty] public partial SurfacePresentationState VelocitySignalState { get; set; } = SurfacePresentationState.Hidden;
+    [ObservableProperty] public partial SurfacePresentationState ImuSignalState { get; set; } = SurfacePresentationState.Hidden;
+    [ObservableProperty] public partial SurfacePresentationState PitchRollSignalState { get; set; } = SurfacePresentationState.Hidden;
+    [ObservableProperty] public partial SurfacePresentationState SpeedSignalState { get; set; } = SurfacePresentationState.Hidden;
+    [ObservableProperty] public partial SurfacePresentationState ElevationSignalState { get; set; } = SurfacePresentationState.Hidden;
+    [ObservableProperty] public partial SurfacePresentationState FrontAnalysisState { get; set; } = SurfacePresentationState.Hidden;
+    [ObservableProperty] public partial SurfacePresentationState RearAnalysisState { get; set; } = SurfacePresentationState.Hidden;
     [ObservableProperty] public partial SurfacePresentationState CompressionBalanceState { get; set; } = SurfacePresentationState.Hidden;
     [ObservableProperty] public partial SurfacePresentationState ReboundBalanceState { get; set; } = SurfacePresentationState.Hidden;
     [ObservableProperty] public partial SurfacePresentationState FrontForkVibrationState { get; set; } = SurfacePresentationState.Hidden;
     [ObservableProperty] public partial SurfacePresentationState FrontFrameVibrationState { get; set; } = SurfacePresentationState.Hidden;
     [ObservableProperty] public partial SurfacePresentationState RearForkVibrationState { get; set; } = SurfacePresentationState.Hidden;
     [ObservableProperty] public partial SurfacePresentationState RearFrameVibrationState { get; set; } = SurfacePresentationState.Hidden;
-    [ObservableProperty] public partial SessionPlotPreferences PlotPreferences { get; set; } = SessionPreferences.Default.Plots;
-    [ObservableProperty] public partial SessionGraphPreferences GraphPreferences { get; set; } = SessionPreferences.Default.Graph;
+    [ObservableProperty] public partial SignalDisplayPreferences SignalDisplayPreferences { get; set; } = SessionPreferences.Default.SignalDisplay;
+    [ObservableProperty] public partial SignalLayoutPreferences SignalLayoutPreferences { get; set; } = SessionPreferences.Default.SignalLayout;
     [ObservableProperty] public partial SessionLayoutPreferences LayoutPreferences { get; set; } = SessionPreferences.Default.Layout;
-    [ObservableProperty] public partial TravelHistogramMode SelectedTravelHistogramMode { get; set; } = TravelHistogramMode.ActiveSuspension;
+    [ObservableProperty] public partial TravelDistributionMode SelectedTravelDistributionMode { get; set; } = TravelDistributionMode.ActiveSuspension;
     [ObservableProperty] public partial BalanceDisplacementMode SelectedBalanceDisplacementMode { get; set; } = BalanceDisplacementMode.Zenith;
     [ObservableProperty] public partial BalanceSpeedMode SelectedBalanceSpeedMode { get; set; } = BalanceSpeedMode.Both;
     [ObservableProperty] public partial VelocityAverageMode SelectedVelocityAverageMode { get; set; } = VelocityAverageMode.SampleAveraged;
-    [ObservableProperty] public partial SessionAnalysisTargetProfile SelectedSessionAnalysisTargetProfile { get; set; } = SessionAnalysisTargetProfile.Trail;
-    [ObservableProperty] public partial SessionDamperPercentages DamperPercentages { get; set; } = SessionDamperPercentages.Empty;
+    [ObservableProperty] public partial SessionInsightsTargetProfile SelectedSessionInsightsTargetProfile { get; set; } = SessionInsightsTargetProfile.Trail;
+    [ObservableProperty] public partial SessionDampingPercentages DampingPercentages { get; set; } = SessionDampingPercentages.Empty;
     [ObservableProperty] public partial DampingSpeedCutoffs DampingSpeedCutoffs { get; set; } = DampingSpeedCutoffs.Default;
     [ObservableProperty] public partial DampingSpeedCutoffs PlotDampingSpeedCutoffs { get; set; } = DampingSpeedCutoffs.Default;
     [ObservableProperty] public partial bool CanEditDampingSpeedCutoffs { get; set; }
-    [ObservableProperty] public partial SessionAnalysisResult SessionAnalysis { get; set; } = SessionAnalysisResult.Hidden;
-    [ObservableProperty] public partial TelemetryRangeSelection? SelectedFrontRangeSelection { get; set; }
-    [ObservableProperty] public partial TelemetryRangeSelection? SelectedRearRangeSelection { get; set; }
-    [ObservableProperty] public partial IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> PlotContextMenuActionsByRowId { get; set; } =
+    [ObservableProperty] public partial SessionInsightsResult SessionInsights { get; set; } = SessionInsightsResult.Hidden;
+    [ObservableProperty] public partial TelemetryRangeSelection? ActiveFrontAnalysisSelection { get; set; }
+    [ObservableProperty] public partial TelemetryRangeSelection? ActiveRearAnalysisSelection { get; set; }
+    [ObservableProperty] public partial IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; set; } =
         new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
     [ObservableProperty] public partial bool ShowAirtime { get; set; } = true;
     [ObservableProperty] public partial bool ShowVelocityAirtime { get; set; }
@@ -97,24 +97,24 @@ public sealed partial class RecordedSessionContext : ObservableObject
     [ObservableProperty] public partial bool ShowSpeedAirtime { get; set; }
     [ObservableProperty] public partial bool ShowElevationAirtime { get; set; }
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasStatisticsSelection))]
-    public partial IReadOnlyList<TelemetryHighlightRange> StatisticsSelectionHighlightRanges { get; set; } = [];
-    [ObservableProperty] public partial bool ShowStatisticsSelection { get; set; }
-    [ObservableProperty] public partial bool ShowVelocityStatisticsSelection { get; set; }
-    [ObservableProperty] public partial bool ShowImuStatisticsSelection { get; set; }
-    [ObservableProperty] public partial bool ShowPitchRollStatisticsSelection { get; set; }
-    [ObservableProperty] public partial bool ShowSpeedStatisticsSelection { get; set; }
-    [ObservableProperty] public partial bool ShowElevationStatisticsSelection { get; set; }
-    [ObservableProperty] public partial IReadOnlyList<TelemetryPlotRowAction> TravelHeaderActions { get; set; } = [];
-    [ObservableProperty] public partial IReadOnlyList<TelemetryPlotRowAction> VelocityHeaderActions { get; set; } = [];
-    [ObservableProperty] public partial IReadOnlyList<TelemetryPlotRowAction> ImuHeaderActions { get; set; } = [];
-    [ObservableProperty] public partial IReadOnlyList<TelemetryPlotRowAction> PitchRollHeaderActions { get; set; } = [];
-    [ObservableProperty] public partial IReadOnlyList<TelemetryPlotRowAction> SpeedHeaderActions { get; set; } = [];
-    [ObservableProperty] public partial IReadOnlyList<TelemetryPlotRowAction> ElevationHeaderActions { get; set; } = [];
+    [NotifyPropertyChangedFor(nameof(HasAnalysisSelection))]
+    public partial IReadOnlyList<TelemetryHighlightRange> AnalysisSelectionHighlightRanges { get; set; } = [];
+    [ObservableProperty] public partial bool ShowAnalysisSelection { get; set; }
+    [ObservableProperty] public partial bool ShowVelocityAnalysisSelection { get; set; }
+    [ObservableProperty] public partial bool ShowImuAnalysisSelection { get; set; }
+    [ObservableProperty] public partial bool ShowPitchRollAnalysisSelection { get; set; }
+    [ObservableProperty] public partial bool ShowSpeedAnalysisSelection { get; set; }
+    [ObservableProperty] public partial bool ShowElevationAnalysisSelection { get; set; }
+    [ObservableProperty] public partial IReadOnlyList<SignalRowAction> TravelHeaderActions { get; set; } = [];
+    [ObservableProperty] public partial IReadOnlyList<SignalRowAction> VelocityHeaderActions { get; set; } = [];
+    [ObservableProperty] public partial IReadOnlyList<SignalRowAction> ImuHeaderActions { get; set; } = [];
+    [ObservableProperty] public partial IReadOnlyList<SignalRowAction> PitchRollHeaderActions { get; set; } = [];
+    [ObservableProperty] public partial IReadOnlyList<SignalRowAction> SpeedHeaderActions { get; set; } = [];
+    [ObservableProperty] public partial IReadOnlyList<SignalRowAction> ElevationHeaderActions { get; set; } = [];
     [ObservableProperty] public partial SessionScreenPresentationState ScreenState { get; set; } = SessionScreenPresentationState.Ready;
     [ObservableProperty] public partial SessionOperationPresentationState SessionOperationState { get; set; } = SessionOperationPresentationState.Hidden;
 
-    public bool HasStatisticsSelection => StatisticsSelectionHighlightRanges.Count > 0;
+    public bool HasAnalysisSelection => AnalysisSelectionHighlightRanges.Count > 0;
 
     partial void OnMediaUrlChanged(string? value)
     {

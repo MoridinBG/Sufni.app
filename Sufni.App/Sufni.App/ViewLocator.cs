@@ -13,9 +13,9 @@ using Sufni.App.Bikes.ViewModels.LinkageParts;
 using Sufni.App.LiveDaq.ViewModels.Editors;
 using Sufni.App.LiveDaq.ViewModels.ItemLists;
 using Sufni.App.LiveDaq.ViewModels.SessionPages;
-using Sufni.App.Sessions.Analysis.ViewModels.SessionPages;
+using Sufni.App.Sessions.Insights.ViewModels.SessionPages;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
-using Sufni.App.Sessions.Graph.ViewModels.SessionPages;
+using Sufni.App.Sessions.Signals.ViewModels.SessionPages;
 using Sufni.App.Sessions.Lists.ViewModels.ItemLists;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Setups.ViewModels.Editors;
@@ -57,12 +57,12 @@ public class ViewLocator : IDataTemplate
         [typeof(RotationalForkSensorConfigurationViewModel)] = static () => new global::Sufni.App.Setups.Views.SensorConfigurations.RotationalForkSensorConfigurationView(),
         [typeof(RotationalShockSensorConfigurationViewModel)] = static () => new global::Sufni.App.Setups.Views.SensorConfigurations.RotationalShockSensorConfigurationView(),
         [typeof(BalancePageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.BalancePageView(),
-        [typeof(DamperPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.DamperPageView(),
-        [typeof(LiveGraphPageViewModel)] = static () => new global::Sufni.App.LiveDaq.Views.SessionPages.LiveGraphPageView(),
-        [typeof(RecordedGraphPageViewModel)] = static () => new global::Sufni.App.Sessions.Graph.Views.SessionPages.RecordedGraphPageView(),
+        [typeof(DampingPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.DampingPageView(),
+        [typeof(LiveSignalsPageViewModel)] = static () => new global::Sufni.App.LiveDaq.Views.SessionPages.LiveSignalsPageView(),
+        [typeof(RecordedSignalsPageViewModel)] = static () => new global::Sufni.App.Sessions.Signals.Views.SessionPages.RecordedSignalsPageView(),
         [typeof(NotesPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.NotesPageView(),
         [typeof(PreferencesPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.PreferencesPageView(),
-        [typeof(SessionAnalysisPageViewModel)] = static () => new global::Sufni.App.Sessions.Analysis.Views.SessionPages.SessionAnalysisPageView(),
+        [typeof(SessionInsightsPageViewModel)] = static () => new global::Sufni.App.Sessions.Insights.Views.SessionPages.SessionInsightsPageView(),
         [typeof(SpringPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.SpringPageView(),
         [typeof(StrokesPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.StrokesPageView(),
         [typeof(VibrationPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.VibrationPageView(),

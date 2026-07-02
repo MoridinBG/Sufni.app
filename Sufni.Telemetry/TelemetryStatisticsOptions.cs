@@ -1,6 +1,6 @@
 namespace Sufni.Telemetry;
 
-public enum TravelHistogramMode
+public enum TravelDistributionMode
 {
     ActiveSuspension = 0,
     DynamicSag = 1,
@@ -28,7 +28,7 @@ public enum VelocityAverageMode
 
 public sealed record TravelStatisticsOptions(
     TelemetryTimeRange? Range = null,
-    TravelHistogramMode HistogramMode = TravelHistogramMode.ActiveSuspension);
+    TravelDistributionMode HistogramMode = TravelDistributionMode.ActiveSuspension);
 
 public sealed record BalanceStatisticsOptions(
     TelemetryTimeRange? Range = null,

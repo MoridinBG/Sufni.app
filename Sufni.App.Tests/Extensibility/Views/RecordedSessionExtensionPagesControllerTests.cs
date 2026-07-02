@@ -26,110 +26,110 @@ public class RecordedSessionExtensionPagesControllerTests
         AssertPageOrder(
             context.Pages,
             [
-                "Graph",
+                "Signals",
                 "Extension page",
-                "Spring rate",
+                "Spring",
                 "Strokes",
                 "Damping",
                 "Balance",
                 "Vibration",
-                "Analysis",
+                "Insights",
             ]);
     }
 
     [Fact]
-    public void StatisticsTabContributions_InsertBeforeMatchingBuiltInStatisticsPage()
+    public void AnalysisTabContributions_InsertBeforeMatchingBuiltInAnalysisPage()
     {
         var manager = CreateManager();
         var context = CreateBuiltInContext();
         _ = new RecordedSessionExtensionPagesController(manager, context);
 
-        manager.ExtensionSlots.StatisticsTabs.Add(CreateStatisticsTabContribution("statistics-tab", requestedIndex: 3));
+        manager.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution("analysis-tab", requestedIndex: 3));
 
         AssertPageOrder(
             context.Pages,
             [
-                "Graph",
-                "Spring rate",
+                "Signals",
+                "Spring",
                 "Strokes",
                 "Damping",
-                "Statistics tab",
+                "Analysis tab",
                 "Balance",
                 "Vibration",
-                "Analysis",
+                "Insights",
             ]);
     }
 
     [Fact]
-    public void StatisticsTabContributions_InsertBeforeNextBuiltInStatisticsPage_WhenBalanceIsAbsent()
+    public void AnalysisTabContributions_InsertBeforeNextBuiltInAnalysisPage_WhenBalanceIsAbsent()
     {
         var manager = CreateManager();
         var context = CreateBuiltInContext(includeBalance: false);
         _ = new RecordedSessionExtensionPagesController(manager, context);
 
-        manager.ExtensionSlots.StatisticsTabs.Add(CreateStatisticsTabContribution("statistics-tab", requestedIndex: 3));
+        manager.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution("analysis-tab", requestedIndex: 3));
 
         AssertPageOrder(
             context.Pages,
             [
-                "Graph",
-                "Spring rate",
+                "Signals",
+                "Spring",
                 "Strokes",
                 "Damping",
-                "Statistics tab",
+                "Analysis tab",
                 "Vibration",
-                "Analysis",
+                "Insights",
             ]);
     }
 
     [Fact]
-    public void SlotReset_RemovesStaleStatisticsTabPages()
+    public void SlotReset_RemovesStaleAnalysisTabPages()
     {
         var manager = CreateManager();
         var context = CreateBuiltInContext();
         _ = new RecordedSessionExtensionPagesController(manager, context);
 
-        manager.ExtensionSlots.StatisticsTabs.Add(CreateStatisticsTabContribution("statistics-tab", requestedIndex: 3));
-        manager.ExtensionSlots.StatisticsTabs.Clear();
+        manager.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution("analysis-tab", requestedIndex: 3));
+        manager.ExtensionSlots.AnalysisTabs.Clear();
 
         AssertPageOrder(
             context.Pages,
             [
-                "Graph",
-                "Spring rate",
+                "Signals",
+                "Spring",
                 "Strokes",
                 "Damping",
                 "Balance",
                 "Vibration",
-                "Analysis",
+                "Insights",
             ]);
     }
 
     [Fact]
-    public void StatisticsTabReorder_UpdatesPageOrderDeterministically()
+    public void AnalysisTabReorder_UpdatesPageOrderDeterministically()
     {
         var manager = CreateManager();
         var context = CreateBuiltInContext();
         _ = new RecordedSessionExtensionPagesController(manager, context);
-        var first = CreateStatisticsTabContribution("first", requestedIndex: 3, order: 2, displayName: "First");
-        var second = CreateStatisticsTabContribution("second", requestedIndex: 3, order: 1, displayName: "Second");
+        var first = CreateAnalysisTabContribution("first", requestedIndex: 3, order: 2, displayName: "First");
+        var second = CreateAnalysisTabContribution("second", requestedIndex: 3, order: 1, displayName: "Second");
 
-        manager.ExtensionSlots.StatisticsTabs.Add(first);
-        manager.ExtensionSlots.StatisticsTabs.Add(second);
-        manager.ExtensionSlots.StatisticsTabs.ReplaceWith([first with { Order = 0 }, second]);
+        manager.ExtensionSlots.AnalysisTabs.Add(first);
+        manager.ExtensionSlots.AnalysisTabs.Add(second);
+        manager.ExtensionSlots.AnalysisTabs.ReplaceWith([first with { Order = 0 }, second]);
 
         AssertPageOrder(
             context.Pages,
             [
-                "Graph",
-                "Spring rate",
+                "Signals",
+                "Spring",
                 "Strokes",
                 "Damping",
                 "First",
                 "Second",
                 "Balance",
                 "Vibration",
-                "Analysis",
+                "Insights",
             ]);
     }
 
@@ -174,8 +174,8 @@ public class RecordedSessionExtensionPagesControllerTests
     private static RecordedSessionContext CreateBuiltInContext(bool includeBalance = true)
     {
         var context = new RecordedSessionContext();
-        context.Pages.Add(new PageViewModelBase("Graph"));
-        context.Pages.Add(new PageViewModelBase("Spring rate"));
+        context.Pages.Add(new PageViewModelBase("Signals"));
+        context.Pages.Add(new PageViewModelBase("Spring"));
         context.Pages.Add(new PageViewModelBase("Strokes"));
         context.Pages.Add(new PageViewModelBase("Damping"));
 
@@ -185,7 +185,7 @@ public class RecordedSessionExtensionPagesControllerTests
         }
 
         context.Pages.Add(new PageViewModelBase("Vibration"));
-        context.Pages.Add(new PageViewModelBase("Analysis"));
+        context.Pages.Add(new PageViewModelBase("Insights"));
         return context;
     }
 
@@ -202,13 +202,13 @@ public class RecordedSessionExtensionPagesControllerTests
             requestedIndex);
     }
 
-    private static RecordedSessionStatisticsTabContribution CreateStatisticsTabContribution(
+    private static RecordedSessionAnalysisTabContribution CreateAnalysisTabContribution(
         string contributionId,
         int requestedIndex,
         int order = 0,
-        string displayName = "Statistics tab")
+        string displayName = "Analysis tab")
     {
-        return new RecordedSessionStatisticsTabContribution(
+        return new RecordedSessionAnalysisTabContribution(
             "extension",
             contributionId,
             order,

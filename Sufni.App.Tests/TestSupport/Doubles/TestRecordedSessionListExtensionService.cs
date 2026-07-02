@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.SessionGraph;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.Tests.ExtensionHost;
 
 namespace Sufni.App.Tests.TestSupport.Doubles;

@@ -16,26 +16,26 @@ mc:Ignorable="d">
 
     <desktopControls:CollapsibleSplitView
         x:Name="ShellRowsSplit"
-        FirstPaneId="{x:Static models:SessionLayoutPaneIds.GraphMediaArea}"
-        FirstPaneLabel="graph and media"
+        FirstPaneId="{x:Static models:SessionLayoutPaneIds.SignalsMediaArea}"
+        FirstPaneLabel="signals and media"
         Orientation="Vertical"
-        SecondPaneId="{x:Static models:SessionLayoutPaneIds.StatisticsSidebarArea}"
-        SecondPaneLabel="statistics and sidebar">
+        SecondPaneId="{x:Static models:SessionLayoutPaneIds.AnalysisSidebarArea}"
+        SecondPaneLabel="analysis and sidebar">
 
         <desktopControls:CollapsibleSplitView.FirstContent>
             <desktopControls:CollapsibleSplitView
-                x:Name="GraphMediaSplit"
+                x:Name="SignalsMediaSplit"
                 DefaultFirstLength="*"
                 DefaultSecondLength="Auto"
-                FirstPaneId="{x:Static models:SessionLayoutPaneIds.Graph}"
-                FirstPaneLabel="graphs"
+                FirstPaneId="{x:Static models:SessionLayoutPaneIds.Signals}"
+                FirstPaneLabel="signals"
                 HasSecondPane="{Binding #Root.HasMediaContent}"
                 Orientation="Horizontal"
                 SecondPaneId="{x:Static models:SessionLayoutPaneIds.Media}"
                 SecondPaneLabel="media">
 
                 <desktopControls:CollapsibleSplitView.FirstContent>
-                    <ContentControl Name="GraphHost" Content="{Binding #Root.GraphContent}" />
+                    <ContentControl Name="SignalsHost" Content="{Binding #Root.SignalsContent}" />
                 </desktopControls:CollapsibleSplitView.FirstContent>
 
                 <desktopControls:CollapsibleSplitView.SecondContent>
@@ -49,17 +49,17 @@ mc:Ignorable="d">
 
         <desktopControls:CollapsibleSplitView.SecondContent>
             <desktopControls:CollapsibleSplitView
-                x:Name="StatisticsSidebarSplit"
+                x:Name="AnalysisSidebarSplit"
                 DefaultFirstLength="*"
                 DefaultSecondLength="400"
-                FirstPaneId="{x:Static models:SessionLayoutPaneIds.Statistics}"
-                FirstPaneLabel="statistics"
+                FirstPaneId="{x:Static models:SessionLayoutPaneIds.Analysis}"
+                FirstPaneLabel="analysis"
                 Orientation="Horizontal"
                 SecondPaneId="{x:Static models:SessionLayoutPaneIds.Sidebar}"
                 SecondPaneLabel="sidebar">
 
                 <desktopControls:CollapsibleSplitView.FirstContent>
-                    <ContentControl Name="StatisticsHost" Content="{Binding #Root.StatisticsContent}" />
+                    <ContentControl Name="AnalysisHost" Content="{Binding #Root.AnalysisContent}" />
                 </desktopControls:CollapsibleSplitView.FirstContent>
 
                 <desktopControls:CollapsibleSplitView.SecondContent>
