@@ -132,6 +132,32 @@ public class RecordedSessionProjectionTests
     }
 
     [Fact]
+    public void WatchSession_DoesNotEmit_WhenBikeNonProcessingFieldsChange()
+    {
+        var scheduler = new QueuedRecordedSessionProjectionScheduler();
+        using var stores = new StoreFixtures();
+        var fingerprintService = new ProcessingFingerprintService();
+        using var projection = stores.CreateProjection(fingerprintService, scheduler);
+        var context = CreateCurrentContext(fingerprintService);
+        var emissions = new List<RecordedSessionDomainSnapshot>();
+        using var subscription = projection.WatchSession(context.Session.Id).Subscribe(emissions.Add);
+        stores.Add(context);
+        scheduler.Flush();
+        Assert.Single(emissions);
+        emissions.Clear();
+
+        stores.Bikes.Add(context.Bike with
+        {
+            Name = "renamed bike",
+            ImageBytes = [9, 8, 7],
+            Updated = context.Bike.Updated + 1
+        });
+        scheduler.Flush();
+
+        Assert.Empty(emissions);
+    }
+
+    [Fact]
     public void WatchSession_CoalescesSameTurnStoreChangesIntoSingleMultiCauseEmission()
     {
         var scheduler = new QueuedRecordedSessionProjectionScheduler();
@@ -281,6 +307,12 @@ public class RecordedSessionProjectionTests
         public InMemorySetupStore Setups { get; } = new();
         public InMemoryBikeStore Bikes { get; } = new();
         public InMemoryRecordedSourceStore Sources { get; } = new();
+        public ProcessingDependencyHashIndex DependencyHashIndex { get; }
+
+        public StoreFixtures()
+        {
+            DependencyHashIndex = new ProcessingDependencyHashIndex(Setups, Bikes);
+        }
 
         public RecordedSessionProjectionModel CreateProjection(
             IProcessingFingerprintService fingerprintService,
@@ -291,6 +323,7 @@ public class RecordedSessionProjectionTests
             Bikes,
             Sources,
             fingerprintService,
+            DependencyHashIndex,
             optionCache ?? new InMemoryRecordedSessionProcessingOptionCache(),
             scheduler);
 
@@ -304,6 +337,7 @@ public class RecordedSessionProjectionTests
 
         public void Dispose()
         {
+            DependencyHashIndex.Dispose();
             Sessions.Dispose();
             Setups.Dispose();
             Bikes.Dispose();

@@ -1,14 +1,17 @@
 using System.Text;
 using System.Threading;
+using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Bikes.Services;
+using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Models.SensorConfigurations;
+using Sufni.App.Setups.Stores;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Sessions.Processing.RecordedSessionProjection;
 
@@ -128,6 +131,77 @@ public class RecordedSessionReprocessorTests
         Assert.NotNull(result.GeneratedFullTrack);
         Assert.Single(result.GeneratedFullTrack.Points);
         Assert.Equal(source.SourceHash, result.Fingerprint.SourceHash);
+    }
+
+    [Fact]
+    public async Task ReprocessAsync_ReusesCurrentDomainFingerprint_WhenProcessingOptionMatches()
+    {
+        var session = TestSnapshots.Session(id: Guid.NewGuid(), setupId: Guid.NewGuid());
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid());
+        var setup = TestSnapshots.Setup(id: session.SetupId!.Value, bikeId: bike.Id) with
+        {
+            FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
+            {
+                Length = 10,
+                Resolution = 12
+            })
+        };
+        var sstBytes = TestSstFiles.CreateV3WithFrontOnly();
+        var payload = RecordedSessionSourcePayloadCodec.CompressImportedSst(sstBytes);
+        var source = new RecordedSessionSource
+        {
+            SessionId = session.Id,
+            SourceKind = RecordedSessionSourceKind.ImportedSst,
+            SourceName = "reuse-fingerprint.SST",
+            SchemaVersion = 1,
+            SourceHash = RecordedSessionSourceHash.Compute(
+                RecordedSessionSourceKind.ImportedSst,
+                "reuse-fingerprint.SST",
+                1,
+                payload),
+            Payload = payload
+        };
+        var currentFingerprint = new ProcessingFingerprint(
+            3,
+            TelemetryProcessingVersion.Current,
+            setup.Id,
+            bike.Id,
+            1,
+            "domain-dependency-hash",
+            source.SourceHash);
+        var domain = new RecordedSessionDomainSnapshot(
+            session,
+            setup,
+            bike,
+            currentFingerprint,
+            null,
+            RecordedSessionSourceSnapshot.From(source),
+            new SessionStaleness.MissingProcessedData(),
+            DerivedChangeKind.None,
+            currentFingerprint.DependencyHash);
+        var fingerprintService = Substitute.For<IProcessingFingerprintService>();
+        var reprocessor = new RecordedSessionReprocessor(
+            fingerprintService,
+            new TelemetryBikeProcessingContextFactory(
+                new RearTravelCalibrationBuilder(
+                    new KinematicSolutionCache())));
+
+        var result = await reprocessor.ReprocessAsync(domain, source, TelemetryProcessingOptions.Default);
+
+        Assert.Equal(currentFingerprint, result.Fingerprint);
+        fingerprintService.DidNotReceive().CreateCurrent(
+            Arg.Any<SessionSnapshot>(),
+            Arg.Any<SetupSnapshot>(),
+            Arg.Any<BikeSnapshot>(),
+            Arg.Any<RecordedSessionSourceSnapshot>(),
+            Arg.Any<TelemetryProcessingOptions?>());
+        fingerprintService.DidNotReceive().CreateCurrent(
+            Arg.Any<SessionSnapshot>(),
+            Arg.Any<SetupSnapshot>(),
+            Arg.Any<BikeSnapshot>(),
+            Arg.Any<RecordedSessionSourceSnapshot>(),
+            Arg.Any<string>(),
+            Arg.Any<TelemetryProcessingOptions?>());
     }
 
     [Fact]

@@ -223,6 +223,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IAppDataRefresher, AppDataRefresher>();
         ServiceCollection.AddSingleton<IProcessingFingerprintService, ProcessingFingerprintService>();
         ServiceCollection.AddSingleton<IRecordedSessionProcessingOptionCache, RecordedSessionProcessingOptionCache>();
+        ServiceCollection.AddSingleton<IProcessingDependencyHashIndex, ProcessingDependencyHashIndex>();
         ServiceCollection.AddSingleton<IRecordedSessionDomainQuery, RecordedSessionDomainQuery>();
         ServiceCollection.AddSingleton<IRecordedSessionProjection, RecordedSessionProjection>();
         ServiceCollection.AddSingleton<IRecordedSessionReprocessor, RecordedSessionReprocessor>();

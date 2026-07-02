@@ -19,4 +19,5 @@ public sealed record RecordedSessionDomainSnapshot(
     ProcessingFingerprint? PersistedFingerprint,
     RecordedSessionSourceSnapshot? Source,
     SessionStaleness Staleness,
-    DerivedChangeKind ChangeKind);
+    DerivedChangeKind ChangeKind,
+    string? DependencyHash = null);

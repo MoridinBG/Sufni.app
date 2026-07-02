@@ -17,6 +17,7 @@ public class RecordedSessionDomainQueryTests
     private readonly ISetupStore setupStore = Substitute.For<ISetupStore>();
     private readonly IBikeStore bikeStore = Substitute.For<IBikeStore>();
     private readonly IRecordedSessionSourceStore sourceStore = Substitute.For<IRecordedSessionSourceStore>();
+    private readonly IProcessingDependencyHashIndex dependencyHashIndex = Substitute.For<IProcessingDependencyHashIndex>();
     private readonly ProcessingFingerprintService fingerprintService = new();
     private readonly IRecordedSessionProcessingOptionCache processingOptionCache =
         Substitute.For<IRecordedSessionProcessingOptionCache>();
@@ -46,6 +47,7 @@ public class RecordedSessionDomainQueryTests
         setupStore.Get(context.Setup.Id).Returns(context.Setup);
         bikeStore.Get(context.Bike.Id).Returns(context.Bike);
         sourceStore.Get(context.Session.Id).Returns(context.Source);
+        dependencyHashIndex.GetForSetup(context.Setup.Id).Returns(ProcessingDependencyHash.Compute(context.Setup, context.Bike));
         var query = CreateQuery();
 
         var domain = query.Get(context.Session.Id);
@@ -76,18 +78,20 @@ public class RecordedSessionDomainQueryTests
         var fingerprintService = Substitute.For<IProcessingFingerprintService>();
         var staleness = new SessionStaleness.Current();
         fingerprintService
-            .EvaluateState(context.Session, context.Setup, context.Bike, context.Source, Arg.Any<TelemetryProcessingOptions?>())
+            .EvaluateState(context.Session, context.Setup, context.Bike, context.Source, "dependency", Arg.Any<TelemetryProcessingOptions?>())
             .Returns(new ProcessingFingerprintEvaluation(fingerprint, fingerprint, staleness));
         sessionStore.Get(context.Session.Id).Returns(context.Session);
         setupStore.Get(context.Setup.Id).Returns(context.Setup);
         bikeStore.Get(context.Bike.Id).Returns(context.Bike);
         sourceStore.Get(context.Session.Id).Returns(context.Source);
+        dependencyHashIndex.GetForSetup(context.Setup.Id).Returns("dependency");
         var query = new RecordedSessionDomainQuery(
             sessionStore,
             setupStore,
             bikeStore,
             sourceStore,
             fingerprintService,
+            dependencyHashIndex,
             processingOptionCache);
 
         var domain = query.Get(context.Session.Id);
@@ -97,7 +101,7 @@ public class RecordedSessionDomainQueryTests
         Assert.Equal(fingerprint, domain.PersistedFingerprint);
         Assert.Equal(staleness, domain.Staleness);
         fingerprintService.Received(1).EvaluateState(
-            context.Session, context.Setup, context.Bike, context.Source, Arg.Any<TelemetryProcessingOptions?>());
+            context.Session, context.Setup, context.Bike, context.Source, "dependency", Arg.Any<TelemetryProcessingOptions?>());
         fingerprintService.DidNotReceive().CreateCurrent(
             Arg.Any<SessionSnapshot>(),
             Arg.Any<SetupSnapshot>(),
@@ -118,6 +122,7 @@ public class RecordedSessionDomainQueryTests
         setupStore.Get(context.Setup.Id).Returns(context.Setup);
         bikeStore.Get(context.Bike.Id).Returns(context.Bike);
         sourceStore.Get(context.Session.Id).Returns((RecordedSessionSourceSnapshot?)null);
+        dependencyHashIndex.GetForSetup(context.Setup.Id).Returns(ProcessingDependencyHash.Compute(context.Setup, context.Bike));
         var query = CreateQuery();
 
         var domain = query.Get(context.Session.Id);
@@ -141,6 +146,7 @@ public class RecordedSessionDomainQueryTests
         setupStore.Get(context.Setup.Id).Returns(context.Setup);
         bikeStore.Get(context.Bike.Id).Returns(context.Bike);
         sourceStore.Get(session.Id).Returns((RecordedSessionSourceSnapshot?)null);
+        dependencyHashIndex.GetForSetup(context.Setup.Id).Returns(ProcessingDependencyHash.Compute(context.Setup, context.Bike));
         var query = CreateQuery();
 
         var domain = query.Get(session.Id);
@@ -179,6 +185,7 @@ public class RecordedSessionDomainQueryTests
         bikeStore,
         sourceStore,
         fingerprintService,
+        dependencyHashIndex,
         processingOptionCache);
 
     private TestContext CreateCurrentContext()

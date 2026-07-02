@@ -72,6 +72,14 @@ public interface IProcessingFingerprintService
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source,
         TelemetryProcessingOptions? options = null);
+
+    ProcessingFingerprintEvaluation EvaluateState(
+        SessionSnapshot session,
+        SetupSnapshot? setup,
+        BikeSnapshot? bike,
+        RecordedSessionSourceSnapshot? source,
+        string? dependencyHash,
+        TelemetryProcessingOptions? options = null);
 }
 
 /// <summary>

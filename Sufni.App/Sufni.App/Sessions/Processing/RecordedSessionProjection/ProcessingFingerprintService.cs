@@ -150,7 +150,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
     {
         options ??= TelemetryProcessingOptions.Default;
         var persisted = ParsePersisted(session);
-        return Evaluate(session, setup, bike, source, persisted, current: null, options);
+        return Evaluate(session, setup, bike, source, persisted, current: null, options, dependencyHash: null);
     }
 
     public ProcessingFingerprintEvaluation EvaluateState(
@@ -160,12 +160,32 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         RecordedSessionSourceSnapshot? source,
         TelemetryProcessingOptions? options = null)
     {
+        var dependencyHash = setup is not null && bike is not null
+            ? ProcessingDependencyHash.Compute(setup, bike)
+            : null;
+        return EvaluateState(session, setup, bike, source, dependencyHash, options);
+    }
+
+    public ProcessingFingerprintEvaluation EvaluateState(
+        SessionSnapshot session,
+        SetupSnapshot? setup,
+        BikeSnapshot? bike,
+        RecordedSessionSourceSnapshot? source,
+        string? dependencyHash,
+        TelemetryProcessingOptions? options = null)
+    {
         options ??= TelemetryProcessingOptions.Default;
         var persisted = ParsePersisted(session);
         var current = setup is not null && bike is not null && source is not null
-            ? CreateCurrent(session, setup, bike, source, options)
+            ? CreateCurrent(
+                session,
+                setup,
+                bike,
+                source,
+                dependencyHash ?? ProcessingDependencyHash.Compute(setup, bike),
+                options)
             : null;
-        var staleness = Evaluate(session, setup, bike, source, persisted, current, options);
+        var staleness = Evaluate(session, setup, bike, source, persisted, current, options, dependencyHash);
 
         return new ProcessingFingerprintEvaluation(current, persisted, staleness);
     }
@@ -177,12 +197,13 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         RecordedSessionSourceSnapshot? source,
         ProcessingFingerprint? persisted,
         ProcessingFingerprint? current,
-        TelemetryProcessingOptions options)
+        TelemetryProcessingOptions options,
+        string? dependencyHash)
     {
         if (source is null)
         {
             return new SessionStaleness.MissingRawSource(
-                IsProcessedStateStaleWithoutRawSource(session, setup, bike, persisted, options));
+                IsProcessedStateStaleWithoutRawSource(session, setup, bike, persisted, options, dependencyHash));
         }
 
         if (setup is null || bike is null)
@@ -223,7 +244,8 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         SetupSnapshot? setup,
         BikeSnapshot? bike,
         ProcessingFingerprint? persisted,
-        TelemetryProcessingOptions options)
+        TelemetryProcessingOptions options,
+        string? dependencyHash)
     {
         if (setup is null || bike is null)
         {
@@ -248,12 +270,11 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         // Mirror the source-backed comparison, including the processing option: a
         // source-less row whose processed data was computed with a different
         // velocity-filter window is stale (it just cannot self-heal by recompute).
+        var currentDependencyHash = dependencyHash ?? ProcessingDependencyHash.Compute(setup, bike);
         return persisted.SetupId != setup.Id ||
                persisted.BikeId != bike.Id ||
                persisted.TrackProjectionVersion != GpsTrackPointProjection.ProjectionVersion ||
                persisted.VelocityFilterWindowMilliseconds != options.ClampedVelocityFilterWindowMilliseconds ||
-               !StringComparer.Ordinal.Equals(
-                   persisted.DependencyHash,
-                   ProcessingDependencyHash.Compute(setup, bike));
+               !StringComparer.Ordinal.Equals(persisted.DependencyHash, currentDependencyHash);
     }
 }

@@ -62,7 +62,17 @@ internal sealed class RecordedSessionReprocessor(
         var fullTrack = telemetryData.GpsData is { Length: > 0 }
             ? Track.FromGpsRecords(telemetryData.GpsData)
             : null;
-        var fingerprint = fingerprintService.CreateCurrent(domain.Session, domain.Setup, domain.Bike, domain.Source, processingOptions);
+        var fingerprint = CanReuseCurrentFingerprint(domain.CurrentFingerprint, processingOptions)
+            ? domain.CurrentFingerprint!
+            : domain.DependencyHash is { } dependencyHash
+                ? fingerprintService.CreateCurrent(
+                    domain.Session,
+                    domain.Setup,
+                    domain.Bike,
+                    domain.Source,
+                    dependencyHash,
+                    processingOptions)
+                : fingerprintService.CreateCurrent(domain.Session, domain.Setup, domain.Bike, domain.Source, processingOptions);
         var fingerprintJson = AppJson.Serialize(fingerprint);
         var processedTelemetry = new ProcessedTelemetryPayload(
             telemetryData,
@@ -71,6 +81,12 @@ internal sealed class RecordedSessionReprocessor(
 
         return Task.FromResult(new RecordedSessionReprocessResult(processedTelemetry, fullTrack, fingerprint));
     }
+
+    private static bool CanReuseCurrentFingerprint(
+        ProcessingFingerprint? fingerprint,
+        TelemetryProcessingOptions processingOptions) =>
+        fingerprint?.VelocityFilterWindowMilliseconds ==
+        processingOptions.ClampedVelocityFilterWindowMilliseconds;
 
     private static TelemetryData ReprocessImportedSst(
         RecordedSessionSource source,

@@ -21,7 +21,7 @@ namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 /// </summary>
 public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDisposable
 {
-    private readonly IBikeStore bikeStore;
+    private readonly IProcessingDependencyHashIndex dependencyHashIndex;
     private readonly IProcessingFingerprintService fingerprintService;
     private readonly IRecordedSessionProcessingOptionCache processingOptionCache;
     private readonly IRecordedSessionProjectionScheduler scheduler;
@@ -44,6 +44,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         IBikeStore bikeStore,
         IRecordedSessionSourceStore sourceStore,
         IProcessingFingerprintService fingerprintService,
+        IProcessingDependencyHashIndex dependencyHashIndex,
         IRecordedSessionProcessingOptionCache processingOptionCache,
         IUiThreadDispatcher uiThreadDispatcher)
         : this(
@@ -52,6 +53,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
             bikeStore,
             sourceStore,
             fingerprintService,
+            dependencyHashIndex,
             processingOptionCache,
             new UiThreadRecordedSessionProjectionScheduler(uiThreadDispatcher))
     {
@@ -63,10 +65,11 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         IBikeStore bikeStore,
         IRecordedSessionSourceStore sourceStore,
         IProcessingFingerprintService fingerprintService,
+        IProcessingDependencyHashIndex dependencyHashIndex,
         IRecordedSessionProcessingOptionCache processingOptionCache,
         IRecordedSessionProjectionScheduler scheduler)
     {
-        this.bikeStore = bikeStore;
+        this.dependencyHashIndex = dependencyHashIndex;
         this.fingerprintService = fingerprintService;
         this.processingOptionCache = processingOptionCache;
         this.scheduler = scheduler;
@@ -75,6 +78,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         subscriptions.Add(setupStore.Connect().Subscribe(ApplySetupChanges));
         subscriptions.Add(bikeStore.Connect().Subscribe(ApplyBikeChanges));
         subscriptions.Add(sourceStore.Connect().Subscribe(ApplySourceChanges));
+        subscriptions.Add(dependencyHashIndex.Connect().Subscribe(ApplyDependencyHashChanges));
 
         // Preference->projection edge: a processing-option change re-evaluates the
         // affected session so EvaluateState re-runs with the new option.
@@ -201,7 +205,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
 
     private void ApplySetupChanges(IChangeSet<SetupSnapshot, Guid> changes)
     {
-        var changed = false;
+        var affectedAddsAndRemoves = new HashSet<Guid>();
         lock (stateGate)
         {
             if (disposed)
@@ -214,14 +218,16 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                 switch (change.Reason)
                 {
                     case ChangeReason.Add:
+                        setups[change.Key] = change.Current;
+                        affectedAddsAndRemoves.Add(change.Key);
+                        break;
                     case ChangeReason.Update:
                     case ChangeReason.Refresh:
                         setups[change.Key] = change.Current;
-                        changed = true;
                         break;
                     case ChangeReason.Remove:
                         setups.Remove(change.Key);
-                        changed = true;
+                        affectedAddsAndRemoves.Add(change.Key);
                         break;
                     case ChangeReason.Moved:
                         break;
@@ -229,15 +235,14 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
             }
         }
 
-        if (changed)
+        if (affectedAddsAndRemoves.Count > 0)
         {
-            QueueRecomputeAll();
+            QueueRecomputeForSetups(affectedAddsAndRemoves);
         }
     }
 
     private void ApplyBikeChanges(IChangeSet<BikeSnapshot, Guid> changes)
     {
-        var changed = false;
         lock (stateGate)
         {
             if (disposed)
@@ -253,11 +258,9 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                     case ChangeReason.Update:
                     case ChangeReason.Refresh:
                         bikes[change.Key] = change.Current;
-                        changed = true;
                         break;
                     case ChangeReason.Remove:
                         bikes.Remove(change.Key);
-                        changed = true;
                         break;
                     case ChangeReason.Moved:
                         break;
@@ -265,11 +268,10 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
             }
         }
 
-        if (changed)
-        {
-            QueueRecomputeAll();
-        }
     }
+
+    private void ApplyDependencyHashChanges(ProcessingDependencyHashChange change) =>
+        QueueRecomputeForSetups([change.SetupId]);
 
     private void ApplySourceChanges(IChangeSet<RecordedSessionSourceSnapshot, Guid> changes)
     {
@@ -304,9 +306,10 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         QueueRecompute(affected);
     }
 
-    private void QueueRecomputeAll()
+    private void QueueRecomputeForSetups(IEnumerable<Guid> setupIds)
     {
-        Guid[] sessionIds;
+        var setupIdSet = setupIds.ToHashSet();
+        List<Guid> sessionIds = [];
         lock (stateGate)
         {
             if (disposed)
@@ -314,7 +317,13 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                 return;
             }
 
-            sessionIds = sessions.Keys.ToArray();
+            foreach (var session in sessions.Values)
+            {
+                if (session.SetupId is { } setupId && setupIdSet.Contains(setupId))
+                {
+                    sessionIds.Add(session.Id);
+                }
+            }
         }
 
         QueueRecompute(sessionIds);
@@ -422,9 +431,16 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
 
                 var previous = domains.GetValueOrDefault(session.Id);
                 var initial = previous is null;
+                var dependencyHash = setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id);
                 var changeKind = initial
                     ? DerivedChangeKind.Initial
-                    : ComputeChangeKind(previous!, session, setup, bike, source);
+                    : ComputeChangeKind(
+                        previous!,
+                        session,
+                        setup,
+                        bike,
+                        source,
+                        dependencyHash);
 
                 var domain = RecordedSessionDomainSnapshotFactory.Create(
                     session,
@@ -432,6 +448,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                     bike,
                     source,
                     fingerprintService,
+                    dependencyHash,
                     processingOptionCache.Get(session.Id),
                     changeKind);
                 domains[session.Id] = domain;
@@ -486,7 +503,8 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         SessionSnapshot session,
         SetupSnapshot? setup,
         BikeSnapshot? bike,
-        RecordedSessionSourceSnapshot? source)
+        RecordedSessionSourceSnapshot? source,
+        string? dependencyHash)
     {
         var changeKind = DerivedChangeKind.None;
 
@@ -510,7 +528,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
             changeKind |= DerivedChangeKind.SourceAvailabilityChanged;
         }
 
-        if (DependencyKey(previous.Setup, previous.Bike) != DependencyKey(setup, bike))
+        if (!string.Equals(previous.DependencyHash, dependencyHash, StringComparison.Ordinal))
         {
             changeKind |= DerivedChangeKind.DependencyChanged;
         }
@@ -550,10 +568,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         previous?.SchemaVersion == current?.SchemaVersion &&
         previous?.SourceHash == current?.SourceHash;
 
-    private static string? DependencyKey(SetupSnapshot? setup, BikeSnapshot? bike) =>
-        setup is null || bike is null
-            ? null
-            : ProcessingDependencyHash.Compute(setup, bike);
 }
 
 internal interface IRecordedSessionProjectionScheduler
