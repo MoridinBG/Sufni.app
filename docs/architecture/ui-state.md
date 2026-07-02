@@ -1,6 +1,6 @@
 # UI State, Read Graphs, and Queries
 
-> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the presentation read-state layer: stores, recorded-session read graphs, and command-side queries. The UI overview and invariants live in [UI Architecture](ui.md).
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the presentation read-state layer: stores, recorded-session projections, and command-side queries. The UI overview and invariants live in [UI Architecture](ui.md).
 
 ## Stores
 
@@ -54,7 +54,7 @@ Those large payloads stay in SQLite and are loaded on demand.
 
 `SessionStore` additionally exposes `Watch(Guid)`, a low-level per-id
 observable filtered to `Add`/`Update` change reasons. Recorded-session
-screens consume the higher-level `RecordedSessionGraph` instead, so
+screens consume the higher-level `RecordedSessionProjection` instead, so
 they see session metadata together with setup, bike, source, and
 staleness state.
 
@@ -84,9 +84,9 @@ discovery and known-board query results. Its writer interface adds
 [Live DAQ Streaming](live-streaming.md) for the full feature
 architecture.
 
-## Recorded Session Graph
+## Recorded Session Projection
 
-`IRecordedSessionGraph` is the read-side projection for recorded
+`IRecordedSessionProjection` is the read-side projection for recorded
 session screens. It subscribes to `ISessionStore`, `ISetupStore`,
 `IBikeStore`, and `IRecordedSessionSourceStore`, joins their current
 snapshots, evaluates processing staleness, and publishes two reactive
@@ -137,9 +137,9 @@ recomputable session it confirms and requests a recompute (suppressed
 while a recompute the user just triggered is in flight), surfacing only
 the unrecomputable/failed outcomes.
 
-Graph recomputes are coalesced through an injected
-`IRecordedSessionGraphScheduler`; the default
-`AvaloniaRecordedSessionGraphScheduler` posts to
+Projection recomputes are coalesced through an injected
+`IRecordedSessionProjectionScheduler`; the default
+`UiThreadRecordedSessionProjectionScheduler` posts to
 `Dispatcher.UIThread` at background priority rather than using the
 ambient synchronization context of the thread that queued the change.
 This lets a batch of session/setup/bike/source updates produce
@@ -149,7 +149,7 @@ setup or bike update can affect any recorded session linked through
 that dependency.
 
 `ProcessingFingerprintService` is the pure derivation service behind
-the graph. It parses the persisted fingerprint JSON from
+the projection. It parses the persisted fingerprint JSON from
 `SessionSnapshot`, computes the current fingerprint from session,
 setup, bike, and source snapshots plus the session's clamped
 velocity-filter processing option (read from an app-wide cache that
@@ -168,13 +168,13 @@ re-hydrates after each sync apply), and classifies staleness as:
   whether the processed BLOB/fingerprint is known to be stale even
   though the app cannot repair it until the source is restored.
 
-Once the processing fingerprint began recording the velocity-filter option, every pre-existing fingerprint reads as legacy — stale and recomputable. A one-time, per-device startup pass (`ProcessingOptionsResetMigration`) resets each source-backed session's stored option to the 25 ms default and recomputes it through the recompute engine, so the stored fingerprint records the option it was produced with and the session stops being stale. The pass runs off the UI thread, is tracked in `core_migration` so it runs once, and is resumable: an interrupted run leaves the marker unwritten and retries on the next launch. Source-less sessions cannot be recomputed and are left untouched, surfacing through the not-recomputable staleness state. The graph still reports stale for new source/dependency/option mismatches after the marker exists.
+Once the processing fingerprint began recording the velocity-filter option, every pre-existing fingerprint reads as legacy — stale and recomputable. A one-time, per-device startup pass (`ProcessingOptionsResetMigration`) resets each source-backed session's stored option to the 25 ms default and recomputes it through the recompute engine, so the stored fingerprint records the option it was produced with and the session stops being stale. The pass runs off the UI thread, is tracked in `core_migration` so it runs once, and is resumable: an interrupted run leaves the marker unwritten and retries on the next launch. Source-less sessions cannot be recomputed and are left untouched, surfacing through the not-recomputable staleness state. The projection still reports stale for new source/dependency/option mismatches after the marker exists.
 
 `IRecordedSessionDomainQuery` is the command-side companion. It reads
 the current session/setup/bike/source snapshots synchronously from
 stores and returns one `RecordedSessionDomainSnapshot` for workflows
 such as the recompute engine. Coordinators use the
-query for current-state decisions; they do not subscribe to the graph
+query for current-state decisions; they do not subscribe to the projection
 stream.
 
 ## Queries
@@ -202,11 +202,11 @@ store change subscriptions so consumers can re-enrich display names
 and calibration context without repeated database round-trips. See
 [Live DAQ Streaming](live-streaming.md).
 
-`IRecordedSessionDomainQuery` lives in `SessionGraph/` rather than
+`IRecordedSessionDomainQuery` lives in `RecordedSessionProjection/` rather than
 `Queries/`, but it follows the same command-side rule: it answers one
 current business question without owning a collection. It joins the
 current session, setup, bike, and recorded-source snapshots and
-returns the same domain snapshot shape that `IRecordedSessionGraph`
+returns the same domain snapshot shape that `IRecordedSessionProjection`
 publishes. The `SessionRecomputeEngine` uses it for the staleness gate
 before loading the raw source and a still-current guard before
 committing recomputed data.

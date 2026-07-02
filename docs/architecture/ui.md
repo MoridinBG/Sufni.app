@@ -49,7 +49,7 @@ graph TB
     subgraph Application["Application"]
         Coords["Coordinators<br/>(per entity + shell)"]
         Stores["Stores<br/>(IXxxStore / IXxxStoreWriter)"]
-        Graphs["Read Graphs<br/>(IRecordedSessionGraph)"]
+        Graphs["Read Graphs<br/>(IRecordedSessionProjection)"]
         Queries["Queries<br/>(IBikeDependencyQuery)<br/>(ILiveDaqKnownBoardsQuery)<br/>(IRecordedSessionDomainQuery)"]
     end
 
@@ -147,8 +147,8 @@ returns `Recomputed(NewBaselineUpdated)`, `Superseded`,
 recompute liveness, so a user's own recompute never false-conflicts: a run
 displaced by a newer explicit request resolves to `Superseded`, a run whose DB
 inputs change underneath it re-enqueues itself until it converges, and the
-refreshed result reaches the editor through the recorded-session graph rather
-than this return value (see [recompute flow](ui-state.md#recorded-session-graph)).
+refreshed result reaches the editor through the recorded-session projection rather
+than this return value (see [recompute flow](ui-state.md#recorded-session-projection)).
 
 The same convention is used for infrastructure-facing service outcomes
 such as `StorageProviderRegistrationResult` (`Added` / `AlreadyOpen`)

@@ -18,7 +18,7 @@
 
 ## Overview
 
-The live feature lets a user inspect a connected DAQ in a diagnostics tab and optionally open a separate live-session tab on top of the same connection. This file covers the side of the feature that delivers frames to those tabs: discovery, the per-identity shared transport, and the diagnostics tab itself. The recording / capture / save side — `ILiveSessionService`, statistics, the live graph pipeline, and the `Session` save path — lives in [Live Session Recording](live-session.md).
+The live feature lets a user inspect a connected DAQ in a diagnostics tab and optionally open a separate live-session tab on top of the same connection. This file covers the side of the feature that delivers frames to those tabs: discovery, the per-identity shared transport, and the diagnostics tab itself. The recording / capture / save side — `ILiveSessionService`, analysis computation, the live signal pipeline, and the `Session` save path — lives in [Live Session Recording](live-session.md).
 
 It exists as a dedicated feature slice: a primary page lists known and discovered DAQs, selection opens a diagnostics tab, and `Start Session` opens a second tab that subscribes to the same underlying transport. Both desktop and mobile heads expose the Live tab and the diagnostics/live-session tabs.
 
@@ -97,7 +97,7 @@ Diagnostics tab loads
 User presses Start Session
   -> LiveDaqCoordinator.OpenSessionAsync
     -> shell.OpenOrFocus<LiveSessionDetailViewModel>
-      -> handed off to live-session.md (capture / statistics / save)
+      -> handed off to live-session.md (capture / analysis / save)
 
 Tab closes
   -> lease released
@@ -109,7 +109,7 @@ Management action while disconnected
       -> ViewModelBase.Notifications / ErrorMessages
 ```
 
-The capture, statistics, save, and live-session view-model side of this flow continues in [Live Session Recording](live-session.md#data-flow).
+The capture, analysis, save, and live-session view-model side of this flow continues in [Live Session Recording](live-session.md#data-flow).
 
 ## Live Wire Protocol
 
@@ -192,7 +192,7 @@ The client is owned by `LiveDaqSharedStream`, which reuses one client per DAQ id
 
 ### Drop Counters
 
-`LiveDaqClientDropCounters` is the immutable record published as part of `LiveDaqSharedStreamState` and rolled into the live-session control state. It tracks six pressure boundaries: `RawTelemetryFramesSkipped` at the receive-loop raw channel, `ParsedTelemetryFramesDropped` at the parse-to-publish channel, `SubscriberFramesDropped` at each shared-stream subscriber buffer, `GraphBatchesCoalesced` when the live graph display loop merges pending batches, `GraphSamplesDiscarded` when graph batches exceed display capacity, and `StatisticsRecomputesSkipped` when live-session statistics recompute work is skipped because a newer recompute superseded it. Recording-side counters added by the live-session display/statistics loops are merged on top by `LiveSessionService` before it publishes them to the UI.
+`LiveDaqClientDropCounters` is the immutable record published as part of `LiveDaqSharedStreamState` and rolled into the live-session control state. It tracks six pressure boundaries: `RawTelemetryFramesSkipped` at the receive-loop raw channel, `ParsedTelemetryFramesDropped` at the parse-to-publish channel, `SubscriberFramesDropped` at each shared-stream subscriber buffer, `SignalBatchesCoalesced` when the live signal display loop merges pending batches, `SignalSamplesDiscarded` when signal batches exceed display capacity, and `StatisticsRecomputesSkipped` when live-session statistics recompute work is skipped because a newer recompute superseded it. Recording-side counters added by the live-session display/statistics loops are merged on top by `LiveSessionService` before it publishes them to the UI.
 
 ### Shared Stream
 
@@ -285,4 +285,4 @@ Both desktop and mobile heads add the Live tab and bind to the same view models.
 6. **Lease-based browse** — browse ownership uses reference counting so import and live can browse concurrently without interfering.
 7. **Coordinator activation** — the coordinator activates only when the Live page is selected and deactivates when another page is selected, avoiding always-on mDNS browse for a page that may never be visited.
 8. **Disconnected-only management** — the detail tab disables management actions while its live client is connected instead of trying to arbitrate concurrent LIVE and MGMT workflows on the DAQ's single-client port.
-9. **Recording is its own slice** — capture, statistics, the live graph pipeline, and the `Session` save path are owned by `ILiveSessionService` and `SessionCoordinator.SaveLiveCaptureAsync`, not by anything in this file. See [Live Session Recording](live-session.md).
+9. **Recording is its own slice** — capture, analysis computation, the live signal pipeline, and the `Session` save path are owned by `ILiveSessionService` and `SessionCoordinator.SaveLiveCaptureAsync`, not by anything in this file. See [Live Session Recording](live-session.md).

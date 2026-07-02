@@ -1,6 +1,6 @@
 # Architecture
 
-Sufni.App is a cross-platform application for analyzing mountain bike suspension telemetry. It acquires raw sensor data from a Pico-based DAQ device (via USB or WiFi), processes it through a signal analysis pipeline, and presents interactive plots for tuning suspension spring rates and damper settings. It also models bike linkage kinematics to compute leverage ratios and related characteristics. The app runs on Windows, macOS, Linux, Android, and iOS using Avalonia UI, and supports desktop <-> mobile synchronization.
+Sufni.App is a cross-platform application for analyzing mountain bike suspension telemetry. It acquires raw sensor data from a Pico-based DAQ device (via USB or WiFi), processes it through a signal analysis pipeline, and presents interactive plots for tuning suspension spring rates and damping settings. It also models bike linkage kinematics to compute leverage ratios and related characteristics. The app runs on Windows, macOS, Linux, Android, and iOS using Avalonia UI, and supports desktop <-> mobile synchronization.
 
 This document is the catalog. Each subsystem is summarized here and the deep details live in `architecture/`.
 
@@ -58,7 +58,7 @@ layering rules are unchanged — only the folder grouping is slice-first instead
 | --- | --- | --- |
 | **Bikes** | `Bikes/` | Bike entity: list/editor VMs+views, store, coordinator, linkage/image editing, telemetry-bike factory |
 | **Setups** | `Setups/` | Setup entity + `Models/SensorConfigurations/` calibration strategies, editor workflow |
-| **Sessions** | `Sessions/` | Recorded sessions: store, coordinator + use-case services, processing (`Processing/SessionGraph`, `Processing/SessionDetails`), analysis, detail/graph/statistics/media pages, lists, plots |
+| **Sessions** | `Sessions/` | Recorded sessions: store, coordinator + use-case services, processing (`Processing/RecordedSessionProjection`, `Processing/SessionDetails`), Telemetry Analysis, detail/signals/media pages, lists, plots |
 | **LiveDaq** | `LiveDaq/` | Live DAQ streaming: `Services/LiveStreaming`, `Services/Imu`, stores, editor/page VMs+views, live plots |
 | **Acquisition** | `Acquisition/` | Telemetry import + DAQ management (`Services/Management`), data-store models, import UI |
 | **SyncAndPairing** | `SyncAndPairing/` | Client sync + pairing coordinators/services/VMs (desktop sync server stays in `Sufni.App.Desktop`) |
@@ -163,7 +163,7 @@ Topics in [architecture/processing.md](architecture/processing.md):
 
 ## UI Architecture
 
-The presentation layer is layered `Views → ViewModels → Coordinators / Stores / Read Graphs / Queries → Services → Platform`. Stores own shared read state (read interface for VMs, writer interface for coordinators); read graphs publish joined reactive projections such as recorded-session staleness and session-list summaries; coordinators own all workflows, store writes, post-save navigation, recompute, and sync arrival; queries answer command-side business questions; view models project state to bindings and route commands. ScottPlot rendering helpers live alongside the rest of the UI, and graph row hierarchy/expanded state, graph root-row height ratios, and desktop session-detail pane ratios are stored per session through app preferences.
+The presentation layer is layered `Views → ViewModels → Coordinators / Stores / Read Graphs / Queries → Services → Platform`. Stores own shared read state (read interface for VMs, writer interface for coordinators); read graphs publish joined reactive projections such as recorded-session staleness and session-list summaries; coordinators own all workflows, store writes, post-save navigation, recompute, and sync arrival; queries answer command-side business questions; view models project state to bindings and route commands. ScottPlot rendering helpers live alongside the rest of the UI, and signal row hierarchy/expanded state, signal root-row height ratios, and desktop session-detail pane ratios are stored per session through app preferences.
 
 Presentation-layer topics:
 
@@ -174,13 +174,13 @@ Presentation-layer topics:
 - [Result Shapes](architecture/ui.md#result-shapes) — sealed `Saved`/`Conflict`/`Failed` records and similar service outcomes
 - [Testing Boundaries](architecture/ui.md#testing-boundaries) — what each layer's tests assert
 - [Stores](architecture/ui-state.md#stores) — `BikeStore`, `SetupStore`, `SessionStore`, `RecordedSessionSourceStore`, `PairedDeviceStore`; snapshot model and conflict baseline
-- [Recorded Session Graph](architecture/ui-state.md#recorded-session-graph) — `IRecordedSessionGraph`, summaries, domain snapshots, staleness, and recompute inputs
+- [Recorded Session Projection](architecture/ui-state.md#recorded-session-projection) — `IRecordedSessionProjection`, summaries, domain snapshots, staleness, and recompute inputs
 - [Queries](architecture/ui-state.md#queries) — dependency, known-board, and recorded-session domain query patterns
 - [Coordinators](architecture/ui-workflows.md#coordinators) — entity, shell, sync, pairing, import, inbound-sync coordinators; eager-resolution rules
 - [Dependency Injection](architecture/ui-workflows.md#dependency-injection) — `App.ServiceCollection`, shared vs platform registrations, eager resolution
 - [Navigation](architecture/ui-workflows.md#navigation) — `IShellCoordinator`, mobile back-stack vs desktop tab model
 - [View Models](architecture/ui-view-models.md#view-models) — shell / page / list / row / editor categories, `TabPageViewModelBase`, `ViewModelBase`
-  - [Session Sub-Pages](architecture/ui-view-models.md#session-sub-pages) — recorded/live session tab composition and graph-page preferences
+  - [Session Sub-Pages](architecture/ui-view-models.md#session-sub-pages) — recorded/live session tab composition and signal layout preferences
 - [Controls Library](architecture/controls.md#controls-library) — reusable controls in `Shared/Views/Controls/` and `Shared/DesktopViews/Controls/`
 - [Theming](architecture/theming.md#theming) — theme snapshots, resource bridge, runtime theme service, and theme ownership
 - [Plot Rendering](architecture/plot-rendering.md) — `SufniPlot` / `TelemetryPlot`, IMU display, desktop/mobile plot hosting
@@ -210,7 +210,7 @@ Topics in [architecture/extensions.md](architecture/extensions.md):
 
 ## Plot Rendering
 
-ScottPlot-based plot classes (shared bases in `Shared/Plots/`, concrete plots in each slice's `Plots/` folder), wrapped by Avalonia plot views in the slices' `Views/Plots/` folders (e.g. `Shared/Views/Plots/`, `Sessions/Plots/Views/Plots/`). Recorded telemetry plots inherit from `TelemetryPlot`, recorded time-series rows add `RecordedTimeSeriesPlot`, live plots derive through `LiveStreamingPlotBase` and apply incremental batches via ScottPlot's `DataStreamer`, and GPS speed/elevation rows use `TrackSignalPlot` over `TrackPoint` data. `TelemetryDisplaySmoothing` and `TelemetryDisplayDownsampling` shape the displayed signal at load time. Graph row titles, drag/drop hierarchy changes, and base/hosted row plot backgrounds are owned by the Avalonia row controls, while ScottPlot keeps axes, legends, data rendering, readouts, and overlays.
+ScottPlot-based plot classes (shared bases in `Shared/Plots/`, concrete plots in each slice's `Plots/` folder), wrapped by Avalonia plot views in the slices' `Views/Plots/` folders (e.g. `Shared/Views/Plots/`, `Sessions/Plots/Views/Plots/`). Recorded telemetry plots inherit from `TelemetryPlot`, recorded time-series rows add `RecordedTimeSeriesPlot`, live plots derive through `LiveStreamingPlotBase` and apply incremental batches via ScottPlot's `DataStreamer`, and GPS speed/elevation rows use `TrackSignalPlot` over `TrackPoint` data. `TelemetryDisplaySmoothing` and `TelemetryDisplayDownsampling` shape the displayed signal at load time. Signal row titles, drag/drop hierarchy changes, and base/hosted row plot backgrounds are owned by the Avalonia row controls, while ScottPlot keeps axes, legends, data rendering, readouts, and overlays.
 
 Topics in [architecture/plot-rendering.md](architecture/plot-rendering.md):
 
@@ -286,7 +286,7 @@ Topics in [architecture/live-streaming.md](architecture/live-streaming.md):
 
 ## Live Session Recording
 
-The recording / capture / save side of the Live DAQ feature. Once the user opens a live-session tab, `LiveSessionService` attaches to the shared transport (acquiring the configuration lock), accumulates raw frames into `AppendOnlyChunkBuffer` for save, feeds duration-bounded display context through `LiveGraphPipeline`, and surfaces statistics. On save, `SessionCoordinator.SaveLiveCaptureAsync` creates a live-capture recorded source, then delegates telemetry, generated-track, and processing-fingerprint derivation to `IRecordedSessionReprocessor` before persisting the processed `Session` row atomically with the source and optional generated `Track`.
+The recording / capture / save side of the Live DAQ feature. Once the user opens a live-session tab, `LiveSessionService` attaches to the shared transport (acquiring the configuration lock), accumulates raw frames into `AppendOnlyChunkBuffer` for save, feeds duration-bounded display context through `LiveSignalPipeline`, and surfaces analysis state. On save, `SessionCoordinator.SaveLiveCaptureAsync` creates a live-capture recorded source, then delegates telemetry, generated-track, and processing-fingerprint derivation to `IRecordedSessionReprocessor` before persisting the processed `Session` row atomically with the source and optional generated `Track`.
 
 Topics in [architecture/live-session.md](architecture/live-session.md):
 
@@ -295,7 +295,7 @@ Topics in [architecture/live-session.md](architecture/live-session.md):
 - [Configuration Lock](architecture/live-session.md#configuration-lock) — exclusive control of stream parameters
 - [Capture Service](architecture/live-session.md#capture-service) — `LiveSessionService` lifecycle and frame handlers
 - [Buffers](architecture/live-session.md#buffers) — `AppendOnlyChunkBuffer` for saved samples and duration-bounded recent display context
-- [Live Graph Pipeline](architecture/live-session.md#live-graph-pipeline) — `ILiveGraphPipeline`, `LiveGraphPipelineFactory`, per-row batches
+- [Live Signal Pipeline](architecture/live-session.md#live-signal-pipeline) — `ILiveSignalPipeline`, `LiveSignalPipelineFactory`, per-row batches
 - [Stream Configuration](architecture/live-session.md#stream-configuration) — `LiveDaqStreamConfiguration` knobs
 - [Presentation Records](architecture/live-session.md#presentation-records) — `LiveSessionPresentation`, `LiveSessionControlState`
 - [Live Session Detail View Model](architecture/live-session.md#live-session-detail-view-model) — tab lifecycle and preferences forwarding

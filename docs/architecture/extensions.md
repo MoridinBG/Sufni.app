@@ -9,7 +9,7 @@
 The SDK is split into two top-level namespaces inside the one assembly:
 
 - `Sufni.App.ExtensionHost.Contracts.*` — interfaces, records, and enums: the compatibility surface. Modules and the app code against these.
-- `Sufni.App.ExtensionHost.Runtime.*` — behavioral machinery that ships with the SDK (`RecordedSessionExtensionSlots`, the slot publisher and its batching collection, the mutable `TelemetryPlotRowAction`). **Behavioral changes under `Runtime` are API changes** — extensions observe this machinery's semantics, not just its signatures.
+- `Sufni.App.ExtensionHost.Runtime.*` — behavioral machinery that ships with the SDK (`RecordedSessionExtensionSlots`, the slot publisher and its batching collection, the mutable `SignalRowAction`). **Behavioral changes under `Runtime` are API changes** — extensions observe this machinery's semantics, not just its signatures.
 
 One deliberate cross-reference exists: the `Contracts` scope interface exposes `RecordedSessionExtensionSlots` (a `Runtime` type) — slots *are* part of the scope contract, and the single-assembly split keeps that legal.
 
@@ -149,7 +149,7 @@ services.
 
 `SessionDetailViewModel` owns one `RecordedSessionExtensionManager` per open recorded session. The manager creates scopes from registered `IRecordedSessionExtensionFactory` instances on `Loaded`, updates them with `RecordedSessionHostState`, and disposes them on `Unloaded` / final close. Factory extension ids are required and unique.
 
-`RecordedSessionHostState` is faceted so extensions receive only the host facts needed by each workflow. `Identity` carries the session id, display name, timestamp, duration, and loaded/active flags. `Selection` carries the current analysis range. `Timeline` carries the track timeline context, telemetry duration, an `IRecordedSessionTimeline` cursor/range interface, and neutral timeline-alignment state. Timeline alignment is represented as an optional pending mark with a target (`GpsTrack`, `ExternalMedia`, or `None`), an optional subject id, and the marked seconds; the host owns this state so only one start/end alignment flow can be active at a time across host features and extensions. The timeline interface also carries neutral timeline playback requests: the host raises `PlaybackToggleRequested` when Space is pressed while the pointer is over a recorded time-series plot with a published cursor, and `PlaybackStopRequested` on a primary click inside a plot. Extensions that own a playback source may respond by driving `SetCursorPosition`; with no subscriber the requests are no-ops. An extension that starts driving the cursor must mark the timeline through `SetPlaybackActive(true)` and clear it when playback ends — while `IsPlaybackActive` is set, host plot views suppress pointer-driven cursor updates so the mouse does not fight the playback source, and the host timeline pans the visible range (keeping the zoom span) whenever a driven cursor lands outside it, so the cursor stays visible on every linked surface. `Statistics` carries current damper percentages, damping speed cutoffs, velocity averaging mode, and travel histogram mode. The state does not expose the app's session snapshot, recorded-session domain snapshot, database internals, or concrete editor timeline view model.
+`RecordedSessionHostState` is faceted so extensions receive only the host facts needed by each workflow. `Identity` carries the session id, display name, timestamp, duration, and loaded/active flags. `Selection` carries the current analysis range. `Timeline` carries the track timeline context, telemetry duration, an `IRecordedSessionTimeline` cursor/range interface, and neutral timeline-alignment state. Timeline alignment is represented as an optional pending mark with a target (`GpsTrack`, `ExternalMedia`, or `None`), an optional subject id, and the marked seconds; the host owns this state so only one start/end alignment flow can be active at a time across host features and extensions. The timeline interface also carries neutral timeline playback requests: the host raises `PlaybackToggleRequested` when Space is pressed while the pointer is over a recorded time-series plot with a published cursor, and `PlaybackStopRequested` on a primary click inside a plot. Extensions that own a playback source may respond by driving `SetCursorPosition`; with no subscriber the requests are no-ops. An extension that starts driving the cursor must mark the timeline through `SetPlaybackActive(true)` and clear it when playback ends — while `IsPlaybackActive` is set, host plot views suppress pointer-driven cursor updates so the mouse does not fight the playback source, and the host timeline pans the visible range (keeping the zoom span) whenever a driven cursor lands outside it, so the cursor stays visible on every linked surface. `Analysis` carries current damping percentages, damping speed cutoffs, velocity averaging mode, and travel distribution mode. The state does not expose the app's session snapshot, recorded-session domain snapshot, database internals, or concrete editor timeline view model.
 
 `RecordedSessionHostContext` is constructed from the grouped
 `RecordedSessionHostServices` record and an `IRecordedSessionHostOperations`
@@ -177,14 +177,14 @@ Operation leases reject stale progress and cancel superseded work, so extension 
 
 ## Recorded-Session Slots
 
-`RecordedSessionExtensionSlots` is the shared contribution surface exposed by recorded graph, media, and statistics workspaces. Scopes add contributions to their own slot collection; the manager mirrors them into the host collection and rebuilds when scope collections change.
+`RecordedSessionExtensionSlots` is the shared contribution surface exposed by recorded signals, media, and analysis workspaces. Scopes add contributions to their own slot collection; the manager mirrors them into the host collection and rebuilds when scope collections change.
 Slot mirroring is coalesced and published through batched collection resets so
 one extension update does not fan out as repeated intermediate empty/add UI
 states.
 Before mirroring, the manager validates that each contribution's extension id
-matches the owning factory id and that hosted graph row targets are well formed.
-Hosted graph row contributions must identify themselves through
-`RecordedSessionGraphRowTarget.Extension(extensionId, contributionId)` using
+matches the owning factory id and that hosted signal row targets are well formed.
+Hosted signal row contributions must identify themselves through
+`RecordedSessionProjectionRowTarget.Extension(extensionId, contributionId)` using
 their own extension and contribution ids; plot-row actions and time-range
 overlays may target built-in rows or hosted rows published by the same
 extension. Contribution ids are unique globally per extension across every
@@ -200,44 +200,44 @@ slot family.
 
 The 15 current public slot families are:
 
-- graph toolbar commands
-- graph toolbar views
+- signal toolbar commands
+- signal toolbar views
 - contributed pages
 - media panes
 - map overlays
-- statistics banners, statistics tabs, statistics plot overlays, and statistics metric annotations
+- analysis banners, analysis tabs, analysis plot overlays, and analysis metric annotations
 - session-list indicators and actions
 - plot context-menu actions
 - plot-row header actions
-- hosted graph rows
+- hosted signal rows
 - recorded time-range overlays
 
 View-model-backed slot families use marker interfaces instead of `object`:
-graph toolbar views, page, media pane, statistics banner/tab/overlay,
-session-list indicator, session-list action, and hosted graph row
+signal toolbar views, page, media pane, analysis banner/tab/overlay,
+session-list indicator, session-list action, and hosted signal row
 contributions each require the matching
 `IRecordedSession...ContributionViewModel` marker. Descriptor-only
-families such as graph toolbar commands, map overlays, statistics
+families such as signal toolbar commands, map overlays, analysis
 metrics, plot context actions, row header actions, and time-range
 overlays carry neutral records or command descriptors instead.
 
-A hosted graph row whose plot should match the app's themed time-series
-rows can contribute the SDK's neutral `RecordedSessionSeriesGraphViewModel`
+A hosted signal row whose plot should match the app's themed time-series
+rows can contribute the SDK's neutral `RecordedSessionSignalPlotViewModel`
 (namespace `Sufni.App.ExtensionHost.Runtime.RecordedSessions`) as its
-`IRecordedSessionHostedGraphRowContributionViewModel`. The view model carries
-neutral `RecordedSessionGraphSeries` (each tagged with a
-`RecordedSessionGraphSeriesRole` the app maps to a theme-invariant signal
+`IRecordedSessionHostedSignalRowContributionViewModel`. The view model carries
+neutral `RecordedSessionSignalSeries` (each tagged with a
+`RecordedSessionSignalSeriesRole` the app maps to a theme-invariant signal
 color), a value-axis inversion flag, duration, empty message, optional airtime
 spans, and observable `ShowAirtime` / `Timeline`. The host recognizes this view
-model type and renders it with the app's `ExtensionSeriesGraphView` (a
+model type and renders it with the app's `ExtensionSignalPlotView` (a
 `SufniTimeSeriesPlotView`), so the row gets app theming, the shared cursor and
 visible-range link, and the inherited airtime overlay without the extension
 drawing on a raw plot. Extensions that need rendering the app cannot express
 generically still supply their own view through the view registry.
 
-Recorded-session graph toolbar command and view contributions both carry
+Recorded-session signal toolbar command and view contributions both carry
 a `RecordedSessionToolbarZone` value. The host renders `Leading`
-contributions at the start of the graph toolbar and `Trailing`
+contributions at the start of the signal toolbar and `Trailing`
 contributions at the end, with each family and zone sorted by `Order`,
 then extension id, then contribution id. Command contributions render as
 `CommandBarButton` instances with label, optional SVG icon, command, and
@@ -253,20 +253,20 @@ Providers whose contribution availability can change without a core recorded-ses
 
 Views render these through generic host controls or bindable descriptor properties. Public plot and map models receive neutral descriptors only; they do not depend on extension workflow semantics.
 
-Statistics-tab contributions add neutral view-model-backed content to the
-recorded-session statistics area. Each contribution declares a zero-based
-`RequestedIndex` relative to the built-in statistics tab order. Desktop renders
+Analysis-tab contributions add neutral view-model-backed content to the
+recorded-session Telemetry Analysis area. Each contribution declares a zero-based
+`RequestedIndex` relative to the built-in analysis tab order. Desktop renders
 contributions before the built-in tab with the same requested index and sorts
 multiple contributions by `Order`, extension id, and contribution id; requested
-indexes after the built-in range render after the built-in statistics tabs.
+indexes after the built-in range render after the built-in analysis tabs.
 Mobile projects the same contributions into the recorded-session pages
-collection at the corresponding statistics-page position, after the graph page.
+collection at the corresponding analysis-page position, after the Signals page.
 
-Time-series graph targets are typed at the extension boundary. Built-in graph rows are referenced with `RecordedSessionBuiltInGraphRow`; extension-owned rows are referenced with `RecordedSessionGraphRowTarget.Extension(extensionId, contributionId)`. The target's `StableKey` is the only string used internally for row lookup and persisted expansion state. Host XAML may keep legacy `TelemetryGraphRowIds` for built-in rows behind conversion helpers, but extension-facing contribution records do not expose those row id strings.
+Time-series signal targets are typed at the extension boundary. Built-in signal rows are referenced with `RecordedSessionBuiltInSignalRow`; extension-owned rows are referenced with `RecordedSessionProjectionRowTarget.Extension(extensionId, contributionId)`. The target's `StableKey` is the only string used internally for row lookup and persisted expansion state. Host XAML may keep legacy `SignalRowIds` for built-in rows behind conversion helpers, but extension-facing contribution records do not expose those row id strings.
 
-Statistics plot overlays are generic descriptors. A descriptor can contain lines, bands, and labels. Lines may use explicit plot coordinates or the host plot's full current horizontal span for statistic reference lines. Labels specify text, text/background color, font size, anchor, and either explicit plot coordinates or the host plot's current right edge for statistic value labels. Plot controls render those primitives without knowing why an extension contributed them.
+Analysis plot overlays are generic descriptors. A descriptor can contain lines, bands, and labels. Lines may use explicit plot coordinates or the host plot's full current horizontal span for analysis reference lines. Labels specify text, text/background color, font size, anchor, and either explicit plot coordinates or the host plot's current right edge for analysis value labels. Plot controls render those primitives without knowing why an extension contributed them.
 
-Statistics plot overlays target `RecordedSessionStatisticsPlotTarget` values, which combine a plot family with the relevant suspension side, balance type, or IMU location. Statistics metric annotations target `RecordedSessionStatisticsMetricTarget` enum values for the front and rear HSC, HSR, LSC, and LSR percentage slots. Extensions contribute display text, an optional delta text, a tone, and an order. `VelocityStatisticsHost` renders annotations beside the matching host metric and sorts multiple annotations by `Order`, extension id, and contribution id.
+Analysis plot overlays target `RecordedSessionAnalysisPlotTarget` values, which combine a plot family with the relevant suspension side, balance type, or IMU location. Analysis metric annotations target `RecordedSessionAnalysisMetricTarget` enum values for the front and rear HSC, HSR, LSC, and LSR percentage slots. Extensions contribute display text, an optional delta text, a tone, and an order. `VelocityAnalysisHost` renders annotations beside the matching host metric and sorts multiple annotations by `Order`, extension id, and contribution id.
 
 Recorded time-range overlays use neutral `RecordedTimeRangeOverlayColor` ARGB
 records and line/fill style descriptors in `Sufni.App.ExtensionHost`; the app

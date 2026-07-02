@@ -102,7 +102,7 @@ There are five kinds of view model in the presentation layer:
   property — there is nothing to shadow). Individual lists
   override `AddImplementation()` to delegate to their coordinator.
   `SessionListViewModel` follows the same projection shape but uses
-  `IRecordedSessionGraph.ConnectSessions()` instead of
+  `IRecordedSessionProjection.ConnectSessions()` instead of
   `ISessionStore.Connect()`, so rows include processed-data presence,
   staleness, raw-source availability, and summary metrics without each
   row doing its own store lookups. It keeps the flat `Items` collection
@@ -156,26 +156,26 @@ There are five kinds of view model in the presentation layer:
   command flow, reusing `ViewModelBase.Notifications` and
   `ErrorMessages` while keeping management busy state separate from the
   live connect/disconnect workflow. The live session editor projects
-  graph/media/statistics state from the live session service and
+  signals/media/analysis state from the live session service and
   persists through `SessionCoordinator.SaveLiveCaptureAsync(...)`.
 
   `SessionDetailViewModel` and `LiveSessionDetailViewModel` both
   compose session sub-pages from `ViewModels/SessionPages/` and expose
-  workspace contracts for graph, media, statistics, sidebar, and mobile
+  workspace contracts for signals, media, analysis, sidebar, and mobile
   shell surfaces instead of putting every binding directly on the
   editor — see [Session Sub-Pages](#session-sub-pages) below.
   For recorded sessions, `RecordedSessionContext` is the single owner of
   presentation state: collaborators (`RecordedPresentationApplier`, the
-  damper cutoff workflow, extension plumbing) write the context, the
+  damping cutoff workflow, extension plumbing) write the context, the
   workspaces project it, and the editor reacts through one context
   `PropertyChanged` dispatcher — the editor declares no duplicate
   observable state of its own. Three further internal collaborators in
   `ViewModels/Editors/` keep flows off the editor itself:
-  `SessionPlotRowActionsController` builds the built-in plot-row header
-  actions (airtime and statistics-selection toggles) and keeps their
+  `SignalRowActionsController` builds the built-in signal-row header
+  actions (airtime and analysis-selection toggles) and keeps their
   checked/enabled state in sync with the context;
   `RecordedSessionExtensionPagesController` mirrors contributed
-  extension pages and contributed statistics tabs into the editor's
+  extension pages and contributed analysis tabs into the editor's
   `Pages` collection and resolves contributed-page selection requests; and
   `ProcessingPreferenceWorkflow` owns the
   confirm-recompute-persist flow that runs when a processing
@@ -184,7 +184,7 @@ There are five kinds of view model in the presentation layer:
   inactive-tab deferral) is an injected `ISessionLayoutStrategy` selected
   by `EditorFactory`; collaborators reach the editor through the
   `ISessionOperationGateway` contract rather than delegate bundles.
-  The recorded editor subscribes to `IRecordedSessionGraph.WatchSession`
+  The recorded editor subscribes to `IRecordedSessionProjection.WatchSession`
   in `Loaded` and disposes that subscription in `Unloaded`. Initial or
   runtime domain snapshots that are recomputable prompt the user to
   recompute; inactive desktop session tabs defer that prompt until the
@@ -194,7 +194,7 @@ There are five kinds of view model in the presentation layer:
 
 ### Session Sub-Pages
 
-The `ViewModels/SessionPages/` folders within the Sessions areas and `LiveDaq/` (e.g. `Sessions/Graph/ViewModels/SessionPages/`, `Sessions/Pages/ViewModels/SessionPages/`, `LiveDaq/ViewModels/SessionPages/`) hold the per-page view
+The `ViewModels/SessionPages/` folders within the Sessions areas and `LiveDaq/` (e.g. `Sessions/Signals/ViewModels/SessionPages/`, `Sessions/Pages/ViewModels/SessionPages/`, `LiveDaq/ViewModels/SessionPages/`) hold the per-page view
 models that `SessionDetailViewModel` (recorded sessions) and
 `LiveSessionDetailViewModel` (live captures) compose into the mobile
 session page surface. They share a tiny base, `PageViewModelBase`,
@@ -216,40 +216,40 @@ Pages`. `SessionShellMobileView` binds that collection to a
 selection all update the same workspace-owned index. The two editors
 compose different page sets:
 
-- Recorded sessions: graph, spring, strokes, damper, balance,
-  vibration, analysis, notes, preferences.
-- Live captures: graph, spring, damper, notes, preferences; balance is
-  inserted when the current live statistics produce balance data.
+- Recorded sessions: signals, spring, strokes, damping, balance,
+  vibration, insights, notes, preferences.
+- Live captures: signals, spring, damping, notes, preferences; balance is
+  inserted when the current live analysis produces balance data.
 
 Both editors add or remove `BalancePage` at runtime via an
 `EnsureBalancePage(bool)` helper based on whether the current
 telemetry produces a balance plot, so `Pages` is mutated rather than
-rebuilt. Graph pages are constructed with the editor's graph and media
-workspaces as constructor arguments — `RecordedGraphPageViewModel` for
-the recorded editor, `LiveGraphPageViewModel` for the live editor.
-Several statistics pages are also workspace-backed so their
+rebuilt. Signals pages are constructed with the editor's signals and media
+workspaces as constructor arguments — `RecordedSignalsPageViewModel` for
+the recorded editor, `LiveSignalsPageViewModel` for the live editor.
+Several analysis pages are also workspace-backed so their
 presentation states and SVG surfaces can be built from the editor's
 analysis service; notes and preferences remain the mostly local
 parameterless pages. Recorded-session extension scopes can contribute
-additional statistics tabs; mobile projects those tabs into the same
-`Pages` collection at the matching statistics-page position.
+additional analysis tabs; mobile projects those tabs into the same
+`Pages` collection at the matching analysis-page position.
 `RecordedSessionExtensionPagesController` satisfies contributed-page
 selection requests by setting `RecordedSessionContext.SelectedPageIndex`
 to the matching page. On
-desktop, the recorded-session statistics view composes built-in and
-contributed statistics tabs into one tab strip and places the selected
-statistics body plus extension banners inside one vertical scroll
-region; statistics plot hosts use natural fixed plot heights instead
-of stretching to the current statistics pane height.
+desktop, the recorded-session analysis view composes built-in and
+contributed analysis tabs into one tab strip and places the selected
+analysis body plus extension banners inside one vertical scroll
+region; analysis plot hosts use natural fixed plot heights instead
+of stretching to the current analysis pane height.
 
 Most pages are pure projection surfaces over data the editor pushes
-in: `SpringPageViewModel`, `DamperPageViewModel`, and
+in: `SpringPageViewModel`, `DampingPageViewModel` (the Damping page), and
 `BalancePageViewModel` carry per-plot strings and
 `SurfacePresentationState` values that the editor sets after each
-analysis run. Recorded-session statistics distinguish unavailable
+analysis run. Recorded-session analysis pages distinguish unavailable
 finished data from live warm-up: a stored session or selected range
 with too little travel movement shows a no-data message without a
-spinner, while live-session statistics keep a waiting state because
+spinner, while live-session analysis keeps a waiting state because
 the relevant stream samples may still arrive. `NotesPageViewModel` carries the description plus
 fork/shock `SuspensionSettings` and exposes its own
 `IsDirty(Session)` so the editor can fold notes-page edits into its
@@ -258,50 +258,50 @@ they write to the page from analysis result handlers.
 
 Two pages diverge from that pattern:
 
-- **Graph pages** wrap the editor's graph workspace and a shared
+- **Signals pages** wrap the editor's signals workspace and a shared
   media workspace and forward bindings into a reusable
-  `TelemetryPlotsRoot`. The root owns a vertical `ScrollViewer` and a
-  collapsible row hierarchy rather than a fixed graph grid:
+  `SignalRowsRoot`. The root owns a vertical `ScrollViewer` and a
+  collapsible row hierarchy rather than a fixed signals grid:
   Travel hosts Velocity, IMU vibration RMS hosts Frame Pitch/Roll, and
-  GPS speed hosts Elevation. Desktop graph roots live inside the graph/statistics
+  GPS speed hosts Elevation. Desktop signal roots live inside the signals/analysis
   splitter region and grow visible base rows once all preferred row
-  content fits; mobile graph roots are measured by the page scroll and
+  content fits; mobile signal roots are measured by the page scroll and
   report preferred content height. Rows are draggable from their
   headers within that hierarchy: dropping on another row appends the
   dragged row to that row's children, while dropping in the divider
   band between root rows makes the dragged row a root row at that
   position. Row visibility is still controlled
-  by `TravelGraphState` / `VelocityGraphState` / `ImuGraphState` /
-  `PitchRollGraphState` / `SpeedGraphState` / `ElevationGraphState`
+  by `TravelSignalState` / `VelocitySignalState` / `ImuSignalState` /
+  `PitchRollSignalState` / `SpeedSignalState` / `ElevationSignalState`
   on the workspace
   (recorded: on `RecordedSessionContext`, projected onto the workspace;
-  live: directly on `LiveSessionGraphWorkspaceViewModel`). Hosted row titles
+  live: directly on `LiveSessionSignalsWorkspaceViewModel`). Hosted row titles
   are progressively inset by hierarchy depth. Expanded parent rows draw
   short connector branches in the child-row band, starting at each
   direct child row's top edge and stopping before that child row's
   header glyph; those branches disappear with the parent's expanded
   content. The guides stay in the left title/glyph gutter, avoid the
   glyph text itself, and do not enter plot chrome or shift plot
-  content, so graph data remains vertically aligned across parent and
+  content, so signal data remains vertically aligned across parent and
   hosted rows.
   The row hierarchy, each row's expanded/collapsed state, and manually
   resized root-row height ratios are stored in
-  `SessionPreferences.Graph` as stable row IDs plus normalized ratios.
+  `SessionPreferences.SignalLayout` as stable row IDs plus normalized ratios.
   For recorded
-  sessions, `SessionDetailViewModel.GraphPreferences` loads and writes
-  that graph preference through `ISessionPreferences`; live captures
-  carry the current live graph preference into
+  sessions, `SessionDetailViewModel.SignalLayoutPreferences` loads and writes
+  that signal layout preference through `ISessionPreferences`; live captures
+  carry the current live signal layout preference into
   `SessionCoordinator.SaveLiveCaptureAsync(...)` so the newly saved
   session opens with the same row layout. The pure
-  `SessionGraphPreferenceTree` helper owns preference normalization,
+  `SignalLayoutPreferenceTree` helper owns preference normalization,
   capture, root moves, child moves, duplicate removal, unknown-row
   skipping, missing-default appends, and cycle prevention; the Avalonia
-  `TelemetryPlotsRoot` still owns materialization, drag/drop hit
+  `SignalRowsRoot` still owns materialization, drag/drop hit
   testing, brushes, manual row-size capture, and visual rebuilding. If
-  any visible resizable root row has no stored height ratio, the graph
+  any visible resizable root row has no stored height ratio, the signal layout
   falls back to default sizing so new or unknown panes do not inherit a
   partial old layout. Hidden rows are not
-  duplicated in the graph hierarchy preference: plot visibility remains
+  duplicated in the signal hierarchy preference: plot visibility remains
   the existing `SessionPlotPreferences` contract, so hidden rows keep
   their saved hierarchy position and reappear there when re-enabled.
 - **Recorded-session extension scopes** are owned by
@@ -310,10 +310,10 @@ Two pages diverge from that pattern:
   with the current domain snapshot and constrained host context; on
   `Unloaded` / final close it disposes all scopes. The manager mirrors
   each scope's `RecordedSessionExtensionSlots` into one host slot
-  collection. Recorded graph, media, and statistics workspaces expose
+  collection. Recorded signals, media, and analysis workspaces expose
   that same slot object so views can render contributed pages, toolbar
-  content, media panes, map overlays, statistics banners/overlays,
-  session-list indicators/actions, plot-row actions, hosted graph rows,
+  content, media panes, map overlays, analysis banners/overlays,
+  session-list indicators/actions, signal-row actions, hosted signal rows,
   and time-range overlays without adding workflow-specific properties
   to public workspace contracts. Extension scopes can request analysis
   range changes, timeline range changes, notifications, page selection,
@@ -332,13 +332,13 @@ Two pages diverge from that pattern:
   user, recomputes, and persists processed telemetry with the new
   `TelemetryProcessingOptions`. Both editors subscribe to
   `PropertyChanged` on the plot rows in their constructor and react to
-  toggle/smoothing changes by re-applying preferences to the graph
+  toggle/smoothing changes by re-applying preferences to the signals
   workspace — the recorded editor re-applies plot selection over its
   base presentation states, while the live editor calls
-  `LiveSessionGraphWorkspaceViewModel.ApplyPlotPreferences`. The
+  `LiveSessionSignalsWorkspaceViewModel.ApplyPlotPreferences`. The
   recorded editor also persists changes through `ISessionPreferences`
   (loaded on `Loaded`, written via `UpdateRecordedAsync`) and folds
-  the statistics preferences (travel-histogram mode,
+  the analysis preferences (travel-distribution mode,
   velocity-average mode, balance-displacement mode, target profile)
   processing preferences, and desktop session-detail layout ratios
   through the same persistence path. Desktop shell/media splitters write

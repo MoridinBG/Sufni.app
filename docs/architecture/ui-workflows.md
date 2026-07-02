@@ -95,7 +95,7 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   delegates that resolve the same instance. Recorded-session derivation
   services (`IProcessingFingerprintService`,
   `IRecordedSessionReprocessor`) are also singleton services. The
-  recorded-source factory is static and stays in `SessionGraph/`
+  recorded-source factory is static and stays in `RecordedSessionProjection/`
   beside the reprocessor.
 - **Stores**: each concrete store registered as a singleton, then
   re-registered behind both its read and writer interfaces via
@@ -110,7 +110,7 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   workflow itself view-model-free).
 - **Queries and read graphs**: `IBikeDependencyQuery`,
   `ILiveDaqKnownBoardsQuery`, `IRecordedSessionDomainQuery`, and
-  `IRecordedSessionGraph`.
+  `IRecordedSessionProjection`.
 - **Live DAQ**: `LiveDaqStore` (singleton behind both
   `ILiveDaqStore` and `ILiveDaqStoreWriter`),
   `IDaqBrowseOwner`, `ILiveDaqBoardIdInspector`,
