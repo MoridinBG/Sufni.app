@@ -13,22 +13,21 @@ public class LinkageEditorViewModelTests
     [AvaloniaFact]
     public void Load_RoundTripsBaselineLinkage_WithoutJointOrLinkDifferences()
     {
-        var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
-        var baselineSpec = baseline.ToSpec();
+        var baselineSpec = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
         var viewModel = new LinkageEditorViewModel();
 
         viewModel.Load(baselineSpec, imageHeight: 100, pixelsToMillimeters: 1);
 
-        Assert.Equal(baseline.Joints.Count, viewModel.JointViewModels.Count);
-        Assert.Equal(baseline.Links.Count + 1, viewModel.LinkViewModels.Count);
+        Assert.Equal(baselineSpec.Joints.Count, viewModel.JointViewModels.Count);
+        Assert.Equal(baselineSpec.Links.Count + 1, viewModel.LinkViewModels.Count);
         Assert.False(viewModel.HasChangesComparedTo(baselineSpec, 100, 1));
 
-        var rebuilt = viewModel.BuildCurrentLinkageSpec(100, 1, baseline.ShockStroke);
+        var rebuilt = viewModel.BuildCurrentLinkageSpec(100, 1, baselineSpec.ShockStroke);
 
         Assert.NotNull(rebuilt);
-        Assert.Equal(baseline.Joints.Count, rebuilt.Joints.Count);
-        Assert.Equal(baseline.Links.Count, rebuilt.Links.Count);
-        Assert.Equal(baseline.ShockStroke, rebuilt.ShockStroke);
+        Assert.Equal(baselineSpec.Joints.Count, rebuilt.Joints.Count);
+        Assert.Equal(baselineSpec.Links.Count, rebuilt.Links.Count);
+        Assert.Equal(baselineSpec.ShockStroke, rebuilt.ShockStroke);
     }
 
     [AvaloniaFact]
@@ -117,8 +116,7 @@ public class LinkageEditorViewModelTests
     [AvaloniaFact]
     public void RemovingJoint_DetachesPropertyHandler_FromRemovedInstance()
     {
-        var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
-        var baselineSpec = WithDetachedPoint(baseline.ToSpec());
+        var baselineSpec = WithDetachedPoint(TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true));
 
         var viewModel = new LinkageEditorViewModel();
         var previewChanges = 0;
@@ -142,8 +140,7 @@ public class LinkageEditorViewModelTests
     [AvaloniaFact]
     public void RemovingLink_DetachesPropertyHandler_FromRemovedInstance()
     {
-        var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
-        var baselineSpec = WithDetachedLink(baseline.ToSpec());
+        var baselineSpec = WithDetachedLink(TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true));
 
         var viewModel = new LinkageEditorViewModel();
         var previewChanges = 0;
@@ -154,7 +151,7 @@ public class LinkageEditorViewModelTests
         viewModel.Load(baselineSpec, imageHeight: 100, pixelsToMillimeters: 1);
         var removedLink = Assert.Single(
             viewModel.LinkViewModels,
-            link => link.A?.Name == baseline.Joints[0].Name && link.B?.Name == DetachedPointName);
+            link => link.A?.Name == baselineSpec.Joints[0].Name && link.B?.Name == DetachedPointName);
         viewModel.SelectedLink = removedLink;
         viewModel.DeleteSelectedItemCommand.Execute(null);
         previewChanges = 0;
@@ -169,8 +166,7 @@ public class LinkageEditorViewModelTests
     [AvaloniaFact]
     public void MovingJoint_RaisesPreviewChanged_WithMovedJoint()
     {
-        var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
-        var baselineSpec = baseline.ToSpec();
+        var baselineSpec = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
         var viewModel = new LinkageEditorViewModel();
         LinkagePreviewChangedEventArgs? previewArgs = null;
         var stateChanges = 0;
@@ -192,8 +188,7 @@ public class LinkageEditorViewModelTests
     [AvaloniaFact]
     public void WasPossiblyDragged_RaisesStateChanged_WithoutPreviewChanged()
     {
-        var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
-        var baselineSpec = baseline.ToSpec();
+        var baselineSpec = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
         var viewModel = new LinkageEditorViewModel();
         var previewChanges = 0;
         var stateChanges = 0;
@@ -234,8 +229,7 @@ public class LinkageEditorViewModelTests
     [AvaloniaFact]
     public void DeleteSelectedItemCommand_RemovesSelectedPoint_AndConnectedLinks()
     {
-        var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
-        var baselineSpec = WithDetachedLink(baseline.ToSpec());
+        var baselineSpec = WithDetachedLink(TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true));
         var viewModel = new LinkageEditorViewModel();
 
         viewModel.Load(baselineSpec, imageHeight: 100, pixelsToMillimeters: 1);
@@ -251,14 +245,13 @@ public class LinkageEditorViewModelTests
     [AvaloniaFact]
     public void HasChangesComparedTo_ReturnsTrue_WhenShockEndpointsChange()
     {
-        var baseline = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true);
-        var baselineSpec = baseline.ToSpec();
+        var baselineSpec = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
         var viewModel = new LinkageEditorViewModel();
 
         viewModel.Load(baselineSpec, imageHeight: 100, pixelsToMillimeters: 1);
         var shockLink = Assert.Single(
             viewModel.LinkViewModels,
-            link => link.A?.Name == baseline.Shock.A_Name && link.B?.Name == baseline.Shock.B_Name);
+            link => link.A?.Name == baselineSpec.Shock.A && link.B?.Name == baselineSpec.Shock.B);
         shockLink.A = Assert.Single(viewModel.JointViewModels, joint => joint.Type == JointType.BottomBracket);
 
         Assert.True(viewModel.HasChangesComparedTo(baselineSpec, 100, 1));
