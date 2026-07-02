@@ -477,6 +477,67 @@ public class SessionRepositoryTests
     }
 
     [Fact]
+    public async Task GetActiveSessionIdsAsync_ReturnsLiveIdsOrdered_WithoutReadingTrackOrData()
+    {
+        using var tempDatabase = new TempDatabase("active-session-ids.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var olderId = Guid.NewGuid();
+        var newerId = Guid.NewGuid();
+        var deletedId = Guid.NewGuid();
+
+        var database = new TestPersistenceHarness(databasePath);
+        await database.PutSessionAsync(new Session(olderId, "older", "desc", null, 100));
+        await database.PutSessionAsync(new Session(newerId, "newer", "desc", null, 200));
+        await database.PutSessionAsync(new Session(deletedId, "deleted", "desc", null, 300));
+
+        using (var connection = new SQLiteConnection(databasePath))
+        {
+            connection.Execute("UPDATE session SET track = ?, data = ? WHERE id IN (?, ?)", "{not-json", new byte[] { 1, 2, 3 }, olderId, newerId);
+            connection.Execute("UPDATE session SET deleted = ? WHERE id = ?", 123, deletedId);
+        }
+
+        var ids = await database.SessionRepository.GetActiveSessionIdsAsync();
+
+        Assert.Equal([newerId, olderId], ids);
+    }
+
+    [Fact]
+    public async Task HasOtherActiveSessionWithFullTrackAsync_IgnoresExcludedAndDeletedSessions()
+    {
+        using var tempDatabase = new TempDatabase("full-track-reference-check.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+        var deletedSessionId = Guid.NewGuid();
+        var otherSessionId = Guid.NewGuid();
+        var trackId = Guid.NewGuid();
+
+        var database = new TestPersistenceHarness(databasePath);
+        await database.PutSessionAsync(new Session(sessionId, "session", "desc", null, 100)
+        {
+            FullTrack = trackId
+        });
+        await database.PutSessionAsync(new Session(deletedSessionId, "deleted", "desc", null, 101)
+        {
+            FullTrack = trackId
+        });
+
+        using (var connection = new SQLiteConnection(databasePath))
+        {
+            connection.Execute("UPDATE session SET deleted = ? WHERE id = ?", 123, deletedSessionId);
+        }
+
+        Assert.False(await database.SessionRepository.HasOtherActiveSessionWithFullTrackAsync(trackId, sessionId));
+
+        await database.PutSessionAsync(new Session(otherSessionId, "other", "desc", null, 102)
+        {
+            FullTrack = trackId
+        });
+
+        Assert.True(await database.SessionRepository.HasOtherActiveSessionWithFullTrackAsync(trackId, sessionId));
+        Assert.False(await database.SessionRepository.HasOtherActiveSessionWithFullTrackAsync(Guid.NewGuid(), sessionId));
+    }
+
+    [Fact]
     public async Task UpdateSessionTrackAsync_WritesTrackAndMetricsAsGiven_AndBumpsUpdated()
     {
         using var tempDatabase = new TempDatabase("session-track-update.db");

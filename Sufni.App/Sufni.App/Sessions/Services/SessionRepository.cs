@@ -26,6 +26,10 @@ public interface ISessionRepository
 
     Task<Session?> GetSessionAsync(Guid id);
 
+    Task<List<Guid>> GetActiveSessionIdsAsync();
+
+    Task<bool> HasOtherActiveSessionWithFullTrackAsync(Guid fullTrackId, Guid excludingSessionId);
+
     Task<List<Guid>> GetIncompleteSessionIdsAsync();
 
     /// <summary>
@@ -210,6 +214,40 @@ internal sealed class SessionRepository(
                      """;
         var sessions = await connection.QueryAsync<Session>(query, id);
         return sessions.Count == 1 ? sessions[0] : null;
+    }
+
+    public async Task<List<Guid>> GetActiveSessionIdsAsync()
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+
+        var rows = await connection.QueryAsync<SessionIdRow>(
+            """
+            SELECT id
+            FROM session
+            WHERE deleted IS NULL
+            ORDER BY timestamp DESC
+            """);
+        return rows.Select(row => row.Id).ToList();
+    }
+
+    public async Task<bool> HasOtherActiveSessionWithFullTrackAsync(Guid fullTrackId, Guid excludingSessionId)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+
+        var exists = await connection.ExecuteScalarAsync<int>(
+            """
+            SELECT EXISTS(
+                SELECT 1
+                FROM session
+                WHERE deleted IS NULL
+                  AND id <> ?
+                  AND full_track_id = ?
+                LIMIT 1
+            )
+            """,
+            excludingSessionId,
+            fullTrackId);
+        return exists != 0;
     }
 
     public async Task<List<Guid>> GetIncompleteSessionIdsAsync()
@@ -624,4 +662,9 @@ internal sealed class SessionRepository(
     private static double NormalizeGpsOffsetSeconds(double gpsOffsetSeconds) =>
         double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;
 
+    private sealed class SessionIdRow
+    {
+        [Column("id")]
+        public Guid Id { get; set; }
+    }
 }

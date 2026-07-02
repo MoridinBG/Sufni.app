@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
@@ -74,7 +73,6 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
     private readonly ISessionRepository sessionRepository;
     private readonly ISessionTelemetryWriter sessionTelemetryWriter;
     private readonly ISynchronizableRepository<Track> trackEntityRepository;
-    private readonly ISynchronizableRepository<Session> sessionEntityRepository;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ISessionPreferences sessionPreferences;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
@@ -94,7 +92,6 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
         ISessionRepository sessionRepository,
         ISessionTelemetryWriter sessionTelemetryWriter,
         ISynchronizableRepository<Track> trackEntityRepository,
-        ISynchronizableRepository<Session> sessionEntityRepository,
         IBackgroundTaskRunner backgroundTaskRunner,
         ISessionPreferences sessionPreferences,
         IRecordedSessionSourceStoreWriter sourceStore,
@@ -105,7 +102,6 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
         this.sessionRepository = sessionRepository;
         this.sessionTelemetryWriter = sessionTelemetryWriter;
         this.trackEntityRepository = trackEntityRepository;
-        this.sessionEntityRepository = sessionEntityRepository;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.sessionPreferences = sessionPreferences;
         this.sourceStore = sourceStore;
@@ -190,14 +186,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
         RecomputeReason reason,
         IProgress<SessionRecomputeAllProgress>? progress = null)
     {
-        // The store's writer surface has no bulk enumeration, so the entity
-        // repository is the source of "which sessions exist"; skip soft-deleted
-        // rows the same way the orphaned-track cleanup does.
-        var sessions = await sessionEntityRepository.GetAllAsync();
-        var ids = sessions
-            .Where(session => session.Deleted is null)
-            .Select(session => session.Id)
-            .ToList();
+        var ids = await sessionRepository.GetActiveSessionIdsAsync();
 
         logger.Information("Starting recompute-all for {SessionCount} sessions ({Reason})", ids.Count, reason);
 
@@ -401,11 +390,9 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
             return;
         }
 
-        var sessions = await sessionEntityRepository.GetAllAsync();
-        var stillReferenced = sessions.Any(existing =>
-            existing.Id != sessionId &&
-            existing.Deleted is null &&
-            existing.FullTrack == previousFullTrackId.Value);
+        var stillReferenced = await sessionRepository.HasOtherActiveSessionWithFullTrackAsync(
+            previousFullTrackId.Value,
+            sessionId);
         if (stillReferenced)
         {
             return;

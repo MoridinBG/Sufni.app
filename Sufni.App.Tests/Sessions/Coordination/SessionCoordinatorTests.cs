@@ -387,10 +387,7 @@ public class SessionCoordinatorTests
         var id = Guid.NewGuid();
         var trackId = Guid.NewGuid();
         sessionRepository.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
-        sessionEntityRepository.GetAllAsync().Returns(Task.FromResult(new List<Session>
-        {
-            new(id, "name", "desc", null) { FullTrack = trackId }
-        }));
+        sessionRepository.HasOtherActiveSessionWithFullTrackAsync(trackId, id).Returns(false);
 
         var result = await CreateCoordinator().DeleteAsync(id);
 
@@ -408,14 +405,9 @@ public class SessionCoordinatorTests
     public async Task DeleteAsync_DoesNotDeleteTrack_WhenAnotherSessionStillUsesIt()
     {
         var id = Guid.NewGuid();
-        var otherSessionId = Guid.NewGuid();
         var trackId = Guid.NewGuid();
         sessionRepository.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
-        sessionEntityRepository.GetAllAsync().Returns(Task.FromResult(new List<Session>
-        {
-            new(id, "name", "desc", null) { FullTrack = trackId },
-            new(otherSessionId, "other", "desc", null) { FullTrack = trackId }
-        }));
+        sessionRepository.HasOtherActiveSessionWithFullTrackAsync(trackId, id).Returns(true);
 
         var result = await CreateCoordinator().DeleteAsync(id);
 
@@ -434,10 +426,7 @@ public class SessionCoordinatorTests
         var id = Guid.NewGuid();
         var trackId = Guid.NewGuid();
         sessionRepository.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
-        sessionEntityRepository.GetAllAsync().Returns(Task.FromResult(new List<Session>
-        {
-            new(id, "name", "desc", null) { FullTrack = trackId }
-        }));
+        sessionRepository.HasOtherActiveSessionWithFullTrackAsync(trackId, id).Returns(false);
         trackEntityRepository.DeleteAsync(trackId).ThrowsAsync(new InvalidOperationException("track locked"));
 
         var result = await CreateCoordinator().DeleteAsync(id);

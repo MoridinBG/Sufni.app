@@ -25,7 +25,6 @@ public class SessionRecomputeEngineTests
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
     private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
     private readonly ISynchronizableRepository<Track> trackEntityRepository = Substitute.For<ISynchronizableRepository<Track>>();
-    private readonly ISynchronizableRepository<Session> sessionEntityRepository = Substitute.For<ISynchronizableRepository<Session>>();
     private readonly ISessionPreferences sessionPreferences = Substitute.For<ISessionPreferences>();
     private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
     private readonly IRecordedSessionDomainQuery domainQuery = Substitute.For<IRecordedSessionDomainQuery>();
@@ -36,7 +35,6 @@ public class SessionRecomputeEngineTests
         sessionRepository,
         sessionTelemetryWriter,
         trackEntityRepository,
-        sessionEntityRepository,
         new InlineBackgroundTaskRunner(),
         sessionPreferences,
         sourceStore,
@@ -71,7 +69,6 @@ public class SessionRecomputeEngineTests
             ProcessedData = PersistenceTestData.CreateTelemetryBlob(60)
         };
         sessionRepository.GetSessionAsync(sessionId).Returns(persisted);
-        sessionEntityRepository.GetAllAsync().Returns([persisted]);
         sessionTelemetryWriter
             .UpdateProcessedDerivedDataAsync(
                 Arg.Any<Session>(),
@@ -282,7 +279,7 @@ public class SessionRecomputeEngineTests
             DerivedChangeKind.None));
         var skippedPersisted = new Session(skippedId, "skipped", "desc", Guid.NewGuid(), 100);
 
-        sessionEntityRepository.GetAllAsync().Returns([firstPersisted, secondPersisted, skippedPersisted]);
+        sessionRepository.GetActiveSessionIdsAsync().Returns([firstPersisted.Id, secondPersisted.Id, skippedPersisted.Id]);
         sessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(SessionPreferences.Default);
         reprocessor
             .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
@@ -308,15 +305,12 @@ public class SessionRecomputeEngineTests
     }
 
     [Fact]
-    public async Task RequestRecomputeAllAsync_ExcludesSoftDeletedSessions()
+    public async Task RequestRecomputeAllAsync_UsesActiveSessionIdProjection()
     {
         var liveId = Guid.NewGuid();
-        var livePersisted = ConfigureRecomputable(liveId);
-        var deletedPersisted = new Session(Guid.NewGuid(), "deleted", "desc", Guid.NewGuid(), 100)
-        {
-            Deleted = 123
-        };
-        sessionEntityRepository.GetAllAsync().Returns([livePersisted, deletedPersisted]);
+        ConfigureRecomputable(liveId);
+        var deletedId = Guid.NewGuid();
+        sessionRepository.GetActiveSessionIdsAsync().Returns([liveId]);
         sessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(SessionPreferences.Default);
         reprocessor
             .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
@@ -328,7 +322,8 @@ public class SessionRecomputeEngineTests
 
         Assert.Equal(1, summary.Total);
         Assert.Equal(1, summary.Recomputed);
-        domainQuery.DidNotReceive().Get(deletedPersisted.Id);
+        await sessionRepository.Received(1).GetActiveSessionIdsAsync();
+        domainQuery.DidNotReceive().Get(deletedId);
     }
 
     [Fact]
@@ -336,9 +331,9 @@ public class SessionRecomputeEngineTests
     {
         var firstId = Guid.NewGuid();
         var secondId = Guid.NewGuid();
-        var firstPersisted = ConfigureRecomputable(firstId);
-        var secondPersisted = ConfigureRecomputable(secondId);
-        sessionEntityRepository.GetAllAsync().Returns([firstPersisted, secondPersisted]);
+        ConfigureRecomputable(firstId);
+        ConfigureRecomputable(secondId);
+        sessionRepository.GetActiveSessionIdsAsync().Returns([firstId, secondId]);
         sessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(SessionPreferences.Default);
         reprocessor
             .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())

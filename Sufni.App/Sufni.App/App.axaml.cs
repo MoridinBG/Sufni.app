@@ -244,7 +244,6 @@ public partial class App : Application
             sp.GetRequiredService<ISessionRepository>(),
             sp.GetRequiredService<ISessionTelemetryWriter>(),
             sp.GetRequiredService<ISynchronizableRepository<Track>>(),
-            sp.GetRequiredService<ISynchronizableRepository<Session>>(),
             sp.GetRequiredService<IBackgroundTaskRunner>(),
             sp.GetRequiredService<ISessionPreferences>(),
             sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),

@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
@@ -211,8 +210,9 @@ public sealed class SessionCommandService
 
             if (trackId.HasValue)
             {
-                var sessions = await sessionEntityRepository.GetAllAsync();
-                shouldDeleteTrack = !sessions.Any(existing => existing.Id != sessionId && existing.FullTrack == trackId);
+                shouldDeleteTrack = !await sessionRepository.HasOtherActiveSessionWithFullTrackAsync(
+                    trackId.Value,
+                    sessionId);
             }
 
             await sessionEntityRepository.DeleteAsync(sessionId);
