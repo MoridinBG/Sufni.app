@@ -25,7 +25,7 @@ public class SessionRecomputeEngineTests
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
     private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
     private readonly ISynchronizableRepository<Track> trackEntityRepository = Substitute.For<ISynchronizableRepository<Track>>();
-    private readonly ISessionPreferences sessionPreferences = Substitute.For<ISessionPreferences>();
+    private readonly IRecordedSessionProcessingOptionCache processingOptionCache = Substitute.For<IRecordedSessionProcessingOptionCache>();
     private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
     private readonly IRecordedSessionDomainQuery domainQuery = Substitute.For<IRecordedSessionDomainQuery>();
     private readonly IRecordedSessionReprocessor reprocessor = Substitute.For<IRecordedSessionReprocessor>();
@@ -36,10 +36,16 @@ public class SessionRecomputeEngineTests
         sessionTelemetryWriter,
         trackEntityRepository,
         new InlineBackgroundTaskRunner(),
-        sessionPreferences,
+        processingOptionCache,
         sourceStore,
         domainQuery,
         reprocessor);
+
+    public SessionRecomputeEngineTests()
+    {
+        processingOptionCache.Get(Arg.Any<Guid>()).Returns(TelemetryProcessingOptions.Default);
+        processingOptionCache.HydrateAsync().Returns(Task.CompletedTask);
+    }
 
     // Wires a recomputable session: a current-schema domain, a present source whose
     // snapshot matches the domain (so the refresh branch is skipped), a persisted row,
@@ -102,9 +108,9 @@ public class SessionRecomputeEngineTests
     {
         var sessionId = Guid.NewGuid();
         ConfigureRecomputable(sessionId);
-        sessionPreferences.GetRecordedAsync(sessionId).Returns(
-            SessionPreferences.Default with { Processing = new SessionProcessingPreferences(100) },
-            SessionPreferences.Default with { Processing = new SessionProcessingPreferences(250) });
+        processingOptionCache.Get(sessionId).Returns(
+            new TelemetryProcessingOptions(100),
+            new TelemetryProcessingOptions(250));
 
         ProcessingFingerprint? committedFingerprint = null;
         sessionTelemetryWriter
@@ -156,7 +162,7 @@ public class SessionRecomputeEngineTests
         Assert.IsType<SessionRecomputeResult.Recomputed>(secondResult);
 
         // Release the (now superseded) first reprocess so it reaches its still-current check.
-        firstReprocessGate.SetResult(ReprocessResult(new SessionProcessingPreferences(100).ToTelemetryProcessingOptions()));
+        firstReprocessGate.SetResult(ReprocessResult(new TelemetryProcessingOptions(100)));
         var firstResult = await firstTask.WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.IsType<SessionRecomputeResult.Superseded>(firstResult);
@@ -178,7 +184,6 @@ public class SessionRecomputeEngineTests
         var secondId = Guid.NewGuid();
         ConfigureRecomputable(firstId);
         ConfigureRecomputable(secondId);
-        sessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(SessionPreferences.Default);
         reprocessor
             .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<TelemetryProcessingOptions>(2))));
@@ -198,7 +203,6 @@ public class SessionRecomputeEngineTests
     {
         var sessionId = Guid.NewGuid();
         var persisted = ConfigureRecomputable(sessionId);
-        sessionPreferences.GetRecordedAsync(sessionId).Returns(SessionPreferences.Default);
         reprocessor
             .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<TelemetryProcessingOptions>(2))));
@@ -280,7 +284,6 @@ public class SessionRecomputeEngineTests
         var skippedPersisted = new Session(skippedId, "skipped", "desc", Guid.NewGuid(), 100);
 
         sessionRepository.GetActiveSessionIdsAsync().Returns([firstPersisted.Id, secondPersisted.Id, skippedPersisted.Id]);
-        sessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(SessionPreferences.Default);
         reprocessor
             .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<TelemetryProcessingOptions>(2))));
@@ -311,7 +314,6 @@ public class SessionRecomputeEngineTests
         ConfigureRecomputable(liveId);
         var deletedId = Guid.NewGuid();
         sessionRepository.GetActiveSessionIdsAsync().Returns([liveId]);
-        sessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(SessionPreferences.Default);
         reprocessor
             .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<TelemetryProcessingOptions>(2))));
@@ -327,6 +329,30 @@ public class SessionRecomputeEngineTests
     }
 
     [Fact]
+    public async Task RequestRecomputeAllAsync_HydratesProcessingOptionCacheBeforeEnumeratingIds()
+    {
+        var calls = new List<string>();
+        processingOptionCache.HydrateAsync().Returns(_ =>
+        {
+            calls.Add("hydrate");
+            return Task.CompletedTask;
+        });
+        sessionRepository.GetActiveSessionIdsAsync().Returns(_ =>
+        {
+            calls.Add("ids");
+            return Task.FromResult(new List<Guid>());
+        });
+
+        var summary = await CreateEngine()
+            .RequestRecomputeAllAsync(RecomputeReason.RecomputeAll)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(0, summary.Total);
+        Assert.Equal(["hydrate", "ids"], calls);
+        await processingOptionCache.Received(1).HydrateAsync();
+    }
+
+    [Fact]
     public async Task RequestRecomputeAllAsync_ReportsProgress_FromZeroToTotal()
     {
         var firstId = Guid.NewGuid();
@@ -334,7 +360,6 @@ public class SessionRecomputeEngineTests
         ConfigureRecomputable(firstId);
         ConfigureRecomputable(secondId);
         sessionRepository.GetActiveSessionIdsAsync().Returns([firstId, secondId]);
-        sessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(SessionPreferences.Default);
         reprocessor
             .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
             .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<TelemetryProcessingOptions>(2))));

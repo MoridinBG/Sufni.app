@@ -74,7 +74,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
     private readonly ISessionTelemetryWriter sessionTelemetryWriter;
     private readonly ISynchronizableRepository<Track> trackEntityRepository;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
-    private readonly ISessionPreferences sessionPreferences;
+    private readonly IRecordedSessionProcessingOptionCache processingOptionCache;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
     private readonly IRecordedSessionDomainQuery recordedSessionDomainQuery;
     private readonly IRecordedSessionReprocessor recordedSessionReprocessor;
@@ -93,7 +93,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
         ISessionTelemetryWriter sessionTelemetryWriter,
         ISynchronizableRepository<Track> trackEntityRepository,
         IBackgroundTaskRunner backgroundTaskRunner,
-        ISessionPreferences sessionPreferences,
+        IRecordedSessionProcessingOptionCache processingOptionCache,
         IRecordedSessionSourceStoreWriter sourceStore,
         IRecordedSessionDomainQuery recordedSessionDomainQuery,
         IRecordedSessionReprocessor recordedSessionReprocessor)
@@ -103,7 +103,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
         this.sessionTelemetryWriter = sessionTelemetryWriter;
         this.trackEntityRepository = trackEntityRepository;
         this.backgroundTaskRunner = backgroundTaskRunner;
-        this.sessionPreferences = sessionPreferences;
+        this.processingOptionCache = processingOptionCache;
         this.sourceStore = sourceStore;
         this.recordedSessionDomainQuery = recordedSessionDomainQuery;
         this.recordedSessionReprocessor = recordedSessionReprocessor;
@@ -186,6 +186,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
         RecomputeReason reason,
         IProgress<SessionRecomputeAllProgress>? progress = null)
     {
+        await processingOptionCache.HydrateAsync();
         var ids = await sessionRepository.GetActiveSessionIdsAsync();
 
         logger.Information("Starting recompute-all for {SessionCount} sessions ({Reason})", ids.Count, reason);
@@ -294,11 +295,10 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
             }
 
             // Read the processing option at run time so cancel-and-replace yields
-            // the last committed value. The reprocessor's fingerprint is exactly
-            // CreateCurrent(domain, option) — i.e. F_in, the input-coherence key
-            //; no separate signature is computed.
-            var preferences = await sessionPreferences.GetRecordedAsync(sessionId);
-            var processingOptions = preferences.Processing.ToTelemetryProcessingOptions();
+            // the last cached value. The reprocessor's fingerprint is exactly
+            // CreateCurrent(domain, option) — i.e. F_in, the input-coherence key;
+            // no separate signature is computed.
+            var processingOptions = processingOptionCache.Get(sessionId);
 
             var reprocessResult = await backgroundTaskRunner.RunAsync(
                 () => recordedSessionReprocessor.ReprocessAsync(domain, source, processingOptions, cancellationToken),
