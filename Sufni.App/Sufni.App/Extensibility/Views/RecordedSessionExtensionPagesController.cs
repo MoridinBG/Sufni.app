@@ -80,7 +80,7 @@ internal sealed class RecordedSessionExtensionPagesController
             .Select(contribution => new ExtensionPageEntry(
                 AnalysisTabPageKey(contribution),
                 contribution.DisplayName,
-                contribution.ViewModel,
+                contribution.CreateViewModel(),
                 contribution.RequestedIndex + 1,
                 FamilyOrder: 1,
                 contribution.Order,

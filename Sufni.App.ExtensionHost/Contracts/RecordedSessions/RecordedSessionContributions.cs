@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Windows.Input;
 using Sufni.App.ExtensionHost.Contracts.Capabilities;
@@ -97,7 +98,25 @@ public sealed record RecordedSessionAnalysisTabContribution(
     int Order,
     string DisplayName,
     int RequestedIndex,
-    IRecordedSessionAnalysisTabContributionViewModel ViewModel) : IRecordedSessionContribution;
+    Func<IRecordedSessionAnalysisTabContributionViewModel> CreateViewModel) : IRecordedSessionContribution
+{
+    public RecordedSessionAnalysisTabContribution(
+        string ExtensionId,
+        string ContributionId,
+        int Order,
+        string DisplayName,
+        int RequestedIndex,
+        IRecordedSessionAnalysisTabContributionViewModel ViewModel)
+        : this(
+            ExtensionId,
+            ContributionId,
+            Order,
+            DisplayName,
+            RequestedIndex,
+            () => ViewModel)
+    {
+    }
+}
 
 public sealed record RecordedSessionAnalysisOverlayContribution(
     string ExtensionId,

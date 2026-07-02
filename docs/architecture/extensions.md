@@ -228,6 +228,15 @@ families such as signal toolbar commands, map overlays, analysis
 metrics, plot context actions, row header actions, and time-range
 overlays carry neutral records or command descriptors instead.
 
+Recorded-session analysis tab contributions carry a `CreateViewModel`
+factory rather than requiring the tab view model to be created when the
+scope publishes its slots. Desktop materializes an analysis tab only when
+that tab is first selected, retains the created content for the open
+recorded session, and drops it if the contribution is removed or
+re-published. Mobile projects analysis tabs into normal recorded-session
+pages and creates the view model during page projection, matching the
+mobile page lifecycle.
+
 A hosted signal row whose plot should match the app's themed time-series
 rows can contribute the SDK's neutral `RecordedSessionSignalPlotViewModel`
 (namespace `Sufni.App.ExtensionHost.Runtime.RecordedSessions`) as its

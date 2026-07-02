@@ -17,31 +17,18 @@ public partial class SessionAnalysisDesktopView : UserControl
     private const int BuiltInFamilyOrder = 1;
 
     private readonly List<AnalysisTabEntry> currentTabEntries = [];
-    private readonly Dictionary<string, Control> extensionContentControls = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ExtensionTabContent> extensionContentControls = new(StringComparer.Ordinal);
     private ISessionAnalysisWorkspace? workspace;
     private INotifyCollectionChanged? subscribedAnalysisTabs;
     private string selectedTabKey = DefaultTabKey;
     private bool suppressSelectionChanged;
-    private bool isLoaded;
 
     public SessionAnalysisDesktopView()
     {
         InitializeComponent();
 
-        // Set all pages visible at first, so that their plots are populated
-        SpringRate.IsVisible = true;
-        Strokes.IsVisible = true;
-        Damping.IsVisible = true;
-        Balance.IsVisible = true;
-        Vibration.IsVisible = true;
-        Analysis.IsVisible = true;
-
         DataContextChanged += (_, _) => SetWorkspace(DataContext as ISessionAnalysisWorkspace);
-        TabControl.Loaded += (_, _) =>
-        {
-            isLoaded = true;
-            RebuildTabs();
-        };
+        TabControl.Loaded += (_, _) => RebuildTabs();
         TabControl.SelectionChanged += (_, _) => OnTabSelectionChanged();
 
         SetWorkspace(DataContext as ISessionAnalysisWorkspace);
@@ -116,14 +103,6 @@ public partial class SessionAnalysisDesktopView : UserControl
             foreach (var entry in entries)
             {
                 TabControl.Items.Add(CreateTabItem(entry));
-                if (entry.IsExtension)
-                {
-                    entry.Content.IsVisible = false;
-                    if (!AnalysisContentHost.Items.Contains(entry.Content))
-                    {
-                        AnalysisContentHost.Items.Add(entry.Content);
-                    }
-                }
             }
 
             TabControl.SelectedIndex = Math.Max(
@@ -159,13 +138,14 @@ public partial class SessionAnalysisDesktopView : UserControl
             .Select(contribution => new AnalysisTabEntry(
                 GetExtensionKey(contribution),
                 contribution.DisplayName,
-                GetExtensionContentControl(contribution),
+                Content: null,
                 contribution.RequestedIndex,
                 contribution.Order,
                 IsExtension: true,
                 contribution.ExtensionId,
                 contribution.ContributionId,
-                Tooltip: ""))
+                Tooltip: "",
+                ExtensionContribution: contribution))
             ?? [];
 
         return builtInEntries
@@ -209,11 +189,6 @@ public partial class SessionAnalysisDesktopView : UserControl
 
     private void ApplySelectedTabVisibility()
     {
-        if (!isLoaded)
-        {
-            return;
-        }
-
         var selectedEntry = currentTabEntries.FirstOrDefault(
             entry => StringComparer.Ordinal.Equals(entry.Key, selectedTabKey));
         if (selectedEntry is null)
@@ -225,56 +200,59 @@ public partial class SessionAnalysisDesktopView : UserControl
 
         foreach (var entry in currentTabEntries)
         {
-            entry.Content.IsVisible = ReferenceEquals(entry, selectedEntry);
+            var isSelected = ReferenceEquals(entry, selectedEntry);
+            if (entry.IsExtension)
+            {
+                if (isSelected && entry.ExtensionContribution is { } contribution)
+                {
+                    GetExtensionContentControl(contribution).IsVisible = true;
+                }
+                else if (extensionContentControls.TryGetValue(entry.Key, out var content))
+                {
+                    content.Control.IsVisible = false;
+                }
+
+                continue;
+            }
+
+            if (entry.Content is not null)
+            {
+                entry.Content.IsVisible = isSelected;
+            }
         }
     }
 
     private Control GetExtensionContentControl(RecordedSessionAnalysisTabContribution contribution)
     {
         var key = GetExtensionKey(contribution);
-        var nextViewModel = contribution.ViewModel;
-        if (extensionContentControls.TryGetValue(key, out var existingControl))
+        if (extensionContentControls.TryGetValue(key, out var existingContent))
         {
-            if (nextViewModel is Control nextControl)
-            {
-                if (ReferenceEquals(existingControl, nextControl))
-                {
-                    return existingControl;
-                }
-
-                AnalysisContentHost.Items.Remove(existingControl);
-                extensionContentControls[key] = nextControl;
-                return nextControl;
-            }
-
-            if (existingControl is ContentControl contentControl)
-            {
-                contentControl.Content = nextViewModel;
-                return contentControl;
-            }
-
-            AnalysisContentHost.Items.Remove(existingControl);
+            return existingContent.Control;
         }
 
+        var nextViewModel = contribution.CreateViewModel();
         var control = nextViewModel as Control ?? new ContentControl { Content = nextViewModel };
-        extensionContentControls[key] = control;
+        control.IsVisible = false;
+        extensionContentControls[key] = new ExtensionTabContent(contribution, control);
+        AnalysisContentHost.Items.Add(control);
         return control;
     }
 
     private void RemoveStaleExtensionContentControls(IReadOnlyCollection<AnalysisTabEntry> entries)
     {
-        var activeKeys = entries
+        var activeContributions = entries
             .Where(entry => entry.IsExtension)
-            .Select(entry => entry.Key)
-            .ToHashSet(StringComparer.Ordinal);
-        foreach (var (key, control) in extensionContentControls.ToArray())
+            .Where(entry => entry.ExtensionContribution is not null)
+            .ToDictionary(entry => entry.Key, entry => entry.ExtensionContribution!, StringComparer.Ordinal);
+        foreach (var (key, content) in extensionContentControls.ToArray())
         {
-            if (activeKeys.Contains(key))
+            if (activeContributions.TryGetValue(key, out var contribution) &&
+                ReferenceEquals(content.Contribution, contribution))
             {
                 continue;
             }
 
-            AnalysisContentHost.Items.Remove(control);
+            AnalysisContentHost.Items.Remove(content.Control);
             extensionContentControls.Remove(key);
         }
     }
@@ -285,11 +263,16 @@ public partial class SessionAnalysisDesktopView : UserControl
     private sealed record AnalysisTabEntry(
         string Key,
         string Header,
-        Control Content,
+        Control? Content,
         int RequestedIndex,
         int Order,
         bool IsExtension,
         string ExtensionId,
         string ContributionId,
-        string Tooltip);
+        string Tooltip,
+        RecordedSessionAnalysisTabContribution? ExtensionContribution = null);
+
+    private sealed record ExtensionTabContent(
+        RecordedSessionAnalysisTabContribution Contribution,
+        Control Control);
 }

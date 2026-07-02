@@ -30,6 +30,30 @@ namespace Sufni.App.Tests.Sessions.Analysis.DesktopViews.Items;
 public class SessionAnalysisDesktopViewTests
 {
     [AvaloniaFact]
+    public void SessionAnalysisDesktopView_HidesUnselectedBuiltInSectionsBeforeLoaded()
+    {
+        ViewTestHelpers.EnsureSessionDetailViewSetup(isDesktop: true);
+        var workspace = new SessionAnalysisWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontAnalysis: true,
+            hasRearAnalysis: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+
+        var view = new SessionAnalysisDesktopView
+        {
+            DataContext = workspace,
+        };
+
+        Assert.True(view.FindControl<Grid>("SpringRate")!.IsVisible);
+        Assert.False(view.FindControl<Grid>("Strokes")!.IsVisible);
+        Assert.False(view.FindControl<Grid>("Damping")!.IsVisible);
+        Assert.False(view.FindControl<Grid>("Balance")!.IsVisible);
+        Assert.False(view.FindControl<Grid>("Vibration")!.IsVisible);
+        Assert.False(view.FindControl<Grid>("Analysis")!.IsVisible);
+    }
+
+    [AvaloniaFact]
     public async Task SessionAnalysisDesktopView_ShowsSpringSectionInitially_WhenFrontAndRearAnalysisAreAvailable()
     {
         var workspace = new SessionAnalysisWorkspaceStub(
@@ -139,6 +163,30 @@ public class SessionAnalysisDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task SessionAnalysisDesktopView_DoesNotMaterializeContributedAnalysisTabUntilSelected()
+    {
+        var createdCount = 0;
+        var workspace = new SessionAnalysisWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontAnalysis: true,
+            hasRearAnalysis: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+        workspace.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution(
+            "extension-tab",
+            onCreate: () => createdCount++));
+
+        await using var mounted = await MountAsync(workspace);
+
+        Assert.Equal(0, createdCount);
+
+        await SelectTabAsync(mounted.View, "Extension tab");
+
+        Assert.Equal(1, createdCount);
+        Assert.NotNull(GetExtensionAnalysisTabContent(mounted.View));
+    }
+
+    [AvaloniaFact]
     public async Task SessionAnalysisDesktopView_RemovingSelectedContributedAnalysisTab_FallsBackToSpring()
     {
         var workspace = new SessionAnalysisWorkspaceStub(
@@ -177,12 +225,14 @@ public class SessionAnalysisDesktopViewTests
         workspace.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution("extension-tab"));
 
         await using var mounted = await MountAsync(workspace);
+        await SelectTabAsync(mounted.View, "Extension tab");
+        var extensionContent = GetExtensionAnalysisTabContent(mounted.View);
         await SelectTabAsync(mounted.View, "Balance");
 
         Assert.False(mounted.View.FindControl<Grid>("SpringRate")!.IsVisible);
         Assert.False(mounted.View.FindControl<Grid>("Damping")!.IsVisible);
         Assert.True(mounted.View.FindControl<Grid>("Balance")!.IsVisible);
-        Assert.False(GetExtensionAnalysisTabContent(mounted.View).IsVisible);
+        Assert.False(extensionContent.IsVisible);
     }
 
     [AvaloniaFact]
@@ -197,6 +247,7 @@ public class SessionAnalysisDesktopViewTests
         workspace.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution("extension-tab"));
 
         await using var mounted = await MountAsync(workspace);
+        await SelectTabAsync(mounted.View, "Extension tab");
         var firstContent = GetExtensionAnalysisTabContent(mounted.View);
 
         workspace.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution(
@@ -206,6 +257,12 @@ public class SessionAnalysisDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Same(firstContent, GetExtensionAnalysisTabContent(mounted.View));
+        Assert.DoesNotContain(
+            mounted.View.FindControl<ItemsControl>("AnalysisContentHost")!.Items.OfType<TestContributionViewModel>(),
+            view => view.Name == "LaterExtensionAnalysisTabContent");
+
+        await SelectTabAsync(mounted.View, "Later extension tab");
+
         Assert.NotNull(GetExtensionAnalysisTabContent(mounted.View, "LaterExtensionAnalysisTabContent"));
     }
 
@@ -447,7 +504,8 @@ public class SessionAnalysisDesktopViewTests
     private static RecordedSessionAnalysisTabContribution CreateAnalysisTabContribution(
         string contributionId,
         string displayName = "Extension tab",
-        string contentName = "ExtensionAnalysisTabContent")
+        string contentName = "ExtensionAnalysisTabContent",
+        Action? onCreate = null)
     {
         return new RecordedSessionAnalysisTabContribution(
             "extension",
@@ -455,10 +513,14 @@ public class SessionAnalysisDesktopViewTests
             Order: 0,
             displayName,
             RequestedIndex: 3,
-            new TestContributionViewModel
+            () =>
             {
-                Name = contentName,
-                Content = new TextBlock { Text = contentName },
+                onCreate?.Invoke();
+                return new TestContributionViewModel
+                {
+                    Name = contentName,
+                    Content = new TextBlock { Text = contentName },
+                };
             });
     }
 
