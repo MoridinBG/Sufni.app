@@ -7,24 +7,22 @@ namespace Sufni.App.Tests.Bikes.Models;
 public class BikeSerializationTests
 {
     [Fact]
-    public void BikeFromJson_LegacyLinkageExportWithoutRearSuspensionKind_ResolvesAsLinkageBike()
+    public void BikeToJson_RoundTripsLinkageBike()
     {
+        var linkage = TestSnapshots.FullSuspensionLinkage();
         var bike = new Bike(Guid.NewGuid(), "legacy linkage bike")
         {
             HeadAngle = 64,
             ForkStroke = 150,
-            Linkage = TestSnapshots.FullSuspensionLinkage(),
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage.ToSpec()),
             ShockStroke = 0.5,
         };
 
-        var json = JsonNode.Parse(bike.ToJson())!.AsObject();
-        json.Remove("rear_suspension_kind");
-        var imported = Bike.FromJson(json.ToJsonString());
+        var imported = Bike.FromJson(bike.ToJson());
 
         Assert.NotNull(imported);
-        Assert.Equal(RearSuspensionKind.Linkage, imported!.RearSuspensionKind);
-        var resolution = RearSuspensionResolver.Resolve(imported.RearSuspensionKind, imported.Linkage, imported.LeverageRatio);
-        Assert.IsType<RearSuspensionResolution.Linkage>(resolution);
+        var importedLinkage = Assert.IsType<RearSuspensionSpec.Linkage>(imported!.RearSuspension);
+        Assert.Equal(linkage.ToSpec(), importedLinkage.Spec);
     }
 
     [Fact]
@@ -36,8 +34,7 @@ public class BikeSerializationTests
             HeadAngle = 64,
             ForkStroke = 150,
             ShockStroke = 20,
-            RearSuspensionKind = RearSuspensionKind.LeverageRatio,
-            LeverageRatio = leverageRatio,
+            RearSuspension = new RearSuspensionSpec.LeverageRatio(leverageRatio),
             FrontCompressionDampingCutoffMmPerSecond = 110,
             FrontReboundDampingCutoffMmPerSecond = 120,
             RearCompressionDampingCutoffMmPerSecond = 230,
@@ -47,9 +44,8 @@ public class BikeSerializationTests
         var imported = Bike.FromJson(bike.ToJson());
 
         Assert.NotNull(imported);
-        Assert.Equal(RearSuspensionKind.LeverageRatio, imported!.RearSuspensionKind);
-        Assert.NotNull(imported.LeverageRatio);
-        Assert.Equal(leverageRatio.Points, imported.LeverageRatio!.Points);
+        var importedLeverageRatio = Assert.IsType<RearSuspensionSpec.LeverageRatio>(imported!.RearSuspension);
+        Assert.Equal(leverageRatio.Points, importedLeverageRatio.Spec.Points);
         Assert.Equal(110, imported.FrontCompressionDampingCutoffMmPerSecond);
         Assert.Equal(120, imported.FrontReboundDampingCutoffMmPerSecond);
         Assert.Equal(230, imported.RearCompressionDampingCutoffMmPerSecond);

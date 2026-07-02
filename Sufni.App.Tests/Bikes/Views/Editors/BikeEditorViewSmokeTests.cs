@@ -211,10 +211,10 @@ public class BikeEditorViewSmokeTests
             HeadAngle = 64,
             ForkStroke = 170,
             ShockStroke = 0.5,
-            RearSuspensionKind = RearSuspensionKind.Linkage,
             Chainstay = 440,
             PixelsToMillimeters = 1,
-            Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true),
+            RearSuspension = new RearSuspensionSpec.Linkage(
+                TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true).ToSpec()),
             FrontWheelRimSize = EtrtoRimSize.Inch29,
             FrontWheelTireWidth = 2.4,
             FrontWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),

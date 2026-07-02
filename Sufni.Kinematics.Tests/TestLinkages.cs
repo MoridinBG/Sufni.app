@@ -29,4 +29,7 @@ internal static class TestLinkages
             new Link(shockEye1, shockEye2),
             0.5);
     }
+
+    public static LinkageSpec FullSuspensionLinkageSpec(bool includeHeadTubeJoints = false) =>
+        FullSuspensionLinkage(includeHeadTubeJoints).ToSpec();
 }

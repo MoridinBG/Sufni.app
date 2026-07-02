@@ -36,25 +36,23 @@ public class ModelJsonTests
     }
 
     [Fact]
-    public void BikeFromJson_ResolvesLinkageJointReferences()
+    public void BikeFromJson_RoundTripsLinkageSpec()
     {
+        var linkage = CreateSimpleLinkage();
         var bike = new Bike(Guid.NewGuid(), "linkage bike")
         {
             HeadAngle = 64,
             ForkStroke = 150,
-            Linkage = CreateSimpleLinkage(),
+            ShockStroke = linkage.ShockStroke,
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage.ToSpec()),
         };
 
         var imported = Bike.FromJson(bike.ToJson());
 
         Assert.NotNull(imported);
-        Assert.NotNull(imported!.Linkage);
+        var importedLinkage = Assert.IsType<RearSuspensionSpec.Linkage>(imported!.RearSuspension);
         Assert.Equal(0.5, imported.ShockStroke);
-        Assert.NotNull(imported.Linkage!.Links[0].A);
-        Assert.NotNull(imported.Linkage.Shock.A);
-        Assert.Same(imported.Linkage.Joints[0], imported.Linkage.Links[0].A);
-        Assert.Same(imported.Linkage.Joints[2], imported.Linkage.Shock.A);
-        Assert.Equal(0.5, imported.Linkage.ShockStroke);
+        Assert.Equal(linkage.ToSpec(), importedLinkage.Spec);
     }
 
     [Fact]

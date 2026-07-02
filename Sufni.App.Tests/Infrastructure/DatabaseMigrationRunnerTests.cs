@@ -78,29 +78,39 @@ public class DatabaseMigrationRunnerTests
         {
             var columns = verificationConnection.Query<TableColumnInfo>("PRAGMA table_info(bike)");
 
-            Assert.Contains(columns, column => column.Name == "rear_suspension_kind");
-            Assert.Contains(columns, column => column.Name == "leverage_ratio");
+            Assert.Contains(columns, column => column.Name == "rear_suspension");
+            Assert.DoesNotContain(columns, column => column.Name == "rear_suspension_kind");
+            Assert.DoesNotContain(columns, column => column.Name == "linkage");
+            Assert.DoesNotContain(columns, column => column.Name == "leverage_ratio");
             Assert.Contains(columns, column => column.Name == "front_compression_damping_cutoff_mm_per_second");
             Assert.Contains(columns, column => column.Name == "front_rebound_damping_cutoff_mm_per_second");
             Assert.Contains(columns, column => column.Name == "rear_compression_damping_cutoff_mm_per_second");
             Assert.Contains(columns, column => column.Name == "rear_rebound_damping_cutoff_mm_per_second");
+
+            var rearSuspensionJson = verificationConnection.ExecuteScalar<string>(
+                "SELECT rear_suspension FROM bike WHERE id = ?",
+                legacyBikeId.ToString());
+            var rearSuspension = RearSuspensionJsonCodec.Deserialize(rearSuspensionJson);
+            var linkage = Assert.IsType<RearSuspensionSpec.Linkage>(rearSuspension);
+            Assert.Equal(0.5, linkage.Spec.ShockStroke);
         }
 
         var firstRunBike = Assert.Single(firstRunBikes);
         Assert.Equal(legacyBikeId, firstRunBike.Id);
-        Assert.Equal(RearSuspensionKind.Linkage, firstRunBike.RearSuspensionKind);
+        var firstRunLinkage = Assert.IsType<RearSuspensionSpec.Linkage>(firstRunBike.RearSuspension);
+        Assert.Equal(0.5, firstRunLinkage.Spec.ShockStroke);
         Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, firstRunBike.FrontCompressionDampingCutoffMmPerSecond);
         Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, firstRunBike.FrontReboundDampingCutoffMmPerSecond);
         Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, firstRunBike.RearCompressionDampingCutoffMmPerSecond);
         Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, firstRunBike.RearReboundDampingCutoffMmPerSecond);
-        Assert.NotNull(firstRunBike.Linkage);
 
         var secondRun = new TestPersistenceHarness(databasePath);
         var secondRunBikes = await secondRun.GetAllAsync<Bike>();
 
         var secondRunBike = Assert.Single(secondRunBikes);
         Assert.Equal(legacyBikeId, secondRunBike.Id);
-        Assert.Equal(RearSuspensionKind.Linkage, secondRunBike.RearSuspensionKind);
+        var secondRunLinkage = Assert.IsType<RearSuspensionSpec.Linkage>(secondRunBike.RearSuspension);
+        Assert.Equal(0.5, secondRunLinkage.Spec.ShockStroke);
         Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, secondRunBike.FrontCompressionDampingCutoffMmPerSecond);
         Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, secondRunBike.FrontReboundDampingCutoffMmPerSecond);
         Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, secondRunBike.RearCompressionDampingCutoffMmPerSecond);
@@ -426,9 +436,8 @@ public class DatabaseMigrationRunnerTests
         var linkage = TestSnapshots.FullSuspensionLinkage();
         var bikeSnapshot = TestSnapshots.Bike(id: Guid.NewGuid(), updated: 20) with
         {
-            RearSuspensionKind = RearSuspensionKind.Linkage,
             ShockStroke = linkage.ShockStroke,
-            Linkage = linkage
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage.ToSpec())
         };
         ProcessingFingerprint? staleFingerprint = null;
         var seed = SeedProcessedSessionDatabase(
@@ -438,7 +447,7 @@ public class DatabaseMigrationRunnerTests
                 var fingerprintService = new ProcessingFingerprintService();
                 var legacyBike = BikeSnapshot.From(seed.Bike) with
                 {
-                    RearSuspensionKind = RearSuspensionKind.None
+                    RearSuspension = new RearSuspensionSpec.Hardtail()
                 };
                 staleFingerprint = fingerprintService.CreateCurrent(
                     SessionSnapshot.From(seed.Session),
@@ -456,7 +465,7 @@ public class DatabaseMigrationRunnerTests
 
         Assert.NotNull(persisted);
         Assert.NotNull(persistedBike);
-        Assert.Equal(RearSuspensionKind.Linkage, persistedBike.RearSuspensionKind);
+        Assert.IsType<RearSuspensionSpec.Linkage>(persistedBike.RearSuspension);
         Assert.Equal(seed.Session.Updated, persisted.Updated);
         Assert.Equal(seed.ProcessedData, await database.GetSessionRawPsstAsync(seed.Session.Id));
 
@@ -684,9 +693,16 @@ public class DatabaseMigrationRunnerTests
         connection.Insert(source);
         if (storeLegacyRearSuspensionKind)
         {
+            connection.Execute("ALTER TABLE bike ADD COLUMN rear_suspension_kind INTEGER");
+            connection.Execute("ALTER TABLE bike ADD COLUMN linkage TEXT");
+            connection.Execute("ALTER TABLE bike ADD COLUMN leverage_ratio TEXT");
+            var linkageJson = bike.RearSuspension is RearSuspensionSpec.Linkage linkage
+                ? linkage.Spec.ToJson()
+                : null;
             connection.Execute(
-                "UPDATE bike SET rear_suspension_kind = ? WHERE id = ?",
+                "UPDATE bike SET rear_suspension_kind = ?, linkage = ? WHERE id = ?",
                 (int)RearSuspensionKind.None,
+                linkageJson,
                 bike.Id);
         }
 

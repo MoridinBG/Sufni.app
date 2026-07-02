@@ -152,8 +152,7 @@ public class BikeCoordinatorTests
         {
             HeadAngle = 64,
             ForkStroke = 150,
-            RearSuspensionKind = RearSuspensionKind.Linkage,
-            LeverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)),
+            RearSuspension = new RearSuspensionSpec.LeverageRatioDraft(),
         };
         bikeEditorService.ImportBikeAsync(Arg.Any<CancellationToken>())
             .Returns(new BikeFileImportResult.Imported(importedBike));
@@ -366,11 +365,11 @@ public class BikeCoordinatorTests
             HeadAngle = 65,
             ForkStroke = 160,
             ShockStroke = 50,
-            RearSuspensionKind = RearSuspensionKind.Linkage,
             Chainstay = 440,
             PixelsToMillimeters = 1,
             ImageBytes = TestImages.SmallPngBytes(),
-            Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true),
+            RearSuspension = new RearSuspensionSpec.Linkage(
+                TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true).ToSpec()),
         };
 
         var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);

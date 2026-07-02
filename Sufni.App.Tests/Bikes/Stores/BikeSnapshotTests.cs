@@ -8,21 +8,20 @@ namespace Sufni.App.Tests.Bikes.Stores;
 public class BikeSnapshotTests
 {
     [Fact]
-    public void From_PreservesKindPayloadMismatch_WithoutNormalization()
+    public void From_ExposesRearSuspensionConvenienceAccessors()
     {
         var leverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (10, 25));
-        var bike = new Bike(Guid.NewGuid(), "mismatched")
+        var bike = new Bike(Guid.NewGuid(), "leverage ratio")
         {
             HeadAngle = 65,
             ForkStroke = 160,
-            RearSuspensionKind = RearSuspensionKind.Linkage,
-            LeverageRatio = leverageRatio,
+            RearSuspension = new RearSuspensionSpec.LeverageRatio(leverageRatio),
             Updated = 1,
         };
 
         var snapshot = BikeSnapshot.From(bike);
 
-        Assert.Equal(RearSuspensionKind.Linkage, snapshot.RearSuspensionKind);
+        Assert.Equal(RearSuspensionKind.LeverageRatio, snapshot.Kind);
         Assert.Null(snapshot.Linkage);
         Assert.Same(leverageRatio, snapshot.LeverageRatio);
     }

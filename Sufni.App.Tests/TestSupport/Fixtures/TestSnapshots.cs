@@ -22,30 +22,24 @@ public static class TestSnapshots
         HeadAngle: 65,
         ForkStroke: 160,
         ShockStroke: null,
-        RearSuspensionKind: RearSuspensionKind.None,
+        RearSuspension: new RearSuspensionSpec.Hardtail(),
         FrontCompressionDampingCutoffMmPerSecond: 200,
         FrontReboundDampingCutoffMmPerSecond: 200,
         RearCompressionDampingCutoffMmPerSecond: 200,
         RearReboundDampingCutoffMmPerSecond: 200,
         Chainstay: null,
         PixelsToMillimeters: 0,
-        FrontWheelDiameterMm: null,
-        RearWheelDiameterMm: null,
-        FrontWheelRimSize: null,
-        FrontWheelTireWidth: null,
-        RearWheelRimSize: null,
-        RearWheelTireWidth: null,
+        FrontWheel: null,
+        RearWheel: null,
         ImageRotationDegrees: 0,
-        LeverageRatio: null,
-        Linkage: null,
         ImageBytes: [],
         Updated: updated);
 
-    public static LeverageRatio LeverageRatioCurve(params (double ShockTravelMm, double WheelTravelMm)[] points) =>
-        LeverageRatio.FromPoints(points.Select(point => new LeverageRatioPoint(point.ShockTravelMm, point.WheelTravelMm)).ToArray());
+    public static LeverageRatioSpec LeverageRatioCurve(params (double ShockTravelMm, double WheelTravelMm)[] points) =>
+        LeverageRatioSpec.FromPoints(points.Select(point => new LeverageRatioPoint(point.ShockTravelMm, point.WheelTravelMm)).ToArray());
 
     public static BikeSnapshot LeverageRatioBike(
-        LeverageRatio leverageRatio,
+        LeverageRatioSpec leverageRatio,
         double? shockStroke = 60,
         Guid? id = null,
         string name = "test leverage-ratio bike",
@@ -56,8 +50,7 @@ public static class TestSnapshots
             HeadAngle = 65,
             ForkStroke = 160,
             ShockStroke = shockStroke,
-            RearSuspensionKind = RearSuspensionKind.LeverageRatio,
-            LeverageRatio = leverageRatio,
+            RearSuspension = new RearSuspensionSpec.LeverageRatio(leverageRatio),
             Updated = updated,
         };
 

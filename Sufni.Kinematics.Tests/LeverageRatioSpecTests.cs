@@ -2,13 +2,13 @@ using Sufni.Kinematics;
 
 namespace Sufni.Kinematics.Tests;
 
-public class LeverageRatioTests
+public class LeverageRatioSpecTests
 {
     [Fact]
     public void FromPoints_ThrowsValidationException_WhenShockTravelDoesNotIncrease()
     {
         var exception = Assert.Throws<LeverageRatioValidationException>(() =>
-            LeverageRatio.FromPoints(
+            LeverageRatioSpec.FromPoints(
             [
                 new LeverageRatioPoint(0, 0),
                 new LeverageRatioPoint(10, 20),
@@ -19,9 +19,64 @@ public class LeverageRatioTests
     }
 
     [Fact]
+    public void FromPoints_CopiesPoints()
+    {
+        LeverageRatioPoint[] points =
+        [
+            new(0, 0),
+            new(10, 25)
+        ];
+
+        var leverageRatio = LeverageRatioSpec.FromPoints(points);
+        points[1] = new LeverageRatioPoint(10, 40);
+
+        Assert.Equal(25, leverageRatio.Points[1].WheelTravelMm);
+    }
+
+    [Fact]
+    public void FromJson_RoundTripsPointOrder()
+    {
+        var leverageRatio = LeverageRatioSpec.FromPoints(
+        [
+            new LeverageRatioPoint(0, 0),
+            new LeverageRatioPoint(10, 30),
+            new LeverageRatioPoint(20, 50)
+        ]);
+
+        var parsed = LeverageRatioSpec.FromJson(leverageRatio.ToJson());
+
+        Assert.NotNull(parsed);
+        Assert.Equal(leverageRatio.Points, parsed.Points);
+    }
+
+    [Fact]
+    public void StructuralEquality_UsesExactPointOrderAndDoubleBits()
+    {
+        var leverageRatio = LeverageRatioSpec.FromPoints(
+        [
+            new LeverageRatioPoint(0.0, 0),
+            new LeverageRatioPoint(10, 30)
+        ]);
+        var same = LeverageRatioSpec.FromPoints(
+        [
+            new LeverageRatioPoint(0.0, 0),
+            new LeverageRatioPoint(10, 30)
+        ]);
+        var negativeZero = LeverageRatioSpec.FromPoints(
+        [
+            new LeverageRatioPoint(-0.0, 0),
+            new LeverageRatioPoint(10, 30)
+        ]);
+
+        Assert.Equal(leverageRatio, same);
+        Assert.Equal(leverageRatio.GetHashCode(), same.GetHashCode());
+        Assert.NotEqual(leverageRatio, negativeZero);
+    }
+
+    [Fact]
     public void WheelTravelAt_InterpolatesWithinRange_AndClampsOutsideRange()
     {
-        var leverageRatio = LeverageRatio.FromPoints(
+        var leverageRatio = LeverageRatioSpec.FromPoints(
         [
             new LeverageRatioPoint(0, 0),
             new LeverageRatioPoint(10, 30),
@@ -37,7 +92,7 @@ public class LeverageRatioTests
     [Fact]
     public void DeriveLeverageRatioSamples_ReturnsWheelMidpointsAndSegmentRatios()
     {
-        var leverageRatio = LeverageRatio.FromPoints(
+        var leverageRatio = LeverageRatioSpec.FromPoints(
         [
             new LeverageRatioPoint(0, 0),
             new LeverageRatioPoint(10, 30),
@@ -63,7 +118,7 @@ public class LeverageRatioTests
     [Fact]
     public void DeriveLeverageRatioData_ReturnsWheelMidpointsAndSegmentRatios()
     {
-        var leverageRatio = LeverageRatio.FromPoints(
+        var leverageRatio = LeverageRatioSpec.FromPoints(
         [
             new LeverageRatioPoint(0, 0),
             new LeverageRatioPoint(10, 30),

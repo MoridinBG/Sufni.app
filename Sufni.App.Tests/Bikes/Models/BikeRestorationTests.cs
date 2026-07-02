@@ -20,13 +20,14 @@ public class BikeRestorationTests
             PixelsToMillimeters = 1,
             ImageRotationDegrees = 12.5,
             ImageBytes = TestImages.SmallPngBytes(),
-            Linkage = TestSnapshots.FullSuspensionLinkage(),
             FrontCompressionDampingCutoffMmPerSecond = 115,
             FrontReboundDampingCutoffMmPerSecond = 125,
             RearCompressionDampingCutoffMmPerSecond = 235,
             RearReboundDampingCutoffMmPerSecond = 245,
             Updated = 7,
         };
+        var linkage = TestSnapshots.FullSuspensionLinkage();
+        source.RearSuspension = new RearSuspensionSpec.Linkage(linkage.ToSpec());
         source.ShockStroke = 0.5;
 
         var snapshot = BikeSnapshot.From(source);
@@ -39,30 +40,26 @@ public class BikeRestorationTests
         Assert.Equal(snapshot.RearReboundDampingCutoffMmPerSecond, restored.RearReboundDampingCutoffMmPerSecond);
         Assert.Equal(snapshot.Chainstay, restored.Chainstay);
         Assert.Equal(snapshot.ImageRotationDegrees, restored.ImageRotationDegrees);
-        Assert.NotNull(restored.Linkage);
-        Assert.Equal(snapshot.ShockStroke, restored.Linkage!.ShockStroke);
-        Assert.Equal(DescribeJoints(snapshot.Linkage!.Joints), DescribeJoints(restored.Linkage.Joints));
-        Assert.Equal(DescribeLinks(snapshot.Linkage.Links.Append(snapshot.Linkage.Shock)), DescribeLinks(restored.Linkage.Links.Append(restored.Linkage.Shock)));
+        var restoredLinkage = Assert.IsType<RearSuspensionSpec.Linkage>(restored.RearSuspension);
+        Assert.Equal(snapshot.ShockStroke, restoredLinkage.Spec.ShockStroke);
+        Assert.Equal(DescribeJoints(snapshot.Linkage!.Joints), DescribeJoints(restoredLinkage.Spec.Joints));
+        Assert.Equal(DescribeLinks(snapshot.Linkage.Links.Append(snapshot.Linkage.Shock)), DescribeLinks(restoredLinkage.Spec.Links.Append(restoredLinkage.Spec.Shock)));
     }
 
-    private static IReadOnlyList<(string Name, JointType? Type, double X, double Y)> DescribeJoints(IEnumerable<Joint> joints) =>
+    private static IReadOnlyList<(string Name, JointType? Type, double X, double Y)> DescribeJoints(IEnumerable<JointSpec> joints) =>
         joints
             .OrderBy(joint => joint.Name)
             .Select(joint => (joint.Name ?? string.Empty, joint.Type, Math.Round(joint.X, 3), Math.Round(joint.Y, 3)))
             .ToList();
 
-    private static IReadOnlyList<string> DescribeLinks(IEnumerable<Link> links) =>
+    private static IReadOnlyList<string> DescribeLinks(IEnumerable<LinkSpec> links) =>
         links
             .Select(DescribeLink)
             .OrderBy(link => link)
             .ToList();
 
-    private static string DescribeLink(Link link)
-    {
-        var a = Assert.IsType<Joint>(link.A);
-        var b = Assert.IsType<Joint>(link.B);
-        return string.CompareOrdinal(a.Name, b.Name) <= 0
-            ? $"{a.Name}->{b.Name}"
-            : $"{b.Name}->{a.Name}";
-    }
+    private static string DescribeLink(LinkSpec link) =>
+        string.CompareOrdinal(link.A, link.B) <= 0
+            ? $"{link.A}->{link.B}"
+            : $"{link.B}->{link.A}";
 }

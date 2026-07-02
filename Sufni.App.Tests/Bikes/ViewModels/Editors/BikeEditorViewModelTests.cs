@@ -60,8 +60,8 @@ public class BikeEditorViewModelTests
             ForkStroke = 170,
             ImageBytes = TestImages.SmallPngBytes(),
             PixelsToMillimeters = 1,
-            RearSuspensionKind = RearSuspensionKind.Linkage,
-            Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints),
+            RearSuspension = new RearSuspensionSpec.Linkage(
+                TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints).ToSpec()),
             FrontWheelRimSize = frontWheelRimSize,
             FrontWheelTireWidth = frontWheelTireWidth,
             FrontWheelDiameterMm = frontWheelDiameter,
@@ -173,10 +173,11 @@ public class BikeEditorViewModelTests
         Assert.Equal(snapshot.ImageRotationDegrees, editor.ImageCanvas.ImageRotationDegrees);
         Assert.Equal(snapshot.ImageBytes.Length > 0, editor.ImageCanvas.Image is not null);
 
-        Assert.Equal(snapshot.Linkage.Joints.Count, editor.LinkageEditor.JointViewModels.Count);
-        Assert.Equal(snapshot.Linkage.Links.Count + 1, editor.LinkageEditor.LinkViewModels.Count);
-        Assert.Equal(DescribeJoints(snapshot.Linkage.Joints), DescribeEditorJoints(editor));
-        Assert.Equal(DescribeLinks(snapshot.Linkage.Links.Append(snapshot.Linkage.Shock)), DescribeEditorLinks(editor));
+        var mutableLinkage = Linkage.FromSpec(snapshot.Linkage);
+        Assert.Equal(mutableLinkage.Joints.Count, editor.LinkageEditor.JointViewModels.Count);
+        Assert.Equal(mutableLinkage.Links.Count + 1, editor.LinkageEditor.LinkViewModels.Count);
+        Assert.Equal(DescribeJoints(mutableLinkage.Joints), DescribeEditorJoints(editor));
+        Assert.Equal(DescribeLinks(mutableLinkage.Links.Append(mutableLinkage.Shock)), DescribeEditorLinks(editor));
     }
 
     // ----- Construction -----
@@ -204,7 +205,7 @@ public class BikeEditorViewModelTests
     [AvaloniaFact]
     public void Construction_NewLinkageBike_AddsInitialJoints()
     {
-        var snapshot = TestSnapshots.Bike() with { RearSuspensionKind = RearSuspensionKind.Linkage };
+        var snapshot = TestSnapshots.Bike() with { RearSuspension = new RearSuspensionSpec.LinkageDraft() };
         var editor = CreateEditor(snapshot, isNew: true);
 
         // AddInitialJoints contributes 7 joints (FrontWheel, BottomBracket,
@@ -231,7 +232,7 @@ public class BikeEditorViewModelTests
     [AvaloniaFact]
     public void Construction_FromDraftLeverageRatioSnapshot_SetsLeverageRatioMode_WithoutLoadError()
     {
-        var snapshot = TestSnapshots.Bike() with { RearSuspensionKind = RearSuspensionKind.LeverageRatio };
+        var snapshot = TestSnapshots.Bike() with { RearSuspension = new RearSuspensionSpec.LeverageRatioDraft() };
 
         var editor = CreateEditor(snapshot, isNew: true);
 
@@ -240,19 +241,17 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
-    public void Construction_FromInvalidMismatchSnapshot_FallsBackToHardtailMode_AndShowsLoadError()
+    public void Construction_FromDraftLinkageSnapshot_SetsLinkageMode_WithoutLoadError()
     {
-        var leverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (30, 75), (60, 150));
         var snapshot = TestSnapshots.Bike() with
         {
-            RearSuspensionKind = RearSuspensionKind.Linkage,
-            LeverageRatio = leverageRatio,
+            RearSuspension = new RearSuspensionSpec.LinkageDraft(),
         };
 
         var editor = CreateEditor(snapshot);
 
-        Assert.Equal(BikeRearSuspensionMode.None, editor.RearSuspensionMode);
-        Assert.Single(editor.ErrorMessages);
+        Assert.Equal(BikeRearSuspensionMode.Linkage, editor.RearSuspensionMode);
+        Assert.Empty(editor.ErrorMessages);
     }
 
     [AvaloniaFact]
@@ -555,7 +554,7 @@ public class BikeEditorViewModelTests
             Arg.Is<Bike>(b =>
                 b.Id == snapshot.Id &&
                 b.Name == "renamed" &&
-                b.Linkage == null &&
+                b.RearSuspension is RearSuspensionSpec.Hardtail &&
                 b.FrontWheelDiameterMm == 760 &&
                 b.RearWheelDiameterMm == 750 &&
                 b.ImageRotationDegrees == 0),

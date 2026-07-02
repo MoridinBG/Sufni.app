@@ -74,7 +74,7 @@ public class BikeCharacteristicsRearMappingTests
 
     private static BikeCharacteristics CreateCharacteristics()
     {
-        var solution = new KinematicSolver(TestLinkages.FullSuspensionLinkage(includeHeadTubeJoints: true))
+        var solution = new KinematicSolver(TestLinkages.FullSuspensionLinkageSpec(includeHeadTubeJoints: true))
             .SolveSuspensionMotion();
 
         return new BikeCharacteristics(solution);

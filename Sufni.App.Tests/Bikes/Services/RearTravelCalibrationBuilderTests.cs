@@ -118,8 +118,7 @@ public class RearTravelCalibrationBuilderTests
             HeadAngle = 64,
             ForkStroke = 170,
             ShockStroke = linkage.ShockStroke,
-            RearSuspensionKind = RearSuspensionKind.Linkage,
-            Linkage = linkage,
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage.ToSpec()),
         };
         var setup = new Setup(Guid.NewGuid(), "linkage setup")
         {
@@ -147,7 +146,7 @@ public class RearTravelCalibrationBuilderTests
     {
         var bike = new Bike(Guid.NewGuid(), "invalid bike")
         {
-            RearSuspensionKind = RearSuspensionKind.Linkage,
+            RearSuspension = new RearSuspensionSpec.LinkageDraft(),
             ShockStroke = 0.5,
         };
         var setup = new Setup(Guid.NewGuid(), "invalid setup")
@@ -193,8 +192,7 @@ public class RearTravelCalibrationBuilderTests
             HeadAngle = 64,
             ForkStroke = 170,
             ShockStroke = linkage.ShockStroke,
-            RearSuspensionKind = RearSuspensionKind.Linkage,
-            Linkage = linkage,
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage.ToSpec()),
         };
         var mapping = new JointNameMapping();
         var setup = new Setup(Guid.NewGuid(), "rotational setup")
@@ -252,8 +250,7 @@ public class RearTravelCalibrationBuilderTests
             HeadAngle = 64,
             ForkStroke = 170,
             ShockStroke = linkage.ShockStroke,
-            RearSuspensionKind = RearSuspensionKind.Linkage,
-            Linkage = linkage,
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage.ToSpec()),
         };
         var mapping = new JointNameMapping();
         var setup = new Setup(Guid.NewGuid(), "degenerate rotational setup")

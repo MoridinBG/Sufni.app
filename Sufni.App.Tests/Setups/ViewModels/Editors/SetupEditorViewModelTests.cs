@@ -122,9 +122,9 @@ public class SetupEditorViewModelTests
     {
         var bike = TestSnapshots.Bike() with
         {
-            RearSuspensionKind = RearSuspensionKind.Linkage,
             ShockStroke = 0.5,
-            Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true),
+            RearSuspension = new RearSuspensionSpec.Linkage(
+                TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true).ToSpec()),
         };
         bikesCache.AddOrUpdate(bike);
         var snapshot = TestSnapshots.Setup(bikeId: bike.Id) with
@@ -147,9 +147,9 @@ public class SetupEditorViewModelTests
     {
         var linkageBike = TestSnapshots.Bike() with
         {
-            RearSuspensionKind = RearSuspensionKind.Linkage,
             ShockStroke = 0.5,
-            Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true),
+            RearSuspension = new RearSuspensionSpec.Linkage(
+                TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true).ToSpec()),
         };
         var leverageRatioBike = TestSnapshots.LeverageRatioBike(
             TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)));
@@ -167,16 +167,15 @@ public class SetupEditorViewModelTests
     }
 
     [AvaloniaFact]
-    public void SelectedBike_InvalidResolution_RestrictsSensorTypes()
+    public void SelectedBike_DraftRearSuspension_RestrictsSensorTypes()
     {
-        var invalidBike = TestSnapshots.Bike() with
+        var draftBike = TestSnapshots.Bike() with
         {
-            RearSuspensionKind = RearSuspensionKind.Linkage,
-            LeverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)),
+            RearSuspension = new RearSuspensionSpec.LinkageDraft(),
         };
-        bikesCache.AddOrUpdate(invalidBike);
+        bikesCache.AddOrUpdate(draftBike);
 
-        var editor = CreateEditor(TestSnapshots.Setup(bikeId: invalidBike.Id));
+        var editor = CreateEditor(TestSnapshots.Setup(bikeId: draftBike.Id));
         editor.LoadedCommand.Execute(null);
 
         Assert.Equal(new SensorType?[] { null }, editor.ShockSensorTypes);
@@ -199,9 +198,9 @@ public class SetupEditorViewModelTests
     {
         var linkageBike = TestSnapshots.Bike() with
         {
-            RearSuspensionKind = RearSuspensionKind.Linkage,
             ShockStroke = 0.5,
-            Linkage = TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true),
+            RearSuspension = new RearSuspensionSpec.Linkage(
+                TestSnapshots.FullSuspensionLinkage(includeHeadTubeJoints: true).ToSpec()),
         };
         var leverageRatioBike = TestSnapshots.LeverageRatioBike(
             TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)));
