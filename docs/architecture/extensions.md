@@ -9,7 +9,7 @@
 The SDK is split into two top-level namespaces inside the one assembly:
 
 - `Sufni.App.ExtensionHost.Contracts.*` — interfaces, records, and enums: the compatibility surface. Modules and the app code against these.
-- `Sufni.App.ExtensionHost.Runtime.*` — behavioral machinery that ships with the SDK (`RecordedSessionExtensionSlots`, the slot publisher and its batching collection, the mutable `SignalRowAction`). **Behavioral changes under `Runtime` are API changes** — extensions observe this machinery's semantics, not just its signatures.
+- `Sufni.App.ExtensionHost.Runtime.*` — behavioral machinery that ships with the SDK (`RecordedSessionExtensionSlots`, the slot publisher and its batching collection, the mutable `SignalRowAction`, and runtime presentation controls such as `PlotZoomContainer`). **Behavioral changes under `Runtime` are API changes** — extensions observe this machinery's semantics, not just its signatures.
 
 One deliberate cross-reference exists: the `Contracts` scope interface exposes `RecordedSessionExtensionSlots` (a `Runtime` type) — slots *are* part of the scope contract, and the single-assembly split keeps that legal.
 
@@ -65,6 +65,27 @@ This keeps public `ViewLocator` dictionaries free of extension view-model types 
 `IFilePickerService` is the neutral file-open picker seam available through DI. Callers pass a `FilePickerRequest` with `FilePickerFilter` descriptors and receive Avalonia `IStorageFile` results. `FilesService` implements this interface alongside the workflow-specific `IFilesService`, so extension modules that need user-selected files can depend on the generic picker surface without depending on app-specific import, GPX, image, bike/setup, or DAQ CONFIG workflows.
 
 `IExtensionDialogService` is the neutral dialog-hosting seam for extension-owned view models. Extensions pass an `ExtensionDialogRequest<TResult>` with a title, layout, and an `IExtensionDialogResultSource<TResult>` view model. `DialogService` hosts the view model through a `ContentControl`, so extension view templates still resolve through `ViewLocator`; desktop uses an owned modal window and mobile/single-view uses the existing overlay host. Completing the result source returns the supplied result, while closing the host without completion returns `default`.
+
+## Runtime Presentation Controls
+
+`Sufni.App.ExtensionHost.Runtime.Presentation` is public SDK surface. It
+contains small host-compatible controls and descriptors that extension views
+may use directly without referencing `Sufni.App`. `SignalRowAction` remains the
+row-header action descriptor used by app and extension signal rows.
+`PlotZoomContainer` is the opt-in contract for zoomable plot surfaces: the
+container raises `PlotZoomRequested` on double-tap/double-click when the
+gesture does not originate from an interactive descendant.
+
+The app's `PlotZoomOverlayHost` responds to that routed request by borrowing
+the container child and moving the live control into the modal overlay. The
+borrow/return contract is intentionally explicit: `BorrowChild()` detaches the
+child and pins the child's effective `DataContext`; `ReturnChild(child)`
+reattaches the same instance and restores either the child's previous local
+`DataContext` or inherited binding. Extensions that draw their own plot surface
+can wrap that surface in `PlotZoomContainer` to participate in the same modal
+without the app knowing the extension's concrete view type. While borrowed, the
+extension still owns its control state and rendering; the host owns only the
+modal placement and close gestures.
 
 ## Database Hooks
 
