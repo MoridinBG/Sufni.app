@@ -200,43 +200,24 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         return [.. jvms];
     }
 
-    private static RearSuspensionResolution ResolveRearSuspension(BikeSnapshot? bike) => bike is null
-        ? new RearSuspensionResolution.Hardtail()
-        : bike.RearSuspension switch
-        {
-            RearSuspensionSpec.Hardtail => new RearSuspensionResolution.Hardtail(),
-            RearSuspensionSpec.Linkage linkage => new RearSuspensionResolution.Linkage(
-                new LinkageRearSuspension(Linkage.FromSpec(linkage.Spec))),
-            RearSuspensionSpec.LeverageRatio leverageRatio => new RearSuspensionResolution.LeverageRatio(
-                new LeverageRatioRearSuspension(leverageRatio.Spec)),
-            RearSuspensionSpec.LinkageDraft => new RearSuspensionResolution.Hardtail(),
-            RearSuspensionSpec.LeverageRatioDraft => new RearSuspensionResolution.Hardtail(),
-            _ => new RearSuspensionResolution.Invalid(RearSuspensionResolutionError.MultiplePayloadsPresent),
-        };
-
-    private static IReadOnlyList<SensorType?> AllowedShockSensorTypes(RearSuspensionResolution resolution) => resolution switch
+    private static IReadOnlyList<SensorType?> AllowedShockSensorTypes(BikeSnapshot? bike) => bike?.RearSuspension switch
     {
-        RearSuspensionResolution.Linkage => [null, SensorType.LinearShock, SensorType.RotationalShock],
-        RearSuspensionResolution.LeverageRatio => [null, SensorType.LinearShockStroke],
-        RearSuspensionResolution.Invalid => [null],
-        RearSuspensionResolution.Hardtail => [null],
+        RearSuspensionSpec.Linkage => [null, SensorType.LinearShock, SensorType.RotationalShock],
+        RearSuspensionSpec.LeverageRatio => [null, SensorType.LinearShockStroke],
         _ => [null],
     };
 
-    private static string RearSuspensionDescriptionFor(RearSuspensionResolution resolution) => resolution switch
+    private static string RearSuspensionDescriptionFor(BikeSnapshot? bike) => bike?.RearSuspension switch
     {
-        RearSuspensionResolution.Linkage => "Linkage",
-        RearSuspensionResolution.LeverageRatio => "Leverage ratio",
-        RearSuspensionResolution.Invalid => "Invalid rear suspension",
-        RearSuspensionResolution.Hardtail => "Hardtail",
+        RearSuspensionSpec.Linkage => "Linkage",
+        RearSuspensionSpec.LeverageRatio => "Leverage ratio",
         _ => "Hardtail",
     };
 
     private void UpdateShockSensorCapabilities(BikeSnapshot? bike)
     {
-        var resolution = ResolveRearSuspension(bike);
-        RearSuspensionDescription = RearSuspensionDescriptionFor(resolution);
-        ShockSensorTypes = AllowedShockSensorTypes(resolution);
+        RearSuspensionDescription = RearSuspensionDescriptionFor(bike);
+        ShockSensorTypes = AllowedShockSensorTypes(bike);
 
         if (ShockSensorConfiguration is not null &&
             ShockSensorTypes.Contains(ShockSensorConfiguration.Type))
