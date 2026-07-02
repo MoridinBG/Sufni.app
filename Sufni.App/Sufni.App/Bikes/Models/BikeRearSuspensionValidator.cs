@@ -27,7 +27,7 @@ internal static class BikeRearSuspensionValidator
             RearSuspensionSpec.LeverageRatio leverageRatio =>
                 ValidateLeverageRatio(snapshot, leverageRatio.Spec),
 
-            _ => Invalid(BikeRearSuspensionValidationFailureCode.InvalidLegacyShape),
+            _ => throw new ArgumentOutOfRangeException(nameof(snapshot), snapshot.RearSuspension.GetType().Name)
         };
     }
 
@@ -99,7 +99,6 @@ internal sealed record BikeRearSuspensionValidationFailure(
 
 internal enum BikeRearSuspensionValidationFailureCode
 {
-    InvalidLegacyShape,
     LinkageDraft,
     LeverageRatioDraft,
     LinkageMissingShockStroke,

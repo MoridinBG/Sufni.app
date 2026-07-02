@@ -171,10 +171,9 @@ public class BikeCoordinator(
                 break;
 
             default:
-                var rearSuspensionError = RearSuspensionValidationMessages.ForSave(
-                    new BikeRearSuspensionValidationFailure(BikeRearSuspensionValidationFailureCode.InvalidLegacyShape));
-                logger.Warning("Bike save blocked because the rear suspension was invalid for {BikeId}: {ErrorMessage}", bike.Id, rearSuspensionError);
-                return new BikeSaveResult.InvalidRearSuspension(rearSuspensionError);
+                throw new ArgumentOutOfRangeException(
+                    nameof(validRearSuspension),
+                    validRearSuspension.RearSuspension.GetType().Name);
         }
 
         try
