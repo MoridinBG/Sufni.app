@@ -114,4 +114,20 @@ public class BikeSerializationTests
         Assert.Null(imported);
     }
 
+    [Fact]
+    public void BikeFromJson_RejectsUnsupportedSchemaVersion()
+    {
+        var bike = new Bike(Guid.NewGuid(), "schema bike")
+        {
+            HeadAngle = 64,
+            ForkStroke = 150,
+            RearSuspension = new RearSuspensionSpec.Hardtail(),
+        };
+        var root = JsonNode.Parse(bike.ToJson())!.AsObject();
+        root["schema_version"] = 1;
+
+        var imported = Bike.FromJson(root.ToJsonString());
+
+        Assert.Null(imported);
+    }
 }
