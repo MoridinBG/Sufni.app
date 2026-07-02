@@ -3,6 +3,7 @@ using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.Kinematics;
 using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Models;
@@ -116,6 +117,127 @@ public class DatabaseMigrationRunnerTests
         Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, secondRunBike.RearCompressionDampingCutoffMmPerSecond);
         Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, secondRunBike.RearReboundDampingCutoffMmPerSecond);
 
+    }
+
+    [Fact]
+    public async Task Initialization_BackfillsLegacyRearSuspensionMatrix()
+    {
+        using var tempDatabase = new TempDatabase("legacy-rear-suspension-matrix.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec();
+        var leverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (10, 25));
+        var cases = new[]
+        {
+            LegacyRearSuspensionCase.Create(
+                "linkage kind with linkage payload and shock column",
+                (int)RearSuspensionKind.Linkage,
+                linkage.ToJson(),
+                leverageRatioJson: null,
+                shockStroke: 0.6,
+                new RearSuspensionSpec.Linkage(linkage.WithShockStroke(0.6)),
+                expectedShockStroke: 0.6),
+            LegacyRearSuspensionCase.Create(
+                "linkage kind with linkage payload and null shock column",
+                (int)RearSuspensionKind.Linkage,
+                linkage.ToJson(),
+                leverageRatioJson: null,
+                shockStroke: null,
+                new RearSuspensionSpec.Linkage(linkage),
+                expectedShockStroke: linkage.ShockStroke),
+            LegacyRearSuspensionCase.Create(
+                "linkage kind with missing linkage payload",
+                (int)RearSuspensionKind.Linkage,
+                linkageJson: null,
+                leverageRatio.ToJson(),
+                shockStroke: null,
+                new RearSuspensionSpec.LinkageDraft(),
+                expectedShockStroke: null),
+            LegacyRearSuspensionCase.Create(
+                "leverage-ratio kind with leverage-ratio payload",
+                (int)RearSuspensionKind.LeverageRatio,
+                linkageJson: null,
+                leverageRatio.ToJson(),
+                shockStroke: 10,
+                new RearSuspensionSpec.LeverageRatio(leverageRatio),
+                expectedShockStroke: 10),
+            LegacyRearSuspensionCase.Create(
+                "leverage-ratio kind with missing leverage-ratio payload",
+                (int)RearSuspensionKind.LeverageRatio,
+                linkage.ToJson(),
+                leverageRatioJson: null,
+                shockStroke: 12,
+                new RearSuspensionSpec.LeverageRatioDraft(),
+                expectedShockStroke: 12),
+            LegacyRearSuspensionCase.Create(
+                "none kind with orphan linkage payload",
+                (int)RearSuspensionKind.None,
+                linkage.ToJson(),
+                leverageRatioJson: null,
+                shockStroke: 0.7,
+                new RearSuspensionSpec.Linkage(linkage.WithShockStroke(0.7)),
+                expectedShockStroke: 0.7),
+            LegacyRearSuspensionCase.Create(
+                "null kind with orphan leverage-ratio payload",
+                rearSuspensionKind: null,
+                linkageJson: null,
+                leverageRatio.ToJson(),
+                shockStroke: null,
+                new RearSuspensionSpec.LeverageRatio(leverageRatio),
+                expectedShockStroke: null),
+            LegacyRearSuspensionCase.Create(
+                "invalid kind with linkage payload",
+                99,
+                linkage.ToJson(),
+                leverageRatioJson: null,
+                shockStroke: null,
+                new RearSuspensionSpec.Linkage(linkage),
+                expectedShockStroke: linkage.ShockStroke),
+            LegacyRearSuspensionCase.Create(
+                "null kind with both payloads prefers linkage",
+                rearSuspensionKind: null,
+                linkage.ToJson(),
+                leverageRatio.ToJson(),
+                shockStroke: null,
+                new RearSuspensionSpec.Linkage(linkage),
+                expectedShockStroke: linkage.ShockStroke),
+            LegacyRearSuspensionCase.Create(
+                "null kind with invalid payloads",
+                rearSuspensionKind: null,
+                linkageJson: "{",
+                leverageRatioJson: "{",
+                shockStroke: null,
+                new RearSuspensionSpec.Hardtail(),
+                expectedShockStroke: null),
+        };
+
+        using (var connection = new SQLiteConnection(databasePath))
+        {
+            CreateLegacyBikeTableWithRearSuspensionColumns(connection);
+            foreach (var testCase in cases)
+            {
+                InsertLegacyBike(connection, testCase);
+            }
+        }
+
+        var database = new TestPersistenceHarness(databasePath);
+        var bikes = (await database.GetAllAsync<Bike>()).ToDictionary(bike => bike.Id);
+        Assert.Equal(cases.Length, bikes.Count);
+
+        using (var verificationConnection = new SQLiteConnection(databasePath))
+        {
+            var columns = verificationConnection.Query<TableColumnInfo>("PRAGMA table_info(bike)");
+            Assert.DoesNotContain(columns, column => column.Name == "rear_suspension_kind");
+            Assert.DoesNotContain(columns, column => column.Name == "linkage");
+            Assert.DoesNotContain(columns, column => column.Name == "leverage_ratio");
+        }
+
+        foreach (var testCase in cases)
+        {
+            var bike = bikes[testCase.Id];
+
+            Assert.Equal(testCase.ExpectedRearSuspension, bike.RearSuspension);
+            Assert.Equal(testCase.ExpectedShockStroke, bike.ShockStroke);
+        }
     }
 
     [Fact]
@@ -709,6 +831,68 @@ public class DatabaseMigrationRunnerTests
         return seed;
     }
 
+    private static void CreateLegacyBikeTableWithRearSuspensionColumns(SQLiteConnection connection)
+    {
+        connection.Execute(
+            """
+            CREATE TABLE bike (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                head_angle REAL NOT NULL,
+                fork_stroke REAL,
+                shock_stroke REAL,
+                rear_suspension_kind INTEGER,
+                linkage TEXT,
+                leverage_ratio TEXT,
+                pixels_to_millimeters REAL NOT NULL DEFAULT 0,
+                front_wheel_diameter REAL,
+                rear_wheel_diameter REAL,
+                front_wheel_rim_size INTEGER,
+                front_wheel_tire_width REAL,
+                rear_wheel_rim_size INTEGER,
+                rear_wheel_tire_width REAL,
+                image_rotation_degrees REAL NOT NULL DEFAULT 0,
+                image BLOB,
+                updated INTEGER NOT NULL,
+                client_updated INTEGER,
+                deleted INTEGER
+            )
+            """);
+    }
+
+    private static void InsertLegacyBike(SQLiteConnection connection, LegacyRearSuspensionCase testCase)
+    {
+        connection.Execute(
+            """
+            INSERT INTO bike (
+                id,
+                name,
+                head_angle,
+                fork_stroke,
+                shock_stroke,
+                rear_suspension_kind,
+                linkage,
+                leverage_ratio,
+                pixels_to_millimeters,
+                image_rotation_degrees,
+                image,
+                updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            testCase.Id.ToString(),
+            testCase.Name,
+            64.0,
+            150.0,
+            testCase.ShockStroke,
+            testCase.RearSuspensionKind,
+            testCase.LinkageJson,
+            testCase.LeverageRatioJson,
+            0.0,
+            0.0,
+            Array.Empty<byte>(),
+            1);
+    }
+
     private static ProcessingFingerprint CreateCurrentFingerprint(SeededProcessedSession seed)
     {
         var service = new ProcessingFingerprintService();
@@ -725,4 +909,32 @@ public class DatabaseMigrationRunnerTests
         Session Session,
         RecordedSessionSource Source,
         byte[] ProcessedData);
+
+    private sealed record LegacyRearSuspensionCase(
+        Guid Id,
+        string Name,
+        int? RearSuspensionKind,
+        string? LinkageJson,
+        string? LeverageRatioJson,
+        double? ShockStroke,
+        RearSuspensionSpec ExpectedRearSuspension,
+        double? ExpectedShockStroke)
+    {
+        public static LegacyRearSuspensionCase Create(
+            string name,
+            int? rearSuspensionKind,
+            string? linkageJson,
+            string? leverageRatioJson,
+            double? shockStroke,
+            RearSuspensionSpec expectedRearSuspension,
+            double? expectedShockStroke) => new(
+            Guid.NewGuid(),
+            name,
+            rearSuspensionKind,
+            linkageJson,
+            leverageRatioJson,
+            shockStroke,
+            expectedRearSuspension,
+            expectedShockStroke);
+    }
 }
