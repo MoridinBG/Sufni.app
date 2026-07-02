@@ -46,6 +46,21 @@ public class BikeSnapshotTests
     }
 
     [Fact]
+    public void From_CopiesImageBytes()
+    {
+        var bike = new Bike(Guid.NewGuid(), "image")
+        {
+            ImageBytes = [1, 2, 3],
+        };
+
+        var snapshot = BikeSnapshot.From(bike);
+
+        bike.ImageBytes[0] = 9;
+
+        Assert.Equal([1, 2, 3], snapshot.ImageBytes);
+    }
+
+    [Fact]
     public void WithExpression_ReplacesLinkageSpecWithoutMutatingOriginalSnapshot()
     {
         var linkage = TestSnapshots.FullSuspensionLinkageSpec();
