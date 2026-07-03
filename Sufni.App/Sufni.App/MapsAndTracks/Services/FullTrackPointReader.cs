@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.Infrastructure.Caching;
 
 namespace Sufni.App.MapsAndTracks.Services;
 
@@ -18,7 +19,7 @@ internal sealed class FullTrackPointReader : IFullTrackPointReader
     private const int DefaultCapacity = 64;
 
     private readonly ITrackRepository trackRepository;
-    private readonly TrackPointReaderCache<FullTrackPointCacheKey, IReadOnlyList<TrackPoint>?> cache;
+    private readonly SingleFlightLruCache<FullTrackPointCacheKey, Task<IReadOnlyList<TrackPoint>?>> cache;
 
     public FullTrackPointReader(ITrackRepository trackRepository)
         : this(trackRepository, DefaultCapacity)
@@ -28,7 +29,7 @@ internal sealed class FullTrackPointReader : IFullTrackPointReader
     internal FullTrackPointReader(ITrackRepository trackRepository, int capacity)
     {
         this.trackRepository = trackRepository;
-        cache = new TrackPointReaderCache<FullTrackPointCacheKey, IReadOnlyList<TrackPoint>?>(capacity);
+        cache = new SingleFlightLruCache<FullTrackPointCacheKey, Task<IReadOnlyList<TrackPoint>?>>(capacity);
     }
 
     public async Task<IReadOnlyList<TrackPoint>?> GetTrackPointsAsync(
@@ -46,7 +47,8 @@ internal sealed class FullTrackPointReader : IFullTrackPointReader
             }
 
             var key = new FullTrackPointCacheKey(metadata.Id, metadata.Updated);
-            var points = await cache.GetOrAddAsync(key, LoadTrackPointsAsync, cancellationToken);
+            var task = cache.GetOrAdd(key, key => LoadTrackPointsAsync(key, cancellationToken));
+            var points = await RemoveFailedValueAsync(key, task);
             if (points is not null || attempt == 1)
             {
                 return points;
@@ -68,6 +70,21 @@ internal sealed class FullTrackPointReader : IFullTrackPointReader
 
         var payload = await trackRepository.GetTrackPayloadAsync(key.TrackId, key.Updated);
         return payload?.Points;
+    }
+
+    private async Task<IReadOnlyList<TrackPoint>?> RemoveFailedValueAsync(
+        FullTrackPointCacheKey key,
+        Task<IReadOnlyList<TrackPoint>?> task)
+    {
+        try
+        {
+            return await task.ConfigureAwait(false);
+        }
+        catch
+        {
+            cache.Remove(key, task);
+            throw;
+        }
     }
 
     private readonly record struct FullTrackPointCacheKey(Guid TrackId, long Updated);

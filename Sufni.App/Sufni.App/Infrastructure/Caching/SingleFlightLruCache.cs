@@ -8,20 +8,35 @@ internal sealed class SingleFlightLruCache<TKey, TValue>
     where TKey : notnull
 {
     private readonly int capacity;
-    private readonly Func<TKey, TValue> factory;
+    private readonly Func<TKey, TValue>? factory;
     private readonly System.Threading.Lock gate = new();
     private readonly Dictionary<TKey, LinkedListNode<Entry>> entries = new();
     private readonly LinkedList<Entry> lru = new();
 
-    public SingleFlightLruCache(int capacity, Func<TKey, TValue> factory)
+    public SingleFlightLruCache(int capacity)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
 
         this.capacity = capacity;
+    }
+
+    public SingleFlightLruCache(int capacity, Func<TKey, TValue> factory)
+        : this(capacity)
+    {
         this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
     }
 
     public TValue GetOrAdd(TKey key)
+    {
+        if (factory is null)
+        {
+            throw new InvalidOperationException("A value factory must be supplied.");
+        }
+
+        return GetOrAdd(key, factory);
+    }
+
+    public TValue GetOrAdd(TKey key, Func<TKey, TValue> valueFactory)
     {
         Lazy<TValue> lazy;
 
@@ -36,7 +51,7 @@ internal sealed class SingleFlightLruCache<TKey, TValue>
             else
             {
                 lazy = new Lazy<TValue>(
-                    () => factory(key),
+                    () => valueFactory(key),
                     LazyThreadSafetyMode.ExecutionAndPublication);
                 var node = new LinkedListNode<Entry>(new Entry(key, lazy));
 
@@ -57,12 +72,69 @@ internal sealed class SingleFlightLruCache<TKey, TValue>
         }
     }
 
+    public void Remove(TKey key)
+    {
+        lock (gate)
+        {
+            RemoveLocked(key);
+        }
+    }
+
+    public void Remove(TKey key, TValue value)
+    {
+        lock (gate)
+        {
+            if (entries.TryGetValue(key, out var node) &&
+                node.Value.Value.IsValueCreated &&
+                EqualityComparer<TValue>.Default.Equals(node.Value.Value.Value, value))
+            {
+                RemoveLocked(key);
+            }
+        }
+    }
+
+    public void RemoveWhere(Predicate<TKey> predicate)
+    {
+        lock (gate)
+        {
+            var node = lru.First;
+            while (node is not null)
+            {
+                var next = node.Next;
+                if (predicate(node.Value.Key))
+                {
+                    lru.Remove(node);
+                    entries.Remove(node.Value.Key);
+                }
+
+                node = next;
+            }
+        }
+    }
+
+    public void Clear()
+    {
+        lock (gate)
+        {
+            entries.Clear();
+            lru.Clear();
+        }
+    }
+
     private void EvictOverflow()
     {
         while (entries.Count > capacity && lru.Last is { } tail)
         {
             lru.RemoveLast();
             entries.Remove(tail.Value.Key);
+        }
+    }
+
+    private void RemoveLocked(TKey key)
+    {
+        if (entries.Remove(key, out var node))
+        {
+            lru.Remove(node);
         }
     }
 

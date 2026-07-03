@@ -83,4 +83,74 @@ public class SingleFlightLruCacheTests
         Assert.Equal(30, value);
         Assert.Equal(2, calls);
     }
+
+    [Fact]
+    public void Remove_EvictsSpecificEntry()
+    {
+        var created = 0;
+        var cache = new SingleFlightLruCache<int, int>(
+            capacity: 4,
+            key => Interlocked.Increment(ref created));
+
+        var first = cache.GetOrAdd(1);
+        cache.Remove(1);
+        var second = cache.GetOrAdd(1);
+
+        Assert.Equal(1, first);
+        Assert.Equal(2, second);
+    }
+
+    [Fact]
+    public void RemoveWithValue_EvictsOnlyMatchingEntry()
+    {
+        var created = 0;
+        var cache = new SingleFlightLruCache<int, int>(
+            capacity: 4,
+            key => Interlocked.Increment(ref created));
+
+        var first = cache.GetOrAdd(1);
+        cache.Remove(1, first + 1);
+        var stillCached = cache.GetOrAdd(1);
+        cache.Remove(1, first);
+        var reloaded = cache.GetOrAdd(1);
+
+        Assert.Equal(first, stillCached);
+        Assert.NotEqual(first, reloaded);
+    }
+
+    [Fact]
+    public void RemoveWhere_EvictsMatchingEntries()
+    {
+        var created = 0;
+        var cache = new SingleFlightLruCache<int, int>(
+            capacity: 8,
+            key => Interlocked.Increment(ref created));
+
+        var first = cache.GetOrAdd(1);
+        var second = cache.GetOrAdd(2);
+        cache.RemoveWhere(key => key == 1);
+        var firstReloaded = cache.GetOrAdd(1);
+        var secondStillCached = cache.GetOrAdd(2);
+
+        Assert.NotEqual(first, firstReloaded);
+        Assert.Equal(second, secondStillCached);
+    }
+
+    [Fact]
+    public void Clear_EvictsAllEntries()
+    {
+        var created = 0;
+        var cache = new SingleFlightLruCache<int, int>(
+            capacity: 8,
+            key => Interlocked.Increment(ref created));
+
+        var first = cache.GetOrAdd(1);
+        var second = cache.GetOrAdd(2);
+        cache.Clear();
+        var firstReloaded = cache.GetOrAdd(1);
+        var secondReloaded = cache.GetOrAdd(2);
+
+        Assert.NotEqual(first, firstReloaded);
+        Assert.NotEqual(second, secondReloaded);
+    }
 }

@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using DynamicData;
 using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.Infrastructure.Caching;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 
@@ -22,7 +23,7 @@ internal sealed class SessionTrackReader : ISessionTrackReader, IDisposable
     private const int DefaultCapacity = 64;
 
     private readonly ISessionRepository sessionRepository;
-    private readonly TrackPointReaderCache<SessionTrackCacheKey, IReadOnlyList<TrackPoint>?> cache;
+    private readonly SingleFlightLruCache<SessionTrackCacheKey, Task<IReadOnlyList<TrackPoint>?>> cache;
     private readonly IDisposable sessionSubscription;
     private bool disposed;
 
@@ -37,7 +38,7 @@ internal sealed class SessionTrackReader : ISessionTrackReader, IDisposable
         int capacity)
     {
         this.sessionRepository = sessionRepository;
-        cache = new TrackPointReaderCache<SessionTrackCacheKey, IReadOnlyList<TrackPoint>?>(capacity);
+        cache = new SingleFlightLruCache<SessionTrackCacheKey, Task<IReadOnlyList<TrackPoint>?>>(capacity);
         sessionSubscription = sessionStore.Connect().Subscribe(ApplySessionChanges);
     }
 
@@ -51,10 +52,13 @@ internal sealed class SessionTrackReader : ISessionTrackReader, IDisposable
             throw new ObjectDisposedException(nameof(SessionTrackReader));
         }
 
-        return cache.GetOrAddAsync(
-            new SessionTrackCacheKey(sessionId, sessionUpdated),
-            async (key, _) => await sessionRepository.GetSessionTrackAsync(key.SessionId).ConfigureAwait(false),
-            cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var key = new SessionTrackCacheKey(sessionId, sessionUpdated);
+        var task = cache.GetOrAdd(
+            key,
+            async key => await sessionRepository.GetSessionTrackAsync(key.SessionId).ConfigureAwait(false));
+        return RemoveFailedValueAsync(key, task);
     }
 
     public void Dispose()
@@ -102,97 +106,9 @@ internal sealed class SessionTrackReader : ISessionTrackReader, IDisposable
                previous.GpsOffsetSeconds != current.GpsOffsetSeconds;
     }
 
-    private readonly record struct SessionTrackCacheKey(Guid SessionId, long SessionUpdated);
-}
-
-internal sealed class TrackPointReaderCache<TKey, TValue>
-    where TKey : notnull
-{
-    private readonly int capacity;
-    private readonly System.Threading.Lock gate = new();
-    private readonly Dictionary<TKey, LinkedListNode<Entry>> entries = new();
-    private readonly LinkedList<Entry> lru = new();
-
-    public TrackPointReaderCache(int capacity)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
-        this.capacity = capacity;
-    }
-
-    public Task<TValue> GetOrAddAsync(
-        TKey key,
-        Func<TKey, CancellationToken, Task<TValue>> factory,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        Task<TValue> task;
-        lock (gate)
-        {
-            if (entries.TryGetValue(key, out var existingNode))
-            {
-                lru.Remove(existingNode);
-                lru.AddFirst(existingNode);
-                task = existingNode.Value.Value;
-            }
-            else
-            {
-                task = RunFactoryAsync(key, factory, cancellationToken);
-                var node = new LinkedListNode<Entry>(new Entry(key, task));
-                lru.AddFirst(node);
-                entries.Add(key, node);
-                EvictOverflow();
-            }
-        }
-
-        return RemoveFailedValueAsync(key, task);
-    }
-
-    public void Remove(TKey key)
-    {
-        lock (gate)
-        {
-            RemoveLocked(key);
-        }
-    }
-
-    public void RemoveWhere(Predicate<TKey> predicate)
-    {
-        lock (gate)
-        {
-            var node = lru.First;
-            while (node is not null)
-            {
-                var next = node.Next;
-                if (predicate(node.Value.Key))
-                {
-                    lru.Remove(node);
-                    entries.Remove(node.Value.Key);
-                }
-
-                node = next;
-            }
-        }
-    }
-
-    public void Clear()
-    {
-        lock (gate)
-        {
-            entries.Clear();
-            lru.Clear();
-        }
-    }
-
-    private static async Task<TValue> RunFactoryAsync(
-        TKey key,
-        Func<TKey, CancellationToken, Task<TValue>> factory,
-        CancellationToken cancellationToken)
-    {
-        return await factory(key, cancellationToken).ConfigureAwait(false);
-    }
-
-    private async Task<TValue> RemoveFailedValueAsync(TKey key, Task<TValue> task)
+    private async Task<IReadOnlyList<TrackPoint>?> RemoveFailedValueAsync(
+        SessionTrackCacheKey key,
+        Task<IReadOnlyList<TrackPoint>?> task)
     {
         try
         {
@@ -200,35 +116,10 @@ internal sealed class TrackPointReaderCache<TKey, TValue>
         }
         catch
         {
-            lock (gate)
-            {
-                if (entries.TryGetValue(key, out var node) && ReferenceEquals(node.Value.Value, task))
-                {
-                    lru.Remove(node);
-                    entries.Remove(key);
-                }
-            }
-
+            cache.Remove(key, task);
             throw;
         }
     }
 
-    private void EvictOverflow()
-    {
-        while (entries.Count > capacity && lru.Last is { } tail)
-        {
-            lru.RemoveLast();
-            entries.Remove(tail.Value.Key);
-        }
-    }
-
-    private void RemoveLocked(TKey key)
-    {
-        if (entries.Remove(key, out var node))
-        {
-            lru.Remove(node);
-        }
-    }
-
-    private sealed record Entry(TKey Key, Task<TValue> Value);
+    private readonly record struct SessionTrackCacheKey(Guid SessionId, long SessionUpdated);
 }
