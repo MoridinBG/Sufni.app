@@ -9,9 +9,9 @@ namespace Sufni.App.Infrastructure;
 
 internal static class AppPreferenceSerialization
 {
-    public const int CurrentVersion = 2;
     public const int NewPreferenceKeysVersion = 3;
     public const int NewLayoutPaneIdsVersion = 3;
+    public const int CurrentVersion = NewPreferenceKeysVersion;
 
     public static bool ShouldWriteLegacyPreferenceKeys(int version) => version < NewPreferenceKeysVersion;
 

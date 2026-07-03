@@ -157,7 +157,7 @@ public class AppPreferencesTests
             .GetProperty("sessions")
             .GetProperty(sessionId.ToString("D"));
         AssertSignalDisplayValues(session.GetProperty("signalDisplay"));
-        AssertSignalDisplayValues(session.GetProperty("plots"));
+        Assert.False(session.TryGetProperty("plots", out _));
 
         static void AssertSignalDisplayValues(JsonElement signalDisplay)
         {
@@ -242,7 +242,7 @@ public class AppPreferencesTests
             .GetProperty("sessions")
             .GetProperty(sessionId.ToString("D"));
         AssertSmoothingValues(session.GetProperty("signalDisplay"));
-        AssertSmoothingValues(session.GetProperty("plots"));
+        Assert.False(session.TryGetProperty("plots", out _));
 
         static void AssertSmoothingValues(JsonElement signalDisplay)
         {
@@ -322,7 +322,7 @@ public class AppPreferencesTests
             .GetProperty("session")
             .GetProperty("sessions")
             .GetProperty(sessionId.ToString("D"));
-        Assert.True(session.TryGetProperty("graph", out _));
+        Assert.False(session.TryGetProperty("graph", out _));
         var rows = session
             .GetProperty("signalLayout")
             .GetProperty("rows");
@@ -391,12 +391,12 @@ public class AppPreferencesTests
             .GetProperty("sessions")
             .GetProperty(sessionId.ToString("D"));
 
-        Assert.True(session.TryGetProperty("graph", out _));
+        Assert.False(session.TryGetProperty("graph", out _));
         Assert.Equal(0.25, session.GetProperty("signalLayout").GetProperty("rows")[0].GetProperty("heightRatio").GetDouble());
         var layoutJson = session.GetProperty("layout");
-        Assert.True(layoutJson.TryGetProperty("desktopGraphMediaColumns", out _));
+        Assert.False(layoutJson.TryGetProperty("desktopGraphMediaColumns", out _));
         Assert.Equal(
-            SessionLayoutPaneIds.LegacyGraph,
+            SessionLayoutPaneIds.Signals,
             layoutJson.GetProperty("desktopSignalsMediaColumns").GetProperty("panes")[0].GetProperty("paneId").GetString());
         Assert.Equal(
             0.3,
@@ -611,12 +611,12 @@ public class AppPreferencesTests
     }
 
     [Fact]
-    public async Task SessionPreferences_DocumentWritesNewOnlyKeysAfterVersionGate()
+    public async Task SessionPreferences_DocumentWritesNewOnlyKeysByDefault()
     {
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
         var sessionId = Guid.NewGuid();
-        var preferences = new AppPreferences(preferencesPath, AppPreferenceSerialization.NewPreferenceKeysVersion);
+        var preferences = new AppPreferences(preferencesPath);
 
         await preferences.Session.UpdateRecordedAsync(sessionId, current => current with
         {
@@ -639,7 +639,7 @@ public class AppPreferencesTests
         });
 
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
-        Assert.Equal(AppPreferenceSerialization.NewPreferenceKeysVersion, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(AppPreferenceSerialization.CurrentVersion, json.RootElement.GetProperty("version").GetInt32());
         var session = json.RootElement
             .GetProperty("session")
             .GetProperty("sessions")
@@ -716,7 +716,7 @@ public class AppPreferencesTests
     }
 
     [Fact]
-    public void SessionPreferences_SyncModelDualWritesCompatibilityKeys()
+    public void SessionPreferences_SyncModelDualWritesCompatibilityKeys_ForLegacyVersion()
     {
         var preferences = new SessionPreferences(
             signalDisplay: new SignalDisplayPreferences(Travel: false, TravelSmoothing: PlotSmoothingLevel.Strong),
@@ -734,7 +734,9 @@ public class AppPreferencesTests
                     new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.3),
                 ])));
 
-        using var json = JsonDocument.Parse(AppJson.Serialize(preferences));
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(
+            preferences,
+            AppJson.CreatePreferenceOptionsForVersion(AppPreferenceSerialization.NewPreferenceKeysVersion - 1)));
 
         Assert.True(json.RootElement.TryGetProperty("plots", out _));
         Assert.True(json.RootElement.TryGetProperty("signal_display", out _));
@@ -754,7 +756,7 @@ public class AppPreferencesTests
     }
 
     [Fact]
-    public void SessionPreferences_SyncModelWritesNewOnlyKeysAfterVersionGate()
+    public void SessionPreferences_SyncModelWritesNewOnlyKeysByDefault()
     {
         var preferences = new SessionPreferences(
             signalDisplay: new SignalDisplayPreferences(Travel: false),
@@ -772,9 +774,7 @@ public class AppPreferencesTests
                     new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.3),
                 ])));
 
-        using var json = JsonDocument.Parse(JsonSerializer.Serialize(
-            preferences,
-            AppJson.CreatePreferenceOptionsForVersion(AppPreferenceSerialization.NewPreferenceKeysVersion)));
+        using var json = JsonDocument.Parse(AppJson.Serialize(preferences));
 
         Assert.False(json.RootElement.TryGetProperty("plots", out _));
         Assert.False(json.RootElement.TryGetProperty("statistics", out _));

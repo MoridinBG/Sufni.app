@@ -182,10 +182,8 @@ internal sealed class SessionTelemetryWriter(
         var points = await ResolveMetricTrackPointsAsync(session, newFullTrack, durationSeconds);
         var metrics = sessionTelemetryProcessor.ComputeSummaryMetrics(durationSeconds, points);
 
-        // Persist the cached session-window polyline at derivation time so the
-        // processed write stores it directly. Import, live-save, and recompute all
-        // flow through here, replacing the old reliance on a later lazy load-path
-        // patch to materialize the `track` column.
+        // Persist the cached session-window polyline at derivation time so import,
+        // live-save, and recompute all store the `track` column directly.
         if (points is not null)
         {
             session.Track = points.ToList();
