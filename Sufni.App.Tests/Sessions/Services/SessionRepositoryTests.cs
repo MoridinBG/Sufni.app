@@ -1,6 +1,7 @@
 using SQLite;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
 
@@ -164,6 +165,55 @@ public class SessionRepositoryTests
         Assert.Equal(persisted.Updated, current!.Updated);
         Assert.Equal(originalRaw, await database.GetSessionRawPsstAsync(sessionId));
         Assert.Null(await database.GetAsync<Track>(newTrack.Id));
+    }
+
+    [Fact]
+    public async Task UpdateProcessedDerivedDataAsync_UsesDerivationWindowSource_ForDatabaseInputGuard()
+    {
+        using var tempDatabase = new TempDatabase("processed-derived-data-window-source.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+        var sourceSessionId = Guid.NewGuid();
+        var fingerprintService = new ProcessingFingerprintService();
+
+        var database = new TestPersistenceHarness(databasePath);
+        var bike = new Bike(Guid.NewGuid(), "bike")
+        {
+            HeadAngle = 64
+        };
+        var setup = new Setup(Guid.NewGuid(), "setup")
+        {
+            BikeId = bike.Id
+        };
+        var session = new Session(sessionId, "derived", "desc", setup.Id, 100)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(60)
+        };
+        var source = PersistenceTestData.CreateRecordedSessionSource(sourceSessionId);
+        var window = new RecordedSessionDerivationWindow(sourceSessionId, 1, 2);
+        var fingerprint = CreateCurrentFingerprint(fingerprintService, session, setup, bike, source, window);
+        session.ProcessingFingerprintJson = AppJson.Serialize(fingerprint);
+
+        await database.PutAsync(bike);
+        await database.PutAsync(setup);
+        await database.PutProcessedSessionAsync(session, newFullTrack: null, source: null);
+        await database.PutRecordedSessionSourceAsync(source);
+
+        var recomputed = new Session(sessionId, "derived", "desc", setup.Id, 100)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(66),
+            ProcessingFingerprintJson = AppJson.Serialize(fingerprint),
+            DurationSeconds = 66
+        };
+
+        var result = await database.UpdateProcessedDerivedDataAsync(
+            recomputed,
+            newFullTrack: null,
+            fingerprint);
+
+        Assert.NotNull(result);
+        Assert.Equal(66, result!.DurationSeconds);
+        Assert.Equal(recomputed.ProcessedData, await database.GetSessionRawPsstAsync(sessionId));
     }
 
     [Fact]
@@ -577,10 +627,12 @@ public class SessionRepositoryTests
         Session session,
         Setup setup,
         Bike bike,
-        RecordedSessionSource source) =>
+        RecordedSessionSource source,
+        RecordedSessionDerivationWindow? window = null) =>
         fingerprintService.CreateCurrentDatabaseInputs(
             SessionSnapshot.From(session),
             SetupSnapshot.From(setup, boardId: null),
             BikeSnapshot.From(bike),
-            RecordedSessionSourceSnapshot.From(source));
+            RecordedSessionSourceSnapshot.From(source),
+            window);
 }

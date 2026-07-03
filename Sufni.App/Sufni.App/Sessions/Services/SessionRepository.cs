@@ -374,7 +374,8 @@ internal sealed class SessionRepository(
             return false;
         }
 
-        var source = connection.Find<RecordedSessionSource>(sessionId);
+        var sourceSessionId = expectedInputFingerprint.DerivationWindow?.SourceSessionId ?? sessionId;
+        var source = connection.Find<RecordedSessionSource>(sourceSessionId);
         if (source is null)
         {
             return false;
@@ -384,7 +385,8 @@ internal sealed class SessionRepository(
             SessionSnapshot.From(session),
             SetupSnapshot.From(setup, boardId: null),
             BikeSnapshot.From(bike),
-            RecordedSessionSourceSnapshot.From(source));
+            RecordedSessionSourceSnapshot.From(source),
+            expectedInputFingerprint.DerivationWindow);
         return expectedInputFingerprint.MatchesDatabaseInputs(current);
     }
 

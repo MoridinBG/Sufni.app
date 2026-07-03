@@ -29,6 +29,7 @@ public enum RecomputeReason
     DependencyChanged,
     ManualFromList,
     GpsOffsetChanged,
+    SourceWindowChanged,
     Migration,
     RecomputeAll
 }
@@ -276,10 +277,14 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
                 return new SessionRecomputeResult.NotRecomputable(domain.Staleness);
             }
 
-            var source = await sourceStore.LoadAsync(sessionId, cancellationToken);
+            var sourceSessionId = domain.DerivationWindow?.SourceSessionId ?? sessionId;
+            var source = await sourceStore.LoadAsync(sourceSessionId, cancellationToken);
             if (source is null)
             {
-                logger.Warning("Recorded session recompute failed because source {SessionId} is missing", sessionId);
+                logger.Warning(
+                    "Recorded session recompute failed because source {SourceSessionId} for session {SessionId} is missing",
+                    sourceSessionId,
+                    sessionId);
                 return new SessionRecomputeResult.NotRecomputable(new SessionStaleness.MissingRawSource());
             }
 
@@ -301,6 +306,17 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
                 {
                     logger.Warning("Recorded session {SessionId} is not recomputable after source refresh because {Reason}", sessionId, domain.Staleness.GetType().Name);
                     return new SessionRecomputeResult.NotRecomputable(domain.Staleness);
+                }
+
+                var refreshedSourceSessionId = domain.DerivationWindow?.SourceSessionId ?? sessionId;
+                if (source.SessionId != refreshedSourceSessionId)
+                {
+                    logger.Information(
+                        "Recorded session recompute for {SessionId} re-enqueued after source window target changed from {LoadedSourceSessionId} to {CurrentSourceSessionId}",
+                        sessionId,
+                        source.SessionId,
+                        refreshedSourceSessionId);
+                    continue;
                 }
             }
 
