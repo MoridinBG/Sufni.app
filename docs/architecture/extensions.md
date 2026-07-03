@@ -196,6 +196,11 @@ without a long positional constructor. It exposes constrained host operations:
 - request contributed page selection
 - run a cancellable operation through `RecordedSessionOperationCoordinator`
 - read processed telemetry and track points through `IRecordedSessionDataReader`
+- create a derived recorded session, update a session's source-absolute
+  origin, rename a session, request recompute, or open a session in a
+  background tab. These callbacks live on the recorded-session host
+  operations surface rather than on a second editing service, so editing
+  extensions stay scoped to the open recorded-session context.
 
 `IRecordedSessionDataReader.GetTrackAsync` returns the session-window track
 projection used by the recorded-session view: cached points when the cache is
@@ -207,6 +212,37 @@ telemetry blob per session (matching enumerates every session, where a per-sessi
 blob decode dominated the scan). The read path does not persist regenerated points.
 
 Operation leases reject stale progress and cancel superseded work, so extension tasks share the existing editor busy surface without controlling the editor lifecycle. Extension work reports percent values on a `0..100` scale. The recorded-session host projects those reports through `SessionOperationPresentationState` and renders the standard nonblocking busy overlay above the current session content. Extension operation progress does not set the session detail `ScreenState`; that state remains reserved for loading and error state of the session detail itself.
+
+## Derivation Windows & Editing Operations
+
+Recorded-session editing extensions can describe that a session's processed
+telemetry is derived from a source-absolute window of another session's raw
+recording source. The public host exposes this through a single
+`IRecordedSessionDerivationWindowProvider`. Public builds register a no-op
+provider; an extended build may replace it with one durable extension-owned
+provider. There is no provider aggregation, duplicate-provider validation, or
+generic multi-extension derivation bus.
+
+`RecordedSessionDerivationWindow(SourceSessionId, StartSeconds, EndSeconds)`
+is serialized into the processing fingerprint. The app-side
+`RecordedSessionDerivationWindowCache` hydrates provider state before store
+refresh, gives read graphs a synchronous lookup, and emits per-session changes
+when the provider raises `WindowsChanged`. Projection, recompute, source
+retention, and sync use `SourceSessionId` to find the raw source row; `Start`
+and `End` are part of the fingerprint/staleness input.
+
+The provider's retention methods answer only cross-session references. A
+self-window does not retain its own raw source after deletion; a derived session
+whose window points at another session does. Delete and startup cleanup consult
+this same provider so the raw source survives until no live session window
+references it.
+
+The small editing callbacks on `IRecordedSessionHostOperations` are the host
+side of that same model. They let an extension create an unprocessed derived
+session, update a session origin before mutating the durable window, rename
+without going through editor save/navigation, request a window-change recompute,
+and open the derived session in the background on desktop. Mobile implements
+background open as a no-op.
 
 ## Recorded-Session Slots
 

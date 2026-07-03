@@ -140,7 +140,7 @@ Topics in [architecture/daq-management.md](architecture/daq-management.md):
 
 ## Signal Processing & Suspension Kinematics
 
-`TelemetryData.FromRecording()` orchestrates the full pipeline: measurement preprocessing → travel calibration → configurable Savitzky-Golay velocity → stroke detection → categorization → airtime detection → histogram bin definitions. The `Sufni.Kinematics` library independently solves bike linkage geometry to derive leverage ratios. Sensor calibration maps between raw ADC counts and millimeters of travel. Recorded sessions persist the raw source separately from the derived `TelemetryData` BLOB so stale processed data can be recomputed when the source and dependencies are available.
+`TelemetryData.FromRecording()` orchestrates the full pipeline: measurement preprocessing → travel calibration → configurable Savitzky-Golay velocity → stroke detection → categorization → airtime detection → histogram bin definitions. The `Sufni.Kinematics` library independently solves bike linkage geometry to derive leverage ratios. Sensor calibration maps between raw ADC counts and millimeters of travel. Recorded sessions persist the raw source separately from the derived `TelemetryData` BLOB so stale processed data can be recomputed when the source and dependencies are available; an optional derivation window lets an extension derive a session from a source-absolute slice of another session's raw source.
 
 Topics in [architecture/processing.md](architecture/processing.md):
 
@@ -152,7 +152,7 @@ Topics in [architecture/processing.md](architecture/processing.md):
   - [Airtime Detection](architecture/processing.md#airtime-detection) — front/rear overlap heuristics
   - [Processing Parameters](architecture/processing.md#processing-parameters) — all tunables in `Parameters.cs`
   - [Serialized Structure](architecture/processing.md#serialized-structure) — MessagePack `TelemetryData` shape
-  - [Recorded Session Derivation](architecture/processing.md#recorded-session-derivation) — raw source, processed BLOB, processing fingerprint, and staleness rules
+  - [Recorded Session Derivation](architecture/processing.md#recorded-session-derivation) — raw source, optional derivation window, processed BLOB, processing fingerprint, and staleness rules
 - [Suspension Kinematics](architecture/processing.md#suspension-kinematics)
   - [Linkage Model](architecture/processing.md#linkage-model) — joint types, links, JSON deserialization
   - [Kinematic Solver](architecture/processing.md#kinematic-solver) — Gauss-Seidel constraint relaxation across shock travel

@@ -157,7 +157,13 @@ The connection context is also the only app-owned transaction entry point for mu
 
 Bike rows include presentation-owned damping speed cutoffs for front/rear compression and rebound. These values default to 200 mm/s, are synchronized and exported with the bike, and are backfilled on startup for legacy schemas. They are not session preferences and do not affect telemetry processing fingerprints.
 
-Startup migration also backfills `session_processing_fingerprint` for legacy processed sessions when the session has a processed BLOB, an undeleted setup and bike, and recorded-source metadata. The backfill writes only the fingerprint column and does not update the processed BLOB, summary metrics, or `updated` timestamp. The `core_migration` marker table records the one-time `session_processing_fingerprint_backfill_v2_202606` migration: during that first run, existing source-backed processed rows whose fingerprint already references the same setup, bike, track-projection version, and source hash are currentized even if their dependency hash came from a previous compatibility shape or from pre-refactor dependency state. After the marker exists, startup only repairs explicitly known legacy shapes such as missing/legacy fingerprints, the version-1 to version-2 processing-fingerprint compatibility case, the old snake_case dependency-hash serialization, and the legacy linkage-bike `rear_suspension_kind = None` value being normalized to `Linkage`; new source or dependency hash mismatches remain stale so recompute can still surface real derived-data changes.
+Startup schema migration no longer backfills `session_processing_fingerprint`.
+Legacy processed rows are normalized by `ProcessingOptionsResetMigration`, the
+post-initialization pass that recomputes source-backed sessions through the
+normal recompute engine when needed. Startup migration still performs structural
+compatibility work such as normalizing the legacy linkage-bike
+`rear_suspension_kind = None` value to `Linkage`; new source or dependency hash
+mismatches remain stale so recompute can surface real derived-data changes.
 
 Persistence consumers inject narrow repository interfaces instead of a single database facade. `ISynchronizableRepository<T>` owns generic soft-delete CRUD for `Synchronizable` entities; `ISessionRepository`, `IRecordedSessionSourceRepository`, `ITrackRepository`, `ISessionCacheStore`, and `IPairedDeviceRepository` own aggregate-specific operations; `ISyncDataStore` / `SynchronizationMergeEngine` owns sync timestamps, delta projection, remote apply, and merge conflict resolution. `DatabaseMigrationRunner` is the only schema initializer/migrator, and repositories assume `SqliteConnectionContext` has run initialization before handing out the shared connection.
 
@@ -172,7 +178,7 @@ Persistence consumers inject narrow repository interfaces instead of a single da
 
 - `PutSessionAsync()` — updates user-authored session metadata columns and stamps `Updated`/`Deleted` like `PutAsync`. Existing derived summary metrics are preserved on metadata updates; the `data` blob and cached `track` are only filled via `COALESCE(?, existing)` for compatibility with older callers and soft-deleted-row reuse, while normal metadata-only saves pass them as null. The full-track linkage and processing fingerprint are owned by the processed-write path and are preserved on metadata-only saves.
 - `PutProcessedSessionAsync(session, newFullTrack, source)` — persists a processed session in one lock-held `RunInTransactionAsync` callback. It writes a new full `Track` when supplied, stamps `session.full_track_id`, writes all session metadata plus `data`, `session_processing_fingerprint`, and the summary-metric values already set on the session, and optionally inserts/replaces the matching `RecordedSessionSource`. If any write fails, the session, full-track, and source write roll back together.
-- `UpdateProcessedDerivedDataAsync(session, newFullTrack, expectedInputFingerprint)` — the derived-only write used by recorded-session recompute. In one lock-held transaction it re-reads the row, recomputes the **DB-input** part of the processing fingerprint from the freshly read setup/bike/source/version state, and compares it to `expectedInputFingerprint`; on a mismatch (a passive dependency change) it rolls back and returns `null`. The preference-stored processing option is deliberately **not** re-checked here — it is not a DB column and is guarded by the recompute engine's commit-time check. On a match it writes **only** the derived columns (`data`, `session_processing_fingerprint`, the four summary metrics, cached `track`, `full_track_id`), optionally inserts `newFullTrack`, stamps `updated`, and never touches user-metadata columns, returning the fresh row.
+- `UpdateProcessedDerivedDataAsync(session, newFullTrack, expectedInputFingerprint)` — the derived-only write used by recorded-session recompute. In one lock-held transaction it re-reads the row, recomputes the **DB-input** part of the processing fingerprint from the freshly read setup/bike/source/version state, and compares it to `expectedInputFingerprint`; on a mismatch (a passive dependency change) it rolls back and returns `null`. When the expected fingerprint carries a derivation window, the source row is resolved by `DerivationWindow.SourceSessionId` rather than by the session id. The preference-stored processing option is deliberately **not** re-checked here — it is not a DB column and is guarded by the recompute engine's commit-time check. On a match it writes **only** the derived columns (`data`, `session_processing_fingerprint`, the four summary metrics, cached `track`, `full_track_id`), optionally inserts `newFullTrack`, stamps `updated`, and never touches user-metadata columns, returning the fresh row.
 - `UpdateSessionPsstAsync(id, data, fingerprintJson, metrics)` — overwrites the BLOB-bound pair (`data` and `session_processing_fingerprint`) plus the supplied summary metrics on a non-deleted row, with **no `updated` bump** so a sync swap/fill creates no metadata-sync feedback edge; the blob, fingerprint, and metrics arrive pre-validated/pre-computed from `SessionTelemetryWriter`
 - `UpdateSessionTrackAsync(id, points, metrics, gpsOffsetSeconds?)` — replaces the cached session-window `track` JSON and the supplied summary metrics, optionally updates the per-session GPS offset, and stamps `updated`; callers that omit the offset preserve the existing `gps_offset_seconds`
 - `GetSessionRawPsstAsync(id)` / `GetSessionRawPsstWithFingerprintAsync(id)` — return the raw MessagePack blob (sync transfer, consumer-side deserialization); the second also returns the fingerprint of those bytes so the session-data push can carry both
@@ -193,6 +199,8 @@ There is no `GetSessionPsstAsync` on the repository: consumers that need a `Tele
 
 - `GetRecordedSessionSourcesAsync()` / `GetRecordedSessionSourceAsync(id)` — load recorded-source rows or one full source payload
 - `GetSessionIdsMissingRecordedSourceAsync()` — returns non-deleted session ids that do not have a source row, or whose source row hash differs from the persisted processing fingerprint's `SourceHash`
+- `GetSourceBackedSessionIdsAsync()` — returns ids that currently own a recorded-source row without loading payload BLOBs
+- `DeleteOrphanedRecordedSessionSourcesAsync(retainedIds)` — removes source rows whose owner session no longer exists unless the id is retained by the derivation-window provider
 - `PutRecordedSessionSourceAsync(source)` / `DeleteRecordedSessionSourceAsync(sessionId)` — insert/replace or remove a recorded source outside the processed-session transaction, used by source sync and source-store writes
 
 ## JSON Serialization
@@ -248,8 +256,14 @@ On database initialization, the `Cleanup()` pass permanently removes:
 
 - `Synchronizable` rows with `Deleted` older than 1 day
 - Orphaned `session_cache` rows whose parent session is past that 1-day grace window
-- `session_recording_source` rows for purged sessions, plus any source row without a parent session
 - `paired_device` rows where `Expires < DateTime.UtcNow`
+
+Recorded-source orphan cleanup runs after initialization through
+`RecordedSessionSourceRetentionCleanup`, not inside the schema cleanup pass. It
+asks the single `IRecordedSessionDerivationWindowProvider` for referenced source
+ids and then deletes orphan `session_recording_source` rows except those retained
+ids. This lets a split/trimmed derived session keep using a source row whose
+original owner session has been purged.
 
 Extension-owned rows that reference core entities are cleaned through
 declared cascade rules rather than ad hoc core knowledge.

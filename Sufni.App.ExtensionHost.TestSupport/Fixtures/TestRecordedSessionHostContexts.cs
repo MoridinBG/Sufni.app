@@ -23,7 +23,12 @@ public static class TestRecordedSessionHostContexts
         Func<string, IRecordedSessionOperationLease>? startOperation = null,
         Func<RecordedSessionTimelineAlignmentTarget, double, string?, bool>? tryBeginTimelineAlignment = null,
         TryResolveTimelineAlignmentHandler? tryResolveTimelineAlignment = null,
-        Func<RecordedSessionTimelineAlignmentTarget, string?, bool>? tryCancelTimelineAlignment = null) => new(
+        Func<RecordedSessionTimelineAlignmentTarget, string?, bool>? tryCancelTimelineAlignment = null,
+        Func<Guid, string, double, CancellationToken, Task<Guid?>>? createDerivedSessionAsync = null,
+        Func<Guid, double, CancellationToken, Task<bool>>? updateSessionOriginAsync = null,
+        Func<Guid, string, CancellationToken, Task<bool>>? renameSessionAsync = null,
+        Func<Guid, CancellationToken, Task<bool>>? requestRecomputeAsync = null,
+        Func<Guid, CancellationToken, Task>? openSessionInBackgroundAsync = null) => new(
         sessionId,
         new RecordedSessionHostServices(
             new EmptyObservable<RecordedSessionHostState>(),
@@ -39,7 +44,12 @@ public static class TestRecordedSessionHostContexts
             startOperation: startOperation,
             tryBeginTimelineAlignment: tryBeginTimelineAlignment,
             tryResolveTimelineAlignment: tryResolveTimelineAlignment,
-            tryCancelTimelineAlignment: tryCancelTimelineAlignment));
+            tryCancelTimelineAlignment: tryCancelTimelineAlignment,
+            createDerivedSessionAsync: createDerivedSessionAsync,
+            updateSessionOriginAsync: updateSessionOriginAsync,
+            renameSessionAsync: renameSessionAsync,
+            requestRecomputeAsync: requestRecomputeAsync,
+            openSessionInBackgroundAsync: openSessionInBackgroundAsync));
 
     private sealed class EmptyObservable<T> : IObservable<T>
     {

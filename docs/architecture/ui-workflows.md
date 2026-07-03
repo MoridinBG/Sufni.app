@@ -34,7 +34,7 @@ singletons):
 | Use case            | Owns                                                                                                                                                       |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SessionLoader`     | Desktop/mobile detail loads; mobile `LoadMobileDetailAsync` transparently fetches missing processed telemetry from the server before returning              |
-| `SessionCommandService` | Every store-writing session command: `SaveAsync` (metadata save with in-memory store-snapshot optimistic-concurrency conflict detection; preserves processing fingerprints on metadata-only saves), `DeleteAsync` (clears the session's stored preferences and recorded source, deletes through repositories whose soft delete applies extension cascades atomically, and cleans up orphaned generated tracks), create-only `SaveLiveCaptureAsync` (persists live captures as processed session + raw source + optional generated track), and `RequestRecomputeAsync` / `RequestRecomputeAllAsync` (both delegated to `SessionRecomputeEngine`) |
+| `SessionCommandService` | Every store-writing session command: `SaveAsync` (metadata save with in-memory store-snapshot optimistic-concurrency conflict detection; preserves processing fingerprints on metadata-only saves), `DeleteAsync` (clears the session's stored preferences, deletes through repositories whose soft delete applies extension cascades atomically, removes the recorded source only when the derivation-window provider says no live session still references it, and cleans up orphaned generated tracks), create-only `SaveLiveCaptureAsync` (persists live captures as processed session + raw source + optional generated track), extension-host editing helpers (`CreateDerivedSessionAsync`, `UpdateSessionOriginAsync`, `RenameSessionAsync`) for trim/split workflows, and `RequestRecomputeAsync` / `RequestRecomputeAllAsync` (both delegated to `SessionRecomputeEngine`) |
 | `SessionRecomputeEngine` | Serialized, per-session **cancel-and-replace** recompute engine and the single owner of recompute liveness. `RequestRecomputeAsync` rebuilds processed telemetry from the raw source against the current setup/bike inputs and processing option; a newer request for the same session cancels and replaces the in-flight one (which resolves to `Superseded`), and a run whose DB inputs change underneath it re-enqueues itself until it converges. `IsActive` reports an in-flight run. Cancellation bounds correctness (no stale commit), not CPU — an in-flight reprocess is not interrupted, only prevented from committing. `RequestRecomputeAllAsync` enumerates every live session and fans them through `RequestRecomputeAsync` with a degree of parallelism scaled to `Environment.ProcessorCount`, returning a `SessionRecomputeAllResult` tally and reporting per-session progress through an optional `IProgress<SessionRecomputeAllProgress>` so the caller can drive a determinate progress dialog; sessions that cannot be recomputed are counted and skipped, not surfaced as failures. The staleness prompt (`SessionStalenessReconciler`) offers "Recompute all" alongside "Recompute" — it builds those buttons through the dialog service's generic `ShowChoiceAsync` prompt (the service stays recompute-agnostic; the reconciler owns the choice ids and what they mean) and runs the bulk recompute behind a modal, equally generic `ShowProgressAsync` loading dialog |
 | `SessionSyncApplier`| Subscribes to the desktop server's `SynchronizationDataArrived`, `SessionDataArrived`, and `SessionSourceDataArrived`, applying inbound session data to the stores |
 
@@ -94,9 +94,12 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   used only by `App`), and `IExtensionDialogService` via factory
   delegates that resolve the same instance. Recorded-session derivation
   services (`IProcessingFingerprintService`,
-  `IRecordedSessionReprocessor`) are also singleton services. The
-  recorded-source factory is static and stays in `RecordedSessionProjection/`
-  beside the reprocessor.
+  `IRecordedSessionReprocessor`, `IRecordedSessionDerivationWindowCache`,
+  and the public-build no-op `IRecordedSessionDerivationWindowProvider`)
+  are also singleton services. `IRecordedSessionSourceSyncQuery` is the
+  source-sync read helper that combines repository missing-source state with
+  derivation-window references. The recorded-source factory is static and stays
+  in `RecordedSessionProjection/` beside the reprocessor.
 - **Stores**: each concrete store registered as a singleton, then
   re-registered behind both its read and writer interfaces via
   factory delegates that resolve the same instance. This includes
@@ -189,8 +192,9 @@ and control-internal keys stay local to their controls.
   materializes each view model as a `ContentPage` in the root
   `NavigationPage` attached by `MainView`. `Open` pushes,
   `OpenOrFocus` also pushes (mobile has no concept of focusing an
-  existing tab), `Close` closes only the current top view, and
-  `GoBack` pops only when the stack is above the root. `MainViewModel`
+  existing tab), `OpenInBackground` is a no-op, `Close` closes only the
+  current top view, and `GoBack` pops only when the stack is above the root.
+  `MainViewModel`
   handles mobile back by closing the main drawer first, then delegating
   to `shell.GoBack()`. The Android back button is wired in
   `App.OnFrameworkInitializationCompleted` to use that bool return as
@@ -206,7 +210,10 @@ and control-internal keys stay local to their controls.
   tab cannot retain multiple restore-history references. `Close`
   removes the tab through `MainWindowViewModel.CloseTabPage`, which
   preserves a `tabHistory` stack so `RestoreCommand` can re-open the
-  most recently closed tab. The desktop tab strip previews reordering
+  most recently closed tab. `OpenInBackground<T>(match, create)` uses the
+  same matching/restoration behavior for workflows that need to create a tab
+  without stealing focus, such as opening the second part of a split recorded
+  session. The desktop tab strip previews reordering
   by fading the dragged tab and showing an insertion indicator, then
   commits the drop through `MainWindowViewModel.MoveTab`; this changes
   the shell collection order and keeps the moved tab active.
