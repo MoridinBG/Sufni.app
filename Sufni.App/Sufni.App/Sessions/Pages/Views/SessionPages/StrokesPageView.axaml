@@ -45,6 +45,7 @@ mc:Ignorable="d">
             <Grid Name="FrontStrokesPanel" IsVisible="{Binding ShowFrontStrokes}">
                 <controls2:StrokeAnalysisHost
                 AnalysisRange="{Binding Workspace.AnalysisRange}"
+                AnalysisResultState="{Binding Workspace.AnalysisResultState}"
                 CompressionLengthRowHeight="260"
                 CompressionSpeedRowHeight="260"
                 DeepTravelRowHeight="220"
@@ -64,6 +65,7 @@ mc:Ignorable="d">
             <Grid Name="RearStrokesPanel" IsVisible="{Binding ShowRearStrokes}">
                 <controls2:StrokeAnalysisHost
                 AnalysisRange="{Binding Workspace.AnalysisRange}"
+                AnalysisResultState="{Binding Workspace.AnalysisResultState}"
                 CompressionLengthRowHeight="260"
                 CompressionSpeedRowHeight="260"
                 DeepTravelRowHeight="220"

@@ -28,6 +28,7 @@ mc:Ignorable="d">
             <controls2:VibrationAnalysisHost
             HostName="FrontForkVibrationHost"
             AnalysisRange="{Binding Workspace.AnalysisRange}"
+            AnalysisResultState="{Binding Workspace.AnalysisResultState}"
             ExtensionSlots="{Binding Workspace.ExtensionSlots}"
             ImuLocation="Fork"
             MinCardHeight="320"
@@ -40,6 +41,7 @@ mc:Ignorable="d">
             <controls2:VibrationAnalysisHost
             HostName="FrontFrameVibrationHost"
             AnalysisRange="{Binding Workspace.AnalysisRange}"
+            AnalysisResultState="{Binding Workspace.AnalysisResultState}"
             ExtensionSlots="{Binding Workspace.ExtensionSlots}"
             ImuLocation="Frame"
             MinCardHeight="320"
@@ -52,6 +54,7 @@ mc:Ignorable="d">
             <controls2:VibrationAnalysisHost
             HostName="RearForkVibrationHost"
             AnalysisRange="{Binding Workspace.AnalysisRange}"
+            AnalysisResultState="{Binding Workspace.AnalysisResultState}"
             ExtensionSlots="{Binding Workspace.ExtensionSlots}"
             ImuLocation="Fork"
             MinCardHeight="320"
@@ -64,6 +67,7 @@ mc:Ignorable="d">
             <controls2:VibrationAnalysisHost
             HostName="RearFrameVibrationHost"
             AnalysisRange="{Binding Workspace.AnalysisRange}"
+            AnalysisResultState="{Binding Workspace.AnalysisResultState}"
             ExtensionSlots="{Binding Workspace.ExtensionSlots}"
             ImuLocation="Frame"
             MinCardHeight="320"

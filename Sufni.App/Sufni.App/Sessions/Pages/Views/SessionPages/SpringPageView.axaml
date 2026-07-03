@@ -47,6 +47,7 @@ mc:Ignorable="d">
 
             <controls2:TravelAnalysisHost
             AnalysisRange="{Binding AnalysisWorkspace.AnalysisRange}"
+            AnalysisResultState="{Binding AnalysisWorkspace.AnalysisResultState}"
             ExtensionSlots="{Binding AnalysisWorkspace.ExtensionSlots}"
             HasAnalysisData="{Binding HasAnalysisData}"
             MinCardHeight="220"
@@ -61,6 +62,7 @@ mc:Ignorable="d">
 
             <controls2:TravelAnalysisHost
             AnalysisRange="{Binding AnalysisWorkspace.AnalysisRange}"
+            AnalysisResultState="{Binding AnalysisWorkspace.AnalysisResultState}"
             ExtensionSlots="{Binding AnalysisWorkspace.ExtensionSlots}"
             HasAnalysisData="{Binding HasAnalysisData}"
             MinCardHeight="220"

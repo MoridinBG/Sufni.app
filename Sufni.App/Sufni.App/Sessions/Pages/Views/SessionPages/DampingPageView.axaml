@@ -48,6 +48,7 @@ mc:Ignorable="d">
             <controls2:DampingAnalysisHost
             Name="FrontDampingAnalysisHost"
             AnalysisRange="{Binding AnalysisWorkspace.AnalysisRange}"
+            AnalysisResultState="{Binding AnalysisWorkspace.AnalysisResultState}"
             DampingSpeedCutoffs="{Binding AnalysisWorkspace.DampingSpeedCutoffs}"
             ExtensionSlots="{Binding AnalysisWorkspace.ExtensionSlots}"
             HasAnalysisData="{Binding HasAnalysisData}"
@@ -73,6 +74,7 @@ mc:Ignorable="d">
             <controls2:DampingAnalysisHost
             Name="RearDampingAnalysisHost"
             AnalysisRange="{Binding AnalysisWorkspace.AnalysisRange}"
+            AnalysisResultState="{Binding AnalysisWorkspace.AnalysisResultState}"
             DampingSpeedCutoffs="{Binding AnalysisWorkspace.DampingSpeedCutoffs}"
             ExtensionSlots="{Binding AnalysisWorkspace.ExtensionSlots}"
             HasAnalysisData="{Binding HasAnalysisData}"

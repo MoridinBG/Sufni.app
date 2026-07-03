@@ -7,6 +7,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.Input;
+using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.Telemetry;
@@ -17,6 +18,7 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Extensibility.Views;
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Insights.ViewModels.SessionPages;
 using Sufni.App.Sessions.Insights.Views.SessionPages;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
@@ -299,6 +301,36 @@ public class MobileAnalysisPageViewTests
     }
 
     [AvaloniaFact]
+    public async Task MobileAnalysisPages_BindAnalysisResultStateToAnalysisHosts()
+    {
+        var state = Substitute.For<IRecordedSessionAnalysisResultState>();
+        var workspace = MobileAnalysisWorkspaceStub.Create(
+            hasFrontAnalysis: true,
+            hasRearAnalysis: true,
+            hasFrontForkVibration: true,
+            hasFrontFrameVibration: true,
+            hasRearForkVibration: true,
+            hasRearFrameVibration: true);
+        workspace.AnalysisResultState = state;
+
+        await AssertAnalysisHostsReceiveState<SpringPageView, TravelAnalysisHost>(
+            new SpringPageView { DataContext = new SpringPageViewModel(workspace) },
+            state);
+        await AssertAnalysisHostsReceiveState<StrokesPageView, StrokeAnalysisHost>(
+            new StrokesPageView { DataContext = new StrokesPageViewModel(workspace) },
+            state);
+        await AssertAnalysisHostsReceiveState<DampingPageView, DampingAnalysisHost>(
+            new DampingPageView { DataContext = new DampingPageViewModel(workspace) },
+            state);
+        await AssertAnalysisHostsReceiveState<VibrationPageView, VibrationAnalysisHost>(
+            new VibrationPageView { DataContext = new VibrationPageViewModel(workspace) },
+            state);
+        await AssertAnalysisHostsReceiveState<BalancePageView, BalanceAnalysisHost>(
+            new BalancePageView { DataContext = new BalancePageViewModel(workspace) },
+            state);
+    }
+
+    [AvaloniaFact]
     public async Task SessionInsightsPageView_BindsFindingsAndTargetProfile_InOneColumn()
     {
         var workspace = MobileAnalysisWorkspaceStub.Create(
@@ -334,6 +366,21 @@ public class MobileAnalysisPageViewTests
 
         var host = await ViewTestHelpers.ShowViewAsync(hostView);
         return new MountedMobileAnalysisPageView<TView>(host, view);
+    }
+
+    private static async Task AssertAnalysisHostsReceiveState<TView, THost>(
+        TView view,
+        IRecordedSessionAnalysisResultState state)
+        where TView : Control
+        where THost : AnalysisHostBase
+    {
+        await using var mounted = await MountAsync(view);
+        var hosts = mounted.View.GetVisualDescendants()
+            .OfType<THost>()
+            .ToArray();
+
+        Assert.NotEmpty(hosts);
+        Assert.All(hosts, host => Assert.Same(state, host.AnalysisResultState));
     }
 
     private static void AssertContributionText(Control root, string name, string text)
@@ -440,6 +487,7 @@ public class MobileAnalysisPageViewTests
         public DampingSpeedCutoffs DampingSpeedCutoffs { get; } = DampingSpeedCutoffs.Default;
         public DampingSpeedCutoffs PlotDampingSpeedCutoffs => DampingSpeedCutoffs;
         public bool CanEditDampingSpeedCutoffs => true;
+        public IRecordedSessionAnalysisResultState? AnalysisResultState { get; set; }
         public IRelayCommand<TelemetryRangeSelection?> SelectAnalysisRangeCommand { get; } =
             new RelayCommand<TelemetryRangeSelection?>(_ => { });
         public TelemetryRangeSelection? ActiveFrontAnalysisSelection => null;
