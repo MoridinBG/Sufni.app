@@ -612,43 +612,6 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
-    public async Task Initialization_DoesNotBackfillLegacyDependencyHashJsonFingerprintAfterProcessingVersionAdvance()
-    {
-        using var tempDatabase = new TempDatabase("legacy-dependency-hash-json-fingerprint.db");
-        ProcessingFingerprint? staleFingerprint = null;
-        var seed = SeedProcessedSessionDatabase(
-            tempDatabase.DatabasePath,
-            seed =>
-            {
-                var current = CreateCurrentFingerprint(seed);
-                staleFingerprint = current with
-                {
-                    DependencyHash = ProcessingDependencyHash.ComputeLegacySnakeCaseJson(
-                        SetupSnapshot.From(seed.Setup, boardId: null),
-                        BikeSnapshot.From(seed.Bike))
-                };
-                return AppJson.Serialize(staleFingerprint);
-            });
-
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        var persisted = await database.GetSessionAsync(seed.Session.Id);
-
-        Assert.NotNull(persisted);
-        Assert.Equal(seed.Session.Updated, persisted.Updated);
-        Assert.Equal(seed.ProcessedData, await database.GetSessionRawPsstAsync(seed.Session.Id));
-
-        var fingerprintService = new ProcessingFingerprintService();
-        var evaluation = fingerprintService.EvaluateState(
-            SessionSnapshot.From(persisted),
-            SetupSnapshot.From(seed.Setup, boardId: null),
-            BikeSnapshot.From(seed.Bike),
-            RecordedSessionSourceSnapshot.From(seed.Source));
-
-        Assert.Equal(staleFingerprint, evaluation.Persisted);
-        Assert.IsType<SessionStaleness.DependencyHashChanged>(evaluation.Staleness);
-    }
-
-    [Fact]
     public async Task Initialization_DoesNotBackfillLegacyRearSuspensionKindFingerprintAfterProcessingVersionAdvance()
     {
         using var tempDatabase = new TempDatabase("legacy-rear-suspension-kind-fingerprint.db");

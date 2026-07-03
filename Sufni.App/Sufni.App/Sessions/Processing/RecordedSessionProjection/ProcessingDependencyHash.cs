@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Sufni.Kinematics;
 
 using Sufni.App.Bikes.Models;
@@ -21,8 +20,6 @@ namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 /// </summary>
 public static class ProcessingDependencyHash
 {
-    private static readonly JsonSerializerOptions LegacySnakeCaseJsonOptions = CreateLegacySnakeCaseJsonOptions();
-
     public static string Compute(SetupSnapshot setup, BikeSnapshot bike)
     {
         return Compute(CreatePayload(setup, bike), AppJson.Options);
@@ -31,11 +28,6 @@ public static class ProcessingDependencyHash
     internal static string Compute(SetupProcessingInput setup, BikeProcessingInput bike)
     {
         return Compute(CreatePayload(setup, bike), AppJson.Options);
-    }
-
-    internal static string ComputeLegacySnakeCaseJson(SetupSnapshot setup, BikeSnapshot bike)
-    {
-        return Compute(CreatePayload(setup, bike), LegacySnakeCaseJsonOptions);
     }
 
     private static string Compute(DependencyPayload payload, JsonSerializerOptions jsonOptions)
@@ -74,18 +66,6 @@ public static class ProcessingDependencyHash
             bike.Kind,
             LinkagePayload.FromRearSuspension(bike.RearSuspension),
             LeverageRatioPayload.FromRearSuspension(bike.RearSuspension)));
-
-    private static JsonSerializerOptions CreateLegacySnakeCaseJsonOptions()
-    {
-        JsonSerializerOptions options = new()
-        {
-            DefaultIgnoreCondition = JsonIgnoreCondition.Never,
-            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-            WriteIndented = false
-        };
-        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
-        return options;
-    }
 
     private sealed record DependencyPayload(SetupPayload Setup, BikePayload Bike);
 

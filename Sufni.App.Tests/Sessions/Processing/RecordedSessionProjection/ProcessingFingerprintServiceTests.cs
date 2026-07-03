@@ -420,7 +420,6 @@ public class ProcessingFingerprintServiceTests
             var bike = DependencyHashBike(testCase.RearSuspension, testCase.ShockStroke);
 
             Assert.Equal(Hash(testCase.CurrentPayload), ProcessingDependencyHash.Compute(setup, bike));
-            Assert.Equal(Hash(testCase.LegacyPayload), ProcessingDependencyHash.ComputeLegacySnakeCaseJson(setup, bike));
         }
     }
 
@@ -464,16 +463,13 @@ public class ProcessingFingerprintServiceTests
         LeverageRatioSpec? leverageRatioPayload)
     {
         var currentLinkage = linkagePayload is null ? "null" : CurrentLinkagePayload(linkagePayload);
-        var legacyLinkage = linkagePayload is null ? "null" : LegacyLinkagePayload(linkagePayload);
         var currentLeverageRatio = leverageRatioPayload is null ? "null" : CurrentLeverageRatioPayload(leverageRatioPayload);
-        var legacyLeverageRatio = leverageRatioPayload is null ? "null" : LegacyLeverageRatioPayload(leverageRatioPayload);
 
         return new DependencyHashCase(
             name,
             rearSuspension,
             shockStroke,
-            $$$"""{"Setup":{"Id":"{{{DependencyHashSetupId}}}","BikeId":"{{{DependencyHashBikeId}}}","FrontSensorConfiguration":null,"RearSensorConfiguration":null},"Bike":{"Id":"{{{DependencyHashBikeId}}}","HeadAngle":65,"ForkStroke":160,"ShockStroke":{{{JsonNumber(shockStroke)}}},"RearSuspensionKind":"{{{rearSuspensionKind}}}","Linkage":{{{currentLinkage}}},"LeverageRatio":{{{currentLeverageRatio}}}}}""",
-            $$$"""{"setup":{"id":"{{{DependencyHashSetupId}}}","bike_id":"{{{DependencyHashBikeId}}}","front_sensor_configuration":null,"rear_sensor_configuration":null},"bike":{"id":"{{{DependencyHashBikeId}}}","head_angle":65,"fork_stroke":160,"shock_stroke":{{{JsonNumber(shockStroke)}}},"rear_suspension_kind":"{{{rearSuspensionKind}}}","linkage":{{{legacyLinkage}}},"leverage_ratio":{{{legacyLeverageRatio}}}}}""");
+            $$$"""{"Setup":{"Id":"{{{DependencyHashSetupId}}}","BikeId":"{{{DependencyHashBikeId}}}","FrontSensorConfiguration":null,"RearSensorConfiguration":null},"Bike":{"Id":"{{{DependencyHashBikeId}}}","HeadAngle":65,"ForkStroke":160,"ShockStroke":{{{JsonNumber(shockStroke)}}},"RearSuspensionKind":"{{{rearSuspensionKind}}}","Linkage":{{{currentLinkage}}},"LeverageRatio":{{{currentLeverageRatio}}}}}""");
     }
 
     private static string CurrentLinkagePayload(LinkageSpec linkage)
@@ -493,23 +489,6 @@ public class ProcessingFingerprintServiceTests
         return $$"""{"ShockStroke":{{JsonNumber(linkage.ShockStroke)}},"ShockAName":{{JsonString(linkage.Shock.A)}},"ShockBName":{{JsonString(linkage.Shock.B)}},"Joints":[{{joints}}],"Links":[{{links}}]}""";
     }
 
-    private static string LegacyLinkagePayload(LinkageSpec linkage)
-    {
-        var joints = string.Join(
-            ",",
-            linkage.Joints
-                .OrderBy(joint => joint.Name, StringComparer.Ordinal)
-                .Select(joint => $$"""{"name":{{JsonString(joint.Name)}},"type":{{JsonValue(joint.Type)}},"x":{{JsonNumber(joint.X)}},"y":{{JsonNumber(joint.Y)}}}"""));
-        var links = string.Join(
-            ",",
-            linkage.Links
-                .OrderBy(link => link.A, StringComparer.Ordinal)
-                .ThenBy(link => link.B, StringComparer.Ordinal)
-                .Select(link => $$"""{"a_name":{{JsonString(link.A)}},"b_name":{{JsonString(link.B)}}}"""));
-
-        return $$"""{"shock_stroke":{{JsonNumber(linkage.ShockStroke)}},"shock_a_name":{{JsonString(linkage.Shock.A)}},"shock_b_name":{{JsonString(linkage.Shock.B)}},"joints":[{{joints}}],"links":[{{links}}]}""";
-    }
-
     private static string CurrentLeverageRatioPayload(LeverageRatioSpec leverageRatio)
     {
         var points = string.Join(
@@ -517,15 +496,6 @@ public class ProcessingFingerprintServiceTests
             leverageRatio.Points.Select(point =>
                 $$"""{"ShockTravelMm":{{JsonNumber(point.ShockTravelMm)}},"WheelTravelMm":{{JsonNumber(point.WheelTravelMm)}}}"""));
         return $$"""{"Points":[{{points}}]}""";
-    }
-
-    private static string LegacyLeverageRatioPayload(LeverageRatioSpec leverageRatio)
-    {
-        var points = string.Join(
-            ",",
-            leverageRatio.Points.Select(point =>
-                $$"""{"shock_travel_mm":{{JsonNumber(point.ShockTravelMm)}},"wheel_travel_mm":{{JsonNumber(point.WheelTravelMm)}}}"""));
-        return $$"""{"points":[{{points}}]}""";
     }
 
     private static string JsonString(string value) => JsonSerializer.Serialize(value);
@@ -569,6 +539,5 @@ public class ProcessingFingerprintServiceTests
         string Name,
         RearSuspensionSpec RearSuspension,
         double? ShockStroke,
-        string CurrentPayload,
-        string LegacyPayload);
+        string CurrentPayload);
 }
