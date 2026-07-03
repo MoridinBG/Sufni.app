@@ -30,6 +30,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
 {
     private RecordedSessionExtensionSlots? subscribedSlots;
     private IRecordedSessionAnalysisResultState? subscribedAnalysisResultState;
+    private IDisposable? analysisInputSubscription;
     private IDisposable? analysisResultSubscription;
 
     public static readonly StyledProperty<AnalysisPlotKind> AnalysisPlotKindProperty =
@@ -317,10 +318,13 @@ public class AnalysisPlotView : SufniTelemetryPlotView
 
         analysisResultSubscription?.Dispose();
         analysisResultSubscription = null;
+        analysisInputSubscription?.Dispose();
+        analysisInputSubscription = null;
         subscribedAnalysisResultState = state;
 
         if (subscribedAnalysisResultState is not null)
         {
+            analysisInputSubscription = subscribedAnalysisResultState.ConnectInputs().Subscribe(_ => ReloadTelemetry());
             analysisResultSubscription = subscribedAnalysisResultState.Connect().Subscribe(OnAnalysisResultChanged);
         }
     }

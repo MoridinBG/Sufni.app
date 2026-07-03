@@ -62,6 +62,27 @@ public class RecordedSessionAnalysisResultStateTests
     }
 
     [Fact]
+    public void Invalidate_PublishesInputChanges()
+    {
+        var telemetry = new TelemetryData();
+        using var state = new RecordedSessionAnalysisResultState(
+            new TestAnalysisComputer(),
+            new InlineBackgroundTaskRunner(),
+            new InlineUiThreadDispatcher(),
+            () => telemetry);
+        var changes = new List<RecordedSessionAnalysisInputs>();
+        using var subscription = state.ConnectInputs().Subscribe(changes.Add);
+        var fullInputs = CreateInputs(range: null);
+        var rangedInputs = CreateInputs(new TelemetryTimeRange(0, 1));
+
+        state.Invalidate(fullInputs);
+        state.Invalidate(fullInputs);
+        state.Invalidate(rangedInputs);
+
+        Assert.Equal(new[] { fullInputs, rangedInputs }, changes);
+    }
+
+    [Fact]
     public async Task RequestAsync_AfterDispose_IsNoOp()
     {
         var telemetry = new TelemetryData();
@@ -81,6 +102,7 @@ public class RecordedSessionAnalysisResultStateTests
         state.Invalidate(inputs);
         await state.RequestAsync(key);
         using var subscription = state.Connect().Subscribe(_ => Assert.Fail("Disposed state should not publish."));
+        using var inputSubscription = state.ConnectInputs().Subscribe(_ => Assert.Fail("Disposed state should not publish input changes."));
     }
 
     private static RecordedSessionAnalysisInputs CreateInputs(TelemetryTimeRange? range) =>

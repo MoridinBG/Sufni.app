@@ -12,6 +12,7 @@ namespace Sufni.App.Sessions.Analysis.Services;
 public interface IRecordedSessionAnalysisResultState : IDisposable
 {
     RecordedSessionAnalysisInputs? CurrentInputs { get; }
+    IObservable<RecordedSessionAnalysisInputs> ConnectInputs();
     IObservable<RecordedSessionAnalysisResultChanged> Connect();
     RecordedSessionAnalysisResult? Get(RecordedSessionAnalysisKey key);
     Task RequestAsync(RecordedSessionAnalysisKey key, CancellationToken cancellationToken = default);
@@ -45,6 +46,7 @@ internal sealed class RecordedSessionAnalysisResultState(
     private readonly object gate = new();
     private readonly Dictionary<RecordedSessionAnalysisKey, RecordedSessionAnalysisResult> results = [];
     private readonly Dictionary<RecordedSessionAnalysisKey, Task> inFlight = [];
+    private readonly Subject<RecordedSessionAnalysisInputs> inputChanges = new();
     private readonly Subject<RecordedSessionAnalysisResultChanged> changes = new();
     private RecordedSessionAnalysisInputs? currentInputs;
     private CancellationTokenSource staleWorkCancellation = new();
@@ -70,6 +72,14 @@ internal sealed class RecordedSessionAnalysisResultState(
         }
     }
 
+    public IObservable<RecordedSessionAnalysisInputs> ConnectInputs()
+    {
+        lock (gate)
+        {
+            return disposed ? Observable.Empty<RecordedSessionAnalysisInputs>() : inputChanges.AsObservable();
+        }
+    }
+
     public RecordedSessionAnalysisResult? Get(RecordedSessionAnalysisKey key)
     {
         lock (gate)
@@ -85,6 +95,7 @@ internal sealed class RecordedSessionAnalysisResultState(
 
     public void Invalidate(RecordedSessionAnalysisInputs inputs)
     {
+        var publishInputsChanged = false;
         lock (gate)
         {
             if (disposed)
@@ -105,6 +116,12 @@ internal sealed class RecordedSessionAnalysisResultState(
 
             results.Clear();
             inFlight.Clear();
+            publishInputsChanged = true;
+        }
+
+        if (publishInputsChanged)
+        {
+            _ = PublishInputsChangedAsync(inputs);
         }
     }
 
@@ -177,6 +194,7 @@ internal sealed class RecordedSessionAnalysisResultState(
             inFlight.Clear();
         }
 
+        inputChanges.Dispose();
         changes.Dispose();
     }
 
@@ -254,6 +272,22 @@ internal sealed class RecordedSessionAnalysisResultState(
                 }
 
                 changes.OnNext(change);
+            }
+        });
+    }
+
+    private Task PublishInputsChangedAsync(RecordedSessionAnalysisInputs inputs)
+    {
+        return uiThreadDispatcher.InvokeAsync(() =>
+        {
+            lock (gate)
+            {
+                if (disposed || currentInputs != inputs)
+                {
+                    return;
+                }
+
+                inputChanges.OnNext(inputs);
             }
         });
     }

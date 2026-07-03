@@ -128,16 +128,48 @@ public class AnalysisPlotViewTests
         Assert.Equal(key, Assert.Single(state.Requests));
         Assert.Empty(GetBars(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot));
 
-        var options = new TravelStatisticsOptions(null, TravelDistributionMode.ActiveSuspension);
-        state.Publish(key, new TravelDistributionAnalysisResult(
-            TelemetryStatistics.CalculateTravelHistogram(telemetry, SuspensionType.Front, options),
-            TelemetryStatistics.CalculateTravelStatistics(telemetry, SuspensionType.Front, options),
-            telemetry.Front.MaxTravel,
-            HasStrokeData: true));
+        state.Publish(key, CreateTravelDistributionResult(telemetry, range: null));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.NotEmpty(GetBars(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot));
         Assert.Single(state.Requests);
+    }
+
+    [AvaloniaFact]
+    public async Task AnalysisPlotView_RequestsNewResult_WhenInputsInvalidateAfterRangeBindingChanged()
+    {
+        var telemetry = CreateProcessed();
+        var initialInputs = CreateAnalysisInputs();
+        var range = new TelemetryTimeRange(0, telemetry.Metadata.Duration);
+        var nextInputs = initialInputs with { AnalysisRange = range };
+        var initialKey = initialInputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
+        var nextKey = nextInputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
+        using var state = new TestAnalysisResultState(initialInputs);
+        var view = new TestableAnalysisPlotView
+        {
+            AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
+            AnalysisResultState = state,
+            SuspensionType = SuspensionType.Front,
+            Telemetry = telemetry,
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+        await ViewTestHelpers.FlushDispatcherAsync();
+        state.Publish(initialKey, CreateTravelDistributionResult(telemetry, range: null));
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        view.AnalysisRange = range;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.DoesNotContain(nextKey, state.Requests);
+
+        state.Invalidate(nextInputs);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Contains(nextKey, state.Requests);
+        state.Publish(nextKey, CreateTravelDistributionResult(telemetry, range));
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.NotEmpty(GetBars(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot));
     }
 
     [AvaloniaFact]
@@ -375,6 +407,18 @@ public class AnalysisPlotViewTests
         return [.. bars];
     }
 
+    private static TravelDistributionAnalysisResult CreateTravelDistributionResult(
+        TelemetryData telemetry,
+        TelemetryTimeRange? range)
+    {
+        var options = new TravelStatisticsOptions(range, TravelDistributionMode.ActiveSuspension);
+        return new TravelDistributionAnalysisResult(
+            TelemetryStatistics.CalculateTravelHistogram(telemetry, SuspensionType.Front, options),
+            TelemetryStatistics.CalculateTravelStatistics(telemetry, SuspensionType.Front, options),
+            telemetry.Front.MaxTravel,
+            HasStrokeData: true);
+    }
+
     private static RecordedSessionAnalysisInputs CreateAnalysisInputs() =>
         new(
             TelemetryGeneration: 1,
@@ -389,6 +433,7 @@ public class AnalysisPlotViewTests
 
     private sealed class TestAnalysisResultState(RecordedSessionAnalysisInputs inputs) : IRecordedSessionAnalysisResultState
     {
+        private readonly Subject<RecordedSessionAnalysisInputs> inputChanges = new();
         private readonly Subject<RecordedSessionAnalysisResultChanged> changes = new();
         private readonly Dictionary<RecordedSessionAnalysisKey, RecordedSessionAnalysisResult> results = [];
 
@@ -396,6 +441,8 @@ public class AnalysisPlotViewTests
         public List<RecordedSessionAnalysisKey> Requests { get; } = [];
 
         public IObservable<RecordedSessionAnalysisResultChanged> Connect() => changes;
+
+        public IObservable<RecordedSessionAnalysisInputs> ConnectInputs() => inputChanges;
 
         public RecordedSessionAnalysisResult? Get(RecordedSessionAnalysisKey key) =>
             results.GetValueOrDefault(key);
@@ -410,6 +457,7 @@ public class AnalysisPlotViewTests
         {
             CurrentInputs = nextInputs;
             results.Clear();
+            inputChanges.OnNext(nextInputs);
         }
 
         public void Publish(RecordedSessionAnalysisKey key, RecordedSessionAnalysisResult result)
@@ -420,6 +468,7 @@ public class AnalysisPlotViewTests
 
         public void Dispose()
         {
+            inputChanges.Dispose();
             changes.Dispose();
         }
     }

@@ -71,6 +71,7 @@ public class VibrationSummaryView : TemplatedControl
 
     private string title = string.Empty;
     private IRecordedSessionAnalysisResultState? subscribedAnalysisResultState;
+    private IDisposable? analysisInputSubscription;
     private IDisposable? analysisResultSubscription;
 
     public string Title
@@ -135,10 +136,13 @@ public class VibrationSummaryView : TemplatedControl
 
         analysisResultSubscription?.Dispose();
         analysisResultSubscription = null;
+        analysisInputSubscription?.Dispose();
+        analysisInputSubscription = null;
         subscribedAnalysisResultState = state;
 
         if (subscribedAnalysisResultState is not null)
         {
+            analysisInputSubscription = subscribedAnalysisResultState.ConnectInputs().Subscribe(_ => Recompute());
             analysisResultSubscription = subscribedAnalysisResultState.Connect().Subscribe(OnAnalysisResultChanged);
         }
     }
