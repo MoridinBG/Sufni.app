@@ -9,16 +9,10 @@ namespace Sufni.App.Infrastructure;
 
 internal static class AppPreferenceSerialization
 {
-    public const int NewPreferenceKeysVersion = 3;
-    public const int NewLayoutPaneIdsVersion = 3;
-    public const int CurrentVersion = NewPreferenceKeysVersion;
-
-    public static bool ShouldWriteLegacyPreferenceKeys(int version) => version < NewPreferenceKeysVersion;
-
-    public static bool ShouldWriteLegacyLayoutPaneIds(int version) => version < NewLayoutPaneIdsVersion;
+    public const int CurrentVersion = 3;
 }
 
-internal sealed class SessionPreferencesJsonConverter(int version) : JsonConverter<SessionPreferences>
+internal sealed class SessionPreferencesJsonConverter : JsonConverter<SessionPreferences>
 {
     public override SessionPreferences Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
@@ -93,32 +87,14 @@ internal sealed class SessionPreferencesJsonConverter(int version) : JsonConvert
     public override void Write(Utf8JsonWriter writer, SessionPreferences value, JsonSerializerOptions options)
     {
         writer.WriteStartObject();
-        if (AppPreferenceSerialization.ShouldWriteLegacyPreferenceKeys(version))
-        {
-            writer.WritePropertyName("plots");
-            JsonSerializer.Serialize(writer, value.SignalDisplay, options);
-        }
-
         writer.WritePropertyName("signal_display");
         JsonSerializer.Serialize(writer, value.SignalDisplay, options);
-
-        if (AppPreferenceSerialization.ShouldWriteLegacyPreferenceKeys(version))
-        {
-            writer.WritePropertyName("statistics");
-            JsonSerializer.Serialize(writer, value.Analysis, options);
-        }
 
         writer.WritePropertyName("analysis");
         JsonSerializer.Serialize(writer, value.Analysis, options);
 
         writer.WritePropertyName("processing");
         JsonSerializer.Serialize(writer, value.Processing, options);
-
-        if (AppPreferenceSerialization.ShouldWriteLegacyPreferenceKeys(version))
-        {
-            writer.WritePropertyName("graph");
-            JsonSerializer.Serialize(writer, value.SignalLayout, options);
-        }
 
         writer.WritePropertyName("signal_layout");
         JsonSerializer.Serialize(writer, value.SignalLayout, options);
@@ -146,7 +122,7 @@ internal sealed class SessionPreferencesJsonConverter(int version) : JsonConvert
     }
 }
 
-internal sealed class AnalysisPreferencesJsonConverter(int version) : JsonConverter<AnalysisPreferences>
+internal sealed class AnalysisPreferencesJsonConverter : JsonConverter<AnalysisPreferences>
 {
     public override AnalysisPreferences Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
@@ -217,12 +193,6 @@ internal sealed class AnalysisPreferencesJsonConverter(int version) : JsonConver
     public override void Write(Utf8JsonWriter writer, AnalysisPreferences value, JsonSerializerOptions options)
     {
         writer.WriteStartObject();
-        if (AppPreferenceSerialization.ShouldWriteLegacyPreferenceKeys(version))
-        {
-            writer.WritePropertyName("travel_histogram_mode");
-            JsonSerializer.Serialize(writer, value.TravelDistributionMode, options);
-        }
-
         writer.WritePropertyName("travel_distribution_mode");
         JsonSerializer.Serialize(writer, value.TravelDistributionMode, options);
 
@@ -234,12 +204,6 @@ internal sealed class AnalysisPreferencesJsonConverter(int version) : JsonConver
 
         writer.WritePropertyName("balance_speed_mode");
         JsonSerializer.Serialize(writer, value.BalanceSpeedMode, options);
-
-        if (AppPreferenceSerialization.ShouldWriteLegacyPreferenceKeys(version))
-        {
-            writer.WritePropertyName("session_analysis_target_profile");
-            JsonSerializer.Serialize(writer, value.SessionInsightsTargetProfile, options);
-        }
 
         writer.WritePropertyName("session_insights_target_profile");
         JsonSerializer.Serialize(writer, value.SessionInsightsTargetProfile, options);
@@ -265,7 +229,7 @@ internal sealed class AnalysisPreferencesJsonConverter(int version) : JsonConver
     }
 }
 
-internal sealed class SessionLayoutPreferencesJsonConverter(int version) : JsonConverter<SessionLayoutPreferences>
+internal sealed class SessionLayoutPreferencesJsonConverter : JsonConverter<SessionLayoutPreferences>
 {
     public override SessionLayoutPreferences Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
@@ -334,20 +298,8 @@ internal sealed class SessionLayoutPreferencesJsonConverter(int version) : JsonC
         writer.WritePropertyName("desktop_shell_rows");
         JsonSerializer.Serialize(writer, value.DesktopShellRows, options);
 
-        if (AppPreferenceSerialization.ShouldWriteLegacyPreferenceKeys(version))
-        {
-            writer.WritePropertyName("desktop_graph_media_columns");
-            JsonSerializer.Serialize(writer, value.DesktopSignalsMediaColumns, options);
-        }
-
         writer.WritePropertyName("desktop_signals_media_columns");
         JsonSerializer.Serialize(writer, value.DesktopSignalsMediaColumns, options);
-
-        if (AppPreferenceSerialization.ShouldWriteLegacyPreferenceKeys(version))
-        {
-            writer.WritePropertyName("desktop_statistics_sidebar_columns");
-            JsonSerializer.Serialize(writer, value.DesktopAnalysisSidebarColumns, options);
-        }
 
         writer.WritePropertyName("desktop_analysis_sidebar_columns");
         JsonSerializer.Serialize(writer, value.DesktopAnalysisSidebarColumns, options);
@@ -375,7 +327,7 @@ internal sealed class SessionLayoutPreferencesJsonConverter(int version) : JsonC
     }
 }
 
-internal sealed class SessionPaneSizePreferenceJsonConverter(int version) : JsonConverter<SessionPaneSizePreference>
+internal sealed class SessionPaneSizePreferenceJsonConverter : JsonConverter<SessionPaneSizePreference>
 {
     public override SessionPaneSizePreference Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
@@ -429,9 +381,7 @@ internal sealed class SessionPaneSizePreferenceJsonConverter(int version) : Json
 
     public override void Write(Utf8JsonWriter writer, SessionPaneSizePreference value, JsonSerializerOptions options)
     {
-        var paneId = AppPreferenceSerialization.ShouldWriteLegacyLayoutPaneIds(version)
-            ? SessionLayoutPaneIds.ToLegacy(value.PaneId)
-            : SessionLayoutPaneIds.Normalize(value.PaneId);
+        var paneId = SessionLayoutPaneIds.Normalize(value.PaneId);
 
         writer.WriteStartObject();
         writer.WriteString("pane_id", paneId);

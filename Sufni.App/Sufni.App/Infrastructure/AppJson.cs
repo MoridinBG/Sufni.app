@@ -69,7 +69,7 @@ internal static class AppJson
         {
             PropertyNameCaseInsensitive = true
         };
-        AddPreferenceConverters(options, AppPreferenceSerialization.CurrentVersion);
+        AddPreferenceConverters(options);
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
         return options;
     }
@@ -81,28 +81,17 @@ internal static class AppJson
         // RespectNullableAnnotations=true, RespectRequiredConstructorParameters=true.
         // Keep the snake_case enum converter (Strict does not add it).
         JsonSerializerOptions options = new(JsonSerializerDefaults.Strict);
-        AddPreferenceConverters(options, AppPreferenceSerialization.CurrentVersion);
+        AddPreferenceConverters(options);
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
         return options;
     }
 
-    internal static JsonSerializerOptions CreatePreferenceOptionsForVersion(int version)
+    private static void AddPreferenceConverters(JsonSerializerOptions options)
     {
-        JsonSerializerOptions options = new()
-        {
-            PropertyNameCaseInsensitive = true
-        };
-        AddPreferenceConverters(options, version);
-        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
-        return options;
-    }
-
-    private static void AddPreferenceConverters(JsonSerializerOptions options, int version)
-    {
-        options.Converters.Add(new SessionPreferencesJsonConverter(version));
-        options.Converters.Add(new AnalysisPreferencesJsonConverter(version));
-        options.Converters.Add(new SessionLayoutPreferencesJsonConverter(version));
-        options.Converters.Add(new SessionPaneSizePreferenceJsonConverter(version));
+        options.Converters.Add(new SessionPreferencesJsonConverter());
+        options.Converters.Add(new AnalysisPreferencesJsonConverter());
+        options.Converters.Add(new SessionLayoutPreferencesJsonConverter());
+        options.Converters.Add(new SessionPaneSizePreferenceJsonConverter());
     }
 }
 

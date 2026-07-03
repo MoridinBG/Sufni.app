@@ -700,9 +700,7 @@ public class AppPreferencesTests
             }
             """;
 
-        var preferences = JsonSerializer.Deserialize<SessionPreferences>(
-            json,
-            AppJson.CreatePreferenceOptionsForVersion(AppPreferenceSerialization.CurrentVersion));
+        var preferences = JsonSerializer.Deserialize<SessionPreferences>(json, AppJson.Options);
 
         Assert.NotNull(preferences);
         Assert.False(preferences!.SignalDisplay.Travel);
@@ -713,46 +711,6 @@ public class AppPreferencesTests
         Assert.False(preferences.SignalLayout.Rows[0].IsExpanded);
         Assert.NotNull(preferences.Layout.DesktopSignalsMediaColumns);
         Assert.Equal(SessionLayoutPaneIds.Signals, preferences.Layout.DesktopSignalsMediaColumns!.Panes[0].PaneId);
-    }
-
-    [Fact]
-    public void SessionPreferences_SyncModelDualWritesCompatibilityKeys_ForLegacyVersion()
-    {
-        var preferences = new SessionPreferences(
-            signalDisplay: new SignalDisplayPreferences(Travel: false, TravelSmoothing: PlotSmoothingLevel.Strong),
-            analysis: new AnalysisPreferences(
-                TravelDistributionMode.DynamicSag,
-                SessionInsightsTargetProfile: SessionInsightsTargetProfile.Enduro),
-            signalLayout: new SignalLayoutPreferences(
-            [
-                new SignalLayoutRowPreferences(SignalRowIds.Travel, isExpanded: false),
-            ]),
-            layout: new SessionLayoutPreferences(
-                desktopSignalsMediaColumns: new SessionPaneGroupPreferences(
-                [
-                    new SessionPaneSizePreference(SessionLayoutPaneIds.Signals, 0.7),
-                    new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.3),
-                ])));
-
-        using var json = JsonDocument.Parse(JsonSerializer.Serialize(
-            preferences,
-            AppJson.CreatePreferenceOptionsForVersion(AppPreferenceSerialization.NewPreferenceKeysVersion - 1)));
-
-        Assert.True(json.RootElement.TryGetProperty("plots", out _));
-        Assert.True(json.RootElement.TryGetProperty("signal_display", out _));
-        Assert.True(json.RootElement.TryGetProperty("statistics", out var statistics));
-        Assert.True(json.RootElement.TryGetProperty("analysis", out var analysis));
-        Assert.True(json.RootElement.TryGetProperty("graph", out _));
-        Assert.True(json.RootElement.TryGetProperty("signal_layout", out _));
-        Assert.Equal("dynamic_sag", statistics.GetProperty("travel_histogram_mode").GetString());
-        Assert.Equal("dynamic_sag", analysis.GetProperty("travel_distribution_mode").GetString());
-        Assert.Equal("enduro", statistics.GetProperty("session_analysis_target_profile").GetString());
-        Assert.Equal("enduro", analysis.GetProperty("session_insights_target_profile").GetString());
-
-        var layout = json.RootElement.GetProperty("layout");
-        Assert.True(layout.TryGetProperty("desktop_graph_media_columns", out _));
-        var panes = layout.GetProperty("desktop_signals_media_columns").GetProperty("panes");
-        Assert.Equal(SessionLayoutPaneIds.LegacyGraph, panes[0].GetProperty("pane_id").GetString());
     }
 
     [Fact]

@@ -384,18 +384,6 @@ public static class SessionLayoutPaneIds
         };
     }
 
-    internal static string ToLegacy(string? paneId)
-    {
-        return Normalize(paneId) switch
-        {
-            Signals => LegacyGraph,
-            SignalsMediaArea => LegacyGraphMediaArea,
-            AnalysisSidebarArea => LegacyAnalysisSidebarArea,
-            Analysis => LegacyAnalysis,
-            var value => value,
-        };
-    }
-
     internal static bool IsLegacy(string? paneId)
     {
         return paneId is LegacyGraph or LegacyGraphMediaArea or LegacyAnalysisSidebarArea or LegacyAnalysis;
