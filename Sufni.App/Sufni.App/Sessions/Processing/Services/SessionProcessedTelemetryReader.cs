@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.ExtensionHost.Contracts.Services;
@@ -49,51 +48,76 @@ internal sealed class SessionProcessedTelemetryReader(
     public async Task<TelemetryData?> GetAsync(Guid sessionId, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var raw = await sessionRepository.GetSessionRawPsstAsync(sessionId);
+        var metadata = await sessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId);
         cancellationToken.ThrowIfCancellationRequested();
-        if (raw is null)
+        if (metadata is null || !metadata.HasData)
         {
             ClearRetainedValue(sessionId);
             return null;
         }
 
-        var hash = ComputeHash(raw);
-        var lazy = GetOrCreateLazy(sessionId, hash, raw);
+        var key = new SessionPsstCacheKey(
+            sessionId,
+            metadata.Updated,
+            metadata.ProcessingFingerprintJson);
+        var lazy = GetOrCreateLazy(sessionId, key);
         try
         {
-            return await backgroundTaskRunner.RunAsync(() => lazy.Value, cancellationToken);
+            var telemetry = await lazy.Value.WaitAsync(cancellationToken);
+            if (telemetry is null)
+            {
+                ClearRetainedValue(sessionId, key, lazy);
+            }
+
+            return telemetry;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {
-            ClearRetainedValue(sessionId, hash, lazy);
+            ClearRetainedValue(sessionId, key, lazy);
             throw;
         }
     }
 
-    private Lazy<TelemetryData> GetOrCreateLazy(Guid sessionId, string hash, byte[] raw)
+    private Lazy<Task<TelemetryData?>> GetOrCreateLazy(Guid sessionId, SessionPsstCacheKey key)
     {
         lock (gate)
         {
             if (!retained.TryGetValue(sessionId, out var entry))
             {
-                return CreateLazy(raw);
+                return CreateLazy(sessionId);
             }
 
-            if (entry.Lazy is not null && StringComparer.Ordinal.Equals(entry.Hash, hash))
+            if (entry.Lazy is not null && entry.Key == key)
             {
                 return entry.Lazy;
             }
 
-            entry.Hash = hash;
-            entry.Lazy = CreateLazy(raw);
+            entry.Key = key;
+            entry.Lazy = CreateLazy(sessionId);
             return entry.Lazy;
         }
     }
 
-    private Lazy<TelemetryData> CreateLazy(byte[] raw) =>
+    private Lazy<Task<TelemetryData?>> CreateLazy(Guid sessionId) =>
         new(
-            () => sessionTelemetryProcessor.ReadProcessedTelemetryData(raw),
+            () => LoadAndDecodeAsync(sessionId),
             LazyThreadSafetyMode.ExecutionAndPublication);
+
+    private async Task<TelemetryData?> LoadAndDecodeAsync(Guid sessionId)
+    {
+        var raw = await sessionRepository.GetSessionRawPsstAsync(sessionId);
+        if (raw is null)
+        {
+            return null;
+        }
+
+        return await backgroundTaskRunner.RunAsync(
+            () => sessionTelemetryProcessor.ReadProcessedTelemetryData(raw));
+    }
 
     private void ClearRetainedValue(Guid sessionId)
     {
@@ -101,21 +125,24 @@ internal sealed class SessionProcessedTelemetryReader(
         {
             if (retained.TryGetValue(sessionId, out var entry))
             {
-                entry.Hash = null;
+                entry.Key = null;
                 entry.Lazy = null;
             }
         }
     }
 
-    private void ClearRetainedValue(Guid sessionId, string hash, Lazy<TelemetryData> lazy)
+    private void ClearRetainedValue(
+        Guid sessionId,
+        SessionPsstCacheKey key,
+        Lazy<Task<TelemetryData?>> lazy)
     {
         lock (gate)
         {
             if (retained.TryGetValue(sessionId, out var entry) &&
-                StringComparer.Ordinal.Equals(entry.Hash, hash) &&
+                entry.Key == key &&
                 ReferenceEquals(entry.Lazy, lazy))
             {
-                entry.Hash = null;
+                entry.Key = null;
                 entry.Lazy = null;
             }
         }
@@ -138,16 +165,18 @@ internal sealed class SessionProcessedTelemetryReader(
         }
     }
 
-    private static string ComputeHash(byte[] raw) =>
-        Convert.ToHexStringLower(SHA256.HashData(raw));
+    private readonly record struct SessionPsstCacheKey(
+        Guid SessionId,
+        long Updated,
+        string? ProcessingFingerprintJson);
 
     private sealed class RetainedTelemetry
     {
         public int RetentionCount { get; set; }
 
-        public string? Hash { get; set; }
+        public SessionPsstCacheKey? Key { get; set; }
 
-        public Lazy<TelemetryData>? Lazy { get; set; }
+        public Lazy<Task<TelemetryData?>>? Lazy { get; set; }
     }
 
     private sealed class Retention(SessionProcessedTelemetryReader owner, Guid sessionId) : IDisposable

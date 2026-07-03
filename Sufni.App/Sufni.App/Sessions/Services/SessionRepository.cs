@@ -41,6 +41,8 @@ public interface ISessionRepository
 
     Task<byte[]?> GetSessionRawPsstAsync(Guid id);
 
+    Task<SessionPsstPayloadMetadata?> GetSessionPsstPayloadMetadataAsync(Guid id);
+
     /// <summary>
     /// The processed BLOB together with the fingerprint of those bytes, or null
     /// when the row holds no data. The sync session-data push sends both so the
@@ -77,6 +79,12 @@ public interface ISessionRepository
         SessionSummaryMetrics metrics,
         double? gpsOffsetSeconds = null);
 }
+
+public sealed record SessionPsstPayloadMetadata(
+    Guid Id,
+    bool HasData,
+    long Updated,
+    string? ProcessingFingerprintJson);
 
 internal sealed class SessionRepository(
     SqliteConnectionContext connectionContext,
@@ -306,6 +314,23 @@ internal sealed class SessionRepository(
         var sessions = await connection.QueryAsync<Session>(
             "SELECT data FROM session WHERE deleted IS null AND id = ?", id);
         return sessions.Count == 1 ? sessions[0].ProcessedData : null;
+    }
+
+    public async Task<SessionPsstPayloadMetadata?> GetSessionPsstPayloadMetadataAsync(Guid id)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        var rows = await connection.QueryAsync<SessionPsstPayloadMetadataRow>(
+            $"""
+             SELECT
+                id,
+                {SessionSqlProjection.HasDataProjection},
+                updated,
+                {SessionSqlProjection.ProcessingFingerprintColumn}
+             FROM session
+             WHERE deleted IS null AND id = ?
+             """,
+            id);
+        return rows.Count == 1 ? rows[0].ToMetadata() : null;
     }
 
     public async Task<(byte[] Data, string? Fingerprint)?> GetSessionRawPsstWithFingerprintAsync(Guid id)
@@ -663,6 +688,27 @@ internal sealed class SessionRepository(
     {
         [Column("id")]
         public Guid Id { get; set; }
+    }
+
+    private sealed class SessionPsstPayloadMetadataRow
+    {
+        [Column("id")]
+        public Guid Id { get; set; }
+
+        [Column("has_data")]
+        public bool HasData { get; set; }
+
+        [Column("updated")]
+        public long Updated { get; set; }
+
+        [Column("session_processing_fingerprint")]
+        public string? ProcessingFingerprintJson { get; set; }
+
+        public SessionPsstPayloadMetadata ToMetadata() => new(
+            Id,
+            HasData,
+            Updated,
+            ProcessingFingerprintJson);
     }
 
     private sealed class ProcessingInputBundleRow

@@ -315,6 +315,41 @@ public class SessionRepositoryTests
     }
 
     [Fact]
+    public async Task GetSessionPsstPayloadMetadataAsync_ReturnsPayloadMetadata()
+    {
+        using var tempDatabase = new TempDatabase("session-psst-metadata.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+        const string fingerprintJson = """{"fingerprint":"psst"}""";
+
+        var database = new TestPersistenceHarness(databasePath);
+        await database.PutSessionAsync(new Session(sessionId, "session", "desc", null, 100));
+        var before = await database.GetSessionAsync(sessionId);
+
+        var missing = await database.SessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId);
+
+        Assert.NotNull(missing);
+        Assert.Equal(sessionId, missing!.Id);
+        Assert.False(missing.HasData);
+        Assert.Equal(before!.Updated, missing.Updated);
+        Assert.Null(missing.ProcessingFingerprintJson);
+
+        await database.SessionRepository.UpdateSessionPsstAsync(
+            sessionId,
+            PersistenceTestData.CreateTelemetryBlob(65),
+            fingerprintJson,
+            new SessionSummaryMetrics(65, null, null, null));
+
+        var present = await database.SessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId);
+
+        Assert.NotNull(present);
+        Assert.Equal(sessionId, present!.Id);
+        Assert.True(present.HasData);
+        Assert.Equal(before.Updated, present.Updated);
+        Assert.Equal(fingerprintJson, present.ProcessingFingerprintJson);
+    }
+
+    [Fact]
     public async Task UpdateSessionPsstAsync_WritesDataAndMetricsAsGiven_WithoutBumpingUpdated()
     {
         using var tempDatabase = new TempDatabase("session-psst-update.db");
