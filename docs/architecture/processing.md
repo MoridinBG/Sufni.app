@@ -199,7 +199,7 @@ Four sensor types convert raw ADC counts to millimeters of travel through the `I
 - `MeasurementToTravel` — `Func<ushort, double>` calibration closure
 - `MaxTravel` — physical suspension limit in mm
 
-Polymorphic JSON deserialization: `SensorConfiguration.FromJson(json, BikeSnapshot)` reads the `Type` field first, then dispatches to the front-sensor concrete class's `FromJson()` which deserializes the type-specific parameters and computes calibration factors using bike geometry. The data-only overload `SensorConfiguration.FromJson(json)` is used when the payload must remain independent of bike context. Rear shock payloads (`LinearShockSensorConfiguration`, `RotationalShockSensorConfiguration`) are deserialized as data-only records and the closure is built later by [`RearTravelCalibrationBuilder`](#rear-travel-calibration), which keeps the linkage and leverage-ratio rules out of the sensor-configuration types.
+Polymorphic JSON deserialization is single-pass. `SensorConfiguration.FromJson(json)` delegates to the app JSON context, whose converter peeks at the `Type` discriminator and materializes the concrete data record. The bike-aware overload `SensorConfiguration.FromJson(json, BikeSnapshot)` reuses that data-only parse and binds only front sensor configurations to the supplied bike so their calibration closures can include fork geometry. Rear shock payloads (`LinearShockSensorConfiguration`, `RotationalShockSensorConfiguration`) stay data-only at deserialization time; their closure is built later by [`RearTravelCalibrationBuilder`](#rear-travel-calibration), which keeps the linkage and leverage-ratio rules out of the sensor-configuration types.
 
 For example, `LinearForkSensorConfiguration` stores `Length` (sensor physical range) and `Resolution` (ADC bit depth). Its calibration:
 
@@ -215,7 +215,7 @@ MaxTravel = bike.ForkStroke * strokeToTravel;
 
 The denominator is the ADC's full-scale count for an `n`-bit sensor: `2^Resolution - 1`.
 
-The bike context (head angle, fork stroke, shock stroke) is injected at deserialization time, making the closure self-contained for the processing pipeline.
+For front sensors, bike context (head angle and fork stroke) is bound immediately after the data record is deserialized, making the closure self-contained for the processing pipeline.
 
 | Implementation                       | Parameters                                   | Calibration                                                            |
 | ------------------------------------ | -------------------------------------------- | ---------------------------------------------------------------------- |
