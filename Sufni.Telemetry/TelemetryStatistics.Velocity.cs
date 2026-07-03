@@ -119,31 +119,6 @@ public static partial class TelemetryStatistics
     public static VelocityBands CalculateVelocityBands(
         TelemetryData telemetryData,
         SuspensionType type,
-        double highSpeedThreshold,
-        TelemetryTimeRange? range = null)
-    {
-        return CalculateVelocityBands(telemetryData, type, new VelocityStatisticsOptions(
-            range,
-            CompressionHighSpeedThreshold: highSpeedThreshold,
-            ReboundHighSpeedThreshold: highSpeedThreshold));
-    }
-
-    public static VelocityBands CalculateVelocityBands(
-        TelemetryData telemetryData,
-        SuspensionType type,
-        double highSpeedThreshold,
-        VelocityStatisticsOptions options)
-    {
-        return CalculateVelocityBands(telemetryData, type, options with
-        {
-            CompressionHighSpeedThreshold = highSpeedThreshold,
-            ReboundHighSpeedThreshold = highSpeedThreshold,
-        });
-    }
-
-    public static VelocityBands CalculateVelocityBands(
-        TelemetryData telemetryData,
-        SuspensionType type,
         VelocityStatisticsOptions options)
     {
         var suspension = GetSuspension(telemetryData, type);

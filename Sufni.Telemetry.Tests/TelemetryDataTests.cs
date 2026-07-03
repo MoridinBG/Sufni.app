@@ -656,7 +656,12 @@ public class TelemetryDataTests
             value => value / 10.0);
 
         var result = TelemetryData.FromRecording(rawData, metadata, bikeData);
-        var frontBands = TelemetryStatistics.CalculateVelocityBands(result, SuspensionType.Front, 200.0);
+        var frontBands = TelemetryStatistics.CalculateVelocityBands(
+            result,
+            SuspensionType.Front,
+            new VelocityStatisticsOptions(
+                CompressionHighSpeedThreshold: 200.0,
+                ReboundHighSpeedThreshold: 200.0));
 
         Assert.False(TelemetryStatistics.HasBalanceData(result, BalanceType.Compression));
         Assert.False(TelemetryStatistics.HasBalanceData(result, BalanceType.Rebound));
@@ -1159,12 +1164,19 @@ public class TelemetryDataTests
                 CreateStroke(7, 7, maxVelocity: -50),
             ]);
 
-        var sampleBands = TelemetryStatistics.CalculateVelocityBands(telemetry, SuspensionType.Front, 200.0);
+        var sampleBands = TelemetryStatistics.CalculateVelocityBands(
+            telemetry,
+            SuspensionType.Front,
+            new VelocityStatisticsOptions(
+                CompressionHighSpeedThreshold: 200.0,
+                ReboundHighSpeedThreshold: 200.0));
         var strokePeakBands = TelemetryStatistics.CalculateVelocityBands(
             telemetry,
             SuspensionType.Front,
-            200.0,
-            new VelocityStatisticsOptions(VelocityAverageMode: VelocityAverageMode.StrokePeakAveraged));
+            new VelocityStatisticsOptions(
+                VelocityAverageMode: VelocityAverageMode.StrokePeakAveraged,
+                CompressionHighSpeedThreshold: 200.0,
+                ReboundHighSpeedThreshold: 200.0));
 
         Assert.Equal(37.5, sampleBands.LowSpeedCompression, 3);
         Assert.Equal(12.5, sampleBands.HighSpeedCompression, 3);
@@ -1233,7 +1245,7 @@ public class TelemetryDataTests
     }
 
     [Fact]
-    public void CalculateVelocityBands_LegacyThresholdOverload_UsesSameThresholdForCompressionAndRebound()
+    public void CalculateVelocityBands_ExactThresholdValues_AreHighSpeed()
     {
         var telemetry = CreateTelemetry(
             travel: [0, 10, 20, 30],
@@ -1248,7 +1260,12 @@ public class TelemetryDataTests
                 CreateStroke(2, 3),
             ]);
 
-        var bands = TelemetryStatistics.CalculateVelocityBands(telemetry, SuspensionType.Front, 200);
+        var bands = TelemetryStatistics.CalculateVelocityBands(
+            telemetry,
+            SuspensionType.Front,
+            new VelocityStatisticsOptions(
+                CompressionHighSpeedThreshold: 200,
+                ReboundHighSpeedThreshold: 200));
 
         Assert.Equal(25, bands.LowSpeedCompression, 3);
         Assert.Equal(25, bands.HighSpeedCompression, 3);
