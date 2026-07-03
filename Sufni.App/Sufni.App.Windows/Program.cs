@@ -19,6 +19,21 @@ namespace Sufni.App.Windows
         // Avalonia configuration, don't remove; also used by visual designer.
         public static AppBuilder BuildAvaloniaApp()
         {
+            App.ServiceCollection.AddAppEnvironment(
+                UiLayoutProfile.Workspace,
+                new AppCapabilities(
+                    CanHostSyncServer: true,
+                    CanPairAsClient: false,
+                    HasHaptics: false,
+                    SupportsMassStorageImport: true,
+                    SupportsStorageProviderImport: true,
+                    SupportsNativeWindowing: true),
+                new InputCapabilities(
+                    HasPointer: true,
+                    HasTouch: false,
+                    HasKeyboard: true,
+                    SupportsPinch: false,
+                    SupportsLongPressContextMenu: false));
             App.ServiceCollection.AddSingleton<ISecureStorage, WindowsSecureStorage>();
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, SocketServiceDiscovery>("daq");
             DesktopAppBootstrapper.RegisterDesktopSync(App.ServiceCollection);
