@@ -55,6 +55,9 @@ public class BikeRestorationTests
         };
 
         var restored = Bike.FromSnapshot(snapshot);
+
+        Assert.Equal([1, 2, 3], restored.ImageBytes);
+
         restored.ImageBytes[0] = 9;
 
         Assert.Equal([1, 2, 3], snapshot.ImageBytes);

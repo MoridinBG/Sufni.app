@@ -20,7 +20,7 @@ public class BikeImageCanvasViewModelTests
         };
         var viewModel = new BikeImageCanvasViewModel();
 
-        viewModel.ApplySnapshot(snapshot.ImageBytes, snapshot.ImageRotationDegrees);
+        viewModel.ApplySnapshot(snapshot.ImageBytesMemory, snapshot.ImageRotationDegrees);
 
         Assert.NotNull(viewModel.Image);
         Assert.Equal(imageBytes, viewModel.ImageBytes);

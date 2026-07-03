@@ -311,7 +311,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
             case RearSuspensionSpec.Linkage linkage:
                 Chainstay = snapshot.Chainstay;
                 PixelsToMillimeters = snapshot.PixelsToMillimeters;
-                ImageCanvas.ApplySnapshot(snapshot.ImageBytes, snapshot.ImageRotationDegrees);
+                ImageCanvas.ApplySnapshot(snapshot.ImageBytesMemory, snapshot.ImageRotationDegrees);
                 LinkageEditor.Load(linkage.Spec, ImageCanvas.Image?.Size.Height, snapshot.PixelsToMillimeters);
                 LeverageRatioEditor.ReplaceState(null);
                 SetRearSuspensionLoadError(null);

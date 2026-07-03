@@ -172,7 +172,7 @@ public class Bike : Synchronizable
         RearWheelRimSize = snapshot.RearWheelRimSize,
         RearWheelTireWidth = snapshot.RearWheelTireWidth,
         ImageRotationDegrees = snapshot.ImageRotationDegrees,
-        ImageBytes = [.. snapshot.ImageBytes],
+        ImageBytes = snapshot.CopyImageBytes(),
         Updated = snapshot.Updated,
     };
 

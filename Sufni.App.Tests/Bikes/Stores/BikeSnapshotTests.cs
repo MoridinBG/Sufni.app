@@ -79,6 +79,33 @@ public class BikeSnapshotTests
     }
 
     [Fact]
+    public void ImageByteCount_DoesNotRequireImageBytesGetter()
+    {
+        var snapshot = TestSnapshots.Bike() with
+        {
+            ImageBytes = [1, 2, 3],
+        };
+
+        Assert.Equal(3, snapshot.ImageByteCount);
+    }
+
+    [Fact]
+    public void ImageBytesSpan_ExposesReadOnlySnapshotBytesWithoutMutatingSnapshot()
+    {
+        var snapshot = TestSnapshots.Bike() with
+        {
+            ImageBytes = [1, 2, 3],
+        };
+
+        Assert.True(snapshot.ImageBytesSpan.SequenceEqual(new byte[] { 1, 2, 3 }));
+
+        var exposed = snapshot.ImageBytes;
+        exposed[0] = 9;
+
+        Assert.True(snapshot.ImageBytesSpan.SequenceEqual(new byte[] { 1, 2, 3 }));
+    }
+
+    [Fact]
     public void WithExpression_ReplacesLinkageSpecWithoutMutatingOriginalSnapshot()
     {
         var linkage = TestSnapshots.FullSuspensionLinkageSpec();

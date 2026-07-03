@@ -36,9 +36,17 @@ public sealed record BikeSnapshot(
 
     public byte[] ImageBytes
     {
-        get => [.. imageBytes];
+        get => CopyImageBytes();
         init => imageBytes = value is null ? [] : [.. value];
     }
+
+    public int ImageByteCount => imageBytes.Length;
+
+    public ReadOnlyMemory<byte> ImageBytesMemory => imageBytes;
+
+    public ReadOnlySpan<byte> ImageBytesSpan => imageBytes;
+
+    public byte[] CopyImageBytes() => [.. imageBytes];
 
     public double FrontCompressionDampingCutoffMmPerSecond
     {
@@ -129,7 +137,7 @@ public sealed record BikeSnapshot(
         WheelSpec.FromValues(bike.FrontWheelDiameterMm, bike.FrontWheelRimSize, bike.FrontWheelTireWidth),
         WheelSpec.FromValues(bike.RearWheelDiameterMm, bike.RearWheelRimSize, bike.RearWheelTireWidth),
         bike.ImageRotationDegrees,
-        [.. bike.ImageBytes],
+        bike.ImageBytes,
         bike.Updated);
 }
 

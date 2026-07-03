@@ -74,7 +74,14 @@ public partial class BikeImageCanvasViewModel : ObservableObject
 
     public void ApplySnapshot(byte[]? imageBytes, double imageRotationDegrees)
     {
-        this.imageBytes = imageBytes ?? [];
+        ApplySnapshot(
+            imageBytes is null ? ReadOnlyMemory<byte>.Empty : imageBytes,
+            imageRotationDegrees);
+    }
+
+    public void ApplySnapshot(ReadOnlyMemory<byte> imageBytes, double imageRotationDegrees)
+    {
+        this.imageBytes = imageBytes.ToArray();
         Image = BikeImageData.Decode(this.imageBytes);
         ImageRotationDegrees = imageRotationDegrees;
     }
@@ -117,7 +124,7 @@ public partial class BikeImageCanvasViewModel : ObservableObject
 
     public bool HasChangesComparedTo(BikeSnapshot snapshot) =>
         !MathUtils.AreEqual(ImageRotationDegrees, snapshot.ImageRotationDegrees) ||
-        !snapshot.ImageBytes.AsSpan().SequenceEqual(imageBytes);
+        !snapshot.ImageBytesSpan.SequenceEqual(imageBytes);
 
     private void InvalidateRotatedImageCache()
     {

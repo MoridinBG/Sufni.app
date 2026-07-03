@@ -46,7 +46,7 @@ internal sealed class BikeRearSuspensionValidator(IKinematicSolutionCache kinema
             return Invalid(BikeRearSuspensionValidationFailureCode.LinkageMissingShockStroke);
         }
 
-        if (snapshot.ImageBytes.Length == 0 ||
+        if (snapshot.ImageByteCount == 0 ||
             snapshot.Chainstay is null ||
             snapshot.PixelsToMillimeters <= 0)
         {
