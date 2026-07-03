@@ -456,7 +456,6 @@ public class AnalysisPlotView : SufniTelemetryPlotView
                 plot.LoadAnalysisData(data);
                 break;
             default:
-                base.LoadPlotData(plotModel);
                 break;
         }
     }

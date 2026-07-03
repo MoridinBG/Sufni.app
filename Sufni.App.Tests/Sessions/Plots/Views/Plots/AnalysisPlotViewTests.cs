@@ -136,6 +136,39 @@ public class AnalysisPlotViewTests
     }
 
     [AvaloniaFact]
+    public async Task AnalysisPlotView_ClearsPlot_WhenStateResultDoesNotMatchPlotKind()
+    {
+        var telemetry = CreateProcessed();
+        var inputs = CreateAnalysisInputs();
+        var key = inputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
+        using var state = new TestAnalysisResultState(inputs);
+        var view = new TestableAnalysisPlotView
+        {
+            AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
+            AnalysisResultState = state,
+            SuspensionType = SuspensionType.Front,
+            Telemetry = telemetry,
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        state.Publish(key, CreateTravelDistributionResult(telemetry, range: null));
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.NotEmpty(GetBars(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot));
+
+        state.Publish(
+            key,
+            new TravelFrequencyDistributionAnalysisResult(
+                TelemetryStatistics.CalculateTravelFrequencyHistogram(telemetry, SuspensionType.Front),
+                HasStrokeData: true));
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Empty(GetBars(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot));
+        Assert.Single(state.Requests);
+    }
+
+    [AvaloniaFact]
     public async Task AnalysisPlotView_RequestsNewResult_WhenInputsInvalidateAfterRangeBindingChanged()
     {
         var telemetry = CreateProcessed();
