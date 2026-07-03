@@ -29,6 +29,22 @@ public interface ISessionCoordinator
         SessionPreferences preferences,
         CancellationToken cancellationToken = default);
 
+    Task<Guid?> CreateDerivedSessionAsync(
+        Guid fromSessionId,
+        string name,
+        double sourceAbsoluteStartSeconds,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> UpdateSessionOriginAsync(
+        Guid sessionId,
+        double sourceAbsoluteStartSeconds,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> RenameSessionAsync(
+        Guid sessionId,
+        string name,
+        CancellationToken cancellationToken = default);
+
     Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, RecomputeReason reason);
 
     /// <summary>

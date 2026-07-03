@@ -6,15 +6,13 @@ using System.Threading.Tasks;
 namespace Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 /// <summary>
-/// Durable extension-owned source of recorded-session derivation windows.
+/// Durable extension-owned provider of recorded-session derivation windows.
 /// Implementations must answer from persistent state rather than UI read stores
 /// because the app queries this surface during background processing and startup
 /// hydration.
 /// </summary>
-public interface IRecordedSessionDerivationWindowSource
+public interface IRecordedSessionDerivationWindowProvider
 {
-    string ExtensionId { get; }
-
     event EventHandler? WindowsChanged;
 
     Task<RecordedSessionDerivationWindow?> GetWindowAsync(

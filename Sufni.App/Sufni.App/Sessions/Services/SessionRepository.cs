@@ -122,15 +122,16 @@ internal sealed class SessionRepository(
                                                              deleted=NULL
                                                              """;
 
-    // Metadata save writes user-authored columns only. full_track_id,
-    // gps_offset_seconds, and session_processing_fingerprint are derived columns
-    // owned by the processed-write path; they are deliberately NOT listed here so
-    // a metadata save preserves whatever the derived path last wrote.
+    // Metadata save writes user-authored columns plus gps_offset_seconds. The
+    // offset is owned by explicit alignment/origin commands; full_track_id and
+    // session_processing_fingerprint remain derived columns preserved from the
+    // processed-write path.
     private const string SessionMetadataSaveUpdateAssignments = """
                                                                 name=?,
                                                                 setup_id=?,
                                                                 description=?,
                                                                 timestamp=?,
+                                                                gps_offset_seconds=?,
                                                                 track=COALESCE(?, track),
                                                                 data=COALESCE(?, data),
                                                                 front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
@@ -607,6 +608,7 @@ internal sealed class SessionRepository(
         session.Setup,
         session.Description,
         session.Timestamp,
+        NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
         SerializeTrack(session),
         session.ProcessedData,
         session.FrontSpringRate,

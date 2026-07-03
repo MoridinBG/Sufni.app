@@ -1,3 +1,4 @@
+using System.Threading;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
@@ -139,4 +140,33 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
     public void RequestPageSelection(string contributionId)
     {
     }
+
+    public Task<Guid?> CreateDerivedSessionAsync(
+        Guid fromSessionId,
+        string name,
+        double sourceAbsoluteStartSeconds,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<Guid?>(null);
+
+    public Task<bool> UpdateSessionOriginAsync(
+        Guid sessionId,
+        double sourceAbsoluteStartSeconds,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(false);
+
+    public Task<bool> RenameSessionAsync(
+        Guid sessionId,
+        string name,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(false);
+
+    public Task<bool> RequestRecomputeAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(false);
+
+    public Task OpenSessionInBackgroundAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
 }

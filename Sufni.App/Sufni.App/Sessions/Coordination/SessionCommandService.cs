@@ -48,6 +48,8 @@ public sealed class SessionCommandService
     private readonly IShellCoordinator shell;
     private readonly ISessionRecomputeEngine recomputeEngine;
     private readonly Func<IEditorFactory> editorFactory;
+    private readonly IRecordedSessionDerivationWindowCache derivationWindowCache;
+    private readonly IRecordedSessionDerivationWindowProvider derivationWindowProvider;
 
     public SessionCommandService(
         ISessionStoreWriter sessionStore,
@@ -64,7 +66,9 @@ public sealed class SessionCommandService
         ISessionPreferences sessionPreferences,
         IShellCoordinator shell,
         ISessionRecomputeEngine recomputeEngine,
-        Func<IEditorFactory> editorFactory)
+        Func<IEditorFactory> editorFactory,
+        IRecordedSessionDerivationWindowCache derivationWindowCache,
+        IRecordedSessionDerivationWindowProvider derivationWindowProvider)
     {
         this.sessionStore = sessionStore;
         this.sessionRepository = sessionRepository;
@@ -81,6 +85,8 @@ public sealed class SessionCommandService
         this.shell = shell;
         this.recomputeEngine = recomputeEngine;
         this.editorFactory = editorFactory;
+        this.derivationWindowCache = derivationWindowCache;
+        this.derivationWindowProvider = derivationWindowProvider;
     }
 
     public Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, RecomputeReason reason) =>
@@ -92,6 +98,125 @@ public sealed class SessionCommandService
         recomputeEngine.RequestRecomputeAllAsync(reason, progress);
 
     public bool IsRecomputeActive(Guid sessionId) => recomputeEngine.IsActive(sessionId);
+
+    public async Task<Guid?> CreateDerivedSessionAsync(
+        Guid fromSessionId,
+        string name,
+        double sourceAbsoluteStartSeconds,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var from = sessionStore.Get(fromSessionId);
+        if (from is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var origin = CalculateSourceAbsoluteOrigin(from, sourceAbsoluteStartSeconds);
+            var derived = new Session(Guid.NewGuid(), name, from.Description, from.SetupId, origin.Timestamp)
+            {
+                GpsOffsetSeconds = origin.GpsOffsetSeconds,
+                FrontSpringRate = from.FrontSpringRate,
+                FrontHighSpeedCompression = from.FrontHighSpeedCompression,
+                FrontLowSpeedCompression = from.FrontLowSpeedCompression,
+                FrontLowSpeedRebound = from.FrontLowSpeedRebound,
+                FrontHighSpeedRebound = from.FrontHighSpeedRebound,
+                RearSpringRate = from.RearSpringRate,
+                RearHighSpeedCompression = from.RearHighSpeedCompression,
+                RearLowSpeedCompression = from.RearLowSpeedCompression,
+                RearLowSpeedRebound = from.RearLowSpeedRebound,
+                RearHighSpeedRebound = from.RearHighSpeedRebound,
+            };
+
+            await sessionRepository.PutSessionAsync(derived);
+            cancellationToken.ThrowIfCancellationRequested();
+            var fresh = await sessionRepository.GetSessionAsync(derived.Id);
+            if (fresh is null)
+            {
+                return null;
+            }
+
+            sessionStore.Upsert(SessionSnapshot.From(fresh));
+            return fresh.Id;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            logger.Error(e, "Creating derived session from {SessionId} failed", fromSessionId);
+            return null;
+        }
+    }
+
+    public async Task<bool> UpdateSessionOriginAsync(
+        Guid sessionId,
+        double sourceAbsoluteStartSeconds,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var snapshot = sessionStore.Get(sessionId);
+        if (snapshot is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var origin = CalculateSourceAbsoluteOrigin(snapshot, sourceAbsoluteStartSeconds);
+            var session = SessionFromSnapshot(snapshot);
+            session.Timestamp = origin.Timestamp;
+            session.GpsOffsetSeconds = origin.GpsOffsetSeconds;
+
+            await sessionRepository.PutSessionAsync(session);
+            cancellationToken.ThrowIfCancellationRequested();
+            return await RefreshSessionSnapshotAsync(sessionId);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            logger.Error(e, "Updating session origin failed for {SessionId}", sessionId);
+            return false;
+        }
+    }
+
+    public async Task<bool> RenameSessionAsync(
+        Guid sessionId,
+        string name,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var snapshot = sessionStore.Get(sessionId);
+        if (snapshot is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var session = SessionFromSnapshot(snapshot);
+            session.Name = name;
+
+            await sessionRepository.PutSessionAsync(session);
+            cancellationToken.ThrowIfCancellationRequested();
+            return await RefreshSessionSnapshotAsync(sessionId);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            logger.Error(e, "Renaming session failed for {SessionId}", sessionId);
+            return false;
+        }
+    }
 
     public async Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated)
     {
@@ -199,6 +324,63 @@ public sealed class SessionCommandService
         }
     }
 
+    private async Task<bool> RefreshSessionSnapshotAsync(Guid sessionId)
+    {
+        var fresh = await sessionRepository.GetSessionAsync(sessionId);
+        if (fresh is null)
+        {
+            return false;
+        }
+
+        sessionStore.Upsert(SessionSnapshot.From(fresh));
+        return true;
+    }
+
+    private (long? Timestamp, double GpsOffsetSeconds) CalculateSourceAbsoluteOrigin(
+        SessionSnapshot snapshot,
+        double sourceAbsoluteStartSeconds)
+    {
+        if (!double.IsFinite(sourceAbsoluteStartSeconds) || sourceAbsoluteStartSeconds < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sourceAbsoluteStartSeconds));
+        }
+
+        if (snapshot.Timestamp is not { } timestamp)
+        {
+            return (null, 0);
+        }
+
+        var currentStartSeconds = derivationWindowCache.Get(snapshot.Id)?.StartSeconds ?? 0;
+        var rawTimestamp = timestamp - (long)Math.Floor(currentStartSeconds);
+        var alignmentBase = snapshot.GpsOffsetSeconds - FractionalSeconds(currentStartSeconds);
+        return (
+            rawTimestamp + (long)Math.Floor(sourceAbsoluteStartSeconds),
+            alignmentBase + FractionalSeconds(sourceAbsoluteStartSeconds));
+    }
+
+    private static double FractionalSeconds(double seconds) => seconds - Math.Floor(seconds);
+
+    private static Session SessionFromSnapshot(SessionSnapshot snapshot) => new(
+        snapshot.Id,
+        snapshot.Name,
+        snapshot.Description,
+        snapshot.SetupId,
+        snapshot.Timestamp)
+    {
+        GpsOffsetSeconds = snapshot.GpsOffsetSeconds,
+        FrontSpringRate = snapshot.FrontSpringRate,
+        FrontHighSpeedCompression = snapshot.FrontHighSpeedCompression,
+        FrontLowSpeedCompression = snapshot.FrontLowSpeedCompression,
+        FrontLowSpeedRebound = snapshot.FrontLowSpeedRebound,
+        FrontHighSpeedRebound = snapshot.FrontHighSpeedRebound,
+        RearSpringRate = snapshot.RearSpringRate,
+        RearHighSpeedCompression = snapshot.RearHighSpeedCompression,
+        RearLowSpeedCompression = snapshot.RearLowSpeedCompression,
+        RearLowSpeedRebound = snapshot.RearLowSpeedRebound,
+        RearHighSpeedRebound = snapshot.RearHighSpeedRebound,
+        Updated = snapshot.Updated,
+    };
+
     public async Task<SessionDeleteResult> DeleteAsync(Guid sessionId)
     {
         logger.Information("Starting session delete for {SessionId}", sessionId);
@@ -216,8 +398,11 @@ public sealed class SessionCommandService
             }
 
             await sessionEntityRepository.DeleteAsync(sessionId);
-            await recordedSessionSourceRepository.DeleteRecordedSessionSourceAsync(sessionId);
-            sourceStore.Remove(sessionId);
+            if (!await derivationWindowProvider.IsRecordingSourceReferencedAsync(sessionId))
+            {
+                await recordedSessionSourceRepository.DeleteRecordedSessionSourceAsync(sessionId);
+                sourceStore.Remove(sessionId);
+            }
 
             if (shouldDeleteTrack && trackId.HasValue)
             {

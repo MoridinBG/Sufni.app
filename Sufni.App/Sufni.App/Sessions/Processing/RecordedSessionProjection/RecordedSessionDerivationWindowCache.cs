@@ -6,7 +6,6 @@ using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
-using Sufni.App.Extensibility.RecordedSessions;
 namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
 public interface IRecordedSessionDerivationWindowCache
@@ -20,17 +19,17 @@ public interface IRecordedSessionDerivationWindowCache
 
 internal sealed class RecordedSessionDerivationWindowCache : IRecordedSessionDerivationWindowCache, IDisposable
 {
-    private readonly IRecordedSessionDerivationWindowService windowService;
+    private readonly IRecordedSessionDerivationWindowProvider windowProvider;
     private readonly Dictionary<Guid, RecordedSessionDerivationWindow> windowsBySession = [];
     private readonly Dictionary<Guid, HashSet<Guid>> sessionIdsBySource = [];
     private readonly System.Threading.Lock gate = new();
     private readonly Subject<Guid> windowChanged = new();
     private bool hydrated;
 
-    public RecordedSessionDerivationWindowCache(IRecordedSessionDerivationWindowService windowService)
+    public RecordedSessionDerivationWindowCache(IRecordedSessionDerivationWindowProvider windowProvider)
     {
-        this.windowService = windowService;
-        this.windowService.WindowsChanged += OnServiceWindowsChanged;
+        this.windowProvider = windowProvider;
+        this.windowProvider.WindowsChanged += OnProviderWindowsChanged;
     }
 
     public IObservable<Guid> WindowChanged => windowChanged.AsObservable();
@@ -55,7 +54,7 @@ internal sealed class RecordedSessionDerivationWindowCache : IRecordedSessionDer
 
     public async Task HydrateAsync()
     {
-        var fresh = await windowService.GetWindowsAsync();
+        var fresh = await windowProvider.GetWindowsAsync();
         var changed = new List<Guid>();
 
         lock (gate)
@@ -94,7 +93,7 @@ internal sealed class RecordedSessionDerivationWindowCache : IRecordedSessionDer
 
     public async Task RefreshSessionAsync(Guid sessionId)
     {
-        var fresh = await windowService.GetWindowAsync(sessionId);
+        var fresh = await windowProvider.GetWindowAsync(sessionId);
         var changed = false;
 
         lock (gate)
@@ -122,11 +121,11 @@ internal sealed class RecordedSessionDerivationWindowCache : IRecordedSessionDer
 
     public void Dispose()
     {
-        windowService.WindowsChanged -= OnServiceWindowsChanged;
+        windowProvider.WindowsChanged -= OnProviderWindowsChanged;
         windowChanged.Dispose();
     }
 
-    private void OnServiceWindowsChanged(object? sender, EventArgs args)
+    private void OnProviderWindowsChanged(object? sender, EventArgs args)
     {
         _ = HydrateAsync();
     }

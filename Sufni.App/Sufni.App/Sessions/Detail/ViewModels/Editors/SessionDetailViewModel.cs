@@ -92,6 +92,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly RecordedSessionOperationCoordinator? recordedSessionOperationCoordinator;
     private readonly SessionStalenessReconciler stalenessReconciler;
     private readonly IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache;
+    private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
+    private readonly Func<IEditorFactory> editorFactory;
     private bool observedInitialDomain;
     private RecordedSessionDomainSnapshot? deferredDomain;
     private readonly AnalysisSelectionController analysisSelectionController = new();
@@ -835,6 +837,55 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     void IRecordedSessionHostOperations.RequestPageSelection(string contributionId) =>
         extensionPagesController?.RequestRecordedSessionExtensionPageSelection(contributionId);
 
+    Task<Guid?> IRecordedSessionHostOperations.CreateDerivedSessionAsync(
+        Guid fromSessionId,
+        string name,
+        double sourceAbsoluteStartSeconds,
+        CancellationToken cancellationToken) =>
+        sessionCoordinator.CreateDerivedSessionAsync(fromSessionId, name, sourceAbsoluteStartSeconds, cancellationToken);
+
+    Task<bool> IRecordedSessionHostOperations.UpdateSessionOriginAsync(
+        Guid sessionId,
+        double sourceAbsoluteStartSeconds,
+        CancellationToken cancellationToken) =>
+        sessionCoordinator.UpdateSessionOriginAsync(sessionId, sourceAbsoluteStartSeconds, cancellationToken);
+
+    Task<bool> IRecordedSessionHostOperations.RenameSessionAsync(
+        Guid sessionId,
+        string name,
+        CancellationToken cancellationToken) =>
+        sessionCoordinator.RenameSessionAsync(sessionId, name, cancellationToken);
+
+    async Task<bool> IRecordedSessionHostOperations.RequestRecomputeAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await recordedSessionDerivationWindowCache.RefreshSessionAsync(sessionId);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var result = await sessionCoordinator.RequestRecomputeAsync(sessionId, RecomputeReason.SourceWindowChanged);
+        return result is SessionRecomputeResult.Recomputed or SessionRecomputeResult.Superseded;
+    }
+
+    async Task IRecordedSessionHostOperations.OpenSessionInBackgroundAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var snapshot = sessionStore.Get(sessionId);
+        if (snapshot is null)
+        {
+            return;
+        }
+
+        await UiThreadDispatcher.InvokeAsync(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            editorFactory().OpenSessionDetailInBackground(snapshot);
+        });
+    }
+
     Guid ISessionOperationGateway.SessionId => Id;
 
     bool ISessionOperationGateway.IsDirty => IsDirty;
@@ -867,6 +918,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         IUiThreadDispatcher uiThreadDispatcher,
         ISessionLayoutStrategy layoutStrategy,
         IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache,
+        IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache,
+        Func<IEditorFactory> editorFactory,
         IBikeCoordinator? bikeCoordinator = null,
         ExtensionHostDependencies? extensionHost = null)
         : base(shell, dialogService, uiThreadDispatcher)
@@ -882,6 +935,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         this.sessionPresentationService = sessionPresentationService;
         this.sessionAnalysisService = sessionAnalysisService;
         this.recordedSessionProcessingOptionCache = recordedSessionProcessingOptionCache;
+        this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
+        this.editorFactory = editorFactory;
         recordedPreferenceStore = new RecordedPreferenceStore(
             sessionPreferences,
             () => Id,

@@ -22,6 +22,17 @@ public sealed class DesktopShellCoordinator(Func<IMainWindowShellHost> mainWindo
         window.OpenView(window.TakeTabHistory(match) ?? create());
     }
 
+    public void OpenInBackground<T>(Func<T, bool> match, Func<T> create) where T : ViewModelBase
+    {
+        var window = mainWindowProvider();
+        if (window.Tabs.OfType<T>().Any(match))
+        {
+            return;
+        }
+
+        window.AddView(window.TakeTabHistory(match) ?? create());
+    }
+
     public void Close(ViewModelBase view)
     {
         if (view is TabPageViewModelBase tab)

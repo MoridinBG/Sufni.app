@@ -10,6 +10,7 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Bikes.Models;
+using Sufni.App.Extensibility.RecordedSessions;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
@@ -63,6 +64,8 @@ public class SessionCoordinatorTests
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
     private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
     private readonly ISessionRecomputeEngine recomputeEngine = Substitute.For<ISessionRecomputeEngine>();
+    private readonly IRecordedSessionDerivationWindowCache derivationWindowCache = Substitute.For<IRecordedSessionDerivationWindowCache>();
+    private readonly IRecordedSessionDerivationWindowProvider derivationWindowProvider = Substitute.For<IRecordedSessionDerivationWindowProvider>();
 
     public SessionCoordinatorTests()
     {
@@ -73,6 +76,8 @@ public class SessionCoordinatorTests
         sessionPreferences.RemoveRecordedAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         sessionPreferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<SessionPreferences, SessionPreferences>>())
             .Returns(Task.CompletedTask);
+        derivationWindowProvider.IsRecordingSourceReferencedAsync(Arg.Any<Guid>())
+            .Returns(Task.FromResult(false));
     }
 
     private SessionLoader CreateLoader() =>
@@ -117,7 +122,9 @@ public class SessionCoordinatorTests
             sessionPreferences,
             shell,
             recomputeEngine,
-            () => editorFactory);
+            () => editorFactory,
+            derivationWindowCache,
+            derivationWindowProvider);
 
     private SessionCoordinator CreateCoordinator() =>
         new(
@@ -377,6 +384,109 @@ public class SessionCoordinatorTests
         sourceStore.DidNotReceive().Upsert(Arg.Any<RecordedSessionSourceSnapshot>());
     }
 
+    // ----- Editing operations -----
+
+    [Fact]
+    public async Task CreateDerivedSessionAsync_CreatesMetadataOnlySession_WithSourceAbsoluteOrigin()
+    {
+        var sourceSessionId = Guid.NewGuid();
+        var from = TestSnapshots.Session(
+            id: Guid.NewGuid(),
+            name: "source",
+            description: "desc",
+            setupId: Guid.NewGuid(),
+            timestamp: 100) with
+        {
+            GpsOffsetSeconds = 0.25,
+            FrontSpringRate = "80 psi",
+            RearSpringRate = "450 lb"
+        };
+        var window = new RecordedSessionDerivationWindow(sourceSessionId, 1.5, 10);
+        sessionStore.Get(from.Id).Returns(from);
+        derivationWindowCache.Get(from.Id).Returns(window);
+        Session? saved = null;
+        sessionRepository.PutSessionAsync(Arg.Any<Session>())
+            .Returns(call =>
+            {
+                saved = call.Arg<Session>();
+                return Task.FromResult(saved.Id);
+            });
+        sessionRepository.GetSessionAsync(Arg.Any<Guid>())
+            .Returns(_ => Task.FromResult(saved));
+
+        var createdId = await CreateCoordinator().CreateDerivedSessionAsync(from.Id, "source (2)", 3.75);
+
+        Assert.NotNull(saved);
+        Assert.Equal(saved!.Id, createdId);
+        Assert.Equal("source (2)", saved.Name);
+        Assert.Equal(from.Description, saved.Description);
+        Assert.Equal(from.SetupId, saved.Setup);
+        Assert.Equal(102, saved.Timestamp);
+        Assert.Equal(0.5, saved.GpsOffsetSeconds, precision: 6);
+        Assert.Equal(from.FrontSpringRate, saved.FrontSpringRate);
+        Assert.Equal(from.RearSpringRate, saved.RearSpringRate);
+        Assert.Null(saved.ProcessedData);
+        Assert.Null(saved.FullTrack);
+        sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(snapshot => snapshot.Id == saved.Id));
+    }
+
+    [Fact]
+    public async Task UpdateSessionOriginAsync_ReanchorsTimestampAndGpsOffset_FromCurrentWindow()
+    {
+        var sessionId = Guid.NewGuid();
+        var snapshot = TestSnapshots.Session(
+            id: sessionId,
+            setupId: Guid.NewGuid(),
+            timestamp: 100) with
+        {
+            GpsOffsetSeconds = 0.25
+        };
+        derivationWindowCache.Get(sessionId).Returns(new RecordedSessionDerivationWindow(Guid.NewGuid(), 1.5, 10));
+        sessionStore.Get(sessionId).Returns(snapshot);
+        Session? saved = null;
+        sessionRepository.PutSessionAsync(Arg.Any<Session>())
+            .Returns(call =>
+            {
+                saved = call.Arg<Session>();
+                return Task.FromResult(saved.Id);
+            });
+        sessionRepository.GetSessionAsync(sessionId)
+            .Returns(_ => Task.FromResult(saved));
+
+        var result = await CreateCoordinator().UpdateSessionOriginAsync(sessionId, 3.75);
+
+        Assert.True(result);
+        Assert.NotNull(saved);
+        Assert.Equal(102, saved!.Timestamp);
+        Assert.Equal(0.5, saved.GpsOffsetSeconds, precision: 6);
+        sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(value => value.Id == sessionId));
+    }
+
+    [Fact]
+    public async Task RenameSessionAsync_UpdatesNameWithoutNormalSaveNavigation()
+    {
+        var sessionId = Guid.NewGuid();
+        var snapshot = TestSnapshots.Session(id: sessionId, name: "before", setupId: Guid.NewGuid());
+        sessionStore.Get(sessionId).Returns(snapshot);
+        Session? saved = null;
+        sessionRepository.PutSessionAsync(Arg.Any<Session>())
+            .Returns(call =>
+            {
+                saved = call.Arg<Session>();
+                return Task.FromResult(saved.Id);
+            });
+        sessionRepository.GetSessionAsync(sessionId)
+            .Returns(_ => Task.FromResult(saved));
+
+        var result = await CreateCoordinator().RenameSessionAsync(sessionId, "after");
+
+        Assert.True(result);
+        Assert.NotNull(saved);
+        Assert.Equal("after", saved!.Name);
+        shell.DidNotReceive().GoBack();
+        sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(value => value.Name == "after"));
+    }
+
     // ----- DeleteAsync -----
 
     [Fact]
@@ -423,6 +533,26 @@ public class SessionCoordinatorTests
         sourceStore.Received(1).Remove(id);
         await trackEntityRepository.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
         editorFactory.Received(1).CloseSessionDetail(id);
+        sessionStore.Received(1).Remove(id);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_KeepsRecordedSource_WhenAnotherSessionReferencesIt()
+    {
+        var id = Guid.NewGuid();
+        sessionRepository.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null));
+        sessionEntityRepository.GetAllAsync().Returns(Task.FromResult(new List<Session>
+        {
+            new(id, "name", "desc", null)
+        }));
+        derivationWindowProvider.IsRecordingSourceReferencedAsync(id).Returns(Task.FromResult(true));
+
+        var result = await CreateCoordinator().DeleteAsync(id);
+
+        Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
+        await sessionEntityRepository.Received(1).DeleteAsync(id);
+        await recordedSessionSourceRepository.DidNotReceive().DeleteRecordedSessionSourceAsync(id);
+        sourceStore.DidNotReceive().Remove(id);
         sessionStore.Received(1).Remove(id);
     }
 

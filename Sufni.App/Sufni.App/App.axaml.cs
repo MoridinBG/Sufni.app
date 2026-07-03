@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.Linq;
 using Avalonia.Controls;
 using Sufni.App.ExtensionHost.Contracts.Database;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.Sync;
 using Sufni.App.ExtensionHost.Contracts.Services;
@@ -181,7 +182,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IExtensionCascadeService, ExtensionCascadeService>();
         ServiceCollection.AddSingleton<IExtensionSyncService, ExtensionSyncService>();
         ServiceCollection.TryAddSingleton<IRecordedSessionListExtensionService, RecordedSessionListExtensionService>();
-        ServiceCollection.TryAddSingleton<IRecordedSessionDerivationWindowService, RecordedSessionDerivationWindowService>();
+        ServiceCollection.TryAddSingleton<IRecordedSessionDerivationWindowProvider, NullRecordedSessionDerivationWindowProvider>();
         ServiceCollection.AddSingleton<IAppPreferences, AppPreferences>();
         ServiceCollection.AddSingleton<IThemeService, ThemeService>();
         ServiceCollection.AddSingleton<IMapPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Map);
@@ -264,7 +265,9 @@ public partial class App : Application
             sp.GetRequiredService<ISessionPreferences>(),
             sp.GetRequiredService<IShellCoordinator>(),
             sp.GetRequiredService<ISessionRecomputeEngine>(),
-            sp.GetRequiredService<Func<IEditorFactory>>()));
+            sp.GetRequiredService<Func<IEditorFactory>>(),
+            sp.GetRequiredService<IRecordedSessionDerivationWindowCache>(),
+            sp.GetRequiredService<IRecordedSessionDerivationWindowProvider>()));
         ServiceCollection.AddSingleton<SessionSyncApplier>(sp => new SessionSyncApplier(
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<ISessionRepository>(),

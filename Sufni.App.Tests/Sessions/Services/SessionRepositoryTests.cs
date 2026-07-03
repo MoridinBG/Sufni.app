@@ -129,6 +129,30 @@ public class SessionRepositoryTests
     }
 
     [Fact]
+    public async Task PutSessionAsync_UpdatesGpsOffset_OnMetadataUpdate()
+    {
+        using var tempDatabase = new TempDatabase("session-gps-offset-metadata-save.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+        var database = new TestPersistenceHarness(databasePath);
+
+        await database.PutSessionAsync(new Session(sessionId, "original", "desc", null, 100)
+        {
+            GpsOffsetSeconds = 1.25
+        });
+
+        await database.PutSessionAsync(new Session(sessionId, "renamed", "desc", null, 100)
+        {
+            GpsOffsetSeconds = 3.75
+        });
+
+        var loaded = await database.GetSessionAsync(sessionId);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(3.75, loaded!.GpsOffsetSeconds);
+    }
+
+    [Fact]
     public async Task UpdateProcessedDerivedDataAsync_ReturnsNullAndRollsBack_WhenDatabaseInputsDoNotMatch()
     {
         using var tempDatabase = new TempDatabase("processed-derived-data-rollback.db");

@@ -186,7 +186,9 @@ internal sealed class SessionDetailViewTestContext
             isDesktopLayout
                 ? new DesktopSessionLayoutStrategy()
                 : new MobileSessionLayoutStrategy(),
-            new InMemoryRecordedSessionProcessingOptionCache());
+            new InMemoryRecordedSessionProcessingOptionCache(),
+            Substitute.For<IRecordedSessionDerivationWindowCache>(),
+            () => Substitute.For<IEditorFactory>());
     }
 }
 
