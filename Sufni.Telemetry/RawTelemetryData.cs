@@ -63,6 +63,11 @@ public class RawTelemetryData
         return FromStream(new MemoryStream(bytes));
     }
 
+    public RawTelemetryData Slice(double startSeconds, double? endSeconds)
+    {
+        return TelemetrySlicer.Slice(this, startSeconds, endSeconds);
+    }
+
     private static (ISstParser Parser, byte Version) CreateParser(BinaryReader reader)
     {
         var magic = reader.ReadBytes(4);
