@@ -25,7 +25,8 @@ internal sealed class ProcessingDependencyHashIndex : IProcessingDependencyHashI
     private readonly Dictionary<Guid, SetupSnapshot> setups = [];
     private readonly Dictionary<Guid, BikeSnapshot> bikes = [];
     private readonly Dictionary<Guid, string> hashes = [];
-    private readonly Subject<ProcessingDependencyHashChange> changes = new();
+    private readonly ISubject<ProcessingDependencyHashChange> changes =
+        Subject.Synchronize(new Subject<ProcessingDependencyHashChange>());
     private readonly CompositeDisposable subscriptions = [];
     private bool disposed;
 
@@ -62,11 +63,11 @@ internal sealed class ProcessingDependencyHashIndex : IProcessingDependencyHashI
 
         subscriptions.Dispose();
         changes.OnCompleted();
-        changes.Dispose();
     }
 
     private void ApplySetupChanges(IChangeSet<SetupSnapshot, Guid> changeSet)
     {
+        var affectedSetupIds = new HashSet<Guid>();
         var emitted = new List<ProcessingDependencyHashChange>();
         lock (stateGate)
         {
@@ -83,15 +84,20 @@ internal sealed class ProcessingDependencyHashIndex : IProcessingDependencyHashI
                     case ChangeReason.Update:
                     case ChangeReason.Refresh:
                         setups[change.Key] = change.Current;
-                        AddIfChanged(emitted, RecomputeSetupHashLocked(change.Key));
+                        affectedSetupIds.Add(change.Key);
                         break;
                     case ChangeReason.Remove:
                         setups.Remove(change.Key);
-                        AddIfChanged(emitted, RemoveSetupHashLocked(change.Key));
+                        affectedSetupIds.Add(change.Key);
                         break;
                     case ChangeReason.Moved:
                         break;
                 }
+            }
+
+            foreach (var setupId in affectedSetupIds)
+            {
+                AddIfChanged(emitted, RecomputeSetupHashLocked(setupId));
             }
         }
 
@@ -100,6 +106,7 @@ internal sealed class ProcessingDependencyHashIndex : IProcessingDependencyHashI
 
     private void ApplyBikeChanges(IChangeSet<BikeSnapshot, Guid> changeSet)
     {
+        var affectedBikeIds = new HashSet<Guid>();
         var emitted = new List<ProcessingDependencyHashChange>();
         lock (stateGate)
         {
@@ -116,21 +123,20 @@ internal sealed class ProcessingDependencyHashIndex : IProcessingDependencyHashI
                     case ChangeReason.Update:
                     case ChangeReason.Refresh:
                         bikes[change.Key] = change.Current;
-                        foreach (var setupId in SetupIdsForBikeLocked(change.Key))
-                        {
-                            AddIfChanged(emitted, RecomputeSetupHashLocked(setupId));
-                        }
+                        affectedBikeIds.Add(change.Key);
                         break;
                     case ChangeReason.Remove:
                         bikes.Remove(change.Key);
-                        foreach (var setupId in SetupIdsForBikeLocked(change.Key))
-                        {
-                            AddIfChanged(emitted, RecomputeSetupHashLocked(setupId));
-                        }
+                        affectedBikeIds.Add(change.Key);
                         break;
                     case ChangeReason.Moved:
                         break;
                 }
+            }
+
+            foreach (var setupId in affectedBikeIds.SelectMany(SetupIdsForBikeLocked).Distinct())
+            {
+                AddIfChanged(emitted, RecomputeSetupHashLocked(setupId));
             }
         }
 
@@ -168,16 +174,6 @@ internal sealed class ProcessingDependencyHashIndex : IProcessingDependencyHashI
         return new ProcessingDependencyHashChange(setupId, previous, current);
     }
 
-    private ProcessingDependencyHashChange? RemoveSetupHashLocked(Guid setupId)
-    {
-        if (!hashes.Remove(setupId, out var previous))
-        {
-            return null;
-        }
-
-        return new ProcessingDependencyHashChange(setupId, previous, CurrentHash: null);
-    }
-
     private static void AddIfChanged(
         List<ProcessingDependencyHashChange> emitted,
         ProcessingDependencyHashChange? change)
@@ -188,8 +184,21 @@ internal sealed class ProcessingDependencyHashIndex : IProcessingDependencyHashI
         }
     }
 
-    private void Emit(IEnumerable<ProcessingDependencyHashChange> emitted)
+    private void Emit(IReadOnlyList<ProcessingDependencyHashChange> emitted)
     {
+        if (emitted.Count == 0)
+        {
+            return;
+        }
+
+        lock (stateGate)
+        {
+            if (disposed)
+            {
+                return;
+            }
+        }
+
         foreach (var change in emitted)
         {
             changes.OnNext(change);

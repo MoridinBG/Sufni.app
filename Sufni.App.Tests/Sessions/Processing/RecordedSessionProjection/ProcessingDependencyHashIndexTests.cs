@@ -97,6 +97,59 @@ public class ProcessingDependencyHashIndexTests
     }
 
     [Fact]
+    public void SetupReplaceAll_DoesNotEmit_WhenProcessingInputsAreUnchanged()
+    {
+        using var stores = new StoreFixtures();
+        using var index = new ProcessingDependencyHashIndex(stores.Setups, stores.Bikes);
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid());
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), bikeId: bike.Id);
+        var changes = new List<ProcessingDependencyHashChange>();
+        using var subscription = index.Connect().Subscribe(changes.Add);
+        stores.Bikes.Add(bike);
+        stores.Setups.Add(setup);
+        var originalHash = index.GetForSetup(setup.Id);
+        changes.Clear();
+
+        var refreshedSetup = setup with
+        {
+            Name = "renamed setup",
+            BoardId = Guid.NewGuid(),
+            Updated = setup.Updated + 1
+        };
+        stores.Setups.ReplaceAll([refreshedSetup]);
+
+        Assert.Empty(changes);
+        Assert.Equal(originalHash, index.GetForSetup(setup.Id));
+    }
+
+    [Fact]
+    public void BikeReplaceAll_DoesNotEmit_WhenProcessingInputsAreUnchanged()
+    {
+        using var stores = new StoreFixtures();
+        using var index = new ProcessingDependencyHashIndex(stores.Setups, stores.Bikes);
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid());
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), bikeId: bike.Id);
+        var changes = new List<ProcessingDependencyHashChange>();
+        using var subscription = index.Connect().Subscribe(changes.Add);
+        stores.Bikes.Add(bike);
+        stores.Setups.Add(setup);
+        var originalHash = index.GetForSetup(setup.Id);
+        changes.Clear();
+
+        stores.Bikes.ReplaceAll([
+            bike with
+            {
+                Name = "renamed bike",
+                ImageBytes = [9, 8, 7],
+                Updated = bike.Updated + 1
+            }
+        ]);
+
+        Assert.Empty(changes);
+        Assert.Equal(originalHash, index.GetForSetup(setup.Id));
+    }
+
+    [Fact]
     public void BikeRemove_ChangesDependentSetupHashesToNull()
     {
         using var stores = new StoreFixtures();
@@ -116,6 +169,46 @@ public class ProcessingDependencyHashIndexTests
         Assert.NotNull(change.PreviousHash);
         Assert.Null(change.CurrentHash);
         Assert.Null(index.GetForSetup(setup.Id));
+    }
+
+    [Fact]
+    public void SetupRemove_ChangesSetupHashToNull()
+    {
+        using var stores = new StoreFixtures();
+        using var index = new ProcessingDependencyHashIndex(stores.Setups, stores.Bikes);
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid());
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), bikeId: bike.Id);
+        var changes = new List<ProcessingDependencyHashChange>();
+        using var subscription = index.Connect().Subscribe(changes.Add);
+        stores.Bikes.Add(bike);
+        stores.Setups.Add(setup);
+        changes.Clear();
+
+        stores.Setups.Remove(setup.Id);
+
+        var change = Assert.Single(changes);
+        Assert.Equal(setup.Id, change.SetupId);
+        Assert.NotNull(change.PreviousHash);
+        Assert.Null(change.CurrentHash);
+        Assert.Null(index.GetForSetup(setup.Id));
+    }
+
+    [Fact]
+    public void Dispose_CompletesObservable_AndIgnoresLaterStoreChanges()
+    {
+        using var stores = new StoreFixtures();
+        using var index = new ProcessingDependencyHashIndex(stores.Setups, stores.Bikes);
+        var changes = new List<ProcessingDependencyHashChange>();
+        var completed = false;
+        using var subscription = index.Connect().Subscribe(
+            changes.Add,
+            () => completed = true);
+
+        index.Dispose();
+        stores.Bikes.Add(TestSnapshots.Bike(id: Guid.NewGuid()));
+
+        Assert.True(completed);
+        Assert.Empty(changes);
     }
 
     private sealed class StoreFixtures : IDisposable
@@ -147,6 +240,17 @@ public class ProcessingDependencyHashIndexTests
 
         public void Add(SetupSnapshot snapshot) => cache.AddOrUpdate(snapshot);
 
+        public void Remove(Guid id) => cache.RemoveKey(id);
+
+        public void ReplaceAll(IEnumerable<SetupSnapshot> snapshots)
+        {
+            cache.Edit(updater =>
+            {
+                updater.Clear();
+                updater.AddOrUpdate(snapshots);
+            });
+        }
+
         public void Dispose() => cache.Dispose();
     }
 
@@ -165,6 +269,15 @@ public class ProcessingDependencyHashIndexTests
         public void Add(BikeSnapshot snapshot) => cache.AddOrUpdate(snapshot);
 
         public void Remove(Guid id) => cache.RemoveKey(id);
+
+        public void ReplaceAll(IEnumerable<BikeSnapshot> snapshots)
+        {
+            cache.Edit(updater =>
+            {
+                updater.Clear();
+                updater.AddOrUpdate(snapshots);
+            });
+        }
 
         public void Dispose() => cache.Dispose();
     }
