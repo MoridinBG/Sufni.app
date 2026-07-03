@@ -46,6 +46,7 @@ public class TelemetryBikeProcessingContextFactoryTests
 
         Assert.Same(first, second);
         Assert.Equal(1, rearCalibrationBuilder.Calls);
+        Assert.Empty(rearCalibrationBuilder.LastBike?.ImageBytes ?? []);
     }
 
     [Fact]
@@ -207,10 +208,12 @@ public class TelemetryBikeProcessingContextFactoryTests
         RearTravelCalibrationBuildResult result) : IRearTravelCalibrationBuilder
     {
         public int Calls { get; private set; }
+        public BikeSnapshot? LastBike { get; private set; }
 
         public RearTravelCalibrationBuildResult TryBuild(SetupSnapshot setup, BikeSnapshot bike)
         {
             Calls++;
+            LastBike = bike;
             return result;
         }
     }
