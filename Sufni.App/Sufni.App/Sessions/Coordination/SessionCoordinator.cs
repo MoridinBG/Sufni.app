@@ -66,6 +66,25 @@ public class SessionCoordinator : ISessionCoordinator
         CancellationToken cancellationToken = default)
         => commandService.SaveLiveCaptureAsync(session, capture, preferences, cancellationToken);
 
+    public Task<Guid?> CreateDerivedSessionAsync(
+        Guid fromSessionId,
+        string name,
+        double sourceAbsoluteStartSeconds,
+        CancellationToken cancellationToken = default) =>
+        commandService.CreateDerivedSessionAsync(fromSessionId, name, sourceAbsoluteStartSeconds, cancellationToken);
+
+    public Task<bool> UpdateSessionOriginAsync(
+        Guid sessionId,
+        double sourceAbsoluteStartSeconds,
+        CancellationToken cancellationToken = default) =>
+        commandService.UpdateSessionOriginAsync(sessionId, sourceAbsoluteStartSeconds, cancellationToken);
+
+    public Task<bool> RenameSessionAsync(
+        Guid sessionId,
+        string name,
+        CancellationToken cancellationToken = default) =>
+        commandService.RenameSessionAsync(sessionId, name, cancellationToken);
+
     public Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, RecomputeReason reason) =>
         commandService.RequestRecomputeAsync(sessionId, reason);
 

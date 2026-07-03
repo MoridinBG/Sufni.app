@@ -65,6 +65,7 @@ public class SessionRecomputeEngineTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
+            null,
             new SessionStaleness.DependencyHashChanged(),
             DerivedChangeKind.None);
 
@@ -232,12 +233,68 @@ public class SessionRecomputeEngineTests
     }
 
     [Fact]
+    public async Task RequestRecomputeAsync_LoadsSourceFromDerivationWindow()
+    {
+        var sessionId = Guid.NewGuid();
+        var sourceSessionId = Guid.NewGuid();
+        var setupId = Guid.NewGuid();
+        var bikeId = Guid.NewGuid();
+        var session = TestSnapshots.Session(id: sessionId, setupId: setupId, hasProcessedData: true);
+        var setup = TestSnapshots.Setup(id: setupId, bikeId: bikeId);
+        var bike = TestSnapshots.Bike(id: bikeId);
+        var source = PersistenceTestData.CreateRecordedSessionSource(sourceSessionId);
+        var window = new RecordedSessionDerivationWindow(sourceSessionId, 1, 2);
+        var domain = new RecordedSessionDomainSnapshot(
+            session,
+            setup,
+            bike,
+            null,
+            null,
+            RecordedSessionSourceSnapshot.From(source),
+            window,
+            new SessionStaleness.SourceWindowChanged(),
+            DerivedChangeKind.None);
+        domainQuery.Get(sessionId).Returns(domain);
+        sourceStore.LoadAsync(sourceSessionId, Arg.Any<CancellationToken>()).Returns(source);
+        var persisted = new Session(sessionId, "derived", "desc", setupId, 100)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(60)
+        };
+        sessionRepository.GetSessionAsync(sessionId).Returns(persisted);
+        processingOptionCache.Get(sessionId).Returns(TelemetryProcessingOptions.Default);
+        reprocessor
+            .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<TelemetryProcessingOptions>(2))));
+        sessionTelemetryWriter
+            .UpdateProcessedDerivedDataAsync(
+                Arg.Any<Session>(),
+                Arg.Any<ProcessedTelemetryPayload>(),
+                Arg.Any<Track?>(),
+                Arg.Any<ProcessingFingerprint>())
+            .Returns(callInfo => callInfo.Arg<Session>());
+
+        var result = await CreateEngine()
+            .RequestRecomputeAsync(sessionId, RecomputeReason.SourceWindowChanged)
+            .WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.IsType<SessionRecomputeResult.Recomputed>(result);
+        await sourceStore.Received(1).LoadAsync(sourceSessionId, Arg.Any<CancellationToken>());
+        await sourceStore.DidNotReceive().LoadAsync(sessionId, Arg.Any<CancellationToken>());
+        await reprocessor.Received(1).ReprocessAsync(
+            Arg.Is<RecordedSessionDomainSnapshot>(value => value.DerivationWindow == window),
+            Arg.Is<RecordedSessionSource>(value => value.SessionId == sourceSessionId),
+            Arg.Any<TelemetryProcessingOptions>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task RequestRecomputeAsync_ReturnsNotRecomputable_WhenStalenessCannotRecompute()
     {
         var sessionId = Guid.NewGuid();
         var session = TestSnapshots.Session(id: sessionId, hasProcessedData: true);
         domainQuery.Get(sessionId).Returns(new RecordedSessionDomainSnapshot(
             session,
+            null,
             null,
             null,
             null,
@@ -274,6 +331,7 @@ public class SessionRecomputeEngineTests
         var skipped = TestSnapshots.Session(id: skippedId, hasProcessedData: true);
         domainQuery.Get(skippedId).Returns(new RecordedSessionDomainSnapshot(
             skipped,
+            null,
             null,
             null,
             null,

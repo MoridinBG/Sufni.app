@@ -40,6 +40,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     private double selectionEndSeconds;
     private readonly HashSet<string> appliedTimeRangeOverlayIds = new(StringComparer.Ordinal);
     private IDisposable? mobileAnalysisRangeLongPress;
+    private IDisposable? pendingPlotClickEffects;
     private Point mobileAnalysisRangeLongPressStartPoint;
     private double mobileAnalysisRangeLongPressSeconds;
     private TopLevel? keyDownTopLevel;
@@ -214,6 +215,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     {
         keyDownTopLevel?.RemoveHandler(KeyDownEvent, OnTopLevelKeyDown);
         keyDownTopLevel = null;
+        CancelPendingPlotClickEffects();
 
         base.OnDetachedFromVisualTree(e);
     }
@@ -296,6 +298,15 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             InputElement.PointerPressedEvent,
             (_, args) =>
             {
+                if (args.ClickCount > 1)
+                {
+                    CancelPendingPlotClickEffects();
+                    CancelMobileAnalysisRangeLongPress();
+                    isPlaybackStopClickCandidate = false;
+                    isPlotClickCandidate = false;
+                    return;
+                }
+
                 // Playback must stop on a plain click only; a drag that pans
                 // or zooms the viewport keeps it running, so the stop request
                 // is deferred to the release and cancelled on movement.
@@ -389,18 +400,22 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             InputElement.PointerReleasedEvent,
             (_, args) =>
             {
+                var stopPlayback = false;
+                var clearAnalysisRange = false;
+
                 if (isPlaybackStopClickCandidate)
                 {
                     isPlaybackStopClickCandidate = false;
                     if (!HasExceededPlaybackStopClickMovement(args))
                     {
-                        Timeline?.RequestPlaybackStop();
+                        stopPlayback = true;
                     }
                 }
 
                 if (suppressLegendTogglePointerRelease)
                 {
                     suppressLegendTogglePointerRelease = false;
+                    SchedulePlotClickEffectsIfNeeded(args, stopPlayback, clearAnalysisRange);
                     args.Handled = true;
                     return;
                 }
@@ -411,6 +426,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                     CompleteSelection(selectionEndSeconds);
                     UpdateTimelineRange();
                     args.Pointer.Capture(null);
+                    SchedulePlotClickEffectsIfNeeded(args, stopPlayback, clearAnalysisRange);
                     args.Handled = true;
                     return;
                 }
@@ -419,10 +435,11 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                 {
                     if (!suppressPlotClickClear)
                     {
-                        SignalsWorkspace?.ClearAnalysisRange();
+                        clearAnalysisRange = true;
                     }
                 }
 
+                SchedulePlotClickEffectsIfNeeded(args, stopPlayback, clearAnalysisRange);
                 CancelMobileAnalysisRangeLongPress();
                 suppressPlotClickClear = false;
                 isPlotClickCandidate = false;
@@ -628,6 +645,73 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     protected virtual IDisposable ScheduleMobileAnalysisRangeLongPress(Action callback)
     {
         return PeriodicUiTimer.ScheduleOnce(TimeSpan.FromMilliseconds(500), callback);
+    }
+
+    protected virtual IDisposable ScheduleDeferredPlotClickEffects(TimeSpan delay, Action callback)
+    {
+        return PeriodicUiTimer.ScheduleOnce(delay, callback);
+    }
+
+    private TimeSpan GetDoubleTapCancelWindow(PointerEventArgs args)
+    {
+        return Application.Current?.PlatformSettings?.GetDoubleTapTime(args.Pointer.Type)
+               ?? TimeSpan.FromMilliseconds(300);
+    }
+
+    private void CancelPendingPlotClickEffects()
+    {
+        pendingPlotClickEffects?.Dispose();
+        pendingPlotClickEffects = null;
+    }
+
+    private void SchedulePlotClickEffectsIfNeeded(
+        PointerEventArgs args,
+        bool stopPlayback,
+        bool clearAnalysisRange)
+    {
+        if (!stopPlayback && !clearAnalysisRange)
+        {
+            return;
+        }
+
+        CancelPendingPlotClickEffects();
+        var timeline = Timeline;
+        var workspace = SignalsWorkspace;
+        var deferredCursorSeconds = default(double?);
+        var deferredCursorPosition = default(double?);
+        if (stopPlayback
+            && timeline?.IsPlaybackActive == true
+            && TimelineDurationSeconds is { } duration
+            && duration > 0
+            && TryGetTimelineSeconds(args, out var seconds))
+        {
+            deferredCursorSeconds = seconds;
+            deferredCursorPosition = seconds / duration;
+        }
+
+        pendingPlotClickEffects = ScheduleDeferredPlotClickEffects(
+            GetDoubleTapCancelWindow(args),
+            () =>
+            {
+                pendingPlotClickEffects = null;
+                if (stopPlayback)
+                {
+                    timeline?.RequestPlaybackStop();
+                    if (timeline?.IsPlaybackActive == false
+                        && deferredCursorSeconds is { } cursorSeconds
+                        && deferredCursorPosition is { } cursorPosition)
+                    {
+                        timeline.SetCursorPosition(cursorPosition);
+                        plot?.SetCursorPositionWithReadout(cursorSeconds);
+                        RefreshPlot();
+                    }
+                }
+
+                if (clearAnalysisRange)
+                {
+                    workspace?.ClearAnalysisRange();
+                }
+            });
     }
 
     private double GetClampedTimeSeconds(PointerEventArgs args)

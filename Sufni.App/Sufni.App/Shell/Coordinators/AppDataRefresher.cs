@@ -18,15 +18,17 @@ internal sealed class AppDataRefresher(
     ISessionStoreWriter sessionStore,
     IRecordedSessionSourceStoreWriter recordedSessionSourceStore,
     IPairedDeviceStoreWriter pairedDeviceStore,
-    IRecordedSessionProcessingOptionCache processingOptionCache) : IAppDataRefresher
+    IRecordedSessionProcessingOptionCache processingOptionCache,
+    IRecordedSessionDerivationWindowCache derivationWindowCache) : IAppDataRefresher
 {
     public async Task RefreshAsync()
     {
-        // Hydrate the per-session processing-option cache before populating the
+        // Hydrate the per-session processing-option/window caches before populating the
         // stores so the recorded-session projection's first sweep (triggered by these
-        // store refreshes) evaluates staleness with each session's real option
-        // instead of the 25 ms default (ordering gate).
+        // store refreshes) evaluates staleness with each session's real option and
+        // derivation window instead of defaults (ordering gate).
         await processingOptionCache.HydrateAsync();
+        await derivationWindowCache.HydrateAsync();
 
         await bikeStore.RefreshAsync();
         await setupStore.RefreshAsync();

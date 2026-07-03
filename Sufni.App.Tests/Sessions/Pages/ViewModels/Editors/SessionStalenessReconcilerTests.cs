@@ -213,6 +213,41 @@ public class SessionStalenessReconcilerTests
         await harness.SessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
     }
 
+    [Fact]
+    public async Task HandleStalenessAsync_PromptsAgain_WhenDerivationWindowOnlyFingerprintChanges()
+    {
+        var sessionId = Guid.NewGuid();
+        var setupId = Guid.NewGuid();
+        var bikeId = Guid.NewGuid();
+        var sourceId = Guid.NewGuid();
+        var harness = new ReconcilerHarness(sessionId);
+        harness.ChoosePromptButton("Cancel");
+        var session = TestSnapshots.Session(id: sessionId, updated: 5, name: "stale");
+        var fingerprint = new ProcessingFingerprint(
+            3,
+            7,
+            setupId,
+            bikeId,
+            1,
+            "dependency",
+            "source",
+            25,
+            new RecordedSessionDerivationWindow(sourceId, 1, 5));
+
+        await harness.Reconciler.HandleStalenessAsync(
+            Domain(session, new SessionStaleness.SourceWindowChanged(), fingerprint),
+            RecomputeReason.StaleOnOpen);
+        await harness.Reconciler.HandleStalenessAsync(
+            Domain(session, new SessionStaleness.SourceWindowChanged(), fingerprint with
+            {
+                DerivationWindow = new RecordedSessionDerivationWindow(sourceId, 2, 5),
+            }),
+            RecomputeReason.StaleOnOpen);
+
+        await harness.DialogService.Received(2).ShowChoiceAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<DialogChoice>>());
+        await harness.SessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
+    }
+
     private static RecordedSessionDomainSnapshot Domain(
         SessionSnapshot session,
         SessionStaleness staleness,
@@ -221,6 +256,7 @@ public class SessionStalenessReconcilerTests
         null,
         null,
         currentFingerprint,
+        null,
         null,
         null,
         staleness,

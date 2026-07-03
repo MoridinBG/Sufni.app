@@ -11,6 +11,7 @@ using Sufni.App.Setups.Stores;
 using Sufni.App.Shared.Views.Overlays;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Shell.ViewModels;
+using Sufni.App.Infrastructure;
 using Sufni.App.SyncAndPairing.Stores;
 using Sufni.App.Tests.Shell.ViewModels;
 using Sufni.App.Tests.TestSupport.Doubles;
@@ -29,7 +30,11 @@ public class MainViewTests
         var mainPages = MainPagesViewModelTestFactory.Create();
         var navigationHost = Substitute.For<IMobileNavigationShellHost>();
         var pageHost = Substitute.For<IMobileNavigationPageHost>();
-        var viewModel = new MainViewModel(mainPages, navigationHost, new InlineUiThreadDispatcher());
+        var viewModel = new MainViewModel(
+            mainPages,
+            navigationHost,
+            Substitute.For<IPlotZoomState>(),
+            new InlineUiThreadDispatcher());
         var view = new MainView
         {
             DataContext = viewModel,
@@ -56,7 +61,11 @@ public class MainViewTests
         var server = new TestSynchronizationServerService();
         var mainPages = MainPagesViewModelTestFactory.Create(syncCoordinator: CreateSyncCoordinator(server));
         var navigationHost = Substitute.For<IMobileNavigationShellHost>();
-        var viewModel = new MainViewModel(mainPages, navigationHost, new InlineUiThreadDispatcher());
+        var viewModel = new MainViewModel(
+            mainPages,
+            navigationHost,
+            Substitute.For<IPlotZoomState>(),
+            new InlineUiThreadDispatcher());
         var view = new MainView
         {
             DataContext = viewModel,

@@ -9,13 +9,15 @@
 The SDK is split into two top-level namespaces inside the one assembly:
 
 - `Sufni.App.ExtensionHost.Contracts.*` — interfaces, records, and enums: the compatibility surface. Modules and the app code against these.
-- `Sufni.App.ExtensionHost.Runtime.*` — behavioral machinery that ships with the SDK (`RecordedSessionExtensionSlots`, the slot publisher and its batching collection, the mutable `SignalRowAction`). **Behavioral changes under `Runtime` are API changes** — extensions observe this machinery's semantics, not just its signatures.
+- `Sufni.App.ExtensionHost.Runtime.*` — behavioral machinery that ships with the SDK (`RecordedSessionExtensionSlots`, the slot publisher and its batching collection, the mutable `SignalRowAction`, and runtime presentation controls such as `PlotZoomContainer`). **Behavioral changes under `Runtime` are API changes** — extensions observe this machinery's semantics, not just its signatures.
 
 One deliberate cross-reference exists: the `Contracts` scope interface exposes `RecordedSessionExtensionSlots` (a `Runtime` type) — slots *are* part of the scope contract, and the single-assembly split keeps that legal.
 
 The theme model is **not** part of the SDK. It lives in a separate leaf project `Sufni.App.Theming` (assembly and namespace `Sufni.App.Theming`, Avalonia-only) that the app and theme-consuming extensions reference directly; the extension host's contracts and runtime use no theme type. An extension that must style a ScottPlot surface the app cannot render for it references `Sufni.App.Theming` and calls `SufniThemes.FromVariant(...)`. See [theming.md](theming.md).
 
 Accepted-for-now contract dependencies (removing them is a redesign of the extension model, out of scope): `IServiceCollection` in module registration, `Func<Control>` view factories, `AsyncTableQuery<T>`, `IStorageFile`, and `Sufni.Telemetry` types.
+The runtime presentation surface also references ScottPlot for shared plot-axis
+rules that extension-owned plot controls can use without copying app logic.
 
 There is no assembly scanning. Modules are added explicitly by build-time code through the two-argument partial method `App.RegisterBuildTimeExtensions(App.Extensions, isDesktop)`. Public builds have no implementation of that partial method, so the call is removed by the compiler and `App.Extensions.Modules` remains empty.
 
@@ -60,11 +62,42 @@ Desktop platform heads expose a neutral `Program.RegisterPlatformExtensions(ISer
 
 This keeps public `ViewLocator` dictionaries free of extension view-model types while still letting extension views render anywhere Avalonia data templates are used.
 
+Recorded-session page and analysis-tab contributions are projected into the
+session page collection behind an app-internal wrapper page view model.
+`ViewLocator` unwraps that wrapper in both `Match` and `Build`, so template
+matching and view construction are decided by the wrapped contribution view
+model's registered factory — without this the mobile page carousel would fall
+back to the default `ToString()` presenter.
+
 ## Host Services
 
 `IFilePickerService` is the neutral file-open picker seam available through DI. Callers pass a `FilePickerRequest` with `FilePickerFilter` descriptors and receive Avalonia `IStorageFile` results. `FilesService` implements this interface alongside the workflow-specific `IFilesService`, so extension modules that need user-selected files can depend on the generic picker surface without depending on app-specific import, GPX, image, bike/setup, or DAQ CONFIG workflows.
 
 `IExtensionDialogService` is the neutral dialog-hosting seam for extension-owned view models. Extensions pass an `ExtensionDialogRequest<TResult>` with a title, layout, and an `IExtensionDialogResultSource<TResult>` view model. `DialogService` hosts the view model through a `ContentControl`, so extension view templates still resolve through `ViewLocator`; desktop uses an owned modal window and mobile/single-view uses the existing overlay host. Completing the result source returns the supplied result, while closing the host without completion returns `default`.
+
+## Runtime Presentation Controls
+
+`Sufni.App.ExtensionHost.Runtime.Presentation` is public SDK surface. It
+contains small host-compatible controls and descriptors that extension views
+may use directly without referencing `Sufni.App`. `SignalRowAction` remains the
+row-header action descriptor used by app and extension signal rows.
+`PlotZoomContainer` is the opt-in contract for zoomable plot surfaces: the
+container raises `PlotZoomRequested` on double-tap/double-click when the
+gesture does not originate from an interactive descendant. The same runtime
+surface also publishes `BoundedZoomRule`, `AxisRangeConstraints`, and
+`PlotZoomFractions` so app-owned and extension-owned ScottPlot surfaces can use
+the same pan/zoom clamping behavior.
+
+The app's `PlotZoomOverlayHost` responds to that routed request by borrowing
+the container child and moving the live control into the modal overlay. The
+borrow/return contract is intentionally explicit: `BorrowChild()` detaches the
+child and pins the child's effective `DataContext`; `ReturnChild(child)`
+reattaches the same instance and restores either the child's previous local
+`DataContext` or inherited binding. Extensions that draw their own plot surface
+can wrap that surface in `PlotZoomContainer` to participate in the same modal
+without the app knowing the extension's concrete view type. While borrowed, the
+extension still owns its control state and rendering; the host owns only the
+modal placement and close gestures.
 
 ## Database Hooks
 
@@ -163,6 +196,11 @@ without a long positional constructor. It exposes constrained host operations:
 - request contributed page selection
 - run a cancellable operation through `RecordedSessionOperationCoordinator`
 - read processed telemetry and track points through `IRecordedSessionDataReader`
+- create a derived recorded session, update a session's source-absolute
+  origin, rename a session, request recompute, or open a session in a
+  background tab. These callbacks live on the recorded-session host
+  operations surface rather than on a second editing service, so editing
+  extensions stay scoped to the open recorded-session context.
 
 `IRecordedSessionDataReader.GetProcessedTelemetryAsync` delegates to
 `ISessionProcessedTelemetryReader`. While the recorded-session editor is loaded,
@@ -181,6 +219,37 @@ telemetry blob per session (matching enumerates every session, where a per-sessi
 blob decode dominated the scan). The read path does not persist regenerated points.
 
 Operation leases reject stale progress and cancel superseded work, so extension tasks share the existing editor busy surface without controlling the editor lifecycle. Extension work reports percent values on a `0..100` scale. The recorded-session host projects those reports through `SessionOperationPresentationState` and renders the standard nonblocking busy overlay above the current session content. Extension operation progress does not set the session detail `ScreenState`; that state remains reserved for loading and error state of the session detail itself.
+
+## Derivation Windows & Editing Operations
+
+Recorded-session editing extensions can describe that a session's processed
+telemetry is derived from a source-absolute window of another session's raw
+recording source. The public host exposes this through a single
+`IRecordedSessionDerivationWindowProvider`. Public builds register a no-op
+provider; an extended build may replace it with one durable extension-owned
+provider. There is no provider aggregation, duplicate-provider validation, or
+generic multi-extension derivation bus.
+
+`RecordedSessionDerivationWindow(SourceSessionId, StartSeconds, EndSeconds)`
+is serialized into the processing fingerprint. The app-side
+`RecordedSessionDerivationWindowCache` hydrates provider state before store
+refresh, gives read graphs a synchronous lookup, and emits per-session changes
+when the provider raises `WindowsChanged`. Projection, recompute, source
+retention, and sync use `SourceSessionId` to find the raw source row; `Start`
+and `End` are part of the fingerprint/staleness input.
+
+The provider's retention methods answer only cross-session references. A
+self-window does not retain its own raw source after deletion; a derived session
+whose window points at another session does. Delete and startup cleanup consult
+this same provider so the raw source survives until no live session window
+references it.
+
+The small editing callbacks on `IRecordedSessionHostOperations` are the host
+side of that same model. They let an extension create an unprocessed derived
+session, update a session origin before mutating the durable window, rename
+without going through editor save/navigation, request a window-change recompute,
+and open the derived session in the background on desktop. Mobile implements
+background open as a no-op.
 
 ## Recorded-Session Slots
 

@@ -37,6 +37,9 @@ public sealed record LiveTelemetryCapture(
     public ushort[] FrontMeasurements => FrontSegments.SelectMany(segment => segment.Counts).ToArray();
     public ushort[] RearMeasurements => RearSegments.SelectMany(segment => segment.Counts).ToArray();
 
+    public LiveTelemetryCapture Slice(double startSeconds, double? endSeconds) =>
+        TelemetrySlicer.Slice(this, startSeconds, endSeconds);
+
     private static RawCountSegment[] CreateDenseSegments(ushort[] counts) =>
         counts.Length == 0
             ? []

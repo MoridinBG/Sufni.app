@@ -6,6 +6,7 @@
 
 - [Layering](#layering)
 - [Desktop vs Mobile Hosting](#desktop-vs-mobile-hosting)
+- [Zoomed Plot Modal](#zoomed-plot-modal)
 - [Class Hierarchy](#class-hierarchy)
 - [Concrete Plots](#concrete-plots)
 - [Display-Time Pipeline](#display-time-pipeline)
@@ -20,6 +21,41 @@ For most recorded telemetry rows the host view passes a `TelemetryData` and call
 ## Desktop vs Mobile Hosting
 
 Plot views are controls under `Sufni.App/Sufni.App/Shared/Views/Plots/` and the per-slice `Views/Plots/` folders. Desktop and mobile session pages host the same plot controls inside different surrounding layouts: desktop pages provide side-by-side panels and richer chrome, while mobile pages use stacked signal rows and touch-oriented controls. `App.IsDesktop` is read only inside those shared plot views for gesture decisions that cannot be expressed through DI, currently mobile long-press activation for velocity cutoff editing and recorded analysis/context-menu gestures. Plot model classes (under `Sufni.App/Sufni.App/Shared/Plots/` and each slice's `Plots/` folder) stay platform-neutral.
+
+## Zoomed Plot Modal
+
+Every app-owned `SufniPlotView` surface is wrapped in the SDK's
+`PlotZoomContainer`, either through `SignalRow`, analysis/leverage host XAML,
+or a direct wrapper around a raw extension-owned `AvaPlot`. The container
+listens for `InputElement.DoubleTappedEvent`, ignores gestures that originate
+inside interactive controls, and raises `PlotZoomRequested`. ScottPlot's
+`DoubleClickBenchmark` response is disabled in `SufniAvaPlot` and in raw
+extension plots that opt into the same modal so the double-click gesture is
+owned by the app.
+
+`PlotZoomOverlayHost` listens for `PlotZoomRequested` at the `TopLevel` and
+moves the live plot control into the modal; it never creates a copy. Borrowing
+the child pins its effective `DataContext` as a local value while it is outside
+the original slot, then restores the child's original local or inherited
+`DataContext` when it returns. This preserves axis limits, cursor/readout
+state, source-legend visibility, analysis range state, live streaming
+subscriptions, and extension-owned control state.
+
+The overlay lays the moved child out at the modal's final size immediately,
+then animates only transforms and scrim opacity for the 250 ms hero flight.
+ScottPlot therefore rerenders at the destination size rather than being
+resized repeatedly during the transition. Desktop uses a scrim plus an
+elevated surface with a 24 px margin, 8 px corner radius, shadow, double-click
+to close, and Esc. Mobile is edge-to-edge inside the shell safe area, closes on
+double-tap or hardware back, and rotates the modal content 90 degrees
+clockwise only when the app is not desktop and the host is portrait-shaped.
+
+Recorded time-series plain-click effects that would conflict with a second tap
+are deferred by the platform double-tap window in `SufniTimeSeriesPlotView`.
+A second press cancels pending playback-stop and analysis-clear effects before
+the zoom request reaches the overlay. When a playback owner synchronously
+deactivates playback in response to the deferred stop request, the original
+click-to-place-cursor behavior is preserved after the deferred stop completes.
 
 ## Class Hierarchy
 
@@ -130,9 +166,9 @@ For live data, every batch is smoothed by a per-channel `TelemetryDisplayStreami
 
 ## Cross-Cutting Patterns
 
-**Axis rules.** All time-series plots install a `LockedVerticalSoftLockedHorizontalRule` per visible suspension axis. Y is locked to the data extents (`MaxTravel` for travel, `min/max` velocity, zero-to-max vibration RMS for IMU, symmetric degree extents for pitch/roll); X is clamped to `[0, Duration]` with a minimum span of `ZoomFractions.TimeSeries * Duration` (1 %). Histogram plots use `BoundedZoomRule` instead, which clamps both axes to the data bounds and uses `ZoomFractions.Analysis` as the floor (10 %). `FixedAutoScaler` is installed by `TravelFrequencyDistributionPlot` and `VelocityDistributionPlot` so ScottPlot's auto-scale button restores their hardcoded display windows rather than fitting tightly to the data.
+**Axis rules.** All time-series plots install a `LockedVerticalSoftLockedHorizontalRule` per visible suspension axis. Y is locked to the data extents (`MaxTravel` for travel, `min/max` velocity, zero-to-max vibration RMS for IMU, symmetric degree extents for pitch/roll); X is clamped to `[0, Duration]` with a minimum span of `PlotZoomFractions.TimeSeries * Duration` (1 %). Histogram plots use the SDK runtime's `BoundedZoomRule` instead, which clamps both axes to the data bounds and uses `PlotZoomFractions.Analysis` as the floor (10 %). `AxisRangeConstraints`, `BoundedZoomRule`, and `PlotZoomFractions` live in `Sufni.App.ExtensionHost.Runtime.Presentation` so extension-owned ScottPlot surfaces can share the same bounds behavior. `FixedAutoScaler` is installed by `TravelFrequencyDistributionPlot` and `VelocityDistributionPlot` so ScottPlot's auto-scale button restores their hardcoded display windows rather than fitting tightly to the data.
 
-**Cursor and axis linking.** Every recorded time-series plot exposes a `VerticalLine? CursorLine` and a `SetCursorPosition(double)` override. The recorded time-series views (`TravelPlotView`, `VelocityPlotView`, `ImuPlotView`, `FramePitchRollPlotView`, `TrackSignalPlotView`) wire pointer events to update the cursor on each plot in the row and to publish a normalized cursor position to a shared `SessionTimelineLinkViewModel`. Visible-range linking is owned by that timeline model rather than ScottPlot's `LinkXAxisWith`: recorded plot views apply `Timeline.VisibleRangeStart` / `VisibleRangeEnd` through manual `SetLimitsX(...)`, while live views call `LiveStreamingPlotBase.ApplyVisibleRange(...)`. The time-series host owns the analysis-range UI: shift-drag creates a keyed `AnalysisRange` overlay, plain drag updates a keyed `PreviewRange` overlay, and clicking a marker line snaps the analysis-range boundary to that marker. The selected and preview fills come from `SufniTheme.Plot.AnalysisRange`, while the selected range itself is stored on the recorded signals workspace, forwarded back into every `TelemetryPlot.AnalysisRange`, and consumed by the histogram / balance plots through `TelemetryStatistics.HasStrokeData(...)` filtering. `SufniTimeSeriesPlotView` also forwards timeline playback input: while attached it listens for KeyDown on its `TopLevel`, and a plain Space press (not originating from a text-editing control) with the pointer over the plot and a published cursor calls `Timeline.RequestPlaybackToggle()`; a plain primary click inside the plot calls `Timeline.RequestPlaybackStop()` on release — a press that moves beyond the click threshold (a viewport pan/zoom drag) does not stop playback. The requests are neutral — a timeline-aware media extension can respond by playing its media and driving `SetCursorPosition`, which repaints the cursor on every linked row through the existing timeline link. While the playback owner has marked the timeline `IsPlaybackActive`, pointer movement over a plot does not update the cursor or readout; a primary click raises the stop request first (the owner deactivates synchronously) and then places the cursor at the click as usual. The timeline link also keeps a playback-driven cursor visible: when a cursor update lands outside the visible range while `IsPlaybackActive`, `SessionTimelineLinkViewModel` pans the visible range so the cursor re-enters at the window edge — the span (zoom) is preserved, and the change propagates through the normal visible-range link, so plot rows and the map stay in sync. So that Space reaches this handler right after a session opens, `SessionDetailDesktopView` focuses itself on `Loaded` — otherwise the sessions list item keeps keyboard focus and consumes Space as a selection key.
+**Cursor and axis linking.** Every recorded time-series plot exposes a `VerticalLine? CursorLine` and a `SetCursorPosition(double)` override. The recorded time-series views (`TravelPlotView`, `VelocityPlotView`, `ImuPlotView`, `FramePitchRollPlotView`, `TrackSignalPlotView`) wire pointer events to update the cursor on each plot in the row and to publish a normalized cursor position to a shared `SessionTimelineLinkViewModel`. Visible-range linking is owned by that timeline model rather than ScottPlot's `LinkXAxisWith`: recorded plot views apply `Timeline.VisibleRangeStart` / `VisibleRangeEnd` through manual `SetLimitsX(...)`, while live views call `LiveStreamingPlotBase.ApplyVisibleRange(...)`. The time-series host owns the analysis-range UI: shift-drag creates a keyed `AnalysisRange` overlay, plain drag updates a keyed `PreviewRange` overlay, and clicking a marker line snaps the analysis-range boundary to that marker. The selected and preview fills come from `SufniTheme.Plot.AnalysisRange`, while the selected range itself is stored on the recorded signals workspace, forwarded back into every `TelemetryPlot.AnalysisRange`, and consumed by the histogram / balance plots through `TelemetryStatistics.HasStrokeData(...)` filtering. `SufniTimeSeriesPlotView` also forwards timeline playback input: while attached it listens for KeyDown on its `TopLevel`, and a plain Space press (not originating from a text-editing control) with the pointer over the plot and a published cursor calls `Timeline.RequestPlaybackToggle()`; a plain primary click inside the plot schedules `Timeline.RequestPlaybackStop()` after the platform double-tap window — a press that moves beyond the click threshold (a viewport pan/zoom drag) does not stop playback, and a second press cancels the pending stop. The requests are neutral — a timeline-aware media extension can respond by playing its media and driving `SetCursorPosition`, which repaints the cursor on every linked row through the existing timeline link. While the playback owner has marked the timeline `IsPlaybackActive`, pointer movement over a plot does not update the cursor or readout; a primary click raises the deferred stop request first (the owner deactivates synchronously) and then places the cursor at the click as usual. The timeline link also keeps a playback-driven cursor visible: when a cursor update lands outside the visible range while `IsPlaybackActive`, `SessionTimelineLinkViewModel` pans the visible range so the cursor re-enters at the window edge — the span (zoom) is preserved, and the change propagates through the normal visible-range link, so plot rows and the map stay in sync. So that Space reaches this handler right after a session opens, `SessionDetailDesktopView` focuses itself on `Loaded` — otherwise the sessions list item keeps keyboard focus and consumes Space as a selection key.
 
 **Recorded context menus.** Recorded time-series plot views install a shared `TelemetryPlotContextMenu` around ScottPlot's default Avalonia context menu. The wrapper keeps the default ScottPlot entries intact, then asks the open `IRecordedSessionProjectionWorkspace.PlotContextMenuActionsByRowId` for actions registered to the clicked row id. Desktop uses ScottPlot's normal context-menu invocation; mobile secondary-pointer requests are forwarded into the same installed wrapper, so custom workspace actions are discovered the same way on both shells. `SufniTimeSeriesPlotView` owns the row id binding, data-area hit test in ScottPlot render-pixel space, click-time conversion, and construction of `TelemetryPlotContextMenuContext`; the workspace owns the commands. The built-in `Autozoom` action updates `SessionTimelineLinkViewModel` instead of directly changing only the clicked plot, so every linked recorded row and timeline-aware media surface receives the same visible range. If the request is inside the current analysis range, autozoom fits that range with small side padding; otherwise it restores the full recorded session range.
 

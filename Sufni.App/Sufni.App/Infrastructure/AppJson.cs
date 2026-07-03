@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Kinematics;
 using Sufni.Telemetry;
@@ -123,6 +124,7 @@ internal static class AppJson
 [JsonSerializable(typeof(RecordedSessionSourceKind))]
 [JsonSerializable(typeof(RecordedLiveCaptureSourcePayload))]
 [JsonSerializable(typeof(ProcessingFingerprint))]
+[JsonSerializable(typeof(RecordedSessionDerivationWindow))]
 [JsonSerializable(typeof(Metadata))]
 [JsonSerializable(typeof(RawImuData))]
 [JsonSerializable(typeof(RawImuSegment))]

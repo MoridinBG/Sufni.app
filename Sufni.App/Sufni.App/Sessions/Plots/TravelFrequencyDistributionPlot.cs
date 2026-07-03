@@ -4,6 +4,7 @@ using System.Linq;
 using ScottPlot;
 using ScottPlot.TickGenerators;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Shared.Plots;
@@ -76,7 +77,7 @@ public class TravelFrequencyDistributionPlot(Plot plot, SuspensionType type, Suf
         var max = histogram.Values.Max();
         Plot.Axes.SetLimits(left: 0.0, right: 800.0 / histogram.Bins.Count * 3.0, bottom: min, top: max);
         Plot.Axes.Rules.Add(new LockedVerticalSoftLockedHorizontalRule(Plot.Axes.Bottom, Plot.Axes.Left,
-            0.0, 10.0, min, max, ZoomFractions.Analysis));
+            0.0, 10.0, min, max, PlotZoomFractions.Analysis));
 
         // Add autoscaler that restores the original ranges
         Plot.Axes.AutoScaler = new FixedAutoScaler(minX: 0.0, maxX: 800.0 / histogram.Bins.Count * 3.0);

@@ -259,6 +259,7 @@ public class RecordedSessionSignalsDesktopViewTests
 
         mounted.Host.MouseDown(clickPoint.Value, MouseButton.Left, RawInputModifiers.None);
         mounted.Host.MouseUp(clickPoint.Value, MouseButton.Left, RawInputModifiers.None);
+        await Task.Delay(TimeSpan.FromMilliseconds(600));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(1, workspace.ClearAnalysisRangeCallCount);

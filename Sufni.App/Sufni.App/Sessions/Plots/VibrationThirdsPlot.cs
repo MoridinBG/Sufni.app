@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ScottPlot;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Shared.Plots;
@@ -73,7 +74,7 @@ public class VibrationThirdsPlot(Plot plot, SuspensionType type, ImuLocation loc
         Plot.Add.Bars(bars);
         Plot.Axes.SetLimits(left: -0.5, right: 2.5, bottom: 0, top: 100);
         Plot.Axes.Rules.Add(new BoundedZoomRule(Plot.Axes.Bottom, Plot.Axes.Left,
-            -0.5, 2.5, 0, 100, ZoomFractions.Analysis));
+            -0.5, 2.5, 0, 100, PlotZoomFractions.Analysis));
         Plot.Axes.Bottom.SetTicks([0, 1, 2], ["Compression", "Rebound", "Overall"]);
     }
 }

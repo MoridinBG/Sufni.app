@@ -10,6 +10,7 @@ xmlns:controls="clr-namespace:Sufni.App.Shared.Views.Overlays"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:plots="clr-namespace:Sufni.App.Sessions.Plots.Views.Plots"
+xmlns:zoom="clr-namespace:Sufni.App.ExtensionHost.Runtime.Presentation;assembly=Sufni.App.ExtensionHost"
 d:DesignHeight="450"
 d:DesignWidth="800"
 mc:Ignorable="d">
@@ -24,20 +25,22 @@ mc:Ignorable="d">
                 IsVisible="{Binding #Root.ShowTravelLegend}" />
 
                 <Grid Grid.Row="1" Grid.Column="0">
-                    <plots:AnalysisPlotView
-                    AnalysisRange="{Binding #Root.AnalysisRange}"
-                    AnalysisResultState="{Binding #Root.AnalysisResultState}"
-                    DampingSpeedCutoffs="{Binding #Root.PlotDampingSpeedCutoffs}"
-                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                    <zoom:PlotZoomContainer
                     Height="{Binding #Root.PlotHeight}"
-                    IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
-                    IsVisible="{Binding #Root.HasAnalysisData}"
-                    AnalysisPlotKind="VelocityDistribution"
-                    SelectAnalysisRangeCommand="{Binding #Root.SelectAnalysisRangeCommand}"
-                    ActiveAnalysisSelection="{Binding #Root.ActiveAnalysisSelection}"
-                    SuspensionType="{Binding #Root.SuspensionType}"
-                    Telemetry="{Binding #Root.Telemetry}"
-                    VelocityAverageMode="{Binding #Root.VelocityAverageMode}" />
+                    IsVisible="{Binding #Root.HasAnalysisData}">
+                        <plots:AnalysisPlotView
+                        AnalysisRange="{Binding #Root.AnalysisRange}"
+                        AnalysisResultState="{Binding #Root.AnalysisResultState}"
+                        DampingSpeedCutoffs="{Binding #Root.PlotDampingSpeedCutoffs}"
+                        ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                        IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
+                        AnalysisPlotKind="VelocityDistribution"
+                        SelectAnalysisRangeCommand="{Binding #Root.SelectAnalysisRangeCommand}"
+                        ActiveAnalysisSelection="{Binding #Root.ActiveAnalysisSelection}"
+                        SuspensionType="{Binding #Root.SuspensionType}"
+                        Telemetry="{Binding #Root.Telemetry}"
+                        VelocityAverageMode="{Binding #Root.VelocityAverageMode}" />
+                    </zoom:PlotZoomContainer>
 
                     <Svg
                     IsVisible="{Binding !#Root.HasAnalysisData}"

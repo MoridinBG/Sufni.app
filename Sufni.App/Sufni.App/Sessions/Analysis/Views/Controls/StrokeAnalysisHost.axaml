@@ -9,6 +9,7 @@ xmlns:controls="clr-namespace:Sufni.App.Shared.Views.Overlays"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:plots="clr-namespace:Sufni.App.Sessions.Plots.Views.Plots"
+xmlns:zoom="clr-namespace:Sufni.App.ExtensionHost.Runtime.Presentation;assembly=Sufni.App.ExtensionHost"
 d:DesignHeight="450"
 d:DesignWidth="800"
 mc:Ignorable="d">
@@ -24,68 +25,74 @@ mc:Ignorable="d">
                     <RowDefinition Height="{Binding #Root.DeepTravelRowHeight}" />
                 </Grid.RowDefinitions>
 
-                <plots:AnalysisPlotView
-                AnalysisRange="{Binding #Root.AnalysisRange}"
-                AnalysisResultState="{Binding #Root.AnalysisResultState}"
-                BalanceType="Compression"
-                ExtensionSlots="{Binding #Root.ExtensionSlots}"
-                IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
-                AnalysisPlotKind="StrokeLengthDistribution"
-                SelectAnalysisRangeCommand="{Binding #Root.SelectAnalysisRangeCommand}"
-                ActiveAnalysisSelection="{Binding #Root.ActiveAnalysisSelection}"
-                SuspensionType="{Binding #Root.SuspensionType}"
-                Telemetry="{Binding #Root.Telemetry}" />
+                <zoom:PlotZoomContainer>
+                    <plots:AnalysisPlotView
+                    AnalysisRange="{Binding #Root.AnalysisRange}"
+                    AnalysisResultState="{Binding #Root.AnalysisResultState}"
+                    BalanceType="Compression"
+                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                    IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
+                    AnalysisPlotKind="StrokeLengthDistribution"
+                    SelectAnalysisRangeCommand="{Binding #Root.SelectAnalysisRangeCommand}"
+                    ActiveAnalysisSelection="{Binding #Root.ActiveAnalysisSelection}"
+                    SuspensionType="{Binding #Root.SuspensionType}"
+                    Telemetry="{Binding #Root.Telemetry}" />
+                </zoom:PlotZoomContainer>
 
-                <plots:AnalysisPlotView
-                AnalysisRange="{Binding #Root.AnalysisRange}"
-                AnalysisResultState="{Binding #Root.AnalysisResultState}"
-                Grid.Row="1"
-                BalanceType="Compression"
-                ExtensionSlots="{Binding #Root.ExtensionSlots}"
-                IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
-                AnalysisPlotKind="StrokeSpeedDistribution"
-                SelectAnalysisRangeCommand="{Binding #Root.SelectAnalysisRangeCommand}"
-                ActiveAnalysisSelection="{Binding #Root.ActiveAnalysisSelection}"
-                SuspensionType="{Binding #Root.SuspensionType}"
-                Telemetry="{Binding #Root.Telemetry}" />
+                <zoom:PlotZoomContainer Grid.Row="1">
+                    <plots:AnalysisPlotView
+                    AnalysisRange="{Binding #Root.AnalysisRange}"
+                    AnalysisResultState="{Binding #Root.AnalysisResultState}"
+                    BalanceType="Compression"
+                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                    IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
+                    AnalysisPlotKind="StrokeSpeedDistribution"
+                    SelectAnalysisRangeCommand="{Binding #Root.SelectAnalysisRangeCommand}"
+                    ActiveAnalysisSelection="{Binding #Root.ActiveAnalysisSelection}"
+                    SuspensionType="{Binding #Root.SuspensionType}"
+                    Telemetry="{Binding #Root.Telemetry}" />
+                </zoom:PlotZoomContainer>
 
-                <plots:AnalysisPlotView
-                AnalysisRange="{Binding #Root.AnalysisRange}"
-                AnalysisResultState="{Binding #Root.AnalysisResultState}"
-                Grid.Row="2"
-                BalanceType="Rebound"
-                ExtensionSlots="{Binding #Root.ExtensionSlots}"
-                IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
-                AnalysisPlotKind="StrokeLengthDistribution"
-                SelectAnalysisRangeCommand="{Binding #Root.SelectAnalysisRangeCommand}"
-                ActiveAnalysisSelection="{Binding #Root.ActiveAnalysisSelection}"
-                SuspensionType="{Binding #Root.SuspensionType}"
-                Telemetry="{Binding #Root.Telemetry}" />
+                <zoom:PlotZoomContainer Grid.Row="2">
+                    <plots:AnalysisPlotView
+                    AnalysisRange="{Binding #Root.AnalysisRange}"
+                    AnalysisResultState="{Binding #Root.AnalysisResultState}"
+                    BalanceType="Rebound"
+                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                    IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
+                    AnalysisPlotKind="StrokeLengthDistribution"
+                    SelectAnalysisRangeCommand="{Binding #Root.SelectAnalysisRangeCommand}"
+                    ActiveAnalysisSelection="{Binding #Root.ActiveAnalysisSelection}"
+                    SuspensionType="{Binding #Root.SuspensionType}"
+                    Telemetry="{Binding #Root.Telemetry}" />
+                </zoom:PlotZoomContainer>
 
-                <plots:AnalysisPlotView
-                AnalysisRange="{Binding #Root.AnalysisRange}"
-                AnalysisResultState="{Binding #Root.AnalysisResultState}"
-                Grid.Row="3"
-                BalanceType="Rebound"
-                ExtensionSlots="{Binding #Root.ExtensionSlots}"
-                IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
-                AnalysisPlotKind="StrokeSpeedDistribution"
-                SelectAnalysisRangeCommand="{Binding #Root.SelectAnalysisRangeCommand}"
-                ActiveAnalysisSelection="{Binding #Root.ActiveAnalysisSelection}"
-                SuspensionType="{Binding #Root.SuspensionType}"
-                Telemetry="{Binding #Root.Telemetry}" />
+                <zoom:PlotZoomContainer Grid.Row="3">
+                    <plots:AnalysisPlotView
+                    AnalysisRange="{Binding #Root.AnalysisRange}"
+                    AnalysisResultState="{Binding #Root.AnalysisResultState}"
+                    BalanceType="Rebound"
+                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                    IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
+                    AnalysisPlotKind="StrokeSpeedDistribution"
+                    SelectAnalysisRangeCommand="{Binding #Root.SelectAnalysisRangeCommand}"
+                    ActiveAnalysisSelection="{Binding #Root.ActiveAnalysisSelection}"
+                    SuspensionType="{Binding #Root.SuspensionType}"
+                    Telemetry="{Binding #Root.Telemetry}" />
+                </zoom:PlotZoomContainer>
 
-                <plots:AnalysisPlotView
-                AnalysisRange="{Binding #Root.AnalysisRange}"
-                AnalysisResultState="{Binding #Root.AnalysisResultState}"
-                ExtensionSlots="{Binding #Root.ExtensionSlots}"
-                Grid.Row="4"
-                IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
-                AnalysisPlotKind="DeepTravelDistribution"
-                SelectAnalysisRangeCommand="{Binding #Root.SelectAnalysisRangeCommand}"
-                ActiveAnalysisSelection="{Binding #Root.ActiveAnalysisSelection}"
-                SuspensionType="{Binding #Root.SuspensionType}"
-                Telemetry="{Binding #Root.Telemetry}" />
+                <zoom:PlotZoomContainer Grid.Row="4">
+                    <plots:AnalysisPlotView
+                    AnalysisRange="{Binding #Root.AnalysisRange}"
+                    AnalysisResultState="{Binding #Root.AnalysisResultState}"
+                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                    IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
+                    AnalysisPlotKind="DeepTravelDistribution"
+                    SelectAnalysisRangeCommand="{Binding #Root.SelectAnalysisRangeCommand}"
+                    ActiveAnalysisSelection="{Binding #Root.ActiveAnalysisSelection}"
+                    SuspensionType="{Binding #Root.SuspensionType}"
+                    Telemetry="{Binding #Root.Telemetry}" />
+                </zoom:PlotZoomContainer>
             </Grid>
         </controls:PlaceholderOverlayContainer.ReadyContent>
         <controls:PlaceholderOverlayContainer.PlaceholderContent>

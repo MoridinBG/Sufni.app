@@ -47,6 +47,7 @@ internal sealed class EditorFactory(
     ISessionPreferences sessionPreferences,
     IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache,
     ISessionProcessedTelemetryReader processedTelemetryReader,
+    IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache,
     ILiveDaqCoordinator liveDaqCoordinator,
     IDaqManagementService daqManagementService,
     IFilesService filesService,
@@ -135,6 +136,13 @@ internal sealed class EditorFactory(
             () => CreateSessionDetail(snapshot));
     }
 
+    public void OpenSessionDetailInBackground(SessionSnapshot snapshot)
+    {
+        shell.OpenInBackground<SessionDetailViewModel>(
+            editor => editor.Id == snapshot.Id,
+            () => CreateSessionDetail(snapshot));
+    }
+
     public void CloseSessionDetail(Guid sessionId)
     {
         shell.CloseIfOpen<SessionDetailViewModel>(editor => editor.Id == sessionId, forgetRestoreHistory: true);
@@ -156,6 +164,8 @@ internal sealed class EditorFactory(
             recordedSessionProcessingOptionCache,
             processedTelemetryReader,
             analysisResultStateFactory,
+            recordedSessionDerivationWindowCache,
+            () => this,
             bikeCoordinator,
             new ExtensionHostDependencies(
                 recordedSessionExtensionFactories.ToArray(),

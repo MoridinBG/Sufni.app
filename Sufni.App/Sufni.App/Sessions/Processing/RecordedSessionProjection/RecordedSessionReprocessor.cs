@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Security.Cryptography;
 using Sufni.Telemetry;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
@@ -44,7 +45,8 @@ internal sealed class RecordedSessionReprocessor(
             throw new InvalidOperationException("Recorded session cannot be reprocessed without setup, bike, and source metadata.");
         }
 
-        if (source.SessionId != domain.Session.Id)
+        var expectedSourceSessionId = domain.DerivationWindow?.SourceSessionId ?? domain.Session.Id;
+        if (source.SessionId != expectedSourceSessionId || domain.Source.SessionId != source.SessionId)
         {
             throw new InvalidOperationException("Recorded source does not match the domain session.");
         }
@@ -54,15 +56,15 @@ internal sealed class RecordedSessionReprocessor(
 
         var telemetryData = source.SourceKind switch
         {
-            RecordedSessionSourceKind.ImportedSst => ReprocessImportedSst(source, bikeData, processingOptions),
-            RecordedSessionSourceKind.LiveCapture => ReprocessLiveCapture(source, bikeData, processingOptions),
+            RecordedSessionSourceKind.ImportedSst => ReprocessImportedSst(source, bikeData, processingOptions, domain.DerivationWindow),
+            RecordedSessionSourceKind.LiveCapture => ReprocessLiveCapture(source, bikeData, processingOptions, domain.DerivationWindow),
             _ => throw new ArgumentOutOfRangeException(nameof(source.SourceKind), source.SourceKind, "Unknown recorded source kind.")
         };
 
         var fullTrack = telemetryData.GpsData is { Length: > 0 }
             ? Track.FromGpsRecords(telemetryData.GpsData)
             : null;
-        var fingerprint = CanReuseCurrentFingerprint(domain.CurrentFingerprint, processingOptions)
+        var fingerprint = CanReuseCurrentFingerprint(domain.CurrentFingerprint, processingOptions, domain.DerivationWindow)
             ? domain.CurrentFingerprint!
             : domain.DependencyHash is { } dependencyHash
                 ? fingerprintService.CreateCurrent(
@@ -71,8 +73,15 @@ internal sealed class RecordedSessionReprocessor(
                     domain.Bike,
                     domain.Source,
                     dependencyHash,
-                    processingOptions)
-                : fingerprintService.CreateCurrent(domain.Session, domain.Setup, domain.Bike, domain.Source, processingOptions);
+                    processingOptions,
+                    domain.DerivationWindow)
+                : fingerprintService.CreateCurrent(
+                    domain.Session,
+                    domain.Setup,
+                    domain.Bike,
+                    domain.Source,
+                    processingOptions,
+                    domain.DerivationWindow);
         var fingerprintJson = AppJson.Serialize(fingerprint);
         var processedTelemetry = new ProcessedTelemetryPayload(
             telemetryData,
@@ -84,17 +93,25 @@ internal sealed class RecordedSessionReprocessor(
 
     private static bool CanReuseCurrentFingerprint(
         ProcessingFingerprint? fingerprint,
-        TelemetryProcessingOptions processingOptions) =>
+        TelemetryProcessingOptions processingOptions,
+        RecordedSessionDerivationWindow? window) =>
         fingerprint?.VelocityFilterWindowMilliseconds ==
-        processingOptions.ClampedVelocityFilterWindowMilliseconds;
+        processingOptions.ClampedVelocityFilterWindowMilliseconds &&
+        fingerprint.DerivationWindow == window;
 
     private static TelemetryData ReprocessImportedSst(
         RecordedSessionSource source,
         BikeData bikeData,
-        TelemetryProcessingOptions processingOptions)
+        TelemetryProcessingOptions processingOptions,
+        RecordedSessionDerivationWindow? window)
     {
         var sstBytes = RecordedSessionSourcePayloadCodec.DecompressImportedSst(source.Payload);
         var rawTelemetryData = RawTelemetryData.FromByteArray(sstBytes);
+        if (window is not null)
+        {
+            rawTelemetryData = rawTelemetryData.Slice(window.StartSeconds, window.EndSeconds);
+        }
+
         var metadata = MetadataFromRaw(source.SourceName, rawTelemetryData);
         return TelemetryData.FromRecording(rawTelemetryData, metadata, bikeData, processingOptions);
     }
@@ -102,7 +119,8 @@ internal sealed class RecordedSessionReprocessor(
     private static TelemetryData ReprocessLiveCapture(
         RecordedSessionSource source,
         BikeData bikeData,
-        TelemetryProcessingOptions processingOptions)
+        TelemetryProcessingOptions processingOptions,
+        RecordedSessionDerivationWindow? window)
     {
         var payload = JsonSerializer.Deserialize(source.Payload, AppJson.Context.RecordedLiveCaptureSourcePayload)
                       ?? throw new JsonException("Recorded live-capture source payload is invalid.");
@@ -118,6 +136,10 @@ internal sealed class RecordedSessionReprocessor(
             hasSegmentPayload ? payload.StreamGaps ?? [] : [],
             hasSegmentPayload ? payload.FinalStatus : null,
             hasSegmentPayload && payload.MissingFinalStatus == true);
+        if (window is not null)
+        {
+            capture = capture.Slice(window.StartSeconds, window.EndSeconds);
+        }
 
         return TelemetryData.FromLiveCapture(capture, processingOptions);
     }

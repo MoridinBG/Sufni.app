@@ -18,7 +18,8 @@ public interface IProcessingFingerprintService
         SetupSnapshot setup,
         BikeSnapshot bike,
         RecordedSessionSourceSnapshot source,
-        TelemetryProcessingOptions? options = null);
+        TelemetryProcessingOptions? options = null,
+        RecordedSessionDerivationWindow? window = null);
 
     ProcessingFingerprint CreateCurrent(
         SessionSnapshot session,
@@ -26,7 +27,8 @@ public interface IProcessingFingerprintService
         BikeSnapshot bike,
         RecordedSessionSourceSnapshot source,
         string dependencyHash,
-        TelemetryProcessingOptions? options = null);
+        TelemetryProcessingOptions? options = null,
+        RecordedSessionDerivationWindow? window = null);
 
     /// <summary>
     /// Builds a fingerprint from the DB-resident processing inputs only (setup,
@@ -39,9 +41,12 @@ public interface IProcessingFingerprintService
         SessionSnapshot session,
         SetupSnapshot setup,
         BikeSnapshot bike,
-        RecordedSessionSourceSnapshot source);
+        RecordedSessionSourceSnapshot source,
+        RecordedSessionDerivationWindow? window = null);
 
-    ProcessingFingerprint CreateCurrentDatabaseInputs(SessionProcessingInputBundle input);
+    ProcessingFingerprint CreateCurrentDatabaseInputs(
+        SessionProcessingInputBundle input,
+        RecordedSessionDerivationWindow? window = null);
 
     ProcessingFingerprint? ParsePersisted(SessionSnapshot session);
 
@@ -64,14 +69,16 @@ public interface IProcessingFingerprintService
         SetupSnapshot? setup,
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source,
-        TelemetryProcessingOptions? options = null);
+        TelemetryProcessingOptions? options = null,
+        RecordedSessionDerivationWindow? window = null);
 
     ProcessingFingerprintEvaluation EvaluateState(
         SessionSnapshot session,
         SetupSnapshot? setup,
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source,
-        TelemetryProcessingOptions? options = null);
+        TelemetryProcessingOptions? options = null,
+        RecordedSessionDerivationWindow? window = null);
 
     ProcessingFingerprintEvaluation EvaluateState(
         SessionSnapshot session,
@@ -79,7 +86,8 @@ public interface IProcessingFingerprintService
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source,
         string? dependencyHash,
-        TelemetryProcessingOptions? options = null);
+        TelemetryProcessingOptions? options = null,
+        RecordedSessionDerivationWindow? window = null);
 }
 
 /// <summary>

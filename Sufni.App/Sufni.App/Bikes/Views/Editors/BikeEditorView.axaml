@@ -10,6 +10,7 @@ xmlns:plots="clr-namespace:Sufni.App.Bikes.Views.Plots"
 xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
 xmlns:shared="clr-namespace:Sufni.App.Shared.Views.Overlays"
 xmlns:vm="using:Sufni.App.Bikes.ViewModels.Editors"
+xmlns:zoom="clr-namespace:Sufni.App.ExtensionHost.Runtime.Presentation;assembly=Sufni.App.ExtensionHost"
 d:DesignHeight="450"
 d:DesignWidth="800"
 x:DataType="vm:BikeEditorViewModel"
@@ -186,10 +187,12 @@ mc:Ignorable="d">
         IsVisible="{Binding HasRearSuspension}"
         Margin="0,10">
 
-            <plots:LeverageRatioPlotView
-            HorizontalAlignment="Stretch"
-            IsHitTestVisible="False"
-            LeverageRatioData="{Binding LeverageRatioData}" />
+            <zoom:PlotZoomContainer>
+                <plots:LeverageRatioPlotView
+                HorizontalAlignment="Stretch"
+                IsHitTestVisible="False"
+                LeverageRatioData="{Binding LeverageRatioData}" />
+            </zoom:PlotZoomContainer>
 
             <Panel
             Background="#0d0d0d"

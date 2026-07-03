@@ -138,6 +138,28 @@ public class SignalRowTests
     }
 
     [AvaloniaFact]
+    public async Task SignalRow_DoubleTapPlotSlot_RaisesPlotZoomRequested()
+    {
+        var plotContent = new Border();
+        var row = CreateRow("Travel");
+        row.PlotContent = plotContent;
+        PlotZoomRequestedEventArgs? received = null;
+        row.AddHandler(
+            PlotZoomContainer.PlotZoomRequestedEvent,
+            (_, args) => received = args);
+
+        await using var mounted = await MountAsync(row);
+        Measure(row, 400, row.GetPreferredGroupHeight());
+
+        RaiseDoubleTapped(plotContent);
+
+        Assert.NotNull(received);
+        Assert.Same(
+            Assert.Single(row.GetVisualDescendants().OfType<PlotZoomContainer>()),
+            received.Container);
+    }
+
+    [AvaloniaFact]
     public async Task SignalRow_DefaultsNestedPlotBackgrounds()
     {
         var theme = SufniDarkTheme.Instance;
@@ -428,6 +450,21 @@ public class SignalRowTests
         mounted.Host.MouseDown(start.Value, MouseButton.Left, RawInputModifiers.None);
         mounted.Host.MouseUp(end.Value, MouseButton.Left, RawInputModifiers.None);
         await ViewTestHelpers.FlushDispatcherAsync();
+    }
+
+    private static void RaiseDoubleTapped(Control source)
+    {
+        using var pointer = new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, isPrimary: true);
+        var pointerArgs = new PointerPressedEventArgs(
+            source,
+            pointer,
+            source,
+            default,
+            timestamp: 0,
+            new PointerPointProperties(RawInputModifiers.LeftMouseButton, PointerUpdateKind.LeftButtonPressed),
+            KeyModifiers.None);
+
+        source.RaiseEvent(new TappedEventArgs(InputElement.DoubleTappedEvent, pointerArgs));
     }
 
     private static void AssertSolidBrush(Color expectedColor, IBrush? brush)

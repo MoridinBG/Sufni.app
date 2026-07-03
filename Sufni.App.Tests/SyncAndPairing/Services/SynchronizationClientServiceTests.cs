@@ -18,6 +18,7 @@ public class SynchronizationClientServiceTests
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
     private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
+    private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery = Substitute.For<IRecordedSessionSourceSyncQuery>();
     private readonly IHttpApiService httpApiService = Substitute.For<IHttpApiService>();
     private readonly IAppPreferences appPreferences = Substitute.For<IAppPreferences>();
 
@@ -27,7 +28,7 @@ public class SynchronizationClientServiceTests
         httpApiService.GetIncompleteSessionIdsAsync().Returns([]);
         sessionRepository.GetIncompleteSessionIdsWithFingerprintAsync().Returns([]);
         httpApiService.GetIncompleteSessionSourceIdsAsync().Returns([]);
-        recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync().Returns([]);
+        recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([]);
         appPreferences.GetSyncDataAsync(Arg.Any<long>()).Returns((AppPreferencesSyncData?)null);
         appPreferences.ApplySyncDataAsync(Arg.Any<AppPreferencesSyncData?>()).Returns(Task.CompletedTask);
     }
@@ -39,6 +40,7 @@ public class SynchronizationClientServiceTests
             sessionRepository,
             sessionTelemetryWriter,
             recordedSessionSourceRepository,
+            recordedSessionSourceSyncQuery,
             httpApiService,
             appPreferences,
             extensionSync);
@@ -396,7 +398,7 @@ public class SynchronizationClientServiceTests
         syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
-        recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync().Returns([source.SessionId]);
+        recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([source.SessionId]);
         httpApiService.GetRecordedSessionSourceAsync(source.SessionId).Returns(transfer);
 
         await CreateService().SyncAll();
@@ -425,7 +427,7 @@ public class SynchronizationClientServiceTests
         syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
-        recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync().Returns([source.SessionId]);
+        recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([source.SessionId]);
         httpApiService.GetRecordedSessionSourceAsync(source.SessionId).Returns(transfer);
 
         await CreateService().SyncAll();

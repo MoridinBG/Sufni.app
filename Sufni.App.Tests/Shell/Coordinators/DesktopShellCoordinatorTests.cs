@@ -125,6 +125,62 @@ public class DesktopShellCoordinatorTests
         host.Received(1).OpenView(secondTab);
     }
 
+    // ----- OpenInBackground -----
+
+    [Fact]
+    public void OpenInBackground_AddsNewTabWithoutOpeningIt_WhenNoMatch()
+    {
+        host.Tabs.Returns(Array.Empty<TabPageViewModelBase>());
+        var newView = new TestTabPageViewModel();
+        var coordinator = CreateCoordinator();
+
+        coordinator.OpenInBackground<TestTabPageViewModel>(
+            match: _ => true,
+            create: () => newView);
+
+        host.Received(1).TakeTabHistory(Arg.Any<Func<TestTabPageViewModel, bool>>());
+        host.Received(1).AddView(newView);
+        host.DidNotReceiveWithAnyArgs().OpenView(default!);
+    }
+
+    [Fact]
+    public void OpenInBackground_ReusesMatchingClosedTab_AndDoesNotInvokeFactory()
+    {
+        host.Tabs.Returns(Array.Empty<TabPageViewModelBase>());
+        var restored = new TestTabPageViewModel();
+        host.TakeTabHistory(Arg.Any<Func<TestTabPageViewModel, bool>>()).Returns(restored);
+        var factoryInvoked = false;
+        var coordinator = CreateCoordinator();
+
+        coordinator.OpenInBackground<TestTabPageViewModel>(
+            match: _ => true,
+            create: () =>
+            {
+                factoryInvoked = true;
+                return new TestTabPageViewModel();
+            });
+
+        Assert.False(factoryInvoked);
+        host.Received(1).AddView(restored);
+        host.DidNotReceiveWithAnyArgs().OpenView(default!);
+    }
+
+    [Fact]
+    public void OpenInBackground_DoesNothing_WhenMatchingTabIsAlreadyOpen()
+    {
+        var existing = new TestTabPageViewModel();
+        host.Tabs.Returns([existing]);
+        var coordinator = CreateCoordinator();
+
+        coordinator.OpenInBackground<TestTabPageViewModel>(
+            match: _ => true,
+            create: () => throw new InvalidOperationException("factory should not run"));
+
+        host.DidNotReceiveWithAnyArgs().AddView(default!);
+        host.DidNotReceiveWithAnyArgs().OpenView(default!);
+        host.DidNotReceiveWithAnyArgs().TakeTabHistory<TestTabPageViewModel>(default!);
+    }
+
     // ----- Close -----
 
     [Fact]

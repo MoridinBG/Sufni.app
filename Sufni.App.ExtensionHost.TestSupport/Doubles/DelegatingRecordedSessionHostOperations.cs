@@ -1,3 +1,6 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
@@ -23,7 +26,12 @@ public sealed class DelegatingRecordedSessionHostOperations(
     Action<string>? requestPageSelection = null,
     Func<RecordedSessionTimelineAlignmentTarget, double, string?, bool>? tryBeginTimelineAlignment = null,
     TryResolveTimelineAlignmentHandler? tryResolveTimelineAlignment = null,
-    Func<RecordedSessionTimelineAlignmentTarget, string?, bool>? tryCancelTimelineAlignment = null) : IRecordedSessionHostOperations
+    Func<RecordedSessionTimelineAlignmentTarget, string?, bool>? tryCancelTimelineAlignment = null,
+    Func<Guid, string, double, CancellationToken, Task<Guid?>>? createDerivedSessionAsync = null,
+    Func<Guid, double, CancellationToken, Task<bool>>? updateSessionOriginAsync = null,
+    Func<Guid, string, CancellationToken, Task<bool>>? renameSessionAsync = null,
+    Func<Guid, CancellationToken, Task<bool>>? requestRecomputeAsync = null,
+    Func<Guid, CancellationToken, Task>? openSessionInBackgroundAsync = null) : IRecordedSessionHostOperations
 {
     public void SetAnalysisRange(double startSeconds, double endSeconds) =>
         (setAnalysisRange ?? ((_, _) => { }))(startSeconds, endSeconds);
@@ -70,4 +78,38 @@ public sealed class DelegatingRecordedSessionHostOperations(
 
     public void RequestPageSelection(string contributionId) =>
         (requestPageSelection ?? (_ => { }))(contributionId);
+
+    public Task<Guid?> CreateDerivedSessionAsync(
+        Guid fromSessionId,
+        string name,
+        double sourceAbsoluteStartSeconds,
+        CancellationToken cancellationToken = default) =>
+        createDerivedSessionAsync?.Invoke(fromSessionId, name, sourceAbsoluteStartSeconds, cancellationToken)
+        ?? Task.FromResult<Guid?>(null);
+
+    public Task<bool> UpdateSessionOriginAsync(
+        Guid sessionId,
+        double sourceAbsoluteStartSeconds,
+        CancellationToken cancellationToken = default) =>
+        updateSessionOriginAsync?.Invoke(sessionId, sourceAbsoluteStartSeconds, cancellationToken)
+        ?? Task.FromResult(false);
+
+    public Task<bool> RenameSessionAsync(
+        Guid sessionId,
+        string name,
+        CancellationToken cancellationToken = default) =>
+        renameSessionAsync?.Invoke(sessionId, name, cancellationToken)
+        ?? Task.FromResult(false);
+
+    public Task<bool> RequestRecomputeAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default) =>
+        requestRecomputeAsync?.Invoke(sessionId, cancellationToken)
+        ?? Task.FromResult(false);
+
+    public Task OpenSessionInBackgroundAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default) =>
+        openSessionInBackgroundAsync?.Invoke(sessionId, cancellationToken)
+        ?? Task.CompletedTask;
 }

@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.Linq;
 using Avalonia.Controls;
 using Sufni.App.ExtensionHost.Contracts.Database;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.Sync;
 using Sufni.App.ExtensionHost.Contracts.Services;
@@ -60,6 +61,7 @@ using Sufni.App.Shell.Coordinators;
 using Sufni.App.Shell.DesktopViews;
 using Sufni.App.Shell.ViewModels;
 using Sufni.App.Shell.Views;
+using Sufni.App.Shared.Views.Overlays;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Stores;
@@ -190,6 +192,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IExtensionCascadeService, ExtensionCascadeService>();
         ServiceCollection.AddSingleton<IExtensionSyncService, ExtensionSyncService>();
         ServiceCollection.TryAddSingleton<IRecordedSessionListExtensionService, RecordedSessionListExtensionService>();
+        ServiceCollection.TryAddSingleton<IRecordedSessionDerivationWindowProvider, NullRecordedSessionDerivationWindowProvider>();
         ServiceCollection.AddSingleton<IAppPreferences, AppPreferences>();
         ServiceCollection.AddSingleton<IThemeService, ThemeService>();
         ServiceCollection.AddSingleton<IMapPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Map);
@@ -203,6 +206,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IDialogService>(sp => sp.GetRequiredService<DialogService>());
         ServiceCollection.AddSingleton<IDialogHost>(sp => sp.GetRequiredService<DialogService>());
         ServiceCollection.AddSingleton<IExtensionDialogService>(sp => sp.GetRequiredService<DialogService>());
+        ServiceCollection.AddSingleton<IPlotZoomState, PlotZoomState>();
         ServiceCollection.AddSingleton<BikeStore>();
         ServiceCollection.AddSingleton<IBikeStore>(sp => sp.GetRequiredService<BikeStore>());
         ServiceCollection.AddSingleton<IBikeStoreWriter>(sp => sp.GetRequiredService<BikeStore>());
@@ -229,9 +233,11 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IProcessingFingerprintService, ProcessingFingerprintService>();
         ServiceCollection.AddSingleton<IRecordedSessionProcessingOptionCache, RecordedSessionProcessingOptionCache>();
         ServiceCollection.AddSingleton<IProcessingDependencyHashIndex, ProcessingDependencyHashIndex>();
+        ServiceCollection.AddSingleton<IRecordedSessionDerivationWindowCache, RecordedSessionDerivationWindowCache>();
         ServiceCollection.AddSingleton<IRecordedSessionDomainQuery, RecordedSessionDomainQuery>();
         ServiceCollection.AddSingleton<IRecordedSessionProjection, RecordedSessionProjection>();
         ServiceCollection.AddSingleton<IRecordedSessionReprocessor, RecordedSessionReprocessor>();
+        ServiceCollection.AddSingleton<IRecordedSessionSourceSyncQuery, RecordedSessionSourceSyncQuery>();
         ServiceCollection.AddSingleton<TrackCoordinator>();
         ServiceCollection.AddSingleton<ITrackCoordinator>(sp => sp.GetRequiredService<TrackCoordinator>());
         ServiceCollection.AddSingleton<SessionLoader>(sp => new SessionLoader(
@@ -270,7 +276,9 @@ public partial class App : Application
             sp.GetRequiredService<ISessionPreferences>(),
             sp.GetRequiredService<IShellCoordinator>(),
             sp.GetRequiredService<ISessionRecomputeEngine>(),
-            sp.GetRequiredService<Func<IEditorFactory>>()));
+            sp.GetRequiredService<Func<IEditorFactory>>(),
+            sp.GetRequiredService<IRecordedSessionDerivationWindowCache>(),
+            sp.GetRequiredService<IRecordedSessionDerivationWindowProvider>()));
         ServiceCollection.AddSingleton<SessionSyncApplier>(sp => new SessionSyncApplier(
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<ISessionRepository>(),
@@ -287,6 +295,11 @@ public partial class App : Application
             sp.GetRequiredService<ISessionPreferences>(),
             sp.GetRequiredService<IRecordedSessionProcessingOptionCache>(),
             sp.GetRequiredService<ISessionRecomputeEngine>(),
+            sp.GetRequiredService<IBackgroundTaskRunner>()));
+        ServiceCollection.AddSingleton<RecordedSessionSourceRetentionCleanup>(sp => new RecordedSessionSourceRetentionCleanup(
+            sp.GetRequiredService<SqliteConnectionContext>(),
+            sp.GetRequiredService<IRecordedSessionSourceRepository>(),
+            sp.GetRequiredService<IRecordedSessionDerivationWindowProvider>(),
             sp.GetRequiredService<IBackgroundTaskRunner>()));
         ServiceCollection.AddSingleton<LiveDaqStore>();
         ServiceCollection.AddSingleton<ILiveDaqStore>(sp => sp.GetRequiredService<LiveDaqStore>());
@@ -384,6 +397,7 @@ public partial class App : Application
         // option it processed. Fire-and-forget off the UI thread; the pass waits for
         // database initialization itself and is resumable via its core_migration marker.
         _ = Services.GetRequiredService<ProcessingOptionsResetMigration>().RunAsync();
+        _ = Services.GetRequiredService<RecordedSessionSourceRetentionCleanup>().RunAsync();
 
         var fileService = Services.GetRequiredService<IFilesService>();
         var dialogHost = Services.GetRequiredService<IDialogHost>();
@@ -393,12 +407,15 @@ public partial class App : Application
         {
             case IClassicDesktopStyleApplicationLifetime desktop:
                 var mainWindowViewModel = Services.GetRequiredService<MainWindowViewModel>();
-                desktop.MainWindow = new MainWindow();
-                fileService.SetTarget(TopLevel.GetTopLevel(desktop.MainWindow));
-                dialogHost.SetOwner(desktop.MainWindow);
-                dialogHost.SetOverlayHost(desktop.MainWindow);
+                var mainWindow = new MainWindow();
+                desktop.MainWindow = mainWindow;
+                Services.GetRequiredService<IPlotZoomState>()
+                    .SetSurface(mainWindow.FindControl<PlotZoomOverlayHost>("PlotZoomOverlay"));
+                fileService.SetTarget(TopLevel.GetTopLevel(mainWindow));
+                dialogHost.SetOwner(mainWindow);
+                dialogHost.SetOverlayHost(mainWindow);
                 dialogHost.SetPresentationMode(DialogPresentationMode.Window);
-                desktop.MainWindow.DataContext = mainWindowViewModel;
+                mainWindow.DataContext = mainWindowViewModel;
                 desktop.Exit += (_, _) => LoggingBootstrapper.FlushAndClose();
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
@@ -409,6 +426,8 @@ public partial class App : Application
                     DataContext = mainViewModel
                 };
                 mainView.SetNavigationPageHost(mobileNavigationPageHost);
+                Services.GetRequiredService<IPlotZoomState>()
+                    .SetSurface(mainView.FindControl<PlotZoomOverlayHost>("PlotZoomOverlay"));
                 singleViewPlatform.MainView = mainView;
                 if (singleViewPlatform.MainView is Control mainViewControl)
                 {

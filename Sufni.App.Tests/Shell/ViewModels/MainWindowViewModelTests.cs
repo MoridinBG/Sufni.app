@@ -30,6 +30,21 @@ public class MainWindowViewModelTests
     }
 
     [Fact]
+    public void AddView_AddsTabWithoutChangingCurrentView()
+    {
+        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        var mainWindow = new MainWindowViewModel(MainPagesViewModelTestFactory.Create(), welcome, TestDispatcher);
+        var backgroundTab = new TestTabPage();
+
+        mainWindow.AddView(backgroundTab);
+
+        Assert.Contains(backgroundTab, mainWindow.Tabs);
+        Assert.Same(welcome, mainWindow.CurrentView);
+        Assert.True(welcome.IsTabActive);
+        Assert.False(backgroundTab.IsTabActive);
+    }
+
+    [Fact]
     public void CloseTabPage_RemembersClosedTabForRestore()
     {
         var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();

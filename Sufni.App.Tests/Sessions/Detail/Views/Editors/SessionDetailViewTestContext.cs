@@ -192,7 +192,9 @@ internal sealed class SessionDetailViewTestContext
                 : new MobileSessionLayoutStrategy(),
             new InMemoryRecordedSessionProcessingOptionCache(),
             new TestSessionProcessedTelemetryReader(),
-            analysisResultStateFactory);
+            analysisResultStateFactory,
+            Substitute.For<IRecordedSessionDerivationWindowCache>(),
+            () => Substitute.For<IEditorFactory>());
     }
 }
 

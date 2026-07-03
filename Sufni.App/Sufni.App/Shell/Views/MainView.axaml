@@ -13,6 +13,7 @@ Background="{DynamicResource SufniBackgroundDisabled}"
 mc:Ignorable="d">
     <Panel TopLevel.AutoSafeAreaPadding="True" Background="{DynamicResource SufniRegion}">
         <NavigationPage Name="RootNavigationPage" />
+        <c:PlotZoomOverlayHost Name="PlotZoomOverlay" />
         <c:BusyOverlay
             Name="SyncBusyOverlay"
             BusyMessageFontWeight="Bold"

@@ -53,6 +53,7 @@ public class SynchronizationServerService : ISynchronizationServerService
     private readonly ISessionRepository sessionRepository;
     private readonly ISessionTelemetryWriter sessionTelemetryWriter;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
+    private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery;
     private readonly IAppPreferences appPreferences;
     private readonly ISessionBlobSwapRequestStore swapRequestStore;
     private readonly IExtensionSyncService? extensionSyncService;
@@ -92,10 +93,11 @@ public class SynchronizationServerService : ISynchronizationServerService
         ISessionRepository sessionRepository,
         ISessionTelemetryWriter sessionTelemetryWriter,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
+        IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         IAppPreferences appPreferences,
         ISecureStorage secureStorage,
         ISessionBlobSwapRequestStore swapRequestStore)
-        : this(syncDataStore, pairedDeviceRepository, sessionRepository, sessionTelemetryWriter, recordedSessionSourceRepository, appPreferences, secureStorage, swapRequestStore, null)
+        : this(syncDataStore, pairedDeviceRepository, sessionRepository, sessionTelemetryWriter, recordedSessionSourceRepository, recordedSessionSourceSyncQuery, appPreferences, secureStorage, swapRequestStore, null)
     {
     }
 
@@ -105,6 +107,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         ISessionRepository sessionRepository,
         ISessionTelemetryWriter sessionTelemetryWriter,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
+        IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         IAppPreferences appPreferences,
         ISecureStorage secureStorage,
         ISessionBlobSwapRequestStore swapRequestStore,
@@ -115,6 +118,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         this.sessionRepository = sessionRepository;
         this.sessionTelemetryWriter = sessionTelemetryWriter;
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
+        this.recordedSessionSourceSyncQuery = recordedSessionSourceSyncQuery;
         this.appPreferences = appPreferences;
         this.secureStorage = secureStorage;
         this.swapRequestStore = swapRequestStore;
@@ -741,7 +745,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                     SyncActivity(SynchronizationPhase.CheckingIncompleteSessionSources, "Checking missing recorded sources"),
                     async () =>
                     {
-                        var incompleteSources = await recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync();
+                        var incompleteSources = await recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync();
                         logger.Verbose("Synchronization incomplete-session-source query returned {SourceCount} sessions", incompleteSources.Count);
                         return Results.Ok(incompleteSources);
                     });

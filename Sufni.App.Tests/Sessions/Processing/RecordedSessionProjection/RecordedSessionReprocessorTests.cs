@@ -52,6 +52,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
+            null,
             new SessionStaleness.MissingProcessedData(),
             DerivedChangeKind.None);
         var reprocessor = CreateReprocessor();
@@ -64,6 +65,58 @@ public class RecordedSessionReprocessorTests
         Assert.NotEmpty(telemetryData.Front.Travel);
         Assert.Equal(telemetryData.BinaryForm, result.ProcessedTelemetry.Data);
         Assert.Equal(AppJson.Serialize(result.Fingerprint), result.ProcessedTelemetry.FingerprintJson);
+    }
+
+    [Fact]
+    public async Task ReprocessAsync_ImportedSst_WithDerivationWindow_SlicesBeforeProcessing()
+    {
+        var session = TestSnapshots.Session(id: Guid.NewGuid(), setupId: Guid.NewGuid());
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid());
+        var setup = TestSnapshots.Setup(id: session.SetupId!.Value, bikeId: bike.Id) with
+        {
+            FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
+            {
+                Length = 10,
+                Resolution = 12
+            })
+        };
+        var sourceSessionId = Guid.NewGuid();
+        var sstBytes = TestSstFiles.CreateV3WithFrontOnly(timestamp: 1_700_000_000, sampleCount: 200);
+        var payload = RecordedSessionSourcePayloadCodec.CompressImportedSst(sstBytes);
+        var source = new RecordedSessionSource
+        {
+            SessionId = sourceSessionId,
+            SourceKind = RecordedSessionSourceKind.ImportedSst,
+            SourceName = "window-source.SST",
+            SchemaVersion = 1,
+            SourceHash = RecordedSessionSourceHash.Compute(
+                RecordedSessionSourceKind.ImportedSst,
+                "window-source.SST",
+                1,
+                payload),
+            Payload = payload
+        };
+        var window = new RecordedSessionDerivationWindow(sourceSessionId, 1.1, 1.3);
+        var domain = new RecordedSessionDomainSnapshot(
+            session,
+            setup,
+            bike,
+            null,
+            null,
+            RecordedSessionSourceSnapshot.From(source),
+            window,
+            new SessionStaleness.SourceWindowChanged(),
+            DerivedChangeKind.None);
+        var reprocessor = CreateReprocessor();
+
+        var result = await reprocessor.ReprocessAsync(domain, source);
+        var telemetryData = result.ProcessedTelemetry.TelemetryData;
+
+        Assert.Equal(1_700_000_001, telemetryData.Metadata.Timestamp);
+        Assert.Equal(0.2, telemetryData.Metadata.Duration, precision: 6);
+        Assert.Equal(20, telemetryData.Front.Travel.Length);
+        Assert.Equal(window, result.Fingerprint.DerivationWindow);
+        Assert.Equal(source.SourceHash, result.Fingerprint.SourceHash);
     }
 
     [Fact]
@@ -119,6 +172,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
+            null,
             new SessionStaleness.MissingProcessedData(),
             DerivedChangeKind.None);
         var reprocessor = CreateReprocessor();
@@ -176,6 +230,7 @@ public class RecordedSessionReprocessorTests
             currentFingerprint,
             null,
             RecordedSessionSourceSnapshot.From(source),
+            null,
             new SessionStaleness.MissingProcessedData(),
             DerivedChangeKind.None,
             currentFingerprint.DependencyHash);
@@ -202,6 +257,62 @@ public class RecordedSessionReprocessorTests
             Arg.Any<RecordedSessionSourceSnapshot>(),
             Arg.Any<string>(),
             Arg.Any<TelemetryProcessingOptions?>());
+    }
+
+    [Fact]
+    public async Task ReprocessAsync_LiveCaptureSource_WithDerivationWindow_SlicesBeforeProcessing()
+    {
+        var session = TestSnapshots.Session(id: Guid.NewGuid(), setupId: Guid.NewGuid());
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid()) with
+        {
+            HeadAngle = 63,
+            ForkStroke = 180
+        };
+        var setup = TestSnapshots.Setup(id: session.SetupId!.Value, bikeId: bike.Id) with
+        {
+            FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
+            {
+                Length = 10,
+                Resolution = 12
+            })
+        };
+        var sourceSessionId = Guid.NewGuid();
+        var capture = new LiveTelemetryCapture(
+            Metadata: new Metadata
+            {
+                SourceName = "live-window-source",
+                Version = 4,
+                SampleRate = 100,
+                Timestamp = 1_700_000_000,
+                Duration = 2.0
+            },
+            BikeData: new BikeData(180, null, measurement => measurement / 10.0, null),
+            FrontMeasurements: Enumerable.Range(0, 200).Select(sample => (ushort)(1200 + sample)).ToArray(),
+            RearMeasurements: [],
+            ImuData: null,
+            GpsData: null,
+            Markers: []);
+        var source = RecordedSessionSourceFactory.CreateLiveCapture(sourceSessionId, capture);
+        var window = new RecordedSessionDerivationWindow(sourceSessionId, 1.1, 1.3);
+        var domain = new RecordedSessionDomainSnapshot(
+            session,
+            setup,
+            bike,
+            null,
+            null,
+            RecordedSessionSourceSnapshot.From(source),
+            window,
+            new SessionStaleness.SourceWindowChanged(),
+            DerivedChangeKind.None);
+        var reprocessor = CreateReprocessor();
+
+        var result = await reprocessor.ReprocessAsync(domain, source);
+        var telemetryData = result.ProcessedTelemetry.TelemetryData;
+
+        Assert.Equal(1_700_000_001, telemetryData.Metadata.Timestamp);
+        Assert.Equal(0.2, telemetryData.Metadata.Duration, precision: 6);
+        Assert.Equal(20, telemetryData.Front.Travel.Length);
+        Assert.Equal(window, result.Fingerprint.DerivationWindow);
     }
 
     [Fact]
@@ -358,6 +469,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
+            null,
             new SessionStaleness.MissingProcessedData(),
             DerivedChangeKind.None);
         var reprocessor = CreateReprocessor();
@@ -396,6 +508,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
+            null,
             new SessionStaleness.MissingProcessedData(),
             DerivedChangeKind.None);
     }

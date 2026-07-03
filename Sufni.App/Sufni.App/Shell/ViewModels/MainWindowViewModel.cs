@@ -77,6 +77,17 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
         CurrentView = tabPage;
     }
 
+    public void AddView(ViewModelBase view)
+    {
+        var tabPage = view as TabPageViewModelBase;
+        Debug.Assert(tabPage is not null);
+
+        if (!Tabs.Contains(tabPage))
+        {
+            Tabs.Add(tabPage);
+        }
+    }
+
     public void CloseTabPage(TabPageViewModelBase tab, bool rememberForRestore = true)
     {
         // Guard against setting previousActiveTab to the tab we are closing.

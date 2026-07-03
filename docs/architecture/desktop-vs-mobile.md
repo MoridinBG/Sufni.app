@@ -50,9 +50,11 @@ The `ViewLocator` (`Sufni.App/Sufni.App/ViewLocator.cs`) holds two dictionaries 
 Direct reads of the flag are deliberately limited to the view composition edge:
 
 - `ViewLocator` — picks `DesktopViewFactories` first when the flag is set.
-- Plot view gesture handling under `Views/Plots/` — keeps mobile long-press
-  velocity cutoff editing and recorded analysis/context-menu gestures out of
-  desktop pointer paths where views cannot receive platform services through DI.
+- Plot view gesture and modal presentation handling under `Views/Plots/` and
+  `Shared/Views/Overlays/` — keeps mobile long-press velocity cutoff editing,
+  recorded analysis/context-menu gestures, and zoomed plot portrait rotation
+  out of desktop pointer paths where views cannot receive platform services
+  through DI.
 
 Other desktop/mobile differences are carried by composition or view contracts
 rather than by reading `App.IsDesktop` from services or view models. For
@@ -154,6 +156,12 @@ The places where the same workflow takes a meaningfully different desktop vs mob
 - **Sync direction**. Desktop hosts the server, mobile drives the client. There is no peer-to-peer mode and no path that runs both on one device. See [Sync](sync.md).
 - **Editor presentation**. Desktop opens editors as additional `TabPageViewModelBase` tabs that can coexist with the list page; mobile pushes the editor onto the back stack and pops it on save / cancel. The same `IShellCoordinator` calls drive both.
 - **Dialogs**. `DialogService` shows tile-layer, live-DAQ-config, and generic extension dialogs as standalone Avalonia `Window`s on desktop and as in-tree overlays anchored on `MainView` on mobile. Close-confirmation dialogs use the desktop `Window` form on both shells when an owner window is set.
+- **Zoomed plot modal**. Double-clicking or double-tapping a plot opens the
+  same live plot control in `PlotZoomOverlayHost`. Desktop shows a framed modal
+  over a scrim with a 24 px margin, 8 px corner radius, shadow, and Esc close.
+  Mobile uses an edge-to-edge modal inside the safe area, rotates plot content
+  90 degrees in portrait-shaped windows, and participates in the hardware-back
+  chain through `TryCloseTransientShellSurface`.
 - **Bike linkage editing**. `BikeEditorViewModel.CanChangeRearSuspensionMode` is desktop-only — the linkage / leverage-ratio editing affordances are not exposed on mobile because the linkage editor canvas is built for a desktop pointer interaction model.
 - **Welcome screen and logs link**. The welcome screen is desktop-only, so the
   `Open logs folder` link is part of that desktop surface.

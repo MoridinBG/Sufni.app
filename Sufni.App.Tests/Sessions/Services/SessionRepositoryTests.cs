@@ -1,6 +1,7 @@
 using SQLite;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
 
@@ -128,6 +129,30 @@ public class SessionRepositoryTests
     }
 
     [Fact]
+    public async Task PutSessionAsync_UpdatesGpsOffset_OnMetadataUpdate()
+    {
+        using var tempDatabase = new TempDatabase("session-gps-offset-metadata-save.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+        var database = new TestPersistenceHarness(databasePath);
+
+        await database.PutSessionAsync(new Session(sessionId, "original", "desc", null, 100)
+        {
+            GpsOffsetSeconds = 1.25
+        });
+
+        await database.PutSessionAsync(new Session(sessionId, "renamed", "desc", null, 100)
+        {
+            GpsOffsetSeconds = 3.75
+        });
+
+        var loaded = await database.GetSessionAsync(sessionId);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(3.75, loaded!.GpsOffsetSeconds);
+    }
+
+    [Fact]
     public async Task UpdateProcessedDerivedDataAsync_ReturnsNullAndRollsBack_WhenDatabaseInputsDoNotMatch()
     {
         using var tempDatabase = new TempDatabase("processed-derived-data-rollback.db");
@@ -164,6 +189,55 @@ public class SessionRepositoryTests
         Assert.Equal(persisted.Updated, current!.Updated);
         Assert.Equal(originalRaw, await database.GetSessionRawPsstAsync(sessionId));
         Assert.Null(await database.GetAsync<Track>(newTrack.Id));
+    }
+
+    [Fact]
+    public async Task UpdateProcessedDerivedDataAsync_UsesDerivationWindowSource_ForDatabaseInputGuard()
+    {
+        using var tempDatabase = new TempDatabase("processed-derived-data-window-source.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+        var sourceSessionId = Guid.NewGuid();
+        var fingerprintService = new ProcessingFingerprintService();
+
+        var database = new TestPersistenceHarness(databasePath);
+        var bike = new Bike(Guid.NewGuid(), "bike")
+        {
+            HeadAngle = 64
+        };
+        var setup = new Setup(Guid.NewGuid(), "setup")
+        {
+            BikeId = bike.Id
+        };
+        var session = new Session(sessionId, "derived", "desc", setup.Id, 100)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(60)
+        };
+        var source = PersistenceTestData.CreateRecordedSessionSource(sourceSessionId);
+        var window = new RecordedSessionDerivationWindow(sourceSessionId, 1, 2);
+        var fingerprint = CreateCurrentFingerprint(fingerprintService, session, setup, bike, source, window);
+        session.ProcessingFingerprintJson = AppJson.Serialize(fingerprint);
+
+        await database.PutAsync(bike);
+        await database.PutAsync(setup);
+        await database.PutProcessedSessionAsync(session, newFullTrack: null, source: null);
+        await database.PutRecordedSessionSourceAsync(source);
+
+        var recomputed = new Session(sessionId, "derived", "desc", setup.Id, 100)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(66),
+            ProcessingFingerprintJson = AppJson.Serialize(fingerprint),
+            DurationSeconds = 66
+        };
+
+        var result = await database.UpdateProcessedDerivedDataAsync(
+            recomputed,
+            newFullTrack: null,
+            fingerprint);
+
+        Assert.NotNull(result);
+        Assert.Equal(66, result!.DurationSeconds);
+        Assert.Equal(recomputed.ProcessedData, await database.GetSessionRawPsstAsync(sessionId));
     }
 
     [Fact]
@@ -296,6 +370,43 @@ public class SessionRepositoryTests
         Assert.Null(await database.GetAsync<Track>(track.Id));
         Assert.Null(await database.GetRecordedSessionSourceAsync(sessionId));
 
+    }
+
+    [Fact]
+    public async Task DeleteOrphanedRecordedSessionSourcesAsync_RemovesSourcesWithoutLiveSession()
+    {
+        using var tempDatabase = new TempDatabase("recorded-source-orphan-cleanup.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var liveSessionId = Guid.NewGuid();
+        var orphanSessionId = Guid.NewGuid();
+        var database = new TestPersistenceHarness(databasePath);
+        await database.PutSessionAsync(new Session(liveSessionId, "live", "desc", null, 100));
+        await database.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(liveSessionId));
+        await database.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(orphanSessionId));
+
+        var deleted = await database.DeleteOrphanedRecordedSessionSourcesAsync([]);
+
+        Assert.Equal(1, deleted);
+        Assert.NotNull(await database.GetRecordedSessionSourceAsync(liveSessionId));
+        Assert.Null(await database.GetRecordedSessionSourceAsync(orphanSessionId));
+    }
+
+    [Fact]
+    public async Task DeleteOrphanedRecordedSessionSourcesAsync_KeepsRetainedSources()
+    {
+        using var tempDatabase = new TempDatabase("recorded-source-retained-cleanup.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var retainedSessionId = Guid.NewGuid();
+        var orphanSessionId = Guid.NewGuid();
+        var database = new TestPersistenceHarness(databasePath);
+        await database.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(retainedSessionId));
+        await database.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(orphanSessionId));
+
+        var deleted = await database.DeleteOrphanedRecordedSessionSourcesAsync([retainedSessionId]);
+
+        Assert.Equal(1, deleted);
+        Assert.NotNull(await database.GetRecordedSessionSourceAsync(retainedSessionId));
+        Assert.Null(await database.GetRecordedSessionSourceAsync(orphanSessionId));
     }
 
     [Fact]
@@ -673,10 +784,12 @@ public class SessionRepositoryTests
         Session session,
         Setup setup,
         Bike bike,
-        RecordedSessionSource source) =>
+        RecordedSessionSource source,
+        RecordedSessionDerivationWindow? window = null) =>
         fingerprintService.CreateCurrentDatabaseInputs(
             SessionSnapshot.From(session),
             SetupSnapshot.From(setup, boardId: null),
             BikeSnapshot.From(bike),
-            RecordedSessionSourceSnapshot.From(source));
+            RecordedSessionSourceSnapshot.From(source),
+            window);
 }

@@ -9,6 +9,7 @@ xmlns:controls="clr-namespace:Sufni.App.Shared.Views.Overlays"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:plots="clr-namespace:Sufni.App.Sessions.Plots.Views.Plots"
+xmlns:zoom="clr-namespace:Sufni.App.ExtensionHost.Runtime.Presentation;assembly=Sufni.App.ExtensionHost"
 d:DesignHeight="450"
 d:DesignWidth="800"
 mc:Ignorable="d">
@@ -23,43 +24,48 @@ mc:Ignorable="d">
                         <RowDefinition Height="{Binding #Root.TravelFrequencyDistributionRowHeight}" />
                     </Grid.RowDefinitions>
 
-                    <plots:AnalysisPlotView
-                    AnalysisRange="{Binding #Root.AnalysisRange}"
-                    AnalysisResultState="{Binding #Root.AnalysisResultState}"
-                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
-                    HeaderContent="{Binding #Root.HeaderContent}"
-                    IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
-                    AnalysisPlotKind="TravelDistribution"
-                    SuspensionType="{Binding #Root.SuspensionType}"
-                    Telemetry="{Binding #Root.Telemetry}"
-                    TravelDistributionMode="{Binding #Root.TravelDistributionMode}" />
+                    <zoom:PlotZoomContainer>
+                        <plots:AnalysisPlotView
+                        AnalysisRange="{Binding #Root.AnalysisRange}"
+                        AnalysisResultState="{Binding #Root.AnalysisResultState}"
+                        ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                        HeaderContent="{Binding #Root.HeaderContent}"
+                        IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
+                        AnalysisPlotKind="TravelDistribution"
+                        SuspensionType="{Binding #Root.SuspensionType}"
+                        Telemetry="{Binding #Root.Telemetry}"
+                        TravelDistributionMode="{Binding #Root.TravelDistributionMode}" />
+                    </zoom:PlotZoomContainer>
 
                     <GridSplitter Grid.Row="1" ResizeDirection="Rows" />
 
-                    <plots:AnalysisPlotView
-                    AnalysisRange="{Binding #Root.AnalysisRange}"
-                    AnalysisResultState="{Binding #Root.AnalysisResultState}"
-                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
-                    Grid.Row="2"
-                    IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
-                    AnalysisPlotKind="TravelFrequencyDistribution"
-                    SuspensionType="{Binding #Root.SuspensionType}"
-                    Telemetry="{Binding #Root.Telemetry}" />
+                    <zoom:PlotZoomContainer Grid.Row="2">
+                        <plots:AnalysisPlotView
+                        AnalysisRange="{Binding #Root.AnalysisRange}"
+                        AnalysisResultState="{Binding #Root.AnalysisResultState}"
+                        ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                        IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
+                        AnalysisPlotKind="TravelFrequencyDistribution"
+                        SuspensionType="{Binding #Root.SuspensionType}"
+                        Telemetry="{Binding #Root.Telemetry}" />
+                    </zoom:PlotZoomContainer>
                 </Grid>
 
                 <Grid IsVisible="{Binding !#Root.ShowFrequencyDistribution}">
-                    <plots:AnalysisPlotView
-                    AnalysisRange="{Binding #Root.AnalysisRange}"
-                    AnalysisResultState="{Binding #Root.AnalysisResultState}"
-                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                    <zoom:PlotZoomContainer
                     Height="{Binding #Root.PlotHeight}"
-                    HeaderContent="{Binding #Root.HeaderContent}"
-                    IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
-                    IsVisible="{Binding #Root.HasAnalysisData}"
-                    AnalysisPlotKind="TravelDistribution"
-                    SuspensionType="{Binding #Root.SuspensionType}"
-                    Telemetry="{Binding #Root.Telemetry}"
-                    TravelDistributionMode="{Binding #Root.TravelDistributionMode}" />
+                    IsVisible="{Binding #Root.HasAnalysisData}">
+                        <plots:AnalysisPlotView
+                        AnalysisRange="{Binding #Root.AnalysisRange}"
+                        AnalysisResultState="{Binding #Root.AnalysisResultState}"
+                        ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                        HeaderContent="{Binding #Root.HeaderContent}"
+                        IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
+                        AnalysisPlotKind="TravelDistribution"
+                        SuspensionType="{Binding #Root.SuspensionType}"
+                        Telemetry="{Binding #Root.Telemetry}"
+                        TravelDistributionMode="{Binding #Root.TravelDistributionMode}" />
+                    </zoom:PlotZoomContainer>
 
                     <Svg
                     IsVisible="{Binding !#Root.HasAnalysisData}"

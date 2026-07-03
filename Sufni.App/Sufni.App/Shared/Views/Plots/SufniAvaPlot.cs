@@ -14,6 +14,12 @@ public class SufniAvaPlot : AvaPlot
 {
     internal const double PrecisionZoomSlowdownFactor = 5.0;
 
+    public SufniAvaPlot()
+    {
+        // The double-left-click benchmark toggle conflicts with the plot zoom gesture.
+        UserInputProcessor.DoubleLeftClickBenchmark(false);
+    }
+
     public bool IsPointInDataArea(Point point)
     {
         var dataRect = Plot.LastRender.DataRect;

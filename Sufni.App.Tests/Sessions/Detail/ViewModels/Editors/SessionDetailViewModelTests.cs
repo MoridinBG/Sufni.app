@@ -79,7 +79,9 @@ public class SessionDetailViewModelTests
         IUiThreadDispatcher? uiThreadDispatcher = null,
         ISessionLayoutStrategy? layoutStrategy = null,
         IRecordedSessionProcessingOptionCache? processingOptionCache = null,
-        TestSessionProcessedTelemetryReader? processedTelemetryReader = null)
+        TestSessionProcessedTelemetryReader? processedTelemetryReader = null,
+        IRecordedSessionDerivationWindowCache? derivationWindowCache = null,
+        IEditorFactory? editorFactory = null)
     {
         if (isDesktop.HasValue)
         {
@@ -109,6 +111,8 @@ public class SessionDetailViewModelTests
             processingOptionCache ?? new InMemoryRecordedSessionProcessingOptionCache(),
             processedTelemetryReader ?? new TestSessionProcessedTelemetryReader(),
             analysisResultStateFactory,
+            derivationWindowCache ?? Substitute.For<IRecordedSessionDerivationWindowCache>(),
+            () => editorFactory ?? Substitute.For<IEditorFactory>(),
             bikeCoordinator,
             new ExtensionHostDependencies(
                 recordedSessionExtensionFactories ?? [],
@@ -973,6 +977,55 @@ public class SessionDetailViewModelTests
 
         Assert.True(editor.SessionContext.ScreenState.IsReady);
         Assert.False(editor.SessionContext.SessionOperationState.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task RecordedSessionHostContext_RequestRecompute_RefreshesWindowAndUsesSourceWindowReason()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: false);
+        var factory = new TestRecordedSessionExtensionFactory("test");
+        var windowCache = Substitute.For<IRecordedSessionDerivationWindowCache>();
+        windowCache.RefreshSessionAsync(snapshot.Id).Returns(Task.CompletedTask);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.RequestRecomputeAsync(snapshot.Id, RecomputeReason.SourceWindowChanged)
+            .Returns(Task.FromResult<SessionRecomputeResult>(new SessionRecomputeResult.Recomputed(10)));
+        SetDesktop(true);
+
+        var editor = CreateEditor(
+            snapshot,
+            recordedSessionExtensionFactories: [factory],
+            derivationWindowCache: windowCache);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        var result = await factory.Context!.RequestRecomputeAsync(snapshot.Id);
+
+        Assert.True(result);
+        await windowCache.Received(1).RefreshSessionAsync(snapshot.Id);
+        await sessionCoordinator.Received(1).RequestRecomputeAsync(snapshot.Id, RecomputeReason.SourceWindowChanged);
+    }
+
+    [AvaloniaFact]
+    public async Task RecordedSessionHostContext_OpenSessionInBackground_UsesEditorFactorySnapshot()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: false);
+        var part2 = TestSnapshots.Session();
+        var factory = new TestRecordedSessionExtensionFactory("test");
+        var editorFactory = Substitute.For<IEditorFactory>();
+        sessionStore.Get(part2.Id).Returns(part2);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        SetDesktop(true);
+
+        var editor = CreateEditor(
+            snapshot,
+            recordedSessionExtensionFactories: [factory],
+            editorFactory: editorFactory);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        await factory.Context!.OpenSessionInBackgroundAsync(part2.Id);
+
+        editorFactory.Received(1).OpenSessionDetailInBackground(part2);
     }
 
     [AvaloniaFact]
@@ -2919,6 +2972,7 @@ public class SessionDetailViewModelTests
         DerivedChangeKind changeKind = DerivedChangeKind.None,
         SessionStaleness? staleness = null) => new(
         snapshot,
+        null,
         null,
         null,
         null,

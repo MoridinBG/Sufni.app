@@ -21,6 +21,8 @@ public class RecordedSessionDomainQueryTests
     private readonly ProcessingFingerprintService fingerprintService = new();
     private readonly IRecordedSessionProcessingOptionCache processingOptionCache =
         Substitute.For<IRecordedSessionProcessingOptionCache>();
+    private readonly IRecordedSessionDerivationWindowCache derivationWindowCache =
+        Substitute.For<IRecordedSessionDerivationWindowCache>();
 
     public RecordedSessionDomainQueryTests()
     {
@@ -64,6 +66,37 @@ public class RecordedSessionDomainQueryTests
     }
 
     [Fact]
+    public void Get_UsesDerivationWindowSource_WhenWindowTargetsForeignSource()
+    {
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid());
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), bikeId: bike.Id);
+        var session = TestSnapshots.Session(
+            id: Guid.NewGuid(),
+            setupId: setup.Id,
+            hasProcessedData: true);
+        var source = CreateSource(Guid.NewGuid());
+        var window = new RecordedSessionDerivationWindow(source.SessionId, 1.25, 3.5);
+        var fingerprint = fingerprintService.CreateCurrent(session, setup, bike, source, window: window);
+        session = session with { ProcessingFingerprintJson = AppJson.Serialize(fingerprint) };
+        sessionStore.Get(session.Id).Returns(session);
+        setupStore.Get(setup.Id).Returns(setup);
+        bikeStore.Get(bike.Id).Returns(bike);
+        derivationWindowCache.Get(session.Id).Returns(window);
+        sourceStore.Get(source.SessionId).Returns(source);
+        dependencyHashIndex.GetForSetup(setup.Id).Returns(ProcessingDependencyHash.Compute(setup, bike));
+        var query = CreateQuery();
+
+        var domain = query.Get(session.Id);
+
+        Assert.NotNull(domain);
+        Assert.Equal(source, domain!.Source);
+        Assert.Equal(window, domain.DerivationWindow);
+        Assert.IsType<SessionStaleness.Current>(domain.Staleness);
+        sourceStore.Received(1).Get(source.SessionId);
+        sourceStore.DidNotReceive().Get(session.Id);
+    }
+
+    [Fact]
     public void Get_UsesSingleFingerprintEvaluation()
     {
         var context = CreateCurrentContext();
@@ -78,7 +111,14 @@ public class RecordedSessionDomainQueryTests
         var fingerprintService = Substitute.For<IProcessingFingerprintService>();
         var staleness = new SessionStaleness.Current();
         fingerprintService
-            .EvaluateState(context.Session, context.Setup, context.Bike, context.Source, "dependency", Arg.Any<TelemetryProcessingOptions?>())
+            .EvaluateState(
+                context.Session,
+                context.Setup,
+                context.Bike,
+                context.Source,
+                "dependency",
+                Arg.Any<TelemetryProcessingOptions?>(),
+                Arg.Any<RecordedSessionDerivationWindow?>())
             .Returns(new ProcessingFingerprintEvaluation(fingerprint, fingerprint, staleness));
         sessionStore.Get(context.Session.Id).Returns(context.Session);
         setupStore.Get(context.Setup.Id).Returns(context.Setup);
@@ -92,7 +132,8 @@ public class RecordedSessionDomainQueryTests
             sourceStore,
             fingerprintService,
             dependencyHashIndex,
-            processingOptionCache);
+            processingOptionCache,
+            derivationWindowCache);
 
         var domain = query.Get(context.Session.Id);
 
@@ -101,7 +142,13 @@ public class RecordedSessionDomainQueryTests
         Assert.Equal(fingerprint, domain.PersistedFingerprint);
         Assert.Equal(staleness, domain.Staleness);
         fingerprintService.Received(1).EvaluateState(
-            context.Session, context.Setup, context.Bike, context.Source, "dependency", Arg.Any<TelemetryProcessingOptions?>());
+            context.Session,
+            context.Setup,
+            context.Bike,
+            context.Source,
+            "dependency",
+            Arg.Any<TelemetryProcessingOptions?>(),
+            Arg.Any<RecordedSessionDerivationWindow?>());
         fingerprintService.DidNotReceive().CreateCurrent(
             Arg.Any<SessionSnapshot>(),
             Arg.Any<SetupSnapshot>(),
@@ -186,7 +233,8 @@ public class RecordedSessionDomainQueryTests
         sourceStore,
         fingerprintService,
         dependencyHashIndex,
-        processingOptionCache);
+        processingOptionCache,
+        derivationWindowCache);
 
     private TestContext CreateCurrentContext()
     {

@@ -13,6 +13,10 @@ public sealed class MobileShellCoordinator(IMobileNavigationShellHost navigation
     public void OpenOrFocus<T>(Func<T, bool> match, Func<T> create) where T : ViewModelBase
         => navigationHost.Push(create());
 
+    public void OpenInBackground<T>(Func<T, bool> match, Func<T> create) where T : ViewModelBase
+    {
+    }
+
     public void Close(ViewModelBase view) => navigationHost.Close(view);
 
     // On mobile a list page and an editor for one of its rows are not on

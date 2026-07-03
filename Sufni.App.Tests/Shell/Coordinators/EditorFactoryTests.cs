@@ -170,6 +170,26 @@ public class EditorFactoryTests
     }
 
     [Fact]
+    public void OpenSessionDetailInBackground_UsesSnapshotIdForDeduplication()
+    {
+        var shell = new CapturingShellCoordinator();
+        var snapshot = TestSnapshots.Session();
+        var otherSnapshot = TestSnapshots.Session();
+        var factory = CreateFactory(shell);
+
+        factory.OpenSessionDetailInBackground(snapshot);
+
+        Assert.Equal(typeof(SessionDetailViewModel), shell.OpenInBackgroundType);
+        var match = Assert.IsType<Func<SessionDetailViewModel, bool>>(shell.OpenInBackgroundMatch);
+        var create = Assert.IsType<Func<SessionDetailViewModel>>(shell.OpenInBackgroundCreate);
+
+        Assert.True(match(factory.CreateSessionDetail(snapshot)));
+        Assert.False(match(factory.CreateSessionDetail(otherSnapshot)));
+        var created = create();
+        Assert.Equal(snapshot.Id, created.Id);
+    }
+
+    [Fact]
     public void CloseSessionDetail_ClosesMatchingEditorAndForgetsRestoreHistory()
     {
         var shell = new CapturingShellCoordinator();
@@ -282,6 +302,7 @@ public class EditorFactoryTests
             Substitute.For<ISessionPreferences>(),
             Substitute.For<IRecordedSessionProcessingOptionCache>(),
             new TestSessionProcessedTelemetryReader(),
+            Substitute.For<IRecordedSessionDerivationWindowCache>(),
             TestCoordinatorSubstitutes.LiveDaq(),
             Substitute.For<IDaqManagementService>(),
             Substitute.For<IFilesService>(),
@@ -304,6 +325,9 @@ public class EditorFactoryTests
         public Type? OpenOrFocusType { get; private set; }
         public object? OpenOrFocusMatch { get; private set; }
         public object? OpenOrFocusCreate { get; private set; }
+        public Type? OpenInBackgroundType { get; private set; }
+        public object? OpenInBackgroundMatch { get; private set; }
+        public object? OpenInBackgroundCreate { get; private set; }
         public Type? CloseIfOpenType { get; private set; }
         public object? CloseIfOpenMatch { get; private set; }
         public bool CloseIfOpenForgetRestoreHistory { get; private set; }
@@ -316,6 +340,14 @@ public class EditorFactoryTests
             OpenOrFocusType = typeof(T);
             OpenOrFocusMatch = match;
             OpenOrFocusCreate = create;
+        }
+
+        public void OpenInBackground<T>(Func<T, bool> match, Func<T> create)
+            where T : ViewModelBase
+        {
+            OpenInBackgroundType = typeof(T);
+            OpenInBackgroundMatch = match;
+            OpenInBackgroundCreate = create;
         }
 
         public void Close(ViewModelBase view)

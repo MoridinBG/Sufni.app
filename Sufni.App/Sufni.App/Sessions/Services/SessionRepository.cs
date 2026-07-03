@@ -133,15 +133,16 @@ internal sealed class SessionRepository(
                                                              deleted=NULL
                                                              """;
 
-    // Metadata save writes user-authored columns only. full_track_id,
-    // gps_offset_seconds, and session_processing_fingerprint are derived columns
-    // owned by the processed-write path; they are deliberately NOT listed here so
-    // a metadata save preserves whatever the derived path last wrote.
+    // Metadata save writes user-authored columns plus gps_offset_seconds. The
+    // offset is owned by explicit alignment/origin commands; full_track_id and
+    // session_processing_fingerprint remain derived columns preserved from the
+    // processed-write path.
     private const string SessionMetadataSaveUpdateAssignments = """
                                                                 name=?,
                                                                 setup_id=?,
                                                                 description=?,
                                                                 timestamp=?,
+                                                                gps_offset_seconds=?,
                                                                 track=COALESCE(?, track),
                                                                 data=COALESCE(?, data),
                                                                 front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
@@ -210,7 +211,7 @@ internal sealed class SessionRepository(
                                                     FROM session s
                                                     JOIN setup ON setup.id = s.setup_id AND setup.deleted IS NULL
                                                     JOIN bike ON bike.id = setup.bike_id AND bike.deleted IS NULL
-                                                    JOIN session_recording_source source ON source.session_id = s.id
+                                                    JOIN session_recording_source source ON source.session_id = ?
                                                     WHERE s.deleted IS NULL AND s.id = ?
                                                     """;
 
@@ -283,7 +284,7 @@ internal sealed class SessionRepository(
     public async Task<SessionProcessingInputBundle?> GetProcessingInputBundleAsync(Guid sessionId)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
-        var rows = await connection.QueryAsync<ProcessingInputBundleRow>(ProcessingInputBundleSql, sessionId);
+        var rows = await connection.QueryAsync<ProcessingInputBundleRow>(ProcessingInputBundleSql, sessionId, sessionId);
         return rows.Count == 1 ? rows[0].ToBundle() : null;
     }
 
@@ -446,19 +447,31 @@ internal sealed class SessionRepository(
         Guid sessionId,
         ProcessingFingerprint expectedInputFingerprint)
     {
-        var input = GetProcessingInputBundle(connection, sessionId);
+        var input = GetProcessingInputBundle(connection, sessionId, expectedInputFingerprint);
         if (input is null)
         {
             return false;
         }
 
-        var current = fingerprintService.CreateCurrentDatabaseInputs(input);
+        var current = fingerprintService.CreateCurrentDatabaseInputs(
+            input,
+            expectedInputFingerprint.DerivationWindow);
         return expectedInputFingerprint.MatchesDatabaseInputs(current);
     }
 
     private static SessionProcessingInputBundle? GetProcessingInputBundle(SQLiteConnection connection, Guid sessionId)
     {
-        var rows = connection.Query<ProcessingInputBundleRow>(ProcessingInputBundleSql, sessionId);
+        var rows = connection.Query<ProcessingInputBundleRow>(ProcessingInputBundleSql, sessionId, sessionId);
+        return rows.Count == 1 ? rows[0].ToBundle() : null;
+    }
+
+    private static SessionProcessingInputBundle? GetProcessingInputBundle(
+        SQLiteConnection connection,
+        Guid sessionId,
+        ProcessingFingerprint expectedInputFingerprint)
+    {
+        var sourceSessionId = expectedInputFingerprint.DerivationWindow?.SourceSessionId ?? sessionId;
+        var rows = connection.Query<ProcessingInputBundleRow>(ProcessingInputBundleSql, sourceSessionId, sessionId);
         return rows.Count == 1 ? rows[0].ToBundle() : null;
     }
 
@@ -665,6 +678,7 @@ internal sealed class SessionRepository(
         session.Setup,
         session.Description,
         session.Timestamp,
+        NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
         SerializeTrack(session),
         session.ProcessedData,
         session.FrontSpringRate,

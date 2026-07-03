@@ -7,6 +7,7 @@ using ScottPlot.AxisRules;
 using ScottPlot.TickGenerators;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Shared.Plots;
@@ -218,7 +219,7 @@ public class VelocityDistributionPlot(Plot plot, SuspensionType type, SufniTheme
         // Lock axes
         Plot.Axes.Rules.Add(new LockedHorizontal(Plot.Axes.Bottom, 0.1, limits.Right / 0.9));
         Plot.Axes.Rules.Add(new BoundedZoomRule(Plot.Axes.Bottom, Plot.Axes.Left,
-            0.1, limits.Right / 0.9, yLow, yHigh, ZoomFractions.Analysis));
+            0.1, limits.Right / 0.9, yLow, yHigh, PlotZoomFractions.Analysis));
 
         // Set left axis limit to 0.1 to hide the border line at 0 values. Otherwise
         // it would seem that there are actual measure travel data there too.

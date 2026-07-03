@@ -1,4 +1,6 @@
 using System;
+using System.Text.Json.Serialization;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -9,7 +11,8 @@ namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 /// hash, raw-source hash, and the clamped velocity-filter processing option into
 /// a value suitable for stale-cache checks. Schema v3 added
 /// <see cref="VelocityFilterWindowMilliseconds"/>; the field defaults to the
-/// 25 ms default so legacy/test constructions stay valid.
+/// 25 ms default so legacy/test constructions stay valid. Derivation windows are
+/// null-omitted so existing v3 fingerprint JSON remains byte-stable.
 /// </summary>
 public sealed record ProcessingFingerprint(
     int SchemaVersion,
@@ -19,7 +22,9 @@ public sealed record ProcessingFingerprint(
     int TrackProjectionVersion,
     string DependencyHash,
     string SourceHash,
-    int VelocityFilterWindowMilliseconds = TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds)
+    int VelocityFilterWindowMilliseconds = TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    RecordedSessionDerivationWindow? DerivationWindow = null)
 {
     /// <summary>
     /// True when two fingerprints agree on every DB-resident processing input

@@ -162,6 +162,9 @@ internal sealed class TestPersistenceHarness
     public Task DeleteRecordedSessionSourceAsync(Guid sessionId) =>
         recordedSessionSourceRepository.DeleteRecordedSessionSourceAsync(sessionId);
 
+    public Task<int> DeleteOrphanedRecordedSessionSourcesAsync(IReadOnlyCollection<Guid> retainedSourceSessionIds) =>
+        recordedSessionSourceRepository.DeleteOrphanedRecordedSessionSourcesAsync(retainedSourceSessionIds);
+
     public Task<Guid?> FindTrackByTimeRangeAsync(long startTime, long endTime) =>
         trackRepository.FindTrackByTimeRangeAsync(startTime, endTime);
 
@@ -184,6 +187,9 @@ internal sealed class TestPersistenceHarness
         syncDataStore.GetSynchronizationDataAsync(since);
 
     public Task ApplyRemoteSynchronizationDataAsync(SynchronizationData data) =>
+        syncDataStore.ApplyRemoteSynchronizationDataAsync(data);
+
+    public Task<IReadOnlyList<SessionBlobSwap>> ApplyRemoteSynchronizationDataAndReturnSwapsAsync(SynchronizationData data) =>
         syncDataStore.ApplyRemoteSynchronizationDataAsync(data);
 
     public Task MergeAllAsync(SynchronizationData data) =>

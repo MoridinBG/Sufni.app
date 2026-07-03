@@ -1,6 +1,7 @@
 using System.Linq;
 using ScottPlot;
 using ScottPlot.TickGenerators;
+using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.Kinematics;
 
 using Sufni.App.Shared.Plots;

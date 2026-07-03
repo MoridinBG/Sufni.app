@@ -28,6 +28,14 @@ public interface IShellCoordinator
     void OpenOrFocus<T>(Func<T, bool> match, Func<T> create) where T : ViewModelBase;
 
     /// <summary>
+    /// Open a view in the background if no existing one of type
+    /// <typeparamref name="T"/> matches <paramref name="match"/>. Desktop adds
+    /// the tab without activating it; mobile is a no-op because the stack has no
+    /// background destination.
+    /// </summary>
+    void OpenInBackground<T>(Func<T, bool> match, Func<T> create) where T : ViewModelBase;
+
+    /// <summary>
     /// Close a specific view. On desktop this removes its tab. On mobile
     /// this pops the stack only if <paramref name="view"/> is the current
     /// view; otherwise it does nothing.

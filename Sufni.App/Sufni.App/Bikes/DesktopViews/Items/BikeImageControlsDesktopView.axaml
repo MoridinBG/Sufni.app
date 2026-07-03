@@ -14,6 +14,7 @@ xmlns:v="using:Sufni.App.Bikes.DesktopViews.Items"
 xmlns:vm="using:Sufni.App.Bikes.ViewModels.Editors"
 xmlns:vmle="using:Sufni.App.Bikes.ViewModels.LinkageEditing"
 xmlns:vml="using:Sufni.App.Bikes.ViewModels.LinkageParts"
+xmlns:zoom="clr-namespace:Sufni.App.ExtensionHost.Runtime.Presentation;assembly=Sufni.App.ExtensionHost"
 d:DesignHeight="600"
 d:DesignWidth="400"
 x:DataType="vm:BikeEditorViewModel"
@@ -555,10 +556,12 @@ mc:Ignorable="d">
             IsVisible="{Binding HasRearSuspension}"
             Height="250">
 
-                <plots:LeverageRatioPlotView
-                HorizontalAlignment="Stretch"
-                IsHitTestVisible="False"
-                LeverageRatioData="{Binding LeverageRatioData}" />
+                <zoom:PlotZoomContainer>
+                    <plots:LeverageRatioPlotView
+                    HorizontalAlignment="Stretch"
+                    IsHitTestVisible="False"
+                    LeverageRatioData="{Binding LeverageRatioData}" />
+                </zoom:PlotZoomContainer>
 
                 <Panel
                 Background="#0d0d0d"
