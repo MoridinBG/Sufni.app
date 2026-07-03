@@ -142,6 +142,24 @@ public class SessionProcessedTelemetryReaderTests
         Assert.Equal(2, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
     }
 
+    [Fact]
+    public async Task GetAsync_RetainedSession_EvictsFailedDecode()
+    {
+        var sessionId = Guid.NewGuid();
+        var raw = Blob(duration: 65);
+        var sessionRepository = Substitute.For<ISessionRepository>();
+        var telemetryProcessor = new FailingThenSuccessfulTelemetryProcessor(TestTelemetryData.CreateMinimal(duration: 65));
+        var reader = CreateReader(sessionRepository, telemetryProcessor);
+        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
+        using var retention = reader.Retain(sessionId);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => reader.GetAsync(sessionId));
+        var second = await reader.GetAsync(sessionId);
+
+        Assert.NotNull(second);
+        Assert.Equal(2, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
+    }
+
     private static SessionProcessedTelemetryReader CreateReader(
         ISessionRepository sessionRepository,
         ISessionTelemetryProcessor telemetryProcessor) =>
@@ -172,6 +190,35 @@ public class SessionProcessedTelemetryReaderTests
             ReadProcessedTelemetryDataCallCount++;
             decodeStarted.Set();
             releaseDecode.Wait();
+            return telemetryData;
+        }
+
+        public SessionSummaryMetrics ComputeSummaryMetrics(double? durationSeconds, IReadOnlyList<TrackPoint>? points) =>
+            throw new NotSupportedException();
+
+        public List<TrackPoint>? GenerateSessionTrackFromFullTrack(
+            Track fullTrack,
+            long? timestamp,
+            double? durationSeconds,
+            double gpsOffsetSeconds = 0) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class FailingThenSuccessfulTelemetryProcessor(TelemetryData telemetryData) : ISessionTelemetryProcessor
+    {
+        public int ReadProcessedTelemetryDataCallCount { get; private set; }
+
+        public double? ReadProcessedDurationSeconds(byte[]? processedData) =>
+            throw new NotSupportedException();
+
+        public TelemetryData ReadProcessedTelemetryData(byte[] processedData)
+        {
+            ReadProcessedTelemetryDataCallCount++;
+            if (ReadProcessedTelemetryDataCallCount == 1)
+            {
+                throw new InvalidOperationException("Transient decode failure.");
+            }
+
             return telemetryData;
         }
 

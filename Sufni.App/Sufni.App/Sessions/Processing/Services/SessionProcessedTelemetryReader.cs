@@ -59,7 +59,15 @@ internal sealed class SessionProcessedTelemetryReader(
 
         var hash = ComputeHash(raw);
         var lazy = GetOrCreateLazy(sessionId, hash, raw);
-        return await backgroundTaskRunner.RunAsync(() => lazy.Value, cancellationToken);
+        try
+        {
+            return await backgroundTaskRunner.RunAsync(() => lazy.Value, cancellationToken);
+        }
+        catch
+        {
+            ClearRetainedValue(sessionId, hash, lazy);
+            throw;
+        }
     }
 
     private Lazy<TelemetryData> GetOrCreateLazy(Guid sessionId, string hash, byte[] raw)
@@ -92,6 +100,20 @@ internal sealed class SessionProcessedTelemetryReader(
         lock (gate)
         {
             if (retained.TryGetValue(sessionId, out var entry))
+            {
+                entry.Hash = null;
+                entry.Lazy = null;
+            }
+        }
+    }
+
+    private void ClearRetainedValue(Guid sessionId, string hash, Lazy<TelemetryData> lazy)
+    {
+        lock (gate)
+        {
+            if (retained.TryGetValue(sessionId, out var entry) &&
+                StringComparer.Ordinal.Equals(entry.Hash, hash) &&
+                ReferenceEquals(entry.Lazy, lazy))
             {
                 entry.Hash = null;
                 entry.Lazy = null;
