@@ -936,14 +936,16 @@ public class SessionCoordinatorTests
         _ = CreateSyncApplier(sync);
 
         var source = CreateRecordedSource(Guid.NewGuid());
-        recordedSessionSourceRepository.GetRecordedSessionSourceAsync(source.SessionId).Returns(source);
+        var snapshot = RecordedSessionSourceSnapshot.From(source);
+        recordedSessionSourceRepository.GetRecordedSessionSourceSnapshotAsync(source.SessionId).Returns(snapshot);
 
         sync.SessionSourceDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(source.SessionId));
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
-        sourceStore.Received(1).Upsert(Arg.Is<RecordedSessionSourceSnapshot>(snapshot =>
-            snapshot.SessionId == source.SessionId &&
-            snapshot.SourceHash == source.SourceHash));
+        sourceStore.Received(1).Upsert(Arg.Is<RecordedSessionSourceSnapshot>(value =>
+            value.SessionId == source.SessionId &&
+            value.SourceHash == source.SourceHash));
+        await recordedSessionSourceRepository.DidNotReceive().GetRecordedSessionSourceAsync(source.SessionId);
     }
 
     [AvaloniaFact]
@@ -953,7 +955,7 @@ public class SessionCoordinatorTests
         _ = CreateSyncApplier(sync);
 
         var sessionId = Guid.NewGuid();
-        recordedSessionSourceRepository.GetRecordedSessionSourceAsync(sessionId).ThrowsAsync(new InvalidOperationException());
+        recordedSessionSourceRepository.GetRecordedSessionSourceSnapshotAsync(sessionId).ThrowsAsync(new InvalidOperationException());
 
         sync.SessionSourceDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(sessionId));
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);

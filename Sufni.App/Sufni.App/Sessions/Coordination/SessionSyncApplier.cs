@@ -140,14 +140,13 @@ public sealed class SessionSyncApplier
     {
         logger.Verbose("Applying inbound recorded source for {SessionId}", e.SessionId);
 
-        var source = await recordedSessionSourceRepository.GetRecordedSessionSourceAsync(e.SessionId);
-        if (source is null)
+        var snapshot = await recordedSessionSourceRepository.GetRecordedSessionSourceSnapshotAsync(e.SessionId);
+        if (snapshot is null)
         {
             logger.Verbose("Ignoring inbound recorded source because source {SessionId} is missing", e.SessionId);
             return;
         }
 
-        var snapshot = RecordedSessionSourceSnapshot.From(source);
         await uiThreadDispatcher.InvokeAsync(() =>
         {
             sourceStore.Upsert(snapshot);
