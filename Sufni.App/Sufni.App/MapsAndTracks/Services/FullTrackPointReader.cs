@@ -46,9 +46,11 @@ internal sealed class FullTrackPointReader : IFullTrackPointReader
                 return null;
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
+
             var key = new FullTrackPointCacheKey(metadata.Id, metadata.Updated);
-            var task = cache.GetOrAdd(key, key => LoadTrackPointsAsync(key, cancellationToken));
-            var points = await RemoveFailedValueAsync(key, task);
+            var task = cache.GetOrAdd(key, LoadTrackPointsAsync);
+            var points = await AwaitCachedValueAsync(key, task, cancellationToken);
             if (points is not null || attempt == 1)
             {
                 return points;
@@ -63,22 +65,26 @@ internal sealed class FullTrackPointReader : IFullTrackPointReader
     }
 
     private async Task<IReadOnlyList<TrackPoint>?> LoadTrackPointsAsync(
-        FullTrackPointCacheKey key,
-        CancellationToken cancellationToken)
+        FullTrackPointCacheKey key)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-
         var payload = await trackRepository.GetTrackPayloadAsync(key.TrackId, key.Updated);
         return payload?.Points;
     }
 
-    private async Task<IReadOnlyList<TrackPoint>?> RemoveFailedValueAsync(
+    private async Task<IReadOnlyList<TrackPoint>?> AwaitCachedValueAsync(
         FullTrackPointCacheKey key,
-        Task<IReadOnlyList<TrackPoint>?> task)
+        Task<IReadOnlyList<TrackPoint>?> task,
+        CancellationToken cancellationToken)
     {
         try
         {
-            return await task.ConfigureAwait(false);
+            return cancellationToken.CanBeCanceled
+                ? await task.WaitAsync(cancellationToken).ConfigureAwait(false)
+                : await task.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested && !task.IsCompleted)
+        {
+            throw;
         }
         catch
         {

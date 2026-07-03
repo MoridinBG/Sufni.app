@@ -76,6 +76,38 @@ public class FullTrackPointReaderTests
         await trackRepository.Received(1).GetTrackPayloadAsync(trackId, updated: 6);
     }
 
+    [Fact]
+    public async Task GetTrackPointsAsync_CallerCancellationDoesNotCancelSharedPayloadLoad()
+    {
+        var trackId = Guid.NewGuid();
+        var points = Points(1);
+        var payloadRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var payloadCompletion = new TaskCompletionSource<TrackPayload?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var trackRepository = Substitute.For<ITrackRepository>();
+        trackRepository.GetTrackPayloadMetadataAsync(trackId)
+            .Returns(new TrackPayloadMetadata(trackId, Updated: 5));
+        trackRepository.GetTrackPayloadAsync(trackId, updated: 5)
+            .Returns(_ =>
+            {
+                payloadRequested.TrySetResult();
+                return payloadCompletion.Task;
+            });
+        var reader = new FullTrackPointReader(trackRepository, capacity: 8);
+        using var firstCancellation = new CancellationTokenSource();
+
+        var firstRead = reader.GetTrackPointsAsync(trackId, firstCancellation.Token);
+        await payloadRequested.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var secondRead = reader.GetTrackPointsAsync(trackId);
+        await firstCancellation.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => firstRead);
+        payloadCompletion.SetResult(new TrackPayload(trackId, Updated: 5, points));
+        var secondResult = await secondRead;
+
+        Assert.Same(points, secondResult);
+        await trackRepository.Received(1).GetTrackPayloadAsync(trackId, updated: 5);
+    }
+
     private static List<TrackPoint> Points(double startTime) =>
     [
         new TrackPoint(startTime, 1, 1, 10),
