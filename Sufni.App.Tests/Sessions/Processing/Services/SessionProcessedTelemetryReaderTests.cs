@@ -121,6 +121,41 @@ public class SessionProcessedTelemetryReaderTests
     }
 
     [Fact]
+    public async Task Retain_DropsCachedDecodeOnlyAfterLastRetentionDisposes()
+    {
+        var sessionId = Guid.NewGuid();
+        var raw = Blob(duration: 65);
+        var sessionRepository = Substitute.For<ISessionRepository>();
+        var telemetryProcessor = new TestSessionTelemetryProcessor();
+        var reader = CreateReader(sessionRepository, telemetryProcessor);
+        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
+        var firstRetention = reader.Retain(sessionId);
+        var secondRetention = reader.Retain(sessionId);
+
+        try
+        {
+            var first = await reader.GetAsync(sessionId);
+            firstRetention.Dispose();
+            var second = await reader.GetAsync(sessionId);
+
+            secondRetention.Dispose();
+            using var thirdRetention = reader.Retain(sessionId);
+            var third = await reader.GetAsync(sessionId);
+
+            Assert.NotNull(first);
+            Assert.Same(first, second);
+            Assert.NotNull(third);
+            Assert.NotSame(first, third);
+            Assert.Equal(2, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
+        }
+        finally
+        {
+            firstRetention.Dispose();
+            secondRetention.Dispose();
+        }
+    }
+
+    [Fact]
     public async Task GetAsync_RetainedSession_ClearsCachedDecodeWhenBlobIsMissing()
     {
         var sessionId = Guid.NewGuid();
