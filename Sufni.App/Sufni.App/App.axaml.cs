@@ -344,6 +344,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<MainPagesViewModel>();
         ServiceCollection.AddSingleton<WelcomeScreenViewModel>();
         ServiceCollection.AddSingleton<MainViewModel>();
+        ServiceCollection.AddSingleton<ShellWorkspaceViewModel>();
         ServiceCollection.AddSingleton<MainWindowViewModel>();
 
         Extensions.RegisterCapabilities(extensionCapabilityRegistry);

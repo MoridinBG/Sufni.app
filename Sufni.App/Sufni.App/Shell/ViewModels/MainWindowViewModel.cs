@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.ExtensionHost.Contracts.Services;
@@ -11,16 +11,18 @@ namespace Sufni.App.Shell.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
 {
-    private readonly Stack<TabPageViewModelBase> tabHistory = new();
-    private TabPageViewModelBase? previousActiveTab;
-    private bool isClosing;
-    private bool isReorderingTabs;
-
     #region Observable properties
 
-    [ObservableProperty] public partial TabPageViewModelBase? CurrentView { get; set; }
     [ObservableProperty] public partial MainPagesViewModel MainPagesViewModel { get; set; }
-    public ObservableCollection<TabPageViewModelBase> Tabs { get; set; } = [];
+    public ShellWorkspaceViewModel Workspace { get; }
+
+    public TabPageViewModelBase? CurrentView
+    {
+        get => Workspace.CurrentTab;
+        set => Workspace.CurrentTab = value;
+    }
+
+    public ObservableCollection<TabPageViewModelBase> Tabs => Workspace.Tabs;
 
     // The shell host interface exposes Tabs as a plain enumerable to keep
     // the test surface narrow. The view model still publishes the
@@ -29,36 +31,32 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
 
     #endregion Observable properties
 
-    #region Property change handlers
-
-    partial void OnCurrentViewChanged(TabPageViewModelBase? oldValue, TabPageViewModelBase? newValue)
-    {
-        if (isReorderingTabs)
-        {
-            return;
-        }
-
-        oldValue?.SetTabActive(false);
-        newValue?.SetTabActive(true);
-
-        if (isClosing) return;
-        previousActiveTab = oldValue;
-    }
-
-    #endregion Property change handlers
-
     #region Constructors
 
     public MainWindowViewModel(
         MainPagesViewModel mainPagesViewModel,
         WelcomeScreenViewModel welcomeScreenViewModel,
         IUiThreadDispatcher uiThreadDispatcher)
+        : this(
+            mainPagesViewModel,
+            new ShellWorkspaceViewModel(uiThreadDispatcher),
+            welcomeScreenViewModel,
+            uiThreadDispatcher)
+    {
+    }
+
+    public MainWindowViewModel(
+        MainPagesViewModel mainPagesViewModel,
+        ShellWorkspaceViewModel workspace,
+        WelcomeScreenViewModel welcomeScreenViewModel,
+        IUiThreadDispatcher uiThreadDispatcher)
         : base(uiThreadDispatcher)
     {
         MainPagesViewModel = mainPagesViewModel;
+        Workspace = workspace;
+        Workspace.PropertyChanged += OnWorkspacePropertyChanged;
 
-        Tabs.Add(welcomeScreenViewModel);
-        CurrentView = welcomeScreenViewModel;
+        Workspace.OpenOrFocus(welcomeScreenViewModel);
     }
 
     #endregion Constructors
@@ -67,135 +65,31 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
 
     public void OpenView(ViewModelBase view)
     {
-        var tabPage = view as TabPageViewModelBase;
-        Debug.Assert(tabPage is not null);
-
-        if (!Tabs.Contains(tabPage))
+        if (view is TabPageViewModelBase tabPage)
         {
-            Tabs.Add(tabPage);
+            Workspace.OpenOrFocus(tabPage);
         }
-        CurrentView = tabPage;
     }
 
     public void AddView(ViewModelBase view)
     {
-        var tabPage = view as TabPageViewModelBase;
-        Debug.Assert(tabPage is not null);
-
-        if (!Tabs.Contains(tabPage))
+        if (view is TabPageViewModelBase tabPage)
         {
-            Tabs.Add(tabPage);
+            Workspace.OpenInBackground(tabPage);
         }
     }
 
     public void CloseTabPage(TabPageViewModelBase tab, bool rememberForRestore = true)
-    {
-        // Guard against setting previousActiveTab to the tab we are closing.
-        isClosing = true;
-
-        // We store the tab we are closing, because Tabs.Remove(tab) will change CurrentView
-        var closingTab = CurrentView;
-
-        Tabs.Remove(tab);
-        if (rememberForRestore)
-        {
-            RemoveTabHistory<TabPageViewModelBase>(
-                historyTab => ReferenceEquals(historyTab, tab),
-                out _);
-            tabHistory.Push(tab);
-        }
-
-        // We don't want to switch tabs when
-        //   - closing a tab that's not currently the active one.
-        //   - the previous active tab is the one we are closing.
-        if (tab != previousActiveTab && tab == closingTab)
-            CurrentView = previousActiveTab ?? (Tabs.Count == 0 ? null : Tabs[0]);
-
-        isClosing = false;
-    }
+        => Workspace.CloseTab(tab, rememberForRestore);
 
     public bool MoveTab(TabPageViewModelBase tab, TabPageViewModelBase targetTab, bool placeAfterTarget)
-    {
-        var currentIndex = Tabs.IndexOf(tab);
-        var targetIndex = Tabs.IndexOf(targetTab);
-
-        if (currentIndex < 0 || targetIndex < 0 || currentIndex == targetIndex)
-        {
-            return false;
-        }
-
-        var newIndex = placeAfterTarget
-            ? targetIndex + (currentIndex > targetIndex ? 1 : 0)
-            : targetIndex - (currentIndex < targetIndex ? 1 : 0);
-
-        if (newIndex == currentIndex)
-        {
-            return false;
-        }
-
-        var selectedBeforeMove = CurrentView;
-        isReorderingTabs = true;
-        try
-        {
-            Tabs.Move(currentIndex, newIndex);
-            CurrentView = selectedBeforeMove;
-        }
-        finally
-        {
-            isReorderingTabs = false;
-        }
-
-        return true;
-    }
-
-    private void SelectRelativeTab(int offset)
-    {
-        if (Tabs.Count <= 1 || CurrentView is null)
-        {
-            return;
-        }
-
-        var currentIndex = Tabs.IndexOf(CurrentView);
-        if (currentIndex < 0)
-        {
-            return;
-        }
-
-        var nextIndex = (currentIndex + offset + Tabs.Count) % Tabs.Count;
-        CurrentView = Tabs[nextIndex];
-    }
+        => Workspace.MoveTab(tab, targetTab, placeAfterTarget);
 
     public void ForgetTabHistory<T>(Func<T, bool> match) where T : ViewModelBase
-        => RemoveTabHistory(match, out _);
+        => Workspace.ForgetTabHistory(match);
 
     public T? TakeTabHistory<T>(Func<T, bool> match) where T : ViewModelBase
-    {
-        RemoveTabHistory(match, out var tab);
-        return tab;
-    }
-
-    private void RemoveTabHistory<T>(Func<T, bool> match, out T? mostRecentMatch)
-        where T : ViewModelBase
-    {
-        mostRecentMatch = null;
-        var retained = new List<TabPageViewModelBase>(tabHistory.Count);
-
-        while (tabHistory.TryPop(out var tab))
-        {
-            if (tab is T typed && match(typed))
-            {
-                mostRecentMatch ??= typed;
-                continue;
-            }
-
-            retained.Add(tab);
-        }
-
-        for (var i = retained.Count - 1; i >= 0; i--)
-        {
-            tabHistory.Push(retained[i]);
-        }
-    }
+        => Workspace.TakeTabHistory(match);
 
     #endregion Public methods
 
@@ -204,24 +98,28 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
     [RelayCommand]
     private void Restore()
     {
-        tabHistory.TryPop(out var toRestore);
-        if (toRestore is null) return;
-
-        Tabs.Add(toRestore);
-        CurrentView = toRestore;
+        Workspace.Restore();
     }
 
     [RelayCommand]
     private void SelectNextTab()
     {
-        SelectRelativeTab(1);
+        Workspace.SelectRelativeTab(1);
     }
 
     [RelayCommand]
     private void SelectPreviousTab()
     {
-        SelectRelativeTab(-1);
+        Workspace.SelectRelativeTab(-1);
     }
 
     #endregion Commands
+
+    private void OnWorkspacePropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(ShellWorkspaceViewModel.CurrentTab))
+        {
+            OnPropertyChanged(nameof(CurrentView));
+        }
+    }
 }
