@@ -461,7 +461,7 @@ public class SessionTelemetryWriterTests
     }
 
     [Fact]
-    public async Task PatchSessionTrackAsync_DoesNotReadProcessedDuration_WhenStoredDurationIsMissing()
+    public async Task PatchSessionTrackAsync_ReadsProcessedDuration_WhenStoredDurationIsMissing()
     {
         var sessionRepository = Substitute.For<ISessionRepository>();
         var trackRepository = Substitute.For<ITrackRepository>();
@@ -476,6 +476,8 @@ public class SessionTelemetryWriterTests
         };
         sessionRepository.GetSessionAsync(sessionId)
             .Returns(new Session(sessionId, "session", "desc", null, 100));
+        var raw = TestTelemetryData.CreateMinimal(duration: 65).BinaryForm;
+        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
         sessionRepository
             .UpdateSessionTrackAsync(
                 Arg.Any<Guid>(),
@@ -487,8 +489,45 @@ public class SessionTelemetryWriterTests
 
         await writer.PatchSessionTrackAsync(sessionId, points);
 
-        await sessionRepository.DidNotReceive().GetSessionRawPsstAsync(sessionId);
-        Assert.Equal(0, telemetryProcessor.ReadProcessedDurationSecondsCallCount);
+        await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId);
+        Assert.Equal(1, telemetryProcessor.ReadProcessedDurationSecondsCallCount);
+        await sessionRepository.Received(1).UpdateSessionTrackAsync(
+            sessionId,
+            points,
+            Arg.Is<SessionSummaryMetrics>(metrics => metrics.DurationSeconds == 65),
+            null);
+    }
+
+    [Fact]
+    public async Task PatchSessionTrackAsync_KeepsNullDuration_WhenStoredAndProcessedDurationAreMissing()
+    {
+        var sessionRepository = Substitute.For<ISessionRepository>();
+        var trackRepository = Substitute.For<ITrackRepository>();
+        var telemetryProcessor = new TestSessionTelemetryProcessor();
+        var cacheStore = Substitute.For<ISessionCacheStore>();
+        var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor, cacheStore);
+        var sessionId = Guid.NewGuid();
+        var points = new List<TrackPoint>
+        {
+            new(100, 0, 0, 10),
+            new(101, 3, 4, 14)
+        };
+        sessionRepository.GetSessionAsync(sessionId)
+            .Returns(new Session(sessionId, "session", "desc", null, 100));
+        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns((byte[]?)null);
+        sessionRepository
+            .UpdateSessionTrackAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<List<TrackPoint>>(),
+                Arg.Any<SessionSummaryMetrics>(),
+                Arg.Any<double?>())
+            .Returns(Task.CompletedTask);
+        cacheStore.DeleteSessionCacheAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
+
+        await writer.PatchSessionTrackAsync(sessionId, points);
+
+        await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId);
+        Assert.Equal(1, telemetryProcessor.ReadProcessedDurationSecondsCallCount);
         await sessionRepository.Received(1).UpdateSessionTrackAsync(
             sessionId,
             points,

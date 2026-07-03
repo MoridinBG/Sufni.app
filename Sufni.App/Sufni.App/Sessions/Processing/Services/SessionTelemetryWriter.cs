@@ -154,7 +154,8 @@ internal sealed class SessionTelemetryWriter(
         var current = await sessionRepository.GetSessionAsync(id)
                        ?? throw new Exception($"Session {id} does not exist.");
 
-        var metrics = sessionTelemetryProcessor.ComputeSummaryMetrics(current.DurationSeconds, points);
+        var durationSeconds = await ResolvePatchDurationSecondsAsync(current);
+        var metrics = sessionTelemetryProcessor.ComputeSummaryMetrics(durationSeconds, points);
 
         await sessionRepository.UpdateSessionTrackAsync(id, points, metrics, gpsOffsetSeconds);
 
@@ -162,6 +163,17 @@ internal sealed class SessionTelemetryWriter(
         // metrics; a track/GPS-offset change makes it stale, so drop it (like the
         // BLOB write paths) and let the next mobile load rebuild it.
         await sessionCacheStore.DeleteSessionCacheAsync(id);
+    }
+
+    private async Task<double?> ResolvePatchDurationSecondsAsync(Session current)
+    {
+        if (current.DurationSeconds is { } durationSeconds)
+        {
+            return durationSeconds;
+        }
+
+        var raw = await sessionRepository.GetSessionRawPsstAsync(current.Id);
+        return sessionTelemetryProcessor.ReadProcessedDurationSeconds(raw);
     }
 
     private async Task PrepareProcessedSessionAsync(
