@@ -117,6 +117,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private bool requestInsightsAfterDamping;
     private bool suppressDirtinessEvaluation;
     private bool suppressInsightsRecompute;
+    private bool suppressAnalysisRecompute;
     // Set when the user declines to reload after an external metadata edit landed
     // on a dirty draft: BaselineUpdated is pinned below that edit so the next save
     // still conflicts. A later derived-only emission must not advance the baseline
@@ -427,8 +428,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         session.FullTrack = fullTrackId;
     }
 
-    internal void ApplyTelemetryDataWithoutInsightsRecompute(TelemetryData? value)
+    internal void ApplyTelemetryDataWithoutAnalysisRecompute(TelemetryData? value)
     {
+        suppressAnalysisRecompute = true;
         suppressInsightsRecompute = true;
         try
         {
@@ -439,6 +441,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         finally
         {
             suppressInsightsRecompute = false;
+            suppressAnalysisRecompute = false;
         }
     }
 
@@ -1193,14 +1196,30 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                     break;
                 }
 
-                RequestCurrentAnalysisResults(!suppressInsightsRecompute);
+                if (suppressAnalysisRecompute)
+                {
+                    InvalidateAnalysisInputs();
+                }
+                else
+                {
+                    RequestCurrentAnalysisResults(!suppressInsightsRecompute);
+                }
+
                 UpdateRecordedSessionExtensionHostState();
                 break;
             case nameof(RecordedSessionContext.AnalysisRange):
                 OnPropertyChanged(nameof(SessionAnalysisRangeText));
                 ClearAnalysisSelections();
                 presentationApplier.RefreshAnalysisRangeStates();
-                RequestCurrentAnalysisResults(!suppressInsightsRecompute);
+                if (suppressAnalysisRecompute)
+                {
+                    InvalidateAnalysisInputs();
+                }
+                else
+                {
+                    RequestCurrentAnalysisResults(!suppressInsightsRecompute);
+                }
+
                 UpdateRecordedSessionExtensionHostState();
                 break;
             case nameof(RecordedSessionContext.SelectedTravelDistributionMode):

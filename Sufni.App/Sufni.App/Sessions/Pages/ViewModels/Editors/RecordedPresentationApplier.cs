@@ -138,7 +138,7 @@ internal sealed class RecordedPresentationApplier
                 owner.ApplyDampingSpeedCutoffContext(
                     loaded.Data.DampingSpeedCutoffs,
                     loaded.Data.DampingSpeedCutoffOwner);
-                owner.ApplyTelemetryDataWithoutInsightsRecompute(loaded.Data.TelemetryData);
+                owner.ApplyTelemetryDataWithoutAnalysisRecompute(loaded.Data.TelemetryData);
                 owner.SetSessionFullTrack(loaded.Data.FullTrackId);
                 context.FullTrackPoints = loaded.Data.FullTrackPoints;
                 context.TrackPoints = loaded.Data.TrackPoints;
@@ -165,7 +165,7 @@ internal sealed class RecordedPresentationApplier
         {
             case SessionMobileLoadResult.LoadedFromCache loadedFromCache:
                 ApplyCachePresentation(loadedFromCache.Data);
-                owner.ApplyTelemetryDataWithoutInsightsRecompute(loadedFromCache.Telemetry);
+                owner.ApplyTelemetryDataWithoutAnalysisRecompute(loadedFromCache.Telemetry);
                 ApplyMobileExtendedAnalysisStates(
                     loadedFromCache.Telemetry,
                     HasFrontCacheAnalysis(loadedFromCache.Data),
@@ -179,7 +179,7 @@ internal sealed class RecordedPresentationApplier
 
             case SessionMobileLoadResult.BuiltCache builtCache:
                 ApplyCachePresentation(builtCache.Data);
-                owner.ApplyTelemetryDataWithoutInsightsRecompute(builtCache.Telemetry);
+                owner.ApplyTelemetryDataWithoutAnalysisRecompute(builtCache.Telemetry);
                 ApplyMobileExtendedAnalysisStates(
                     builtCache.Telemetry,
                     HasFrontCacheAnalysis(builtCache.Data),

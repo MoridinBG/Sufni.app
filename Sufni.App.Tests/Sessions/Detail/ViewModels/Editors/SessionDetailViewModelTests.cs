@@ -1584,6 +1584,7 @@ public class SessionDetailViewModelTests
             DampingSpeedCutoffOwner: null));
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>()).Returns(result);
         sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(analysis);
+        sessionPresentationService.ClearReceivedCalls();
         sessionAnalysisService.ClearReceivedCalls();
         SetDesktop(true);
 
@@ -1591,6 +1592,11 @@ public class SessionDetailViewModelTests
         await editor.LoadedCommand.ExecuteAsync(null);
 
         Assert.True(editor.SessionContext.SessionInsights.State.IsHidden);
+        sessionPresentationService.DidNotReceive().CalculateDampingPercentages(
+            Arg.Any<TelemetryData>(),
+            Arg.Any<TelemetryTimeRange?>(),
+            Arg.Any<VelocityAverageMode>(),
+            Arg.Any<DampingSpeedCutoffs?>());
         sessionAnalysisService.DidNotReceive().Analyze(Arg.Any<SessionInsightsRequest>());
 
         editor.AnalysisWorkspace.RequestSessionInsights();
@@ -1610,7 +1616,7 @@ public class SessionDetailViewModelTests
         var analysis = CreateAnalysisResult();
         sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(analysis);
         var editor = CreateEditor(snapshot);
-        editor.ApplyTelemetryDataWithoutInsightsRecompute(telemetry);
+        editor.ApplyTelemetryDataWithoutAnalysisRecompute(telemetry);
         editor.ApplyDampingPercentages(dampingPercentages);
         sessionAnalysisService.ClearReceivedCalls();
 
