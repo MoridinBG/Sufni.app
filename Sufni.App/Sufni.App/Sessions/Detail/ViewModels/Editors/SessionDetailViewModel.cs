@@ -115,6 +115,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private RecordedSessionAnalysisInputs analysisInputs;
     private int telemetryGeneration;
     private bool requestInsightsAfterDamping;
+    private bool requestInsightsWhenTelemetryAvailable;
     private bool suppressDirtinessEvaluation;
     private bool suppressInsightsRecompute;
     private bool suppressAnalysisRecompute;
@@ -328,10 +329,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         requestInsightsAfterDamping = false;
         if (SessionContext.TelemetryData is null)
         {
+            requestInsightsWhenTelemetryAvailable = true;
             SessionContext.SessionInsights = SessionInsightsResult.Hidden;
             return;
         }
 
+        requestInsightsWhenTelemetryAvailable = false;
         RequestAnalysisResult(analysisInputs.SessionInsightsKey);
     }
 
@@ -340,6 +343,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         InvalidateAnalysisInputs();
         if (SessionContext.TelemetryData is null)
         {
+            requestInsightsWhenTelemetryAvailable = includeInsights;
             requestInsightsAfterDamping = false;
             ClearDampingPercentages();
             if (includeInsights)
@@ -348,6 +352,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             }
 
             return;
+        }
+
+        if (includeInsights)
+        {
+            requestInsightsWhenTelemetryAvailable = false;
         }
 
         requestInsightsAfterDamping = includeInsights;
@@ -1185,10 +1194,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 NotifyTimelineAlignmentCommandsCanExecuteChanged();
                 if (SessionContext.TelemetryData is null)
                 {
+                    requestInsightsWhenTelemetryAvailable = false;
                     SessionContext.SessionInsights = SessionInsightsResult.Hidden;
                     UpdateRecordedSessionExtensionHostState();
                     break;
                 }
+
+                var includeDeferredInsights =
+                    requestInsightsWhenTelemetryAvailable ||
+                    ReferenceEquals(SessionContext.SelectedPage, AnalysisPage);
 
                 if (SessionContext.AnalysisRange is not null)
                 {
@@ -1199,10 +1213,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 if (suppressAnalysisRecompute)
                 {
                     InvalidateAnalysisInputs();
+                    if (includeDeferredInsights)
+                    {
+                        RequestCurrentAnalysisResults(includeInsights: true);
+                    }
                 }
                 else
                 {
-                    RequestCurrentAnalysisResults(!suppressInsightsRecompute);
+                    RequestCurrentAnalysisResults(!suppressInsightsRecompute || includeDeferredInsights);
                 }
 
                 UpdateRecordedSessionExtensionHostState();

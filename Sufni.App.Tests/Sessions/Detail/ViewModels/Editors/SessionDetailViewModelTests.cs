@@ -1623,6 +1623,55 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public void RequestSessionInsights_BeforeTelemetryArrives_RunsAfterSuppressedTelemetryLoad()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var dampingPercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(telemetry);
+        var analysis = CreateAnalysisResult();
+        sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(analysis);
+        var editor = CreateEditor(snapshot);
+
+        editor.AnalysisWorkspace.RequestSessionInsights();
+
+        Assert.True(editor.SessionContext.SessionInsights.State.IsHidden);
+        sessionAnalysisService.DidNotReceive().Analyze(Arg.Any<SessionInsightsRequest>());
+
+        editor.ApplyTelemetryDataWithoutAnalysisRecompute(telemetry);
+
+        Assert.Same(analysis, editor.SessionContext.SessionInsights);
+        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(request =>
+            ReferenceEquals(request.TelemetryData, telemetry) &&
+            request.DampingPercentages == dampingPercentages));
+    }
+
+    [AvaloniaFact]
+    public void SelectingInsightsPage_BeforeTelemetryArrives_RunsAfterSuppressedTelemetryLoad()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var dampingPercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(telemetry);
+        var analysis = CreateAnalysisResult();
+        sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(analysis);
+        var editor = CreateEditor(snapshot);
+
+        editor.SessionContext.SelectedPageIndex = editor.Pages
+            .Select((page, index) => (page, index))
+            .Single(entry => entry.page is SessionInsightsPageViewModel)
+            .index;
+
+        Assert.True(editor.SessionContext.SessionInsights.State.IsHidden);
+        sessionAnalysisService.DidNotReceive().Analyze(Arg.Any<SessionInsightsRequest>());
+
+        editor.ApplyTelemetryDataWithoutAnalysisRecompute(telemetry);
+
+        Assert.Same(analysis, editor.SessionContext.SessionInsights);
+        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(request =>
+            ReferenceEquals(request.TelemetryData, telemetry) &&
+            request.DampingPercentages == dampingPercentages));
+    }
+
+    [AvaloniaFact]
     public async Task Loaded_OnDesktop_WithForkAndFrameImu_SetsAllVibrationStatesReady()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
