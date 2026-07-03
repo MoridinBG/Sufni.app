@@ -30,6 +30,7 @@ mc:Ignorable="d">
                     DampingSpeedCutoffs="{Binding #Root.PlotDampingSpeedCutoffs}"
                     ExtensionSlots="{Binding #Root.ExtensionSlots}"
                     Height="{Binding #Root.PlotHeight}"
+                    IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
                     IsVisible="{Binding #Root.HasAnalysisData}"
                     AnalysisPlotKind="VelocityDistribution"
                     SelectAnalysisRangeCommand="{Binding #Root.SelectAnalysisRangeCommand}"

@@ -5,8 +5,10 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.VisualTree;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
+using Sufni.App.Sessions.Analysis.Views.Controls;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 namespace Sufni.App.Sessions.Analysis.DesktopViews.Items;
 
@@ -205,11 +207,14 @@ public partial class SessionAnalysisDesktopView : UserControl
             {
                 if (isSelected && entry.ExtensionContribution is { } contribution)
                 {
-                    GetExtensionContentControl(contribution).IsVisible = true;
+                    var control = GetExtensionContentControl(contribution);
+                    control.IsVisible = true;
+                    SetAnalysisDemandActive(control, true);
                 }
                 else if (extensionContentControls.TryGetValue(entry.Key, out var content))
                 {
                     content.Control.IsVisible = false;
+                    SetAnalysisDemandActive(content.Control, false);
                 }
 
                 continue;
@@ -218,7 +223,21 @@ public partial class SessionAnalysisDesktopView : UserControl
             if (entry.Content is not null)
             {
                 entry.Content.IsVisible = isSelected;
+                SetAnalysisDemandActive(entry.Content, isSelected);
             }
+        }
+    }
+
+    private static void SetAnalysisDemandActive(Control content, bool isActive)
+    {
+        if (content is AnalysisHostBase host)
+        {
+            host.IsAnalysisDemandActive = isActive;
+        }
+
+        foreach (var descendantHost in content.GetVisualDescendants().OfType<AnalysisHostBase>())
+        {
+            descendantHost.IsAnalysisDemandActive = isActive;
         }
     }
 

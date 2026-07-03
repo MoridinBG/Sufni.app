@@ -173,6 +173,48 @@ public class AnalysisPlotViewTests
     }
 
     [AvaloniaFact]
+    public async Task AnalysisPlotView_DefersStateBackedRequestsUntilDemandActive()
+    {
+        var telemetry = CreateProcessed();
+        var initialInputs = CreateAnalysisInputs();
+        var nextRange = new TelemetryTimeRange(0, telemetry.Metadata.Duration);
+        var nextInputs = initialInputs with { AnalysisRange = nextRange };
+        var initialKey = initialInputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
+        var nextKey = nextInputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
+        using var state = new TestAnalysisResultState(initialInputs);
+        var view = new TestableAnalysisPlotView
+        {
+            IsAnalysisDemandActive = false,
+            AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
+            AnalysisResultState = state,
+            SuspensionType = SuspensionType.Front,
+            Telemetry = telemetry,
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Empty(state.Requests);
+
+        view.IsAnalysisDemandActive = true;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(initialKey, Assert.Single(state.Requests));
+
+        state.Requests.Clear();
+        view.IsAnalysisDemandActive = false;
+        state.Invalidate(nextInputs);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Empty(state.Requests);
+
+        view.IsAnalysisDemandActive = true;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(nextKey, Assert.Single(state.Requests));
+    }
+
+    [AvaloniaFact]
     public async Task AnalysisPlotView_UsesAvaloniaTitleAndSuppressesScottPlotTitle()
     {
         var view = new TestableAnalysisPlotView

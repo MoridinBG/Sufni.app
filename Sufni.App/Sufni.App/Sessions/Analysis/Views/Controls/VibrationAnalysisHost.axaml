@@ -27,6 +27,7 @@ mc:Ignorable="d">
                 AnalysisRange="{Binding #Root.AnalysisRange}"
                 AnalysisResultState="{Binding #Root.AnalysisResultState}"
                 ImuLocation="{Binding #Root.ImuLocation}"
+                IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
                 SuspensionType="{Binding #Root.SuspensionType}"
                 Telemetry="{Binding #Root.Telemetry}" />
 
@@ -36,6 +37,7 @@ mc:Ignorable="d">
                 ExtensionSlots="{Binding #Root.ExtensionSlots}"
                 Grid.Row="1"
                 ImuLocation="{Binding #Root.ImuLocation}"
+                IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
                 AnalysisPlotKind="VibrationDistribution"
                 SuspensionType="{Binding #Root.SuspensionType}"
                 Telemetry="{Binding #Root.Telemetry}" />

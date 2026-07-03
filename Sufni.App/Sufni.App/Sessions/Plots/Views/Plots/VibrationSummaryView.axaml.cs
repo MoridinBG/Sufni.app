@@ -37,6 +37,15 @@ public class VibrationSummaryView : TemplatedControl
         set => SetValue(AnalysisResultStateProperty, value);
     }
 
+    public static readonly StyledProperty<bool> IsAnalysisDemandActiveProperty =
+        AvaloniaProperty.Register<VibrationSummaryView, bool>(nameof(IsAnalysisDemandActive), true);
+
+    public bool IsAnalysisDemandActive
+    {
+        get => GetValue(IsAnalysisDemandActiveProperty);
+        set => SetValue(IsAnalysisDemandActiveProperty, value);
+    }
+
     public static readonly StyledProperty<SuspensionType> SuspensionTypeProperty =
         AvaloniaProperty.Register<VibrationSummaryView, SuspensionType>(nameof(SuspensionType));
 
@@ -73,6 +82,7 @@ public class VibrationSummaryView : TemplatedControl
     private IRecordedSessionAnalysisResultState? subscribedAnalysisResultState;
     private IDisposable? analysisInputSubscription;
     private IDisposable? analysisResultSubscription;
+    private bool hasDeferredRecompute;
 
     public string Title
     {
@@ -82,15 +92,16 @@ public class VibrationSummaryView : TemplatedControl
 
     static VibrationSummaryView()
     {
-        TelemetryProperty.Changed.AddClassHandler<VibrationSummaryView>((view, _) => view.Recompute());
-        AnalysisRangeProperty.Changed.AddClassHandler<VibrationSummaryView>((view, _) => view.Recompute());
+        TelemetryProperty.Changed.AddClassHandler<VibrationSummaryView>((view, _) => view.RequestRecompute());
+        AnalysisRangeProperty.Changed.AddClassHandler<VibrationSummaryView>((view, _) => view.RequestRecompute());
         AnalysisResultStateProperty.Changed.AddClassHandler<VibrationSummaryView>((view, _) =>
         {
             view.SubscribeToAnalysisResultState(view.AnalysisResultState);
-            view.Recompute();
+            view.RequestRecompute();
         });
-        SuspensionTypeProperty.Changed.AddClassHandler<VibrationSummaryView>((view, _) => view.Recompute());
-        ImuLocationProperty.Changed.AddClassHandler<VibrationSummaryView>((view, _) => view.Recompute());
+        IsAnalysisDemandActiveProperty.Changed.AddClassHandler<VibrationSummaryView>((view, _) => view.ApplyDeferredRecompute());
+        SuspensionTypeProperty.Changed.AddClassHandler<VibrationSummaryView>((view, _) => view.RequestRecompute());
+        ImuLocationProperty.Changed.AddClassHandler<VibrationSummaryView>((view, _) => view.RequestRecompute());
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -107,7 +118,7 @@ public class VibrationSummaryView : TemplatedControl
 
     private void Recompute()
     {
-        Title = $"{SuspensionType} {ImuLocation} vibration";
+        UpdateTitle();
         var key = CreateAnalysisKey();
         if (key is not null && AnalysisResultState is { } state)
         {
@@ -127,6 +138,37 @@ public class VibrationSummaryView : TemplatedControl
             : TelemetryStatistics.CalculateVibration(Telemetry, ImuLocation, SuspensionType, AnalysisRange);
     }
 
+    private void RequestRecompute()
+    {
+        if (ShouldDeferRecompute())
+        {
+            UpdateTitle();
+            hasDeferredRecompute = true;
+            return;
+        }
+
+        hasDeferredRecompute = false;
+        Recompute();
+    }
+
+    private void ApplyDeferredRecompute()
+    {
+        if (!IsAnalysisDemandActive || !hasDeferredRecompute)
+        {
+            return;
+        }
+
+        RequestRecompute();
+    }
+
+    private bool ShouldDeferRecompute() =>
+        !IsAnalysisDemandActive && AnalysisResultState is not null;
+
+    private void UpdateTitle()
+    {
+        Title = $"{SuspensionType} {ImuLocation} vibration";
+    }
+
     private void SubscribeToAnalysisResultState(IRecordedSessionAnalysisResultState? state)
     {
         if (ReferenceEquals(subscribedAnalysisResultState, state))
@@ -142,7 +184,7 @@ public class VibrationSummaryView : TemplatedControl
 
         if (subscribedAnalysisResultState is not null)
         {
-            analysisInputSubscription = subscribedAnalysisResultState.ConnectInputs().Subscribe(_ => Recompute());
+            analysisInputSubscription = subscribedAnalysisResultState.ConnectInputs().Subscribe(_ => RequestRecompute());
             analysisResultSubscription = subscribedAnalysisResultState.Connect().Subscribe(OnAnalysisResultChanged);
         }
     }

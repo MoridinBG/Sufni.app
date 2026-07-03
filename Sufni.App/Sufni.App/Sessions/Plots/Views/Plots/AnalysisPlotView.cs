@@ -32,6 +32,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
     private IRecordedSessionAnalysisResultState? subscribedAnalysisResultState;
     private IDisposable? analysisInputSubscription;
     private IDisposable? analysisResultSubscription;
+    private bool hasDeferredAnalysisReload;
 
     public static readonly StyledProperty<AnalysisPlotKind> AnalysisPlotKindProperty =
         AvaloniaProperty.Register<AnalysisPlotView, AnalysisPlotKind>(nameof(AnalysisPlotKind));
@@ -89,6 +90,9 @@ public class AnalysisPlotView : SufniTelemetryPlotView
     public static readonly StyledProperty<IRecordedSessionAnalysisResultState?> AnalysisResultStateProperty =
         AvaloniaProperty.Register<AnalysisPlotView, IRecordedSessionAnalysisResultState?>(
             nameof(AnalysisResultState));
+
+    public static readonly StyledProperty<bool> IsAnalysisDemandActiveProperty =
+        AvaloniaProperty.Register<AnalysisPlotView, bool>(nameof(IsAnalysisDemandActive), true);
 
     public AnalysisPlotKind AnalysisPlotKind
     {
@@ -180,6 +184,12 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         set => SetValue(AnalysisResultStateProperty, value);
     }
 
+    public bool IsAnalysisDemandActive
+    {
+        get => GetValue(IsAnalysisDemandActiveProperty);
+        set => SetValue(IsAnalysisDemandActiveProperty, value);
+    }
+
     public AnalysisPlotView()
     {
         PropertyChanged += (_, e) =>
@@ -187,7 +197,12 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             if (e.Property == AnalysisResultStateProperty)
             {
                 SubscribeToAnalysisResultState(AnalysisResultState);
-                ReloadTelemetry();
+                RequestAnalysisReload();
+            }
+
+            if (e.Property == IsAnalysisDemandActiveProperty)
+            {
+                ApplyDeferredAnalysisReload();
             }
 
             if (IsTitleProperty(e.Property.Name))
@@ -207,7 +222,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
                 }
 
                 ApplyModeToPlotModel(PlotModel);
-                ReloadTelemetry();
+                RequestAnalysisReload();
             }
 
             if (IsAnalysisOverlayProperty(e.Property.Name))
@@ -283,6 +298,12 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             return;
         }
 
+        if (ShouldDeferAnalysisReload())
+        {
+            hasDeferredAnalysisReload = true;
+            return;
+        }
+
         if (state.Get(key) is { } cached)
         {
             LoadAnalysisResult(plotModel, cached);
@@ -324,7 +345,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
 
         if (subscribedAnalysisResultState is not null)
         {
-            analysisInputSubscription = subscribedAnalysisResultState.ConnectInputs().Subscribe(_ => ReloadTelemetry());
+            analysisInputSubscription = subscribedAnalysisResultState.ConnectInputs().Subscribe(_ => RequestAnalysisReload());
             analysisResultSubscription = subscribedAnalysisResultState.Connect().Subscribe(OnAnalysisResultChanged);
         }
     }
@@ -337,8 +358,44 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             return;
         }
 
-        ReloadPlot();
+        RequestAnalysisReload();
     }
+
+    protected override void OnAnalysisRangeChanged()
+    {
+        if (AnalysisResultState is not null)
+        {
+            RequestAnalysisReload();
+            return;
+        }
+
+        base.OnAnalysisRangeChanged();
+    }
+
+    private void RequestAnalysisReload()
+    {
+        if (ShouldDeferAnalysisReload())
+        {
+            hasDeferredAnalysisReload = true;
+            return;
+        }
+
+        hasDeferredAnalysisReload = false;
+        ReloadTelemetry();
+    }
+
+    private void ApplyDeferredAnalysisReload()
+    {
+        if (!IsAnalysisDemandActive || !hasDeferredAnalysisReload)
+        {
+            return;
+        }
+
+        RequestAnalysisReload();
+    }
+
+    private bool ShouldDeferAnalysisReload() =>
+        !IsAnalysisDemandActive && AnalysisResultState is not null;
 
     private RecordedSessionAnalysisKey? CreateAnalysisKey()
     {

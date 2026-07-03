@@ -87,6 +87,43 @@ public class SessionAnalysisDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task SessionAnalysisDesktopView_SelectionUpdatesBuiltInAnalysisDemand()
+    {
+        var workspace = new SessionAnalysisWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontAnalysis: true,
+            hasRearAnalysis: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true,
+            hasFrontForkVibration: true,
+            hasFrontFrameVibration: true,
+            hasRearForkVibration: true,
+            hasRearFrameVibration: true);
+
+        await using var mounted = await MountAsync(workspace);
+
+        AssertAnalysisDemand(mounted.View, "SpringRate", expected: true);
+        AssertAnalysisDemand(mounted.View, "Strokes", expected: false);
+        AssertAnalysisDemand(mounted.View, "Damping", expected: false);
+        AssertAnalysisDemand(mounted.View, "Balance", expected: false);
+        AssertAnalysisDemand(mounted.View, "Vibration", expected: false);
+
+        await SelectTabAsync(mounted.View, "Damping");
+
+        AssertAnalysisDemand(mounted.View, "SpringRate", expected: false);
+        AssertAnalysisDemand(mounted.View, "Damping", expected: true);
+        AssertAnalysisDemand(mounted.View, "Balance", expected: false);
+        AssertAnalysisDemand(mounted.View, "Vibration", expected: false);
+
+        await SelectTabAsync(mounted.View, "Insights");
+
+        AssertAnalysisDemand(mounted.View, "SpringRate", expected: false);
+        AssertAnalysisDemand(mounted.View, "Damping", expected: false);
+        AssertAnalysisDemand(mounted.View, "Balance", expected: false);
+        AssertAnalysisDemand(mounted.View, "Vibration", expected: false);
+    }
+
+    [AvaloniaFact]
     public async Task SessionAnalysisDesktopView_RendersAnalysisBannerContributions()
     {
         var workspace = new SessionAnalysisWorkspaceStub(
@@ -554,6 +591,17 @@ public class SessionAnalysisDesktopViewTests
         return analysisContentHost.Items
             .OfType<TestContributionViewModel>()
             .Single(view => view.Name == name);
+    }
+
+    private static void AssertAnalysisDemand(SessionAnalysisDesktopView view, string sectionName, bool expected)
+    {
+        var hosts = view.FindControl<Grid>(sectionName)!
+            .GetVisualDescendants()
+            .OfType<AnalysisHostBase>()
+            .ToArray();
+
+        Assert.NotEmpty(hosts);
+        Assert.All(hosts, host => Assert.Equal(expected, host.IsAnalysisDemandActive));
     }
 
     private static void AssertContributionText(Control root, string name, string text)

@@ -26,6 +26,9 @@ public class AnalysisHostBase : UserControl
         AvaloniaProperty.Register<AnalysisHostBase, IRecordedSessionAnalysisResultState?>(
             nameof(AnalysisResultState));
 
+    public static readonly StyledProperty<bool> IsAnalysisDemandActiveProperty =
+        AvaloniaProperty.Register<AnalysisHostBase, bool>(nameof(IsAnalysisDemandActive), true);
+
     public static readonly StyledProperty<SuspensionType> SuspensionTypeProperty =
         AvaloniaProperty.Register<AnalysisHostBase, SuspensionType>(nameof(SuspensionType));
 
@@ -151,6 +154,12 @@ public class AnalysisHostBase : UserControl
     {
         get => GetValue(AnalysisResultStateProperty);
         set => SetValue(AnalysisResultStateProperty, value);
+    }
+
+    public bool IsAnalysisDemandActive
+    {
+        get => GetValue(IsAnalysisDemandActiveProperty);
+        set => SetValue(IsAnalysisDemandActiveProperty, value);
     }
 
     public SuspensionType SuspensionType

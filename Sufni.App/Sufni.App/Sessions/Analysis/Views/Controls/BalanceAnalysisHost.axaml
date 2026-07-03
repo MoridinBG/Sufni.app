@@ -27,6 +27,7 @@ mc:Ignorable="d">
                 ExtensionSlots="{Binding #Root.ExtensionSlots}"
                 Height="{Binding #Root.PlotHeight}"
                 HeaderContent="{Binding #Root.HeaderContent}"
+                IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
                 IsVisible="{Binding #Root.HasAnalysisData}"
                 AnalysisPlotKind="Balance"
                 Telemetry="{Binding #Root.Telemetry}" />
