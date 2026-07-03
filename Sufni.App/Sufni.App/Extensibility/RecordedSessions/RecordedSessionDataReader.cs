@@ -8,15 +8,16 @@ using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Services;
-using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Sessions.Models;
 namespace Sufni.App.Extensibility.RecordedSessions;
 
 internal sealed class RecordedSessionDataReader(
     ISessionRepository sessionRepository,
-    ISynchronizableRepository<Track> trackEntityRepository,
+    ISessionTrackReader sessionTrackReader,
+    IFullTrackPointReader fullTrackPointReader,
     ISessionTelemetryProcessor sessionTelemetryProcessor,
     ISessionProcessedTelemetryReader processedTelemetryReader) : IRecordedSessionDataReader
 {
@@ -63,11 +64,16 @@ internal sealed class RecordedSessionDataReader(
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var track = await sessionRepository.GetSessionTrackAsync(sessionId);
-        cancellationToken.ThrowIfCancellationRequested();
         var session = await sessionRepository.GetSessionAsync(sessionId);
         cancellationToken.ThrowIfCancellationRequested();
-        if (session?.FullTrack is not { } fullTrackId)
+        if (session is null)
+        {
+            return null;
+        }
+
+        var track = await sessionTrackReader.GetSessionTrackAsync(sessionId, session.Updated, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (session.FullTrack is not { } fullTrackId)
         {
             return track;
         }
@@ -81,13 +87,18 @@ internal sealed class RecordedSessionDataReader(
             return track;
         }
 
-        var fullTrack = await trackEntityRepository.GetAsync(fullTrackId);
+        var fullTrackPoints = await fullTrackPointReader.GetTrackPointsAsync(fullTrackId, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        if (fullTrack is null)
+        if (fullTrackPoints is null)
         {
             return track;
         }
 
+        var fullTrack = new Track
+        {
+            Id = fullTrackId,
+            Points = fullTrackPoints as List<TrackPoint> ?? fullTrackPoints.ToList(),
+        };
         return sessionTelemetryProcessor.GenerateSessionTrackFromFullTrack(
             fullTrack,
             session.Timestamp,
