@@ -1,5 +1,6 @@
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.TestSupport.Async;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Models;
@@ -36,6 +37,52 @@ public class RecordedSessionAnalysisResultStateTests
         Assert.Equal(11, result.Percentages.FrontHscPercentage);
     }
 
+    [Fact]
+    public void RequestAsync_StartsFreshWork_WhenSameKeyIsRequestedAfterInvalidation()
+    {
+        var telemetry = new TelemetryData();
+        var backgroundTaskRunner = new DeferredBackgroundTaskRunner();
+        using var state = new RecordedSessionAnalysisResultState(
+            new TestAnalysisComputer(),
+            backgroundTaskRunner,
+            new InlineUiThreadDispatcher(),
+            () => telemetry);
+        var fullInputs = CreateInputs(range: null);
+        var rangedInputs = CreateInputs(new TelemetryTimeRange(0, 1));
+
+        state.Invalidate(fullInputs);
+        _ = state.RequestAsync(fullInputs.DampingPercentagesKey);
+        Assert.Equal(1, backgroundTaskRunner.RunCount);
+
+        state.Invalidate(rangedInputs);
+        state.Invalidate(fullInputs);
+        _ = state.RequestAsync(fullInputs.DampingPercentagesKey);
+
+        Assert.Equal(2, backgroundTaskRunner.RunCount);
+    }
+
+    [Fact]
+    public async Task RequestAsync_AfterDispose_IsNoOp()
+    {
+        var telemetry = new TelemetryData();
+        var state = new RecordedSessionAnalysisResultState(
+            new TestAnalysisComputer(),
+            new InlineBackgroundTaskRunner(),
+            new InlineUiThreadDispatcher(),
+            () => telemetry);
+        var inputs = CreateInputs(range: null);
+        var key = inputs.DampingPercentagesKey;
+        state.Invalidate(inputs);
+
+        state.Dispose();
+
+        Assert.Null(state.CurrentInputs);
+        Assert.Null(state.Get(key));
+        state.Invalidate(inputs);
+        await state.RequestAsync(key);
+        using var subscription = state.Connect().Subscribe(_ => Assert.Fail("Disposed state should not publish."));
+    }
+
     private static RecordedSessionAnalysisInputs CreateInputs(TelemetryTimeRange? range) =>
         new(
             TelemetryGeneration: 1,
@@ -60,5 +107,28 @@ public class RecordedSessionAnalysisResultStateTests
                 null,
                 null,
                 null));
+    }
+
+    private sealed class DeferredBackgroundTaskRunner : IBackgroundTaskRunner
+    {
+        public int RunCount { get; private set; }
+
+        public Task RunAsync(Func<Task> work, CancellationToken cancellationToken = default)
+        {
+            RunCount++;
+            return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously).Task;
+        }
+
+        public Task<T> RunAsync<T>(Func<T> work, CancellationToken cancellationToken = default)
+        {
+            RunCount++;
+            return new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously).Task;
+        }
+
+        public Task<T> RunAsync<T>(Func<Task<T>> work, CancellationToken cancellationToken = default)
+        {
+            RunCount++;
+            return new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously).Task;
+        }
     }
 }

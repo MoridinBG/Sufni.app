@@ -57,17 +57,28 @@ internal sealed class RecordedSessionAnalysisResultState(
         {
             lock (gate)
             {
-                return currentInputs;
+                return disposed ? null : currentInputs;
             }
         }
     }
 
-    public IObservable<RecordedSessionAnalysisResultChanged> Connect() => changes.AsObservable();
+    public IObservable<RecordedSessionAnalysisResultChanged> Connect()
+    {
+        lock (gate)
+        {
+            return disposed ? Observable.Empty<RecordedSessionAnalysisResultChanged>() : changes.AsObservable();
+        }
+    }
 
     public RecordedSessionAnalysisResult? Get(RecordedSessionAnalysisKey key)
     {
         lock (gate)
         {
+            if (disposed)
+            {
+                return null;
+            }
+
             return results.GetValueOrDefault(key);
         }
     }
@@ -76,7 +87,11 @@ internal sealed class RecordedSessionAnalysisResultState(
     {
         lock (gate)
         {
-            ThrowIfDisposed();
+            if (disposed)
+            {
+                return;
+            }
+
             if (inputs == currentInputs)
             {
                 return;
@@ -89,6 +104,7 @@ internal sealed class RecordedSessionAnalysisResultState(
             staleWorkCancellation = new CancellationTokenSource();
 
             results.Clear();
+            inFlight.Clear();
         }
     }
 
@@ -98,7 +114,11 @@ internal sealed class RecordedSessionAnalysisResultState(
         RecordedSessionAnalysisResultChanged? immediateChange = null;
         lock (gate)
         {
-            ThrowIfDisposed();
+            if (disposed)
+            {
+                return Task.CompletedTask;
+            }
+
             if (currentInputs is null || !key.Matches(currentInputs))
             {
                 return Task.CompletedTask;
@@ -150,6 +170,7 @@ internal sealed class RecordedSessionAnalysisResultState(
             }
 
             disposed = true;
+            currentInputs = null;
             staleWorkCancellation.Cancel();
             staleWorkCancellation.Dispose();
             results.Clear();
@@ -223,22 +244,17 @@ internal sealed class RecordedSessionAnalysisResultState(
 
     private Task PublishAsync(RecordedSessionAnalysisResultChanged change)
     {
-        lock (gate)
+        return uiThreadDispatcher.InvokeAsync(() =>
         {
-            if (disposed)
+            lock (gate)
             {
-                return Task.CompletedTask;
+                if (disposed)
+                {
+                    return;
+                }
+
+                changes.OnNext(change);
             }
-        }
-
-        return uiThreadDispatcher.InvokeAsync(() => changes.OnNext(change));
-    }
-
-    private void ThrowIfDisposed()
-    {
-        if (disposed)
-        {
-            throw new ObjectDisposedException(nameof(RecordedSessionAnalysisResultState));
-        }
+        });
     }
 }
