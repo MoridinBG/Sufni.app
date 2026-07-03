@@ -67,7 +67,7 @@ public class ExtensionViewRegistryTests
             static () => new TextBlock { Text = "recorded extension" },
             desktopFactory: null);
         var locator = new ViewLocator(registry);
-        var page = new RecordedSessionExtensionPageViewModel("Extension", new ExtensionViewModel());
+        var page = new RecordedSessionExtensionPageViewModel("Extension", () => new ExtensionViewModel());
 
         var control = locator.Build(page);
 

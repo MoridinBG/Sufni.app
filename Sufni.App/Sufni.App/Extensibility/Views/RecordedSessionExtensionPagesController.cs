@@ -66,7 +66,7 @@ internal sealed class RecordedSessionExtensionPagesController
             .Select(contribution => new ExtensionPageEntry(
                 RecordedSessionPageKey(contribution),
                 contribution.DisplayName,
-                contribution.ViewModel,
+                () => contribution.ViewModel,
                 contribution.RequestedIndex,
                 FamilyOrder: 0,
                 contribution.Order,
@@ -80,7 +80,7 @@ internal sealed class RecordedSessionExtensionPagesController
             .Select(contribution => new ExtensionPageEntry(
                 AnalysisTabPageKey(contribution),
                 contribution.DisplayName,
-                contribution.CreateViewModel(),
+                contribution.CreateViewModel,
                 contribution.RequestedIndex + 1,
                 FamilyOrder: 1,
                 contribution.Order,
@@ -114,7 +114,7 @@ internal sealed class RecordedSessionExtensionPagesController
             {
                 page = new RecordedSessionExtensionPageViewModel(
                     entry.DisplayName,
-                    entry.ViewModel);
+                    entry.CreateViewModel);
                 recordedSessionExtensionPages.Add(entry.Key, page);
             }
 
@@ -137,7 +137,7 @@ internal sealed class RecordedSessionExtensionPagesController
     private sealed record ExtensionPageEntry(
         string Key,
         string DisplayName,
-        IExtensionViewModel ViewModel,
+        Func<IExtensionViewModel> CreateViewModel,
         int RequestedIndex,
         int FamilyOrder,
         int Order,

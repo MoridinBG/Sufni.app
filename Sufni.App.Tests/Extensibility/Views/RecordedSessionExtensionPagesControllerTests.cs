@@ -83,6 +83,86 @@ public class RecordedSessionExtensionPagesControllerTests
     }
 
     [Fact]
+    public void AnalysisTabContributions_DoNotCreateViewModelUntilPageViewModelIsResolved()
+    {
+        var manager = CreateManager();
+        var context = CreateBuiltInContext();
+        _ = new RecordedSessionExtensionPagesController(manager, context);
+        var createCount = 0;
+        var viewModel = new TestContributionViewModel();
+        manager.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution(
+            "analysis-tab",
+            requestedIndex: 3,
+            createViewModel: () =>
+            {
+                createCount++;
+                return viewModel;
+            }));
+
+        AssertPageOrder(
+            context.Pages,
+            [
+                "Signals",
+                "Spring",
+                "Strokes",
+                "Damping",
+                "Analysis tab",
+                "Balance",
+                "Vibration",
+                "Insights",
+            ]);
+        Assert.Equal(0, createCount);
+
+        var page = Assert.IsType<RecordedSessionExtensionPageViewModel>(
+            context.Pages.Single(page => page.DisplayName == "Analysis tab"));
+
+        Assert.Same(viewModel, page.ViewModel);
+        Assert.Same(viewModel, page.ViewModel);
+        Assert.Equal(1, createCount);
+    }
+
+    [Fact]
+    public void AnalysisTabRebuild_ReusesMaterializedViewModelForSameKey()
+    {
+        var manager = CreateManager();
+        var context = CreateBuiltInContext();
+        _ = new RecordedSessionExtensionPagesController(manager, context);
+        var createCount = 0;
+        var viewModel = new TestContributionViewModel();
+        var contribution = CreateAnalysisTabContribution(
+            "analysis-tab",
+            requestedIndex: 3,
+            createViewModel: () =>
+            {
+                createCount++;
+                return viewModel;
+            });
+        manager.ExtensionSlots.AnalysisTabs.Add(contribution);
+        var page = Assert.IsType<RecordedSessionExtensionPageViewModel>(
+            context.Pages.Single(page => page.DisplayName == "Analysis tab"));
+        _ = page.ViewModel;
+
+        manager.ExtensionSlots.AnalysisTabs.ReplaceWith(
+        [
+            CreateAnalysisTabContribution(
+                "analysis-tab",
+                requestedIndex: 3,
+                createViewModel: () =>
+                {
+                    createCount++;
+                    return new TestContributionViewModel();
+                }),
+        ]);
+
+        var rebuiltPage = Assert.IsType<RecordedSessionExtensionPageViewModel>(
+            context.Pages.Single(page => page.DisplayName == "Analysis tab"));
+
+        Assert.Same(page, rebuiltPage);
+        Assert.Same(viewModel, rebuiltPage.ViewModel);
+        Assert.Equal(1, createCount);
+    }
+
+    [Fact]
     public void SlotReset_RemovesStaleAnalysisTabPages()
     {
         var manager = CreateManager();
@@ -206,7 +286,8 @@ public class RecordedSessionExtensionPagesControllerTests
         string contributionId,
         int requestedIndex,
         int order = 0,
-        string displayName = "Analysis tab")
+        string displayName = "Analysis tab",
+        Func<IRecordedSessionAnalysisTabContributionViewModel>? createViewModel = null)
     {
         return new RecordedSessionAnalysisTabContribution(
             "extension",
@@ -214,7 +295,7 @@ public class RecordedSessionExtensionPagesControllerTests
             order,
             displayName,
             requestedIndex,
-            new TestContributionViewModel());
+            createViewModel ?? (() => new TestContributionViewModel()));
     }
 
     private static void AssertPageOrder(

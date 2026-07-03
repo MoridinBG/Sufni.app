@@ -1,11 +1,14 @@
-
+using System;
 using Sufni.App.ExtensionHost.Contracts.Capabilities;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 namespace Sufni.App.Extensibility.Views;
 
 internal sealed class RecordedSessionExtensionPageViewModel(
     string displayName,
-    IExtensionViewModel viewModel) : PageViewModelBase(displayName)
+    Func<IExtensionViewModel> createViewModel) : PageViewModelBase(displayName)
 {
-    public IExtensionViewModel ViewModel { get; } = viewModel;
+    private readonly Func<IExtensionViewModel> createViewModel = createViewModel;
+    private IExtensionViewModel? viewModel;
+
+    public IExtensionViewModel ViewModel => viewModel ??= createViewModel();
 }
