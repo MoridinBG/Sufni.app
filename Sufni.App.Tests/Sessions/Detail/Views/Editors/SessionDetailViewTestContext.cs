@@ -173,7 +173,7 @@ internal sealed class SessionDetailViewTestContext
     {
         var dispatcher = new InlineUiThreadDispatcher();
         var analysisResultStateFactory = new RecordedSessionAnalysisResultStateFactory(
-            new RecordedSessionAnalysisComputer(sessionPresentationService, sessionAnalysisService),
+            new RecordedSessionAnalysisComputer(sessionAnalysisService),
             new InlineBackgroundTaskRunner(),
             dispatcher);
         return new SessionDetailViewModel(

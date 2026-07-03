@@ -263,7 +263,7 @@ public class EditorFactoryTests
         var uiThreadDispatcher = new InlineUiThreadDispatcher();
         var backgroundTaskRunner = new InlineBackgroundTaskRunner();
         var analysisResultStateFactory = new RecordedSessionAnalysisResultStateFactory(
-            new RecordedSessionAnalysisComputer(sessionPresentationService, sessionAnalysisService),
+            new RecordedSessionAnalysisComputer(sessionAnalysisService),
             backgroundTaskRunner,
             uiThreadDispatcher);
 

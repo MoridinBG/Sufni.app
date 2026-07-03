@@ -3,7 +3,6 @@ using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Sessions.Insights.Services;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Services;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Analysis.Services;
@@ -14,7 +13,6 @@ internal interface IRecordedSessionAnalysisComputer
 }
 
 internal sealed class RecordedSessionAnalysisComputer(
-    ISessionPresentationService sessionPresentationService,
     ISessionInsightsService sessionInsightsService) : IRecordedSessionAnalysisComputer
 {
     public RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry) =>
@@ -38,7 +36,7 @@ internal sealed class RecordedSessionAnalysisComputer(
         RecordedSessionAnalysisKey key,
         TelemetryData telemetry)
     {
-        return sessionPresentationService.CalculateDampingPercentages(
+        return CalculateDampingPercentages(
             telemetry,
             key.AnalysisRange,
             key.VelocityAverageMode ?? VelocityAverageMode.SampleAveraged,

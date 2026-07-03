@@ -23,8 +23,6 @@ namespace Sufni.App.Tests.Infrastructure;
 
 public class DatabaseMigrationRunnerTests
 {
-    private const string SessionFingerprintBackfillMigrationId = "session_processing_fingerprint_backfill_v2_202606";
-
     [Fact]
     public async Task Initialization_BackfillsLegacyLinkageRows_AndKeepsBackfillIdempotent()
     {
@@ -697,38 +695,6 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
-    public async Task Initialization_DoesNotBackfillChangedDependencyFingerprintAfterBackfillMigrationRan()
-    {
-        using var tempDatabase = new TempDatabase("changed-dependency-fingerprint.db");
-        ProcessingFingerprint? staleFingerprint = null;
-        var seed = SeedProcessedSessionDatabase(
-            tempDatabase.DatabasePath,
-            seed =>
-            {
-                staleFingerprint = CreateCurrentFingerprint(seed) with
-                {
-                    DependencyHash = "changed-dependency"
-                };
-                return AppJson.Serialize(staleFingerprint);
-            },
-            markFingerprintBackfillMigrationApplied: true);
-
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        var persisted = await database.GetSessionAsync(seed.Session.Id);
-
-        Assert.NotNull(persisted);
-        var fingerprintService = new ProcessingFingerprintService();
-        var evaluation = fingerprintService.EvaluateState(
-            SessionSnapshot.From(persisted),
-            SetupSnapshot.From(seed.Setup, boardId: null),
-            BikeSnapshot.From(seed.Bike),
-            RecordedSessionSourceSnapshot.From(seed.Source));
-
-        Assert.Equal(staleFingerprint, evaluation.Persisted);
-        Assert.IsType<SessionStaleness.DependencyHashChanged>(evaluation.Staleness);
-    }
-
-    [Fact]
     public async Task Initialization_DoesNotBackfillUnexpectedProcessingVersionFingerprint()
     {
         using var tempDatabase = new TempDatabase("unexpected-processing-version-fingerprint.db");
@@ -835,8 +801,7 @@ public class DatabaseMigrationRunnerTests
         string databasePath,
         Func<SeededProcessedSession, string?>? createProcessingFingerprintJson = null,
         BikeSnapshot? bikeSnapshot = null,
-        bool storeLegacyRearSuspensionKind = false,
-        bool markFingerprintBackfillMigrationApplied = false)
+        bool storeLegacyRearSuspensionKind = false)
     {
         var bike = Bike.FromSnapshot(bikeSnapshot ?? TestSnapshots.Bike(id: Guid.NewGuid(), updated: 20));
         var setup = new Setup(Guid.NewGuid(), "seed setup")
@@ -861,13 +826,6 @@ public class DatabaseMigrationRunnerTests
         connection.CreateTable<Setup>();
         connection.CreateTable<Session>();
         connection.CreateTable<RecordedSessionSource>();
-        if (markFingerprintBackfillMigrationApplied)
-        {
-            connection.Execute("CREATE TABLE core_migration (id TEXT PRIMARY KEY)");
-            connection.Execute(
-                "INSERT INTO core_migration (id) VALUES (?)",
-                SessionFingerprintBackfillMigrationId);
-        }
 
         connection.Insert(bike);
         connection.Insert(setup);

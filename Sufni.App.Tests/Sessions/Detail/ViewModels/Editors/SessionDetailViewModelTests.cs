@@ -91,7 +91,7 @@ public class SessionDetailViewModelTests
         var preferencesService = sessionPreferences ?? CreateSessionPreferences();
         var dispatcher = uiThreadDispatcher ?? new InlineUiThreadDispatcher();
         var analysisResultStateFactory = new RecordedSessionAnalysisResultStateFactory(
-            new RecordedSessionAnalysisComputer(sessionPresentationService, sessionAnalysisService),
+            new RecordedSessionAnalysisComputer(sessionAnalysisService),
             new InlineBackgroundTaskRunner(),
             dispatcher);
         return new SessionDetailViewModel(
@@ -1089,7 +1089,9 @@ public class SessionDetailViewModelTests
         var telemetry = TestTelemetryData.CreateProcessed();
         var initialCutoffs = DampingSpeedCutoffs.FromValues(100, 200, 300, 400);
         var previewCutoffs = initialCutoffs.With(SuspensionType.Front, DampingSpeedCircuit.Compression, 260);
-        var previewPercentages = new SessionDampingPercentages(11, 12, 13, 14, 15, 16, 17, 18);
+        var previewPercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(
+            telemetry,
+            dampingSpeedCutoffs: previewCutoffs);
         var owner = new DampingSpeedCutoffOwner(Guid.NewGuid(), 7);
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(telemetry, initialCutoffs, owner));
@@ -1099,20 +1101,13 @@ public class SessionDetailViewModelTests
         await editor.LoadedCommand.ExecuteAsync(null);
         sessionPresentationService.ClearReceivedCalls();
         sessionAnalysisService.ClearReceivedCalls();
-        sessionPresentationService
-            .CalculateDampingPercentages(
-                telemetry,
-                Arg.Any<TelemetryTimeRange?>(),
-                Arg.Any<VelocityAverageMode>(),
-                Arg.Is<DampingSpeedCutoffs?>(value => value == previewCutoffs))
-            .Returns(previewPercentages);
 
         editor.PreviewDampingSpeedCutoff(SuspensionType.Front, DampingSpeedCircuit.Compression, 257);
 
         Assert.Equal(previewCutoffs, editor.SessionContext.DampingSpeedCutoffs);
         Assert.Equal(initialCutoffs, editor.SessionContext.PlotDampingSpeedCutoffs);
         Assert.Equal(previewPercentages, editor.SessionContext.DampingPercentages);
-        Assert.Equal(11, editor.DampingPage.FrontHscPercentage);
+        Assert.Equal(previewPercentages.FrontHscPercentage, editor.DampingPage.FrontHscPercentage);
         Assert.False(editor.IsDirty);
         sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(request =>
             request.DampingSpeedCutoffs == previewCutoffs &&
@@ -1531,7 +1526,9 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
-        var strokePeakPercentages = new SessionDampingPercentages(11, 21, 31, 41, 51, 61, 71, 81);
+        var strokePeakPercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(
+            telemetry,
+            velocityAverageMode: VelocityAverageMode.StrokePeakAveraged);
         var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
         ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
         Func<SessionPreferences, SessionPreferences>? update = null;
@@ -1541,12 +1538,6 @@ public class SessionDetailViewModelTests
             .Returns(Task.CompletedTask);
         sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(telemetry));
-        sessionPresentationService.CalculateDampingPercentages(
-                telemetry,
-                Arg.Is<TelemetryTimeRange?>(range => !range.HasValue),
-                VelocityAverageMode.StrokePeakAveraged,
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(strokePeakPercentages);
         SetDesktop(true);
 
         var editor = CreateEditor(snapshot, sessionPreferences: preferences);
@@ -1658,26 +1649,17 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = CreateVibrationTelemetry();
-        var rangePercentages = new SessionDampingPercentages(10, 20, 30, 40, 50, 60, 70, 80);
-        sessionPresentationService
-            .CalculateDampingPercentages(
-                telemetry,
-                Arg.Is<TelemetryTimeRange?>(range =>
-                    range.HasValue &&
-                    range.Value.StartSeconds == 0.02 &&
-                    range.Value.EndSeconds == 0.16),
-                Arg.Any<VelocityAverageMode>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(rangePercentages);
+        var range = new TelemetryTimeRange(0.02, 0.16);
+        var rangePercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(telemetry, range);
 
         var editor = CreateEditor(snapshot);
         editor.SessionContext.TelemetryData = telemetry;
 
-        editor.SetAnalysisRange(0.02, 0.16);
+        editor.SetAnalysisRange(range.StartSeconds, range.EndSeconds);
 
-        Assert.Equal(0.02, editor.SessionContext.AnalysisRange?.StartSeconds);
-        Assert.Equal(0.16, editor.SessionContext.AnalysisRange?.EndSeconds);
-        Assert.Equal(10, editor.DampingPage.FrontHscPercentage);
+        Assert.Equal(range.StartSeconds, editor.SessionContext.AnalysisRange?.StartSeconds);
+        Assert.Equal(range.EndSeconds, editor.SessionContext.AnalysisRange?.EndSeconds);
+        Assert.Equal(rangePercentages.FrontHscPercentage, editor.DampingPage.FrontHscPercentage);
         Assert.False(editor.IsDirty);
     }
 
@@ -1686,20 +1668,14 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = CreateVibrationTelemetry();
-        var rangePercentages = new SessionDampingPercentages(10, 20, 30, 40, 50, 60, 70, 80);
-        sessionPresentationService
-            .CalculateDampingPercentages(
-                telemetry,
-                Arg.Is<TelemetryTimeRange?>(range => range.HasValue),
-                Arg.Any<VelocityAverageMode>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(rangePercentages);
+        var range = new TelemetryTimeRange(0.02, 0.16);
+        var rangePercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(telemetry, range);
 
         var editor = CreateEditor(snapshot);
         editor.SessionContext.TelemetryData = telemetry;
         sessionAnalysisService.ClearReceivedCalls();
 
-        editor.SetAnalysisRange(0.02, 0.16);
+        editor.SetAnalysisRange(range.StartSeconds, range.EndSeconds);
 
         sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(request =>
             request.AnalysisRange.HasValue &&
@@ -1711,19 +1687,7 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = CreateVibrationTelemetry();
-        var rangePercentages = new SessionDampingPercentages(10, 20, 30, 40, 50, 60, 70, 80);
-        var fullSessionPercentages = new SessionDampingPercentages(11, 21, 31, 41, 51, 61, 71, 81);
-        sessionPresentationService
-            .CalculateDampingPercentages(
-                telemetry,
-                Arg.Any<TelemetryTimeRange?>(),
-                Arg.Any<VelocityAverageMode>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(call =>
-            {
-                var range = (TelemetryTimeRange?)call[1];
-                return range.HasValue ? rangePercentages : fullSessionPercentages;
-            });
+        var fullSessionPercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(telemetry);
 
         var editor = CreateEditor(snapshot);
         editor.SessionContext.TelemetryData = telemetry;
@@ -1733,7 +1697,7 @@ public class SessionDetailViewModelTests
         editor.ClearAnalysisRange();
 
         Assert.Null(editor.SessionContext.AnalysisRange);
-        Assert.Equal(11, editor.DampingPage.FrontHscPercentage);
+        Assert.Equal(fullSessionPercentages.FrontHscPercentage, editor.DampingPage.FrontHscPercentage);
         Assert.False(editor.IsDirty);
     }
 
