@@ -226,6 +226,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IRecordedSessionDomainQuery, RecordedSessionDomainQuery>();
         ServiceCollection.AddSingleton<IRecordedSessionProjection, RecordedSessionProjection>();
         ServiceCollection.AddSingleton<IRecordedSessionReprocessor, RecordedSessionReprocessor>();
+        ServiceCollection.AddSingleton<IRecordedSessionSourceSyncQuery, RecordedSessionSourceSyncQuery>();
         ServiceCollection.AddSingleton<TrackCoordinator>();
         ServiceCollection.AddSingleton<ITrackCoordinator>(sp => sp.GetRequiredService<TrackCoordinator>());
         ServiceCollection.AddSingleton<SessionLoader>(sp => new SessionLoader(

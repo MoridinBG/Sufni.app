@@ -21,6 +21,7 @@ public class SynchronizationClientService : ISynchronizationClientService
     private readonly ISessionRepository sessionRepository;
     private readonly ISessionTelemetryWriter sessionTelemetryWriter;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
+    private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery;
     private readonly IHttpApiService httpApiService;
     private readonly IAppPreferences appPreferences;
     private readonly IExtensionSyncService? extensionSyncService;
@@ -30,9 +31,10 @@ public class SynchronizationClientService : ISynchronizationClientService
         ISessionRepository sessionRepository,
         ISessionTelemetryWriter sessionTelemetryWriter,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
+        IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         IHttpApiService httpApiService,
         IAppPreferences appPreferences)
-        : this(syncDataStore, sessionRepository, sessionTelemetryWriter, recordedSessionSourceRepository, httpApiService, appPreferences, null)
+        : this(syncDataStore, sessionRepository, sessionTelemetryWriter, recordedSessionSourceRepository, recordedSessionSourceSyncQuery, httpApiService, appPreferences, null)
     {
     }
 
@@ -41,6 +43,7 @@ public class SynchronizationClientService : ISynchronizationClientService
         ISessionRepository sessionRepository,
         ISessionTelemetryWriter sessionTelemetryWriter,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
+        IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         IHttpApiService httpApiService,
         IAppPreferences appPreferences,
         IExtensionSyncService? extensionSyncService)
@@ -49,6 +52,7 @@ public class SynchronizationClientService : ISynchronizationClientService
         this.sessionRepository = sessionRepository;
         this.sessionTelemetryWriter = sessionTelemetryWriter;
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
+        this.recordedSessionSourceSyncQuery = recordedSessionSourceSyncQuery;
         this.httpApiService = httpApiService;
         this.appPreferences = appPreferences;
         this.extensionSyncService = extensionSyncService;
@@ -245,7 +249,7 @@ public class SynchronizationClientService : ISynchronizationClientService
 
     private async Task PullIncompleteSessionSources()
     {
-        var incompleteSourceIds = await recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync();
+        var incompleteSourceIds = await recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync();
         var downloadedCount = 0;
 
         foreach (var id in incompleteSourceIds)

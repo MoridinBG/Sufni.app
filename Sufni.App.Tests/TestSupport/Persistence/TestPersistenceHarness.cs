@@ -173,6 +173,9 @@ internal sealed class TestPersistenceHarness
     public Task ApplyRemoteSynchronizationDataAsync(SynchronizationData data) =>
         syncDataStore.ApplyRemoteSynchronizationDataAsync(data);
 
+    public Task<IReadOnlyList<SessionBlobSwap>> ApplyRemoteSynchronizationDataAndReturnSwapsAsync(SynchronizationData data) =>
+        syncDataStore.ApplyRemoteSynchronizationDataAsync(data);
+
     public Task MergeAllAsync(SynchronizationData data) =>
         syncDataStore.MergeAllAsync(data);
 

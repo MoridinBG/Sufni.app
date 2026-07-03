@@ -32,6 +32,7 @@ public static class MobileAppBootstrapper
             sp.GetRequiredService<ISessionRepository>(),
             sp.GetRequiredService<ISessionTelemetryWriter>(),
             sp.GetRequiredService<IRecordedSessionSourceRepository>(),
+            sp.GetRequiredService<IRecordedSessionSourceSyncQuery>(),
             sp.GetRequiredService<IHttpApiService>(),
             sp.GetRequiredService<IAppPreferences>(),
             sp.GetService<IExtensionSyncService>()));

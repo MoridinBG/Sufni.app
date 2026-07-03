@@ -491,7 +491,7 @@ internal sealed class SynchronizationMergeEngine(
             return;
         }
 
-        var currentDatabaseInputs = TryComputeCurrentDatabaseInputs(connection, incoming);
+        var currentDatabaseInputs = TryComputeCurrentDatabaseInputs(connection, incoming, incomingFingerprint);
         if (currentDatabaseInputs is not null &&
             incomingFingerprint.MatchesDatabaseInputs(currentDatabaseInputs) &&
             !heldFingerprint.MatchesDatabaseInputs(currentDatabaseInputs))
@@ -500,7 +500,8 @@ internal sealed class SynchronizationMergeEngine(
             return;
         }
 
-        if (currentDatabaseInputs is null && !SessionHasRecordedSource(connection, incoming.Id))
+        if (currentDatabaseInputs is null &&
+            !SessionHasRecordedSource(connection, GetSourceSessionId(incoming.Id, incomingFingerprint)))
         {
             // The source payload travels after metadata sync. Preserve the accepted
             // target so the hub can request the matching BLOB once the source phase
@@ -515,7 +516,8 @@ internal sealed class SynchronizationMergeEngine(
 
     private ProcessingFingerprint? TryComputeCurrentDatabaseInputs(
         SQLiteConnection connection,
-        Session session)
+        Session session,
+        ProcessingFingerprint fingerprint)
     {
         if (session.Setup is not { } setupId)
         {
@@ -534,9 +536,10 @@ internal sealed class SynchronizationMergeEngine(
             return null;
         }
 
+        var sourceSessionId = GetSourceSessionId(session.Id, fingerprint);
         var sources = connection.Query<RecordedSessionSource>(
             "SELECT session_id, source_kind, source_name, schema_version, source_hash FROM session_recording_source WHERE session_id = ?",
-            session.Id);
+            sourceSessionId);
         if (sources.Count != 1)
         {
             return null;
@@ -548,7 +551,8 @@ internal sealed class SynchronizationMergeEngine(
                 SessionSnapshot.From(session),
                 SetupSnapshot.From(setup, null),
                 BikeSnapshot.From(bike),
-                RecordedSessionSourceSnapshot.From(sources[0]));
+                RecordedSessionSourceSnapshot.From(sources[0]),
+                fingerprint.DerivationWindow);
         }
         catch (InvalidOperationException)
         {
@@ -668,13 +672,16 @@ internal sealed class SynchronizationMergeEngine(
             return null;
         }
 
-        if (!SessionHasRecordedSource(connection, sessionId))
+        if (!SessionHasRecordedSource(connection, GetSourceSessionId(sessionId, remote)))
         {
             return null;
         }
 
         return new SessionBlobSwap(sessionId, remoteFingerprintJson!);
     }
+
+    private static Guid GetSourceSessionId(Guid sessionId, ProcessingFingerprint fingerprint) =>
+        fingerprint.DerivationWindow?.SourceSessionId ?? sessionId;
 
     private static bool SessionHasRecordedSource(SQLiteConnection connection, Guid sessionId)
     {
