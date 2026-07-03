@@ -46,12 +46,10 @@ internal sealed class RecordedSessionAnalysisResultState(
 {
     private readonly object gate = new();
     private readonly Dictionary<RecordedSessionAnalysisKey, RecordedSessionAnalysisResult> results = [];
-    private readonly Dictionary<RecordedSessionAnalysisKey, Task> inFlight = [];
+    private readonly Dictionary<RecordedSessionAnalysisKey, InFlightAnalysis> inFlight = [];
     private readonly Subject<RecordedSessionAnalysisInputs> inputChanges = new();
     private readonly Subject<RecordedSessionAnalysisResultChanged> changes = new();
     private RecordedSessionAnalysisInputs? currentInputs;
-    private CancellationTokenSource staleWorkCancellation = new();
-    private long version;
     private bool disposed;
 
     public RecordedSessionAnalysisInputs? CurrentInputs
@@ -116,13 +114,14 @@ internal sealed class RecordedSessionAnalysisResultState(
                 results.Remove(key);
             }
 
-            if (inFlight.Keys.Any(key => !key.Matches(inputs)))
+            foreach (var (key, work) in inFlight.ToArray())
             {
-                version++;
-                staleWorkCancellation.Cancel();
-                staleWorkCancellation.Dispose();
-                staleWorkCancellation = new CancellationTokenSource();
-                inFlight.Clear();
+                if (!key.Matches(inputs))
+                {
+                    inFlight.Remove(key);
+                    work.StaleCancellation.Cancel();
+                    work.StaleCancellation.Dispose();
+                }
             }
 
             publishInputsChanged = true;
@@ -157,7 +156,7 @@ internal sealed class RecordedSessionAnalysisResultState(
             }
             else if (inFlight.TryGetValue(key, out var existing))
             {
-                return existing;
+                task = existing.Task;
             }
             else if (telemetryAccessor() is not { } telemetry)
             {
@@ -166,10 +165,9 @@ internal sealed class RecordedSessionAnalysisResultState(
             }
             else
             {
-                var capturedVersion = version;
-                var staleToken = staleWorkCancellation.Token;
-                task = ComputeAndPublishAsync(key, telemetry, capturedVersion, staleToken, cancellationToken);
-                inFlight[key] = task;
+                var staleCancellation = new CancellationTokenSource();
+                task = ComputeAndPublishAsync(key, telemetry, staleCancellation.Token);
+                inFlight[key] = new InFlightAnalysis(task, staleCancellation);
                 _ = task.ContinueWith(
                     _ => RemoveInFlight(key, task),
                     CancellationToken.None,
@@ -180,10 +178,10 @@ internal sealed class RecordedSessionAnalysisResultState(
 
         if (immediateChange is not null)
         {
-            return PublishAsync(immediateChange);
+            return AwaitWithCallerCancellationAsync(PublishAsync(immediateChange), cancellationToken);
         }
 
-        return task;
+        return AwaitWithCallerCancellationAsync(task, cancellationToken);
     }
 
     public void Dispose()
@@ -197,8 +195,12 @@ internal sealed class RecordedSessionAnalysisResultState(
 
             disposed = true;
             currentInputs = null;
-            staleWorkCancellation.Cancel();
-            staleWorkCancellation.Dispose();
+            foreach (var work in inFlight.Values)
+            {
+                work.StaleCancellation.Cancel();
+                work.StaleCancellation.Dispose();
+            }
+
             results.Clear();
             inFlight.Clear();
         }
@@ -210,28 +212,22 @@ internal sealed class RecordedSessionAnalysisResultState(
     private async Task ComputeAndPublishAsync(
         RecordedSessionAnalysisKey key,
         TelemetryData telemetry,
-        long capturedVersion,
-        CancellationToken staleCancellationToken,
-        CancellationToken requestCancellationToken)
+        CancellationToken staleCancellationToken)
     {
-        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-            staleCancellationToken,
-            requestCancellationToken);
-        var cancellationToken = linkedCancellation.Token;
         try
         {
             var result = await backgroundTaskRunner.RunAsync(
                 () =>
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
+                    staleCancellationToken.ThrowIfCancellationRequested();
                     return computer.Compute(key, telemetry);
                 },
-                cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
+                staleCancellationToken);
+            staleCancellationToken.ThrowIfCancellationRequested();
 
             lock (gate)
             {
-                if (disposed || capturedVersion != version || currentInputs is null || !key.Matches(currentInputs))
+                if (disposed || currentInputs is null || !key.Matches(currentInputs))
                 {
                     return;
                 }
@@ -241,14 +237,14 @@ internal sealed class RecordedSessionAnalysisResultState(
 
             await PublishAsync(new RecordedSessionAnalysisResultChanged(key, result));
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (staleCancellationToken.IsCancellationRequested)
         {
         }
         catch (Exception exception)
         {
             lock (gate)
             {
-                if (disposed || capturedVersion != version || currentInputs is null || !key.Matches(currentInputs))
+                if (disposed || currentInputs is null || !key.Matches(currentInputs))
                 {
                     return;
                 }
@@ -262,11 +258,19 @@ internal sealed class RecordedSessionAnalysisResultState(
     {
         lock (gate)
         {
-            if (inFlight.TryGetValue(key, out var current) && ReferenceEquals(current, task))
+            if (inFlight.TryGetValue(key, out var current) && ReferenceEquals(current.Task, task))
             {
                 inFlight.Remove(key);
+                current.StaleCancellation.Dispose();
             }
         }
+    }
+
+    private static Task AwaitWithCallerCancellationAsync(Task task, CancellationToken cancellationToken)
+    {
+        return !cancellationToken.CanBeCanceled || task.IsCompleted
+            ? task
+            : task.WaitAsync(cancellationToken);
     }
 
     private Task PublishAsync(RecordedSessionAnalysisResultChanged change)
@@ -300,4 +304,6 @@ internal sealed class RecordedSessionAnalysisResultState(
             }
         });
     }
+
+    private sealed record InFlightAnalysis(Task Task, CancellationTokenSource StaleCancellation);
 }

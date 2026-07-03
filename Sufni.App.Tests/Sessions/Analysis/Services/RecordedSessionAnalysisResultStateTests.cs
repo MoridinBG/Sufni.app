@@ -114,6 +114,66 @@ public class RecordedSessionAnalysisResultStateTests
     }
 
     [Fact]
+    public void Invalidate_CancelsOnlyMismatchingInFlightWork()
+    {
+        var telemetry = new TelemetryData();
+        var backgroundTaskRunner = new DeferredBackgroundTaskRunner();
+        using var state = new RecordedSessionAnalysisResultState(
+            new TestAnalysisComputer(),
+            backgroundTaskRunner,
+            new InlineUiThreadDispatcher(),
+            () => telemetry);
+        var inputs = CreateInputs(range: null);
+        var travelKey = inputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
+        var velocityKey = inputs.CreateKey(RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front);
+        state.Invalidate(inputs);
+        var travelRequest = state.RequestAsync(travelKey);
+        _ = state.RequestAsync(velocityKey);
+
+        var updatedInputs = inputs with { VelocityAverageMode = VelocityAverageMode.StrokePeakAveraged };
+        var updatedTravelKey = updatedInputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
+        var updatedVelocityKey = updatedInputs.CreateKey(RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front);
+        state.Invalidate(updatedInputs);
+        var reusedTravelRequest = state.RequestAsync(updatedTravelKey);
+        _ = state.RequestAsync(updatedVelocityKey);
+
+        Assert.Same(travelRequest, reusedTravelRequest);
+        Assert.Equal(3, backgroundTaskRunner.RunCount);
+    }
+
+    [Fact]
+    public async Task RequestAsync_CallerCancellationDoesNotCancelSharedInFlightComputation()
+    {
+        var telemetry = new TelemetryData();
+        var computer = new TestAnalysisComputer();
+        var backgroundTaskRunner = new ControllableBackgroundTaskRunner();
+        using var state = new RecordedSessionAnalysisResultState(
+            computer,
+            backgroundTaskRunner,
+            new InlineUiThreadDispatcher(),
+            () => telemetry);
+        var changes = new List<RecordedSessionAnalysisResultChanged>();
+        using var subscription = state.Connect().Subscribe(changes.Add);
+        var inputs = CreateInputs(range: null);
+        var key = inputs.DampingPercentagesKey;
+        using var callerCancellation = new CancellationTokenSource();
+        state.Invalidate(inputs);
+
+        var firstRequest = state.RequestAsync(key, callerCancellation.Token);
+        var secondRequest = state.RequestAsync(key);
+        await callerCancellation.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => firstRequest);
+        await backgroundTaskRunner.CompleteNextAsync();
+        await secondRequest;
+
+        Assert.Equal(1, computer.ComputeCount);
+        var change = Assert.Single(changes);
+        Assert.Same(key, change.Key);
+        Assert.IsType<DampingPercentagesAnalysisResult>(change.Result);
+    }
+
+    [Fact]
     public void Invalidate_PublishesInputChanges()
     {
         var telemetry = new TelemetryData();
@@ -208,6 +268,106 @@ public class RecordedSessionAnalysisResultStateTests
         {
             RunCount++;
             return new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously).Task;
+        }
+    }
+
+    private sealed class ControllableBackgroundTaskRunner : IBackgroundTaskRunner
+    {
+        private readonly Queue<Func<Task>> completions = new();
+
+        public int RunCount { get; private set; }
+
+        public Task CompleteNextAsync()
+        {
+            var completion = completions.Dequeue();
+            return completion();
+        }
+
+        public Task RunAsync(Func<Task> work, CancellationToken cancellationToken = default)
+        {
+            RunCount++;
+            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var registration = cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken));
+            completions.Enqueue(async () =>
+            {
+                try
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await work();
+                    completion.TrySetResult();
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    completion.TrySetCanceled(cancellationToken);
+                }
+                catch (Exception exception)
+                {
+                    completion.TrySetException(exception);
+                }
+                finally
+                {
+                    registration.Dispose();
+                }
+            });
+            return completion.Task;
+        }
+
+        public Task<T> RunAsync<T>(Func<T> work, CancellationToken cancellationToken = default)
+        {
+            RunCount++;
+            var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var registration = cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken));
+            completions.Enqueue(() =>
+            {
+                try
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    completion.TrySetResult(work());
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    completion.TrySetCanceled(cancellationToken);
+                }
+                catch (Exception exception)
+                {
+                    completion.TrySetException(exception);
+                }
+                finally
+                {
+                    registration.Dispose();
+                }
+
+                return Task.CompletedTask;
+            });
+            return completion.Task;
+        }
+
+        public Task<T> RunAsync<T>(Func<Task<T>> work, CancellationToken cancellationToken = default)
+        {
+            RunCount++;
+            var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var registration = cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken));
+            completions.Enqueue(async () =>
+            {
+                try
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    completion.TrySetResult(await work());
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    completion.TrySetCanceled(cancellationToken);
+                }
+                catch (Exception exception)
+                {
+                    completion.TrySetException(exception);
+                }
+                finally
+                {
+                    registration.Dispose();
+                }
+            });
+            return completion.Task;
         }
     }
 }
