@@ -15,6 +15,7 @@ namespace Sufni.App.Sessions.Analysis.DesktopViews.Items;
 public partial class SessionAnalysisDesktopView : UserControl
 {
     private const string DefaultTabKey = "builtin:spring";
+    private const string InsightsTabKey = "builtin:analysis";
     private const int ExtensionFamilyOrder = 0;
     private const int BuiltInFamilyOrder = 1;
 
@@ -133,7 +134,7 @@ public partial class SessionAnalysisDesktopView : UserControl
                 "Compares how the front and rear suspension move together to check the bike is balanced from end to end."),
             new AnalysisTabEntry("builtin:vibration", "Vibration", Vibration, 4, 0, IsExtension: false, "", "",
                 "Vibration picked up by the IMU across the frequency range, and how smooth the ride is measured overall."),
-            new AnalysisTabEntry("builtin:analysis", "Insights", Analysis, 5, 0, IsExtension: false, "", "",
+            new AnalysisTabEntry(InsightsTabKey, "Insights", Analysis, 5, 0, IsExtension: false, "", "",
                 "Setup suggestions derived from the session data, interpreted through the selected riding context."),
         };
         var extensionEntries = workspace?.ExtensionSlots.AnalysisTabs
@@ -224,6 +225,10 @@ public partial class SessionAnalysisDesktopView : UserControl
             {
                 entry.Content.IsVisible = isSelected;
                 SetAnalysisDemandActive(entry.Content, isSelected);
+                if (isSelected && StringComparer.Ordinal.Equals(entry.Key, InsightsTabKey))
+                {
+                    workspace?.RequestSessionInsights();
+                }
             }
         }
     }

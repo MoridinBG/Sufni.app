@@ -126,6 +126,8 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
 
     public SessionInsightsResult SessionInsights => context.SessionInsights;
 
+    public void RequestSessionInsights() => gateway.RequestSessionInsights();
+
     public IRelayCommand<TelemetryRangeSelection?> SelectAnalysisRangeCommand { get; }
 
     public TelemetryRangeSelection? ActiveFrontAnalysisSelection => context.ActiveFrontAnalysisSelection;

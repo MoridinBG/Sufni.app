@@ -20,6 +20,7 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
     public List<string> Notifications { get; } = [];
     public int LoadRequestCount { get; private set; }
     public int HostUpdateCount { get; private set; }
+    public int SessionInsightsRequestCount { get; private set; }
     public RecordedSessionTimelineAlignmentMark? PendingTimelineAlignmentMark { get; private set; }
     public List<(SuspensionType Side, DampingSpeedCircuit Circuit, double Cutoff)> CutoffPreviews { get; } = [];
     public int CutoffPreviewCancellations { get; private set; }
@@ -65,6 +66,8 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
     public void SetSignalLayoutPreferences(SignalLayoutPreferences preferences) => SignalLayoutPreferences.Add(preferences);
 
     public void SetAnalysisRangeBoundary(double boundarySeconds) => AnalysisRangeBoundaries.Add(boundarySeconds);
+
+    public void RequestSessionInsights() => SessionInsightsRequestCount++;
 
     public void SetTimelineVisibleRange(double startNormalized, double endNormalized, object source)
     {

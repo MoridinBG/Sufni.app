@@ -1521,7 +1521,7 @@ public class SessionDetailViewModelTests
         };
         syncStream.OnNext(synced);
 
-        Assert.Equal(beforeInvokeCount + 2, dispatcher.InvokeCount);
+        Assert.Equal(beforeInvokeCount + 3, dispatcher.InvokeCount);
         Assert.Equal(TravelDistributionMode.DynamicSag, editor.SessionContext.SelectedTravelDistributionMode);
         await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
     }
@@ -1567,7 +1567,7 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Loaded_OnDesktop_AppliesFreshSessionInsights()
+    public async Task Loaded_OnDesktop_DefersSessionInsightsUntilRequested()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
@@ -1589,6 +1589,35 @@ public class SessionDetailViewModelTests
 
         var editor = CreateEditor(snapshot);
         await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.True(editor.SessionContext.SessionInsights.State.IsHidden);
+        sessionAnalysisService.DidNotReceive().Analyze(Arg.Any<SessionInsightsRequest>());
+
+        editor.AnalysisWorkspace.RequestSessionInsights();
+
+        Assert.Same(analysis, editor.SessionContext.SessionInsights);
+        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(request =>
+            ReferenceEquals(request.TelemetryData, telemetry) &&
+            request.DampingPercentages == dampingPercentages));
+    }
+
+    [AvaloniaFact]
+    public void SelectingInsightsPage_RequestsSessionInsights()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var dampingPercentages = new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8);
+        var analysis = CreateAnalysisResult();
+        sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(analysis);
+        var editor = CreateEditor(snapshot);
+        editor.ApplyTelemetryDataWithoutInsightsRecompute(telemetry);
+        editor.ApplyDampingPercentages(dampingPercentages);
+        sessionAnalysisService.ClearReceivedCalls();
+
+        editor.SessionContext.SelectedPageIndex = editor.Pages
+            .Select((page, index) => (page, index))
+            .Single(entry => entry.page is SessionInsightsPageViewModel)
+            .index;
 
         Assert.Same(analysis, editor.SessionContext.SessionInsights);
         sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(request =>

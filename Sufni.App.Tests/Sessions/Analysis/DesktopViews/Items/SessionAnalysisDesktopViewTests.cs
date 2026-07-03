@@ -492,6 +492,29 @@ public class SessionAnalysisDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task SessionAnalysisDesktopView_SelectingInsightsTabRequestsSessionInsights()
+    {
+        var workspace = new SessionAnalysisWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontAnalysis: true,
+            hasRearAnalysis: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+
+        await using var mounted = await MountAsync(workspace);
+
+        Assert.Equal(0, workspace.SessionInsightsRequestCount);
+
+        await SelectTabAsync(mounted.View, "Insights");
+
+        Assert.Equal(1, workspace.SessionInsightsRequestCount);
+
+        await SelectTabAsync(mounted.View, "Damping");
+
+        Assert.Equal(1, workspace.SessionInsightsRequestCount);
+    }
+
+    [AvaloniaFact]
     public async Task SessionAnalysisDesktopView_BindsAnalysisModeSelectors()
     {
         var workspace = new SessionAnalysisWorkspaceStub(
@@ -694,10 +717,12 @@ public class SessionAnalysisDesktopViewTests
         public DampingSpeedCutoffs DampingSpeedCutoffs { get; } = DampingSpeedCutoffs.Default;
         public DampingSpeedCutoffs PlotDampingSpeedCutoffs => DampingSpeedCutoffs;
         public bool CanEditDampingSpeedCutoffs => true;
+        public int SessionInsightsRequestCount { get; private set; }
         public IRelayCommand<TelemetryRangeSelection?> SelectAnalysisRangeCommand { get; } =
             new RelayCommand<TelemetryRangeSelection?>(_ => { });
         public TelemetryRangeSelection? ActiveFrontAnalysisSelection => null;
         public TelemetryRangeSelection? ActiveRearAnalysisSelection => null;
+        public void RequestSessionInsights() => SessionInsightsRequestCount++;
         public void PreviewDampingSpeedCutoff(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond) { }
         public void CancelDampingSpeedCutoffPreview() { }
         public Task CommitDampingSpeedCutoffAsync(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond) =>

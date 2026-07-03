@@ -949,6 +949,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     void ISessionOperationGateway.SetSignalLayoutPreferences(SignalLayoutPreferences preferences) =>
         SignalLayoutPreferences = preferences;
 
+    void ISessionOperationGateway.RequestSessionInsights() => RecomputeSessionInsights();
+
     #endregion
 
     #region Constructors
@@ -1223,6 +1225,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             case nameof(RecordedSessionContext.SelectedSessionInsightsTargetProfile):
                 RecomputeSessionInsights();
                 PersistRecordedAnalysisPreferencesIfEnabled();
+                break;
+            case nameof(RecordedSessionContext.SelectedPage):
+                if (ReferenceEquals(SessionContext.SelectedPage, AnalysisPage))
+                {
+                    RecomputeSessionInsights();
+                }
+
                 break;
             case nameof(RecordedSessionContext.DampingSpeedCutoffs):
                 RequestCurrentAnalysisResults(!suppressInsightsRecompute);

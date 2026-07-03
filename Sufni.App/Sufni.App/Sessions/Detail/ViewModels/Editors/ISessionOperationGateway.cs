@@ -21,6 +21,7 @@ internal interface ISessionOperationGateway : IRecordedSessionHostOperations
     void UpdateExtensionHostState();
     void SetSignalLayoutPreferences(SignalLayoutPreferences preferences);
     void SetAnalysisRangeBoundary(double boundarySeconds);
+    void RequestSessionInsights();
     void PreviewDampingSpeedCutoff(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond);
     void CancelDampingSpeedCutoffPreview();
     Task CommitDampingSpeedCutoffAsync(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond);

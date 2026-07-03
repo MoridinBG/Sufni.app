@@ -145,7 +145,6 @@ internal sealed class RecordedPresentationApplier
                 context.MediaColumnWidth = loaded.Data.MediaColumnWidth;
                 owner.ApplyModeAwareDampingPercentages(loaded.Data.DampingPercentages);
                 ApplyRecordedLoadedStates(loaded.Data);
-                owner.RecomputeSessionInsights();
                 break;
 
             case SessionDesktopLoadResult.TelemetryPending:
@@ -176,7 +175,6 @@ internal sealed class RecordedPresentationApplier
                 ApplyMobileTrackPresentation(loadedFromCache.TrackData);
                 context.ScreenState = SessionScreenPresentationState.Ready;
                 owner.IsComplete = true;
-                owner.RecomputeSessionInsights();
                 break;
 
             case SessionMobileLoadResult.BuiltCache builtCache:
@@ -191,7 +189,6 @@ internal sealed class RecordedPresentationApplier
                 ApplyMobileTrackPresentation(builtCache.TrackData);
                 context.ScreenState = SessionScreenPresentationState.Ready;
                 owner.IsComplete = true;
-                owner.RecomputeSessionInsights();
                 break;
 
             case SessionMobileLoadResult.TelemetryPending:
