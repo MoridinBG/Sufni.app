@@ -8,6 +8,7 @@ xmlns:controls="clr-namespace:Sufni.App.Extensibility.Views"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:converters="using:Avalonia.Data.Converters"
+xmlns:infra="clr-namespace:Sufni.App.Infrastructure"
 xmlns:theming="clr-namespace:Sufni.App.Theming;assembly=Sufni.App.Theming"
 xmlns:viewconverters="clr-namespace:Sufni.App.Shared.Views.Converters"
 xmlns:vm="clr-namespace:Sufni.App.Shell.ViewModels"
@@ -205,6 +206,42 @@ mc:Ignorable="d">
                         </controls2:ActivityIndicator.IsVisible>
                     </controls2:ActivityIndicator>
                 </Panel>
+            </Button>
+
+            <!--  Layout profile selector  -->
+            <Button
+            Name="LayoutProfileButton"
+            Width="50"
+            Classes="embedded"
+            IsVisible="{Binding CanChooseLayoutProfile}">
+                <Button.Styles>
+                    <Style Selector="MenuItem">
+                        <Setter Property="Foreground" Value="{DynamicResource SufniForeground}" />
+                    </Style>
+                    <Style Selector="MenuItem:pointerover /template/ ContentPresenter">
+                        <Setter Property="Foreground" Value="{DynamicResource SufniForeground}" />
+                    </Style>
+                </Button.Styles>
+
+                <Button.Flyout>
+                    <MenuFlyout Placement="Right" PlacementAnchor="Right">
+                        <MenuItem
+                        Command="{Binding ChooseLayoutProfileCommand}"
+                        CommandParameter="{x:Static infra:UiLayoutProfile.Compact}"
+                        Header="{Binding CompactLayoutProfileMenuText}" />
+                        <MenuItem
+                        Command="{Binding ChooseLayoutProfileCommand}"
+                        CommandParameter="{x:Static infra:UiLayoutProfile.Workspace}"
+                        Header="{Binding WorkspaceLayoutProfileMenuText}" />
+                        <Separator IsVisible="{Binding LayoutProfileRestartRequired}" />
+                        <MenuItem
+                        Header="{Binding LayoutProfileRestartMessage}"
+                        IsEnabled="False"
+                        IsVisible="{Binding LayoutProfileRestartRequired}" />
+                    </MenuFlyout>
+                </Button.Flyout>
+
+                <Image Width="18" Source="{SvgImage /Assets/cog.svg}" />
             </Button>
 
             <!--  Theme toggle button  -->

@@ -10,6 +10,7 @@ using Sufni.App.ExtensionHost.Contracts.Capabilities;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Bikes.Stores;
+using Sufni.App.Infrastructure;
 using Sufni.App.Infrastructure.Theming;
 using Sufni.App.LiveDaq.Stores;
 using Sufni.App.LiveDaq.ViewModels.ItemLists;
@@ -70,6 +71,23 @@ public class MainPagesViewModelTests
         await viewModel.OpenGpsTracksCommand.ExecuteAsync(null);
 
         await trackCoordinator.Received(1).ImportGpxAsync();
+    }
+
+    [Fact]
+    public async Task ChooseLayoutProfileCommand_SavesLocalPreferenceAndMarksRestartRequired()
+    {
+        var uiPreferences = Substitute.For<IUiPreferences>();
+        uiPreferences.SetLayoutProfileAsync(Arg.Any<UiLayoutProfile?>()).Returns(Task.CompletedTask);
+        var viewModel = MainPagesViewModelTestFactory.Create(
+            appEnvironment: MainPagesViewModelTestFactory.CreateAppEnvironment(UiLayoutProfile.Compact),
+            uiPreferences: uiPreferences);
+
+        await viewModel.ChooseLayoutProfileCommand.ExecuteAsync(UiLayoutProfile.Workspace);
+
+        Assert.Equal(UiLayoutProfile.Workspace, viewModel.SelectedLayoutProfile);
+        Assert.True(viewModel.LayoutProfileRestartRequired);
+        Assert.Contains("Restart required", viewModel.LayoutProfileRestartMessage);
+        await uiPreferences.Received(1).SetLayoutProfileAsync(UiLayoutProfile.Workspace);
     }
 
     [Fact]

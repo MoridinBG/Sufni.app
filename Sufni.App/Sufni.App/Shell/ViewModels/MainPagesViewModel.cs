@@ -12,6 +12,7 @@ using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Acquisition.ViewModels;
 using Sufni.App.Bikes.ViewModels.ItemLists;
 using Sufni.App.ExtensionHost.Contracts.Capabilities;
+using Sufni.App.Infrastructure;
 using Sufni.App.Infrastructure.Theming;
 using Sufni.App.LiveDaq.ViewModels.ItemLists;
 using Sufni.App.MapsAndTracks.Coordinators;
@@ -34,6 +35,8 @@ public partial class MainPagesViewModel : ViewModelBase
     private readonly ISyncCoordinator syncCoordinator;
     private readonly IShellCoordinator shell;
     private readonly IThemeService themeService;
+    private readonly IAppEnvironment appEnvironment;
+    private readonly IUiPreferences uiPreferences;
     private readonly IReadOnlyList<IExtensionStateRefreshParticipant> extensionStateRefreshParticipants;
     private MainPrimaryPageViewModel? activePrimaryPage;
 
@@ -52,6 +55,8 @@ public partial class MainPagesViewModel : ViewModelBase
     [ObservableProperty] public partial SufniThemeMode EffectiveThemeMode { get; set; }
     [ObservableProperty] public partial SufniThemeMode NextThemeMode { get; set; }
     [ObservableProperty] public partial bool IsSystemThemeAvailable { get; set; }
+    [ObservableProperty] public partial UiLayoutProfile SelectedLayoutProfile { get; set; }
+    [ObservableProperty] public partial bool LayoutProfileRestartRequired { get; set; }
 
     #endregion
 
@@ -67,6 +72,13 @@ public partial class MainPagesViewModel : ViewModelBase
     public IReadOnlyList<AppToolbarCommandContribution> ExtensionToolbarCommands { get; }
     public IReadOnlyList<AppToolbarViewContribution> ExtensionToolbarViews { get; }
     public ViewModelBase SelectedPrimaryPageContent => GetSelectedPrimaryPage();
+    public bool CanChooseLayoutProfile => true;
+    public string LayoutProfileMenuHeader => $"layout: {FormatLayoutProfile(SelectedLayoutProfile)}";
+    public string CompactLayoutProfileMenuText => FormatLayoutProfileMenuText(UiLayoutProfile.Compact);
+    public string WorkspaceLayoutProfileMenuText => FormatLayoutProfileMenuText(UiLayoutProfile.Workspace);
+    public string LayoutProfileRestartMessage => LayoutProfileRestartRequired
+        ? "Restart required to apply layout profile."
+        : string.Empty;
 
     #region Constructors
 
@@ -77,6 +89,8 @@ public partial class MainPagesViewModel : ViewModelBase
         ISyncCoordinator syncCoordinator,
         IShellCoordinator shell,
         IThemeService themeService,
+        IAppEnvironment appEnvironment,
+        IUiPreferences uiPreferences,
         BikeListViewModel bikesPage,
         SessionListViewModel sessionsPage,
         SetupListViewModel setupsPage,
@@ -96,6 +110,8 @@ public partial class MainPagesViewModel : ViewModelBase
         this.syncCoordinator = syncCoordinator;
         this.shell = shell;
         this.themeService = themeService;
+        this.appEnvironment = appEnvironment;
+        this.uiPreferences = uiPreferences;
         this.extensionStateRefreshParticipants = extensionStateRefreshParticipants?.ToArray() ?? [];
         BikesPage = bikesPage;
         SessionsPage = sessionsPage;
@@ -153,6 +169,8 @@ public partial class MainPagesViewModel : ViewModelBase
         IsPaired = syncCoordinator.IsPaired;
         SyncProgressState();
         SyncThemeState();
+        SelectedLayoutProfile = appEnvironment.LayoutProfile;
+        SyncLayoutProfileState();
 
         _ = LoadDatabaseContent();
     }
@@ -349,6 +367,14 @@ public partial class MainPagesViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task ChooseLayoutProfile(UiLayoutProfile profile)
+    {
+        SelectedLayoutProfile = profile;
+        SyncLayoutProfileState();
+        await uiPreferences.SetLayoutProfileAsync(profile);
+    }
+
+    [RelayCommand]
     private async Task ToggleTheme()
     {
         await themeService.ToggleAsync();
@@ -363,6 +389,39 @@ public partial class MainPagesViewModel : ViewModelBase
         IsSystemThemeAvailable = themeService.IsSystemThemeAvailable;
         NextThemeMode = ResolveNextThemeMode(CurrentThemeMode, IsSystemThemeAvailable);
     }
+
+    private void SyncLayoutProfileState()
+    {
+        LayoutProfileRestartRequired = SelectedLayoutProfile != appEnvironment.LayoutProfile;
+        OnPropertyChanged(nameof(LayoutProfileMenuHeader));
+        OnPropertyChanged(nameof(CompactLayoutProfileMenuText));
+        OnPropertyChanged(nameof(WorkspaceLayoutProfileMenuText));
+        OnPropertyChanged(nameof(LayoutProfileRestartMessage));
+    }
+
+    private string FormatLayoutProfileMenuText(UiLayoutProfile profile)
+    {
+        var label = FormatLayoutProfile(profile);
+        if (SelectedLayoutProfile == profile)
+        {
+            label += " (selected)";
+        }
+
+        if (appEnvironment.LayoutProfile != profile)
+        {
+            label += " - restart required";
+        }
+
+        return label;
+    }
+
+    private static string FormatLayoutProfile(UiLayoutProfile profile)
+        => profile switch
+        {
+            UiLayoutProfile.Compact => "Compact",
+            UiLayoutProfile.Workspace => "Workspace",
+            _ => profile.ToString(),
+        };
 
     private static SufniThemeMode ResolveNextThemeMode(SufniThemeMode current, bool systemThemeAvailable)
         => current switch

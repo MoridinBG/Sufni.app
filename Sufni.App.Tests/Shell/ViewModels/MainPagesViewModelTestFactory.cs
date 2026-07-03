@@ -46,6 +46,8 @@ internal static class MainPagesViewModelTestFactory
         IThemeService? themeService = null,
         ISyncCoordinator? syncCoordinator = null,
         IShellCoordinator? shell = null,
+        IAppEnvironment? appEnvironment = null,
+        IUiPreferences? uiPreferences = null,
         IEnumerable<IAppToolbarContributionProvider>? appToolbarContributionProviders = null,
         PairingServerViewModel? pairingServerViewModel = null,
         IEnumerable<IExtensionStateRefreshParticipant>? extensionStateRefreshParticipants = null)
@@ -64,6 +66,12 @@ internal static class MainPagesViewModelTestFactory
             themeService.EffectiveMode.Returns(SufniThemeMode.Dark);
             themeService.IsSystemThemeAvailable.Returns(false);
         }
+        appEnvironment ??= CreateAppEnvironment();
+        if (uiPreferences is null)
+        {
+            uiPreferences = Substitute.For<IUiPreferences>();
+            uiPreferences.SetLayoutProfileAsync(Arg.Any<UiLayoutProfile?>()).Returns(Task.CompletedTask);
+        }
 
         return new MainPagesViewModel(
             appDataRefresher,
@@ -72,6 +80,8 @@ internal static class MainPagesViewModelTestFactory
             syncCoordinator,
             shell,
             themeService,
+            appEnvironment,
+            uiPreferences,
             CreateBikeListPage(),
             CreateSessionListPage(),
             CreateSetupListPage(),
@@ -83,6 +93,24 @@ internal static class MainPagesViewModelTestFactory
             pairingServerViewModel: pairingServerViewModel,
             extensionStateRefreshParticipants: extensionStateRefreshParticipants);
     }
+
+    public static IAppEnvironment CreateAppEnvironment(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
+        new AppEnvironment(
+            DefaultLayoutProfile: layoutProfile,
+            LayoutProfile: layoutProfile,
+            Capabilities: new AppCapabilities(
+                CanHostSyncServer: true,
+                CanPairAsClient: false,
+                HasHaptics: false,
+                SupportsMassStorageImport: true,
+                SupportsStorageProviderImport: true,
+                SupportsNativeWindowing: true),
+            Input: new InputCapabilities(
+                HasPointer: true,
+                HasTouch: false,
+                HasKeyboard: true,
+                SupportsPinch: false,
+                SupportsLongPressContextMenu: false));
 
     public static WelcomeScreenViewModel CreateWelcomeScreen()
     {
