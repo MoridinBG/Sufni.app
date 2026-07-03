@@ -197,6 +197,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IThemeService, ThemeService>();
         ServiceCollection.AddSingleton<IMapPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Map);
         ServiceCollection.AddSingleton<ISessionPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Session);
+        ServiceCollection.AddSingleton<IUiPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Ui);
         ServiceCollection.AddSingleton<ITileLayerService, TileLayerService>();
         ServiceCollection.AddSingleton<IMapViewModelFactory, MapViewModelFactory>();
         ServiceCollection.AddSingleton<FilesService>();
