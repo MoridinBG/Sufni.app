@@ -22,19 +22,6 @@ internal sealed record RearTravelCalibrationBuildResult(
 internal sealed class RearTravelCalibrationBuilder(IKinematicSolutionCache kinematicSolutionCache) : IRearTravelCalibrationBuilder
 {
     private const double MeasurementToAngle = 2.0 * Math.PI / 4096;
-    private static readonly IRearTravelCalibrationBuilder DefaultBuilder = new RearTravelCalibrationBuilder(new KinematicSolutionCache());
-
-    public static bool TryBuild(
-        SetupSnapshot setup,
-        BikeSnapshot bike,
-        out RearTravelCalibration? calibration,
-        out string? errorMessage)
-    {
-        var result = DefaultBuilder.TryBuild(setup, bike);
-        calibration = result.Calibration;
-        errorMessage = result.ErrorMessage;
-        return result.Succeeded;
-    }
 
     public RearTravelCalibrationBuildResult TryBuild(SetupSnapshot setup, BikeSnapshot bike)
     {
