@@ -373,6 +373,43 @@ public class SessionRepositoryTests
     }
 
     [Fact]
+    public async Task DeleteOrphanedRecordedSessionSourcesAsync_RemovesSourcesWithoutLiveSession()
+    {
+        using var tempDatabase = new TempDatabase("recorded-source-orphan-cleanup.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var liveSessionId = Guid.NewGuid();
+        var orphanSessionId = Guid.NewGuid();
+        var database = new TestPersistenceHarness(databasePath);
+        await database.PutSessionAsync(new Session(liveSessionId, "live", "desc", null, 100));
+        await database.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(liveSessionId));
+        await database.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(orphanSessionId));
+
+        var deleted = await database.DeleteOrphanedRecordedSessionSourcesAsync([]);
+
+        Assert.Equal(1, deleted);
+        Assert.NotNull(await database.GetRecordedSessionSourceAsync(liveSessionId));
+        Assert.Null(await database.GetRecordedSessionSourceAsync(orphanSessionId));
+    }
+
+    [Fact]
+    public async Task DeleteOrphanedRecordedSessionSourcesAsync_KeepsRetainedSources()
+    {
+        using var tempDatabase = new TempDatabase("recorded-source-retained-cleanup.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var retainedSessionId = Guid.NewGuid();
+        var orphanSessionId = Guid.NewGuid();
+        var database = new TestPersistenceHarness(databasePath);
+        await database.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(retainedSessionId));
+        await database.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(orphanSessionId));
+
+        var deleted = await database.DeleteOrphanedRecordedSessionSourcesAsync([retainedSessionId]);
+
+        Assert.Equal(1, deleted);
+        Assert.NotNull(await database.GetRecordedSessionSourceAsync(retainedSessionId));
+        Assert.Null(await database.GetRecordedSessionSourceAsync(orphanSessionId));
+    }
+
+    [Fact]
     public async Task GetSessionPsstAsync_ReturnsNull_WhenSessionHasNoProcessedData()
     {
         using var tempDatabase = new TempDatabase("session-psst.db");

@@ -44,9 +44,8 @@ internal sealed class DatabaseMigrationRunner(
             await extensionCascadeService.RepairOrphansAsync(refreshExtensionState: false);
             logger.Information("SQLite database initialized at {DatabasePath}", databasePath);
             logger.Verbose(
-                "SQLite startup cleanup removed {SessionCacheCount} session caches, {RecordedSessionSourceCount} recorded session sources, {SessionCount} sessions, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
+                "SQLite startup cleanup removed {SessionCacheCount} session caches, {SessionCount} sessions, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
                 cleanupSummary.SessionCaches,
-                cleanupSummary.RecordedSessionSources,
                 cleanupSummary.Sessions,
                 cleanupSummary.Tracks,
                 cleanupSummary.Boards,
@@ -169,18 +168,7 @@ internal sealed class DatabaseMigrationRunner(
                                        """;
         var deletedSessionCaches = await connection.ExecuteAsync(cleanSessionCachesQuery);
 
-        var cleanRecordedSourcesForPurgedSessionsQuery = $"""
-                                                          DELETE FROM session_recording_source
-                                                          WHERE session_id IN (
-                                                              SELECT id
-                                                              FROM session
-                                                              WHERE deleted IS NOT NULL AND deleted < {oneDayAgo}
-                                                          )
-                                                          """;
-        var deletedRecordedSources = await connection.ExecuteAsync(cleanRecordedSourcesForPurgedSessionsQuery);
         var deletedSessions = await connection.Table<Session>().DeleteAsync(session => session.Deleted != null && session.Deleted < oneDayAgo);
-        deletedRecordedSources += await connection.ExecuteAsync(
-            "DELETE FROM session_recording_source WHERE session_id NOT IN (SELECT id FROM session)");
         var duplicateTracks = await CleanupDuplicateTrackTimeRangesAsync();
         var deletedTracks = await connection.Table<Track>().DeleteAsync(track => track.Deleted != null && track.Deleted < oneDayAgo);
         var deletedBoards = await connection.Table<Board>().DeleteAsync(board => board.Deleted != null && board.Deleted < oneDayAgo);
@@ -190,7 +178,6 @@ internal sealed class DatabaseMigrationRunner(
 
         return new CleanupSummary(
             deletedSessionCaches,
-            deletedRecordedSources,
             deletedSessions,
             deletedTracks + duplicateTracks,
             deletedBoards,
@@ -313,7 +300,6 @@ internal sealed class DatabaseMigrationRunner(
 
     private sealed record CleanupSummary(
         int SessionCaches,
-        int RecordedSessionSources,
         int Sessions,
         int Tracks,
         int Boards,

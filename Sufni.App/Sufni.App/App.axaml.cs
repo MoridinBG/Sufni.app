@@ -285,6 +285,11 @@ public partial class App : Application
             sp.GetRequiredService<IRecordedSessionProcessingOptionCache>(),
             sp.GetRequiredService<ISessionRecomputeEngine>(),
             sp.GetRequiredService<IBackgroundTaskRunner>()));
+        ServiceCollection.AddSingleton<RecordedSessionSourceRetentionCleanup>(sp => new RecordedSessionSourceRetentionCleanup(
+            sp.GetRequiredService<SqliteConnectionContext>(),
+            sp.GetRequiredService<IRecordedSessionSourceRepository>(),
+            sp.GetRequiredService<IRecordedSessionDerivationWindowProvider>(),
+            sp.GetRequiredService<IBackgroundTaskRunner>()));
         ServiceCollection.AddSingleton<LiveDaqStore>();
         ServiceCollection.AddSingleton<ILiveDaqStore>(sp => sp.GetRequiredService<LiveDaqStore>());
         ServiceCollection.AddSingleton<ILiveDaqStoreWriter>(sp => sp.GetRequiredService<LiveDaqStore>());
@@ -379,6 +384,7 @@ public partial class App : Application
         // option it processed. Fire-and-forget off the UI thread; the pass waits for
         // database initialization itself and is resumable via its core_migration marker.
         _ = Services.GetRequiredService<ProcessingOptionsResetMigration>().RunAsync();
+        _ = Services.GetRequiredService<RecordedSessionSourceRetentionCleanup>().RunAsync();
 
         var fileService = Services.GetRequiredService<IFilesService>();
         var dialogHost = Services.GetRequiredService<IDialogHost>();

@@ -25,6 +25,8 @@ public interface IRecordedSessionSourceRepository
     Task PutRecordedSessionSourceAsync(RecordedSessionSource source);
 
     Task DeleteRecordedSessionSourceAsync(Guid sessionId);
+
+    Task<int> DeleteOrphanedRecordedSessionSourcesAsync(IReadOnlyCollection<Guid> retainedSourceSessionIds);
 }
 
 internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext connectionContext)
@@ -107,6 +109,24 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
         await connection.ExecuteAsync("DELETE FROM session_recording_source WHERE session_id=?", sessionId);
+    }
+
+    public async Task<int> DeleteOrphanedRecordedSessionSourcesAsync(IReadOnlyCollection<Guid> retainedSourceSessionIds)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        if (retainedSourceSessionIds.Count == 0)
+        {
+            return await connection.ExecuteAsync(
+                "DELETE FROM session_recording_source WHERE session_id NOT IN (SELECT id FROM session)");
+        }
+
+        var retainedPlaceholders = string.Join(", ", retainedSourceSessionIds.Select(_ => "?"));
+        var sql = $"""
+                   DELETE FROM session_recording_source
+                   WHERE session_id NOT IN (SELECT id FROM session)
+                     AND session_id NOT IN ({retainedPlaceholders})
+                   """;
+        return await connection.ExecuteAsync(sql, retainedSourceSessionIds.Cast<object>().ToArray());
     }
 
     internal static int PutRecordedSessionSourceInTransaction(
