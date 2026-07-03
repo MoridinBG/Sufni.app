@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Mapsui.Projections;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
@@ -66,21 +65,6 @@ internal static class MapTrackGeometry
         start = NormalizeTime(firstTime, context);
         end = NormalizeTime(lastTime, context);
         return true;
-    }
-
-    internal static TrackPoint? FindClosestTrackPoint(IReadOnlyList<TrackPoint> sessionTrackPoints, double targetTime)
-    {
-        return new TrackPointTimeIndex(sessionTrackPoints).FindClosest(targetTime);
-    }
-
-    internal static List<TrackPoint> GetTrackPointsInTimeRange(
-        IReadOnlyList<TrackPoint> sessionTrackPoints,
-        double startSeconds,
-        double endSeconds)
-    {
-        return new TrackPointTimeIndex(sessionTrackPoints)
-            .GetRangeWithBoundaryNeighbors(startSeconds, endSeconds)
-            .ToList();
     }
 
     internal static double NormalizeTime(double timeSeconds, TrackTimeRange context)

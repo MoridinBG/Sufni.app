@@ -358,6 +358,42 @@ public class MapViewTests
     }
 
     [AvaloniaFact]
+    public async Task CursorMove_ReusesRenderedTrackGeometry()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+
+        var viewModel = CreateViewModelWithTrack();
+        viewModel.TimelineContext = new TrackTimeRange(0, 4);
+        var view = new MapView
+        {
+            DataContext = viewModel,
+        };
+
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+
+        try
+        {
+            var mapControl = view.FindControl<MapControl>("MapControl");
+            Assert.NotNull(mapControl);
+
+            var sessionLayer = Assert.Single(
+                mapControl!.Map.Layers.FindLayer("Session Track").OfType<MemoryLayer>());
+            var sessionFeature = Assert.Single(sessionLayer.Features);
+
+            view.SetNormalizedCursorPosition(0.25);
+            view.SetNormalizedCursorPosition(0.75);
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.Same(sessionFeature, Assert.Single(sessionLayer.Features));
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task MapView_RendersExtensionMapOverlays_WhenContributionCollectionChanges()
     {
         ViewTestHelpers.EnsureViewTestResources();

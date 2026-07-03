@@ -7,40 +7,6 @@ namespace Sufni.App.Tests.MapsAndTracks.Views;
 public class MapTrackGeometryTests
 {
     [Fact]
-    public void FindClosestTrackPoint_IgnoresNonFiniteTimes()
-    {
-        var points = new[]
-        {
-            Point(0, 0, 0),
-            Point(double.NaN, 1, 1),
-            Point(2, 2, 2),
-            Point(4, 4, 4),
-        };
-
-        var closest = MapTrackGeometry.FindClosestTrackPoint(points, 2.6);
-
-        Assert.Same(points[2], closest);
-    }
-
-    [Fact]
-    public void GetTrackPointsInTimeRange_IncludesNearestOutsidePoints()
-    {
-        var points = new[]
-        {
-            Point(0, 0, 0),
-            Point(1, 10, 10),
-            Point(double.PositiveInfinity, 15, 15),
-            Point(2, 20, 20),
-            Point(3, 30, 30),
-            Point(4, 40, 40),
-        };
-
-        var result = MapTrackGeometry.GetTrackPointsInTimeRange(points, startSeconds: 1.5, endSeconds: 2.5);
-
-        Assert.Equal([1, 2, 3], result.Select(point => point.Time));
-    }
-
-    [Fact]
     public void TryGetVisibleTrackRange_UsesIntersectingSegments()
     {
         var points = new[]

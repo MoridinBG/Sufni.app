@@ -474,7 +474,14 @@ public partial class MapView : UserControl
         }
 
         var targetTime = context.Value.OriginSeconds + pos * context.Value.DurationSeconds;
-        var point = sessionTrackGeometry.TimeIndex.FindClosest(targetTime);
+        var timeIndex = sessionTrackGeometry.TimeIndex;
+        if (timeIndex is null)
+        {
+            ClearNormalizedCursorPosition();
+            return;
+        }
+
+        var point = timeIndex.FindClosest(targetTime);
         if (point is null)
         {
             ClearNormalizedCursorPosition();
@@ -518,7 +525,13 @@ public partial class MapView : UserControl
 
         var startSeconds = context.Value.OriginSeconds + startNormalized * context.Value.DurationSeconds;
         var endSeconds = context.Value.OriginSeconds + endNormalized * context.Value.DurationSeconds;
-        var pointsInRange = sessionTrackGeometry.TimeIndex.GetRangeWithBoundaryNeighbors(startSeconds, endSeconds);
+        var timeIndex = sessionTrackGeometry.TimeIndex;
+        if (timeIndex is null)
+        {
+            return;
+        }
+
+        var pointsInRange = timeIndex.GetRangeWithBoundaryNeighbors(startSeconds, endSeconds);
         switch (MapViewportController.ComputeRangeFit(pointsInRange, padding))
         {
             case MapViewportController.CenterFit center:
@@ -624,7 +637,7 @@ public partial class MapView : UserControl
     private TrackTimeRange? GetTimelineContext(RenderedTrackGeometry sessionTrackGeometry)
     {
         return ViewModel?.TimelineContext
-               ?? sessionTrackGeometry.TimeIndex.TimelineContext;
+               ?? sessionTrackGeometry.TimeIndex?.TimelineContext;
     }
 
     private sealed class RenderedTrackGeometryCache
@@ -636,18 +649,19 @@ public partial class MapView : UserControl
 
         public RenderedTrackGeometry GetOrBuildFull(IReadOnlyList<TrackPoint> points)
         {
-            return GetOrBuild(points, ref fullPoints, ref fullGeometry);
+            return GetOrBuild(points, ref fullPoints, ref fullGeometry, buildTimeIndex: false);
         }
 
         public RenderedTrackGeometry GetOrBuildSession(IReadOnlyList<TrackPoint> points)
         {
-            return GetOrBuild(points, ref sessionPoints, ref sessionGeometry);
+            return GetOrBuild(points, ref sessionPoints, ref sessionGeometry, buildTimeIndex: true);
         }
 
         private static RenderedTrackGeometry GetOrBuild(
             IReadOnlyList<TrackPoint> points,
             ref IReadOnlyList<TrackPoint>? cachedPoints,
-            ref RenderedTrackGeometry? cachedGeometry)
+            ref RenderedTrackGeometry? cachedGeometry,
+            bool buildTimeIndex)
         {
             if (ReferenceEquals(cachedPoints, points) && cachedGeometry is not null)
             {
@@ -656,7 +670,7 @@ public partial class MapView : UserControl
 
             var generation = (cachedGeometry?.Generation ?? 0) + 1;
             cachedPoints = points;
-            cachedGeometry = RenderedTrackGeometry.Create(points, generation);
+            cachedGeometry = RenderedTrackGeometry.Create(points, generation, buildTimeIndex);
             return cachedGeometry;
         }
     }
@@ -669,7 +683,7 @@ public partial class MapView : UserControl
             LineString lineString,
             IFeature[] lineFeatures,
             IFeature[] markerFeatures,
-            TrackPointTimeIndex timeIndex,
+            TrackPointTimeIndex? timeIndex,
             long generation)
         {
             Points = points;
@@ -691,11 +705,14 @@ public partial class MapView : UserControl
 
         public IFeature[] MarkerFeatures { get; }
 
-        public TrackPointTimeIndex TimeIndex { get; }
+        public TrackPointTimeIndex? TimeIndex { get; }
 
         public long Generation { get; }
 
-        public static RenderedTrackGeometry Create(IReadOnlyList<TrackPoint> points, long generation)
+        public static RenderedTrackGeometry Create(
+            IReadOnlyList<TrackPoint> points,
+            long generation,
+            bool buildTimeIndex)
         {
             var coordinates = points.Select(point => (point.X, point.Y).ToCoordinate()).ToArray();
             var lineString = new LineString(coordinates);
@@ -706,7 +723,7 @@ public partial class MapView : UserControl
                 lineString,
                 [lineFeature],
                 CreateMarkerFeatures(points),
-                new TrackPointTimeIndex(points),
+                buildTimeIndex ? new TrackPointTimeIndex(points) : null,
                 generation);
         }
 
