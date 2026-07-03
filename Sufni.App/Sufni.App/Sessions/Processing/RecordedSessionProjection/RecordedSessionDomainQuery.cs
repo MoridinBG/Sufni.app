@@ -1,4 +1,5 @@
 using System;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Stores;
@@ -17,7 +18,8 @@ public sealed class RecordedSessionDomainQuery(
     IBikeStore bikeStore,
     IRecordedSessionSourceStore sourceStore,
     IProcessingFingerprintService fingerprintService,
-    IRecordedSessionProcessingOptionCache processingOptionCache) : IRecordedSessionDomainQuery
+    IRecordedSessionProcessingOptionCache processingOptionCache,
+    IRecordedSessionDerivationWindowCache derivationWindowCache) : IRecordedSessionDomainQuery
 {
     public RecordedSessionDomainSnapshot? Get(Guid sessionId)
     {
@@ -25,15 +27,19 @@ public sealed class RecordedSessionDomainQuery(
         var setup = session?.SetupId is { } setupId
             ? setupStore.Get(setupId)
             : null;
+        var window = session is null
+            ? null
+            : derivationWindowCache.Get(session.Id);
         return session is null
             ? null
             : RecordedSessionDomainSnapshotFactory.Create(
                 session,
                 setup,
                 bikeStore,
-                sourceStore.Get(session.Id),
+                sourceStore.Get(window?.SourceSessionId ?? session.Id),
                 fingerprintService,
                 processingOptionCache.Get(session.Id),
+                window,
                 DerivedChangeKind.None);
     }
 }
@@ -47,10 +53,11 @@ internal static class RecordedSessionDomainSnapshotFactory
         RecordedSessionSourceSnapshot? source,
         IProcessingFingerprintService fingerprintService,
         TelemetryProcessingOptions options,
+        RecordedSessionDerivationWindow? window,
         DerivedChangeKind changeKind)
     {
         var bike = setup is null ? null : bikeStore.Get(setup.BikeId);
-        return Create(session, setup, bike, source, fingerprintService, options, changeKind);
+        return Create(session, setup, bike, source, fingerprintService, options, window, changeKind);
     }
 
     public static RecordedSessionDomainSnapshot Create(
@@ -60,9 +67,10 @@ internal static class RecordedSessionDomainSnapshotFactory
         RecordedSessionSourceSnapshot? source,
         IProcessingFingerprintService fingerprintService,
         TelemetryProcessingOptions options,
+        RecordedSessionDerivationWindow? window,
         DerivedChangeKind changeKind)
     {
-        var evaluation = fingerprintService.EvaluateState(session, setup, bike, source, options);
+        var evaluation = fingerprintService.EvaluateState(session, setup, bike, source, options, window);
 
         return new RecordedSessionDomainSnapshot(
             session,
@@ -71,6 +79,7 @@ internal static class RecordedSessionDomainSnapshotFactory
             evaluation.Current,
             evaluation.Persisted,
             source,
+            window,
             evaluation.Staleness,
             changeKind);
     }

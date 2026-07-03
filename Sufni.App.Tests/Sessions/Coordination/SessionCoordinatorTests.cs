@@ -985,6 +985,7 @@ public class SessionCoordinatorTests
         null,
         null,
         null,
+        null,
         new SessionStaleness.Current(),
         DerivedChangeKind.None);
 

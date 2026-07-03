@@ -1,5 +1,7 @@
 using System;
+using System.Globalization;
 using System.Threading.Tasks;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Coordination;
@@ -197,5 +199,15 @@ internal sealed class SessionStalenessReconciler
             domain.CurrentFingerprint?.DependencyHash,
             domain.CurrentFingerprint?.SourceHash,
             domain.CurrentFingerprint?.VelocityFilterWindowMilliseconds,
+            WindowSignature(domain.CurrentFingerprint?.DerivationWindow),
             domain.Staleness.GetType().FullName);
+
+    private static string? WindowSignature(RecordedSessionDerivationWindow? window) =>
+        window is null
+            ? null
+            : string.Join(
+                ",",
+                window.SourceSessionId,
+                window.StartSeconds.ToString("R", CultureInfo.InvariantCulture),
+                window.EndSeconds?.ToString("R", CultureInfo.InvariantCulture) ?? string.Empty);
 }

@@ -61,6 +61,7 @@ public class SessionRecomputeEngineTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
+            null,
             new SessionStaleness.DependencyHashChanged(),
             DerivedChangeKind.None);
 
@@ -211,6 +212,7 @@ public class SessionRecomputeEngineTests
             null,
             null,
             null,
+            null,
             new SessionStaleness.MissingDependencies(SetupMissing: true, BikeMissing: false),
             DerivedChangeKind.None));
 
@@ -239,6 +241,7 @@ public class SessionRecomputeEngineTests
         var skipped = TestSnapshots.Session(id: skippedId, hasProcessedData: true);
         domainQuery.Get(skippedId).Returns(new RecordedSessionDomainSnapshot(
             skipped,
+            null,
             null,
             null,
             null,

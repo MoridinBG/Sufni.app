@@ -48,6 +48,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
+            null,
             new SessionStaleness.MissingProcessedData(),
             DerivedChangeKind.None);
         var reprocessor = new RecordedSessionReprocessor(new ProcessingFingerprintService());
@@ -112,6 +113,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
+            null,
             new SessionStaleness.MissingProcessedData(),
             DerivedChangeKind.None);
         var reprocessor = new RecordedSessionReprocessor(new ProcessingFingerprintService());
@@ -277,6 +279,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
+            null,
             new SessionStaleness.MissingProcessedData(),
             DerivedChangeKind.None);
         var reprocessor = new RecordedSessionReprocessor(new ProcessingFingerprintService());
@@ -315,6 +318,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
+            null,
             new SessionStaleness.MissingProcessedData(),
             DerivedChangeKind.None);
     }

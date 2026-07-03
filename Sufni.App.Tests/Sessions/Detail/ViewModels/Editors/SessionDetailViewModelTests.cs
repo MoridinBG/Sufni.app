@@ -2843,6 +2843,7 @@ public class SessionDetailViewModelTests
         null,
         null,
         null,
+        null,
         staleness ?? new SessionStaleness.Current(),
         changeKind);
 

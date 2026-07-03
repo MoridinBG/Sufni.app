@@ -234,6 +234,7 @@ public class ImportSessionsCoordinator(
             CurrentFingerprint: null,
             PersistedFingerprint: null,
             sourceSnapshot,
+            DerivationWindow: null,
             new SessionStaleness.UnknownLegacyFingerprint(),
             DerivedChangeKind.None);
     }

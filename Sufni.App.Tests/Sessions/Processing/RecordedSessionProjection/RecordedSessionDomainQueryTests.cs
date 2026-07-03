@@ -20,6 +20,8 @@ public class RecordedSessionDomainQueryTests
     private readonly ProcessingFingerprintService fingerprintService = new();
     private readonly IRecordedSessionProcessingOptionCache processingOptionCache =
         Substitute.For<IRecordedSessionProcessingOptionCache>();
+    private readonly IRecordedSessionDerivationWindowCache derivationWindowCache =
+        Substitute.For<IRecordedSessionDerivationWindowCache>();
 
     public RecordedSessionDomainQueryTests()
     {
@@ -62,6 +64,36 @@ public class RecordedSessionDomainQueryTests
     }
 
     [Fact]
+    public void Get_UsesDerivationWindowSource_WhenWindowTargetsForeignSource()
+    {
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid());
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), bikeId: bike.Id);
+        var session = TestSnapshots.Session(
+            id: Guid.NewGuid(),
+            setupId: setup.Id,
+            hasProcessedData: true);
+        var source = CreateSource(Guid.NewGuid());
+        var window = new RecordedSessionDerivationWindow(source.SessionId, 1.25, 3.5);
+        var fingerprint = fingerprintService.CreateCurrent(session, setup, bike, source, window: window);
+        session = session with { ProcessingFingerprintJson = AppJson.Serialize(fingerprint) };
+        sessionStore.Get(session.Id).Returns(session);
+        setupStore.Get(setup.Id).Returns(setup);
+        bikeStore.Get(bike.Id).Returns(bike);
+        derivationWindowCache.Get(session.Id).Returns(window);
+        sourceStore.Get(source.SessionId).Returns(source);
+        var query = CreateQuery();
+
+        var domain = query.Get(session.Id);
+
+        Assert.NotNull(domain);
+        Assert.Equal(source, domain!.Source);
+        Assert.Equal(window, domain.DerivationWindow);
+        Assert.IsType<SessionStaleness.Current>(domain.Staleness);
+        sourceStore.Received(1).Get(source.SessionId);
+        sourceStore.DidNotReceive().Get(session.Id);
+    }
+
+    [Fact]
     public void Get_UsesSingleFingerprintEvaluation()
     {
         var context = CreateCurrentContext();
@@ -88,7 +120,8 @@ public class RecordedSessionDomainQueryTests
             bikeStore,
             sourceStore,
             fingerprintService,
-            processingOptionCache);
+            processingOptionCache,
+            derivationWindowCache);
 
         var domain = query.Get(context.Session.Id);
 
@@ -179,7 +212,8 @@ public class RecordedSessionDomainQueryTests
         bikeStore,
         sourceStore,
         fingerprintService,
-        processingOptionCache);
+        processingOptionCache,
+        derivationWindowCache);
 
     private TestContext CreateCurrentContext()
     {

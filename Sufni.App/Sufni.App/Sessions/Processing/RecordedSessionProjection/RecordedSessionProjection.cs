@@ -24,6 +24,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
     private readonly IBikeStore bikeStore;
     private readonly IProcessingFingerprintService fingerprintService;
     private readonly IRecordedSessionProcessingOptionCache processingOptionCache;
+    private readonly IRecordedSessionDerivationWindowCache derivationWindowCache;
     private readonly IRecordedSessionProjectionScheduler scheduler;
     private readonly SourceCache<RecordedSessionSummary, Guid> summaries = new(summary => summary.Id);
     private readonly Dictionary<Guid, SessionSnapshot> sessions = [];
@@ -45,6 +46,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         IRecordedSessionSourceStore sourceStore,
         IProcessingFingerprintService fingerprintService,
         IRecordedSessionProcessingOptionCache processingOptionCache,
+        IRecordedSessionDerivationWindowCache derivationWindowCache,
         IUiThreadDispatcher uiThreadDispatcher)
         : this(
             sessionStore,
@@ -53,6 +55,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
             sourceStore,
             fingerprintService,
             processingOptionCache,
+            derivationWindowCache,
             new UiThreadRecordedSessionProjectionScheduler(uiThreadDispatcher))
     {
     }
@@ -64,11 +67,13 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         IRecordedSessionSourceStore sourceStore,
         IProcessingFingerprintService fingerprintService,
         IRecordedSessionProcessingOptionCache processingOptionCache,
+        IRecordedSessionDerivationWindowCache derivationWindowCache,
         IRecordedSessionProjectionScheduler scheduler)
     {
         this.bikeStore = bikeStore;
         this.fingerprintService = fingerprintService;
         this.processingOptionCache = processingOptionCache;
+        this.derivationWindowCache = derivationWindowCache;
         this.scheduler = scheduler;
 
         subscriptions.Add(sessionStore.Connect().Subscribe(ApplySessionChanges));
@@ -79,6 +84,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         // Preference->projection edge: a processing-option change re-evaluates the
         // affected session so EvaluateState re-runs with the new option.
         subscriptions.Add(processingOptionCache.OptionChanged.Subscribe(QueueRecompute));
+        subscriptions.Add(derivationWindowCache.WindowChanged.Subscribe(QueueRecompute));
     }
 
     public IObservable<IChangeSet<RecordedSessionSummary, Guid>> ConnectSessions() => summaries.Connect();
@@ -273,6 +279,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
 
     private void ApplySourceChanges(IChangeSet<RecordedSessionSourceSnapshot, Guid> changes)
     {
+        var sourceIds = new HashSet<Guid>();
         var affected = new HashSet<Guid>();
         lock (stateGate)
         {
@@ -289,15 +296,24 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                     case ChangeReason.Update:
                     case ChangeReason.Refresh:
                         sources[change.Key] = change.Current;
-                        affected.Add(change.Key);
+                        sourceIds.Add(change.Key);
                         break;
                     case ChangeReason.Remove:
                         sources.Remove(change.Key);
-                        affected.Add(change.Key);
+                        sourceIds.Add(change.Key);
                         break;
                     case ChangeReason.Moved:
                         break;
                 }
+            }
+        }
+
+        foreach (var sourceId in sourceIds)
+        {
+            affected.Add(sourceId);
+            foreach (var sessionId in derivationWindowCache.GetSessionIdsReferencingSource(sourceId))
+            {
+                affected.Add(sessionId);
             }
         }
 
@@ -418,13 +434,14 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                 var bike = setup is null
                     ? null
                     : bikes.GetValueOrDefault(setup.BikeId);
-                sources.TryGetValue(session.Id, out var source);
+                var window = derivationWindowCache.Get(session.Id);
+                sources.TryGetValue(window?.SourceSessionId ?? session.Id, out var source);
 
                 var previous = domains.GetValueOrDefault(session.Id);
                 var initial = previous is null;
                 var changeKind = initial
                     ? DerivedChangeKind.Initial
-                    : ComputeChangeKind(previous!, session, setup, bike, source);
+                    : ComputeChangeKind(previous!, session, setup, bike, source, window);
 
                 var domain = RecordedSessionDomainSnapshotFactory.Create(
                     session,
@@ -433,6 +450,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                     source,
                     fingerprintService,
                     processingOptionCache.Get(session.Id),
+                    window,
                     changeKind);
                 domains[session.Id] = domain;
                 summaries.AddOrUpdate(new RecordedSessionSummary(
@@ -486,7 +504,8 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         SessionSnapshot session,
         SetupSnapshot? setup,
         BikeSnapshot? bike,
-        RecordedSessionSourceSnapshot? source)
+        RecordedSessionSourceSnapshot? source,
+        RecordedSessionDerivationWindow? window)
     {
         var changeKind = DerivedChangeKind.None;
 
@@ -516,6 +535,11 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         }
 
         if (!string.Equals(previous.Session.ProcessingFingerprintJson, session.ProcessingFingerprintJson, StringComparison.Ordinal))
+        {
+            changeKind |= DerivedChangeKind.FingerprintChanged;
+        }
+
+        if (previous.DerivationWindow != window)
         {
             changeKind |= DerivedChangeKind.FingerprintChanged;
         }
