@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
@@ -109,13 +110,21 @@ internal sealed class RecordedSessionAnalysisResultState(
             }
 
             currentInputs = inputs;
-            version++;
-            staleWorkCancellation.Cancel();
-            staleWorkCancellation.Dispose();
-            staleWorkCancellation = new CancellationTokenSource();
 
-            results.Clear();
-            inFlight.Clear();
+            foreach (var key in results.Keys.Where(key => !key.Matches(inputs)).ToArray())
+            {
+                results.Remove(key);
+            }
+
+            if (inFlight.Keys.Any(key => !key.Matches(inputs)))
+            {
+                version++;
+                staleWorkCancellation.Cancel();
+                staleWorkCancellation.Dispose();
+                staleWorkCancellation = new CancellationTokenSource();
+                inFlight.Clear();
+            }
+
             publishInputsChanged = true;
         }
 

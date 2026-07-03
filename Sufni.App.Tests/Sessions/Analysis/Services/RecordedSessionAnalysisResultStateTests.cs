@@ -38,6 +38,36 @@ public class RecordedSessionAnalysisResultStateTests
     }
 
     [Fact]
+    public async Task Invalidate_RetainsCachedResult_WhenNewInputsStillMatchKey()
+    {
+        var telemetry = new TelemetryData();
+        var computer = new TestAnalysisComputer();
+        using var state = new RecordedSessionAnalysisResultState(
+            computer,
+            new InlineBackgroundTaskRunner(),
+            new InlineUiThreadDispatcher(),
+            () => telemetry);
+        var changes = new List<RecordedSessionAnalysisResultChanged>();
+        using var subscription = state.Connect().Subscribe(changes.Add);
+        var inputs = CreateInputs(range: null);
+        var key = inputs.DampingPercentagesKey;
+        state.Invalidate(inputs);
+        await state.RequestAsync(key);
+        var cached = state.Get(key);
+        Assert.NotNull(cached);
+        changes.Clear();
+
+        var updatedInputs = inputs with { TravelDistributionMode = TravelDistributionMode.DynamicSag };
+        state.Invalidate(updatedInputs);
+        await state.RequestAsync(updatedInputs.DampingPercentagesKey);
+
+        Assert.Equal(1, computer.ComputeCount);
+        Assert.Same(cached, state.Get(updatedInputs.DampingPercentagesKey));
+        var change = Assert.Single(changes);
+        Assert.Same(cached, change.Result);
+    }
+
+    [Fact]
     public void RequestAsync_StartsFreshWork_WhenSameKeyIsRequestedAfterInvalidation()
     {
         var telemetry = new TelemetryData();
@@ -59,6 +89,28 @@ public class RecordedSessionAnalysisResultStateTests
         _ = state.RequestAsync(fullInputs.DampingPercentagesKey);
 
         Assert.Equal(2, backgroundTaskRunner.RunCount);
+    }
+
+    [Fact]
+    public void Invalidate_ReusesMatchingInFlightWork_WhenOnlyUnrelatedInputsChange()
+    {
+        var telemetry = new TelemetryData();
+        var backgroundTaskRunner = new DeferredBackgroundTaskRunner();
+        using var state = new RecordedSessionAnalysisResultState(
+            new TestAnalysisComputer(),
+            backgroundTaskRunner,
+            new InlineUiThreadDispatcher(),
+            () => telemetry);
+        var inputs = CreateInputs(range: null);
+        state.Invalidate(inputs);
+        var firstRequest = state.RequestAsync(inputs.DampingPercentagesKey);
+
+        var updatedInputs = inputs with { TravelDistributionMode = TravelDistributionMode.DynamicSag };
+        state.Invalidate(updatedInputs);
+        var secondRequest = state.RequestAsync(updatedInputs.DampingPercentagesKey);
+
+        Assert.Same(firstRequest, secondRequest);
+        Assert.Equal(1, backgroundTaskRunner.RunCount);
     }
 
     [Fact]
@@ -119,8 +171,12 @@ public class RecordedSessionAnalysisResultStateTests
 
     private sealed class TestAnalysisComputer : IRecordedSessionAnalysisComputer
     {
-        public RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry) =>
-            new DampingPercentagesAnalysisResult(new SessionDampingPercentages(
+        public int ComputeCount { get; private set; }
+
+        public RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry)
+        {
+            ComputeCount++;
+            return new DampingPercentagesAnalysisResult(new SessionDampingPercentages(
                 key.AnalysisRange.HasValue ? 10 : 11,
                 null,
                 null,
@@ -129,6 +185,7 @@ public class RecordedSessionAnalysisResultStateTests
                 null,
                 null,
                 null));
+        }
     }
 
     private sealed class DeferredBackgroundTaskRunner : IBackgroundTaskRunner
