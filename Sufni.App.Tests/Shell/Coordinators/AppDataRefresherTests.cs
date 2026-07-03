@@ -19,19 +19,22 @@ public class AppDataRefresherTests
         var sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
         var pairedDeviceStore = Substitute.For<IPairedDeviceStoreWriter>();
         var processingOptionCache = Substitute.For<IRecordedSessionProcessingOptionCache>();
+        var derivationWindowCache = Substitute.For<IRecordedSessionDerivationWindowCache>();
         var refresher = new AppDataRefresher(
             bikeStore,
             setupStore,
             sessionStore,
             sourceStore,
             pairedDeviceStore,
-            processingOptionCache);
+            processingOptionCache,
+            derivationWindowCache);
 
         await refresher.RefreshAsync();
 
-        // The option cache must hydrate before stores refresh so the projection's
-        // first sweep sees each session's real option.
+        // The option/window caches must hydrate before stores refresh so the
+        // projection's first sweep sees each session's real derivation inputs.
         await processingOptionCache.Received(1).HydrateAsync();
+        await derivationWindowCache.Received(1).HydrateAsync();
         await bikeStore.Received(1).RefreshAsync();
         await setupStore.Received(1).RefreshAsync();
         await sessionStore.Received(1).RefreshAsync();
