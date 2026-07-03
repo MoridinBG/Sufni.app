@@ -63,6 +63,43 @@ public class ProcessingFingerprintServiceTests
     }
 
     [Fact]
+    public void CreateCurrent_OmitsNullDerivationWindow_FromLegacyJsonShape()
+    {
+        var context = CreateContext();
+        var current = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
+
+        var json = AppJson.Serialize(current);
+        var roundTripped = AppJson.Serialize(service.Parse(json));
+
+        Assert.DoesNotContain(nameof(ProcessingFingerprint.DerivationWindow), json);
+        Assert.Equal(json, roundTripped);
+    }
+
+    [Fact]
+    public void CreateCurrent_IncludesDerivationWindow_AndAllowsMatchingForeignSource()
+    {
+        var context = CreateContext();
+        var sourceSessionId = Guid.NewGuid();
+        var source = CreateSource(sourceSessionId);
+        var window = new RecordedSessionDerivationWindow(sourceSessionId, 1.25, 3.5);
+
+        var current = service.CreateCurrent(context.Session, context.Setup, context.Bike, source, window: window);
+
+        Assert.Equal(window, current.DerivationWindow);
+    }
+
+    [Fact]
+    public void CreateCurrent_RejectsForeignSource_WhenWindowDoesNotTargetIt()
+    {
+        var context = CreateContext();
+        var source = CreateSource(Guid.NewGuid());
+        var window = new RecordedSessionDerivationWindow(Guid.NewGuid(), 1.25, 3.5);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            service.CreateCurrent(context.Session, context.Setup, context.Bike, source, window: window));
+    }
+
+    [Fact]
     public void Evaluate_ReturnsStaleRecomputable_WhenOnlyVelocityFilterOptionDiffers()
     {
         var context = CreateContext();
@@ -88,6 +125,62 @@ public class ProcessingFingerprintServiceTests
         var unchanged = service.Evaluate(
             session, context.Setup, context.Bike, context.Source, new TelemetryProcessingOptions(25));
         Assert.IsType<SessionStaleness.Current>(unchanged);
+    }
+
+    [Fact]
+    public void Evaluate_ReturnsCurrent_WhenPersistedFingerprintMatchesDerivationWindow()
+    {
+        var context = CreateContext();
+        var window = new RecordedSessionDerivationWindow(context.Source.SessionId, 1, 2);
+        var current = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source, window: window);
+        var session = context.Session with
+        {
+            HasProcessedData = true,
+            ProcessingFingerprintJson = AppJson.Serialize(current)
+        };
+
+        var staleness = service.Evaluate(session, context.Setup, context.Bike, context.Source, window: window);
+
+        Assert.IsType<SessionStaleness.Current>(staleness);
+    }
+
+    [Fact]
+    public void Evaluate_ReturnsSourceWindowChanged_WhenOnlyDerivationWindowDiffers()
+    {
+        var context = CreateContext();
+        var persistedWindow = new RecordedSessionDerivationWindow(context.Source.SessionId, 1, 5);
+        var currentWindow = persistedWindow with { EndSeconds = 4 };
+        var persisted = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source, window: persistedWindow);
+        var session = context.Session with
+        {
+            HasProcessedData = true,
+            ProcessingFingerprintJson = AppJson.Serialize(persisted)
+        };
+
+        var staleness = service.Evaluate(session, context.Setup, context.Bike, context.Source, window: currentWindow);
+
+        Assert.IsType<SessionStaleness.SourceWindowChanged>(staleness);
+        Assert.True(staleness.IsStale);
+        Assert.True(staleness.CanRecompute);
+    }
+
+    [Fact]
+    public void Evaluate_ReturnsDependencyHashChanged_WhenWindowAndDependencyDiffer()
+    {
+        var context = CreateContext();
+        var persistedWindow = new RecordedSessionDerivationWindow(context.Source.SessionId, 1, 5);
+        var currentWindow = persistedWindow with { EndSeconds = 4 };
+        var persisted = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source, window: persistedWindow);
+        var session = context.Session with
+        {
+            HasProcessedData = true,
+            ProcessingFingerprintJson = AppJson.Serialize(persisted)
+        };
+        var changedBike = context.Bike with { HeadAngle = context.Bike.HeadAngle + 1 };
+
+        var staleness = service.Evaluate(session, context.Setup, changedBike, context.Source, window: currentWindow);
+
+        Assert.IsType<SessionStaleness.DependencyHashChanged>(staleness);
     }
 
     [Fact]
@@ -117,6 +210,21 @@ public class ProcessingFingerprintServiceTests
 
         Assert.IsType<SessionStaleness.MissingRawSource>(staleness);
         Assert.False(staleness.IsStale);
+        Assert.False(staleness.CanRecompute);
+    }
+
+    [Fact]
+    public void Evaluate_ReturnsStaleMissingRawSource_WhenSourceIsMissingAndDerivationWindowDiffers()
+    {
+        var context = CreateContext();
+        var persisted = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
+        var session = context.Session with { ProcessingFingerprintJson = AppJson.Serialize(persisted) };
+        var window = new RecordedSessionDerivationWindow(context.Source.SessionId, 1, 2);
+
+        var staleness = service.Evaluate(session, context.Setup, context.Bike, null, window: window);
+
+        Assert.IsType<SessionStaleness.MissingRawSource>(staleness);
+        Assert.True(staleness.IsStale);
         Assert.False(staleness.CanRecompute);
     }
 

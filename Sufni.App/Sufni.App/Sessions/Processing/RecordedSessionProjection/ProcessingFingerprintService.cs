@@ -26,8 +26,9 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         SetupSnapshot setup,
         BikeSnapshot bike,
         RecordedSessionSourceSnapshot source,
-        TelemetryProcessingOptions? options = null) =>
-        CreateCurrentDatabaseInputs(session, setup, bike, source) with
+        TelemetryProcessingOptions? options = null,
+        RecordedSessionDerivationWindow? window = null) =>
+        CreateCurrentDatabaseInputs(session, setup, bike, source, window) with
         {
             VelocityFilterWindowMilliseconds =
                 (options ?? TelemetryProcessingOptions.Default).ClampedVelocityFilterWindowMilliseconds,
@@ -37,7 +38,8 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         SessionSnapshot session,
         SetupSnapshot setup,
         BikeSnapshot bike,
-        RecordedSessionSourceSnapshot source)
+        RecordedSessionSourceSnapshot source,
+        RecordedSessionDerivationWindow? window = null)
     {
         if (session.SetupId != setup.Id)
         {
@@ -49,7 +51,8 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             throw new InvalidOperationException("Setup bike does not match the processing bike.");
         }
 
-        if (source.SessionId != session.Id)
+        var expectedSourceSessionId = window?.SourceSessionId ?? session.Id;
+        if (source.SessionId != expectedSourceSessionId)
         {
             throw new InvalidOperationException("Recorded source does not match the processing session.");
         }
@@ -61,7 +64,8 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             bike.Id,
             GpsTrackPointProjection.ProjectionVersion,
             ProcessingDependencyHash.Compute(setup, bike),
-            source.SourceHash);
+            source.SourceHash,
+            DerivationWindow: window);
     }
 
     public ProcessingFingerprint? ParsePersisted(SessionSnapshot session) =>
@@ -89,11 +93,12 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         SetupSnapshot? setup,
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source,
-        TelemetryProcessingOptions? options = null)
+        TelemetryProcessingOptions? options = null,
+        RecordedSessionDerivationWindow? window = null)
     {
         options ??= TelemetryProcessingOptions.Default;
         var persisted = ParsePersisted(session);
-        return Evaluate(session, setup, bike, source, persisted, current: null, options);
+        return Evaluate(session, setup, bike, source, persisted, current: null, options, window);
     }
 
     public ProcessingFingerprintEvaluation EvaluateState(
@@ -101,14 +106,15 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         SetupSnapshot? setup,
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source,
-        TelemetryProcessingOptions? options = null)
+        TelemetryProcessingOptions? options = null,
+        RecordedSessionDerivationWindow? window = null)
     {
         options ??= TelemetryProcessingOptions.Default;
         var persisted = ParsePersisted(session);
         var current = setup is not null && bike is not null && source is not null
-            ? CreateCurrent(session, setup, bike, source, options)
+            ? CreateCurrent(session, setup, bike, source, options, window)
             : null;
-        var staleness = Evaluate(session, setup, bike, source, persisted, current, options);
+        var staleness = Evaluate(session, setup, bike, source, persisted, current, options, window);
 
         return new ProcessingFingerprintEvaluation(current, persisted, staleness);
     }
@@ -120,12 +126,13 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         RecordedSessionSourceSnapshot? source,
         ProcessingFingerprint? persisted,
         ProcessingFingerprint? current,
-        TelemetryProcessingOptions options)
+        TelemetryProcessingOptions options,
+        RecordedSessionDerivationWindow? window)
     {
         if (source is null)
         {
             return new SessionStaleness.MissingRawSource(
-                IsProcessedStateStaleWithoutRawSource(session, setup, bike, persisted, options));
+                IsProcessedStateStaleWithoutRawSource(session, setup, bike, persisted, options, window));
         }
 
         if (setup is null || bike is null)
@@ -150,14 +157,19 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
                 TelemetryProcessingVersion.Current);
         }
 
-        current ??= CreateCurrent(session, setup, bike, source, options);
-        return persisted.SetupId != current.SetupId ||
-               persisted.BikeId != current.BikeId ||
-               persisted.TrackProjectionVersion != current.TrackProjectionVersion ||
-               persisted.VelocityFilterWindowMilliseconds != current.VelocityFilterWindowMilliseconds ||
-               !StringComparer.Ordinal.Equals(persisted.DependencyHash, current.DependencyHash) ||
-               !StringComparer.Ordinal.Equals(persisted.SourceHash, current.SourceHash)
-            ? new SessionStaleness.DependencyHashChanged()
+        current ??= CreateCurrent(session, setup, bike, source, options, window);
+        if (persisted.SetupId != current.SetupId ||
+            persisted.BikeId != current.BikeId ||
+            persisted.TrackProjectionVersion != current.TrackProjectionVersion ||
+            persisted.VelocityFilterWindowMilliseconds != current.VelocityFilterWindowMilliseconds ||
+            !StringComparer.Ordinal.Equals(persisted.DependencyHash, current.DependencyHash) ||
+            !StringComparer.Ordinal.Equals(persisted.SourceHash, current.SourceHash))
+        {
+            return new SessionStaleness.DependencyHashChanged();
+        }
+
+        return persisted.DerivationWindow != current.DerivationWindow
+            ? new SessionStaleness.SourceWindowChanged()
             : new SessionStaleness.Current();
     }
 
@@ -166,7 +178,8 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         SetupSnapshot? setup,
         BikeSnapshot? bike,
         ProcessingFingerprint? persisted,
-        TelemetryProcessingOptions options)
+        TelemetryProcessingOptions options,
+        RecordedSessionDerivationWindow? window)
     {
         if (setup is null || bike is null)
         {
@@ -195,6 +208,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
                persisted.BikeId != bike.Id ||
                persisted.TrackProjectionVersion != GpsTrackPointProjection.ProjectionVersion ||
                persisted.VelocityFilterWindowMilliseconds != options.ClampedVelocityFilterWindowMilliseconds ||
+               persisted.DerivationWindow != window ||
                !StringComparer.Ordinal.Equals(
                    persisted.DependencyHash,
                    ProcessingDependencyHash.Compute(setup, bike));
