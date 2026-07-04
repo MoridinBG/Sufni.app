@@ -96,19 +96,21 @@ public class MainPagesViewModelTests
     }
 
     [Fact]
-    public async Task ChooseLayoutProfileCommand_SavesLocalPreferenceAndMarksRestartRequired()
+    public async Task ChooseLayoutProfileCommand_SavesLocalPreference_AndAppliesProfileLive()
     {
         var uiPreferences = Substitute.For<IUiPreferences>();
         uiPreferences.SetLayoutProfileAsync(Arg.Any<UiLayoutProfile?>()).Returns(Task.CompletedTask);
+        var appEnvironment = MainPagesViewModelTestFactory.CreateAppEnvironment(UiLayoutProfile.Compact);
         var viewModel = MainPagesViewModelTestFactory.Create(
-            appEnvironment: MainPagesViewModelTestFactory.CreateAppEnvironment(UiLayoutProfile.Compact),
+            appEnvironment: appEnvironment,
             uiPreferences: uiPreferences);
 
         await viewModel.ChooseLayoutProfileCommand.ExecuteAsync(UiLayoutProfile.Workspace);
 
+        // The layout profile switches live: choosing a profile persists the preference and
+        // applies it to the environment in the same step, rather than deferring to a restart.
         Assert.Equal(UiLayoutProfile.Workspace, viewModel.SelectedLayoutProfile);
-        Assert.True(viewModel.LayoutProfileRestartRequired);
-        Assert.Contains("Restart required", viewModel.LayoutProfileRestartMessage);
+        Assert.Equal(UiLayoutProfile.Workspace, appEnvironment.LayoutProfile);
         await uiPreferences.Received(1).SetLayoutProfileAsync(UiLayoutProfile.Workspace);
     }
 
@@ -129,7 +131,6 @@ public class MainPagesViewModelTests
         Assert.Equal(UiLayoutProfile.Workspace, viewModel.SelectedLayoutProfile);
         Assert.Equal(UiLayoutProfile.Compact, viewModel.TargetLayoutProfile);
         Assert.Equal("compact", viewModel.LayoutProfileActionMenuText);
-        Assert.True(viewModel.LayoutProfileRestartRequired);
         await uiPreferences.Received(1).SetLayoutProfileAsync(UiLayoutProfile.Workspace);
     }
 
