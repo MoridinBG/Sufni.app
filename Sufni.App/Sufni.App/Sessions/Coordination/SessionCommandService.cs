@@ -38,9 +38,6 @@ public sealed class SessionCommandService
     private readonly ISessionTelemetryWriter sessionTelemetryWriter;
     private readonly ISynchronizableRepository<Setup> setupRepository;
     private readonly ISynchronizableRepository<Bike> bikeRepository;
-    private readonly ISynchronizableRepository<Track> trackEntityRepository;
-    private readonly ISynchronizableRepository<Session> sessionEntityRepository;
-    private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
     private readonly IRecordedSessionReprocessor recordedSessionReprocessor;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
@@ -51,7 +48,7 @@ public sealed class SessionCommandService
     private readonly Func<IEditorFactory> editorFactory;
     private readonly IRecordedSessionDerivationWindowCache derivationWindowCache;
     private readonly IRecordedSessionDerivationWindowProvider derivationWindowProvider;
-    private readonly ISessionPersistenceTransactionRunner? sessionPersistenceTransactions;
+    private readonly ISessionPersistenceTransactionRunner sessionPersistenceTransactions;
 
     public SessionCommandService(
         ISessionStoreWriter sessionStore,
@@ -59,9 +56,6 @@ public sealed class SessionCommandService
         ISessionTelemetryWriter sessionTelemetryWriter,
         ISynchronizableRepository<Setup> setupRepository,
         ISynchronizableRepository<Bike> bikeRepository,
-        ISynchronizableRepository<Track> trackEntityRepository,
-        ISynchronizableRepository<Session> sessionEntityRepository,
-        IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IRecordedSessionSourceStoreWriter sourceStore,
         IRecordedSessionReprocessor recordedSessionReprocessor,
         IBackgroundTaskRunner backgroundTaskRunner,
@@ -72,16 +66,13 @@ public sealed class SessionCommandService
         Func<IEditorFactory> editorFactory,
         IRecordedSessionDerivationWindowCache derivationWindowCache,
         IRecordedSessionDerivationWindowProvider derivationWindowProvider,
-        ISessionPersistenceTransactionRunner? sessionPersistenceTransactions = null)
+        ISessionPersistenceTransactionRunner sessionPersistenceTransactions)
     {
         this.sessionStore = sessionStore;
         this.sessionRepository = sessionRepository;
         this.sessionTelemetryWriter = sessionTelemetryWriter;
         this.setupRepository = setupRepository;
         this.bikeRepository = bikeRepository;
-        this.trackEntityRepository = trackEntityRepository;
-        this.sessionEntityRepository = sessionEntityRepository;
-        this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.sourceStore = sourceStore;
         this.recordedSessionReprocessor = recordedSessionReprocessor;
         this.backgroundTaskRunner = backgroundTaskRunner;
@@ -408,39 +399,11 @@ public sealed class SessionCommandService
                     sessionId);
             }
 
-            if (sessionPersistenceTransactions is null)
-            {
-                await sessionEntityRepository.DeleteAsync(sessionId);
-
-                if (shouldDeleteSource)
-                {
-                    await recordedSessionSourceRepository.DeleteRecordedSessionSourceAsync(sessionId);
-                }
-
-                if (shouldDeleteTrack && trackId.HasValue)
-                {
-                    try
-                    {
-                        await trackEntityRepository.DeleteAsync(trackId.Value);
-                    }
-                    catch (Exception e)
-                    {
-                        logger.Warning(
-                            e,
-                            "Failed to delete orphaned track {TrackId} after deleting session {SessionId}",
-                            trackId.Value,
-                            sessionId);
-                    }
-                }
-            }
-            else
-            {
-                await sessionPersistenceTransactions.DeleteSessionAsync(
-                    sessionId,
-                    trackId,
-                    shouldDeleteTrack,
-                    shouldDeleteSource);
-            }
+            await sessionPersistenceTransactions.DeleteSessionAsync(
+                sessionId,
+                trackId,
+                shouldDeleteTrack,
+                shouldDeleteSource);
 
             if (shouldDeleteSource)
             {
