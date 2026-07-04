@@ -215,7 +215,7 @@ public class NetworkTelemetryDataStoreTests
     [Fact]
     public async Task ReadSourceAsync_DeletesCurrentTempFileOnSuccess()
     {
-        var before = SourceTempFiles();
+        string? tempPath = null;
         var daqManagementService = Substitute.For<IDaqManagementService>();
         daqManagementService
             .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>())
@@ -223,6 +223,7 @@ public class NetworkTelemetryDataStoreTests
             {
                 var bytes = TestSstFiles.CreateValidV3();
                 var destination = callInfo.ArgAt<Stream>(4);
+                tempPath = ((FileStream)destination).Name;
                 destination.Write(bytes);
                 return Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Downloaded("DEVICE.SST", (ulong)bytes.Length));
             });
@@ -238,18 +239,23 @@ public class NetworkTelemetryDataStoreTests
 
         _ = await file.ReadSourceAsync();
 
-        Assert.Empty(SourceTempFiles().Except(before));
+        Assert.NotNull(tempPath);
+        Assert.False(File.Exists(tempPath));
     }
 
     [Fact]
     public async Task ReadSourceAsync_DeletesCurrentTempFileWhenGetFileReturnsTypedError()
     {
-        var before = SourceTempFiles();
+        string? tempPath = null;
         var daqManagementService = Substitute.For<IDaqManagementService>();
         daqManagementService
             .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<DaqGetFileResult>(
-                new DaqGetFileResult.Error(DaqManagementErrorCode.Busy, "Device busy")));
+            .Returns(callInfo =>
+            {
+                tempPath = ((FileStream)callInfo.ArgAt<Stream>(4)).Name;
+                return Task.FromResult<DaqGetFileResult>(
+                    new DaqGetFileResult.Error(DaqManagementErrorCode.Busy, "Device busy"));
+            });
 
         var file = new NetworkTelemetryFile(
             new IPEndPoint(IPAddress.Loopback, 5555),
@@ -262,7 +268,8 @@ public class NetworkTelemetryDataStoreTests
 
         _ = await Assert.ThrowsAsync<DaqManagementException>(() => file.ReadSourceAsync());
 
-        Assert.Empty(SourceTempFiles().Except(before));
+        Assert.NotNull(tempPath);
+        Assert.False(File.Exists(tempPath));
     }
 
     [Fact]
@@ -399,8 +406,5 @@ public class NetworkTelemetryDataStoreTests
             .Returns(Task.FromResult<Guid?>(null));
         return boardIdInspector;
     }
-
-    private static HashSet<string> SourceTempFiles() =>
-        Directory.EnumerateFiles(Path.GetTempPath(), "sufni-source-*.SST").ToHashSet(StringComparer.Ordinal);
 
 }
