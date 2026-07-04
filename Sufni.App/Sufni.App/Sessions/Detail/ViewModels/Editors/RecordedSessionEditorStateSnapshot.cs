@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
@@ -17,9 +19,11 @@ internal static class RecordedSessionEditorStateSnapshot
         IReadOnlyList<SignalRowAction>? speedHeaderActions = null,
         IReadOnlyList<SignalRowAction>? elevationHeaderActions = null,
         RecordedSignalToggleState? signalToggles = null,
+        RecordedAnalysisModeState? analysisModes = null,
         AnalysisSelectionState? analysisSelection = null)
     {
         var toggles = signalToggles ?? RecordedSignalToggleState.From(context);
+        var modes = analysisModes ?? RecordedAnalysisModeState.From(context);
 
         return new RecordedSessionEditorState(
             Domain: null,
@@ -32,11 +36,11 @@ internal static class RecordedSessionEditorStateSnapshot
             Intent: new RecordedSessionEditorIntentState(
                 SelectedPageIndex: context.SelectedPageIndex,
                 AnalysisRange: context.AnalysisRange,
-                SelectedTravelDistributionMode: context.SelectedTravelDistributionMode,
-                SelectedBalanceDisplacementMode: context.SelectedBalanceDisplacementMode,
-                SelectedBalanceSpeedMode: context.SelectedBalanceSpeedMode,
-                SelectedVelocityAverageMode: context.SelectedVelocityAverageMode,
-                SelectedSessionInsightsTargetProfile: context.SelectedSessionInsightsTargetProfile,
+                SelectedTravelDistributionMode: modes.SelectedTravelDistributionMode,
+                SelectedBalanceDisplacementMode: modes.SelectedBalanceDisplacementMode,
+                SelectedBalanceSpeedMode: modes.SelectedBalanceSpeedMode,
+                SelectedVelocityAverageMode: modes.SelectedVelocityAverageMode,
+                SelectedSessionInsightsTargetProfile: modes.SelectedSessionInsightsTargetProfile,
                 DampingSpeedCutoffs: context.DampingSpeedCutoffs,
                 SignalDisplayPreferences: preferences.SignalDisplay,
                 SignalLayoutPreferences: preferences.SignalLayout,
@@ -91,6 +95,24 @@ internal static class RecordedSessionEditorStateSnapshot
                 ActiveFront: context.ActiveFrontAnalysisSelection,
                 ActiveRear: context.ActiveRearAnalysisSelection,
                 HighlightRanges: context.AnalysisSelectionHighlightRanges));
+    }
+}
+
+internal sealed record RecordedAnalysisModeState(
+    TravelDistributionMode SelectedTravelDistributionMode,
+    BalanceDisplacementMode SelectedBalanceDisplacementMode,
+    BalanceSpeedMode SelectedBalanceSpeedMode,
+    VelocityAverageMode SelectedVelocityAverageMode,
+    SessionInsightsTargetProfile SelectedSessionInsightsTargetProfile)
+{
+    public static RecordedAnalysisModeState From(RecordedSessionContext context)
+    {
+        return new RecordedAnalysisModeState(
+            context.SelectedTravelDistributionMode,
+            context.SelectedBalanceDisplacementMode,
+            context.SelectedBalanceSpeedMode,
+            context.SelectedVelocityAverageMode,
+            context.SelectedSessionInsightsTargetProfile);
     }
 }
 
