@@ -24,7 +24,7 @@ mc:Ignorable="d">
         Margin="0,0,10,0"
         HorizontalContentAlignment="Center"
         VerticalContentAlignment="Center"
-        Command="{Binding OpenPreviousPageCommand}">
+        Command="{Binding CloseCommand}">
             <Image
             Width="16"
             Height="16"

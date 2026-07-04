@@ -103,7 +103,7 @@ public class CommonButtonLineTests
     }
 
     [AvaloniaFact]
-    public async Task CommonButtonLine_BackButton_InvokesBackCommand()
+    public async Task CommonButtonLine_BackButton_InvokesCloseCommand()
     {
         ViewTestHelpers.EnsureViewTestResources();
         var shell = Substitute.For<IShellCoordinator>();
@@ -122,8 +122,10 @@ public class CommonButtonLineTests
             Assert.NotNull(backButton);
 
             backButton!.Command!.Execute(backButton.CommandParameter);
+            await ViewTestHelpers.FlushDispatcherAsync();
 
-            shell.Received(1).GoBack();
+            shell.Received(1).Close(viewModel);
+            shell.DidNotReceive().GoBack();
         }
         finally
         {
