@@ -130,7 +130,7 @@ internal sealed class RecordedPresentationApplier
                 ClearRecordedPresentation();
                 owner.SetScreenState(SessionScreenPresentationState.IncompleteLocalData(
                     FormatIncompleteLocalDataMessage(incomplete.Missing)));
-                owner.IsComplete = context.SessionSnapshot?.HasProcessedData ?? false;
+                owner.IsComplete = owner.CurrentSessionSnapshot?.HasProcessedData ?? false;
                 break;
 
             case SessionDetailLoadResult.Failed failed:
@@ -160,7 +160,7 @@ internal sealed class RecordedPresentationApplier
 
     public void RefreshAnalysisRangeStates()
     {
-        if (context.TelemetryData is { } telemetry)
+        if (owner.CurrentTelemetryData is { } telemetry)
         {
             ApplyAnalysisRangeStates(telemetry);
         }
@@ -168,12 +168,12 @@ internal sealed class RecordedPresentationApplier
 
     public void ApplyRecordedTrackSignalStates()
     {
-        ApplyRecordedPlotAvailability(context.TelemetryData);
+        ApplyRecordedPlotAvailability(owner.CurrentTelemetryData);
         owner.SetTrackDerivedSignalStates(
-            TrackPointSeries.HasSpeedSeries(context.TrackPoints)
+            TrackPointSeries.HasSpeedSeries(owner.CurrentTrackPoints)
                 ? SurfacePresentationState.Ready
                 : SurfacePresentationState.Hidden,
-            TrackPointSeries.HasElevationSeries(context.TrackPoints)
+            TrackPointSeries.HasElevationSeries(owner.CurrentTrackPoints)
                 ? SurfacePresentationState.Ready
                 : SurfacePresentationState.Hidden);
     }
@@ -376,8 +376,8 @@ internal sealed class RecordedPresentationApplier
         var hasTravelTelemetry = HasTravelTelemetry(telemetry);
         var hasImuTelemetry = HasImuTelemetry(telemetry);
         var hasFramePitchRollTelemetry = HasFramePitchRollTelemetry(telemetry);
-        var hasSpeedSeries = TrackPointSeries.HasSpeedSeries(context.TrackPoints);
-        var hasElevationSeries = TrackPointSeries.HasElevationSeries(context.TrackPoints);
+        var hasSpeedSeries = TrackPointSeries.HasSpeedSeries(owner.CurrentTrackPoints);
+        var hasElevationSeries = TrackPointSeries.HasElevationSeries(owner.CurrentTrackPoints);
         preferencesPage.ApplySignalAvailability(
             hasTravelTelemetry,
             hasTravelTelemetry,
@@ -392,8 +392,8 @@ internal sealed class RecordedPresentationApplier
         var hasTravelTelemetry = HasTravelTelemetry(telemetry);
         var hasImuTelemetry = HasImuTelemetry(telemetry);
         var hasFramePitchRollTelemetry = HasFramePitchRollTelemetry(telemetry);
-        var hasSpeedSeries = TrackPointSeries.HasSpeedSeries(context.TrackPoints);
-        var hasElevationSeries = TrackPointSeries.HasElevationSeries(context.TrackPoints);
+        var hasSpeedSeries = TrackPointSeries.HasSpeedSeries(owner.CurrentTrackPoints);
+        var hasElevationSeries = TrackPointSeries.HasElevationSeries(owner.CurrentTrackPoints);
 
         preferencesPage.ApplySignalAvailability(
             hasTravelTelemetry,

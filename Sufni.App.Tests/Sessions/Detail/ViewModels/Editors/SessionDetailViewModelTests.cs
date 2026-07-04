@@ -303,7 +303,7 @@ public class SessionDetailViewModelTests
         ((INotifyPropertyChanged)editor.AnalysisWorkspace).PropertyChanged += (_, args) =>
             observed.Add(args.PropertyName);
 
-        editor.SessionContext.TelemetryData = telemetry;
+        editor.SetTelemetryData(telemetry);
         editor.SetAnalysisRange(0.02, 0.16);
         editor.SetRecordedAnalysisStates(new RecordedAnalysisPresentationState(
             SurfacePresentationState.Ready,
@@ -410,7 +410,7 @@ public class SessionDetailViewModelTests
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
         var telemetry = TestTelemetryData.CreateProcessed();
-        editor.SessionContext.TelemetryData = telemetry;
+        editor.SetTelemetryData(telemetry);
         var selection = CreateFrontDampingSelection(telemetry, editor.AnalysisWorkspace.SelectedVelocityAverageMode);
 
         editor.SelectAnalysisRangeCommand.Execute(selection);
@@ -474,7 +474,7 @@ public class SessionDetailViewModelTests
     public void AnalysisRangeContextMenuActions_SetStartEndAndClearRange()
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-        editor.SessionContext.TelemetryData = TestTelemetryData.CreateMinimal(duration: 10);
+        editor.SetTelemetryData(TestTelemetryData.CreateMinimal(duration: 10));
         var setStart = GetPlotContextAction(editor, "analysis-range-set-start");
         var setEnd = GetPlotContextAction(editor, "analysis-range-set-end");
         var clear = GetPlotContextAction(editor, "analysis-range-clear");
@@ -533,7 +533,7 @@ public class SessionDetailViewModelTests
         Assert.False(setEnd.Command.CanExecute(context));
         Assert.False(clear.Command.CanExecute(context));
 
-        editor.SessionContext.TelemetryData = TestTelemetryData.CreateMinimal(duration: 10);
+        editor.SetTelemetryData(TestTelemetryData.CreateMinimal(duration: 10));
         Assert.False(setStart.Command.CanExecute(null));
         Assert.False(setEnd.Command.CanExecute(new TelemetryPlotContextMenuContext("unknown", 3, 10, null)));
         Assert.False(clear.Command.CanExecute(new TelemetryPlotContextMenuContext(SignalRowIds.Travel, double.NaN, 10, null)));
@@ -543,7 +543,7 @@ public class SessionDetailViewModelTests
     public void AnalysisRangeContextMenuClear_ClearsPendingBoundary()
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-        editor.SessionContext.TelemetryData = TestTelemetryData.CreateMinimal(duration: 10);
+        editor.SetTelemetryData(TestTelemetryData.CreateMinimal(duration: 10));
         var setStart = GetPlotContextAction(editor, "analysis-range-set-start");
         var setEnd = GetPlotContextAction(editor, "analysis-range-set-end");
         var clear = GetPlotContextAction(editor, "analysis-range-clear");
@@ -585,8 +585,8 @@ public class SessionDetailViewModelTests
                 Arg.Any<CancellationToken>())
             .Returns(true);
         var editor = CreateEditor(snapshot);
-        editor.SessionContext.TelemetryData = telemetry;
-        editor.SessionContext.TrackPoints = initialTrackPoints;
+        editor.SetTelemetryData(telemetry);
+        editor.SetTrackPoints(initialTrackPoints);
         var gpsEventContext = new TelemetryPlotContextMenuContext(
             SignalRowIds.Travel,
             ClickSeconds: 8.0,
@@ -724,7 +724,7 @@ public class SessionDetailViewModelTests
         try
         {
             var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-            editor.SessionContext.TelemetryData = TestTelemetryData.CreateProcessed();
+            editor.SetTelemetryData(TestTelemetryData.CreateProcessed());
             editor.AnalysisWorkspace.SelectedTravelDistributionMode = TravelDistributionMode.DynamicSag;
             editor.AnalysisWorkspace.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
             editor.AnalysisWorkspace.SelectedBalanceDisplacementMode = BalanceDisplacementMode.Travel;
@@ -2044,7 +2044,7 @@ public class SessionDetailViewModelTests
         var rangePercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(telemetry, range);
 
         var editor = CreateEditor(snapshot);
-        editor.SessionContext.TelemetryData = telemetry;
+        editor.SetTelemetryData(telemetry);
 
         editor.SetAnalysisRange(range.StartSeconds, range.EndSeconds);
 
@@ -2063,7 +2063,7 @@ public class SessionDetailViewModelTests
         var rangePercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(telemetry, range);
 
         var editor = CreateEditor(snapshot);
-        editor.SessionContext.TelemetryData = telemetry;
+        editor.SetTelemetryData(telemetry);
         sessionAnalysisService.ClearReceivedCalls();
 
         editor.SetAnalysisRange(range.StartSeconds, range.EndSeconds);
@@ -2081,7 +2081,7 @@ public class SessionDetailViewModelTests
         var fullSessionPercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(telemetry);
 
         var editor = CreateEditor(snapshot);
-        editor.SessionContext.TelemetryData = telemetry;
+        editor.SetTelemetryData(telemetry);
         editor.SetAnalysisRange(0.02, 0.16);
         Assert.NotNull(editor.SessionContext.AnalysisRange);
 
@@ -2097,7 +2097,7 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var editor = CreateEditor(snapshot);
-        editor.SessionContext.TelemetryData = CreateVibrationTelemetry();
+        editor.SetTelemetryData(CreateVibrationTelemetry());
 
         editor.SetAnalysisRangeBoundary(0.02);
         editor.ClearAnalysisRange();
@@ -2110,7 +2110,7 @@ public class SessionDetailViewModelTests
     public void DampingPercentagesChange_DoesNotIndependentlyRecomputeAnalysis()
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-        editor.SessionContext.TelemetryData = TestTelemetryData.CreateProcessed();
+        editor.SetTelemetryData(TestTelemetryData.CreateProcessed());
         sessionAnalysisService.ClearReceivedCalls();
 
         editor.ApplyDampingPercentages(new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8));
@@ -2123,7 +2123,7 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var editor = CreateEditor(snapshot);
-        editor.SessionContext.TelemetryData = CreateVibrationTelemetry();
+        editor.SetTelemetryData(CreateVibrationTelemetry());
 
         editor.SetAnalysisRangeBoundaryFromMarker(0.02);
         Assert.Null(editor.SessionContext.AnalysisRange);
@@ -2139,7 +2139,7 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var editor = CreateEditor(snapshot);
-        editor.SessionContext.TelemetryData = CreateVibrationTelemetry();
+        editor.SetTelemetryData(CreateVibrationTelemetry());
         editor.SetAnalysisRange(0.02, 0.18);
 
         editor.SetAnalysisRangeBoundaryFromMarker(0.05);

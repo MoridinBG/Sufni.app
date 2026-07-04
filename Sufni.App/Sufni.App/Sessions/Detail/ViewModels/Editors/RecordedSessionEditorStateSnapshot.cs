@@ -7,6 +7,7 @@ using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Presentation;
+using Sufni.App.Sessions.Store;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
@@ -37,10 +38,12 @@ internal static class RecordedSessionEditorStateSnapshot
         DampingSpeedCutoffs? plotDampingSpeedCutoffs = null,
         bool? canEditDampingSpeedCutoffs = null,
         RecordedAnalysisRangeState? analysisRangeState = null,
-        RecordedPageSelectionState? pageSelectionState = null)
+        RecordedPageSelectionState? pageSelectionState = null,
+        RecordedSessionLoadedDataState? loadedDataState = null)
     {
         var toggles = signalToggles ?? RecordedSignalToggleState.From(context);
         var modes = analysisModes ?? RecordedAnalysisModeState.From(context);
+        var loadedData = loadedDataState ?? RecordedSessionLoadedDataState.From(context);
         var currentSelectedPageIndex = pageSelectionState?.SelectedPageIndex ?? context.SelectedPageIndex;
         var currentAnalysisRange = analysisRangeState is { } ownerAnalysisRange
             ? ownerAnalysisRange.AnalysisRange
@@ -59,11 +62,11 @@ internal static class RecordedSessionEditorStateSnapshot
 
         return new RecordedSessionEditorState(
             Domain: null,
-            Session: context.SessionSnapshot,
-            TelemetryData: context.TelemetryData,
-            FullTrackPoints: context.FullTrackPoints,
-            TrackPoints: context.TrackPoints,
-            TrackTimelineContext: context.TrackTimelineContext,
+            Session: loadedData.Session,
+            TelemetryData: loadedData.TelemetryData,
+            FullTrackPoints: loadedData.FullTrackPoints,
+            TrackPoints: loadedData.TrackPoints,
+            TrackTimelineContext: loadedData.TrackTimelineContext,
             Preferences: preferences,
             Intent: new RecordedSessionEditorIntentState(
                 SelectedPageIndex: currentSelectedPageIndex,
@@ -125,6 +128,24 @@ internal static class RecordedSessionEditorStateSnapshot
 internal sealed record RecordedAnalysisRangeState(TelemetryTimeRange? AnalysisRange);
 
 internal sealed record RecordedPageSelectionState(int SelectedPageIndex);
+
+internal sealed record RecordedSessionLoadedDataState(
+    SessionSnapshot? Session,
+    TelemetryData? TelemetryData,
+    IReadOnlyList<TrackPoint>? FullTrackPoints,
+    IReadOnlyList<TrackPoint>? TrackPoints,
+    TrackTimeRange? TrackTimelineContext)
+{
+    public static RecordedSessionLoadedDataState From(RecordedSessionContext context)
+    {
+        return new RecordedSessionLoadedDataState(
+            context.SessionSnapshot,
+            context.TelemetryData,
+            context.FullTrackPoints,
+            context.TrackPoints,
+            context.TrackTimelineContext);
+    }
+}
 
 internal sealed record RecordedAnalysisModeState(
     TravelDistributionMode SelectedTravelDistributionMode,

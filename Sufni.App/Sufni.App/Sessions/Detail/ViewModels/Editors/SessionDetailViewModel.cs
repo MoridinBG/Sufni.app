@@ -171,6 +171,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private DampingSpeedCutoffs dampingSpeedCutoffs = DampingSpeedCutoffs.Default;
     private DampingSpeedCutoffs plotDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
     private bool canEditDampingSpeedCutoffs;
+    private SessionSnapshot? sessionSnapshot;
+    private TelemetryData? telemetryData;
+    private List<TrackPoint>? fullTrackPoints;
+    private List<TrackPoint>? trackPoints;
+    private TrackTimeRange? trackTimelineContext;
     private bool showAirtime = true;
     private bool showVelocityAirtime;
     private bool showImuAirtime;
@@ -507,7 +512,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 return;
             }
 
-            if (owner.SessionContext.TelemetryData is null)
+            if (owner.telemetryData is null)
             {
                 if (pendingDampingRequest)
                 {
@@ -586,7 +591,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     internal void ApplyModeAwareDampingPercentages(SessionDampingPercentages sampleAveragedPercentages)
     {
-        if (SessionContext.TelemetryData is null)
+        if (telemetryData is null)
         {
             ClearDampingPercentages();
             return;
@@ -614,6 +619,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     internal Guid? CurrentSessionFullTrack => session.FullTrack;
 
+    internal SessionSnapshot? CurrentSessionSnapshot => sessionSnapshot;
+
+    internal TelemetryData? CurrentTelemetryData => telemetryData;
+
+    internal IReadOnlyList<TrackPoint>? CurrentTrackPoints => trackPoints;
+
     internal TelemetryTimeRange? CurrentAnalysisRange => analysisRange;
 
     internal void SetSessionFullTrack(Guid? fullTrackId)
@@ -623,6 +634,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     internal void SetFullTrackPoints(List<TrackPoint>? points)
     {
+        fullTrackPoints = points;
         SessionContext.FullTrackPoints = points;
         MapViewModel?.FullTrackPoints = points;
         PublishEditorState();
@@ -630,12 +642,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     internal void SetTrackPoints(List<TrackPoint>? points)
     {
+        trackPoints = points;
         SessionContext.TrackPoints = points;
         MapViewModel?.SessionTrackPoints = points;
 
         RefreshTrackTimelineContext();
         NotifyTimelineAlignmentCommandsCanExecuteChanged();
-        if (SessionContext.TelemetryData is not null)
+        if (telemetryData is not null)
         {
             presentationApplier.ApplyRecordedTrackSignalStates();
         }
@@ -662,11 +675,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     internal void SetTelemetryData(TelemetryData? value)
     {
-        if (SessionContext.TelemetryData == value)
+        if (telemetryData == value)
         {
             return;
         }
 
+        telemetryData = value;
         SessionContext.TelemetryData = value;
         telemetryGeneration++;
         IsComplete = value != null;
@@ -718,9 +732,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void RefreshTrackTimelineContext()
     {
-        SetTrackTimelineContext(SessionContext.TelemetryData is { } telemetry
+        SetTrackTimelineContext(telemetryData is { } telemetry
             ? TrackPointSeries.BuildTimelineContext(
-                SessionContext.TrackPoints,
+                trackPoints,
                 telemetry.Metadata.Timestamp + NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
                 telemetry.Metadata.Duration)
             : null);
@@ -728,6 +742,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void SetTrackTimelineContext(TrackTimeRange? timelineContext)
     {
+        trackTimelineContext = timelineContext;
         SessionContext.TrackTimelineContext = timelineContext;
         MapViewModel?.TimelineContext = timelineContext;
         UpdateRecordedSessionExtensionHostState();
@@ -851,6 +866,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private async Task ApplyPersistedSnapshotAsync(SessionSnapshot snapshot)
     {
         session = snapshot.ToMetadataEntity();
+        sessionSnapshot = snapshot;
         SessionContext.SessionSnapshot = snapshot;
         BaselineUpdated = snapshot.Updated;
         metadataConflictPending = false;
@@ -984,6 +1000,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         session.GpsOffsetSeconds = snapshot.GpsOffsetSeconds;
         session.Updated = snapshot.Updated;
         IsComplete = snapshot.HasProcessedData;
+        sessionSnapshot = snapshot;
         SessionContext.SessionSnapshot = snapshot;
         UpdateRecordedSessionExtensionHostState();
     }
@@ -1002,7 +1019,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private RecordedSessionHostState CreateRecordedSessionExtensionHostState()
     {
         var snapshot = sessionStore.Get(Id);
-        var timelineDurationSeconds = SessionContext.TelemetryData?.Metadata.Duration ?? snapshot?.DurationSeconds;
+        var timelineDurationSeconds = telemetryData?.Metadata.Duration ?? snapshot?.DurationSeconds;
 
         return new RecordedSessionHostState(
             new RecordedSessionIdentityState(
@@ -1014,7 +1031,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 IsTabActive),
             new RecordedSessionSelectionState(analysisRange),
             new RecordedSessionTimelineState(
-                SessionContext.TrackTimelineContext,
+                trackTimelineContext,
                 timelineDurationSeconds,
                 Timeline,
                 new RecordedSessionTimelineAlignmentState(pendingTimelineAlignmentMark)),
@@ -1116,8 +1133,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private bool CanMarkGpsEventFromPlotContext(TelemetryPlotContextMenuContext? context)
     {
         return pendingTimelineAlignmentMark is null &&
-               SessionContext.TelemetryData is not null &&
-               SessionContext.TrackPoints is { Count: > 0 } &&
+               telemetryData is not null &&
+               trackPoints is { Count: > 0 } &&
                IsTelemetryPlotContext(context);
     }
 
@@ -1135,7 +1152,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private bool CanSetAnalysisRangeFromPlotContext(TelemetryPlotContextMenuContext? context)
     {
-        return SessionContext.TelemetryData is not null &&
+        return telemetryData is not null &&
                IsTelemetryPlotContext(context);
     }
 
@@ -1177,7 +1194,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private bool CanMarkGpsTelemetryEventFromPlotContext(TelemetryPlotContextMenuContext? context)
     {
-        return SessionContext.TelemetryData is not null &&
+        return telemetryData is not null &&
                IsPendingTimelineAlignment(RecordedSessionTimelineAlignmentTarget.GpsTrack, subjectId: null) &&
                IsTelemetryPlotContext(context);
     }
@@ -1186,12 +1203,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         if (!CanMarkGpsTelemetryEventFromPlotContext(context) ||
             !((IRecordedSessionHostOperations)this).TryResolveTimelineAlignment(
-                RecordedSessionTimelineAlignmentTarget.GpsTrack,
-                context!.ClickSeconds,
-                subjectId: null,
-                out var resolution) ||
+            RecordedSessionTimelineAlignmentTarget.GpsTrack,
+            context!.ClickSeconds,
+            subjectId: null,
+            out var resolution) ||
             resolution is null ||
-            SessionContext.TelemetryData is not { } telemetry)
+            telemetryData is not { } telemetry)
         {
             return;
         }
@@ -1418,7 +1435,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         this.recordedSessionProjection = recordedSessionProjection;
         this.processedTelemetryReader = processedTelemetryReader;
         this.recordedSessionProcessingOptionCache = recordedSessionProcessingOptionCache;
-        analysisResultState = analysisResultStateFactory.Create(() => SessionContext.TelemetryData);
+        analysisResultState = analysisResultStateFactory.Create(() => telemetryData);
         analysisInputs = CreateCurrentAnalysisInputs();
         analysisResultState.Invalidate(analysisInputs);
         analysisRequestScheduler = new AnalysisRequestScheduler(this, analysisInputs);
@@ -1487,6 +1504,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             cancelGpsTimelineAlignmentCommand);
         SessionContext.SignalPlotContextMenuActionsBySignalRowId = SignalPlotContextMenuActionsBySignalRowId;
         session = snapshot.ToMetadataEntity();
+        sessionSnapshot = snapshot;
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
         SessionContext.SessionSnapshot = snapshot;
@@ -1621,7 +1639,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void ClearDampingRangeSelections()
     {
-        if (!analysisSelectionController.ClearDampingRangeSelections(SessionContext.TelemetryData, analysisRange))
+        if (!analysisSelectionController.ClearDampingRangeSelections(telemetryData, analysisRange))
         {
             return;
         }
@@ -1705,7 +1723,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             plotDampingSpeedCutoffs,
             canEditDampingSpeedCutoffs,
             new RecordedAnalysisRangeState(analysisRange),
-            new RecordedPageSelectionState(selectedPageIndex));
+            new RecordedPageSelectionState(selectedPageIndex),
+            new RecordedSessionLoadedDataState(
+                sessionSnapshot,
+                telemetryData,
+                fullTrackPoints,
+                trackPoints,
+                trackTimelineContext));
         ApplyProjectedEditorState(state);
         editorStateInput.OnNext(state);
     }
@@ -2235,6 +2259,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 if (reload)
                 {
                     session = conflict.CurrentSnapshot.ToMetadataEntity();
+                    sessionSnapshot = conflict.CurrentSnapshot;
                     SessionContext.SessionSnapshot = conflict.CurrentSnapshot;
                     BaselineUpdated = conflict.CurrentSnapshot.Updated;
                     metadataConflictPending = false;
@@ -2314,7 +2339,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     [RelayCommand]
     private void SelectAnalysisRange(TelemetryRangeSelection? selection)
     {
-        if (!analysisSelectionController.Select(selection, SessionContext.TelemetryData, analysisRange)) return;
+        if (!analysisSelectionController.Select(selection, telemetryData, analysisRange)) return;
 
         PublishAnalysisSelectionState();
         signalRowActions.ClearAnalysisSelectionToggles();
@@ -2401,11 +2426,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public void SetAnalysisRange(double startSeconds, double endSeconds)
     {
         pendingAnalysisRangeBoundary = null;
-        if (SessionContext.TelemetryData is null ||
+        if (telemetryData is null ||
             !TelemetryTimeRange.TryCreateClamped(
                 startSeconds,
                 endSeconds,
-                SessionContext.TelemetryData.Metadata.Duration,
+                telemetryData.Metadata.Duration,
                 out var range))
         {
             return;
@@ -2427,8 +2452,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     public void SetAnalysisRangeBoundary(double boundarySeconds)
     {
-        if (SessionContext.TelemetryData is null ||
-            !TelemetryTimeRange.TryClampBoundary(boundarySeconds, SessionContext.TelemetryData.Metadata.Duration, out var clampedBoundarySeconds))
+        if (telemetryData is null ||
+            !TelemetryTimeRange.TryClampBoundary(boundarySeconds, telemetryData.Metadata.Duration, out var clampedBoundarySeconds))
         {
             pendingAnalysisRangeBoundary = null;
             return;
@@ -2459,8 +2484,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void SetAnalysisRangeStartBoundary(double boundarySeconds)
     {
-        if (SessionContext.TelemetryData is null ||
-            !TelemetryTimeRange.TryClampBoundary(boundarySeconds, SessionContext.TelemetryData.Metadata.Duration, out var clampedBoundarySeconds))
+        if (telemetryData is null ||
+            !TelemetryTimeRange.TryClampBoundary(boundarySeconds, telemetryData.Metadata.Duration, out var clampedBoundarySeconds))
         {
             pendingAnalysisRangeBoundary = null;
             return;
@@ -2483,8 +2508,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void SetAnalysisRangeEndBoundary(double boundarySeconds)
     {
-        if (SessionContext.TelemetryData is null ||
-            !TelemetryTimeRange.TryClampBoundary(boundarySeconds, SessionContext.TelemetryData.Metadata.Duration, out var clampedBoundarySeconds))
+        if (telemetryData is null ||
+            !TelemetryTimeRange.TryClampBoundary(boundarySeconds, telemetryData.Metadata.Duration, out var clampedBoundarySeconds))
         {
             pendingAnalysisRangeBoundary = null;
             return;
