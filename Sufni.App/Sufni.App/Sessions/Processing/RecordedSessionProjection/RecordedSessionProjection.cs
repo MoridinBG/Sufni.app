@@ -16,21 +16,24 @@ namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
 /// <summary>
 /// Reactive read model that keeps recorded-session derived state current.
-/// It mirrors the relevant persisted snapshots, coalesces bursts of changes,
-/// and publishes coherent list summaries plus per-session domain snapshots.
+/// It keeps the minimal fan-out indexes needed to coalesce bursts of changes,
+/// then reads current store snapshots to publish coherent list summaries plus
+/// per-session domain snapshots.
 /// </summary>
 public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDisposable
 {
+    private readonly ISessionStore sessionStore;
+    private readonly ISetupStore setupStore;
+    private readonly IBikeStore bikeStore;
+    private readonly IRecordedSessionSourceStore sourceStore;
     private readonly IProcessingDependencyHashIndex dependencyHashIndex;
     private readonly IProcessingFingerprintService fingerprintService;
     private readonly IRecordedSessionProcessingOptionCache processingOptionCache;
     private readonly IRecordedSessionDerivationWindowCache derivationWindowCache;
     private readonly IRecordedSessionProjectionScheduler scheduler;
     private readonly SourceCache<RecordedSessionSummary, Guid> summaries = new(summary => summary.Id);
-    private readonly Dictionary<Guid, SessionSnapshot> sessions = [];
-    private readonly Dictionary<Guid, SetupSnapshot> setups = [];
-    private readonly Dictionary<Guid, BikeSnapshot> bikes = [];
-    private readonly Dictionary<Guid, RecordedSessionSourceSnapshot> sources = [];
+    private readonly Dictionary<Guid, Guid?> sessionToSetup = [];
+    private readonly Dictionary<Guid, HashSet<Guid>> setupToSessions = [];
     private readonly Dictionary<Guid, RecordedSessionDomainSnapshot> domains = [];
     private readonly Dictionary<Guid, ReplaySubject<RecordedSessionDomainSnapshot>> watches = [];
     private readonly CompositeDisposable subscriptions = [];
@@ -73,6 +76,10 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         IRecordedSessionDerivationWindowCache derivationWindowCache,
         IRecordedSessionProjectionScheduler scheduler)
     {
+        this.sessionStore = sessionStore;
+        this.setupStore = setupStore;
+        this.bikeStore = bikeStore;
+        this.sourceStore = sourceStore;
         this.dependencyHashIndex = dependencyHashIndex;
         this.fingerprintService = fingerprintService;
         this.processingOptionCache = processingOptionCache;
@@ -81,7 +88,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
 
         subscriptions.Add(sessionStore.Connect().Subscribe(ApplySessionChanges));
         subscriptions.Add(setupStore.Connect().Subscribe(ApplySetupChanges));
-        subscriptions.Add(bikeStore.Connect().Subscribe(ApplyBikeChanges));
         subscriptions.Add(sourceStore.Connect().Subscribe(ApplySourceChanges));
         subscriptions.Add(dependencyHashIndex.Connect().Subscribe(ApplyDependencyHashChanges));
 
@@ -127,6 +133,8 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         {
             disposed = true;
             pendingRecomputeIds.Clear();
+            sessionToSetup.Clear();
+            setupToSessions.Clear();
             completedWatches = watches.Values.ToArray();
             watches.Clear();
         }
@@ -155,7 +163,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                     case ChangeReason.Add:
                     case ChangeReason.Update:
                     case ChangeReason.Refresh:
-                        sessions[change.Key] = change.Current;
+                        UpdateSessionSetupIndexLocked(change.Key, change.Current.SetupId);
                         affected.Add(change.Key);
                         break;
                     case ChangeReason.Remove:
@@ -164,7 +172,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                             break;
                         }
 
-                        sessions.Remove(change.Key);
+                        RemoveSessionSetupIndexLocked(change.Key);
                         domains.Remove(change.Key);
                         summaries.RemoveKey(change.Key);
                         RemovePendingRecomputeLocked(change.Key);
@@ -224,15 +232,12 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                 switch (change.Reason)
                 {
                     case ChangeReason.Add:
-                        setups[change.Key] = change.Current;
                         affectedAddsAndRemoves.Add(change.Key);
                         break;
                     case ChangeReason.Update:
                     case ChangeReason.Refresh:
-                        setups[change.Key] = change.Current;
                         break;
                     case ChangeReason.Remove:
-                        setups.Remove(change.Key);
                         affectedAddsAndRemoves.Add(change.Key);
                         break;
                     case ChangeReason.Moved:
@@ -245,35 +250,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         {
             QueueRecomputeForSetups(affectedAddsAndRemoves);
         }
-    }
-
-    private void ApplyBikeChanges(IChangeSet<BikeSnapshot, Guid> changes)
-    {
-        lock (stateGate)
-        {
-            if (disposed)
-            {
-                return;
-            }
-
-            foreach (var change in changes)
-            {
-                switch (change.Reason)
-                {
-                    case ChangeReason.Add:
-                    case ChangeReason.Update:
-                    case ChangeReason.Refresh:
-                        bikes[change.Key] = change.Current;
-                        break;
-                    case ChangeReason.Remove:
-                        bikes.Remove(change.Key);
-                        break;
-                    case ChangeReason.Moved:
-                        break;
-                }
-            }
-        }
-
     }
 
     private void ApplyDependencyHashChanges(ProcessingDependencyHashChange change) =>
@@ -297,11 +273,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                     case ChangeReason.Add:
                     case ChangeReason.Update:
                     case ChangeReason.Refresh:
-                        sources[change.Key] = change.Current;
-                        sourceIds.Add(change.Key);
-                        break;
                     case ChangeReason.Remove:
-                        sources.Remove(change.Key);
                         sourceIds.Add(change.Key);
                         break;
                     case ChangeReason.Moved:
@@ -324,7 +296,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
 
     private void QueueRecomputeForSetups(IEnumerable<Guid> setupIds)
     {
-        var setupIdSet = setupIds.ToHashSet();
         List<Guid> sessionIds = [];
         lock (stateGate)
         {
@@ -333,11 +304,11 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                 return;
             }
 
-            foreach (var session in sessions.Values)
+            foreach (var setupId in setupIds.Distinct())
             {
-                if (session.SetupId is { } setupId && setupIdSet.Contains(setupId))
+                if (setupToSessions.TryGetValue(setupId, out var setupSessions))
                 {
-                    sessionIds.Add(session.Id);
+                    sessionIds.AddRange(setupSessions);
                 }
             }
         }
@@ -376,6 +347,58 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
     }
 
     private void RemovePendingRecomputeLocked(Guid sessionId) => pendingRecomputeIds.Remove(sessionId);
+
+    private void UpdateSessionSetupIndexLocked(Guid sessionId, Guid? setupId)
+    {
+        if (sessionToSetup.TryGetValue(sessionId, out var previousSetupId))
+        {
+            if (previousSetupId == setupId)
+            {
+                return;
+            }
+
+            RemoveSessionFromSetupIndexLocked(sessionId, previousSetupId);
+        }
+
+        sessionToSetup[sessionId] = setupId;
+        if (setupId is not { } concreteSetupId)
+        {
+            return;
+        }
+
+        if (!setupToSessions.TryGetValue(concreteSetupId, out var setupSessions))
+        {
+            setupSessions = [];
+            setupToSessions[concreteSetupId] = setupSessions;
+        }
+
+        setupSessions.Add(sessionId);
+    }
+
+    private void RemoveSessionSetupIndexLocked(Guid sessionId)
+    {
+        if (!sessionToSetup.Remove(sessionId, out var setupId))
+        {
+            return;
+        }
+
+        RemoveSessionFromSetupIndexLocked(sessionId, setupId);
+    }
+
+    private void RemoveSessionFromSetupIndexLocked(Guid sessionId, Guid? setupId)
+    {
+        if (setupId is not { } concreteSetupId ||
+            !setupToSessions.TryGetValue(concreteSetupId, out var setupSessions))
+        {
+            return;
+        }
+
+        setupSessions.Remove(sessionId);
+        if (setupSessions.Count == 0)
+        {
+            setupToSessions.Remove(concreteSetupId);
+        }
+    }
 
     private void ScheduleRecomputeFlush() => scheduler.Post(FlushPendingRecomputes);
 
@@ -434,19 +457,21 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
 
             foreach (var sessionId in sessionIds)
             {
-                if (!sessions.TryGetValue(sessionId, out var session))
+                var session = sessionStore.Get(sessionId);
+                if (session is null)
                 {
                     continue;
                 }
 
-                setups.TryGetValue(session.SetupId ?? Guid.Empty, out var setup);
+                var setup = session.SetupId is { } setupId
+                    ? setupStore.Get(setupId)
+                    : null;
                 var bike = setup is null
                     ? null
-                    : bikes.GetValueOrDefault(setup.BikeId);
+                    : bikeStore.Get(setup.BikeId);
                 var window = derivationWindowCache.Get(session.Id);
-                sources.TryGetValue(
-                    RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(session.Id, window),
-                    out var source);
+                var source = sourceStore.Get(
+                    RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(session.Id, window));
 
                 var previous = domains.GetValueOrDefault(session.Id);
                 var initial = previous is null;

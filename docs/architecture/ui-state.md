@@ -88,10 +88,11 @@ architecture.
 
 `IRecordedSessionProjection` is the read-side projection for recorded
 session screens. It subscribes to `ISessionStore`, `ISetupStore`,
-`IBikeStore`, `IRecordedSessionSourceStore`,
-`IProcessingDependencyHashIndex`, and
-`IRecordedSessionProcessingOptionCache`, joins their current snapshots
-with the synchronous derivation-window cache,
+`IRecordedSessionSourceStore`, `IProcessingDependencyHashIndex`, and
+`IRecordedSessionProcessingOptionCache`; the dependency hash index owns
+the processing-relevant setup/bike store edge. The projection joins
+current session/setup/bike/source snapshots from stores with the
+synchronous derivation-window cache,
 evaluates processing staleness, and publishes two reactive surfaces:
 
 - `ConnectSessions()` — a DynamicData stream of `RecordedSessionSummary`

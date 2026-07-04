@@ -22,8 +22,10 @@ public sealed record ProcessingDependencyHashChange(Guid SetupId, string? Previo
 internal sealed class ProcessingDependencyHashIndex : IProcessingDependencyHashIndex
 {
     private readonly System.Threading.Lock stateGate = new();
-    private readonly Dictionary<Guid, SetupSnapshot> setups = [];
-    private readonly Dictionary<Guid, BikeSnapshot> bikes = [];
+    private readonly ISetupStore setupStore;
+    private readonly IBikeStore bikeStore;
+    private readonly Dictionary<Guid, Guid> setupToBike = [];
+    private readonly Dictionary<Guid, HashSet<Guid>> bikeToSetups = [];
     private readonly Dictionary<Guid, string> hashes = [];
     private readonly ISubject<ProcessingDependencyHashChange> changes =
         Subject.Synchronize(new Subject<ProcessingDependencyHashChange>());
@@ -32,6 +34,9 @@ internal sealed class ProcessingDependencyHashIndex : IProcessingDependencyHashI
 
     public ProcessingDependencyHashIndex(ISetupStore setupStore, IBikeStore bikeStore)
     {
+        this.setupStore = setupStore;
+        this.bikeStore = bikeStore;
+
         subscriptions.Add(setupStore.Connect().Subscribe(ApplySetupChanges));
         subscriptions.Add(bikeStore.Connect().Subscribe(ApplyBikeChanges));
     }
@@ -56,8 +61,8 @@ internal sealed class ProcessingDependencyHashIndex : IProcessingDependencyHashI
             }
 
             disposed = true;
-            setups.Clear();
-            bikes.Clear();
+            setupToBike.Clear();
+            bikeToSetups.Clear();
             hashes.Clear();
         }
 
@@ -83,11 +88,11 @@ internal sealed class ProcessingDependencyHashIndex : IProcessingDependencyHashI
                     case ChangeReason.Add:
                     case ChangeReason.Update:
                     case ChangeReason.Refresh:
-                        setups[change.Key] = change.Current;
+                        UpdateSetupBikeIndexLocked(change.Key, change.Current.BikeId);
                         affectedSetupIds.Add(change.Key);
                         break;
                     case ChangeReason.Remove:
-                        setups.Remove(change.Key);
+                        RemoveSetupBikeIndexLocked(change.Key);
                         affectedSetupIds.Add(change.Key);
                         break;
                     case ChangeReason.Moved:
@@ -122,11 +127,9 @@ internal sealed class ProcessingDependencyHashIndex : IProcessingDependencyHashI
                     case ChangeReason.Add:
                     case ChangeReason.Update:
                     case ChangeReason.Refresh:
-                        bikes[change.Key] = change.Current;
                         affectedBikeIds.Add(change.Key);
                         break;
                     case ChangeReason.Remove:
-                        bikes.Remove(change.Key);
                         affectedBikeIds.Add(change.Key);
                         break;
                     case ChangeReason.Moved:
@@ -144,15 +147,15 @@ internal sealed class ProcessingDependencyHashIndex : IProcessingDependencyHashI
     }
 
     private IEnumerable<Guid> SetupIdsForBikeLocked(Guid bikeId) =>
-        setups.Values
-            .Where(setup => setup.BikeId == bikeId)
-            .Select(setup => setup.Id)
-            .ToArray();
+        bikeToSetups.TryGetValue(bikeId, out var setupIds)
+            ? setupIds.ToArray()
+            : [];
 
     private ProcessingDependencyHashChange? RecomputeSetupHashLocked(Guid setupId)
     {
-        var current = setups.TryGetValue(setupId, out var setup) &&
-                      bikes.TryGetValue(setup.BikeId, out var bike)
+        var setup = setupStore.Get(setupId);
+        var current = setup is not null &&
+                      bikeStore.Get(setup.BikeId) is { } bike
             ? ProcessingDependencyHash.Compute(setup, bike)
             : null;
 
@@ -172,6 +175,52 @@ internal sealed class ProcessingDependencyHashIndex : IProcessingDependencyHashI
         }
 
         return new ProcessingDependencyHashChange(setupId, previous, current);
+    }
+
+    private void UpdateSetupBikeIndexLocked(Guid setupId, Guid bikeId)
+    {
+        if (setupToBike.TryGetValue(setupId, out var previousBikeId))
+        {
+            if (previousBikeId == bikeId)
+            {
+                return;
+            }
+
+            RemoveSetupFromBikeIndexLocked(setupId, previousBikeId);
+        }
+
+        setupToBike[setupId] = bikeId;
+        if (!bikeToSetups.TryGetValue(bikeId, out var setupIds))
+        {
+            setupIds = [];
+            bikeToSetups[bikeId] = setupIds;
+        }
+
+        setupIds.Add(setupId);
+    }
+
+    private void RemoveSetupBikeIndexLocked(Guid setupId)
+    {
+        if (!setupToBike.Remove(setupId, out var bikeId))
+        {
+            return;
+        }
+
+        RemoveSetupFromBikeIndexLocked(setupId, bikeId);
+    }
+
+    private void RemoveSetupFromBikeIndexLocked(Guid setupId, Guid bikeId)
+    {
+        if (!bikeToSetups.TryGetValue(bikeId, out var setupIds))
+        {
+            return;
+        }
+
+        setupIds.Remove(setupId);
+        if (setupIds.Count == 0)
+        {
+            bikeToSetups.Remove(bikeId);
+        }
     }
 
     private static void AddIfChanged(
