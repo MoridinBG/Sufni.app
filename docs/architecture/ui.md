@@ -37,10 +37,16 @@ These boundaries are the invariants worth preserving even if type names
 or feature wording evolve:
 
 - A view model owns screen state, command flow, and binding-friendly projection.
-- A store owns shared read state for an entity family and direct lookups over its own read model.
+- A persisted store owns shared read state for one entity family plus the
+  writer surface for that family's single-aggregate commit and publish-only
+  operations. Runtime-only stores own runtime publication for their own data.
 - A read graph owns a joined projection across stores and publishes derived state for screens that need more than one entity family.
 - A query answers a business question that crosses domains or requires derived reasoning; it does not own the shared collection.
-- A coordinator owns workflows with side effects, store writes, navigation decisions, and long-lived event subscriptions.
+- A coordinator owns workflows with side effects, navigation decisions, and
+  long-lived event subscriptions. It calls store writer APIs for persisted
+  changes but does not mutate store caches directly; cross-aggregate writes
+  live in workflow transaction runners or command services that publish store
+  state only after the SQLite transaction commits.
 - A service or factory owns infrastructure-facing work such as datastore construction, file-picker lifetime, platform integration, and explicit background execution.
 - Screen-scoped caches belong to the screen that owns their lifecycle. Recorded-session analysis uses a per-open-session result state for cancellation and cached records, backed by a shared stateless analysis computer.
 
@@ -130,6 +136,15 @@ record hierarchy with a private constructor so callers must
 pattern-match on known cases instead of relying on bool flags, `null`,
 or magic strings. This convention applies to both coordinator and
 service contracts when the caller's next step differs by outcome.
+
+Store writer APIs use the shared neutral
+`StoreMutationResult<TSnapshot>` and `StoreDeleteResult<TSnapshot>` records:
+`Saved`/`Deleted` carry the published snapshot result, `Conflict`/`Blocked`
+carry the current snapshot when available, and `Missing`/`Failed` carry
+diagnostic text. Workflow services and coordinators translate those neutral
+records into UI-facing results such as `BikeSaveResult`, `SessionSaveResult`,
+and `LiveSessionSaveResult` instead of leaking store-specific contracts into
+editors.
 
 `SaveAsync` on the entity coordinators follows this pattern with
 `Saved(NewBaselineUpdated)`, `Conflict(CurrentSnapshot)`, or
