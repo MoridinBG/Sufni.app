@@ -22,6 +22,7 @@ public class SynchronizationClientService : ISynchronizationClientService
     private readonly ISessionRepository sessionRepository;
     private readonly ISessionStoreWriter sessionStore;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
+    private readonly IRecordedSessionSourceStoreWriter sourceStore;
     private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery;
     private readonly IHttpApiService httpApiService;
     private readonly IAppPreferences appPreferences;
@@ -32,10 +33,11 @@ public class SynchronizationClientService : ISynchronizationClientService
         ISessionRepository sessionRepository,
         ISessionStoreWriter sessionStore,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
+        IRecordedSessionSourceStoreWriter sourceStore,
         IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         IHttpApiService httpApiService,
         IAppPreferences appPreferences)
-        : this(syncDataStore, sessionRepository, sessionStore, recordedSessionSourceRepository, recordedSessionSourceSyncQuery, httpApiService, appPreferences, null)
+        : this(syncDataStore, sessionRepository, sessionStore, recordedSessionSourceRepository, sourceStore, recordedSessionSourceSyncQuery, httpApiService, appPreferences, null)
     {
     }
 
@@ -44,6 +46,7 @@ public class SynchronizationClientService : ISynchronizationClientService
         ISessionRepository sessionRepository,
         ISessionStoreWriter sessionStore,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
+        IRecordedSessionSourceStoreWriter sourceStore,
         IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         IHttpApiService httpApiService,
         IAppPreferences appPreferences,
@@ -53,6 +56,7 @@ public class SynchronizationClientService : ISynchronizationClientService
         this.sessionRepository = sessionRepository;
         this.sessionStore = sessionStore;
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
+        this.sourceStore = sourceStore;
         this.recordedSessionSourceSyncQuery = recordedSessionSourceSyncQuery;
         this.httpApiService = httpApiService;
         this.appPreferences = appPreferences;
@@ -264,6 +268,7 @@ public class SynchronizationClientService : ISynchronizationClientService
                 }
 
                 await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(FromTransfer(source));
+                await sourceStore.PublishSourcesChangedAsync([source.SessionId]);
                 downloadedCount++;
             }
         }

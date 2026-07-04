@@ -20,6 +20,7 @@ public class SynchronizationClientServiceTests
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
+    private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
     private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery = Substitute.For<IRecordedSessionSourceSyncQuery>();
     private readonly IHttpApiService httpApiService = Substitute.For<IHttpApiService>();
     private readonly IAppPreferences appPreferences = Substitute.For<IAppPreferences>();
@@ -44,6 +45,7 @@ public class SynchronizationClientServiceTests
             sessionRepository,
             sessionStore,
             recordedSessionSourceRepository,
+            sourceStore,
             recordedSessionSourceSyncQuery,
             httpApiService,
             appPreferences,
@@ -486,6 +488,9 @@ public class SynchronizationClientServiceTests
             saved.SchemaVersion == source.SchemaVersion &&
             saved.SourceHash == source.SourceHash &&
             saved.Payload.SequenceEqual(source.Payload)));
+        await sourceStore.Received(1).PublishSourcesChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(source.SessionId)),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -509,6 +514,9 @@ public class SynchronizationClientServiceTests
         await CreateService().SyncAll();
 
         await recordedSessionSourceRepository.DidNotReceive().PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>());
+        await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
     }
 
     private static RecordedSessionSource CreateRecordedSource()
