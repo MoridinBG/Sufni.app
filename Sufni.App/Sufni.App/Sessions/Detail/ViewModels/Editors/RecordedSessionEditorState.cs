@@ -42,6 +42,8 @@ internal sealed record RecordedSessionEditorIntentState(
 internal sealed record RecordedSessionEditorPresentationState(
     SurfacePresentationState MapState,
     SurfacePresentationState MediaPaneState,
+    double? MediaColumnWidth,
+    string? MediaUrl,
     RecordedSignalPresentationState Signals,
     RecordedAnalysisPresentationState Analysis,
     SessionDampingPercentages DampingPercentages,

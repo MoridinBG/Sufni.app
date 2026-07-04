@@ -191,8 +191,16 @@ public class SessionWorkspaceViewModelTests
     public void SessionMediaWorkspace_TracksSurfaceStateAndExtensionMediaPanes()
     {
         var context = new RecordedSessionContext();
-        var workspace = new SessionMediaWorkspaceViewModel(context);
+        using var state = new Subject<RecordedSessionEditorState>();
+        var workspace = new SessionMediaWorkspaceViewModel(
+            state,
+            () => context.MapViewModel,
+            context.Timeline,
+            () => context.ExtensionSlots);
         var changes = TrackPropertyChanges(workspace);
+        context.PropertyChanged += (_, _) =>
+            state.OnNext(RecordedSessionEditorStateSnapshot.From(context, SessionPreferences.Default));
+        state.OnNext(RecordedSessionEditorStateSnapshot.From(context, SessionPreferences.Default));
 
         Assert.False(workspace.HasMediaContent);
 

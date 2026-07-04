@@ -1336,7 +1336,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             Timeline,
             () => ExtensionSlots,
             editorActions);
-        MediaWorkspace = new SessionMediaWorkspaceViewModel(SessionContext);
+        MediaWorkspace = new SessionMediaWorkspaceViewModel(
+            editorStateController.State,
+            () => MapViewModel,
+            Timeline,
+            () => ExtensionSlots);
         AnalysisWorkspace = new SessionAnalysisWorkspaceViewModel(
             editorStateController.State,
             () => ExtensionSlots,

@@ -212,6 +212,8 @@ public class RecordedSessionEditorActionsTests
             Presentation: new RecordedSessionEditorPresentationState(
                 MapState: SurfacePresentationState.Hidden,
                 MediaPaneState: SurfacePresentationState.Hidden,
+                MediaColumnWidth: null,
+                MediaUrl: null,
                 Signals: new RecordedSignalPresentationState(
                     Travel: SurfacePresentationState.Hidden,
                     Velocity: SurfacePresentationState.Hidden,

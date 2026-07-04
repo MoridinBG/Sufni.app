@@ -32,6 +32,8 @@ internal static class RecordedSessionEditorStateSnapshot
             Presentation: new RecordedSessionEditorPresentationState(
                 MapState: context.MapState,
                 MediaPaneState: context.MediaPaneState,
+                MediaColumnWidth: context.MediaColumnWidth,
+                MediaUrl: context.MediaUrl,
                 Signals: new RecordedSignalPresentationState(
                     Travel: context.TravelSignalState,
                     Velocity: context.VelocitySignalState,

@@ -1,5 +1,5 @@
+using System;
 using System.Collections.Specialized;
-using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
@@ -12,14 +12,32 @@ namespace Sufni.App.Sessions.Media.ViewModels.Editors;
 
 internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessionMediaWorkspace
 {
-    private readonly RecordedSessionContext context;
+    private readonly Func<MapViewModel?> mapViewModel;
+    private readonly Func<RecordedSessionExtensionSlots> extensionSlots;
+    private readonly IDisposable stateSubscription;
+    private MapViewModel? currentMapViewModel;
+    private RecordedSessionExtensionSlots? currentExtensionSlots;
     private INotifyCollectionChanged? mediaPanes;
+    private SurfacePresentationState mapState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState mediaPaneState = SurfacePresentationState.Hidden;
+    private double? mediaColumnWidth;
+    private string? mediaUrl;
 
-    public SessionMediaWorkspaceViewModel(RecordedSessionContext context)
+    public SessionMediaWorkspaceViewModel(
+        IObservable<RecordedSessionEditorState> state,
+        Func<MapViewModel?> mapViewModel,
+        SessionTimelineLinkViewModel timeline,
+        Func<RecordedSessionExtensionSlots> extensionSlots)
     {
-        this.context = context;
-        context.PropertyChanged += OnContextPropertyChanged;
-        SubscribeToMediaPanes(context.ExtensionSlots);
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(mapViewModel);
+        ArgumentNullException.ThrowIfNull(timeline);
+        ArgumentNullException.ThrowIfNull(extensionSlots);
+
+        this.mapViewModel = mapViewModel;
+        Timeline = timeline;
+        this.extensionSlots = extensionSlots;
+        stateSubscription = state.Subscribe(ApplyState);
     }
 
     public bool HasMediaContent =>
@@ -27,51 +45,59 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
         MediaPaneState.ReservesLayout ||
         ExtensionSlots.MediaPanes.Count > 0;
 
-    public MapViewModel? MapViewModel => context.MapViewModel;
+    public MapViewModel? MapViewModel => currentMapViewModel;
 
-    public SurfacePresentationState MapState => context.MapState;
+    public SurfacePresentationState MapState => mapState;
 
-    public SurfacePresentationState MediaPaneState => context.MediaPaneState;
+    public SurfacePresentationState MediaPaneState => mediaPaneState;
 
-    public SessionTimelineLinkViewModel Timeline => context.Timeline;
+    public SessionTimelineLinkViewModel Timeline { get; }
 
-    public RecordedSessionExtensionSlots ExtensionSlots => context.ExtensionSlots;
+    public RecordedSessionExtensionSlots ExtensionSlots => currentExtensionSlots ?? extensionSlots();
 
-    public double? MediaColumnWidth => context.MediaColumnWidth;
+    public double? MediaColumnWidth => mediaColumnWidth;
 
-    public string? MediaUrl => context.MediaUrl;
+    public string? MediaUrl => mediaUrl;
 
-    private void OnContextPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    private void ApplyState(RecordedSessionEditorState state)
     {
-        switch (args.PropertyName)
+        var nextMapViewModel = mapViewModel();
+        if (!ReferenceEquals(currentMapViewModel, nextMapViewModel))
         {
-            case nameof(RecordedSessionContext.MapViewModel):
-                OnPropertyChanged(nameof(MapViewModel));
-                break;
-            case nameof(RecordedSessionContext.MapState):
-                OnPropertyChanged(nameof(MapState));
-                OnPropertyChanged(nameof(HasMediaContent));
-                break;
-            case nameof(RecordedSessionContext.MediaPaneState):
-                OnPropertyChanged(nameof(MediaPaneState));
-                OnPropertyChanged(nameof(HasMediaContent));
-                break;
-            case nameof(RecordedSessionContext.MediaColumnWidth):
-                OnPropertyChanged(nameof(MediaColumnWidth));
-                break;
-            case nameof(RecordedSessionContext.MediaUrl):
-                OnPropertyChanged(nameof(MediaUrl));
-                break;
-            case nameof(RecordedSessionContext.ExtensionSlots):
-                SubscribeToMediaPanes(context.ExtensionSlots);
-                OnPropertyChanged(nameof(ExtensionSlots));
-                OnPropertyChanged(nameof(HasMediaContent));
-                break;
+            currentMapViewModel = nextMapViewModel;
+            OnPropertyChanged(nameof(MapViewModel));
         }
+
+        var nextExtensionSlots = extensionSlots();
+        if (!ReferenceEquals(currentExtensionSlots, nextExtensionSlots))
+        {
+            currentExtensionSlots = nextExtensionSlots;
+            SubscribeToMediaPanes(nextExtensionSlots);
+            OnPropertyChanged(nameof(ExtensionSlots));
+            OnPropertyChanged(nameof(HasMediaContent));
+        }
+
+        if (SetProperty(ref mapState, state.Presentation.MapState, nameof(MapState)))
+        {
+            OnPropertyChanged(nameof(HasMediaContent));
+        }
+
+        if (SetProperty(ref mediaPaneState, state.Presentation.MediaPaneState, nameof(MediaPaneState)))
+        {
+            OnPropertyChanged(nameof(HasMediaContent));
+        }
+
+        SetProperty(ref mediaColumnWidth, state.Presentation.MediaColumnWidth, nameof(MediaColumnWidth));
+        SetProperty(ref mediaUrl, state.Presentation.MediaUrl, nameof(MediaUrl));
     }
 
     private void SubscribeToMediaPanes(RecordedSessionExtensionSlots slots)
     {
+        if (ReferenceEquals(mediaPanes, slots.MediaPanes))
+        {
+            return;
+        }
+
         if (mediaPanes is not null)
         {
             mediaPanes.CollectionChanged -= OnMediaPanesChanged;
