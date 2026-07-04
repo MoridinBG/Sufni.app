@@ -362,21 +362,9 @@ public partial class App : Application
         _ = Services.GetRequiredService<IPairedDeviceCoordinator>();
         _ = Services.GetRequiredService<ISyncCoordinator>();
 
-        // Mobile-only: eagerly resolve so DeviceId / IsPaired probe runs
-        // before the pairing screen is opened.
-        if (!IsDesktop)
-        {
-            _ = Services.GetService<IPairingClientCoordinator>();
-        }
-
-        // Desktop-only: eagerly resolve so the constructor's
-        // PairingRequested/PairingConfirmed event subscriptions wire up
-        // before the desktop view loads.
-        if (IsDesktop)
-        {
-            _ = Services.GetService<IPairingServerCoordinator>();
-            _ = Services.GetService<IInboundSyncCoordinator>();
-        }
+        ResolveCapabilityEagerServices(
+            Services,
+            Services.GetRequiredService<IAppEnvironment>().Capabilities);
 
         foreach (var eagerServiceType in extensionCapabilityRegistry.EagerServiceTypes)
         {
@@ -458,6 +446,24 @@ public partial class App : Application
         return Design.IsDesignMode
             || ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime
                 and not ISingleViewApplicationLifetime;
+    }
+
+    internal static void ResolveCapabilityEagerServices(
+        IServiceProvider services,
+        AppCapabilities capabilities)
+    {
+        if (capabilities.CanPairAsClient)
+        {
+            // Resolve so DeviceId / IsPaired probe runs before the pairing screen is opened.
+            _ = services.GetService<IPairingClientCoordinator>();
+        }
+
+        if (capabilities.CanHostSyncServer)
+        {
+            // Resolve so pairing and inbound-sync event subscriptions wire up before views load.
+            _ = services.GetService<IPairingServerCoordinator>();
+            _ = services.GetService<IInboundSyncCoordinator>();
+        }
     }
 
     static partial void RegisterBuildTimeExtensions(AppExtensionCollection extensions, bool isDesktop);
