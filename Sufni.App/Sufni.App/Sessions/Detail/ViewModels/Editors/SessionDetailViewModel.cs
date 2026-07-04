@@ -146,6 +146,18 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private IDisposable? processedTelemetryRetention;
     private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
     private SessionOperationPresentationState sessionOperationState = SessionOperationPresentationState.Hidden;
+    private bool showAirtime = true;
+    private bool showVelocityAirtime;
+    private bool showImuAirtime;
+    private bool showPitchRollAirtime;
+    private bool showSpeedAirtime;
+    private bool showElevationAirtime;
+    private bool showAnalysisSelection;
+    private bool showVelocityAnalysisSelection;
+    private bool showImuAnalysisSelection;
+    private bool showPitchRollAnalysisSelection;
+    private bool showSpeedAnalysisSelection;
+    private bool showElevationAnalysisSelection;
 
     #endregion Private fields
 
@@ -1295,30 +1307,30 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             ErrorMessages.Add);
         signalRowActions = new SignalRowActionsController(
             () => analysisSelectionController.HasSelection,
-            () => SessionContext.ShowAirtime,
-            value => SessionContext.ShowAirtime = value,
-            () => SessionContext.ShowVelocityAirtime,
-            value => SessionContext.ShowVelocityAirtime = value,
-            () => SessionContext.ShowImuAirtime,
-            value => SessionContext.ShowImuAirtime = value,
-            () => SessionContext.ShowPitchRollAirtime,
-            value => SessionContext.ShowPitchRollAirtime = value,
-            () => SessionContext.ShowSpeedAirtime,
-            value => SessionContext.ShowSpeedAirtime = value,
-            () => SessionContext.ShowElevationAirtime,
-            value => SessionContext.ShowElevationAirtime = value,
-            () => SessionContext.ShowAnalysisSelection,
-            value => SessionContext.ShowAnalysisSelection = value,
-            () => SessionContext.ShowVelocityAnalysisSelection,
-            value => SessionContext.ShowVelocityAnalysisSelection = value,
-            () => SessionContext.ShowImuAnalysisSelection,
-            value => SessionContext.ShowImuAnalysisSelection = value,
-            () => SessionContext.ShowPitchRollAnalysisSelection,
-            value => SessionContext.ShowPitchRollAnalysisSelection = value,
-            () => SessionContext.ShowSpeedAnalysisSelection,
-            value => SessionContext.ShowSpeedAnalysisSelection = value,
-            () => SessionContext.ShowElevationAnalysisSelection,
-            value => SessionContext.ShowElevationAnalysisSelection = value);
+            () => showAirtime,
+            SetShowAirtime,
+            () => showVelocityAirtime,
+            SetShowVelocityAirtime,
+            () => showImuAirtime,
+            SetShowImuAirtime,
+            () => showPitchRollAirtime,
+            SetShowPitchRollAirtime,
+            () => showSpeedAirtime,
+            SetShowSpeedAirtime,
+            () => showElevationAirtime,
+            SetShowElevationAirtime,
+            () => showAnalysisSelection,
+            SetShowAnalysisSelection,
+            () => showVelocityAnalysisSelection,
+            SetShowVelocityAnalysisSelection,
+            () => showImuAnalysisSelection,
+            SetShowImuAnalysisSelection,
+            () => showPitchRollAnalysisSelection,
+            SetShowPitchRollAnalysisSelection,
+            () => showSpeedAnalysisSelection,
+            SetShowSpeedAnalysisSelection,
+            () => showElevationAnalysisSelection,
+            SetShowElevationAnalysisSelection);
         signalAutozoomController = new SignalAutozoomController(Timeline);
         setAnalysisRangeStartCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
             SetAnalysisRangeStartFromPlotContext,
@@ -1633,12 +1645,65 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             PitchRollHeaderActions,
             SpeedHeaderActions,
             ElevationHeaderActions,
+            CreateSignalToggleState(),
             new AnalysisSelectionState(
                 ActiveFrontAnalysisSelection,
                 ActiveRearAnalysisSelection,
                 analysisSelectionController.HighlightRanges));
         ApplyProjectedEditorState(state);
         editorStateInput.OnNext(state);
+    }
+
+    private RecordedSignalToggleState CreateSignalToggleState()
+    {
+        return new RecordedSignalToggleState(
+            showAirtime,
+            showVelocityAirtime,
+            showImuAirtime,
+            showPitchRollAirtime,
+            showSpeedAirtime,
+            showElevationAirtime,
+            showAnalysisSelection,
+            showVelocityAnalysisSelection,
+            showImuAnalysisSelection,
+            showPitchRollAnalysisSelection,
+            showSpeedAnalysisSelection,
+            showElevationAnalysisSelection);
+    }
+
+    private void SetShowAirtime(bool value) => SetSignalToggle(ref showAirtime, value);
+
+    private void SetShowVelocityAirtime(bool value) => SetSignalToggle(ref showVelocityAirtime, value);
+
+    private void SetShowImuAirtime(bool value) => SetSignalToggle(ref showImuAirtime, value);
+
+    private void SetShowPitchRollAirtime(bool value) => SetSignalToggle(ref showPitchRollAirtime, value);
+
+    private void SetShowSpeedAirtime(bool value) => SetSignalToggle(ref showSpeedAirtime, value);
+
+    private void SetShowElevationAirtime(bool value) => SetSignalToggle(ref showElevationAirtime, value);
+
+    private void SetShowAnalysisSelection(bool value) => SetSignalToggle(ref showAnalysisSelection, value);
+
+    private void SetShowVelocityAnalysisSelection(bool value) => SetSignalToggle(ref showVelocityAnalysisSelection, value);
+
+    private void SetShowImuAnalysisSelection(bool value) => SetSignalToggle(ref showImuAnalysisSelection, value);
+
+    private void SetShowPitchRollAnalysisSelection(bool value) => SetSignalToggle(ref showPitchRollAnalysisSelection, value);
+
+    private void SetShowSpeedAnalysisSelection(bool value) => SetSignalToggle(ref showSpeedAnalysisSelection, value);
+
+    private void SetShowElevationAnalysisSelection(bool value) => SetSignalToggle(ref showElevationAnalysisSelection, value);
+
+    private void SetSignalToggle(ref bool field, bool value)
+    {
+        if (field == value)
+        {
+            return;
+        }
+
+        field = value;
+        PublishEditorState();
     }
 
     private void ApplyProjectedEditorState(RecordedSessionEditorState state)
@@ -1863,7 +1928,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         signalRowActions.ClearAnalysisSelectionToggles();
         if (analysisSelectionController.HasSelection)
         {
-            SessionContext.ShowAnalysisSelection = true;
+            SetShowAnalysisSelection(true);
         }
 
         signalRowActions.RefreshAnalysisSelectionActionStates();

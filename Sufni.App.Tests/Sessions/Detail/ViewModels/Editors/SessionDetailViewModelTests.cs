@@ -265,7 +265,8 @@ public class SessionDetailViewModelTests
 
         editor.SessionContext.TelemetryData = telemetry;
         editor.SessionContext.TravelSignalState = SurfacePresentationState.Ready;
-        editor.SessionContext.ShowVelocityAirtime = true;
+        var velocityAirtimeAction = GetRowAction(editor.VelocityHeaderActions, "velocity_airtime");
+        velocityAirtimeAction.Command!.Execute(null);
         var selection = CreateFrontDampingSelection(telemetry, editor.SessionContext.SelectedVelocityAverageMode);
         editor.SelectAnalysisRangeCommand.Execute(selection);
         editor.SignalsWorkspace.SetAnalysisRange(1, 2);
@@ -274,7 +275,8 @@ public class SessionDetailViewModelTests
         Assert.Same(editor.SessionContext.TelemetryData, editor.SignalsWorkspace.TelemetryData);
         Assert.Equal(editor.SessionContext.AnalysisRange, editor.SignalsWorkspace.AnalysisRange);
         Assert.Equal(editor.SessionContext.TravelSignalState, editor.SignalsWorkspace.TravelSignalState);
-        Assert.Equal(editor.SessionContext.ShowVelocityAirtime, editor.SignalsWorkspace.ShowVelocityAirtime);
+        Assert.True(editor.SignalsWorkspace.ShowVelocityAirtime);
+        Assert.False(editor.SessionContext.ShowVelocityAirtime);
         Assert.NotEmpty(editor.SignalsWorkspace.AnalysisSelectionHighlightRanges);
         Assert.All(editor.SignalsWorkspace.AnalysisSelectionHighlightRanges, range => Assert.Equal(SuspensionType.Front, range.SuspensionType));
         Assert.True(editor.SignalsWorkspace.HasAnalysisSelection);
@@ -364,25 +366,25 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
 
         var action = GetRowAction(editor.TravelHeaderActions, "travel_airtime");
-        Assert.True(editor.SessionContext.ShowAirtime);
+        Assert.True(editor.SignalsWorkspace.ShowAirtime);
         Assert.Equal("travel_airtime", action.Id);
         Assert.Equal(SignalRowActionKind.Toggle, action.Kind);
         Assert.True(action.IsChecked);
         Assert.Equal("Hide airtime", action.ToolTip);
         Assert.NotNull(action.Command);
 
-        AssertDefaultHiddenAirtimeAction(editor.VelocityHeaderActions, editor.SessionContext.ShowVelocityAirtime, "velocity_airtime");
-        AssertDefaultHiddenAirtimeAction(editor.ImuHeaderActions, editor.SessionContext.ShowImuAirtime, "imu_airtime");
-        AssertDefaultHiddenAirtimeAction(editor.PitchRollHeaderActions, editor.SessionContext.ShowPitchRollAirtime, "pitch_roll_airtime");
-        AssertDefaultHiddenAirtimeAction(editor.SpeedHeaderActions, editor.SessionContext.ShowSpeedAirtime, "speed_airtime");
-        AssertDefaultHiddenAirtimeAction(editor.ElevationHeaderActions, editor.SessionContext.ShowElevationAirtime, "elevation_airtime");
+        AssertDefaultHiddenAirtimeAction(editor.VelocityHeaderActions, editor.SignalsWorkspace.ShowVelocityAirtime, "velocity_airtime");
+        AssertDefaultHiddenAirtimeAction(editor.ImuHeaderActions, editor.SignalsWorkspace.ShowImuAirtime, "imu_airtime");
+        AssertDefaultHiddenAirtimeAction(editor.PitchRollHeaderActions, editor.SignalsWorkspace.ShowPitchRollAirtime, "pitch_roll_airtime");
+        AssertDefaultHiddenAirtimeAction(editor.SpeedHeaderActions, editor.SignalsWorkspace.ShowSpeedAirtime, "speed_airtime");
+        AssertDefaultHiddenAirtimeAction(editor.ElevationHeaderActions, editor.SignalsWorkspace.ShowElevationAirtime, "elevation_airtime");
 
-        AssertDefaultDisabledAnalysisSelectionAction(editor.TravelHeaderActions, editor.SessionContext.ShowAnalysisSelection, "travel_analysis_selection");
-        AssertDefaultDisabledAnalysisSelectionAction(editor.VelocityHeaderActions, editor.SessionContext.ShowVelocityAnalysisSelection, "velocity_analysis_selection");
-        AssertDefaultDisabledAnalysisSelectionAction(editor.ImuHeaderActions, editor.SessionContext.ShowImuAnalysisSelection, "imu_analysis_selection");
-        AssertDefaultDisabledAnalysisSelectionAction(editor.PitchRollHeaderActions, editor.SessionContext.ShowPitchRollAnalysisSelection, "pitch_roll_analysis_selection");
-        AssertDefaultDisabledAnalysisSelectionAction(editor.SpeedHeaderActions, editor.SessionContext.ShowSpeedAnalysisSelection, "speed_analysis_selection");
-        AssertDefaultDisabledAnalysisSelectionAction(editor.ElevationHeaderActions, editor.SessionContext.ShowElevationAnalysisSelection, "elevation_analysis_selection");
+        AssertDefaultDisabledAnalysisSelectionAction(editor.TravelHeaderActions, editor.SignalsWorkspace.ShowAnalysisSelection, "travel_analysis_selection");
+        AssertDefaultDisabledAnalysisSelectionAction(editor.VelocityHeaderActions, editor.SignalsWorkspace.ShowVelocityAnalysisSelection, "velocity_analysis_selection");
+        AssertDefaultDisabledAnalysisSelectionAction(editor.ImuHeaderActions, editor.SignalsWorkspace.ShowImuAnalysisSelection, "imu_analysis_selection");
+        AssertDefaultDisabledAnalysisSelectionAction(editor.PitchRollHeaderActions, editor.SignalsWorkspace.ShowPitchRollAnalysisSelection, "pitch_roll_analysis_selection");
+        AssertDefaultDisabledAnalysisSelectionAction(editor.SpeedHeaderActions, editor.SignalsWorkspace.ShowSpeedAnalysisSelection, "speed_analysis_selection");
+        AssertDefaultDisabledAnalysisSelectionAction(editor.ElevationHeaderActions, editor.SignalsWorkspace.ShowElevationAnalysisSelection, "elevation_analysis_selection");
         Assert.Empty(editor.SessionContext.TravelHeaderActions);
         Assert.Empty(editor.SessionContext.VelocityHeaderActions);
         Assert.Empty(editor.SessionContext.ImuHeaderActions);
@@ -407,7 +409,8 @@ public class SessionDetailViewModelTests
         Assert.NotEmpty(editor.SignalsWorkspace.AnalysisSelectionHighlightRanges);
         Assert.All(editor.SignalsWorkspace.AnalysisSelectionHighlightRanges, range => Assert.Equal(SuspensionType.Front, range.SuspensionType));
         Assert.Empty(editor.SessionContext.AnalysisSelectionHighlightRanges);
-        Assert.True(editor.SessionContext.ShowAnalysisSelection);
+        Assert.True(editor.SignalsWorkspace.ShowAnalysisSelection);
+        Assert.False(editor.SessionContext.ShowAnalysisSelection);
 
         var travelSelectionAction = GetRowAction(editor.TravelHeaderActions, "travel_analysis_selection");
         Assert.True(travelSelectionAction.IsEnabled);
@@ -420,6 +423,7 @@ public class SessionDetailViewModelTests
         Assert.False(editor.SignalsWorkspace.HasAnalysisSelection);
         Assert.Empty(editor.SignalsWorkspace.AnalysisSelectionHighlightRanges);
         Assert.Empty(editor.SessionContext.AnalysisSelectionHighlightRanges);
+        Assert.False(editor.SignalsWorkspace.ShowAnalysisSelection);
         Assert.False(editor.SessionContext.ShowAnalysisSelection);
         Assert.False(travelSelectionAction.IsEnabled);
     }
@@ -1455,7 +1459,8 @@ public class SessionDetailViewModelTests
         var action = GetRowAction(editor.TravelHeaderActions, "travel_airtime");
         action.Command!.Execute(null);
 
-        Assert.False(editor.SessionContext.ShowAirtime);
+        Assert.False(editor.SignalsWorkspace.ShowAirtime);
+        Assert.True(editor.SessionContext.ShowAirtime);
         Assert.False(action.IsChecked);
         Assert.Equal("Show airtime", action.ToolTip);
         Assert.False(editor.IsDirty);
@@ -1464,7 +1469,8 @@ public class SessionDetailViewModelTests
         var velocityAction = GetRowAction(editor.VelocityHeaderActions, "velocity_airtime");
         velocityAction.Command!.Execute(null);
 
-        Assert.True(editor.SessionContext.ShowVelocityAirtime);
+        Assert.True(editor.SignalsWorkspace.ShowVelocityAirtime);
+        Assert.False(editor.SessionContext.ShowVelocityAirtime);
         Assert.True(velocityAction.IsChecked);
         Assert.Equal("Hide airtime", velocityAction.ToolTip);
         Assert.False(editor.IsDirty);

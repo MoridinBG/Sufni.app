@@ -16,8 +16,11 @@ internal static class RecordedSessionEditorStateSnapshot
         IReadOnlyList<SignalRowAction>? pitchRollHeaderActions = null,
         IReadOnlyList<SignalRowAction>? speedHeaderActions = null,
         IReadOnlyList<SignalRowAction>? elevationHeaderActions = null,
+        RecordedSignalToggleState? signalToggles = null,
         AnalysisSelectionState? analysisSelection = null)
     {
+        var toggles = signalToggles ?? RecordedSignalToggleState.From(context);
+
         return new RecordedSessionEditorState(
             Domain: null,
             Session: context.SessionSnapshot,
@@ -50,18 +53,18 @@ internal static class RecordedSessionEditorStateSnapshot
                     PitchRoll: context.PitchRollSignalState,
                     Speed: context.SpeedSignalState,
                     Elevation: context.ElevationSignalState,
-                    ShowAirtime: context.ShowAirtime,
-                    ShowVelocityAirtime: context.ShowVelocityAirtime,
-                    ShowImuAirtime: context.ShowImuAirtime,
-                    ShowPitchRollAirtime: context.ShowPitchRollAirtime,
-                    ShowSpeedAirtime: context.ShowSpeedAirtime,
-                    ShowElevationAirtime: context.ShowElevationAirtime,
-                    ShowAnalysisSelection: context.ShowAnalysisSelection,
-                    ShowVelocityAnalysisSelection: context.ShowVelocityAnalysisSelection,
-                    ShowImuAnalysisSelection: context.ShowImuAnalysisSelection,
-                    ShowPitchRollAnalysisSelection: context.ShowPitchRollAnalysisSelection,
-                    ShowSpeedAnalysisSelection: context.ShowSpeedAnalysisSelection,
-                    ShowElevationAnalysisSelection: context.ShowElevationAnalysisSelection,
+                    ShowAirtime: toggles.ShowAirtime,
+                    ShowVelocityAirtime: toggles.ShowVelocityAirtime,
+                    ShowImuAirtime: toggles.ShowImuAirtime,
+                    ShowPitchRollAirtime: toggles.ShowPitchRollAirtime,
+                    ShowSpeedAirtime: toggles.ShowSpeedAirtime,
+                    ShowElevationAirtime: toggles.ShowElevationAirtime,
+                    ShowAnalysisSelection: toggles.ShowAnalysisSelection,
+                    ShowVelocityAnalysisSelection: toggles.ShowVelocityAnalysisSelection,
+                    ShowImuAnalysisSelection: toggles.ShowImuAnalysisSelection,
+                    ShowPitchRollAnalysisSelection: toggles.ShowPitchRollAnalysisSelection,
+                    ShowSpeedAnalysisSelection: toggles.ShowSpeedAnalysisSelection,
+                    ShowElevationAnalysisSelection: toggles.ShowElevationAnalysisSelection,
                     TravelHeaderActions: travelHeaderActions ?? context.TravelHeaderActions,
                     VelocityHeaderActions: velocityHeaderActions ?? context.VelocityHeaderActions,
                     ImuHeaderActions: imuHeaderActions ?? context.ImuHeaderActions,
@@ -88,5 +91,37 @@ internal static class RecordedSessionEditorStateSnapshot
                 ActiveFront: context.ActiveFrontAnalysisSelection,
                 ActiveRear: context.ActiveRearAnalysisSelection,
                 HighlightRanges: context.AnalysisSelectionHighlightRanges));
+    }
+}
+
+internal sealed record RecordedSignalToggleState(
+    bool ShowAirtime,
+    bool ShowVelocityAirtime,
+    bool ShowImuAirtime,
+    bool ShowPitchRollAirtime,
+    bool ShowSpeedAirtime,
+    bool ShowElevationAirtime,
+    bool ShowAnalysisSelection,
+    bool ShowVelocityAnalysisSelection,
+    bool ShowImuAnalysisSelection,
+    bool ShowPitchRollAnalysisSelection,
+    bool ShowSpeedAnalysisSelection,
+    bool ShowElevationAnalysisSelection)
+{
+    public static RecordedSignalToggleState From(RecordedSessionContext context)
+    {
+        return new RecordedSignalToggleState(
+            ShowAirtime: context.ShowAirtime,
+            ShowVelocityAirtime: context.ShowVelocityAirtime,
+            ShowImuAirtime: context.ShowImuAirtime,
+            ShowPitchRollAirtime: context.ShowPitchRollAirtime,
+            ShowSpeedAirtime: context.ShowSpeedAirtime,
+            ShowElevationAirtime: context.ShowElevationAirtime,
+            ShowAnalysisSelection: context.ShowAnalysisSelection,
+            ShowVelocityAnalysisSelection: context.ShowVelocityAnalysisSelection,
+            ShowImuAnalysisSelection: context.ShowImuAnalysisSelection,
+            ShowPitchRollAnalysisSelection: context.ShowPitchRollAnalysisSelection,
+            ShowSpeedAnalysisSelection: context.ShowSpeedAnalysisSelection,
+            ShowElevationAnalysisSelection: context.ShowElevationAnalysisSelection);
     }
 }
