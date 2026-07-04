@@ -1,4 +1,5 @@
 using NSubstitute;
+using Sufni.App.ExtensionHost.Contracts.Database;
 
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -11,7 +12,7 @@ namespace Sufni.App.Tests.Shell.Coordinators;
 public class AppDataRefresherTests
 {
     [Fact]
-    public async Task RefreshAsync_RefreshesAllStoreWriters()
+    public async Task RefreshCoreStateAsync_RefreshesAllCoreState()
     {
         var bikeStore = Substitute.For<IBikeStoreWriter>();
         var setupStore = Substitute.For<ISetupStoreWriter>();
@@ -27,9 +28,10 @@ public class AppDataRefresherTests
             sourceStore,
             pairedDeviceStore,
             processingOptionCache,
-            derivationWindowCache);
+            derivationWindowCache,
+            []);
 
-        await refresher.RefreshAsync();
+        await refresher.RefreshCoreStateAsync();
 
         // The option/window caches must hydrate before stores refresh so the
         // projection's first sweep sees each session's real derivation inputs.
@@ -40,5 +42,32 @@ public class AppDataRefresherTests
         await sessionStore.Received(1).RefreshAsync();
         await sourceStore.Received(1).RefreshAsync();
         await pairedDeviceStore.Received(1).RefreshAsync();
+    }
+
+    [Fact]
+    public async Task RefreshAllStateAsync_RefreshesCoreStateThenExtensionParticipants()
+    {
+        var bikeStore = Substitute.For<IBikeStoreWriter>();
+        var setupStore = Substitute.For<ISetupStoreWriter>();
+        var sessionStore = Substitute.For<ISessionStoreWriter>();
+        var sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
+        var pairedDeviceStore = Substitute.For<IPairedDeviceStoreWriter>();
+        var processingOptionCache = Substitute.For<IRecordedSessionProcessingOptionCache>();
+        var derivationWindowCache = Substitute.For<IRecordedSessionDerivationWindowCache>();
+        var participant = Substitute.For<IExtensionStateRefreshParticipant>();
+        var refresher = new AppDataRefresher(
+            bikeStore,
+            setupStore,
+            sessionStore,
+            sourceStore,
+            pairedDeviceStore,
+            processingOptionCache,
+            derivationWindowCache,
+            [participant]);
+
+        await refresher.RefreshAllStateAsync();
+
+        await sessionStore.Received(1).RefreshAsync();
+        await participant.Received(1).RefreshExtensionStateAsync(Arg.Any<CancellationToken>());
     }
 }

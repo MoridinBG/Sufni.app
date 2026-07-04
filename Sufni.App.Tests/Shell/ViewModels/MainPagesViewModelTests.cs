@@ -308,25 +308,14 @@ public class MainPagesViewModelTests
     }
 
     [Fact]
-    public async Task Constructor_RefreshesAppData_WithInitialDatabaseLoad()
+    public async Task Constructor_RefreshesAllState_WithInitialDatabaseLoad()
     {
-        var appDataRefresher = Substitute.For<IAppDataRefresher>();
-        appDataRefresher.RefreshAsync().Returns(Task.CompletedTask);
+        var appStateRefreshOrchestrator = Substitute.For<IAppStateRefreshOrchestrator>();
+        appStateRefreshOrchestrator.RefreshAllStateAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        _ = MainPagesViewModelTestFactory.Create(appDataRefresher: appDataRefresher);
+        _ = MainPagesViewModelTestFactory.Create(appStateRefreshOrchestrator: appStateRefreshOrchestrator);
 
-        await appDataRefresher.Received(1).RefreshAsync();
-    }
-
-    [Fact]
-    public async Task Constructor_RefreshesExtensionStateParticipants_WithInitialDatabaseLoad()
-    {
-        var participant = new RecordingExtensionStateRefreshParticipant();
-
-        _ = MainPagesViewModelTestFactory.Create(extensionStateRefreshParticipants: [participant]);
-
-        await participant.Refreshed.Task.WaitAsync(TimeSpan.FromSeconds(1));
-        Assert.Equal(1, participant.RefreshCount);
+        await appStateRefreshOrchestrator.Received(1).RefreshAllStateAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -405,11 +394,7 @@ public class MainPagesViewModelTests
 
     private static SyncCoordinator CreateSyncCoordinator(ISynchronizationServerService server) =>
         new(
-            Substitute.For<IBikeStoreWriter>(),
-            Substitute.For<ISetupStoreWriter>(),
-            Substitute.For<ISessionStoreWriter>(),
-            Substitute.For<IRecordedSessionSourceStoreWriter>(),
-            Substitute.For<IPairedDeviceStoreWriter>(),
+            Substitute.For<IAppStateRefreshOrchestrator>(),
             synchronizationClientService: null,
             pairingClientCoordinator: null,
             synchronizationServerService: server,
@@ -496,19 +481,6 @@ public class MainPagesViewModelTests
         }
 
         public override string ToString() => surface;
-    }
-
-    private sealed class RecordingExtensionStateRefreshParticipant : IExtensionStateRefreshParticipant
-    {
-        public TaskCompletionSource Refreshed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public int RefreshCount { get; private set; }
-
-        public Task RefreshExtensionStateAsync(CancellationToken cancellationToken = default)
-        {
-            RefreshCount++;
-            Refreshed.TrySetResult();
-            return Task.CompletedTask;
-        }
     }
 
     private sealed class ConfirmableTabPageViewModel : TabPageViewModelBase

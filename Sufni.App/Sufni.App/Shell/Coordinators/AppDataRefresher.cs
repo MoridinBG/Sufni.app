@@ -1,4 +1,7 @@
+using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
+using Sufni.App.ExtensionHost.Contracts.Database;
 
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -12,6 +15,12 @@ public interface IAppDataRefresher
     Task RefreshAsync();
 }
 
+public interface IAppStateRefreshOrchestrator
+{
+    Task RefreshCoreStateAsync(CancellationToken cancellationToken = default);
+    Task RefreshAllStateAsync(CancellationToken cancellationToken = default);
+}
+
 internal sealed class AppDataRefresher(
     IBikeStoreWriter bikeStore,
     ISetupStoreWriter setupStore,
@@ -19,9 +28,12 @@ internal sealed class AppDataRefresher(
     IRecordedSessionSourceStoreWriter recordedSessionSourceStore,
     IPairedDeviceStoreWriter pairedDeviceStore,
     IRecordedSessionProcessingOptionCache processingOptionCache,
-    IRecordedSessionDerivationWindowCache derivationWindowCache) : IAppDataRefresher
+    IRecordedSessionDerivationWindowCache derivationWindowCache,
+    IEnumerable<IExtensionStateRefreshParticipant> extensionStateRefreshParticipants) : IAppDataRefresher, IAppStateRefreshOrchestrator
 {
-    public async Task RefreshAsync()
+    public Task RefreshAsync() => RefreshCoreStateAsync();
+
+    public async Task RefreshCoreStateAsync(CancellationToken cancellationToken = default)
     {
         // Hydrate the per-session processing-option/window caches before populating the
         // stores so the recorded-session projection's first sweep (triggered by these
@@ -30,10 +42,19 @@ internal sealed class AppDataRefresher(
         await processingOptionCache.HydrateAsync();
         await derivationWindowCache.HydrateAsync();
 
-        await bikeStore.RefreshAsync();
-        await setupStore.RefreshAsync();
-        await sessionStore.RefreshAsync();
-        await recordedSessionSourceStore.RefreshAsync();
-        await pairedDeviceStore.RefreshAsync();
+        await bikeStore.RefreshAsync(cancellationToken);
+        await setupStore.RefreshAsync(cancellationToken);
+        await sessionStore.RefreshAsync(cancellationToken);
+        await recordedSessionSourceStore.RefreshAsync(cancellationToken);
+        await pairedDeviceStore.RefreshAsync(cancellationToken);
+    }
+
+    public async Task RefreshAllStateAsync(CancellationToken cancellationToken = default)
+    {
+        await RefreshCoreStateAsync(cancellationToken);
+        foreach (var participant in extensionStateRefreshParticipants)
+        {
+            await participant.RefreshExtensionStateAsync(cancellationToken);
+        }
     }
 }

@@ -30,7 +30,7 @@ namespace Sufni.App.Shell.ViewModels;
 
 public partial class MainPagesViewModel : ViewModelBase
 {
-    private readonly IAppDataRefresher appDataRefresher;
+    private readonly IAppStateRefreshOrchestrator appStateRefreshOrchestrator;
     private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly ITrackCoordinator trackCoordinator;
     private readonly ISyncCoordinator syncCoordinator;
@@ -40,7 +40,6 @@ public partial class MainPagesViewModel : ViewModelBase
     private readonly ILayoutProfileTransitionState layoutProfileTransitionState;
     private readonly IUiPreferences uiPreferences;
     private readonly ShellWorkspaceViewModel workspace;
-    private readonly IReadOnlyList<IExtensionStateRefreshParticipant> extensionStateRefreshParticipants;
     private MainPrimaryPageViewModel? activePrimaryPage;
 
     #region Observable properties
@@ -95,7 +94,7 @@ public partial class MainPagesViewModel : ViewModelBase
     #region Constructors
 
     public MainPagesViewModel(
-        IAppDataRefresher appDataRefresher,
+        IAppStateRefreshOrchestrator appStateRefreshOrchestrator,
         IImportSessionsCoordinator importSessionsCoordinator,
         ITrackCoordinator trackCoordinator,
         ISyncCoordinator syncCoordinator,
@@ -114,11 +113,10 @@ public partial class MainPagesViewModel : ViewModelBase
         IUiThreadDispatcher uiThreadDispatcher,
         IEnumerable<IAppToolbarContributionProvider>? appToolbarContributionProviders = null,
         PairingClientViewModel? pairingClientPage = null,
-        PairingServerViewModel? pairingServerViewModel = null,
-        IEnumerable<IExtensionStateRefreshParticipant>? extensionStateRefreshParticipants = null)
+        PairingServerViewModel? pairingServerViewModel = null)
         : base(uiThreadDispatcher)
     {
-        this.appDataRefresher = appDataRefresher;
+        this.appStateRefreshOrchestrator = appStateRefreshOrchestrator;
         this.importSessionsCoordinator = importSessionsCoordinator;
         this.trackCoordinator = trackCoordinator;
         this.syncCoordinator = syncCoordinator;
@@ -128,7 +126,6 @@ public partial class MainPagesViewModel : ViewModelBase
         this.appEnvironment = appEnvironment;
         this.layoutProfileTransitionState = layoutProfileTransitionState;
         this.uiPreferences = uiPreferences;
-        this.extensionStateRefreshParticipants = extensionStateRefreshParticipants?.ToArray() ?? [];
         BikesPage = bikesPage;
         SessionsPage = sessionsPage;
         SetupsPage = setupsPage;
@@ -301,11 +298,7 @@ public partial class MainPagesViewModel : ViewModelBase
     {
         DatabaseLoaded = false;
 
-        await appDataRefresher.RefreshAsync();
-        foreach (var participant in extensionStateRefreshParticipants)
-        {
-            await participant.RefreshExtensionStateAsync();
-        }
+        await appStateRefreshOrchestrator.RefreshAllStateAsync();
 
         DatabaseLoaded = true;
     }

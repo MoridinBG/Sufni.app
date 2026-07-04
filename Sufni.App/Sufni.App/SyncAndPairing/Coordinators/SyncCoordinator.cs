@@ -3,11 +3,8 @@ using System.Threading.Tasks;
 using Serilog;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
-using Sufni.App.Bikes.Stores;
-using Sufni.App.Sessions.Store;
-using Sufni.App.Setups.Stores;
+using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
-using Sufni.App.SyncAndPairing.Stores;
 using Sufni.App.Infrastructure;
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
@@ -18,11 +15,7 @@ public class SyncCoordinator : ISyncCoordinator
     private static readonly TimeSpan DefaultInboundActivityIdleGrace = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan FinalInboundActivityIdleGrace = TimeSpan.FromSeconds(2);
 
-    private readonly IBikeStoreWriter bikeStore;
-    private readonly ISetupStoreWriter setupStore;
-    private readonly ISessionStoreWriter sessionStore;
-    private readonly IRecordedSessionSourceStoreWriter recordedSessionSourceStore;
-    private readonly IPairedDeviceStoreWriter pairedDeviceStore;
+    private readonly IAppStateRefreshOrchestrator appStateRefreshOrchestrator;
     private readonly ISynchronizationClientService? synchronizationClientService;
     private readonly IPairingClientCoordinator? pairingClientCoordinator;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
@@ -71,11 +64,7 @@ public class SyncCoordinator : ISyncCoordinator
     public event EventHandler<SyncFailedEventArgs>? SyncFailed;
 
     public SyncCoordinator(
-        IBikeStoreWriter bikeStore,
-        ISetupStoreWriter setupStore,
-        ISessionStoreWriter sessionStore,
-        IRecordedSessionSourceStoreWriter recordedSessionSourceStore,
-        IPairedDeviceStoreWriter pairedDeviceStore,
+        IAppStateRefreshOrchestrator appStateRefreshOrchestrator,
         ISynchronizationClientService? synchronizationClientService = null,
         IPairingClientCoordinator? pairingClientCoordinator = null,
         ISynchronizationServerService? synchronizationServerService = null,
@@ -85,11 +74,7 @@ public class SyncCoordinator : ISyncCoordinator
         IUiThreadDispatcher? uiThreadDispatcher = null,
         Func<TimeSpan, Task>? inboundActivityDelayAsync = null)
     {
-        this.bikeStore = bikeStore;
-        this.setupStore = setupStore;
-        this.sessionStore = sessionStore;
-        this.recordedSessionSourceStore = recordedSessionSourceStore;
-        this.pairedDeviceStore = pairedDeviceStore;
+        this.appStateRefreshOrchestrator = appStateRefreshOrchestrator;
         this.synchronizationClientService = synchronizationClientService;
         this.pairingClientCoordinator = pairingClientCoordinator;
         this.backgroundTaskRunner = backgroundTaskRunner ?? new BackgroundTaskRunner();
@@ -162,7 +147,7 @@ public class SyncCoordinator : ISyncCoordinator
                 CurrentStep: 8,
                 TotalSteps: 8,
                 IsDeterminate: true);
-            await RefreshStoresOnUiThreadAsync();
+            await RefreshStateOnUiThreadAsync();
 
             var completionMessage = GetCompletionMessage(result);
             logger.Information("Synchronization completed: {CompletionMessage}", completionMessage);
@@ -340,24 +325,20 @@ public class SyncCoordinator : ISyncCoordinator
             _ => "Sync completed"
         };
 
-    private async Task RefreshStoresOnUiThreadAsync()
+    private async Task RefreshStateOnUiThreadAsync()
     {
         if (uiThreadDispatcher.CheckAccess())
         {
-            await RefreshStoresAsync();
+            await RefreshStateAsync();
             return;
         }
 
-        await uiThreadDispatcher.InvokeAsync(RefreshStoresAsync);
+        await uiThreadDispatcher.InvokeAsync(RefreshStateAsync);
     }
 
-    private async Task RefreshStoresAsync()
+    private Task RefreshStateAsync()
     {
-        await bikeStore.RefreshAsync();
-        await setupStore.RefreshAsync();
-        await sessionStore.RefreshAsync();
-        await recordedSessionSourceStore.RefreshAsync();
-        await pairedDeviceStore.RefreshAsync();
+        return appStateRefreshOrchestrator.RefreshAllStateAsync();
     }
 
     private sealed class SyncProgressReporter(Action<SynchronizationProgressSnapshot> report)

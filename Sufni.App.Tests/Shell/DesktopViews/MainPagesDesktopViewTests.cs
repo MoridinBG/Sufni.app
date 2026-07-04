@@ -305,11 +305,7 @@ public class MainPagesDesktopViewTests
 
     private static SyncCoordinator CreateSyncCoordinator(ISynchronizationServerService server) =>
         new(
-            Substitute.For<IBikeStoreWriter>(),
-            Substitute.For<ISetupStoreWriter>(),
-            Substitute.For<ISessionStoreWriter>(),
-            Substitute.For<IRecordedSessionSourceStoreWriter>(),
-            Substitute.For<IPairedDeviceStoreWriter>(),
+            Substitute.For<IAppStateRefreshOrchestrator>(),
             synchronizationClientService: null,
             pairingClientCoordinator: null,
             synchronizationServerService: server,

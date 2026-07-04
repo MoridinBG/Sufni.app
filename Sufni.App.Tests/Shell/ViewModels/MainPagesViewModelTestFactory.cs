@@ -42,7 +42,7 @@ internal static class MainPagesViewModelTestFactory
     public static MainPagesViewModel Create(
         LiveDaqListViewModel? liveDaqsPage = null,
         ITrackCoordinator? trackCoordinator = null,
-        IAppDataRefresher? appDataRefresher = null,
+        IAppStateRefreshOrchestrator? appStateRefreshOrchestrator = null,
         IThemeService? themeService = null,
         ISyncCoordinator? syncCoordinator = null,
         IShellCoordinator? shell = null,
@@ -52,17 +52,16 @@ internal static class MainPagesViewModelTestFactory
         IUiPreferences? uiPreferences = null,
         IEnumerable<IAppToolbarContributionProvider>? appToolbarContributionProviders = null,
         PairingClientViewModel? pairingClientPage = null,
-        PairingServerViewModel? pairingServerViewModel = null,
-        IEnumerable<IExtensionStateRefreshParticipant>? extensionStateRefreshParticipants = null)
+        PairingServerViewModel? pairingServerViewModel = null)
     {
-        appDataRefresher ??= Substitute.For<IAppDataRefresher>();
+        appStateRefreshOrchestrator ??= Substitute.For<IAppStateRefreshOrchestrator>();
         var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
         trackCoordinator ??= TestCoordinatorSubstitutes.Track();
         syncCoordinator ??= TestCoordinatorSubstitutes.Sync();
         shell ??= Substitute.For<IShellCoordinator>();
         workspace ??= new ShellWorkspaceViewModel(UiThreadDispatcher);
 
-        appDataRefresher.RefreshAsync().Returns(Task.CompletedTask);
+        appStateRefreshOrchestrator.RefreshAllStateAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         if (themeService is null)
         {
             themeService = Substitute.For<IThemeService>();
@@ -78,7 +77,7 @@ internal static class MainPagesViewModelTestFactory
         }
 
         return new MainPagesViewModel(
-            appDataRefresher,
+            appStateRefreshOrchestrator,
             importSessionsCoordinator,
             trackCoordinator,
             syncCoordinator,
@@ -97,8 +96,7 @@ internal static class MainPagesViewModelTestFactory
             UiThreadDispatcher,
             appToolbarContributionProviders,
             pairingClientPage: pairingClientPage,
-            pairingServerViewModel: pairingServerViewModel,
-            extensionStateRefreshParticipants: extensionStateRefreshParticipants);
+            pairingServerViewModel: pairingServerViewModel);
     }
 
     public static IAppEnvironment CreateAppEnvironment(

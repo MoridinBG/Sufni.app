@@ -218,7 +218,9 @@ public partial class App : Application
         ServiceCollection.AddSingleton<RecordedSessionSourceStore>();
         ServiceCollection.AddSingleton<IRecordedSessionSourceStore>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
         ServiceCollection.AddSingleton<IRecordedSessionSourceStoreWriter>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
-        ServiceCollection.AddSingleton<IAppDataRefresher, AppDataRefresher>();
+        ServiceCollection.AddSingleton<AppDataRefresher>();
+        ServiceCollection.AddSingleton<IAppStateRefreshOrchestrator>(sp => sp.GetRequiredService<AppDataRefresher>());
+        ServiceCollection.AddSingleton<IAppDataRefresher>(sp => sp.GetRequiredService<AppDataRefresher>());
         ServiceCollection.AddSingleton<IProcessingFingerprintService, ProcessingFingerprintService>();
         ServiceCollection.AddSingleton<IRecordedSessionProcessingOptionCache, RecordedSessionProcessingOptionCache>();
         ServiceCollection.AddSingleton<IProcessingDependencyHashIndex, ProcessingDependencyHashIndex>();
