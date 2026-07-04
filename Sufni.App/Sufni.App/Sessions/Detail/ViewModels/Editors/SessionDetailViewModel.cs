@@ -130,6 +130,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private bool hasBeenActivated;
     private readonly SignalRowActionsController signalRowActions;
     private readonly SignalAutozoomController signalAutozoomController;
+    private readonly IRelayCommand<TelemetryPlotContextMenuContext?> setAnalysisRangeStartCommand;
+    private readonly IRelayCommand<TelemetryPlotContextMenuContext?> setAnalysisRangeEndCommand;
+    private readonly IRelayCommand<TelemetryPlotContextMenuContext?> clearAnalysisRangeFromContextCommand;
     private readonly IRelayCommand<TelemetryPlotContextMenuContext?> markGpsEventCommand;
     private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markGpsTelemetryEventCommand;
     private readonly DampingCutoffWorkflow dampingCutoffWorkflow;
@@ -473,9 +476,24 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private static IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> CreateSignalPlotContextMenuActionsBySignalRowId(
         IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> baseActions,
+        IRelayCommand<TelemetryPlotContextMenuContext?> setAnalysisRangeStartCommand,
+        IRelayCommand<TelemetryPlotContextMenuContext?> setAnalysisRangeEndCommand,
+        IRelayCommand<TelemetryPlotContextMenuContext?> clearAnalysisRangeCommand,
         IRelayCommand<TelemetryPlotContextMenuContext?> markGpsEventCommand,
         IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markGpsTelemetryEventCommand)
     {
+        var setAnalysisRangeStart = new TelemetryPlotContextMenuAction(
+            "analysis-range-set-start",
+            "Set analysis start here",
+            setAnalysisRangeStartCommand);
+        var setAnalysisRangeEnd = new TelemetryPlotContextMenuAction(
+            "analysis-range-set-end",
+            "Set analysis end here",
+            setAnalysisRangeEndCommand);
+        var clearAnalysisRange = new TelemetryPlotContextMenuAction(
+            "analysis-range-clear",
+            "Clear analysis range",
+            clearAnalysisRangeCommand);
         var markGpsEvent = new TelemetryPlotContextMenuAction(
             "gps-mark-gps-event",
             "Mark GPS event here",
@@ -487,23 +505,29 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         return CreateSignalPlotContextMenuActionsBySignalRowId(
             baseActions,
+            setAnalysisRangeStart,
+            setAnalysisRangeEnd,
+            clearAnalysisRange,
             markGpsEvent,
             markGpsTelemetryEvent);
     }
 
     private static IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> CreateSignalPlotContextMenuActionsBySignalRowId(
         IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> baseActions,
+        TelemetryPlotContextMenuAction setAnalysisRangeStart,
+        TelemetryPlotContextMenuAction setAnalysisRangeEnd,
+        TelemetryPlotContextMenuAction clearAnalysisRange,
         TelemetryPlotContextMenuAction markGpsEvent,
         TelemetryPlotContextMenuAction markGpsTelemetryEvent)
     {
         return new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>
         {
-            [SignalRowIds.Travel] = AppendContextMenuActions(baseActions, SignalRowIds.Travel, markGpsEvent, markGpsTelemetryEvent),
-            [SignalRowIds.Velocity] = AppendContextMenuActions(baseActions, SignalRowIds.Velocity, markGpsEvent, markGpsTelemetryEvent),
-            [SignalRowIds.Imu] = AppendContextMenuActions(baseActions, SignalRowIds.Imu, markGpsEvent, markGpsTelemetryEvent),
-            [SignalRowIds.PitchRoll] = AppendContextMenuActions(baseActions, SignalRowIds.PitchRoll, markGpsEvent, markGpsTelemetryEvent),
-            [SignalRowIds.Speed] = AppendContextMenuActions(baseActions, SignalRowIds.Speed, markGpsEvent, markGpsTelemetryEvent),
-            [SignalRowIds.Elevation] = AppendContextMenuActions(baseActions, SignalRowIds.Elevation, markGpsEvent, markGpsTelemetryEvent),
+            [SignalRowIds.Travel] = AppendContextMenuActions(baseActions, SignalRowIds.Travel, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent),
+            [SignalRowIds.Velocity] = AppendContextMenuActions(baseActions, SignalRowIds.Velocity, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent),
+            [SignalRowIds.Imu] = AppendContextMenuActions(baseActions, SignalRowIds.Imu, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent),
+            [SignalRowIds.PitchRoll] = AppendContextMenuActions(baseActions, SignalRowIds.PitchRoll, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent),
+            [SignalRowIds.Speed] = AppendContextMenuActions(baseActions, SignalRowIds.Speed, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent),
+            [SignalRowIds.Elevation] = AppendContextMenuActions(baseActions, SignalRowIds.Elevation, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent),
         };
     }
 
@@ -836,6 +860,48 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             context!.ClickSeconds);
     }
 
+    private bool CanSetAnalysisRangeFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        return SessionContext.TelemetryData is not null &&
+               IsTelemetryPlotContext(context);
+    }
+
+    private bool CanClearAnalysisRangeFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        return SessionContext.AnalysisRange is not null &&
+               IsTelemetryPlotContext(context);
+    }
+
+    private void SetAnalysisRangeStartFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        if (!CanSetAnalysisRangeFromPlotContext(context))
+        {
+            return;
+        }
+
+        SetAnalysisRangeStartBoundary(context!.ClickSeconds);
+    }
+
+    private void SetAnalysisRangeEndFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        if (!CanSetAnalysisRangeFromPlotContext(context))
+        {
+            return;
+        }
+
+        SetAnalysisRangeEndBoundary(context!.ClickSeconds);
+    }
+
+    private void ClearAnalysisRangeFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        if (!CanClearAnalysisRangeFromPlotContext(context))
+        {
+            return;
+        }
+
+        ClearAnalysisRange();
+    }
+
     private bool CanMarkGpsTelemetryEventFromPlotContext(TelemetryPlotContextMenuContext? context)
     {
         return SessionContext.TelemetryData is not null &&
@@ -1063,6 +1129,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             ErrorMessages.Add);
         signalRowActions = new SignalRowActionsController(SessionContext);
         signalAutozoomController = new SignalAutozoomController(Timeline);
+        setAnalysisRangeStartCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
+            SetAnalysisRangeStartFromPlotContext,
+            CanSetAnalysisRangeFromPlotContext);
+        setAnalysisRangeEndCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
+            SetAnalysisRangeEndFromPlotContext,
+            CanSetAnalysisRangeFromPlotContext);
+        clearAnalysisRangeFromContextCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
+            ClearAnalysisRangeFromPlotContext,
+            CanClearAnalysisRangeFromPlotContext);
         markGpsEventCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
             MarkGpsEventFromPlotContext,
             CanMarkGpsEventFromPlotContext);
@@ -1071,6 +1146,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             CanMarkGpsTelemetryEventFromPlotContext);
         SignalPlotContextMenuActionsBySignalRowId = CreateSignalPlotContextMenuActionsBySignalRowId(
             signalAutozoomController.ActionsBySignalRowId,
+            setAnalysisRangeStartCommand,
+            setAnalysisRangeEndCommand,
+            clearAnalysisRangeFromContextCommand,
             markGpsEventCommand,
             markGpsTelemetryEventCommand);
         SessionContext.SignalPlotContextMenuActionsBySignalRowId = SignalPlotContextMenuActionsBySignalRowId;
@@ -1620,6 +1698,54 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 SetAnalysisRange(range.StartSeconds, clampedBoundarySeconds);
             }
 
+            return;
+        }
+
+        if (pendingAnalysisRangeBoundary is not { } pendingBoundary)
+        {
+            pendingAnalysisRangeBoundary = clampedBoundarySeconds;
+            return;
+        }
+
+        SetAnalysisRange(pendingBoundary, clampedBoundarySeconds);
+    }
+
+    private void SetAnalysisRangeStartBoundary(double boundarySeconds)
+    {
+        if (SessionContext.TelemetryData is null ||
+            !TelemetryTimeRange.TryClampBoundary(boundarySeconds, SessionContext.TelemetryData.Metadata.Duration, out var clampedBoundarySeconds))
+        {
+            pendingAnalysisRangeBoundary = null;
+            return;
+        }
+
+        if (SessionContext.AnalysisRange is { } range)
+        {
+            SetAnalysisRange(clampedBoundarySeconds, range.EndSeconds);
+            return;
+        }
+
+        if (pendingAnalysisRangeBoundary is not { } pendingBoundary)
+        {
+            pendingAnalysisRangeBoundary = clampedBoundarySeconds;
+            return;
+        }
+
+        SetAnalysisRange(clampedBoundarySeconds, pendingBoundary);
+    }
+
+    private void SetAnalysisRangeEndBoundary(double boundarySeconds)
+    {
+        if (SessionContext.TelemetryData is null ||
+            !TelemetryTimeRange.TryClampBoundary(boundarySeconds, SessionContext.TelemetryData.Metadata.Duration, out var clampedBoundarySeconds))
+        {
+            pendingAnalysisRangeBoundary = null;
+            return;
+        }
+
+        if (SessionContext.AnalysisRange is { } range)
+        {
+            SetAnalysisRange(range.StartSeconds, clampedBoundarySeconds);
             return;
         }
 

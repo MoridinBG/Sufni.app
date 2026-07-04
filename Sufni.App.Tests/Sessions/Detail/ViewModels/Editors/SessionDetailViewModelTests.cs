@@ -433,11 +433,83 @@ public class SessionDetailViewModelTests
         {
             var actions = editor.SignalPlotContextMenuActionsBySignalRowId[rowId];
             Assert.Contains(actions, action => action.Id == "autozoom" && action.Label == "Autozoom");
+            Assert.Contains(actions, action => action.Id == "analysis-range-set-start" && action.Label == "Set analysis start here");
+            Assert.Contains(actions, action => action.Id == "analysis-range-set-end" && action.Label == "Set analysis end here");
+            Assert.Contains(actions, action => action.Id == "analysis-range-clear" && action.Label == "Clear analysis range");
             Assert.Contains(actions, action => action.Id == "gps-mark-gps-event");
             Assert.Contains(actions, action => action.Id == "gps-mark-telemetry-event");
 
             Assert.All(actions, action => Assert.NotNull(action.Command));
         }
+    }
+
+    [AvaloniaFact]
+    public void AnalysisRangeContextMenuActions_SetStartEndAndClearRange()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        editor.SessionContext.TelemetryData = TestTelemetryData.CreateMinimal(duration: 10);
+        var setStart = GetPlotContextAction(editor, "analysis-range-set-start");
+        var setEnd = GetPlotContextAction(editor, "analysis-range-set-end");
+        var clear = GetPlotContextAction(editor, "analysis-range-clear");
+        var startContext = new TelemetryPlotContextMenuContext(SignalRowIds.Travel, 3, 10, null);
+        var endContext = new TelemetryPlotContextMenuContext(SignalRowIds.Travel, 7, 10, null);
+
+        Assert.True(setStart.Command.CanExecute(startContext));
+        Assert.True(setEnd.Command.CanExecute(endContext));
+        Assert.False(clear.Command.CanExecute(startContext));
+
+        setStart.Command.Execute(startContext);
+        Assert.Null(editor.SessionContext.AnalysisRange);
+
+        setEnd.Command.Execute(endContext);
+        Assert.Equal(3, editor.SessionContext.AnalysisRange?.StartSeconds);
+        Assert.Equal(7, editor.SessionContext.AnalysisRange?.EndSeconds);
+
+        setStart.Command.Execute(new TelemetryPlotContextMenuContext(
+            SignalRowIds.Travel,
+            ClickSeconds: 2,
+            DurationSeconds: 10,
+            AnalysisRange: editor.SessionContext.AnalysisRange));
+        Assert.Equal(2, editor.SessionContext.AnalysisRange?.StartSeconds);
+        Assert.Equal(7, editor.SessionContext.AnalysisRange?.EndSeconds);
+
+        setEnd.Command.Execute(new TelemetryPlotContextMenuContext(
+            SignalRowIds.Travel,
+            ClickSeconds: 8,
+            DurationSeconds: 10,
+            AnalysisRange: editor.SessionContext.AnalysisRange));
+        Assert.Equal(2, editor.SessionContext.AnalysisRange?.StartSeconds);
+        Assert.Equal(8, editor.SessionContext.AnalysisRange?.EndSeconds);
+
+        var clearContext = new TelemetryPlotContextMenuContext(
+            SignalRowIds.Travel,
+            ClickSeconds: 5,
+            DurationSeconds: 10,
+            AnalysisRange: editor.SessionContext.AnalysisRange);
+        Assert.True(clear.Command.CanExecute(clearContext));
+        clear.Command.Execute(clearContext);
+
+        Assert.Null(editor.SessionContext.AnalysisRange);
+        Assert.False(editor.IsDirty);
+    }
+
+    [AvaloniaFact]
+    public void AnalysisRangeContextMenuActions_CannotExecuteWithoutTelemetryOrValidContext()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        var setStart = GetPlotContextAction(editor, "analysis-range-set-start");
+        var setEnd = GetPlotContextAction(editor, "analysis-range-set-end");
+        var clear = GetPlotContextAction(editor, "analysis-range-clear");
+        var context = new TelemetryPlotContextMenuContext(SignalRowIds.Travel, 3, 10, null);
+
+        Assert.False(setStart.Command.CanExecute(context));
+        Assert.False(setEnd.Command.CanExecute(context));
+        Assert.False(clear.Command.CanExecute(context));
+
+        editor.SessionContext.TelemetryData = TestTelemetryData.CreateMinimal(duration: 10);
+        Assert.False(setStart.Command.CanExecute(null));
+        Assert.False(setEnd.Command.CanExecute(new TelemetryPlotContextMenuContext("unknown", 3, 10, null)));
+        Assert.False(clear.Command.CanExecute(new TelemetryPlotContextMenuContext(SignalRowIds.Travel, double.NaN, 10, null)));
     }
 
     [AvaloniaFact]
@@ -2644,9 +2716,16 @@ public class SessionDetailViewModelTests
 
     private static TelemetryPlotContextMenuAction GetAutozoomAction(SessionDetailViewModel editor)
     {
+        return GetPlotContextAction(editor, "autozoom");
+    }
+
+    private static TelemetryPlotContextMenuAction GetPlotContextAction(
+        SessionDetailViewModel editor,
+        string id)
+    {
         return Assert.Single(
             editor.SignalPlotContextMenuActionsBySignalRowId[SignalRowIds.Travel],
-            action => action.Id == "autozoom");
+            action => action.Id == id);
     }
 
     private static async Task WaitForAsync(Func<bool> condition)

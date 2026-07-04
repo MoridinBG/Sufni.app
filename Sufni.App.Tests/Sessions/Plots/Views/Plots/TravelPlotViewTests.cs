@@ -410,15 +410,16 @@ public class TravelPlotViewTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotView_MobileLongPress_SetsAnalysisRangeBoundaryWithoutClearingOnRelease()
+    public async Task TravelPlotView_MobileLongPress_ShowsInstalledPlotMenuWithoutChangingAnalysisRange()
     {
         using var input = TestApp.UseTouchInput();
         var telemetry = CreateMinimal(duration: 10);
         var workspace = new RecordedSessionSignalsWorkspaceStub(telemetry);
-        var view = new LongPressTravelPlotView
+        var view = new LongPressContextMenuTravelPlotView
         {
             Telemetry = telemetry,
             SignalsWorkspace = workspace,
+            SignalRowId = SignalRowIds.Travel,
         };
         var feedbackRequestCount = 0;
         view.AddHandler(
@@ -428,8 +429,9 @@ public class TravelPlotViewTests
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+        RenderPlotInMemory(plot);
         var pressPoint = plot.TranslatePoint(
-            new Point(plot.Bounds.Width / 2, plot.Bounds.Height / 2),
+            GetDataAreaCenterPoint(plot),
             mounted.Host);
         Assert.True(plot.Bounds.Width > 0 && plot.Bounds.Height > 0, $"Plot bounds were {plot.Bounds}.");
         Assert.NotNull(pressPoint);
@@ -441,11 +443,12 @@ public class TravelPlotViewTests
         mounted.Host.MouseUp(pressPoint.Value, MouseButton.Left, RawInputModifiers.None);
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        Assert.Equal(1, workspace.SetAnalysisRangeBoundaryCallCount);
+        Assert.Equal(0, workspace.SetAnalysisRangeBoundaryCallCount);
         Assert.Equal(0, workspace.ClearAnalysisRangeCallCount);
-        Assert.Equal(1, feedbackRequestCount);
-        Assert.NotNull(workspace.LastAnalysisRangeBoundary);
-        Assert.InRange(workspace.LastAnalysisRangeBoundary.Value, 0, telemetry.Metadata.Duration);
+        Assert.Equal(0, feedbackRequestCount);
+        Assert.NotNull(view.PlotMenu.LastShowPixel);
+        Assert.Null(workspace.AnalysisRange);
+        Assert.Null(workspace.LastAnalysisRangeBoundary);
     }
 
     [AvaloniaFact]
@@ -609,23 +612,6 @@ public class TravelPlotViewTests
         }
     }
 
-    private sealed class LongPressTravelPlotView : TravelPlotView
-    {
-        private Action? scheduledLongPress;
-
-        public void TriggerLongPress()
-        {
-            var callback = scheduledLongPress ?? throw new InvalidOperationException("No long press was scheduled.");
-            callback();
-        }
-
-        protected override IDisposable ScheduleMobileAnalysisRangeLongPress(Action callback)
-        {
-            scheduledLongPress = callback;
-            return new TestSubscription(() => scheduledLongPress = null);
-        }
-    }
-
     private sealed class LongPressContextMenuTravelPlotView : TravelPlotView
     {
         private Action? scheduledLongPress;
@@ -637,7 +623,7 @@ public class TravelPlotViewTests
             callback();
         }
 
-        protected override IDisposable ScheduleMobileAnalysisRangeLongPress(Action callback)
+        protected override IDisposable ScheduleTouchContextMenuLongPress(Action callback)
         {
             scheduledLongPress = callback;
             return new TestSubscription(() => scheduledLongPress = null);
