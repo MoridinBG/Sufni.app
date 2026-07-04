@@ -380,6 +380,12 @@ public class SessionDetailViewModelTests
         AssertDefaultDisabledAnalysisSelectionAction(editor.PitchRollHeaderActions, editor.SessionContext.ShowPitchRollAnalysisSelection, "pitch_roll_analysis_selection");
         AssertDefaultDisabledAnalysisSelectionAction(editor.SpeedHeaderActions, editor.SessionContext.ShowSpeedAnalysisSelection, "speed_analysis_selection");
         AssertDefaultDisabledAnalysisSelectionAction(editor.ElevationHeaderActions, editor.SessionContext.ShowElevationAnalysisSelection, "elevation_analysis_selection");
+        Assert.Empty(editor.SessionContext.TravelHeaderActions);
+        Assert.Empty(editor.SessionContext.VelocityHeaderActions);
+        Assert.Empty(editor.SessionContext.ImuHeaderActions);
+        Assert.Empty(editor.SessionContext.PitchRollHeaderActions);
+        Assert.Empty(editor.SessionContext.SpeedHeaderActions);
+        Assert.Empty(editor.SessionContext.ElevationHeaderActions);
     }
 
     [AvaloniaFact]

@@ -1322,12 +1322,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             value => SessionContext.ShowSpeedAnalysisSelection = value,
             () => SessionContext.ShowElevationAnalysisSelection,
             value => SessionContext.ShowElevationAnalysisSelection = value);
-        SessionContext.TravelHeaderActions = signalRowActions.TravelHeaderActions;
-        SessionContext.VelocityHeaderActions = signalRowActions.VelocityHeaderActions;
-        SessionContext.ImuHeaderActions = signalRowActions.ImuHeaderActions;
-        SessionContext.PitchRollHeaderActions = signalRowActions.PitchRollHeaderActions;
-        SessionContext.SpeedHeaderActions = signalRowActions.SpeedHeaderActions;
-        SessionContext.ElevationHeaderActions = signalRowActions.ElevationHeaderActions;
         signalAutozoomController = new SignalAutozoomController(Timeline);
         setAnalysisRangeStartCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
             SetAnalysisRangeStartFromPlotContext,
@@ -1637,7 +1631,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         var state = RecordedSessionEditorStateSnapshot.From(
             SessionContext,
-            recordedPreferenceStore.Current);
+            recordedPreferenceStore.Current,
+            TravelHeaderActions,
+            VelocityHeaderActions,
+            ImuHeaderActions,
+            PitchRollHeaderActions,
+            SpeedHeaderActions,
+            ElevationHeaderActions);
         ApplyProjectedEditorState(state);
         editorStateInput.OnNext(state);
     }

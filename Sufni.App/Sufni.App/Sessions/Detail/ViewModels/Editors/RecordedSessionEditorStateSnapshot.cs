@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
@@ -7,7 +9,13 @@ internal static class RecordedSessionEditorStateSnapshot
 {
     public static RecordedSessionEditorState From(
         RecordedSessionContext context,
-        SessionPreferences preferences)
+        SessionPreferences preferences,
+        IReadOnlyList<SignalRowAction>? travelHeaderActions = null,
+        IReadOnlyList<SignalRowAction>? velocityHeaderActions = null,
+        IReadOnlyList<SignalRowAction>? imuHeaderActions = null,
+        IReadOnlyList<SignalRowAction>? pitchRollHeaderActions = null,
+        IReadOnlyList<SignalRowAction>? speedHeaderActions = null,
+        IReadOnlyList<SignalRowAction>? elevationHeaderActions = null)
     {
         return new RecordedSessionEditorState(
             Domain: null,
@@ -53,12 +61,12 @@ internal static class RecordedSessionEditorStateSnapshot
                     ShowPitchRollAnalysisSelection: context.ShowPitchRollAnalysisSelection,
                     ShowSpeedAnalysisSelection: context.ShowSpeedAnalysisSelection,
                     ShowElevationAnalysisSelection: context.ShowElevationAnalysisSelection,
-                    TravelHeaderActions: context.TravelHeaderActions,
-                    VelocityHeaderActions: context.VelocityHeaderActions,
-                    ImuHeaderActions: context.ImuHeaderActions,
-                    PitchRollHeaderActions: context.PitchRollHeaderActions,
-                    SpeedHeaderActions: context.SpeedHeaderActions,
-                    ElevationHeaderActions: context.ElevationHeaderActions),
+                    TravelHeaderActions: travelHeaderActions ?? context.TravelHeaderActions,
+                    VelocityHeaderActions: velocityHeaderActions ?? context.VelocityHeaderActions,
+                    ImuHeaderActions: imuHeaderActions ?? context.ImuHeaderActions,
+                    PitchRollHeaderActions: pitchRollHeaderActions ?? context.PitchRollHeaderActions,
+                    SpeedHeaderActions: speedHeaderActions ?? context.SpeedHeaderActions,
+                    ElevationHeaderActions: elevationHeaderActions ?? context.ElevationHeaderActions),
                 Analysis: new RecordedAnalysisPresentationState(
                     FrontAnalysis: context.FrontAnalysisState,
                     RearAnalysis: context.RearAnalysisState,
