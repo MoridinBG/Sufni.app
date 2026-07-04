@@ -585,6 +585,28 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         session.FullTrack = fullTrackId;
     }
 
+    internal void SetFullTrackPoints(List<TrackPoint>? points)
+    {
+        SessionContext.FullTrackPoints = points;
+        MapViewModel?.FullTrackPoints = points;
+        PublishEditorState();
+    }
+
+    internal void SetTrackPoints(List<TrackPoint>? points)
+    {
+        SessionContext.TrackPoints = points;
+        MapViewModel?.SessionTrackPoints = points;
+
+        RefreshTrackTimelineContext();
+        NotifyTimelineAlignmentCommandsCanExecuteChanged();
+        if (SessionContext.TelemetryData is not null)
+        {
+            presentationApplier.ApplyRecordedTrackSignalStates();
+        }
+
+        PublishEditorState();
+    }
+
     internal void ApplyTelemetryDataWithoutAnalysisRecompute(TelemetryData? value)
     {
         suppressAnalysisRecompute = true;
@@ -604,12 +626,20 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void RefreshTrackTimelineContext()
     {
-        SessionContext.TrackTimelineContext = SessionContext.TelemetryData is { } telemetry
+        SetTrackTimelineContext(SessionContext.TelemetryData is { } telemetry
             ? TrackPointSeries.BuildTimelineContext(
                 SessionContext.TrackPoints,
                 telemetry.Metadata.Timestamp + NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
                 telemetry.Metadata.Duration)
-            : null;
+            : null);
+    }
+
+    private void SetTrackTimelineContext(TrackTimeRange? timelineContext)
+    {
+        SessionContext.TrackTimelineContext = timelineContext;
+        MapViewModel?.TimelineContext = timelineContext;
+        UpdateRecordedSessionExtensionHostState();
+        PublishEditorState();
     }
 
     private static string FormatSeconds(double seconds)
@@ -1582,26 +1612,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 break;
             case nameof(RecordedSessionContext.DampingSpeedCutoffs):
                 RequestCurrentAnalysisResults(!suppressInsightsRecompute, respectSuppression: true);
-                UpdateRecordedSessionExtensionHostState();
-                break;
-            case nameof(RecordedSessionContext.FullTrackPoints):
-                MapViewModel?.FullTrackPoints = SessionContext.FullTrackPoints;
-
-                break;
-            case nameof(RecordedSessionContext.TrackPoints):
-                MapViewModel?.SessionTrackPoints = SessionContext.TrackPoints;
-
-                RefreshTrackTimelineContext();
-                NotifyTimelineAlignmentCommandsCanExecuteChanged();
-                if (SessionContext.TelemetryData is not null)
-                {
-                    presentationApplier.ApplyRecordedTrackSignalStates();
-                }
-
-                break;
-            case nameof(RecordedSessionContext.TrackTimelineContext):
-                MapViewModel?.TimelineContext = SessionContext.TrackTimelineContext;
-
                 UpdateRecordedSessionExtensionHostState();
                 break;
         }

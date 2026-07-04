@@ -55,8 +55,8 @@ internal sealed class RecordedPresentationApplier
     public void ClearRecordedPresentation()
     {
         context.TelemetryData = null;
-        context.FullTrackPoints = null;
-        context.TrackPoints = null;
+        owner.SetFullTrackPoints(null);
+        owner.SetTrackPoints(null);
         context.MediaColumnWidth = null;
         owner.ApplyDampingPercentages(SessionDampingPercentages.Empty);
         context.FrontAnalysisState = SurfacePresentationState.Hidden;
@@ -117,8 +117,8 @@ internal sealed class RecordedPresentationApplier
                 ApplyCachePresentation(cachePresentation);
                 owner.ApplyTelemetryDataWithoutAnalysisRecompute(telemetryPresentation.TelemetryData);
                 owner.SetSessionFullTrack(telemetryPresentation.FullTrackId);
-                context.FullTrackPoints = telemetryPresentation.FullTrackPoints;
-                context.TrackPoints = telemetryPresentation.TrackPoints;
+                owner.SetFullTrackPoints(telemetryPresentation.FullTrackPoints);
+                owner.SetTrackPoints(telemetryPresentation.TrackPoints);
                 context.MediaColumnWidth = telemetryPresentation.MediaColumnWidth;
                 owner.ApplyModeAwareDampingPercentages(telemetryPresentation.DampingPercentages);
                 ApplyMobileExtendedAnalysisStates(
