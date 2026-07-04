@@ -257,18 +257,17 @@ public class SessionDetailViewModelTests
     public void SignalsWorkspace_TracksContextSignalStateAndCommands()
     {
         var editor = CreateEditor(TestSnapshots.Session());
+        var telemetry = TestTelemetryData.CreateProcessed();
         var signalLayoutPreferences = SignalLayoutPreferences.Default with
         {
             Rows = [new SignalLayoutRowPreferences(SignalRowIds.Velocity, true, [])],
         };
 
-        editor.SessionContext.TelemetryData = TestTelemetryData.CreateProcessed();
+        editor.SessionContext.TelemetryData = telemetry;
         editor.SessionContext.TravelSignalState = SurfacePresentationState.Ready;
         editor.SessionContext.ShowVelocityAirtime = true;
-        editor.SessionContext.AnalysisSelectionHighlightRanges =
-        [
-            new TelemetryHighlightRange(0.2, 0.4, SuspensionType.Front),
-        ];
+        var selection = CreateFrontDampingSelection(telemetry, editor.SessionContext.SelectedVelocityAverageMode);
+        editor.SelectAnalysisRangeCommand.Execute(selection);
         editor.SignalsWorkspace.SetAnalysisRange(1, 2);
         editor.SignalsWorkspace.SignalLayoutPreferences = signalLayoutPreferences;
 
@@ -276,8 +275,10 @@ public class SessionDetailViewModelTests
         Assert.Equal(editor.SessionContext.AnalysisRange, editor.SignalsWorkspace.AnalysisRange);
         Assert.Equal(editor.SessionContext.TravelSignalState, editor.SignalsWorkspace.TravelSignalState);
         Assert.Equal(editor.SessionContext.ShowVelocityAirtime, editor.SignalsWorkspace.ShowVelocityAirtime);
-        Assert.Equal(editor.SessionContext.AnalysisSelectionHighlightRanges, editor.SignalsWorkspace.AnalysisSelectionHighlightRanges);
+        Assert.NotEmpty(editor.SignalsWorkspace.AnalysisSelectionHighlightRanges);
+        Assert.All(editor.SignalsWorkspace.AnalysisSelectionHighlightRanges, range => Assert.Equal(SuspensionType.Front, range.SuspensionType));
         Assert.True(editor.SignalsWorkspace.HasAnalysisSelection);
+        Assert.Empty(editor.SessionContext.AnalysisSelectionHighlightRanges);
         Assert.Equal(signalLayoutPreferences, editor.SignalLayoutPreferences);
         Assert.Equal(signalLayoutPreferences, editor.SignalsWorkspace.SignalLayoutPreferences);
     }
@@ -308,6 +309,8 @@ public class SessionDetailViewModelTests
         Assert.Equal(editor.SessionAnalysisModesText, editor.AnalysisWorkspace.SessionAnalysisModesText);
         Assert.Equal(selection, editor.ActiveFrontAnalysisSelection);
         Assert.Equal(selection, editor.AnalysisWorkspace.ActiveFrontAnalysisSelection);
+        Assert.Null(editor.SessionContext.ActiveFrontAnalysisSelection);
+        Assert.Empty(editor.SessionContext.AnalysisSelectionHighlightRanges);
         Assert.Contains(nameof(ISessionAnalysisWorkspace.TelemetryData), observed);
         Assert.Contains(nameof(ISessionAnalysisWorkspace.AnalysisRange), observed);
         Assert.Contains(nameof(ISessionAnalysisWorkspace.FrontAnalysisState), observed);
@@ -400,9 +403,10 @@ public class SessionDetailViewModelTests
 
         Assert.Equal(selection, editor.ActiveFrontAnalysisSelection);
         Assert.Null(editor.ActiveRearAnalysisSelection);
-        Assert.True(editor.SessionContext.HasAnalysisSelection);
-        Assert.NotEmpty(editor.SessionContext.AnalysisSelectionHighlightRanges);
-        Assert.All(editor.SessionContext.AnalysisSelectionHighlightRanges, range => Assert.Equal(SuspensionType.Front, range.SuspensionType));
+        Assert.True(editor.SignalsWorkspace.HasAnalysisSelection);
+        Assert.NotEmpty(editor.SignalsWorkspace.AnalysisSelectionHighlightRanges);
+        Assert.All(editor.SignalsWorkspace.AnalysisSelectionHighlightRanges, range => Assert.Equal(SuspensionType.Front, range.SuspensionType));
+        Assert.Empty(editor.SessionContext.AnalysisSelectionHighlightRanges);
         Assert.True(editor.SessionContext.ShowAnalysisSelection);
 
         var travelSelectionAction = GetRowAction(editor.TravelHeaderActions, "travel_analysis_selection");
@@ -413,7 +417,8 @@ public class SessionDetailViewModelTests
         editor.SelectAnalysisRangeCommand.Execute(selection);
 
         Assert.Null(editor.ActiveFrontAnalysisSelection);
-        Assert.False(editor.SessionContext.HasAnalysisSelection);
+        Assert.False(editor.SignalsWorkspace.HasAnalysisSelection);
+        Assert.Empty(editor.SignalsWorkspace.AnalysisSelectionHighlightRanges);
         Assert.Empty(editor.SessionContext.AnalysisSelectionHighlightRanges);
         Assert.False(editor.SessionContext.ShowAnalysisSelection);
         Assert.False(travelSelectionAction.IsEnabled);

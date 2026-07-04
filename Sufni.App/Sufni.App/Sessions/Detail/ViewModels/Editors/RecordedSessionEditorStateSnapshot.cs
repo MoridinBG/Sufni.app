@@ -15,7 +15,8 @@ internal static class RecordedSessionEditorStateSnapshot
         IReadOnlyList<SignalRowAction>? imuHeaderActions = null,
         IReadOnlyList<SignalRowAction>? pitchRollHeaderActions = null,
         IReadOnlyList<SignalRowAction>? speedHeaderActions = null,
-        IReadOnlyList<SignalRowAction>? elevationHeaderActions = null)
+        IReadOnlyList<SignalRowAction>? elevationHeaderActions = null,
+        AnalysisSelectionState? analysisSelection = null)
     {
         return new RecordedSessionEditorState(
             Domain: null,
@@ -83,7 +84,7 @@ internal static class RecordedSessionEditorStateSnapshot
                 SignalPlotContextMenuActionsBySignalRowId: context.SignalPlotContextMenuActionsBySignalRowId,
                 ScreenState: context.ScreenState,
                 OperationState: context.SessionOperationState),
-            AnalysisSelection: new AnalysisSelectionState(
+            AnalysisSelection: analysisSelection ?? new AnalysisSelectionState(
                 ActiveFront: context.ActiveFrontAnalysisSelection,
                 ActiveRear: context.ActiveRearAnalysisSelection,
                 HighlightRanges: context.AnalysisSelectionHighlightRanges));
