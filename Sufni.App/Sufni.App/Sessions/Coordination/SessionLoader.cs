@@ -52,18 +52,20 @@ public sealed class SessionLoader
 
         try
         {
-            var dampingSpeedCutoffContext = ResolveDampingSpeedCutoffContext(sessionId);
+            var domain = recordedSessionDomainQuery.Get(sessionId);
+            var dampingSpeedCutoffContext = ResolveDampingSpeedCutoffContext(domain);
 
             logger.Verbose("Loading local telemetry data for session {SessionId}", sessionId);
             var telemetryData = await LoadTelemetryDataAsync(sessionId, cancellationToken);
-            if (telemetryData is null)
+            var recordedSourceMissingOrHashMismatch = IsRecordedSourceMissingOrHashMismatch(domain);
+            if (telemetryData is null || recordedSourceMissingOrHashMismatch)
             {
-                logger.Warning("Session detail load found incomplete local telemetry data for {SessionId}", sessionId);
+                logger.Warning("Session detail load found incomplete local data for {SessionId}", sessionId);
                 return new SessionDetailLoadResult.IncompleteLocalData(
                     sessionId,
                     new MissingSessionData(
-                        ProcessedTelemetryBlob: true,
-                        RecordedSourceMissingOrHashMismatch: false));
+                        ProcessedTelemetryBlob: telemetryData is null,
+                        RecordedSourceMissingOrHashMismatch: recordedSourceMissingOrHashMismatch));
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -116,9 +118,26 @@ public sealed class SessionLoader
         }
     }
 
-    private (DampingSpeedCutoffs Cutoffs, DampingSpeedCutoffOwner? Owner) ResolveDampingSpeedCutoffContext(Guid sessionId)
+    private static bool IsRecordedSourceMissingOrHashMismatch(RecordedSessionDomainSnapshot? domain)
     {
-        var bike = recordedSessionDomainQuery.Get(sessionId)?.Bike;
+        if (domain is null)
+        {
+            return false;
+        }
+
+        if (domain.Source is null)
+        {
+            return true;
+        }
+
+        return domain.PersistedFingerprint is { } persisted &&
+               !StringComparer.Ordinal.Equals(domain.Source.SourceHash, persisted.SourceHash);
+    }
+
+    private static (DampingSpeedCutoffs Cutoffs, DampingSpeedCutoffOwner? Owner) ResolveDampingSpeedCutoffContext(
+        RecordedSessionDomainSnapshot? domain)
+    {
+        var bike = domain?.Bike;
         return bike is null
             ? (DampingSpeedCutoffs.Default, null)
             : (bike.DampingSpeedCutoffs, new DampingSpeedCutoffOwner(bike.Id, bike.Updated));

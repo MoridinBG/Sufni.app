@@ -719,6 +719,58 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
+    public async Task LoadDetailAsync_ReturnsIncompleteLocalData_WhenRecordedSourceMissing()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        domainQuery.Get(snapshot.Id).Returns(DomainWithMissingSource(snapshot));
+        SetLocalTelemetry(snapshot.Id, telemetry);
+
+        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+
+        var incomplete = Assert.IsType<SessionDetailLoadResult.IncompleteLocalData>(result);
+        Assert.False(incomplete.Missing.ProcessedTelemetryBlob);
+        Assert.True(incomplete.Missing.RecordedSourceMissingOrHashMismatch);
+        await trackCoordinator.DidNotReceive().LoadSessionTrackAsync(
+            Arg.Any<Guid>(),
+            Arg.Any<Guid?>(),
+            Arg.Any<TelemetryData>(),
+            Arg.Any<CancellationToken>());
+        sessionPresentationService.DidNotReceive().BuildCachePresentation(
+            Arg.Any<TelemetryData>(),
+            Arg.Any<SessionPresentationDimensions>(),
+            Arg.Any<CancellationToken>(),
+            Arg.Any<DampingSpeedCutoffs?>());
+    }
+
+    [Fact]
+    public async Task LoadDetailAsync_ReturnsIncompleteLocalData_WhenRecordedSourceHashDoesNotMatchFingerprint()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        domainQuery.Get(snapshot.Id).Returns(DomainWithSourceHashMismatch(snapshot));
+        SetLocalTelemetry(snapshot.Id, telemetry);
+
+        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+
+        var incomplete = Assert.IsType<SessionDetailLoadResult.IncompleteLocalData>(result);
+        Assert.False(incomplete.Missing.ProcessedTelemetryBlob);
+        Assert.True(incomplete.Missing.RecordedSourceMissingOrHashMismatch);
+        await trackCoordinator.DidNotReceive().LoadSessionTrackAsync(
+            Arg.Any<Guid>(),
+            Arg.Any<Guid?>(),
+            Arg.Any<TelemetryData>(),
+            Arg.Any<CancellationToken>());
+        sessionPresentationService.DidNotReceive().BuildCachePresentation(
+            Arg.Any<TelemetryData>(),
+            Arg.Any<SessionPresentationDimensions>(),
+            Arg.Any<CancellationToken>(),
+            Arg.Any<DampingSpeedCutoffs?>());
+    }
+
+    [Fact]
     public async Task LoadDetailAsync_ReturnsFailed_WhenTrackCoordinatorThrows()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
@@ -950,16 +1002,63 @@ public class SessionCoordinatorTests
         };
     }
 
-    private static RecordedSessionDomainSnapshot DomainWithBike(SessionSnapshot session, BikeSnapshot bike) => new(
+    private static RecordedSessionDomainSnapshot DomainWithBike(SessionSnapshot session, BikeSnapshot bike) =>
+        new(
+            session,
+            null,
+            bike,
+            null,
+            null,
+            new RecordedSessionSourceSnapshot(
+                session.Id,
+                RecordedSessionSourceKind.ImportedSst,
+                "source.SST",
+                1,
+                "source-hash"),
+            null,
+            new SessionStaleness.Current(),
+            DerivedChangeKind.None);
+
+    private static RecordedSessionDomainSnapshot DomainWithMissingSource(SessionSnapshot session) => new(
         session,
         null,
-        bike,
         null,
         null,
         null,
         null,
-        new SessionStaleness.Current(),
+        null,
+        new SessionStaleness.MissingRawSource(),
         DerivedChangeKind.None);
+
+    private static RecordedSessionDomainSnapshot DomainWithSourceHashMismatch(SessionSnapshot session)
+    {
+        const string expectedSourceHash = "expected-source-hash";
+        var source = new RecordedSessionSourceSnapshot(
+            session.Id,
+            RecordedSessionSourceKind.ImportedSst,
+            "source.SST",
+            1,
+            "actual-source-hash");
+        var persisted = new ProcessingFingerprint(
+            SchemaVersion: 3,
+            ProcessingVersion: TelemetryProcessingVersion.Current,
+            SetupId: Guid.NewGuid(),
+            BikeId: Guid.NewGuid(),
+            TrackProjectionVersion: 1,
+            DependencyHash: "dependency-hash",
+            SourceHash: expectedSourceHash);
+
+        return new RecordedSessionDomainSnapshot(
+            session,
+            null,
+            null,
+            null,
+            persisted,
+            source,
+            null,
+            new SessionStaleness.DependencyHashChanged(),
+            DerivedChangeKind.None);
+    }
 
     private static LiveSessionCapturePackage CreateLiveCapturePackage(bool withGps)
     {
