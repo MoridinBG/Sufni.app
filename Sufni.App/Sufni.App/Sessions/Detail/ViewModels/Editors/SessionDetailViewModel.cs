@@ -71,13 +71,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     }
     public SuspensionSettings ForkSettings => NotesPage.ForkSettings;
     public SuspensionSettings ShockSettings => NotesPage.ShockSettings;
-    public RecordedSessionContext SessionContext { get; } = new();
+    public RecordedSessionContext SessionContext { get; }
     public ISessionShellMobileWorkspace MobileWorkspace { get; }
     public IRecordedSessionSignalsWorkspace SignalsWorkspace { get; }
     public ISessionMediaWorkspace MediaWorkspace { get; }
     public ISessionAnalysisWorkspace AnalysisWorkspace { get; }
     public ISessionSidebarWorkspace SidebarWorkspace { get; }
-    public SessionTimelineLinkViewModel Timeline => SessionContext.Timeline;
+    public SessionTimelineLinkViewModel Timeline => timeline;
 
     #region Private fields
 
@@ -87,6 +87,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly ISessionStore sessionStore;
     private readonly IRecordedSessionProjection recordedSessionProjection;
     private readonly ISessionProcessedTelemetryReader processedTelemetryReader;
+    private readonly ObservableCollection<PageViewModelBase> pages = [];
+    private readonly SessionTimelineLinkViewModel timeline = new();
+    private readonly TelemetrySourceVisibilityStore sourceVisibility = new();
     private readonly RecordedSessionExtensionSlots emptyExtensionSlots = new();
     private readonly RecordedSessionExtensionManager? recordedSessionExtensions;
     private readonly RecordedSessionOperationCoordinator? recordedSessionOperationCoordinator;
@@ -249,7 +252,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         set => LayoutPreferences = LayoutPreferences with { DesktopMediaRows = value };
     }
 
-    public TelemetrySourceVisibilityStore SourceVisibility => SessionContext.SourceVisibility;
+    public TelemetrySourceVisibilityStore SourceVisibility => sourceVisibility;
     public PreferencesPageViewModel PreferencesPage { get; } = new();
     public MapViewModel? MapViewModel => mapViewModel;
     public IReadOnlyList<SignalRowAction> TravelHeaderActions => signalRowActions.TravelHeaderActions;
@@ -282,7 +285,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         selectedVelocityAverageMode,
         selectedBalanceDisplacementMode,
         selectedBalanceSpeedMode);
-    public ObservableCollection<PageViewModelBase> Pages => SessionContext.Pages;
+    public ObservableCollection<PageViewModelBase> Pages => pages;
     public SessionScreenPresentationState ScreenState => screenState;
     public SessionOperationPresentationState SessionOperationState => sessionOperationState;
 
@@ -1427,6 +1430,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         : base(shell, dialogService, uiThreadDispatcher)
     {
         ArgumentNullException.ThrowIfNull(sessionPreferences);
+        SessionContext = new RecordedSessionContext(pages, timeline, sourceVisibility);
         this.deferDomainHandlingWhenInactive = deferDomainHandlingWhenInactive;
 
         this.sessionCoordinator = sessionCoordinator;

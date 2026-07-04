@@ -22,12 +22,18 @@ namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
 public sealed partial class RecordedSessionContext : ObservableObject
 {
-    public ObservableCollection<PageViewModelBase> Pages { get; } = [];
+    public ObservableCollection<PageViewModelBase> Pages { get; }
 
     private int selectedPageIndex;
 
-    public RecordedSessionContext()
+    public RecordedSessionContext(
+        ObservableCollection<PageViewModelBase>? pages = null,
+        SessionTimelineLinkViewModel? timeline = null,
+        TelemetrySourceVisibilityStore? sourceVisibility = null)
     {
+        Pages = pages ?? [];
+        Timeline = timeline ?? new SessionTimelineLinkViewModel();
+        SourceVisibility = sourceVisibility ?? new TelemetrySourceVisibilityStore();
         Pages.CollectionChanged += OnPagesChanged;
     }
 
@@ -43,9 +49,9 @@ public sealed partial class RecordedSessionContext : ObservableObject
 
     public string SelectedPageDisplayName => SelectedPage?.DisplayName ?? string.Empty;
 
-    public SessionTimelineLinkViewModel Timeline { get; } = new();
+    public SessionTimelineLinkViewModel Timeline { get; }
 
-    public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
+    public TelemetrySourceVisibilityStore SourceVisibility { get; }
 
     [ObservableProperty] public partial SessionSnapshot? SessionSnapshot { get; set; }
     [ObservableProperty] public partial TelemetryData? TelemetryData { get; set; }
