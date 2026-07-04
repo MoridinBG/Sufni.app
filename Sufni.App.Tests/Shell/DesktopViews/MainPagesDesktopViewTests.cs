@@ -12,6 +12,7 @@ using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Extensibility.Views;
 using Sufni.App.ExtensionHost.Contracts.Capabilities;
+using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Shared.Views.Controls;
@@ -53,6 +54,44 @@ public class MainPagesDesktopViewTests
 
         Assert.NotNull(pairingPanel);
         Assert.True(pairingPanel!.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task MainPagesDesktopView_HidesServerSyncSurfaces_WhenHostCapabilityIsUnavailable()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+
+        var pairingCoordinator = Substitute.For<IPairingServerCoordinator>();
+        pairingCoordinator.StartServerAsync().Returns(Task.CompletedTask);
+        var pairingViewModel = new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher())
+        {
+            PairingPin = "123456",
+            RequestingDisplayName = "Phone",
+            Remaining = 0.5,
+        };
+        var environment = MainPagesViewModelTestFactory.CreateAppEnvironment(
+            capabilities: new AppCapabilities(
+                CanHostSyncServer: false,
+                CanPairAsClient: false,
+                HasHaptics: false,
+                SupportsMassStorageImport: true,
+                SupportsStorageProviderImport: true,
+                SupportsNativeWindowing: true));
+        var viewModel = MainPagesViewModelTestFactory.Create(
+            appEnvironment: environment,
+            pairingServerViewModel: pairingViewModel);
+        viewModel.IsPairedDevicesListOpen = true;
+        var view = new MainPagesDesktopView
+        {
+            DataContext = viewModel
+        };
+
+        await using var mounted = await MountAsync(view);
+
+        Assert.False(mounted.View.FindControl<Button>("PairedDevicesButton")!.IsVisible);
+        Assert.False(mounted.View.FindControl<Grid>("PairedDevicesPanel")!.IsVisible);
+        Assert.False(mounted.View.FindControl<Grid>("PairingRequestPanel")!.IsVisible);
     }
 
     [AvaloniaFact]

@@ -74,6 +74,28 @@ public class MainPagesViewModelTests
     }
 
     [Fact]
+    public void Constructor_ExposesShellActionsFromCapabilities()
+    {
+        var environment = MainPagesViewModelTestFactory.CreateAppEnvironment(
+            capabilities: new AppCapabilities(
+                CanHostSyncServer: false,
+                CanPairAsClient: false,
+                HasHaptics: false,
+                SupportsMassStorageImport: false,
+                SupportsStorageProviderImport: false,
+                SupportsNativeWindowing: false));
+
+        var viewModel = MainPagesViewModelTestFactory.Create(appEnvironment: environment);
+
+        Assert.False(viewModel.CanHostSyncServer);
+        Assert.False(viewModel.CanShowPairingClientActions);
+        Assert.False(viewModel.CanImportSessions);
+        Assert.False(viewModel.CanImportGpsTracks);
+        Assert.False(viewModel.OpenImportCommand.CanExecute(null));
+        Assert.False(viewModel.OpenGpsTracksCommand.CanExecute(null));
+    }
+
+    [Fact]
     public async Task ChooseLayoutProfileCommand_SavesLocalPreferenceAndMarksRestartRequired()
     {
         var uiPreferences = Substitute.For<IUiPreferences>();

@@ -40,8 +40,10 @@ mc:Ignorable="d">
 
     <StackPanel>
         <MenuItem
+        Name="ImportSessionsMenuItem"
         Command="{Binding OpenImportCommand}"
-        Header="import">
+        Header="import"
+        IsVisible="{Binding CanImportSessions}">
             <MenuItem.Icon>
                 <Image Width="12" Source="{SvgImage /Assets/fa-file-import.svg}" />
             </MenuItem.Icon>
@@ -49,7 +51,8 @@ mc:Ignorable="d">
         <MenuItem
         Name="ImportGpxMenuItem"
         Command="{Binding OpenGpsTracksCommand}"
-        Header="GPX import">
+        Header="GPX import"
+        IsVisible="{Binding CanImportGpsTracks}">
             <MenuItem.Icon>
                 <Image Width="12" Source="{SvgImage /Assets/fa-map.svg}" />
             </MenuItem.Icon>
@@ -78,9 +81,15 @@ mc:Ignorable="d">
         </MenuItem>
         <Separator />
         <MenuItem
+        Name="ClientSyncMenuItem"
         Command="{Binding SyncCommand}"
-        Header="synchronize"
-        IsVisible="{Binding IsPaired, FallbackValue={x:False}}">
+        Header="synchronize">
+            <MenuItem.IsVisible>
+                <MultiBinding Converter="{x:Static converters:BoolConverters.And}">
+                    <Binding Path="CanShowPairingClientActions" />
+                    <Binding Path="IsPaired" />
+                </MultiBinding>
+            </MenuItem.IsVisible>
             <MenuItem.Icon>
                 <Image
                 Width="12"
@@ -89,19 +98,31 @@ mc:Ignorable="d">
             </MenuItem.Icon>
         </MenuItem>
         <MenuItem
+        Name="PairMenuItem"
         Command="{Binding OpenPageCommand}"
         CommandParameter="{Binding PairingClientPage}"
-        Header="pair"
-        IsVisible="{Binding !IsPaired}">
+        Header="pair">
+            <MenuItem.IsVisible>
+                <MultiBinding Converter="{x:Static converters:BoolConverters.And}">
+                    <Binding Path="CanShowPairingClientActions" />
+                    <Binding Path="!IsPaired" />
+                </MultiBinding>
+            </MenuItem.IsVisible>
             <MenuItem.Icon>
                 <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}" />
             </MenuItem.Icon>
         </MenuItem>
         <MenuItem
+        Name="UnpairMenuItem"
         Command="{Binding OpenPageCommand}"
         CommandParameter="{Binding PairingClientPage}"
-        Header="unpair"
-        IsVisible="{Binding IsPaired, FallbackValue={x:False}}">
+        Header="unpair">
+            <MenuItem.IsVisible>
+                <MultiBinding Converter="{x:Static converters:BoolConverters.And}">
+                    <Binding Path="CanShowPairingClientActions" />
+                    <Binding Path="IsPaired" />
+                </MultiBinding>
+            </MenuItem.IsVisible>
             <MenuItem.Icon>
                 <Image Width="18" Source="{SvgImage /Assets/fa-link-slash.svg}" />
             </MenuItem.Icon>

@@ -155,7 +155,8 @@ mc:Ignorable="d">
             <Button
             Width="50"
             Classes="embedded"
-            Command="{Binding OpenImportCommand}">
+            Command="{Binding OpenImportCommand}"
+            IsVisible="{Binding CanImportSessions}">
                 <Image Width="18" Source="{SvgImage /Assets/fa-file-import.svg}" />
             </Button>
 
@@ -163,7 +164,8 @@ mc:Ignorable="d">
             <Button
             Width="50"
             Classes="embedded"
-            Command="{Binding OpenGpsTracksCommand}">
+            Command="{Binding OpenGpsTracksCommand}"
+            IsVisible="{Binding CanImportGpsTracks}">
                 <Image Width="18" Source="{SvgImage /Assets/fa-map.svg}" />
             </Button>
 
@@ -177,7 +179,8 @@ mc:Ignorable="d">
             Name="PairedDevicesButton"
             Width="50"
             Classes="embedded"
-            Command="{Binding OpenClosePairedDevicesListCommand}">
+            Command="{Binding OpenClosePairedDevicesListCommand}"
+            IsVisible="{Binding CanHostSyncServer}">
                 <Panel>
                     <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}">
                         <Image.IsVisible>
@@ -273,8 +276,13 @@ mc:Ignorable="d">
         Height="300"
         Margin="50,0,20,25"
         VerticalAlignment="Bottom"
-        IsVisible="{Binding IsPairedDevicesListOpen}"
         Opacity="0.9">
+            <Grid.IsVisible>
+                <MultiBinding Converter="{x:Static converters:BoolConverters.And}">
+                    <Binding Path="CanHostSyncServer" />
+                    <Binding Path="IsPairedDevicesListOpen" />
+                </MultiBinding>
+            </Grid.IsVisible>
             <ContentControl Content="{Binding PairedDevicesPage}" />
             <overlays:BusyOverlay
             Name="DesktopSyncBusyOverlay"
@@ -301,7 +309,7 @@ mc:Ignorable="d">
         VerticalAlignment="Bottom"
         Background="{DynamicResource SufniSelectionSurfaceSubtle}"
         ColumnDefinitions="* 35"
-        IsVisible="{Binding !!PairingServerViewModel.PairingPin}"
+        IsVisible="{Binding IsPairingRequestVisible}"
         Opacity="0.9"
         RowDefinitions="auto 24">
 

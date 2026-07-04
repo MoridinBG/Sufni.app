@@ -94,18 +94,21 @@ internal static class MainPagesViewModelTestFactory
             extensionStateRefreshParticipants: extensionStateRefreshParticipants);
     }
 
-    public static IAppEnvironment CreateAppEnvironment(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
+    public static IAppEnvironment CreateAppEnvironment(
+        UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace,
+        AppCapabilities? capabilities = null,
+        InputCapabilities? input = null) =>
         new AppEnvironment(
             DefaultLayoutProfile: layoutProfile,
             LayoutProfile: layoutProfile,
-            Capabilities: new AppCapabilities(
+            Capabilities: capabilities ?? new AppCapabilities(
                 CanHostSyncServer: true,
                 CanPairAsClient: false,
                 HasHaptics: false,
                 SupportsMassStorageImport: true,
                 SupportsStorageProviderImport: true,
                 SupportsNativeWindowing: true),
-            Input: new InputCapabilities(
+            Input: input ?? new InputCapabilities(
                 HasPointer: true,
                 HasTouch: false,
                 HasKeyboard: true,

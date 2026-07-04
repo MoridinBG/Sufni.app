@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -73,6 +74,15 @@ public partial class MainPagesViewModel : ViewModelBase
     public IReadOnlyList<AppToolbarViewContribution> ExtensionToolbarViews { get; }
     public ViewModelBase SelectedPrimaryPageContent => GetSelectedPrimaryPage();
     public bool CanChooseLayoutProfile => true;
+    public bool CanImportSessions =>
+        appEnvironment.Capabilities.SupportsMassStorageImport ||
+        appEnvironment.Capabilities.SupportsStorageProviderImport;
+    public bool CanImportGpsTracks => appEnvironment.Capabilities.SupportsStorageProviderImport;
+    public bool CanHostSyncServer => appEnvironment.Capabilities.CanHostSyncServer;
+    public bool CanShowPairingClientActions =>
+        appEnvironment.Capabilities.CanPairAsClient && PairingClientPage is not null;
+    public bool IsPairingRequestVisible =>
+        CanHostSyncServer && !string.IsNullOrWhiteSpace(PairingServerViewModel?.PairingPin);
     public string LayoutProfileMenuHeader => $"layout: {FormatLayoutProfile(SelectedLayoutProfile)}";
     public string CompactLayoutProfileMenuText => FormatLayoutProfileMenuText(UiLayoutProfile.Compact);
     public string WorkspaceLayoutProfileMenuText => FormatLayoutProfileMenuText(UiLayoutProfile.Workspace);
@@ -121,6 +131,11 @@ public partial class MainPagesViewModel : ViewModelBase
         PairedDevicesPage = pairedDevicesPage;
         PairingClientPage = pairingClientPage;
         PairingServerViewModel = pairingServerViewModel;
+        if (PairingServerViewModel is not null)
+        {
+            PairingServerViewModel.PropertyChanged += OnPairingServerPropertyChanged;
+        }
+
         var toolbarContributions = BuildExtensionToolbarContributions(appToolbarContributionProviders);
         ExtensionToolbarCommands = toolbarContributions.Commands;
         ExtensionToolbarViews = toolbarContributions.Views;
@@ -263,6 +278,14 @@ public partial class MainPagesViewModel : ViewModelBase
         SyncThemeState();
     }
 
+    private void OnPairingServerPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PairingServerViewModel.PairingPin))
+        {
+            OnPropertyChanged(nameof(IsPairingRequestVisible));
+        }
+    }
+
     #endregion Constructors
 
     #region Private methods
@@ -328,7 +351,8 @@ public partial class MainPagesViewModel : ViewModelBase
 
     private bool CanSync()
     {
-        return syncCoordinator.CanSync;
+        return (appEnvironment.Capabilities.CanHostSyncServer || appEnvironment.Capabilities.CanPairAsClient) &&
+               syncCoordinator.CanSync;
     }
 
     [RelayCommand(CanExecute = nameof(CanSync))]
@@ -346,6 +370,11 @@ public partial class MainPagesViewModel : ViewModelBase
     [RelayCommand]
     private void OpenClosePairedDevicesList()
     {
+        if (!CanHostSyncServer)
+        {
+            return;
+        }
+
         IsPairedDevicesListOpen = !IsPairedDevicesListOpen;
     }
 
@@ -356,10 +385,14 @@ public partial class MainPagesViewModel : ViewModelBase
         shell.Open(view);
     }
 
-    [RelayCommand]
+    private bool CanOpenImport() => CanImportSessions;
+
+    [RelayCommand(CanExecute = nameof(CanOpenImport))]
     private async Task OpenImport() => await importSessionsCoordinator.OpenAsync();
 
-    [RelayCommand]
+    private bool CanOpenGpsTracks() => CanImportGpsTracks;
+
+    [RelayCommand(CanExecute = nameof(CanOpenGpsTracks))]
     private async Task OpenGpsTracks()
     {
         var result = await trackCoordinator.ImportGpxAsync();

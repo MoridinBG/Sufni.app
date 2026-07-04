@@ -9,6 +9,7 @@ using NSubstitute;
 using Sufni.App.Shell.Views;
 using Sufni.App.Extensibility.Views;
 using Sufni.App.ExtensionHost.Contracts.Capabilities;
+using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Tests.Shell.ViewModels;
 using Sufni.App.Tests.TestSupport.Doubles;
@@ -123,6 +124,39 @@ public class MainPagesViewTests
         Assert.NotNull(menuPanel);
         Assert.NotNull(importGpxMenuItem);
         Assert.Same(viewModel.OpenGpsTracksCommand, importGpxMenuItem!.Command);
+    }
+
+    [AvaloniaFact]
+    public async Task MainPagesView_SidePanelHidesImportAndPairingActions_WhenCapabilitiesAreUnavailable()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
+
+        var environment = MainPagesViewModelTestFactory.CreateAppEnvironment(
+            UiLayoutProfile.Compact,
+            new AppCapabilities(
+                CanHostSyncServer: false,
+                CanPairAsClient: false,
+                HasHaptics: false,
+                SupportsMassStorageImport: false,
+                SupportsStorageProviderImport: false,
+                SupportsNativeWindowing: false));
+        var viewModel = MainPagesViewModelTestFactory.Create(appEnvironment: environment);
+        var view = new MainPagesView
+        {
+            DataContext = viewModel,
+        };
+
+        await using var mounted = await MountAsync(view);
+
+        var menuPanel = mounted.View.FindControl<SidePanel>("MenuPanel")
+            ?? throw new InvalidOperationException("Side panel was not found.");
+
+        Assert.False(menuPanel.FindControl<MenuItem>("ImportSessionsMenuItem")!.IsVisible);
+        Assert.False(menuPanel.FindControl<MenuItem>("ImportGpxMenuItem")!.IsVisible);
+        Assert.False(menuPanel.FindControl<MenuItem>("ClientSyncMenuItem")!.IsVisible);
+        Assert.False(menuPanel.FindControl<MenuItem>("PairMenuItem")!.IsVisible);
+        Assert.False(menuPanel.FindControl<MenuItem>("UnpairMenuItem")!.IsVisible);
     }
 
     [AvaloniaFact]
