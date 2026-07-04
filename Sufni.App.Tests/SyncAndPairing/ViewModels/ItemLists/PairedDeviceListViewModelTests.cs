@@ -2,9 +2,9 @@ using DynamicData;
 using NSubstitute;
 
 using Sufni.App.SyncAndPairing.Coordinators;
-using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Stores;
 using Sufni.App.SyncAndPairing.ViewModels.ItemLists;
+using Sufni.App.Shared.Stores;
 namespace Sufni.App.Tests.SyncAndPairing.ViewModels.ItemLists;
 
 public class PairedDeviceListViewModelTests
@@ -27,14 +27,11 @@ public class PairedDeviceListViewModelTests
         pairedDeviceStore.Get(snapshot.DeviceId).Returns(snapshot);
 
         var storeWriter = Substitute.For<IPairedDeviceStoreWriter>();
-        storeWriter.When(w => w.Remove(Arg.Any<string>()))
-            .Do(call => pairedDeviceCache.RemoveKey(call.Arg<string>()));
-
-        var pairedDeviceRepository = Substitute.For<IPairedDeviceRepository>();
         var deleteTcs = new TaskCompletionSource();
-        pairedDeviceRepository.DeletePairedDeviceAsync(snapshot.DeviceId).Returns(deleteTcs.Task);
+        storeWriter.CommitLocalUnpairAsync(snapshot.DeviceId, Arg.Any<CancellationToken>())
+            .Returns(_ => CompleteUnpairAsync());
 
-        var coordinator = new PairedDeviceCoordinator(storeWriter, pairedDeviceRepository);
+        var coordinator = new PairedDeviceCoordinator(storeWriter);
         var viewModel = new PairedDeviceListViewModel(pairedDeviceStore, coordinator, UiThreadDispatcher);
         Assert.Single(viewModel.Items);
 
@@ -49,6 +46,13 @@ public class PairedDeviceListViewModelTests
         await finalizeTask;
 
         Assert.Empty(viewModel.Items);
+
+        async Task<StoreDeleteResult<PairedDeviceSnapshot>> CompleteUnpairAsync()
+        {
+            await deleteTcs.Task;
+            pairedDeviceCache.RemoveKey(snapshot.DeviceId);
+            return new StoreDeleteResult<PairedDeviceSnapshot>.Deleted(snapshot);
+        }
     }
 
     [Fact]
@@ -67,12 +71,11 @@ public class PairedDeviceListViewModelTests
         pairedDeviceStore.Get(snapshot.DeviceId).Returns(snapshot);
 
         var storeWriter = Substitute.For<IPairedDeviceStoreWriter>();
+        storeWriter.CommitLocalUnpairAsync(snapshot.DeviceId, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<StoreDeleteResult<PairedDeviceSnapshot>>(
+                new StoreDeleteResult<PairedDeviceSnapshot>.Failed("boom")));
 
-        var pairedDeviceRepository = Substitute.For<IPairedDeviceRepository>();
-        pairedDeviceRepository.DeletePairedDeviceAsync(snapshot.DeviceId)
-            .Returns(Task.FromException(new InvalidOperationException("boom")));
-
-        var coordinator = new PairedDeviceCoordinator(storeWriter, pairedDeviceRepository);
+        var coordinator = new PairedDeviceCoordinator(storeWriter);
         var viewModel = new PairedDeviceListViewModel(pairedDeviceStore, coordinator, UiThreadDispatcher);
         Assert.Single(viewModel.Items);
 

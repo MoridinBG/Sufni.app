@@ -138,12 +138,13 @@ public class PersistedStoreTests
     }
 
     [Fact]
-    public async Task PairedDeviceStore_RefreshUsesDeviceIdKeys_AndWriterMutationsUpdateCache()
+    public async Task PairedDeviceStore_RefreshUsesDeviceIdKeys_AndCommitPublishMutationsUpdateCache()
     {
         var expires = DateTime.UtcNow.AddHours(1);
         var device = new PairedDevice("device-1", "Phone", expires);
         var pairedDeviceRepository = Substitute.For<IPairedDeviceRepository>();
         pairedDeviceRepository.GetPairedDevicesAsync().Returns([device]);
+        pairedDeviceRepository.DeletePairedDeviceAsync("device-1").Returns(Task.CompletedTask);
         var store = new PairedDeviceStore(pairedDeviceRepository, UiThreadDispatcher);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
@@ -153,11 +154,14 @@ public class PersistedStoreTests
         Assert.Equal("device-1", snapshot.DeviceId);
         Assert.Equal(snapshot, store.Get("device-1"));
 
-        var updated = snapshot with { DisplayName = "Tablet" };
-        store.Upsert(updated);
+        var updatedDevice = new PairedDevice("device-1", "Tablet", expires);
+        pairedDeviceRepository.GetPairedDeviceAsync("device-1").Returns(updatedDevice);
+        var updated = PairedDeviceSnapshot.From(updatedDevice);
+        await store.PublishPairedDevicesChangedAsync(["device-1"]);
         Assert.Equal(updated, store.Get("device-1"));
 
-        store.Remove("device-1");
+        var deleteResult = await store.CommitLocalUnpairAsync("device-1");
+        Assert.IsType<StoreDeleteResult<PairedDeviceSnapshot>.Deleted>(deleteResult);
         Assert.Empty(snapshots);
         Assert.Null(store.Get("device-1"));
     }

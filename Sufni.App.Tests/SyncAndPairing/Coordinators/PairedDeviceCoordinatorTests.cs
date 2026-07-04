@@ -7,42 +7,49 @@ using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Stores;
 using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.Shared.Stores;
 namespace Sufni.App.Tests.SyncAndPairing.Coordinators;
 
 [Collection("Ui")]
 public class PairedDeviceCoordinatorTests
 {
     private readonly IPairedDeviceStoreWriter pairedDeviceStore = Substitute.For<IPairedDeviceStoreWriter>();
-    private readonly IPairedDeviceRepository pairedDeviceRepository = Substitute.For<IPairedDeviceRepository>();
 
     private PairedDeviceCoordinator CreateCoordinator(ISynchronizationServerService? server = null) =>
-        new(pairedDeviceStore, pairedDeviceRepository, server);
+        new(pairedDeviceStore, server);
+
+    public PairedDeviceCoordinatorTests()
+    {
+        pairedDeviceStore.CommitLocalUnpairAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<StoreDeleteResult<PairedDeviceSnapshot>>(
+                new StoreDeleteResult<PairedDeviceSnapshot>.Deleted()));
+    }
 
     // ----- UnpairAsync -----
 
     [Fact]
-    public async Task UnpairAsync_DeletesFromDatabase_RemovesFromStore_AndReturnsUnpaired()
+    public async Task UnpairAsync_CommitsLocalUnpair_AndReturnsUnpaired()
     {
         var coordinator = CreateCoordinator();
 
         var result = await coordinator.UnpairAsync("device-123");
 
         Assert.IsType<PairedDeviceUnpairResult.Unpaired>(result);
-        await pairedDeviceRepository.Received(1).DeletePairedDeviceAsync("device-123");
-        pairedDeviceStore.Received(1).Remove("device-123");
+        await pairedDeviceStore.Received(1).CommitLocalUnpairAsync("device-123", Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task UnpairAsync_ReturnsFailed_AndDoesNotRemoveFromStore_WhenDatabaseThrows()
     {
-        pairedDeviceRepository.DeletePairedDeviceAsync(Arg.Any<string>())
-            .ThrowsAsync(new InvalidOperationException("boom"));
+        pairedDeviceStore.CommitLocalUnpairAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<StoreDeleteResult<PairedDeviceSnapshot>>(
+                new StoreDeleteResult<PairedDeviceSnapshot>.Failed("boom")));
         var coordinator = CreateCoordinator();
 
         var result = await coordinator.UnpairAsync("device-123");
 
         Assert.IsType<PairedDeviceUnpairResult.Failed>(result);
-        pairedDeviceStore.DidNotReceiveWithAnyArgs().Remove(default!);
+        await pairedDeviceStore.Received(1).CommitLocalUnpairAsync("device-123", Arg.Any<CancellationToken>());
     }
 
     // ----- Constructor tolerates null server -----
@@ -54,7 +61,7 @@ public class PairedDeviceCoordinatorTests
 
         var result = await coordinator.UnpairAsync("device-abc");
         Assert.IsType<PairedDeviceUnpairResult.Unpaired>(result);
-        await pairedDeviceRepository.Received(1).DeletePairedDeviceAsync("device-abc");
+        await pairedDeviceStore.Received(1).CommitLocalUnpairAsync("device-abc", Arg.Any<CancellationToken>());
     }
 
     // ----- Server event subscriptions -----
@@ -70,10 +77,9 @@ public class PairedDeviceCoordinatorTests
 
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
-        pairedDeviceStore.Received(1).Upsert(Arg.Is<PairedDeviceSnapshot>(s =>
-            s.DeviceId == "device-xyz" &&
-            s.DisplayName == "My Phone" &&
-            s.Expires == new DateTime(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc)));
+        await pairedDeviceStore.Received(1).PublishPairedDevicesChangedAsync(
+            Arg.Is<IReadOnlyCollection<string>>(ids => ids.Count == 1 && ids.Contains("device-xyz")),
+            Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
@@ -87,6 +93,8 @@ public class PairedDeviceCoordinatorTests
 
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
-        pairedDeviceStore.Received(1).Remove("device-xyz");
+        await pairedDeviceStore.Received(1).PublishPairedDevicesRemovedAsync(
+            Arg.Is<IReadOnlyCollection<string>>(ids => ids.Count == 1 && ids.Contains("device-xyz")),
+            Arg.Any<CancellationToken>());
     }
 }

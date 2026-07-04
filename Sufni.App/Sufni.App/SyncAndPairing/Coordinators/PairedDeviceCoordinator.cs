@@ -6,6 +6,7 @@ using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Stores;
 using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Stores;
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
 /// <summary>
@@ -21,17 +22,14 @@ public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator
     private static readonly ILogger logger = Log.ForContext<PairedDeviceCoordinator>();
 
     private readonly IPairedDeviceStoreWriter pairedDeviceStore;
-    private readonly IPairedDeviceRepository pairedDeviceRepository;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
 
     public PairedDeviceCoordinator(
         IPairedDeviceStoreWriter pairedDeviceStore,
-        IPairedDeviceRepository pairedDeviceRepository,
         ISynchronizationServerService? synchronizationServer = null,
         IUiThreadDispatcher? uiThreadDispatcher = null)
     {
         this.pairedDeviceStore = pairedDeviceStore;
-        this.pairedDeviceRepository = pairedDeviceRepository;
         this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
 
         if (synchronizationServer is not null)
@@ -47,11 +45,28 @@ public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator
 
         try
         {
-            await pairedDeviceRepository.DeletePairedDeviceAsync(deviceId);
-            pairedDeviceStore.Remove(deviceId);
+            var result = await pairedDeviceStore.CommitLocalUnpairAsync(deviceId);
+            switch (result)
+            {
+                case StoreDeleteResult<PairedDeviceSnapshot>.Deleted:
+                    logger.Information("Paired-device unpair completed for {DeviceId}", deviceId);
+                    return new PairedDeviceUnpairResult.Unpaired();
 
-            logger.Information("Paired-device unpair completed for {DeviceId}", deviceId);
-            return new PairedDeviceUnpairResult.Unpaired();
+                case StoreDeleteResult<PairedDeviceSnapshot>.Blocked blocked:
+                    logger.Warning("Paired-device unpair blocked for {DeviceId}: {ErrorMessage}", deviceId, blocked.ErrorMessage);
+                    return new PairedDeviceUnpairResult.Failed(blocked.ErrorMessage);
+
+                case StoreDeleteResult<PairedDeviceSnapshot>.Missing missing:
+                    logger.Warning("Paired-device unpair failed because {DeviceId} was missing: {ErrorMessage}", deviceId, missing.ErrorMessage);
+                    return new PairedDeviceUnpairResult.Failed(missing.ErrorMessage);
+
+                case StoreDeleteResult<PairedDeviceSnapshot>.Failed failed:
+                    logger.Error("Paired-device unpair failed for {DeviceId}: {ErrorMessage}", deviceId, failed.ErrorMessage);
+                    return new PairedDeviceUnpairResult.Failed(failed.ErrorMessage);
+
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(result));
+            }
         }
         catch (Exception e)
         {
@@ -65,7 +80,7 @@ public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator
         logger.Verbose("Received inbound pairing confirmation for {DeviceId}", e.Device.DeviceId);
         _ = uiThreadDispatcher.InvokeAsync(() =>
         {
-            pairedDeviceStore.Upsert(PairedDeviceSnapshot.From(e.Device));
+            return pairedDeviceStore.PublishPairedDevicesChangedAsync([e.Device.DeviceId]);
         });
     }
 
@@ -74,7 +89,7 @@ public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator
         logger.Verbose("Received inbound unpair for {DeviceId}", e.Device.DeviceId);
         _ = uiThreadDispatcher.InvokeAsync(() =>
         {
-            pairedDeviceStore.Remove(e.Device.DeviceId);
+            return pairedDeviceStore.PublishPairedDevicesRemovedAsync([e.Device.DeviceId]);
         });
     }
 }

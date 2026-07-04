@@ -1,4 +1,7 @@
+using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
+using Sufni.App.Shared.Stores;
 
 namespace Sufni.App.SyncAndPairing.Stores;
 
@@ -15,16 +18,17 @@ public interface IPairedDeviceStoreWriter : IPairedDeviceStore
     /// Load paired devices from the database and replace the current
     /// contents.
     /// </summary>
-    Task RefreshAsync();
+    Task RefreshAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Insert or replace the snapshot for a paired device. Called by
-    /// the coordinator on <c>PairingConfirmed</c> and after a refresh.
-    /// </summary>
-    void Upsert(PairedDeviceSnapshot snapshot);
+    Task<StoreDeleteResult<PairedDeviceSnapshot>> CommitLocalUnpairAsync(
+        string deviceId,
+        CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Remove a paired device from the store by id. No-op if not present.
-    /// </summary>
-    void Remove(string deviceId);
+    Task PublishPairedDevicesChangedAsync(
+        IReadOnlyCollection<string> deviceIds,
+        CancellationToken cancellationToken = default);
+
+    Task PublishPairedDevicesRemovedAsync(
+        IReadOnlyCollection<string> deviceIds,
+        CancellationToken cancellationToken = default);
 }
