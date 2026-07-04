@@ -1,4 +1,5 @@
 using NSubstitute;
+using System.Reactive.Linq;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.Services;
@@ -19,7 +20,7 @@ public class RecordedSessionExtensionPagesControllerTests
     {
         var manager = CreateManager();
         var context = CreateBuiltInContext();
-        _ = new RecordedSessionExtensionPagesController(manager, context);
+        _ = CreateController(manager, context);
 
         manager.ExtensionSlots.Pages.Add(CreatePageContribution("extension-page", requestedIndex: 1));
 
@@ -42,7 +43,7 @@ public class RecordedSessionExtensionPagesControllerTests
     {
         var manager = CreateManager();
         var context = CreateBuiltInContext();
-        _ = new RecordedSessionExtensionPagesController(manager, context);
+        _ = CreateController(manager, context);
 
         manager.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution("analysis-tab", requestedIndex: 3));
 
@@ -65,7 +66,7 @@ public class RecordedSessionExtensionPagesControllerTests
     {
         var manager = CreateManager();
         var context = CreateBuiltInContext(includeBalance: false);
-        _ = new RecordedSessionExtensionPagesController(manager, context);
+        _ = CreateController(manager, context);
 
         manager.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution("analysis-tab", requestedIndex: 3));
 
@@ -87,7 +88,7 @@ public class RecordedSessionExtensionPagesControllerTests
     {
         var manager = CreateManager();
         var context = CreateBuiltInContext();
-        _ = new RecordedSessionExtensionPagesController(manager, context);
+        _ = CreateController(manager, context);
         var createCount = 0;
         var viewModel = new TestContributionViewModel();
         manager.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution(
@@ -126,7 +127,7 @@ public class RecordedSessionExtensionPagesControllerTests
     {
         var manager = CreateManager();
         var context = CreateBuiltInContext();
-        _ = new RecordedSessionExtensionPagesController(manager, context);
+        _ = CreateController(manager, context);
         var createCount = 0;
         var viewModel = new TestContributionViewModel();
         var contribution = CreateAnalysisTabContribution(
@@ -167,7 +168,7 @@ public class RecordedSessionExtensionPagesControllerTests
     {
         var manager = CreateManager();
         var context = CreateBuiltInContext();
-        _ = new RecordedSessionExtensionPagesController(manager, context);
+        _ = CreateController(manager, context);
 
         manager.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution("analysis-tab", requestedIndex: 3));
         manager.ExtensionSlots.AnalysisTabs.Clear();
@@ -190,7 +191,7 @@ public class RecordedSessionExtensionPagesControllerTests
     {
         var manager = CreateManager();
         var context = CreateBuiltInContext();
-        _ = new RecordedSessionExtensionPagesController(manager, context);
+        _ = CreateController(manager, context);
         var viewModel = new DisposableContributionViewModel();
 
         manager.ExtensionSlots.Pages.Add(CreatePageContribution("extension-page", requestedIndex: 1, viewModel: viewModel));
@@ -209,7 +210,7 @@ public class RecordedSessionExtensionPagesControllerTests
     {
         var manager = CreateManager();
         var context = CreateBuiltInContext();
-        _ = new RecordedSessionExtensionPagesController(manager, context);
+        _ = CreateController(manager, context);
         var viewModel = new DisposableContributionViewModel();
 
         manager.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution(
@@ -231,7 +232,7 @@ public class RecordedSessionExtensionPagesControllerTests
     {
         var manager = CreateManager();
         var context = CreateBuiltInContext();
-        _ = new RecordedSessionExtensionPagesController(manager, context);
+        _ = CreateController(manager, context);
         var first = CreateAnalysisTabContribution("first", requestedIndex: 3, order: 2, displayName: "First");
         var second = CreateAnalysisTabContribution("second", requestedIndex: 3, order: 1, displayName: "Second");
 
@@ -255,20 +256,23 @@ public class RecordedSessionExtensionPagesControllerTests
     }
 
     [Fact]
-    public void RequestPageSelection_SetsSelectedPageIndexOnContext()
+    public void RequestPageSelection_EmitsSelectedPageIndexIntent()
     {
         var manager = CreateManager();
         var context = CreateBuiltInContext();
-        var controller = new RecordedSessionExtensionPagesController(manager, context);
+        var actions = new RecordedSessionEditorActions();
+        var intents = new List<RecordedSessionEditorIntent>();
+        using var subscription = actions.Intents.Subscribe(intents.Add);
+        var controller = CreateController(manager, context, actions);
 
         manager.ExtensionSlots.Pages.Add(CreatePageContribution("extension-page", requestedIndex: 1));
         var contributedPage = Assert.Single(context.Pages, page => page.DisplayName == "Extension page");
 
         controller.RequestRecordedSessionExtensionPageSelection("extension-page");
 
-        Assert.Equal(context.Pages.IndexOf(contributedPage), context.SelectedPageIndex);
-        Assert.Same(contributedPage, context.SelectedPage);
-        Assert.Equal("Extension page", context.SelectedPageDisplayName);
+        var intent = Assert.IsType<RecordedSessionEditorIntent.SelectPageIndex>(Assert.Single(intents));
+        Assert.Equal(context.Pages.IndexOf(contributedPage), intent.PageIndex);
+        Assert.Equal(0, context.SelectedPageIndex);
     }
 
     [Fact]
@@ -276,7 +280,7 @@ public class RecordedSessionExtensionPagesControllerTests
     {
         var manager = CreateManager();
         var context = CreateBuiltInContext();
-        var controller = new RecordedSessionExtensionPagesController(manager, context);
+        var controller = CreateController(manager, context);
         var pageViewModel = new DisposableContributionViewModel();
         var analysisTabViewModel = new DisposableContributionViewModel();
         manager.ExtensionSlots.Pages.Add(CreatePageContribution(
@@ -302,6 +306,17 @@ public class RecordedSessionExtensionPagesControllerTests
         Assert.Equal(1, analysisTabViewModel.DisposeCount);
         Assert.DoesNotContain(page, context.Pages);
         Assert.DoesNotContain(analysisTab, context.Pages);
+    }
+
+    private static RecordedSessionExtensionPagesController CreateController(
+        RecordedSessionExtensionManager manager,
+        RecordedSessionContext context,
+        RecordedSessionEditorActions? actions = null)
+    {
+        return new RecordedSessionExtensionPagesController(
+            manager,
+            context.Pages,
+            actions ?? new RecordedSessionEditorActions());
     }
 
     private static RecordedSessionExtensionManager CreateManager()

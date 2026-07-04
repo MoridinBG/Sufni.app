@@ -1,5 +1,6 @@
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Linq;
 using System;
@@ -18,16 +19,19 @@ namespace Sufni.App.Extensibility.Views;
 internal sealed class RecordedSessionExtensionPagesController : IDisposable
 {
     private readonly RecordedSessionExtensionManager manager;
-    private readonly RecordedSessionContext context;
+    private readonly ObservableCollection<PageViewModelBase> pages;
+    private readonly RecordedSessionEditorActions actions;
     private readonly Dictionary<string, RecordedSessionExtensionPageViewModel> recordedSessionExtensionPages = [];
     private bool disposed;
 
     public RecordedSessionExtensionPagesController(
         RecordedSessionExtensionManager manager,
-        RecordedSessionContext context)
+        ObservableCollection<PageViewModelBase> pages,
+        RecordedSessionEditorActions actions)
     {
         this.manager = manager;
-        this.context = context;
+        this.pages = pages;
+        this.actions = actions;
         manager.ExtensionSlots.Pages.CollectionChanged += OnRecordedSessionExtensionPagesChanged;
         manager.ExtensionSlots.AnalysisTabs.CollectionChanged += OnRecordedSessionExtensionPagesChanged;
     }
@@ -50,10 +54,10 @@ internal sealed class RecordedSessionExtensionPagesController : IDisposable
             return;
         }
 
-        var pageIndex = context.Pages.IndexOf(page);
+        var pageIndex = pages.IndexOf(page);
         if (pageIndex >= 0)
         {
-            context.SelectedPageIndex = pageIndex;
+            actions.SelectPageIndex(pageIndex);
         }
     }
 
@@ -70,7 +74,7 @@ internal sealed class RecordedSessionExtensionPagesController : IDisposable
 
         foreach (var page in recordedSessionExtensionPages.Values)
         {
-            context.Pages.Remove(page);
+            pages.Remove(page);
             page.Dispose();
         }
 
@@ -133,7 +137,7 @@ internal sealed class RecordedSessionExtensionPagesController : IDisposable
 
         foreach (var entry in recordedSessionExtensionPages.ToArray())
         {
-            context.Pages.Remove(entry.Value);
+            pages.Remove(entry.Value);
             if (!desiredKeys.Contains(entry.Key))
             {
                 recordedSessionExtensionPages.Remove(entry.Key);
@@ -153,8 +157,8 @@ internal sealed class RecordedSessionExtensionPagesController : IDisposable
                 recordedSessionExtensionPages.Add(entry.Key, page);
             }
 
-            var insertIndex = Math.Clamp(entry.RequestedIndex + insertedCount, 0, context.Pages.Count);
-            context.Pages.Insert(insertIndex, page);
+            var insertIndex = Math.Clamp(entry.RequestedIndex + insertedCount, 0, pages.Count);
+            pages.Insert(insertIndex, page);
             insertedCount++;
         }
     }
