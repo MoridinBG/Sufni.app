@@ -81,7 +81,10 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             throw new InvalidOperationException("Setup bike does not match the processing bike.");
         }
 
-        var expectedSourceSessionId = window?.SourceSessionId ?? input.Session.Id;
+        var normalizedWindow = RecordedSessionDerivationResolver.NormalizeWindow(window);
+        var expectedSourceSessionId = RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(
+            input.Session.Id,
+            normalizedWindow);
         if (input.Source.SessionId != expectedSourceSessionId)
         {
             throw new InvalidOperationException("Recorded source does not match the processing session.");
@@ -95,7 +98,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             GpsTrackPointProjection.ProjectionVersion,
             ProcessingDependencyHash.Compute(input.Setup, input.Bike),
             input.Source.SourceHash,
-            DerivationWindow: window);
+            DerivationWindow: normalizedWindow);
     }
 
     private static ProcessingFingerprint CreateCurrentDatabaseInputs(
@@ -116,7 +119,10 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             throw new InvalidOperationException("Setup bike does not match the processing bike.");
         }
 
-        var expectedSourceSessionId = window?.SourceSessionId ?? session.Id;
+        var normalizedWindow = RecordedSessionDerivationResolver.NormalizeWindow(window);
+        var expectedSourceSessionId = RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(
+            session.Id,
+            normalizedWindow);
         if (source.SessionId != expectedSourceSessionId)
         {
             throw new InvalidOperationException("Recorded source does not match the processing session.");
@@ -130,7 +136,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             GpsTrackPointProjection.ProjectionVersion,
             dependencyHash,
             source.SourceHash,
-            DerivationWindow: window);
+            DerivationWindow: normalizedWindow);
     }
 
     public ProcessingFingerprint? ParsePersisted(SessionSnapshot session) =>

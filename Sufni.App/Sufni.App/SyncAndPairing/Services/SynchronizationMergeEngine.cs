@@ -681,7 +681,7 @@ internal sealed class SynchronizationMergeEngine(
     }
 
     private static Guid GetSourceSessionId(Guid sessionId, ProcessingFingerprint fingerprint) =>
-        fingerprint.DerivationWindow?.SourceSessionId ?? sessionId;
+        RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(sessionId, fingerprint);
 
     private static bool SessionHasRecordedSource(SQLiteConnection connection, Guid sessionId)
     {

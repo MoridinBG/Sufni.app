@@ -45,7 +45,9 @@ internal sealed class RecordedSessionReprocessor(
             throw new InvalidOperationException("Recorded session cannot be reprocessed without setup, bike, and source metadata.");
         }
 
-        var expectedSourceSessionId = domain.DerivationWindow?.SourceSessionId ?? domain.Session.Id;
+        var expectedSourceSessionId = RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(
+            domain.Session.Id,
+            domain.DerivationWindow);
         if (source.SessionId != expectedSourceSessionId || domain.Source.SessionId != source.SessionId)
         {
             throw new InvalidOperationException("Recorded source does not match the domain session.");

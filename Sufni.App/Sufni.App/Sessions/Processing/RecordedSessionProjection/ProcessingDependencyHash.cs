@@ -1,16 +1,12 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
-using Sufni.Kinematics;
 
-using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
-using Sufni.App.Setups.Models.SensorConfigurations;
-using Sufni.App.Setups.Stores;
 using Sufni.App.Infrastructure;
+using Sufni.App.Setups.Stores;
+
 namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
 /// <summary>
@@ -22,170 +18,23 @@ public static class ProcessingDependencyHash
 {
     public static string Compute(SetupSnapshot setup, BikeSnapshot bike)
     {
-        return Compute(CreatePayload(setup, bike), AppJson.Options);
+        return Compute(ProcessingDependencyInputs.Create(setup, bike), AppJson.Options);
     }
 
     internal static string Compute(SetupProcessingInput setup, BikeProcessingInput bike)
     {
-        return Compute(CreatePayload(setup, bike), AppJson.Options);
+        return Compute(ProcessingDependencyInputs.Create(setup, bike), AppJson.Options);
     }
 
-    private static string Compute(DependencyPayload payload, JsonSerializerOptions jsonOptions)
+    internal static string Compute(ProcessingDependencyInputs inputs)
+    {
+        return Compute(inputs, AppJson.Options);
+    }
+
+    private static string Compute(ProcessingDependencyInputs inputs, JsonSerializerOptions jsonOptions)
     {
         using var stream = new MemoryStream();
-        JsonSerializer.Serialize(stream, payload, jsonOptions);
+        JsonSerializer.Serialize(stream, inputs, jsonOptions);
         return Convert.ToHexStringLower(SHA256.HashData(stream.GetBuffer().AsSpan(0, checked((int)stream.Length))));
     }
-
-    private static DependencyPayload CreatePayload(SetupSnapshot setup, BikeSnapshot bike) => new(
-        Setup: new SetupPayload(
-            setup.Id,
-            setup.BikeId,
-            SensorPayload.FromJson(setup.FrontSensorConfigurationJson),
-            SensorPayload.FromJson(setup.RearSensorConfigurationJson)),
-        Bike: new BikePayload(
-            bike.Id,
-            bike.HeadAngle,
-            bike.ForkStroke,
-            bike.ShockStroke,
-            bike.Kind,
-            LinkagePayload.FromRearSuspension(bike.RearSuspension),
-            LeverageRatioPayload.FromRearSuspension(bike.RearSuspension)));
-
-    private static DependencyPayload CreatePayload(SetupProcessingInput setup, BikeProcessingInput bike) => new(
-        Setup: new SetupPayload(
-            setup.Id,
-            setup.BikeId,
-            SensorPayload.FromJson(setup.FrontSensorConfigurationJson),
-            SensorPayload.FromJson(setup.RearSensorConfigurationJson)),
-        Bike: new BikePayload(
-            bike.Id,
-            bike.HeadAngle,
-            bike.ForkStroke,
-            bike.ShockStroke,
-            bike.Kind,
-            LinkagePayload.FromRearSuspension(bike.RearSuspension),
-            LeverageRatioPayload.FromRearSuspension(bike.RearSuspension)));
-
-    private sealed record DependencyPayload(SetupPayload Setup, BikePayload Bike);
-
-    private sealed record SetupPayload(
-        Guid Id,
-        Guid BikeId,
-        SensorPayload? FrontSensorConfiguration,
-        SensorPayload? RearSensorConfiguration);
-
-    private sealed record BikePayload(
-        Guid Id,
-        double HeadAngle,
-        double? ForkStroke,
-        double? ShockStroke,
-        RearSuspensionKind RearSuspensionKind,
-        LinkagePayload? Linkage,
-        LeverageRatioPayload? LeverageRatio);
-
-    private sealed record SensorPayload(
-        SensorType Type,
-        double? Length,
-        int? Resolution,
-        double? MaxLength,
-        double? ArmLength,
-        string? CentralJoint,
-        string? AdjacentJoint1,
-        string? AdjacentJoint2)
-    {
-        public static SensorPayload? FromJson(string? json)
-        {
-            if (string.IsNullOrWhiteSpace(json))
-            {
-                return null;
-            }
-
-            return SensorConfiguration.FromJson(json) switch
-            {
-                LinearForkSensorConfiguration linearFork => new SensorPayload(
-                    linearFork.Type,
-                    Length: linearFork.Length,
-                    Resolution: linearFork.Resolution,
-                    MaxLength: null,
-                    ArmLength: null,
-                    CentralJoint: null,
-                    AdjacentJoint1: null,
-                    AdjacentJoint2: null),
-                RotationalForkSensorConfiguration rotationalFork => new SensorPayload(
-                    rotationalFork.Type,
-                    Length: null,
-                    Resolution: null,
-                    MaxLength: rotationalFork.MaxLength,
-                    ArmLength: rotationalFork.ArmLength,
-                    CentralJoint: null,
-                    AdjacentJoint1: null,
-                    AdjacentJoint2: null),
-                LinearShockSensorConfiguration linearShock => new SensorPayload(
-                    linearShock.Type,
-                    Length: linearShock.Length,
-                    Resolution: linearShock.Resolution,
-                    MaxLength: null,
-                    ArmLength: null,
-                    CentralJoint: null,
-                    AdjacentJoint1: null,
-                    AdjacentJoint2: null),
-                RotationalShockSensorConfiguration rotationalShock => new SensorPayload(
-                    rotationalShock.Type,
-                    Length: null,
-                    Resolution: null,
-                    MaxLength: null,
-                    ArmLength: null,
-                    CentralJoint: rotationalShock.CentralJoint,
-                    AdjacentJoint1: rotationalShock.AdjacentJoint1,
-                    AdjacentJoint2: rotationalShock.AdjacentJoint2),
-                _ => null
-            };
-        }
-    }
-
-    private sealed record LinkagePayload(
-        double ShockStroke,
-        string? ShockAName,
-        string? ShockBName,
-        IReadOnlyList<JointPayload> Joints,
-        IReadOnlyList<LinkPayload> Links)
-    {
-        public static LinkagePayload? FromRearSuspension(RearSuspensionSpec rearSuspension)
-        {
-            if (rearSuspension is not RearSuspensionSpec.Linkage linkage)
-            {
-                return null;
-            }
-
-            return new LinkagePayload(
-                linkage.Spec.ShockStroke,
-                linkage.Spec.Shock.A,
-                linkage.Spec.Shock.B,
-                [.. linkage.Spec.Joints
-                    .OrderBy(joint => joint.Name, StringComparer.Ordinal)
-                    .Select(joint => new JointPayload(joint.Name, joint.Type, joint.X, joint.Y))],
-                [.. linkage.Spec.Links
-                    .OrderBy(link => link.A, StringComparer.Ordinal)
-                    .ThenBy(link => link.B, StringComparer.Ordinal)
-                    .Select(link => new LinkPayload(link.A, link.B))]);
-        }
-    }
-
-    private sealed record JointPayload(string? Name, JointType? Type, double X, double Y);
-
-    private sealed record LinkPayload(string? AName, string? BName);
-
-    private sealed record LeverageRatioPayload(IReadOnlyList<LeverageRatioPointPayload> Points)
-    {
-        public static LeverageRatioPayload? FromRearSuspension(RearSuspensionSpec rearSuspension) =>
-            rearSuspension is RearSuspensionSpec.LeverageRatio leverageRatio
-                ? new LeverageRatioPayload(
-                [.. leverageRatio.Spec.Points.Select(point => new LeverageRatioPointPayload(
-                    point.ShockTravelMm,
-                    point.WheelTravelMm))])
-                : null;
-    }
-
-    private sealed record LeverageRatioPointPayload(double ShockTravelMm, double WheelTravelMm);
 }

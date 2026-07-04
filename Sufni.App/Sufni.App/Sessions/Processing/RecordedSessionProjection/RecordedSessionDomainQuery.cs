@@ -37,7 +37,7 @@ public sealed class RecordedSessionDomainQuery(
                 session,
                 setup,
                 bikeStore,
-                sourceStore.Get(window?.SourceSessionId ?? session.Id),
+                sourceStore.Get(RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(session.Id, window)),
                 fingerprintService,
                 setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id),
                 processingOptionCache.Get(session.Id),

@@ -470,7 +470,9 @@ internal sealed class SessionRepository(
         Guid sessionId,
         ProcessingFingerprint expectedInputFingerprint)
     {
-        var sourceSessionId = expectedInputFingerprint.DerivationWindow?.SourceSessionId ?? sessionId;
+        var sourceSessionId = RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(
+            sessionId,
+            expectedInputFingerprint);
         var rows = connection.Query<ProcessingInputBundleRow>(ProcessingInputBundleSql, sourceSessionId, sessionId);
         return rows.Count == 1 ? rows[0].ToBundle() : null;
     }

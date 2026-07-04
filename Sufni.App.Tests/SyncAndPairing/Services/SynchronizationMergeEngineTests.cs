@@ -382,6 +382,83 @@ public class SynchronizationMergeEngineTests
     }
 
     [Fact]
+    public async Task MergeAllAsync_RecordsPushSwapRequest_WhenOnlyDerivationWindowChanges()
+    {
+        using var tempDatabase = new TempDatabase("push-swap-window-only.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid();
+        var oldSourceSessionId = Guid.NewGuid();
+        var newSourceSessionId = Guid.NewGuid();
+        var setupId = Guid.NewGuid();
+        var bikeId = Guid.NewGuid();
+
+        var database = new TestPersistenceHarness(databasePath);
+        _ = await database.GetSessionsAsync();
+
+        var setup = new Setup { Id = setupId, BikeId = bikeId, Name = "setup" };
+        var bike = new Bike { Id = bikeId, Name = "bike", HeadAngle = 65 };
+        var oldSource = PersistenceTestData.CreateRecordedSessionSource(oldSourceSessionId);
+        var newSource = PersistenceTestData.CreateRecordedSessionSource(newSourceSessionId);
+        await database.PutAsync(setup);
+        await database.PutAsync(bike);
+        await database.PutRecordedSessionSourceAsync(oldSource);
+        await database.PutRecordedSessionSourceAsync(newSource);
+
+        var fingerprintService = new ProcessingFingerprintService();
+        var sessionSnapshot = SessionSnapshot.From(new Session(sessionId, "session", "desc", setupId, 100));
+        var setupSnapshot = SetupSnapshot.From(setup, null);
+        var bikeSnapshot = BikeSnapshot.From(bike);
+        var oldWindow = new RecordedSessionDerivationWindow(oldSourceSessionId, 1, null);
+        var newWindow = new RecordedSessionDerivationWindow(newSourceSessionId, 1, null);
+        var heldFingerprint = AppJson.Serialize(fingerprintService.CreateCurrentDatabaseInputs(
+            sessionSnapshot,
+            setupSnapshot,
+            bikeSnapshot,
+            RecordedSessionSourceSnapshot.From(oldSource),
+            oldWindow));
+        var incomingFingerprint = AppJson.Serialize(fingerprintService.CreateCurrentDatabaseInputs(
+            sessionSnapshot,
+            setupSnapshot,
+            bikeSnapshot,
+            RecordedSessionSourceSnapshot.From(newSource),
+            newWindow));
+
+        using (var connection = new SQLiteConnection(databasePath))
+        {
+            connection.Insert(new Session(sessionId, "hub", "desc", setupId, 100)
+            {
+                ProcessedData = [1, 2, 3],
+                ProcessingFingerprintJson = heldFingerprint,
+                Updated = 1,
+                ClientUpdated = 1
+            });
+        }
+
+        await database.MergeAllAsync(new SynchronizationData
+        {
+            Sessions =
+            [
+                new Session(sessionId, "hub", "desc", setupId, 100)
+                {
+                    ProcessingFingerprintJson = incomingFingerprint,
+                    Updated = 99,
+                    ClientUpdated = 88
+                }
+            ]
+        });
+
+        var session = await database.GetSessionAsync(sessionId);
+        Assert.Equal(heldFingerprint, session!.ProcessingFingerprintJson);
+        using var verify = new SQLiteConnection(databasePath);
+        Assert.Equal(1, verify.ExecuteScalar<int>("SELECT COUNT(*) FROM session_blob_swap_request"));
+        Assert.Equal(
+            incomingFingerprint,
+            verify.ExecuteScalar<string>(
+                "SELECT target_fingerprint FROM session_blob_swap_request WHERE session_id = ?",
+                sessionId));
+    }
+
+    [Fact]
     public async Task ApplyRemoteSynchronizationDataAsync_QueuesSwap_WhenDerivedSessionSourceExistsUnderWindowSource()
     {
         using var tempDatabase = new TempDatabase("derived-pull-swap.db");

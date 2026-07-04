@@ -18,6 +18,7 @@ public class RecordedSessionSourceSyncQueryTests
         repository.GetSessionIdsMissingRecordedSourceAsync()
             .Returns([derivedSessionId, ordinaryMissingSessionId]);
         repository.GetSourceBackedSessionIdsAsync().Returns([existingSourceId]);
+        repository.GetPersistedDerivationSourceSessionIdsAsync().Returns([]);
         provider.GetWindowsAsync().Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>
         {
             [derivedSessionId] = new(sourceSessionId, 1, null)
@@ -43,6 +44,7 @@ public class RecordedSessionSourceSyncQueryTests
         repository.GetSessionIdsMissingRecordedSourceAsync()
             .Returns([selfWindowSessionId, absentWindowSessionId]);
         repository.GetSourceBackedSessionIdsAsync().Returns([]);
+        repository.GetPersistedDerivationSourceSessionIdsAsync().Returns([]);
         provider.GetWindowsAsync().Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>
         {
             [selfWindowSessionId] = new(selfWindowSessionId, 2, null)
@@ -54,5 +56,42 @@ public class RecordedSessionSourceSyncQueryTests
 
         Assert.Contains(selfWindowSessionId, targetIds);
         Assert.Contains(absentWindowSessionId, targetIds);
+    }
+
+    [Fact]
+    public async Task GetSourceSyncTargetIdsAsync_AddsPersistedFingerprintSource_WhenProviderIsBlind()
+    {
+        var derivedSessionId = Guid.NewGuid();
+        var sourceSessionId = Guid.NewGuid();
+        var repository = Substitute.For<IRecordedSessionSourceRepository>();
+        var provider = Substitute.For<IRecordedSessionDerivationWindowProvider>();
+        repository.GetSessionIdsMissingRecordedSourceAsync().Returns([derivedSessionId]);
+        repository.GetSourceBackedSessionIdsAsync().Returns([]);
+        repository.GetPersistedDerivationSourceSessionIdsAsync().Returns([sourceSessionId]);
+        provider.GetWindowsAsync().Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>());
+        provider.GetReferencedSourceSessionIdsAsync().Returns([]);
+        var query = new RecordedSessionSourceSyncQuery(repository, provider);
+
+        var targetIds = await query.GetSourceSyncTargetIdsAsync();
+
+        Assert.Contains(sourceSessionId, targetIds);
+    }
+
+    [Fact]
+    public async Task GetSourceSyncTargetIdsAsync_UsesProviderSet_WhenPersistedFingerprintsAddNothing()
+    {
+        var sourceSessionId = Guid.NewGuid();
+        var repository = Substitute.For<IRecordedSessionSourceRepository>();
+        var provider = Substitute.For<IRecordedSessionDerivationWindowProvider>();
+        repository.GetSessionIdsMissingRecordedSourceAsync().Returns([]);
+        repository.GetSourceBackedSessionIdsAsync().Returns([]);
+        repository.GetPersistedDerivationSourceSessionIdsAsync().Returns([]);
+        provider.GetWindowsAsync().Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>());
+        provider.GetReferencedSourceSessionIdsAsync().Returns([sourceSessionId]);
+        var query = new RecordedSessionSourceSyncQuery(repository, provider);
+
+        var targetIds = await query.GetSourceSyncTargetIdsAsync();
+
+        Assert.Equal([sourceSessionId], targetIds);
     }
 }

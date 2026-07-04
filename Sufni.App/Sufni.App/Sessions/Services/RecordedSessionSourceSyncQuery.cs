@@ -26,7 +26,9 @@ internal sealed class RecordedSessionSourceSyncQuery(
             .ToHashSet();
 
         var existingSourceIds = (await recordedSessionSourceRepository.GetSourceBackedSessionIdsAsync()).ToHashSet();
-        foreach (var sourceId in await windowProvider.GetReferencedSourceSessionIdsAsync())
+        var referencedSourceIds = (await windowProvider.GetReferencedSourceSessionIdsAsync()).ToHashSet();
+        referencedSourceIds.UnionWith(await recordedSessionSourceRepository.GetPersistedDerivationSourceSessionIdsAsync());
+        foreach (var sourceId in referencedSourceIds)
         {
             if (!existingSourceIds.Contains(sourceId))
             {

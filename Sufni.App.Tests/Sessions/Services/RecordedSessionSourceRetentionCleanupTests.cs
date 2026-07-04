@@ -5,7 +5,12 @@ using System.Threading.Tasks;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.TestSupport.Async;
+using Sufni.Telemetry;
 
+using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Tests.TestSupport.Persistence;
 namespace Sufni.App.Tests.Sessions.Services;
@@ -22,6 +27,7 @@ public class RecordedSessionSourceRetentionCleanupTests
         var retainedId = Guid.NewGuid();
         var retainedIds = new[] { retainedId };
         provider.GetReferencedSourceSessionIdsAsync().Returns(Task.FromResult<IReadOnlyCollection<Guid>>(retainedIds));
+        repository.GetPersistedDerivationSourceSessionIdsAsync().Returns(Task.FromResult(new List<Guid>()));
         repository.DeleteOrphanedRecordedSessionSourcesAsync(Arg.Any<IReadOnlyCollection<Guid>>())
             .Returns(Task.FromResult(1));
         var cleanup = new RecordedSessionSourceRetentionCleanup(
@@ -35,5 +41,44 @@ public class RecordedSessionSourceRetentionCleanupTests
         await provider.Received(1).GetReferencedSourceSessionIdsAsync();
         await repository.Received(1).DeleteOrphanedRecordedSessionSourcesAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(retainedIds)));
+    }
+
+    [Fact]
+    public async Task RunAsync_RetainsPersistedFingerprintSources_AndDeletesTrueOrphans_WithNullProvider()
+    {
+        using var tempDatabase = new TempDatabase("recorded-source-retention-persisted-window.db");
+        var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath, []);
+        var repository = new RecordedSessionSourceRepository(context);
+        var provider = Substitute.For<IRecordedSessionDerivationWindowProvider>();
+        provider.GetReferencedSourceSessionIdsAsync().Returns(Task.FromResult<IReadOnlyCollection<Guid>>([]));
+        var retainedSourceId = Guid.NewGuid();
+        var orphanSourceId = Guid.NewGuid();
+        var derivedSessionId = Guid.NewGuid();
+        await repository.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(retainedSourceId));
+        await repository.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(orphanSourceId));
+        var fingerprint = new ProcessingFingerprint(
+            SchemaVersion: 3,
+            ProcessingVersion: TelemetryProcessingVersion.Current,
+            SetupId: Guid.NewGuid(),
+            BikeId: Guid.NewGuid(),
+            TrackProjectionVersion: GpsTrackPointProjection.ProjectionVersion,
+            DependencyHash: "dependency",
+            SourceHash: "source",
+            DerivationWindow: new RecordedSessionDerivationWindow(retainedSourceId, 1, null));
+        var connection = await context.GetInitializedConnectionAsync();
+        await connection.InsertAsync(new Session(derivedSessionId, "derived", "desc", null, 100)
+        {
+            ProcessingFingerprintJson = AppJson.Serialize(fingerprint)
+        });
+        var cleanup = new RecordedSessionSourceRetentionCleanup(
+            context,
+            repository,
+            provider,
+            new InlineBackgroundTaskRunner());
+
+        await cleanup.RunAsync();
+
+        Assert.NotNull(await repository.GetRecordedSessionSourceAsync(retainedSourceId));
+        Assert.Null(await repository.GetRecordedSessionSourceAsync(orphanSourceId));
     }
 }

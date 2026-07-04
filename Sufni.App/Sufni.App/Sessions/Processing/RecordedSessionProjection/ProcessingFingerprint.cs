@@ -42,5 +42,7 @@ public sealed record ProcessingFingerprint(
         BikeId == other.BikeId &&
         TrackProjectionVersion == other.TrackProjectionVersion &&
         StringComparer.Ordinal.Equals(DependencyHash, other.DependencyHash) &&
-        StringComparer.Ordinal.Equals(SourceHash, other.SourceHash);
+        StringComparer.Ordinal.Equals(SourceHash, other.SourceHash) &&
+        RecordedSessionDerivationResolver.NormalizeWindow(DerivationWindow) ==
+        RecordedSessionDerivationResolver.NormalizeWindow(other.DerivationWindow);
 }

@@ -120,6 +120,36 @@ public class RecordedSessionSourceRepositoryTests
     }
 
     [Fact]
+    public async Task DeleteOrphanedRecordedSessionSourcesAsync_KeepsMoreThanSqliteParameterLimitRetainedSources()
+    {
+        using var tempDatabase = new TempDatabase("source-retained-over-parameter-limit.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var liveSessionId = Guid.NewGuid();
+        var retainedSessionIds = Enumerable.Range(0, 1_005).Select(_ => Guid.NewGuid()).ToArray();
+        var unretainedOrphanSessionId = Guid.NewGuid();
+
+        var database = new TestPersistenceHarness(databasePath);
+        await database.PutSessionAsync(new Session(liveSessionId, "live", "desc", null, 100));
+        await database.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(liveSessionId));
+        foreach (var retainedSessionId in retainedSessionIds)
+        {
+            await database.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(retainedSessionId));
+        }
+
+        await database.PutRecordedSessionSourceAsync(
+            PersistenceTestData.CreateRecordedSessionSource(unretainedOrphanSessionId));
+
+        var deleted = await database.DeleteOrphanedRecordedSessionSourcesAsync(retainedSessionIds);
+
+        Assert.Equal(1, deleted);
+        Assert.NotNull(await database.GetRecordedSessionSourceAsync(liveSessionId));
+        Assert.NotNull(await database.GetRecordedSessionSourceAsync(retainedSessionIds[0]));
+        Assert.NotNull(await database.GetRecordedSessionSourceAsync(retainedSessionIds[^1]));
+        Assert.Null(await database.GetRecordedSessionSourceAsync(unretainedOrphanSessionId));
+        Assert.Equal(retainedSessionIds.Length + 1, (await database.GetRecordedSessionSourcesAsync()).Count);
+    }
+
+    [Fact]
     public async Task PutRecordedSessionSourceAsync_RejectsHashMismatch()
     {
         using var tempDatabase = new TempDatabase("source-invalid-hash.db");

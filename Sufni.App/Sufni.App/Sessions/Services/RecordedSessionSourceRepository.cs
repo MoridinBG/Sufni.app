@@ -7,6 +7,7 @@ using SQLite;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
 namespace Sufni.App.Sessions.Services;
 
@@ -27,6 +28,8 @@ public interface IRecordedSessionSourceRepository
     // source-backed sessions it can recompute.
     Task<List<Guid>> GetSourceBackedSessionIdsAsync();
 
+    Task<List<Guid>> GetPersistedDerivationSourceSessionIdsAsync();
+
     Task PutRecordedSessionSourceAsync(RecordedSessionSource source);
 
     Task DeleteRecordedSessionSourceAsync(Guid sessionId);
@@ -38,6 +41,8 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
     : IRecordedSessionSourceRepository
 {
     private const string SessionProcessingFingerprintColumn = "session_processing_fingerprint";
+    private const int RetainedSourceInsertChunkSize = 500;
+    private const string RetainedSourceTempTable = "retained_recorded_session_source_ids";
     private const string PutRecordedSessionSourceSql = """
                                                        INSERT OR REPLACE INTO session_recording_source (
                                                            session_id,
@@ -127,6 +132,33 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
         return [.. rows.Select(row => row.SessionId)];
     }
 
+    public async Task<List<Guid>> GetPersistedDerivationSourceSessionIdsAsync()
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        var rows = await connection.QueryAsync<SessionFingerprintSourceRow>(
+            $"""
+             SELECT id, {SessionProcessingFingerprintColumn}
+             FROM session
+             WHERE deleted IS null
+               AND {SessionProcessingFingerprintColumn} IS NOT null
+             """);
+
+        return
+        [
+            .. rows
+                .Select(row => new
+                {
+                    row.Id,
+                    SourceSessionId = RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(
+                        row.Id,
+                        TryReadFingerprint(row.ProcessingFingerprintJson))
+                })
+                .Where(row => row.SourceSessionId != row.Id)
+                .Select(row => row.SourceSessionId)
+                .Distinct()
+        ];
+    }
+
     public async Task PutRecordedSessionSourceAsync(RecordedSessionSource source)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
@@ -149,13 +181,29 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
                 "DELETE FROM session_recording_source WHERE session_id NOT IN (SELECT id FROM session)");
         }
 
-        var retainedPlaceholders = string.Join(", ", retainedSourceSessionIds.Select(_ => "?"));
-        var sql = $"""
-                   DELETE FROM session_recording_source
-                   WHERE session_id NOT IN (SELECT id FROM session)
-                     AND session_id NOT IN ({retainedPlaceholders})
-                   """;
-        return await connection.ExecuteAsync(sql, retainedSourceSessionIds.Cast<object>().ToArray());
+        return await connectionContext.RunInTransactionAsync(connection =>
+        {
+            connection.Execute($"DROP TABLE IF EXISTS {RetainedSourceTempTable}");
+            connection.Execute($"CREATE TEMP TABLE {RetainedSourceTempTable}(id TEXT PRIMARY KEY)");
+            try
+            {
+                InsertRetainedSourceIds(connection, retainedSourceSessionIds);
+                return connection.Execute(
+                    $"""
+                     DELETE FROM session_recording_source
+                     WHERE session_id NOT IN (SELECT id FROM session)
+                       AND NOT EXISTS (
+                           SELECT 1
+                           FROM {RetainedSourceTempTable} retained
+                           WHERE retained.id = session_recording_source.session_id
+                       )
+                     """);
+            }
+            finally
+            {
+                connection.Execute($"DROP TABLE IF EXISTS {RetainedSourceTempTable}");
+            }
+        });
     }
 
     internal static int PutRecordedSessionSourceInTransaction(
@@ -175,6 +223,20 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
         source.SourceHash,
         source.Payload
     ];
+
+    private static void InsertRetainedSourceIds(
+        SQLiteConnection connection,
+        IReadOnlyCollection<Guid> retainedSourceSessionIds)
+    {
+        foreach (var chunk in retainedSourceSessionIds.Distinct().Chunk(RetainedSourceInsertChunkSize))
+        {
+            var placeholders = string.Join(", ", chunk.Select(_ => "(?)"));
+            var values = chunk.Select(id => (object)id.ToString("D")).ToArray();
+            connection.Execute(
+                $"INSERT OR IGNORE INTO {RetainedSourceTempTable}(id) VALUES {placeholders}",
+                values);
+        }
+    }
 
     private static void ValidateRecordedSessionSource(RecordedSessionSource source)
     {
@@ -208,6 +270,23 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
         }
 
         return null;
+    }
+
+    private static ProcessingFingerprint? TryReadFingerprint(string? processingFingerprintJson)
+    {
+        if (string.IsNullOrWhiteSpace(processingFingerprintJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            return AppJson.Deserialize<ProcessingFingerprint>(processingFingerprintJson);
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+        {
+            return null;
+        }
     }
 
     private sealed class SourceSessionIdRow
@@ -251,5 +330,14 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
 
         [Column("source_hash")]
         public string? SourceHash { get; set; }
+    }
+
+    private sealed class SessionFingerprintSourceRow
+    {
+        [Column("id")]
+        public Guid Id { get; set; }
+
+        [Column("session_processing_fingerprint")]
+        public string? ProcessingFingerprintJson { get; set; }
     }
 }

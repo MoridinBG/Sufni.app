@@ -18,8 +18,6 @@ internal sealed record TelemetryBikeProcessingContext(
     ISensorConfiguration? FrontSensorConfiguration,
     RearTravelCalibrationBuildResult RearTravelCalibration);
 
-internal readonly record struct BikeProcessingContextKey(string DependencyHash);
-
 internal sealed class TelemetryBikeProcessingContextFactory(
     IRearTravelCalibrationBuilder rearTravelCalibrationBuilder) : ITelemetryBikeProcessingContextFactory
 {
@@ -36,7 +34,7 @@ internal sealed class TelemetryBikeProcessingContextFactory(
         ArgumentNullException.ThrowIfNull(setup);
         ArgumentNullException.ThrowIfNull(bike);
 
-        var key = new BikeProcessingContextKey(ProcessingDependencyHash.Compute(setup, bike));
+        var key = ProcessingDependencyInputs.Create(setup, bike);
         return cache.GetOrAdd(new CacheRequest(key, setup, bike with { ImageBytes = [] }));
     }
 
@@ -57,7 +55,7 @@ internal sealed class TelemetryBikeProcessingContextFactory(
     }
 
     private readonly record struct CacheRequest(
-        BikeProcessingContextKey Key,
+        ProcessingDependencyInputs Key,
         SetupSnapshot Setup,
         BikeSnapshot Bike)
     {

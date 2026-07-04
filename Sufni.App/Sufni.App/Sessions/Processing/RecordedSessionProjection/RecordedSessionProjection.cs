@@ -444,7 +444,9 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                     ? null
                     : bikes.GetValueOrDefault(setup.BikeId);
                 var window = derivationWindowCache.Get(session.Id);
-                sources.TryGetValue(window?.SourceSessionId ?? session.Id, out var source);
+                sources.TryGetValue(
+                    RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(session.Id, window),
+                    out var source);
 
                 var previous = domains.GetValueOrDefault(session.Id);
                 var initial = previous is null;

@@ -154,6 +154,33 @@ public class ProcessingFingerprintServiceTests
     }
 
     [Fact]
+    public void MatchesDatabaseInputs_ReturnsFalse_WhenOnlyDerivationWindowDiffers()
+    {
+        var context = CreateContext();
+        var withoutWindow = service.CreateCurrentDatabaseInputs(context.Session, context.Setup, context.Bike, context.Source);
+        var withWindow = service.CreateCurrentDatabaseInputs(
+            context.Session,
+            context.Setup,
+            context.Bike,
+            context.Source,
+            new RecordedSessionDerivationWindow(context.Source.SessionId, 1, 2));
+
+        Assert.False(withoutWindow.MatchesDatabaseInputs(withWindow));
+        Assert.False(withWindow.MatchesDatabaseInputs(withoutWindow));
+    }
+
+    [Fact]
+    public void MatchesDatabaseInputs_IgnoresVelocityFilterWindow()
+    {
+        var context = CreateContext();
+        var defaultOptions = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source, new TelemetryProcessingOptions(25));
+        var changedOptions = defaultOptions with { VelocityFilterWindowMilliseconds = 100 };
+
+        Assert.True(defaultOptions.MatchesDatabaseInputs(changedOptions));
+        Assert.True(changedOptions.MatchesDatabaseInputs(defaultOptions));
+    }
+
+    [Fact]
     public void Evaluate_ReturnsCurrent_WhenPersistedFingerprintMatchesDerivationWindow()
     {
         var context = CreateContext();
@@ -443,6 +470,42 @@ public class ProcessingFingerprintServiceTests
         var changed = ProcessingDependencyHash.Compute(changedSetup, changedBike);
 
         Assert.Equal(original, changed);
+    }
+
+    [Fact]
+    public void ProcessingDependencyInputs_UseStructuralEqualityForIndependentCollections()
+    {
+        var setup = DependencyHashSetup();
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec();
+        var reorderedLinkage = new LinkageSpec(
+            linkage.Joints.Reverse().ToArray(),
+            linkage.Links.Reverse().ToArray(),
+            linkage.Shock,
+            linkage.ShockStroke);
+        var firstLinkageBike = DependencyHashBike(
+            new RearSuspensionSpec.Linkage(linkage),
+            shockStroke: linkage.ShockStroke);
+        var secondLinkageBike = DependencyHashBike(
+            new RearSuspensionSpec.Linkage(reorderedLinkage),
+            shockStroke: reorderedLinkage.ShockStroke);
+        var firstBike = DependencyHashBike(
+            new RearSuspensionSpec.LeverageRatio(
+                TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50))),
+            shockStroke: 20);
+        var secondBike = DependencyHashBike(
+            new RearSuspensionSpec.LeverageRatio(
+                TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50))),
+            shockStroke: 20);
+
+        var firstLinkage = ProcessingDependencyInputs.Create(setup, firstLinkageBike);
+        var secondLinkage = ProcessingDependencyInputs.Create(setup, secondLinkageBike);
+        var firstLeverageRatio = ProcessingDependencyInputs.Create(setup, firstBike);
+        var secondLeverageRatio = ProcessingDependencyInputs.Create(setup, secondBike);
+
+        Assert.Equal(firstLinkage, secondLinkage);
+        Assert.Equal(firstLinkage.GetHashCode(), secondLinkage.GetHashCode());
+        Assert.Equal(firstLeverageRatio, secondLeverageRatio);
+        Assert.Equal(firstLeverageRatio.GetHashCode(), secondLeverageRatio.GetHashCode());
     }
 
     [Fact]

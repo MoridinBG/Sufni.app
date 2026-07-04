@@ -267,7 +267,9 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
                 return new SessionRecomputeResult.NotRecomputable(domain.Staleness);
             }
 
-            var sourceSessionId = domain.DerivationWindow?.SourceSessionId ?? sessionId;
+            var sourceSessionId = RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(
+                sessionId,
+                domain.DerivationWindow);
             var source = await sourceStore.LoadAsync(sourceSessionId, cancellationToken);
             if (source is null)
             {
@@ -298,7 +300,9 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
                     return new SessionRecomputeResult.NotRecomputable(domain.Staleness);
                 }
 
-                var refreshedSourceSessionId = domain.DerivationWindow?.SourceSessionId ?? sessionId;
+                var refreshedSourceSessionId = RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(
+                    sessionId,
+                    domain.DerivationWindow);
                 if (source.SessionId != refreshedSourceSessionId)
                 {
                     logger.Information(

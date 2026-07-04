@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Serilog;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
@@ -22,7 +23,8 @@ internal sealed class RecordedSessionSourceRetentionCleanup(
         try
         {
             _ = await connectionContext.GetInitializedConnectionAsync();
-            var retainedSourceIds = await windowProvider.GetReferencedSourceSessionIdsAsync();
+            var retainedSourceIds = (await windowProvider.GetReferencedSourceSessionIdsAsync()).ToHashSet();
+            retainedSourceIds.UnionWith(await recordedSessionSourceRepository.GetPersistedDerivationSourceSessionIdsAsync());
             var deleted = await recordedSessionSourceRepository.DeleteOrphanedRecordedSessionSourcesAsync(retainedSourceIds);
 
             if (deleted > 0)

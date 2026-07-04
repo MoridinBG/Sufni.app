@@ -50,6 +50,21 @@ public class TelemetryBikeProcessingContextFactoryTests
     }
 
     [Fact]
+    public void Create_SharesCacheKey_WhenOnlyBikeImageBytesDiffer()
+    {
+        var factory = CreateFactory(out var rearCalibrationBuilder);
+        var bike = CreateBike() with { ImageBytes = [1, 2, 3] };
+        var setup = CreateSetup(bike.Id);
+        var changedImage = bike with { ImageBytes = [4, 5, 6] };
+
+        var first = factory.Create(setup, bike);
+        var second = factory.Create(setup, changedImage);
+
+        Assert.Same(first, second);
+        Assert.Equal(1, rearCalibrationBuilder.Calls);
+    }
+
+    [Fact]
     public void Create_Misses_WhenSetupOrBikeProcessingInputsChange()
     {
         var factory = CreateFactory(out var rearCalibrationBuilder);

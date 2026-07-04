@@ -156,6 +156,9 @@ internal sealed class TestPersistenceHarness
     public Task<List<Guid>> GetSessionIdsMissingRecordedSourceAsync() =>
         recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync();
 
+    public Task<List<Guid>> GetPersistedDerivationSourceSessionIdsAsync() =>
+        recordedSessionSourceRepository.GetPersistedDerivationSourceSessionIdsAsync();
+
     public Task PutRecordedSessionSourceAsync(RecordedSessionSource source) =>
         recordedSessionSourceRepository.PutRecordedSessionSourceAsync(source);
 
