@@ -19,7 +19,4 @@ public interface IRecordedSessionSourceStoreWriter : IRecordedSessionSourceStore
     Task PublishSourcesRemovedAsync(
         IReadOnlyCollection<Guid> sessionIds,
         CancellationToken cancellationToken = default);
-
-    void Upsert(RecordedSessionSourceSnapshot snapshot);
-    void Remove(Guid sessionId);
 }

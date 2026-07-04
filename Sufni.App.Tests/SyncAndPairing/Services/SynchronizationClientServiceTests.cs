@@ -5,18 +5,20 @@ using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.Extensibility.Sync;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Shared.Stores;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.SyncAndPairing.Services;
 
 public class SynchronizationClientServiceTests
 {
     private readonly ISyncDataStore syncDataStore = Substitute.For<ISyncDataStore>();
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
-    private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
+    private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
     private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery = Substitute.For<IRecordedSessionSourceSyncQuery>();
     private readonly IHttpApiService httpApiService = Substitute.For<IHttpApiService>();
@@ -40,7 +42,7 @@ public class SynchronizationClientServiceTests
         return new SynchronizationClientService(
             syncDataStore,
             sessionRepository,
-            sessionTelemetryWriter,
+            sessionStore,
             recordedSessionSourceRepository,
             recordedSessionSourceSyncQuery,
             httpApiService,
@@ -271,8 +273,11 @@ public class SynchronizationClientServiceTests
         // The watermark stays back so the next run re-derives and retries the swap;
         // advancing it would strand the swap permanently (BLOB writes do not bump updated).
         Assert.IsType<SynchronizationRunResult.Completed>(result);
-        await sessionTelemetryWriter.DidNotReceive().SwapSessionPsstAsync(
-            Arg.Any<Guid>(), Arg.Any<byte[]>(), Arg.Any<string?>());
+        await sessionStore.DidNotReceive().CommitPsstSwapAsync(
+            Arg.Any<Guid>(),
+            Arg.Any<byte[]>(),
+            Arg.Any<string?>(),
+            Arg.Any<CancellationToken>());
         await syncDataStore.DidNotReceive().UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
     }
 
@@ -287,10 +292,18 @@ public class SynchronizationClientServiceTests
         syncDataStore.ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>())
             .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(sessionId, target)]);
         httpApiService.GetSessionPsstAsync(sessionId).Returns(new SessionDataTransfer(target, [1, 2, 3]));
+        sessionStore
+            .CommitPsstSwapAsync(sessionId, Arg.Any<byte[]>(), target, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<StoreMutationResult<SessionSnapshot>>(
+                new StoreMutationResult<SessionSnapshot>.Saved(TestSnapshots.Session(id: sessionId))));
 
         await CreateService().SyncAll();
 
-        await sessionTelemetryWriter.Received(1).SwapSessionPsstAsync(sessionId, Arg.Any<byte[]>(), target);
+        await sessionStore.Received(1).CommitPsstSwapAsync(
+            sessionId,
+            Arg.Any<byte[]>(),
+            target,
+            Arg.Any<CancellationToken>());
         await syncDataStore.Received(1).UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
     }
 

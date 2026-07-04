@@ -9,9 +9,9 @@ using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Services;
-using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
+using Sufni.App.Shared.Stores;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Tests.TestSupport.Fixtures;
@@ -22,7 +22,6 @@ public class TrackCoordinatorTests
     private readonly ITrackRepository trackRepository = Substitute.For<ITrackRepository>();
     private readonly ISynchronizableRepository<Track> trackEntityRepository = Substitute.For<ISynchronizableRepository<Track>>();
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
-    private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly IFilesService filesService = Substitute.For<IFilesService>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
@@ -33,7 +32,6 @@ public class TrackCoordinatorTests
         trackRepository,
         trackEntityRepository,
         sessionRepository,
-        sessionTelemetryWriter,
         sessionStore,
         filesService,
         backgroundTaskRunner,
@@ -138,7 +136,11 @@ public class TrackCoordinatorTests
         Assert.Equal(400.0, result.MediaColumnWidth);
         await trackEntityRepository.DidNotReceive().GetAsync(fullTrackId);
         await sessionRepository.DidNotReceive().GetSessionTrackAsync(sessionId);
-        await sessionTelemetryWriter.DidNotReceive().PatchSessionTrackAsync(Arg.Any<Guid>(), Arg.Any<List<TrackPoint>>());
+        await sessionStore.DidNotReceive().CommitTrackPatchAsync(
+            Arg.Any<Guid>(),
+            Arg.Any<List<TrackPoint>>(),
+            Arg.Any<double?>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -155,13 +157,11 @@ public class TrackCoordinatorTests
 
         Assert.Null(result.FullTrackId);
         Assert.Null(result.TrackPoints);
-        await sessionTelemetryWriter.DidNotReceive().PatchSessionTrackAsync(
-            Arg.Any<Guid>(),
-            Arg.Any<List<TrackPoint>>());
-        await sessionTelemetryWriter.DidNotReceive().PatchSessionTrackAsync(
+        await sessionStore.DidNotReceive().CommitTrackPatchAsync(
             Arg.Any<Guid>(),
             Arg.Any<List<TrackPoint>>(),
-            Arg.Any<double?>());
+            Arg.Any<double?>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -197,7 +197,15 @@ public class TrackCoordinatorTests
             ]
         };
         trackEntityRepository.GetAsync(fullTrackId).Returns(fullTrack);
-        sessionRepository.GetSessionAsync(sessionId).Returns(updatedSession);
+        var updatedSnapshot = SessionSnapshot.From(updatedSession);
+        sessionStore
+            .CommitTrackPatchAsync(
+                sessionId,
+                Arg.Any<List<TrackPoint>>(),
+                Arg.Any<double?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<StoreMutationResult<SessionSnapshot>>(
+                new StoreMutationResult<SessionSnapshot>.Saved(updatedSnapshot)));
 
         var result = await CreateCoordinator().UpdateSessionGpsOffsetAsync(
             sessionId,
@@ -206,18 +214,16 @@ public class TrackCoordinatorTests
             offsetSeconds);
 
         // The GPS-offset write is one-way: it persists the regenerated session
-        // window + offset and upserts the store so the editor refreshes through its
-        // watch reaction. It reports success instead of pushing a result snapshot.
+        // window + offset and publishes the store so the editor refreshes through
+        // its watch reaction. It reports success instead of pushing a result snapshot.
         Assert.True(result);
-        await sessionTelemetryWriter.Received(1).PatchSessionTrackAsync(
+        await sessionStore.Received(1).CommitTrackPatchAsync(
             sessionId,
             Arg.Is<List<TrackPoint>>(points =>
                 points.Count > 0 &&
                 Math.Abs(points[0].Time - (telemetry.Metadata.Timestamp + offsetSeconds)) < 0.000001),
-            Arg.Is<double?>(value => value == offsetSeconds));
-        sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(snapshot =>
-            snapshot.Id == sessionId &&
-            snapshot.GpsOffsetSeconds == offsetSeconds));
+            Arg.Is<double?>(value => value == offsetSeconds),
+            Arg.Any<CancellationToken>());
     }
 
     private static string ValidGpx()

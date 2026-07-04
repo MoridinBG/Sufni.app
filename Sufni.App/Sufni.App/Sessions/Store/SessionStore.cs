@@ -5,10 +5,15 @@ using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DynamicData;
+using Sufni.App.ExtensionHost.Contracts.Models;
 
 using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Shared.Base;
+using Sufni.App.Shared.Stores;
 namespace Sufni.App.Sessions.Store;
 
 /// <summary>
@@ -19,6 +24,7 @@ namespace Sufni.App.Sessions.Store;
 /// </summary>
 internal sealed class SessionStore(
     ISessionRepository sessionRepository,
+    ISessionTelemetryWriter sessionTelemetryWriter,
     IUiThreadDispatcher uiThreadDispatcher)
     : SourceCacheStoreBase<SessionSnapshot, Guid>(s => s.Id, uiThreadDispatcher), ISessionStoreWriter
 {
@@ -37,6 +43,134 @@ internal sealed class SessionStore(
         var sessions = await sessionRepository.GetSessionsAsync();
         cancellationToken.ThrowIfCancellationRequested();
         await ReplaceWithAsync(sessions.Select(SessionSnapshot.From));
+    }
+
+    public async Task<StoreMutationResult<SessionSnapshot>> CommitSessionMetadataAsync(
+        Session session,
+        long? baselineUpdated = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (baselineUpdated.HasValue)
+        {
+            var current = Get(session.Id);
+            if (current is not null && current.Updated > baselineUpdated.Value)
+            {
+                return new StoreMutationResult<SessionSnapshot>.Conflict(current);
+            }
+        }
+
+        try
+        {
+            await sessionRepository.PutSessionAsync(session);
+            cancellationToken.ThrowIfCancellationRequested();
+            return await PublishFreshSessionAsync(session.Id);
+        }
+        catch (Exception e)
+        {
+            return new StoreMutationResult<SessionSnapshot>.Failed(e.Message);
+        }
+    }
+
+    public async Task<StoreMutationResult<SessionSnapshot>> CommitDerivedSessionAsync(
+        Session session,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            await sessionRepository.PutSessionAsync(session);
+            cancellationToken.ThrowIfCancellationRequested();
+            return await PublishFreshSessionAsync(session.Id);
+        }
+        catch (Exception e)
+        {
+            return new StoreMutationResult<SessionSnapshot>.Failed(e.Message);
+        }
+    }
+
+    public async Task<StoreMutationResult<SessionSnapshot>> CommitSessionMetadataFieldAsync(
+        Guid sessionId,
+        Func<Session, Session> metadataUpdate,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var current = Get(sessionId);
+        if (current is null)
+        {
+            return new StoreMutationResult<SessionSnapshot>.Missing("Session is missing.");
+        }
+
+        try
+        {
+            var session = metadataUpdate(ToMetadataEntity(current));
+            return await CommitSessionMetadataAsync(session, current.Updated, cancellationToken);
+        }
+        catch (Exception e)
+        {
+            return new StoreMutationResult<SessionSnapshot>.Failed(e.Message);
+        }
+    }
+
+    public async Task<StoreMutationResult<SessionSnapshot>> CommitPsstPatchAsync(
+        Guid sessionId,
+        byte[] data,
+        string? fingerprint,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            await sessionTelemetryWriter.PatchSessionPsstAsync(sessionId, data, fingerprint);
+            cancellationToken.ThrowIfCancellationRequested();
+            return await PublishFreshSessionAsync(sessionId);
+        }
+        catch (Exception e)
+        {
+            return new StoreMutationResult<SessionSnapshot>.Failed(e.Message);
+        }
+    }
+
+    public async Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapAsync(
+        Guid sessionId,
+        byte[] data,
+        string? fingerprint,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            await sessionTelemetryWriter.SwapSessionPsstAsync(sessionId, data, fingerprint);
+            cancellationToken.ThrowIfCancellationRequested();
+            return await PublishFreshSessionAsync(sessionId);
+        }
+        catch (Exception e)
+        {
+            return new StoreMutationResult<SessionSnapshot>.Failed(e.Message);
+        }
+    }
+
+    public async Task<StoreMutationResult<SessionSnapshot>> CommitTrackPatchAsync(
+        Guid sessionId,
+        List<TrackPoint> points,
+        double? gpsOffsetSeconds = null,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            await sessionTelemetryWriter.PatchSessionTrackAsync(sessionId, points, gpsOffsetSeconds);
+            cancellationToken.ThrowIfCancellationRequested();
+            return await PublishFreshSessionAsync(sessionId);
+        }
+        catch (Exception e)
+        {
+            return new StoreMutationResult<SessionSnapshot>.Failed(e.Message);
+        }
     }
 
     public async Task PublishSessionsChangedAsync(
@@ -79,9 +213,37 @@ internal sealed class SessionStore(
         return PublishRemovalsAsync(sessionIds.Distinct());
     }
 
-    public void Upsert(SessionSnapshot snapshot) =>
-        PublishSnapshotAsync(snapshot).GetAwaiter().GetResult();
+    private async Task<StoreMutationResult<SessionSnapshot>> PublishFreshSessionAsync(Guid sessionId)
+    {
+        var fresh = await sessionRepository.GetSessionAsync(sessionId);
+        if (fresh is null)
+        {
+            return new StoreMutationResult<SessionSnapshot>.Missing("Session disappeared after save.");
+        }
 
-    public void Remove(Guid id) =>
-        PublishRemoveAsync(id).GetAwaiter().GetResult();
+        var snapshot = SessionSnapshot.From(fresh);
+        await PublishSnapshotAsync(snapshot);
+        return new StoreMutationResult<SessionSnapshot>.Saved(snapshot);
+    }
+
+    private static Session ToMetadataEntity(SessionSnapshot snapshot) => new(
+        snapshot.Id,
+        snapshot.Name,
+        snapshot.Description,
+        snapshot.SetupId,
+        snapshot.Timestamp)
+    {
+        GpsOffsetSeconds = snapshot.GpsOffsetSeconds,
+        FrontSpringRate = snapshot.FrontSpringRate,
+        FrontHighSpeedCompression = snapshot.FrontHighSpeedCompression,
+        FrontLowSpeedCompression = snapshot.FrontLowSpeedCompression,
+        FrontLowSpeedRebound = snapshot.FrontLowSpeedRebound,
+        FrontHighSpeedRebound = snapshot.FrontHighSpeedRebound,
+        RearSpringRate = snapshot.RearSpringRate,
+        RearHighSpeedCompression = snapshot.RearHighSpeedCompression,
+        RearLowSpeedCompression = snapshot.RearLowSpeedCompression,
+        RearLowSpeedRebound = snapshot.RearLowSpeedRebound,
+        RearHighSpeedRebound = snapshot.RearHighSpeedRebound,
+        Updated = snapshot.Updated,
+    };
 }

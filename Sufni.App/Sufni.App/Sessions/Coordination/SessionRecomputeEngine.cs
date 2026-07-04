@@ -286,7 +286,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
             var loadedSourceSnapshot = RecordedSessionSourceSnapshot.From(source);
             if (domain.Source != loadedSourceSnapshot)
             {
-                sourceStore.Upsert(loadedSourceSnapshot);
+                await sourceStore.PublishSourcesChangedAsync([source.SessionId], cancellationToken);
                 domain = recordedSessionDomainQuery.Get(sessionId);
                 if (domain is null)
                 {
@@ -386,7 +386,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
             }
 
             var snapshot = SessionSnapshot.From(fresh);
-            sessionStore.Upsert(snapshot);
+            await sessionStore.PublishSessionsChangedAsync([snapshot.Id], cancellationToken);
 
             await DeletePreviousFullTrackIfOrphanedAsync(previousFullTrackId, fresh.FullTrack, sessionId);
 

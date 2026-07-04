@@ -74,9 +74,4 @@ internal sealed class RecordedSessionSourceStore(
         return PublishRemovalsAsync(sessionIds.Distinct());
     }
 
-    public void Upsert(RecordedSessionSourceSnapshot snapshot) =>
-        PublishSnapshotAsync(snapshot).GetAwaiter().GetResult();
-
-    public void Remove(Guid sessionId) =>
-        PublishRemoveAsync(sessionId).GetAwaiter().GetResult();
 }

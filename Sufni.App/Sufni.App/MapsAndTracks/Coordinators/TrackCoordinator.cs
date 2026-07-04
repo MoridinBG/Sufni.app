@@ -11,10 +11,10 @@ using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Services;
-using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
+using Sufni.App.Shared.Stores;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Sessions.Models;
 namespace Sufni.App.MapsAndTracks.Coordinators;
@@ -23,7 +23,6 @@ public class TrackCoordinator(
     ITrackRepository trackRepository,
     ISynchronizableRepository<Track> trackEntityRepository,
     ISessionRepository sessionRepository,
-    ISessionTelemetryWriter sessionTelemetryWriter,
     ISessionStoreWriter sessionStore,
     IFilesService filesService,
     IBackgroundTaskRunner backgroundTaskRunner,
@@ -188,20 +187,17 @@ public class TrackCoordinator(
             return false;
         }
 
-        // One-way persist: PatchSessionTrackAsync writes the offset and cached
+        // One-way persist: CommitTrackPatchAsync writes the offset and cached
         // polyline without an optimistic-concurrency guard and without touching the
-        // processed BLOB or its fingerprint, so it cannot false-conflict. Upserting
+        // processed BLOB or its fingerprint, so it cannot false-conflict. Publishing
         // the refreshed snapshot lets the session-detail watch reaction refresh the
         // track and baseline like a recompute — no result is pushed to the editor.
-        await sessionTelemetryWriter.PatchSessionTrackAsync(sessionId, trackPoints, normalizedOffset);
-        var updatedSession = await sessionRepository.GetSessionAsync(sessionId);
-        if (updatedSession is null)
-        {
-            return false;
-        }
-
-        sessionStore.Upsert(SessionSnapshot.From(updatedSession));
-        return true;
+        var result = await sessionStore.CommitTrackPatchAsync(
+            sessionId,
+            trackPoints,
+            normalizedOffset,
+            cancellationToken);
+        return result is StoreMutationResult<SessionSnapshot>.Saved;
     }
 
     private static List<TrackPoint> AsList(IReadOnlyList<TrackPoint> points)

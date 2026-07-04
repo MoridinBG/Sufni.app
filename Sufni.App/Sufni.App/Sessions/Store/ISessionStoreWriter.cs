@@ -2,6 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Shared.Stores;
 
 namespace Sufni.App.Sessions.Store;
 
@@ -19,6 +23,38 @@ public interface ISessionStoreWriter : ISessionStore
     /// </summary>
     Task RefreshAsync(CancellationToken cancellationToken = default);
 
+    Task<StoreMutationResult<SessionSnapshot>> CommitSessionMetadataAsync(
+        Session session,
+        long? baselineUpdated = null,
+        CancellationToken cancellationToken = default);
+
+    Task<StoreMutationResult<SessionSnapshot>> CommitDerivedSessionAsync(
+        Session session,
+        CancellationToken cancellationToken = default);
+
+    Task<StoreMutationResult<SessionSnapshot>> CommitSessionMetadataFieldAsync(
+        Guid sessionId,
+        Func<Session, Session> metadataUpdate,
+        CancellationToken cancellationToken = default);
+
+    Task<StoreMutationResult<SessionSnapshot>> CommitPsstPatchAsync(
+        Guid sessionId,
+        byte[] data,
+        string? fingerprint,
+        CancellationToken cancellationToken = default);
+
+    Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapAsync(
+        Guid sessionId,
+        byte[] data,
+        string? fingerprint,
+        CancellationToken cancellationToken = default);
+
+    Task<StoreMutationResult<SessionSnapshot>> CommitTrackPatchAsync(
+        Guid sessionId,
+        List<TrackPoint> points,
+        double? gpsOffsetSeconds = null,
+        CancellationToken cancellationToken = default);
+
     Task PublishSessionsChangedAsync(
         IReadOnlyCollection<Guid> sessionIds,
         CancellationToken cancellationToken = default);
@@ -26,18 +62,4 @@ public interface ISessionStoreWriter : ISessionStore
     Task PublishSessionsRemovedAsync(
         IReadOnlyCollection<Guid> sessionIds,
         CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Insert or replace the snapshot for a session. Typically called
-    /// by <c>SessionCoordinator</c> after a save, after sync arrival,
-    /// or after the local mobile telemetry-fetch path patches the
-    /// database.
-    /// </summary>
-    void Upsert(SessionSnapshot snapshot);
-
-    /// <summary>
-    /// Remove a session from the store by id. No-op if it is not
-    /// present.
-    /// </summary>
-    void Remove(Guid id);
 }

@@ -19,6 +19,7 @@ using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Setups.Stores;
+using Sufni.App.Shared.Stores;
 namespace Sufni.App.Sessions.Coordination;
 
 /// <summary>
@@ -132,16 +133,10 @@ public sealed class SessionCommandService
                 RearHighSpeedRebound = from.RearHighSpeedRebound,
             };
 
-            await sessionRepository.PutSessionAsync(derived);
-            cancellationToken.ThrowIfCancellationRequested();
-            var fresh = await sessionRepository.GetSessionAsync(derived.Id);
-            if (fresh is null)
-            {
-                return null;
-            }
-
-            sessionStore.Upsert(SessionSnapshot.From(fresh));
-            return fresh.Id;
+            var result = await sessionStore.CommitDerivedSessionAsync(derived, cancellationToken);
+            return result is StoreMutationResult<SessionSnapshot>.Saved saved
+                ? saved.Snapshot.Id
+                : null;
         }
         catch (OperationCanceledException)
         {
@@ -169,13 +164,15 @@ public sealed class SessionCommandService
         try
         {
             var origin = CalculateSourceAbsoluteOrigin(snapshot, sourceAbsoluteStartSeconds);
-            var session = SessionFromSnapshot(snapshot);
+            var session = ToMetadataEntity(snapshot);
             session.Timestamp = origin.Timestamp;
             session.GpsOffsetSeconds = origin.GpsOffsetSeconds;
 
-            await sessionRepository.PutSessionAsync(session);
-            cancellationToken.ThrowIfCancellationRequested();
-            return await RefreshSessionSnapshotAsync(sessionId);
+            var result = await sessionStore.CommitSessionMetadataAsync(
+                session,
+                snapshot.Updated,
+                cancellationToken);
+            return result is StoreMutationResult<SessionSnapshot>.Saved;
         }
         catch (OperationCanceledException)
         {
@@ -202,12 +199,14 @@ public sealed class SessionCommandService
 
         try
         {
-            var session = SessionFromSnapshot(snapshot);
+            var session = ToMetadataEntity(snapshot);
             session.Name = name;
 
-            await sessionRepository.PutSessionAsync(session);
-            cancellationToken.ThrowIfCancellationRequested();
-            return await RefreshSessionSnapshotAsync(sessionId);
+            var result = await sessionStore.CommitSessionMetadataAsync(
+                session,
+                snapshot.Updated,
+                cancellationToken);
+            return result is StoreMutationResult<SessionSnapshot>.Saved;
         }
         catch (OperationCanceledException)
         {
@@ -236,20 +235,26 @@ public sealed class SessionCommandService
 
         try
         {
-            // The fingerprint is a derived column preserved by PutSessionAsync from
-            // the existing row, so the metadata save no longer needs to copy it
-            // forward from the store snapshot.
-            await sessionRepository.PutSessionAsync(session);
-            // Re-fetch via the SQL-computed has_data path so the snapshot's
-            // HasProcessedData reflects the current DB state.
-            var fresh = await sessionRepository.GetSessionAsync(session.Id);
-            if (fresh is null)
+            var commit = await sessionStore.CommitSessionMetadataAsync(session, baselineUpdated);
+            if (commit is StoreMutationResult<SessionSnapshot>.Conflict conflict)
             {
-                logger.Error("Session save failed because the session disappeared after save for {SessionId}", session.Id);
-                return new SessionSaveResult.Failed("Session disappeared after save");
+                logger.Warning("Session save conflict for {SessionId}", session.Id);
+                return new SessionSaveResult.Conflict(conflict.CurrentSnapshot);
             }
-            var saved = SessionSnapshot.From(fresh);
-            sessionStore.Upsert(saved);
+
+            if (commit is not StoreMutationResult<SessionSnapshot>.Saved savedResult)
+            {
+                var message = commit switch
+                {
+                    StoreMutationResult<SessionSnapshot>.Missing missing => missing.ErrorMessage,
+                    StoreMutationResult<SessionSnapshot>.Failed failed => failed.ErrorMessage,
+                    _ => "Session save failed"
+                };
+                logger.Error("Session save failed for {SessionId}: {ErrorMessage}", session.Id, message);
+                return new SessionSaveResult.Failed(message);
+            }
+
+            var saved = savedResult.Snapshot;
             if (appEnvironment.LayoutProfile == UiLayoutProfile.Compact)
             {
                 _ = shell.GoBack();
@@ -313,8 +318,8 @@ public sealed class SessionCommandService
             var snapshot = SessionSnapshot.From(fresh);
             await sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences);
 
-            sessionStore.Upsert(snapshot);
-            sourceStore.Upsert(sourceSnapshot);
+            await sessionStore.PublishSessionsChangedAsync([snapshot.Id], cancellationToken);
+            await sourceStore.PublishSourcesChangedAsync([sourceSnapshot.SessionId], cancellationToken);
 
             logger.Information("Live session save completed for {SessionId}", session.Id);
             return new LiveSessionSaveResult.Saved(snapshot.Id, snapshot.Updated);
@@ -328,18 +333,6 @@ public sealed class SessionCommandService
             logger.Error(e, "Live session save failed for {SessionId}", session.Id);
             return new LiveSessionSaveResult.Failed(e.Message);
         }
-    }
-
-    private async Task<bool> RefreshSessionSnapshotAsync(Guid sessionId)
-    {
-        var fresh = await sessionRepository.GetSessionAsync(sessionId);
-        if (fresh is null)
-        {
-            return false;
-        }
-
-        sessionStore.Upsert(SessionSnapshot.From(fresh));
-        return true;
     }
 
     private (long? Timestamp, double GpsOffsetSeconds) CalculateSourceAbsoluteOrigin(
@@ -366,7 +359,7 @@ public sealed class SessionCommandService
 
     private static double FractionalSeconds(double seconds) => seconds - Math.Floor(seconds);
 
-    private static Session SessionFromSnapshot(SessionSnapshot snapshot) => new(
+    private static Session ToMetadataEntity(SessionSnapshot snapshot) => new(
         snapshot.Id,
         snapshot.Name,
         snapshot.Description,
@@ -408,7 +401,7 @@ public sealed class SessionCommandService
             if (!await derivationWindowProvider.IsRecordingSourceReferencedAsync(sessionId))
             {
                 await recordedSessionSourceRepository.DeleteRecordedSessionSourceAsync(sessionId);
-                sourceStore.Remove(sessionId);
+                await sourceStore.PublishSourcesRemovedAsync([sessionId]);
             }
 
             if (shouldDeleteTrack && trackId.HasValue)
@@ -432,7 +425,7 @@ public sealed class SessionCommandService
         }
 
         await editorFactory().CloseSessionDetail(sessionId);
-        sessionStore.Remove(sessionId);
+        await sessionStore.PublishSessionsRemovedAsync([sessionId]);
         logger.Information("Session delete completed for {SessionId}", sessionId);
         return new SessionDeleteResult(SessionDeleteOutcome.Deleted);
     }

@@ -7,6 +7,7 @@ using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.ExtensionHost.TestSupport.Async;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
@@ -21,6 +22,7 @@ public class PersistedStoreTests
 {
     private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
+    private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
 
     [Fact]
     public async Task BikeStore_RefreshLoadsSnapshots_AndCommitMutationsUpdateCache()
@@ -119,7 +121,7 @@ public class PersistedStoreTests
             Updated = 11
         };
         sessionRepository.GetSessionsAsync().Returns([session]);
-        var store = new SessionStore(sessionRepository, UiThreadDispatcher);
+        var store = new SessionStore(sessionRepository, sessionTelemetryWriter, UiThreadDispatcher);
         using var snapshotsSubscription = store.Connect().Bind(out var snapshots).Subscribe();
         var watched = new List<SessionSnapshot>();
         using var watchSubscription = store.Watch(sessionId).Subscribe(watched.Add);
@@ -135,12 +137,23 @@ public class PersistedStoreTests
         sessionRepository.GetSessionAsync(sessionId).Returns(updatedSession);
         await store.PublishSessionsChangedAsync([sessionId]);
 
+        var committedSession = new Session(sessionId, "Night run", "desc", null, 100)
+        {
+            HasProcessedData = true,
+            Updated = 13
+        };
+        sessionRepository.PutSessionAsync(committedSession).Returns(Task.FromResult(sessionId));
+        sessionRepository.GetSessionAsync(sessionId).Returns(committedSession);
+        var commitResult = await store.CommitSessionMetadataAsync(committedSession, updated.Updated);
+        var committed = Assert.IsType<StoreMutationResult<SessionSnapshot>.Saved>(commitResult);
+
         var snapshot = Assert.Single(snapshots);
-        Assert.Equal(updated, snapshot);
-        Assert.Equal(updated, store.Get(sessionId));
-        Assert.Equal(2, watched.Count);
+        Assert.Equal(committed.Snapshot, snapshot);
+        Assert.Equal(committed.Snapshot, store.Get(sessionId));
+        Assert.Equal(3, watched.Count);
         Assert.Equal("Morning run", watched[0].Name);
         Assert.Equal("Evening run", watched[1].Name);
+        Assert.Equal("Night run", watched[2].Name);
     }
 
     [Fact]

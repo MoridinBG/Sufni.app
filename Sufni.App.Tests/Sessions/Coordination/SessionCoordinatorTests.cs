@@ -29,6 +29,7 @@ using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.LiveDaq.Queries;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.Shared.Stores;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Extensions;
@@ -173,7 +174,7 @@ public class SessionCoordinatorTests
     // ----- SaveAsync -----
 
     [Fact]
-    public async Task SaveAsync_HappyPath_WritesAndRefetchesAndUpserts()
+    public async Task SaveAsync_HappyPath_CommitsThroughStore()
     {
         var existing = TestSnapshots.Session(updated: 5);
         sessionStore.Get(existing.Id).Returns(existing);
@@ -184,14 +185,15 @@ public class SessionCoordinatorTests
             Updated = 7,
             HasProcessedData = true,
         };
-        sessionRepository.GetSessionAsync(existing.Id).Returns(fresh);
+        var savedSnapshot = SessionSnapshot.From(fresh);
+        sessionStore
+            .CommitSessionMetadataAsync(session, 5, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<StoreMutationResult<SessionSnapshot>>(
+                new StoreMutationResult<SessionSnapshot>.Saved(savedSnapshot)));
 
         var result = await CreateCoordinator().SaveAsync(session, baselineUpdated: 5);
 
-        await sessionRepository.Received(1).PutSessionAsync(session);
-        await sessionRepository.Received(1).GetSessionAsync(existing.Id);
-        sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s =>
-            s.Id == existing.Id && s.Name == "renamed" && s.Updated == 7 && s.HasProcessedData));
+        await sessionStore.Received(1).CommitSessionMetadataAsync(session, 5, Arg.Any<CancellationToken>());
         shell.DidNotReceive().GoBack();
         var saved = Assert.IsType<SessionSaveResult.Saved>(result);
         Assert.Equal(7, saved.NewBaselineUpdated);
@@ -209,7 +211,10 @@ public class SessionCoordinatorTests
             Updated = 7,
             HasProcessedData = true,
         };
-        sessionRepository.GetSessionAsync(existing.Id).Returns(fresh);
+        sessionStore
+            .CommitSessionMetadataAsync(session, 5, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<StoreMutationResult<SessionSnapshot>>(
+                new StoreMutationResult<SessionSnapshot>.Saved(SessionSnapshot.From(fresh))));
 
         await CreateCoordinator(UiLayoutProfile.Compact).SaveAsync(session, baselineUpdated: 5);
 
@@ -221,14 +226,16 @@ public class SessionCoordinatorTests
     {
         var existing = TestSnapshots.Session(updated: 5);
         sessionStore.Get(existing.Id).Returns(existing);
-        sessionRepository.GetSessionAsync(existing.Id).Returns((Session?)null);
 
         var session = new Session(existing.Id, "renamed", "", null);
+        sessionStore
+            .CommitSessionMetadataAsync(session, 5, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<StoreMutationResult<SessionSnapshot>>(
+                new StoreMutationResult<SessionSnapshot>.Missing("Session disappeared after save.")));
 
         var result = await CreateCoordinator().SaveAsync(session, baselineUpdated: 5);
 
         Assert.IsType<SessionSaveResult.Failed>(result);
-        sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
         shell.DidNotReceive().GoBack();
     }
 
@@ -244,8 +251,10 @@ public class SessionCoordinatorTests
 
         var conflict = Assert.IsType<SessionSaveResult.Conflict>(result);
         Assert.Same(current, conflict.CurrentSnapshot);
-        await sessionRepository.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
-        sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
+        await sessionStore.DidNotReceive().CommitSessionMetadataAsync(
+            Arg.Any<Session>(),
+            Arg.Any<long?>(),
+            Arg.Any<CancellationToken>());
         shell.DidNotReceive().GoBack();
     }
 
@@ -254,19 +263,21 @@ public class SessionCoordinatorTests
     {
         var existing = TestSnapshots.Session(updated: 5);
         sessionStore.Get(existing.Id).Returns(existing);
-        sessionRepository.PutSessionAsync(Arg.Any<Session>()).ThrowsAsync(new InvalidOperationException("disk full"));
 
         var session = new Session(existing.Id, "x", "", null);
+        sessionStore
+            .CommitSessionMetadataAsync(session, 5, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<StoreMutationResult<SessionSnapshot>>(
+                new StoreMutationResult<SessionSnapshot>.Failed("disk full")));
 
         var result = await CreateCoordinator().SaveAsync(session, baselineUpdated: 5);
 
         Assert.IsType<SessionSaveResult.Failed>(result);
-        sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
         shell.DidNotReceive().GoBack();
     }
 
     [Fact]
-    public async Task SaveLiveCaptureAsync_PersistsTrackSessionAndUpsertsFreshSnapshot()
+    public async Task SaveLiveCaptureAsync_PersistsTrackSessionAndPublishesFreshSnapshots()
     {
         var capture = CreateLiveCapturePackage(withGps: true);
         var session = new Session(Guid.NewGuid(), "live session", "desc", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
@@ -320,10 +331,12 @@ public class SessionCoordinatorTests
                 source.SessionId == session.Id &&
                 source.SourceKind == RecordedSessionSourceKind.LiveCapture &&
                 source.SourceName == "live"));
-        sourceStore.Received(1).Upsert(Arg.Is<RecordedSessionSourceSnapshot>(source =>
-            source.SessionId == session.Id && source.SourceKind == RecordedSessionSourceKind.LiveCapture));
-        sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(snapshot =>
-            snapshot.Id == session.Id && snapshot.Updated == 9 && snapshot.HasProcessedData));
+        await sourceStore.Received(1).PublishSourcesChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(session.Id)),
+            Arg.Any<CancellationToken>());
+        await sessionStore.Received(1).PublishSessionsChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(session.Id)),
+            Arg.Any<CancellationToken>());
 
         var saved = Assert.IsType<LiveSessionSaveResult.Saved>(result);
         Assert.Equal(session.Id, saved.SessionId);
@@ -387,8 +400,12 @@ public class SessionCoordinatorTests
         var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture, SessionPreferences.Default);
 
         Assert.IsType<LiveSessionSaveResult.Failed>(result);
-        sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
-        sourceStore.DidNotReceive().Upsert(Arg.Any<RecordedSessionSourceSnapshot>());
+        await sessionStore.DidNotReceive().PublishSessionsChangedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
+        await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -408,8 +425,12 @@ public class SessionCoordinatorTests
             Arg.Any<ProcessedTelemetryPayload>(),
             Arg.Any<Track?>(),
             Arg.Any<RecordedSessionSource?>());
-        sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
-        sourceStore.DidNotReceive().Upsert(Arg.Any<RecordedSessionSourceSnapshot>());
+        await sessionStore.DidNotReceive().PublishSessionsChangedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
+        await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
     }
 
     // ----- Editing operations -----
@@ -433,14 +454,13 @@ public class SessionCoordinatorTests
         sessionStore.Get(from.Id).Returns(from);
         derivationWindowCache.Get(from.Id).Returns(window);
         Session? saved = null;
-        sessionRepository.PutSessionAsync(Arg.Any<Session>())
+        sessionStore.CommitDerivedSessionAsync(Arg.Any<Session>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
                 saved = call.Arg<Session>();
-                return Task.FromResult(saved.Id);
+                return Task.FromResult<StoreMutationResult<SessionSnapshot>>(
+                    new StoreMutationResult<SessionSnapshot>.Saved(SessionSnapshot.From(saved)));
             });
-        sessionRepository.GetSessionAsync(Arg.Any<Guid>())
-            .Returns(_ => Task.FromResult(saved));
 
         var createdId = await CreateCoordinator().CreateDerivedSessionAsync(from.Id, "source (2)", 3.75);
 
@@ -455,7 +475,9 @@ public class SessionCoordinatorTests
         Assert.Equal(from.RearSpringRate, saved.RearSpringRate);
         Assert.Null(saved.ProcessedData);
         Assert.Null(saved.FullTrack);
-        sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(snapshot => snapshot.Id == saved.Id));
+        await sessionStore.Received(1).CommitDerivedSessionAsync(
+            Arg.Is<Session>(session => session.Id == saved.Id),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -472,14 +494,13 @@ public class SessionCoordinatorTests
         derivationWindowCache.Get(sessionId).Returns(new RecordedSessionDerivationWindow(Guid.NewGuid(), 1.5, 10));
         sessionStore.Get(sessionId).Returns(snapshot);
         Session? saved = null;
-        sessionRepository.PutSessionAsync(Arg.Any<Session>())
+        sessionStore.CommitSessionMetadataAsync(Arg.Any<Session>(), snapshot.Updated, Arg.Any<CancellationToken>())
             .Returns(call =>
             {
                 saved = call.Arg<Session>();
-                return Task.FromResult(saved.Id);
+                return Task.FromResult<StoreMutationResult<SessionSnapshot>>(
+                    new StoreMutationResult<SessionSnapshot>.Saved(SessionSnapshot.From(saved)));
             });
-        sessionRepository.GetSessionAsync(sessionId)
-            .Returns(_ => Task.FromResult(saved));
 
         var result = await CreateCoordinator().UpdateSessionOriginAsync(sessionId, 3.75);
 
@@ -487,7 +508,10 @@ public class SessionCoordinatorTests
         Assert.NotNull(saved);
         Assert.Equal(102, saved!.Timestamp);
         Assert.Equal(0.5, saved.GpsOffsetSeconds, precision: 6);
-        sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(value => value.Id == sessionId));
+        await sessionStore.Received(1).CommitSessionMetadataAsync(
+            Arg.Is<Session>(value => value.Id == sessionId),
+            snapshot.Updated,
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -497,14 +521,13 @@ public class SessionCoordinatorTests
         var snapshot = TestSnapshots.Session(id: sessionId, name: "before", setupId: Guid.NewGuid());
         sessionStore.Get(sessionId).Returns(snapshot);
         Session? saved = null;
-        sessionRepository.PutSessionAsync(Arg.Any<Session>())
+        sessionStore.CommitSessionMetadataAsync(Arg.Any<Session>(), snapshot.Updated, Arg.Any<CancellationToken>())
             .Returns(call =>
             {
                 saved = call.Arg<Session>();
-                return Task.FromResult(saved.Id);
+                return Task.FromResult<StoreMutationResult<SessionSnapshot>>(
+                    new StoreMutationResult<SessionSnapshot>.Saved(SessionSnapshot.From(saved)));
             });
-        sessionRepository.GetSessionAsync(sessionId)
-            .Returns(_ => Task.FromResult(saved));
 
         var result = await CreateCoordinator().RenameSessionAsync(sessionId, "after");
 
@@ -512,7 +535,10 @@ public class SessionCoordinatorTests
         Assert.NotNull(saved);
         Assert.Equal("after", saved!.Name);
         shell.DidNotReceive().GoBack();
-        sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(value => value.Name == "after"));
+        await sessionStore.Received(1).CommitSessionMetadataAsync(
+            Arg.Is<Session>(value => value.Name == "after"),
+            snapshot.Updated,
+            Arg.Any<CancellationToken>());
     }
 
     // ----- DeleteAsync -----
@@ -530,11 +556,15 @@ public class SessionCoordinatorTests
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
         await sessionEntityRepository.Received(1).DeleteAsync(id);
         await recordedSessionSourceRepository.Received(1).DeleteRecordedSessionSourceAsync(id);
-        sourceStore.Received(1).Remove(id);
+        await sourceStore.Received(1).PublishSourcesRemovedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
+            Arg.Any<CancellationToken>());
         await trackEntityRepository.Received(1).DeleteAsync(trackId);
         await sessionPreferences.Received(1).RemoveRecordedAsync(id);
         await editorFactory.Received(1).CloseSessionDetail(id);
-        sessionStore.Received(1).Remove(id);
+        await sessionStore.Received(1).PublishSessionsRemovedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -550,10 +580,14 @@ public class SessionCoordinatorTests
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
         await sessionEntityRepository.Received(1).DeleteAsync(id);
         await recordedSessionSourceRepository.Received(1).DeleteRecordedSessionSourceAsync(id);
-        sourceStore.Received(1).Remove(id);
+        await sourceStore.Received(1).PublishSourcesRemovedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
+            Arg.Any<CancellationToken>());
         await trackEntityRepository.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
         await editorFactory.Received(1).CloseSessionDetail(id);
-        sessionStore.Received(1).Remove(id);
+        await sessionStore.Received(1).PublishSessionsRemovedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -572,8 +606,12 @@ public class SessionCoordinatorTests
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
         await sessionEntityRepository.Received(1).DeleteAsync(id);
         await recordedSessionSourceRepository.DidNotReceive().DeleteRecordedSessionSourceAsync(id);
-        sourceStore.DidNotReceive().Remove(id);
-        sessionStore.Received(1).Remove(id);
+        await sourceStore.DidNotReceive().PublishSourcesRemovedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
+        await sessionStore.Received(1).PublishSessionsRemovedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -590,10 +628,14 @@ public class SessionCoordinatorTests
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
         await sessionEntityRepository.Received(1).DeleteAsync(id);
         await recordedSessionSourceRepository.Received(1).DeleteRecordedSessionSourceAsync(id);
-        sourceStore.Received(1).Remove(id);
+        await sourceStore.Received(1).PublishSourcesRemovedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
+            Arg.Any<CancellationToken>());
         await trackEntityRepository.Received(1).DeleteAsync(trackId);
         await editorFactory.Received(1).CloseSessionDetail(id);
-        sessionStore.Received(1).Remove(id);
+        await sessionStore.Received(1).PublishSessionsRemovedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -606,7 +648,9 @@ public class SessionCoordinatorTests
 
         Assert.Equal(SessionDeleteOutcome.Failed, result.Outcome);
         await sessionPreferences.DidNotReceive().RemoveRecordedAsync(id);
-        sessionStore.DidNotReceiveWithAnyArgs().Remove(default);
+        await sessionStore.DidNotReceive().PublishSessionsRemovedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
         await editorFactory.DidNotReceive().CloseSessionDetail(Arg.Any<Guid>());
     }
 

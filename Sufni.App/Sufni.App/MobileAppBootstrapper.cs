@@ -6,8 +6,8 @@ using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Extensibility.Sync;
-using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Store;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.ViewModels;
@@ -30,7 +30,7 @@ public static class MobileAppBootstrapper
         services.AddSingleton<ISynchronizationClientService>(sp => new SynchronizationClientService(
             sp.GetRequiredService<ISyncDataStore>(),
             sp.GetRequiredService<ISessionRepository>(),
-            sp.GetRequiredService<ISessionTelemetryWriter>(),
+            sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<IRecordedSessionSourceRepository>(),
             sp.GetRequiredService<IRecordedSessionSourceSyncQuery>(),
             sp.GetRequiredService<IHttpApiService>(),

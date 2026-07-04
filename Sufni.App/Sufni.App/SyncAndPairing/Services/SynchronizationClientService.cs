@@ -8,8 +8,9 @@ using Serilog;
 using Sufni.App.Extensibility.Sync;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Shared.Stores;
 namespace Sufni.App.SyncAndPairing.Services;
 
 public class SynchronizationClientService : ISynchronizationClientService
@@ -19,7 +20,7 @@ public class SynchronizationClientService : ISynchronizationClientService
 
     private readonly ISyncDataStore syncDataStore;
     private readonly ISessionRepository sessionRepository;
-    private readonly ISessionTelemetryWriter sessionTelemetryWriter;
+    private readonly ISessionStoreWriter sessionStore;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery;
     private readonly IHttpApiService httpApiService;
@@ -29,19 +30,19 @@ public class SynchronizationClientService : ISynchronizationClientService
     public SynchronizationClientService(
         ISyncDataStore syncDataStore,
         ISessionRepository sessionRepository,
-        ISessionTelemetryWriter sessionTelemetryWriter,
+        ISessionStoreWriter sessionStore,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         IHttpApiService httpApiService,
         IAppPreferences appPreferences)
-        : this(syncDataStore, sessionRepository, sessionTelemetryWriter, recordedSessionSourceRepository, recordedSessionSourceSyncQuery, httpApiService, appPreferences, null)
+        : this(syncDataStore, sessionRepository, sessionStore, recordedSessionSourceRepository, recordedSessionSourceSyncQuery, httpApiService, appPreferences, null)
     {
     }
 
     internal SynchronizationClientService(
         ISyncDataStore syncDataStore,
         ISessionRepository sessionRepository,
-        ISessionTelemetryWriter sessionTelemetryWriter,
+        ISessionStoreWriter sessionStore,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         IHttpApiService httpApiService,
@@ -50,7 +51,7 @@ public class SynchronizationClientService : ISynchronizationClientService
     {
         this.syncDataStore = syncDataStore;
         this.sessionRepository = sessionRepository;
-        this.sessionTelemetryWriter = sessionTelemetryWriter;
+        this.sessionStore = sessionStore;
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.recordedSessionSourceSyncQuery = recordedSessionSourceSyncQuery;
         this.httpApiService = httpApiService;
@@ -217,8 +218,8 @@ public class SynchronizationClientService : ISynchronizationClientService
             return false;
         }
 
-        await sessionTelemetryWriter.SwapSessionPsstAsync(id, transfer.Data, transfer.Fingerprint);
-        return true;
+        var result = await sessionStore.CommitPsstSwapAsync(id, transfer.Data, transfer.Fingerprint);
+        return result is StoreMutationResult<SessionSnapshot>.Saved;
     }
 
     private async Task PushIncompleteSessionSources()
