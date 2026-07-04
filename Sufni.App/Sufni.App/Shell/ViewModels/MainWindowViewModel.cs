@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -9,7 +8,7 @@ using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Shared.Base;
 namespace Sufni.App.Shell.ViewModels;
 
-public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
+public partial class MainWindowViewModel : ViewModelBase
 {
     #region Observable properties
 
@@ -23,11 +22,6 @@ public partial class MainWindowViewModel : ViewModelBase, IMainWindowShellHost
     }
 
     public ObservableCollection<TabPageViewModelBase> Tabs => Workspace.Tabs;
-
-    // The shell host interface exposes Tabs as a plain enumerable to keep
-    // the test surface narrow. The view model still publishes the
-    // observable collection for binding.
-    IEnumerable<TabPageViewModelBase> IMainWindowShellHost.Tabs => Tabs;
 
     #endregion Observable properties
 

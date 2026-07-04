@@ -4,57 +4,43 @@ using Sufni.App.Shared.Base;
 namespace Sufni.App.Shell.Coordinators;
 
 /// <summary>
-/// Shell-level navigation. One implementation per application lifetime.
-/// Desktop implementation manages tabs; mobile implementation manages a
-/// navigation stack. Methods are no-ops on platforms where they have no
-/// meaning (e.g. <see cref="GoBack"/> on desktop).
+/// Shell-level navigation over the shared workspace tabs.
 /// </summary>
 public interface IShellCoordinator
 {
     /// <summary>
-    /// Open a view as a new top-level screen. On desktop this adds a tab
-    /// and activates it. On mobile this pushes the view onto the stack.
+    /// Open a view as the current workspace detail surface.
     /// </summary>
     void Open(ViewModelBase view);
 
     /// <summary>
     /// Open a view if no existing one of type <typeparamref name="T"/>
-    /// matches <paramref name="match"/>; otherwise focus the existing
-    /// one. The factory is only invoked when needed. On desktop this
-    /// prevents duplicate tabs for the same entity. On mobile —
-    /// where navigation is a stack — the factory always runs and the
-    /// new view is pushed.
+    /// matches <paramref name="match"/>; otherwise focus the existing one.
+    /// The factory is only invoked when needed.
     /// </summary>
     void OpenOrFocus<T>(Func<T, bool> match, Func<T> create) where T : ViewModelBase;
 
     /// <summary>
     /// Open a view in the background if no existing one of type
-    /// <typeparamref name="T"/> matches <paramref name="match"/>. Desktop adds
-    /// the tab without activating it; mobile is a no-op because the stack has no
-    /// background destination.
+    /// <typeparamref name="T"/> matches <paramref name="match"/>.
     /// </summary>
     void OpenInBackground<T>(Func<T, bool> match, Func<T> create) where T : ViewModelBase;
 
     /// <summary>
-    /// Close a specific view. On desktop this removes its tab. On mobile
-    /// this pops the stack only if <paramref name="view"/> is the current
-    /// view; otherwise it does nothing.
+    /// Close a specific view when it is a workspace tab.
     /// </summary>
     void Close(ViewModelBase view);
 
     /// <summary>
     /// Close the first view of type <typeparamref name="T"/> matching
-    /// <paramref name="match"/>, if any. On desktop this iterates the
-    /// open tabs and closes the matching one. On mobile this is a no-op:
-    /// a list page and an editor for one of its rows are not on the back
-    /// stack at the same time, so there is nothing to close.
+    /// <paramref name="match"/>, if any.
     /// </summary>
     void CloseIfOpen<T>(Func<T, bool> match, bool forgetRestoreHistory = false) where T : ViewModelBase;
 
     /// <summary>
-    /// Pop the current view on mobile (e.g. hardware back button). Returns
-    /// whether the shell consumed the back request. Always returns
-    /// <see langword="false"/> on desktop.
+    /// Return from the current workspace detail surface to the previous tab
+    /// or primary shell surface. Returns whether the shell consumed the back
+    /// request.
     /// </summary>
     bool GoBack();
 }

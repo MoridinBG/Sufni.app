@@ -131,10 +131,6 @@ public partial class App : Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime)
         {
-            ServiceCollection.AddSingleton<IMainWindowShellHost>(sp =>
-                sp.GetRequiredService<MainWindowViewModel>());
-            ServiceCollection.AddSingleton<IShellCoordinator>(sp =>
-                new DesktopShellCoordinator(() => sp.GetRequiredService<IMainWindowShellHost>()));
             ServiceCollection.AddSingleton<ISessionLayoutStrategy, DesktopSessionLayoutStrategy>();
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime)
@@ -144,10 +140,10 @@ public partial class App : Application
                 sp.GetRequiredService<MobileNavigationShellHost>());
             ServiceCollection.AddSingleton<IMobileNavigationPageHost>(sp =>
                 sp.GetRequiredService<MobileNavigationShellHost>());
-            ServiceCollection.AddSingleton<IShellCoordinator>(sp =>
-                new MobileShellCoordinator(sp.GetRequiredService<IMobileNavigationShellHost>()));
             ServiceCollection.AddSingleton<ISessionLayoutStrategy, MobileSessionLayoutStrategy>();
         }
+
+        ServiceCollection.AddSingleton<IShellCoordinator, ShellWorkspaceCoordinator>();
 
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
         ServiceCollection.AddSingleton<ViewLocator>(sp => new ViewLocator(
