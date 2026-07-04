@@ -50,7 +50,7 @@ public class MainPagesDesktopViewTests
 
         await using var mounted = await MountAsync(view);
 
-        var pairingPanel = mounted.View.FindControl<Grid>("PairingRequestPanel");
+        var pairingPanel = mounted.View.FindControl<ContentControl>("PairingRequestPanel");
 
         Assert.NotNull(pairingPanel);
         Assert.True(pairingPanel!.IsVisible);
@@ -91,7 +91,7 @@ public class MainPagesDesktopViewTests
 
         Assert.False(mounted.View.FindControl<Button>("PairedDevicesButton")!.IsVisible);
         Assert.False(mounted.View.FindControl<Grid>("PairedDevicesPanel")!.IsVisible);
-        Assert.False(mounted.View.FindControl<Grid>("PairingRequestPanel")!.IsVisible);
+        Assert.False(mounted.View.FindControl<ContentControl>("PairingRequestPanel")!.IsVisible);
     }
 
     [AvaloniaFact]

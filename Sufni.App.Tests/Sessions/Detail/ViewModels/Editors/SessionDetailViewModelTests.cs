@@ -432,7 +432,7 @@ public class SessionDetailViewModelTests
         foreach (var rowId in expectedRowIds)
         {
             var actions = editor.SignalPlotContextMenuActionsBySignalRowId[rowId];
-            Assert.Contains(actions, action => action.Id == "autozoom" && action.Label == "Autozoom");
+            Assert.Contains(actions, action => action.Id == "zoom-selection" && action.Label == "Zoom selection");
             Assert.Contains(actions, action => action.Id == "analysis-range-set-start" && action.Label == "Set analysis start here");
             Assert.Contains(actions, action => action.Id == "analysis-range-set-end" && action.Label == "Set analysis end here");
             Assert.Contains(actions, action => action.Id == "analysis-range-clear" && action.Label == "Clear analysis range");
@@ -611,7 +611,7 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void AutozoomPlot_FullSession_WhenClickOutsideSelection()
+    public void ZoomSelection_UsesSelectionRegardlessOfClickPosition()
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
         var action = GetAutozoomAction(editor);
@@ -622,8 +622,8 @@ public class SessionDetailViewModelTests
             DurationSeconds: 10,
             AnalysisRange: new TelemetryTimeRange(2, 4)));
 
-        Assert.Equal(0, editor.Timeline.VisibleRangeStart, 6);
-        Assert.Equal(1, editor.Timeline.VisibleRangeEnd, 6);
+        Assert.Equal(0.19, editor.Timeline.VisibleRangeStart, 6);
+        Assert.Equal(0.41, editor.Timeline.VisibleRangeEnd, 6);
     }
 
     [AvaloniaFact]
@@ -2033,24 +2033,26 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Loaded_OnDesktop_WhenTelemetryLaterPending_ClearsVibrationStates()
+    public async Task WatchRefresh_OnDesktop_WhenTelemetryLaterPending_ClearsVibrationStates()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = CreateVibrationTelemetry();
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
         sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(
                 Task.FromResult(LoadedDesktopResult(telemetry)),
                 Task.FromResult<SessionDetailLoadResult>(IncompleteResult(snapshot.Id)));
         SetDesktop(true);
 
-        var editor = CreateEditor(snapshot);
+        var editor = CreateEditor(snapshot, watch.AsObservable());
         await editor.LoadedCommand.ExecuteAsync(null);
 
         Assert.True(editor.SessionContext.FrontForkVibrationState.IsReady);
 
-        await editor.LoadedCommand.ExecuteAsync(null);
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.FingerprintChanged));
 
-        Assert.True(editor.SessionContext.FrontForkVibrationState.IsHidden);
+        await WaitForAsync(() => editor.SessionContext.FrontForkVibrationState.IsHidden);
         Assert.True(editor.SessionContext.FrontFrameVibrationState.IsHidden);
         Assert.True(editor.SessionContext.RearForkVibrationState.IsHidden);
         Assert.True(editor.SessionContext.RearFrameVibrationState.IsHidden);
@@ -2342,25 +2344,14 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task LaterLoad_SupersedesEarlierCompletion()
+    public async Task Loaded_WhenAlreadyLoaded_DoesNotStartSecondLoad()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         var firstTelemetry = TestTelemetryData.CreateProcessed();
-        var secondTelemetry = TestTelemetryData.CreateProcessed();
         var firstPending = new TaskCompletionSource<SessionDetailLoadResult>();
-        var callCount = 0;
 
         sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
-            {
-                callCount++;
-                return callCount == 1
-                    ? AwaitWithCancellation(firstPending.Task, callInfo.ArgAt<CancellationToken>(2))
-                    : Task.FromResult(LoadedDesktopResult(
-                        secondTelemetry,
-                        dampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-                        dampingPercentages: new SessionDampingPercentages(10, 20, 30, 40, 50, 60, 70, 80)));
-            });
+            .Returns(callInfo => AwaitWithCancellation(firstPending.Task, callInfo.ArgAt<CancellationToken>(2)));
         SetDesktop(true);
 
         var editor = CreateEditor(snapshot);
@@ -2372,8 +2363,8 @@ public class SessionDetailViewModelTests
 
         await Task.WhenAll(firstLoad, secondLoad);
 
-        Assert.Same(secondTelemetry, editor.SessionContext.TelemetryData);
-        Assert.Equal(10, editor.DampingPage.FrontHscPercentage);
+        Assert.Same(firstTelemetry, editor.SessionContext.TelemetryData);
+        await sessionCoordinator.Received(1).LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
@@ -2736,7 +2727,7 @@ public class SessionDetailViewModelTests
 
     private static TelemetryPlotContextMenuAction GetAutozoomAction(SessionDetailViewModel editor)
     {
-        return GetPlotContextAction(editor, "autozoom");
+        return GetPlotContextAction(editor, "zoom-selection");
     }
 
     private static TelemetryPlotContextMenuAction GetPlotContextAction(

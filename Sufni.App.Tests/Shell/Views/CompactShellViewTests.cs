@@ -229,7 +229,7 @@ public class CompactShellViewTests
         await using var mounted = await MountAsync(view);
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var pairingRequestPanel = mounted.View.FindControl<Grid>("CompactPairingRequestPanel")
+        var pairingRequestPanel = mounted.View.FindControl<ContentControl>("CompactPairingRequestPanel")
             ?? throw new InvalidOperationException("Pairing request panel was not found.");
 
         Assert.True(pairingRequestPanel.IsVisible);

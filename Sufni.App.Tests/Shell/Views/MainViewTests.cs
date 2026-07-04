@@ -33,7 +33,7 @@ public class MainViewTests
     }
 
     [AvaloniaFact]
-    public async Task MainView_AttachesNavigationPageHost_WhenLoaded_AndDetachesWhenUnloaded()
+    public async Task MainView_UsesWorkspaceHost_WhenLoaded()
     {
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
@@ -51,11 +51,16 @@ public class MainViewTests
         var navigationPage = mounted.View.FindControl<NavigationPage>("RootNavigationPage");
 
         Assert.NotNull(navigationPage);
-        pageHost.Received(1).Attach(navigationPage!);
+        var workspaceHost = mounted.View.FindControl<ContentControl>("WorkspaceRootHost");
+
+        Assert.NotNull(workspaceHost);
+        Assert.False(navigationPage!.IsVisible);
+        Assert.True(workspaceHost!.IsVisible);
+        pageHost.DidNotReceive().Attach(Arg.Any<NavigationPage>());
 
         await mounted.DisposeAsync();
 
-        pageHost.Received(1).Detach(navigationPage!);
+        pageHost.DidNotReceive().Detach(Arg.Any<NavigationPage>());
     }
 
     [AvaloniaFact]
