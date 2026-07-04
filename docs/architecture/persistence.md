@@ -149,6 +149,17 @@ Startup migration does not repair or currentize stale `session_processing_finger
 
 Persistence consumers inject narrow repository interfaces instead of a single database facade. `ISynchronizableRepository<T>` owns generic soft-delete CRUD for `Synchronizable` entities; `ISessionRepository`, `IRecordedSessionSourceRepository`, `ITrackRepository`, and `IPairedDeviceRepository` own aggregate-specific operations and intent-specific projections; `ISyncDataStore` / `SynchronizationMergeEngine` owns sync timestamps, delta projection, remote apply, and merge conflict resolution. Read paths that only need ids, source snapshots, track payload metadata, full-track reference checks, or processing fingerprint inputs use those projections instead of loading whole aggregates or BLOB columns. `DatabaseMigrationRunner` is the only schema initializer/migrator, and repositories assume `SqliteConnectionContext` has run initialization before handing out the shared connection.
 
+Repositories do not publish UI state. The reactive boundary above SQLite is the
+store writer layer: single-aggregate commit methods call repositories, re-read
+the persisted snapshot when needed, and publish through the store cache;
+publish-only writer methods re-read or remove cache entries after another owner
+has already changed persistence. Cross-aggregate workflows such as setup import,
+session delete, and processed-session save run all SQL rows in one
+`RunInTransactionAsync` callback, then publish each affected store only after
+the transaction commits. Sync merge and server endpoint handlers likewise change
+SQLite first; inbound coordinators, appliers, or the refresh orchestrator then
+use publish-only writer paths to reflect those already-persisted rows.
+
 `ISynchronizableRepository<T>` operations on any `Synchronizable` subclass:
 
 - `GetAllAsync<T>()` — returns all records where `Deleted == null`
