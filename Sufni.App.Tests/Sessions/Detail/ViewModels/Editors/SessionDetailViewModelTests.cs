@@ -1533,7 +1533,7 @@ public class SessionDetailViewModelTests
         await editor.LoadedCommand.ExecuteAsync(null);
 
         Assert.Equal(layout, editor.LayoutPreferences);
-        Assert.Equal(layout, editor.SessionContext.LayoutPreferences);
+        Assert.Equal(SessionPreferences.Default.Layout, editor.SessionContext.LayoutPreferences);
         Assert.Equal(layout.DesktopMediaRows, editor.MediaLayoutPreferences);
         await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
     }

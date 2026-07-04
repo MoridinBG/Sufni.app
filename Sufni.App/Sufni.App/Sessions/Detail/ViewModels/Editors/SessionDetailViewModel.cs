@@ -158,10 +158,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         get => field;
         private set
         {
-            if (SetProperty(ref field, value))
-            {
-                SessionContext.SignalDisplayPreferences = value;
-            }
+            SetProperty(ref field, value);
         }
     } = SessionPreferences.Default.SignalDisplay;
 
@@ -176,7 +173,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             }
 
             recordedPreferenceStore.UpdateCurrent(current => current with { SignalLayout = value });
-            SessionContext.SignalLayoutPreferences = value;
+            PublishEditorState();
             recordedPreferenceStore.PersistChangeIfEnabled(current => current with { SignalLayout = value });
         }
     } = SessionPreferences.Default.SignalLayout;
@@ -192,8 +189,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             }
 
             recordedPreferenceStore.UpdateCurrent(current => current with { Layout = value });
-            SessionContext.LayoutPreferences = value;
             OnPropertyChanged(nameof(MediaLayoutPreferences));
+            PublishEditorState();
             recordedPreferenceStore.PersistChangeIfEnabled(current => current with { Layout = value });
         }
     } = SessionPreferences.Default.Layout;
@@ -1673,6 +1670,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         PreferencesPage.ApplySignalDisplayPreferences(preferences.SignalDisplay);
         PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
         ApplyRecordedAnalysisPreferences(preferences.Analysis);
+        PublishEditorState();
     }
 
     private void ApplyRecordedAnalysisPreferences(AnalysisPreferences preferences)
@@ -1702,8 +1700,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         var signalDisplay = PreferencesPage.CreateSignalDisplayPreferences();
-        SignalDisplayPreferences = signalDisplay;
         recordedPreferenceStore.UpdateCurrent(current => current with { SignalDisplay = signalDisplay });
+        SignalDisplayPreferences = signalDisplay;
+        PublishEditorState();
         recordedPreferenceStore.PersistChangeIfEnabled(current => current with { SignalDisplay = signalDisplay });
     }
 

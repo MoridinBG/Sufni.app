@@ -35,9 +35,9 @@ internal static class RecordedSessionEditorStateSnapshot
                 SelectedVelocityAverageMode: context.SelectedVelocityAverageMode,
                 SelectedSessionInsightsTargetProfile: context.SelectedSessionInsightsTargetProfile,
                 DampingSpeedCutoffs: context.DampingSpeedCutoffs,
-                SignalDisplayPreferences: context.SignalDisplayPreferences,
-                SignalLayoutPreferences: context.SignalLayoutPreferences,
-                LayoutPreferences: context.LayoutPreferences),
+                SignalDisplayPreferences: preferences.SignalDisplay,
+                SignalLayoutPreferences: preferences.SignalLayout,
+                LayoutPreferences: preferences.Layout),
             Presentation: new RecordedSessionEditorPresentationState(
                 MapState: context.MapState,
                 MediaPaneState: context.MediaPaneState,
