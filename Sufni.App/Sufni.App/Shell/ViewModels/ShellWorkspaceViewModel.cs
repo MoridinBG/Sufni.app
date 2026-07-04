@@ -10,7 +10,19 @@ using Sufni.App.Shared.Base;
 
 namespace Sufni.App.Shell.ViewModels;
 
-public partial class ShellWorkspaceViewModel : ViewModelBase
+public interface IShellWorkspaceHost
+{
+    ObservableCollection<TabPageViewModelBase> Tabs { get; }
+    TabPageViewModelBase? CurrentTab { get; set; }
+    void OpenOrFocus(TabPageViewModelBase page);
+    void OpenInBackground(TabPageViewModelBase page);
+    bool CloseIfOpen(Func<TabPageViewModelBase, bool> predicate, bool rememberForRestore = true);
+    Task<bool> CloseCurrentAsync();
+    bool GoBack();
+    bool MoveTab(int fromIndex, int toIndex);
+}
+
+public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHost
 {
     private readonly Stack<TabPageViewModelBase> tabHistory = new();
     private TabPageViewModelBase? previousActiveTab;
