@@ -28,6 +28,8 @@ public class SyncCoordinatorTests
     {
         pairing.ResolveServerUrlAsync(Arg.Any<TimeSpan>())
             .Returns(Task.FromResult<string?>("https://sync.test"));
+        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>())
+            .Returns(CompletedSync());
     }
 
     private SyncCoordinator CreateCoordinator(
@@ -64,7 +66,8 @@ public class SyncCoordinatorTests
     {
         pairing.IsPaired.Returns(true);
         var gate = new TaskCompletionSource();
-        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>()).Returns(gate.Task);
+        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>())
+            .Returns(gate.Task.ContinueWith(_ => (SynchronizationRunResult)new SynchronizationRunResult.Completed()));
 
         var coordinator = CreateCoordinator();
         Assert.True(coordinator.CanSync);
@@ -122,7 +125,7 @@ public class SyncCoordinatorTests
     public async Task SyncAllAsync_CallsSyncAll_AndRefreshesStores()
     {
         pairing.IsPaired.Returns(true);
-        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>()).Returns(Task.CompletedTask);
+        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>()).Returns(CompletedSync());
         bikeStore.RefreshAsync().Returns(Task.CompletedTask);
         setupStore.RefreshAsync().Returns(Task.CompletedTask);
         sessionStore.RefreshAsync().Returns(Task.CompletedTask);
@@ -144,7 +147,7 @@ public class SyncCoordinatorTests
     public async Task SyncAllAsync_RaisesEvents_AndLeavesIsRunningFalse()
     {
         pairing.IsPaired.Returns(true);
-        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>()).Returns(Task.CompletedTask);
+        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>()).Returns(CompletedSync());
         bikeStore.RefreshAsync().Returns(Task.CompletedTask);
         setupStore.RefreshAsync().Returns(Task.CompletedTask);
         sessionStore.RefreshAsync().Returns(Task.CompletedTask);
@@ -170,15 +173,37 @@ public class SyncCoordinatorTests
         pairing.IsPaired.Returns(true);
         var coordinator = CreateCoordinator();
 
-        var completed = 0;
+        SyncCompletedEventArgs? completed = null;
         var failed = 0;
-        coordinator.SyncCompleted += (_, _) => completed++;
+        coordinator.SyncCompleted += (_, args) => completed = args;
         coordinator.SyncFailed += (_, _) => failed++;
 
         await coordinator.SyncAllAsync();
 
-        Assert.Equal(1, completed);
+        Assert.NotNull(completed);
+        Assert.Equal("Sync successful", completed.Message);
         Assert.Equal(0, failed);
+    }
+
+    [AvaloniaFact]
+    public async Task SyncAllAsync_RaisesIncompleteSyncCompletedMessage_WhenLocalDataRemainsIncomplete()
+    {
+        pairing.IsPaired.Returns(true);
+        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>())
+            .Returns(IncompleteSync(missingProcessedSessionCount: 2, incompleteRecordedSourceCount: 1));
+        var coordinator = CreateCoordinator();
+
+        SyncCompletedEventArgs? completed = null;
+        var failed = 0;
+        coordinator.SyncCompleted += (_, args) => completed = args;
+        coordinator.SyncFailed += (_, _) => failed++;
+
+        await coordinator.SyncAllAsync();
+
+        Assert.NotNull(completed);
+        Assert.Equal("Sync incomplete: 2 session blob(s) and 1 recorded source(s) still missing", completed.Message);
+        Assert.Equal(0, failed);
+        await bikeStore.Received(1).RefreshAsync();
     }
 
     [AvaloniaFact]
@@ -195,7 +220,7 @@ public class SyncCoordinatorTests
                         CurrentStep: 1,
                         TotalSteps: 6,
                         IsDeterminate: true));
-                return Task.CompletedTask;
+                return CompletedSync();
             });
         bikeStore.RefreshAsync().Returns(Task.CompletedTask);
         setupStore.RefreshAsync().Returns(Task.CompletedTask);
@@ -351,7 +376,7 @@ public class SyncCoordinatorTests
     public async Task SyncAllAsync_RunsClientSyncThroughBackgroundRunner()
     {
         pairing.IsPaired.Returns(true);
-        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>()).Returns(Task.CompletedTask);
+        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>()).Returns(CompletedSync());
         var backgroundTaskRunner = new RecordingBackgroundTaskRunner();
         var coordinator = new SyncCoordinator(
             bikeStore,
@@ -369,6 +394,17 @@ public class SyncCoordinatorTests
         Assert.Equal(1, backgroundTaskRunner.InvocationCount);
         await syncClient.Received(1).SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>());
     }
+
+    private static Task<SynchronizationRunResult> CompletedSync() =>
+        Task.FromResult<SynchronizationRunResult>(new SynchronizationRunResult.Completed());
+
+    private static Task<SynchronizationRunResult> IncompleteSync(
+        int missingProcessedSessionCount,
+        int incompleteRecordedSourceCount) =>
+        Task.FromResult<SynchronizationRunResult>(
+            new SynchronizationRunResult.IncompleteLocalData(
+                missingProcessedSessionCount,
+                incompleteRecordedSourceCount));
 
     [AvaloniaFact]
     public async Task SyncAllAsync_RaisesSyncFailed_WhenNoServerEndpointIsDiscovered()

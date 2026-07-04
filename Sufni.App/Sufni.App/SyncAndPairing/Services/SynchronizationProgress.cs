@@ -36,3 +36,12 @@ public sealed record SynchronizationProgressSnapshot(
 }
 
 public sealed record SynchronizationActivityEventArgs(SynchronizationProgressSnapshot Progress);
+
+public abstract record SynchronizationRunResult
+{
+    public sealed record Completed : SynchronizationRunResult;
+
+    public sealed record IncompleteLocalData(
+        int MissingProcessedSessionCount,
+        int IncompleteRecordedSourceCount) : SynchronizationRunResult;
+}
