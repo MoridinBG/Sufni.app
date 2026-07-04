@@ -166,6 +166,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private SurfacePresentationState frontFrameVibrationState = SurfacePresentationState.Hidden;
     private SurfacePresentationState rearForkVibrationState = SurfacePresentationState.Hidden;
     private SurfacePresentationState rearFrameVibrationState = SurfacePresentationState.Hidden;
+    private DampingSpeedCutoffs dampingSpeedCutoffs = DampingSpeedCutoffs.Default;
+    private DampingSpeedCutoffs plotDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
+    private bool canEditDampingSpeedCutoffs;
     private bool showAirtime = true;
     private bool showVelocityAirtime;
     private bool showImuAirtime;
@@ -250,7 +253,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public TelemetryRangeSelection? ActiveFrontAnalysisSelection => analysisSelectionController.ActiveFrontAnalysisSelection;
     public TelemetryRangeSelection? ActiveRearAnalysisSelection => analysisSelectionController.ActiveRearAnalysisSelection;
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; }
-    public bool CanEditDampingSpeedCutoffs => dampingCutoffWorkflow.CanEdit;
+    public bool CanEditDampingSpeedCutoffs => canEditDampingSpeedCutoffs;
     public RecordedSessionExtensionSlots ExtensionSlots => recordedSessionExtensions?.ExtensionSlots ?? emptyExtensionSlots;
 
     #endregion Public fields
@@ -336,7 +339,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             selectedVelocityAverageMode,
             selectedBalanceDisplacementMode,
             selectedBalanceSpeedMode,
-            SessionContext.DampingSpeedCutoffs,
+            dampingSpeedCutoffs,
             dampingPercentages,
             selectedSessionInsightsTargetProfile);
 
@@ -1009,7 +1012,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 new RecordedSessionTimelineAlignmentState(pendingTimelineAlignmentMark)),
             new RecordedSessionAnalysisState(
                 dampingPercentages,
-                SessionContext.DampingSpeedCutoffs,
+                dampingSpeedCutoffs,
                 selectedVelocityAverageMode,
                 selectedTravelDistributionMode));
     }
@@ -1512,7 +1515,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             ResetCommand);
         IsComplete = snapshot.HasProcessedData;
         dampingCutoffWorkflow = new DampingCutoffWorkflow(
-            () => SessionContext.DampingSpeedCutoffs,
+            () => dampingSpeedCutoffs,
             SetCanEditDampingSpeedCutoffs,
             SetDampingSpeedCutoffs,
             SetPlotDampingSpeedCutoffs,
@@ -1656,7 +1659,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             sessionInsights,
             CreateSignalSurfaceState(),
             CreateMediaPresentationState(),
-            CreateAnalysisPresentationState());
+            CreateAnalysisPresentationState(),
+            dampingSpeedCutoffs,
+            plotDampingSpeedCutoffs,
+            canEditDampingSpeedCutoffs);
         ApplyProjectedEditorState(state);
         editorStateInput.OnNext(state);
     }
@@ -1830,11 +1836,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void SetCanEditDampingSpeedCutoffs(bool value)
     {
-        if (SessionContext.CanEditDampingSpeedCutoffs == value)
+        if (canEditDampingSpeedCutoffs == value)
         {
             return;
         }
 
+        canEditDampingSpeedCutoffs = value;
         SessionContext.CanEditDampingSpeedCutoffs = value;
         OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
         PublishEditorState();
@@ -1842,11 +1849,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void SetDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs)
     {
-        if (SessionContext.DampingSpeedCutoffs == cutoffs)
+        if (dampingSpeedCutoffs == cutoffs)
         {
             return;
         }
 
+        dampingSpeedCutoffs = cutoffs;
         SessionContext.DampingSpeedCutoffs = cutoffs;
         RequestCurrentAnalysisResults(!suppressInsightsRecompute, respectSuppression: true);
         UpdateRecordedSessionExtensionHostState();
@@ -1855,11 +1863,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void SetPlotDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs)
     {
-        if (SessionContext.PlotDampingSpeedCutoffs == cutoffs)
+        if (plotDampingSpeedCutoffs == cutoffs)
         {
             return;
         }
 
+        plotDampingSpeedCutoffs = cutoffs;
         SessionContext.PlotDampingSpeedCutoffs = cutoffs;
         PublishEditorState();
     }

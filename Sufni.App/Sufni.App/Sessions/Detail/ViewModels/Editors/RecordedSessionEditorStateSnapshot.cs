@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
@@ -31,7 +32,10 @@ internal static class RecordedSessionEditorStateSnapshot
         SessionInsightsResult? sessionInsights = null,
         RecordedSignalSurfaceState? signalSurfaces = null,
         RecordedMediaPresentationState? mediaPresentation = null,
-        RecordedAnalysisPresentationState? analysisSurfaces = null)
+        RecordedAnalysisPresentationState? analysisSurfaces = null,
+        DampingSpeedCutoffs? dampingSpeedCutoffs = null,
+        DampingSpeedCutoffs? plotDampingSpeedCutoffs = null,
+        bool? canEditDampingSpeedCutoffs = null)
     {
         var toggles = signalToggles ?? RecordedSignalToggleState.From(context);
         var modes = analysisModes ?? RecordedAnalysisModeState.From(context);
@@ -63,7 +67,7 @@ internal static class RecordedSessionEditorStateSnapshot
                 SelectedBalanceSpeedMode: modes.SelectedBalanceSpeedMode,
                 SelectedVelocityAverageMode: modes.SelectedVelocityAverageMode,
                 SelectedSessionInsightsTargetProfile: modes.SelectedSessionInsightsTargetProfile,
-                DampingSpeedCutoffs: context.DampingSpeedCutoffs,
+                DampingSpeedCutoffs: dampingSpeedCutoffs ?? context.DampingSpeedCutoffs,
                 SignalDisplayPreferences: preferences.SignalDisplay,
                 SignalLayoutPreferences: preferences.SignalLayout,
                 LayoutPreferences: preferences.Layout),
@@ -99,8 +103,8 @@ internal static class RecordedSessionEditorStateSnapshot
                     ElevationHeaderActions: elevationHeaderActions ?? context.ElevationHeaderActions),
                 Analysis: analysis,
                 DampingPercentages: dampingPercentages ?? context.DampingPercentages,
-                PlotDampingSpeedCutoffs: context.PlotDampingSpeedCutoffs,
-                CanEditDampingSpeedCutoffs: context.CanEditDampingSpeedCutoffs,
+                PlotDampingSpeedCutoffs: plotDampingSpeedCutoffs ?? context.PlotDampingSpeedCutoffs,
+                CanEditDampingSpeedCutoffs: canEditDampingSpeedCutoffs ?? context.CanEditDampingSpeedCutoffs,
                 SessionInsights: sessionInsights ?? context.SessionInsights,
                 SignalPlotContextMenuActionsBySignalRowId: signalPlotContextMenuActionsBySignalRowId ?? context.SignalPlotContextMenuActionsBySignalRowId,
                 ScreenState: screenState ?? context.ScreenState,
