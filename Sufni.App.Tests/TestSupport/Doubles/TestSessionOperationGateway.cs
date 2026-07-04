@@ -151,6 +151,11 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
         CancellationToken cancellationToken = default) =>
         Task.FromResult<Guid?>(null);
 
+    public Task<bool> DeleteSessionAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(false);
+
     public Task<bool> UpdateSessionOriginAsync(
         Guid sessionId,
         double sourceAbsoluteStartSeconds,

@@ -115,9 +115,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private double? pendingAnalysisRangeBoundary;
     private RecordedSessionTimelineAlignmentMark? pendingTimelineAlignmentMark;
     private RecordedSessionAnalysisInputs analysisInputs;
+    private readonly AnalysisRequestScheduler analysisRequestScheduler;
     private int telemetryGeneration;
-    private bool requestInsightsAfterDamping;
-    private bool requestInsightsWhenTelemetryAvailable;
     private bool suppressDirtinessEvaluation;
     private bool suppressInsightsRecompute;
     private bool suppressAnalysisRecompute;
@@ -290,15 +289,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void InvalidateAnalysisInputs()
     {
-        var currentInputs = CreateCurrentAnalysisInputs();
-        if (currentInputs == analysisInputs)
-        {
-            return;
-        }
-
-        analysisInputs = currentInputs;
-        analysisResultState.Invalidate(currentInputs);
-        requestInsightsAfterDamping = false;
+        analysisRequestScheduler.InvalidateInputs();
     }
 
     private void RequestAnalysisResult(RecordedSessionAnalysisKey key)
@@ -314,55 +305,184 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void RequestCurrentDampingPercentages()
     {
-        InvalidateAnalysisInputs();
-        requestInsightsAfterDamping = false;
-        if (SessionContext.TelemetryData is null)
-        {
-            ClearDampingPercentages();
-            return;
-        }
-
-        RequestAnalysisResult(analysisInputs.DampingPercentagesKey);
+        analysisRequestScheduler.RequestDamping(includeInsights: false, respectSuppression: false);
     }
 
-    private void RequestCurrentSessionInsights()
+    private void RequestCurrentSessionInsights(bool respectSuppression = false)
     {
-        InvalidateAnalysisInputs();
-        requestInsightsAfterDamping = false;
-        if (SessionContext.TelemetryData is null)
-        {
-            requestInsightsWhenTelemetryAvailable = true;
-            SessionContext.SessionInsights = SessionInsightsResult.Hidden;
-            return;
-        }
-
-        requestInsightsWhenTelemetryAvailable = false;
-        RequestAnalysisResult(analysisInputs.SessionInsightsKey);
+        analysisRequestScheduler.RequestInsights(respectSuppression);
     }
 
-    private void RequestCurrentAnalysisResults(bool includeInsights)
+    private void RequestCurrentAnalysisResults(bool includeInsights, bool respectSuppression = false)
     {
-        InvalidateAnalysisInputs();
-        if (SessionContext.TelemetryData is null)
+        analysisRequestScheduler.RequestDamping(includeInsights, respectSuppression);
+    }
+
+    private sealed class AnalysisRequestScheduler(
+        SessionDetailViewModel owner,
+        RecordedSessionAnalysisInputs initialInputs)
+    {
+        private readonly Stack<bool> batchSuppressionStack = [];
+        private RecordedSessionAnalysisInputs currentInputs = initialInputs;
+        private bool pendingDampingRequest;
+        private bool pendingInsightsRequest;
+        private bool pendingTelemetryInsightsRequest;
+        private bool requestInsightsAfterDamping;
+        private bool suppressedInsightsDuringBatch;
+
+        public void BeginBatch(bool suppressInsights)
         {
-            requestInsightsWhenTelemetryAvailable = includeInsights;
-            requestInsightsAfterDamping = false;
-            ClearDampingPercentages();
-            if (includeInsights)
+            if (batchSuppressionStack.Count == 0)
             {
-                SessionContext.SessionInsights = SessionInsightsResult.Hidden;
+                suppressedInsightsDuringBatch = false;
             }
 
-            return;
+            batchSuppressionStack.Push(suppressInsights);
         }
 
-        if (includeInsights)
+        public void EndBatch()
         {
-            requestInsightsWhenTelemetryAvailable = false;
+            if (batchSuppressionStack.Count == 0)
+            {
+                return;
+            }
+
+            _ = batchSuppressionStack.Pop();
+            if (batchSuppressionStack.Count > 0)
+            {
+                return;
+            }
+
+            if (suppressedInsightsDuringBatch && owner.IsSessionInsightsPageSelected)
+            {
+                pendingInsightsRequest = true;
+            }
+
+            suppressedInsightsDuringBatch = false;
+            FlushIfAllowed();
         }
 
-        requestInsightsAfterDamping = includeInsights;
-        RequestAnalysisResult(analysisInputs.DampingPercentagesKey);
+        public void InvalidateInputs()
+        {
+            var nextInputs = owner.CreateCurrentAnalysisInputs();
+            if (nextInputs == currentInputs)
+            {
+                return;
+            }
+
+            currentInputs = nextInputs;
+            owner.analysisInputs = nextInputs;
+            owner.analysisResultState.Invalidate(nextInputs);
+            requestInsightsAfterDamping = false;
+        }
+
+        public void RequestDamping(bool includeInsights, bool respectSuppression)
+        {
+            InvalidateInputs();
+            pendingDampingRequest = true;
+            if (includeInsights && AllowInsights(respectSuppression))
+            {
+                pendingInsightsRequest = true;
+            }
+
+            FlushIfAllowed();
+        }
+
+        public void RequestInsights(bool respectSuppression)
+        {
+            InvalidateInputs();
+            if (!AllowInsights(respectSuppression))
+            {
+                return;
+            }
+
+            pendingInsightsRequest = true;
+            FlushIfAllowed();
+        }
+
+        public void OnTelemetryUnavailable()
+        {
+            pendingDampingRequest = false;
+            pendingInsightsRequest = false;
+            pendingTelemetryInsightsRequest = false;
+            requestInsightsAfterDamping = false;
+            InvalidateInputs();
+            owner.SessionContext.SessionInsights = SessionInsightsResult.Hidden;
+        }
+
+        public bool ConsumePendingTelemetryInsightsRequest()
+        {
+            var shouldRequest = pendingTelemetryInsightsRequest;
+            pendingTelemetryInsightsRequest = false;
+            return shouldRequest;
+        }
+
+        public void OnDampingPercentagesApplied()
+        {
+            if (!requestInsightsAfterDamping)
+            {
+                return;
+            }
+
+            requestInsightsAfterDamping = false;
+            InvalidateInputs();
+            pendingInsightsRequest = true;
+            FlushIfAllowed();
+        }
+
+        private bool AllowInsights(bool respectSuppression)
+        {
+            if (respectSuppression &&
+                batchSuppressionStack.Any(static suppressInsights => suppressInsights))
+            {
+                suppressedInsightsDuringBatch = true;
+                return false;
+            }
+
+            return true;
+        }
+
+        private void FlushIfAllowed()
+        {
+            if (batchSuppressionStack.Count > 0)
+            {
+                return;
+            }
+
+            if (owner.SessionContext.TelemetryData is null)
+            {
+                if (pendingDampingRequest)
+                {
+                    pendingDampingRequest = false;
+                    owner.ClearDampingPercentages();
+                }
+
+                if (pendingInsightsRequest)
+                {
+                    pendingInsightsRequest = false;
+                    pendingTelemetryInsightsRequest = true;
+                    owner.SessionContext.SessionInsights = SessionInsightsResult.Hidden;
+                }
+
+                return;
+            }
+
+            if (pendingDampingRequest)
+            {
+                pendingDampingRequest = false;
+                requestInsightsAfterDamping = pendingInsightsRequest;
+                pendingInsightsRequest = false;
+                owner.RequestAnalysisResult(currentInputs.DampingPercentagesKey);
+                return;
+            }
+
+            if (pendingInsightsRequest)
+            {
+                pendingInsightsRequest = false;
+                pendingTelemetryInsightsRequest = false;
+                owner.RequestAnalysisResult(currentInputs.SessionInsightsKey);
+            }
+        }
     }
 
     private void OnAnalysisResultChanged(RecordedSessionAnalysisResultChanged change)
@@ -397,11 +517,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             case DampingPercentagesAnalysisResult damping:
                 ApplyDampingPercentages(damping.Percentages);
-                if (requestInsightsAfterDamping)
-                {
-                    requestInsightsAfterDamping = false;
-                    RequestCurrentSessionInsights();
-                }
+                analysisRequestScheduler.OnDampingPercentagesApplied();
 
                 break;
             case SessionInsightsAnalysisResult insights:
@@ -431,6 +547,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         RequestCurrentSessionInsights();
     }
+
+    private bool IsSessionInsightsPageSelected => ReferenceEquals(SessionContext.SelectedPage, AnalysisPage);
 
     internal Guid? CurrentSessionFullTrack => session.FullTrack;
 
@@ -957,6 +1075,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         CancellationToken cancellationToken) =>
         sessionCoordinator.CreateDerivedSessionAsync(fromSessionId, name, sourceAbsoluteStartSeconds, cancellationToken);
 
+    async Task<bool> IRecordedSessionHostOperations.DeleteSessionAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var result = await sessionCoordinator.DeleteAsync(sessionId);
+        return result.Outcome == SessionDeleteOutcome.Deleted;
+    }
+
     Task<bool> IRecordedSessionHostOperations.UpdateSessionOriginAsync(
         Guid sessionId,
         double sourceAbsoluteStartSeconds,
@@ -1052,6 +1179,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         analysisResultState = analysisResultStateFactory.Create(() => SessionContext.TelemetryData);
         analysisInputs = CreateCurrentAnalysisInputs();
         analysisResultState.Invalidate(analysisInputs);
+        analysisRequestScheduler = new AnalysisRequestScheduler(this, analysisInputs);
         analysisResultSubscription = analysisResultState.Connect().Subscribe(OnAnalysisResultChanged);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
@@ -1249,19 +1377,23 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 NotifyTimelineAlignmentCommandsCanExecuteChanged();
                 if (SessionContext.TelemetryData is null)
                 {
-                    requestInsightsWhenTelemetryAvailable = false;
-                    SessionContext.SessionInsights = SessionInsightsResult.Hidden;
+                    analysisRequestScheduler.OnTelemetryUnavailable();
                     UpdateRecordedSessionExtensionHostState();
                     break;
                 }
 
                 var includeDeferredInsights =
-                    requestInsightsWhenTelemetryAvailable ||
-                    ReferenceEquals(SessionContext.SelectedPage, AnalysisPage);
+                    analysisRequestScheduler.ConsumePendingTelemetryInsightsRequest() ||
+                    IsSessionInsightsPageSelected;
 
                 if (SessionContext.AnalysisRange is not null)
                 {
                     ClearAnalysisRange();
+                    if (suppressAnalysisRecompute && includeDeferredInsights)
+                    {
+                        RequestCurrentAnalysisResults(includeInsights: true);
+                    }
+
                     break;
                 }
 
@@ -1290,43 +1422,43 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 }
                 else
                 {
-                    RequestCurrentAnalysisResults(!suppressInsightsRecompute);
+                    RequestCurrentAnalysisResults(!suppressInsightsRecompute, respectSuppression: true);
                 }
 
                 UpdateRecordedSessionExtensionHostState();
                 break;
             case nameof(RecordedSessionContext.SelectedTravelDistributionMode):
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
-                RecomputeSessionInsights();
+                RequestCurrentSessionInsights(respectSuppression: true);
                 PersistRecordedAnalysisPreferencesIfEnabled();
                 UpdateRecordedSessionExtensionHostState();
                 break;
             case nameof(RecordedSessionContext.SelectedBalanceDisplacementMode):
             case nameof(RecordedSessionContext.SelectedBalanceSpeedMode):
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
-                RecomputeSessionInsights();
+                RequestCurrentSessionInsights(respectSuppression: true);
                 PersistRecordedAnalysisPreferencesIfEnabled();
                 break;
             case nameof(RecordedSessionContext.SelectedVelocityAverageMode):
                 ClearDampingRangeSelections();
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
-                RequestCurrentAnalysisResults(includeInsights: true);
+                RequestCurrentAnalysisResults(includeInsights: true, respectSuppression: true);
                 PersistRecordedAnalysisPreferencesIfEnabled();
                 UpdateRecordedSessionExtensionHostState();
                 break;
             case nameof(RecordedSessionContext.SelectedSessionInsightsTargetProfile):
-                RecomputeSessionInsights();
+                RequestCurrentSessionInsights(respectSuppression: true);
                 PersistRecordedAnalysisPreferencesIfEnabled();
                 break;
             case nameof(RecordedSessionContext.SelectedPage):
-                if (ReferenceEquals(SessionContext.SelectedPage, AnalysisPage))
+                if (IsSessionInsightsPageSelected)
                 {
-                    RecomputeSessionInsights();
+                    RequestCurrentSessionInsights(respectSuppression: true);
                 }
 
                 break;
             case nameof(RecordedSessionContext.DampingSpeedCutoffs):
-                RequestCurrentAnalysisResults(!suppressInsightsRecompute);
+                RequestCurrentAnalysisResults(!suppressInsightsRecompute, respectSuppression: true);
                 UpdateRecordedSessionExtensionHostState();
                 break;
             case nameof(RecordedSessionContext.FullTrackPoints):
@@ -1380,6 +1512,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void ApplyRecordedAnalysisPreferences(AnalysisPreferences preferences)
     {
+        analysisRequestScheduler.BeginBatch(suppressInsights: true);
         suppressInsightsRecompute = true;
         try
         {
@@ -1392,6 +1525,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         finally
         {
             suppressInsightsRecompute = false;
+            analysisRequestScheduler.EndBatch();
         }
     }
 
@@ -1533,6 +1667,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     protected override async Task CloseImplementation()
     {
         await StopLoadedSessionAsync();
+        extensionPagesController?.Dispose();
         analysisResultSubscription.Dispose();
         analysisResultState.Dispose();
         MapViewModel?.Dispose();

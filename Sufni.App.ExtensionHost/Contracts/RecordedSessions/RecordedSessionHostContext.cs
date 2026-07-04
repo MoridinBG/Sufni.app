@@ -66,6 +66,9 @@ public interface IRecordedSessionHostOperations
         string name,
         double sourceAbsoluteStartSeconds,
         CancellationToken cancellationToken = default);
+    Task<bool> DeleteSessionAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default);
     Task<bool> UpdateSessionOriginAsync(
         Guid sessionId,
         double sourceAbsoluteStartSeconds,
@@ -173,6 +176,13 @@ public sealed class RecordedSessionHostContext
         CancellationToken cancellationToken = default)
     {
         return Operations.CreateDerivedSessionAsync(fromSessionId, name, sourceAbsoluteStartSeconds, cancellationToken);
+    }
+
+    public Task<bool> DeleteSessionAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default)
+    {
+        return Operations.DeleteSessionAsync(sessionId, cancellationToken);
     }
 
     public Task<bool> UpdateSessionOriginAsync(

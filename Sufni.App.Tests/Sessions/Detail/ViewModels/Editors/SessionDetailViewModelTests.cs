@@ -1006,6 +1006,27 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task RecordedSessionHostContext_DeleteSession_UsesCoordinatorWithoutNavigating()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: false);
+        var factory = new TestRecordedSessionExtensionFactory("test");
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.DeleteAsync(snapshot.Id)
+            .Returns(new SessionDeleteResult(SessionDeleteOutcome.Deleted));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot, recordedSessionExtensionFactories: [factory]);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        var result = await factory.Context!.DeleteSessionAsync(snapshot.Id);
+
+        Assert.True(result);
+        await sessionCoordinator.Received(1).DeleteAsync(snapshot.Id);
+        shell.DidNotReceive().GoBack();
+    }
+
+    [AvaloniaFact]
     public async Task RecordedSessionHostContext_OpenSessionInBackground_UsesEditorFactorySnapshot()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
@@ -1511,6 +1532,23 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Loaded_OnDesktop_RestoringAllAnalysisModes_DoesNotFanOutInsightRequests()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
+        ConfigureRecordedPreferences(preferences, snapshot.Id, CreateNonDefaultAnalysisPreferences());
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot, sessionPreferences: preferences);
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.Equal(TravelDistributionMode.DynamicSag, editor.SessionContext.SelectedTravelDistributionMode);
+        sessionAnalysisService.DidNotReceive().Analyze(Arg.Any<SessionInsightsRequest>());
+    }
+
+    [AvaloniaFact]
     public async Task SyncedPreferenceArrival_AppliesWithoutRePersisting()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
@@ -1537,6 +1575,37 @@ public class SessionDetailViewModelTests
 
         Assert.Equal(TravelDistributionMode.DynamicSag, editor.SessionContext.SelectedTravelDistributionMode);
         await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
+    }
+
+    [AvaloniaFact]
+    public async Task SyncedPreferenceArrival_WhileInsightsPageSelected_CoalescesInsightRequestAfterBatch()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var preferences = Substitute.For<ISessionPreferences>();
+        var syncStream = new Subject<SessionPreferences>();
+        preferences.ObserveRecorded(snapshot.Id).Returns(syncStream);
+        ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
+        sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(CreateAnalysisResult());
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot, sessionPreferences: preferences);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        editor.SessionContext.SelectedPageIndex = editor.Pages
+            .Select((page, index) => (page, index))
+            .Single(entry => entry.page is SessionInsightsPageViewModel)
+            .index;
+        sessionAnalysisService.ClearReceivedCalls();
+
+        syncStream.OnNext(CreateNonDefaultAnalysisPreferences());
+
+        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(request =>
+            request.TravelDistributionMode == TravelDistributionMode.DynamicSag &&
+            request.VelocityAverageMode == VelocityAverageMode.StrokePeakAveraged &&
+            request.BalanceDisplacementMode == BalanceDisplacementMode.Travel &&
+            request.BalanceSpeedMode == BalanceSpeedMode.HighSpeed &&
+            request.TargetProfile == SessionInsightsTargetProfile.DH));
     }
 
     [AvaloniaFact]
@@ -1569,7 +1638,7 @@ public class SessionDetailViewModelTests
         };
         syncStream.OnNext(synced);
 
-        Assert.Equal(beforeInvokeCount + 3, dispatcher.InvokeCount);
+        Assert.Equal(beforeInvokeCount + 2, dispatcher.InvokeCount);
         Assert.Equal(TravelDistributionMode.DynamicSag, editor.SessionContext.SelectedTravelDistributionMode);
         await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
     }
@@ -1608,6 +1677,33 @@ public class SessionDetailViewModelTests
         Assert.Equal(
             VelocityAverageMode.StrokePeakAveraged,
             update!(SessionPreferences.Default).Analysis.VelocityAverageMode);
+    }
+
+    [AvaloniaFact]
+    public async Task VelocityAverageModeChange_ClearsDampingSelectionAndRequestsDampingPlusInsightsOnce()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var strokePeakPercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(
+            telemetry,
+            velocityAverageMode: VelocityAverageMode.StrokePeakAveraged);
+        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(telemetry));
+        SetDesktop(true);
+
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        var selection = CreateFrontDampingSelection(telemetry, editor.SessionContext.SelectedVelocityAverageMode);
+        editor.SelectAnalysisRangeCommand.Execute(selection);
+        sessionAnalysisService.ClearReceivedCalls();
+
+        editor.SessionContext.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
+
+        Assert.Null(editor.ActiveFrontAnalysisSelection);
+        Assert.Equal(VelocityAverageMode.StrokePeakAveraged, editor.SessionContext.SelectedVelocityAverageMode);
+        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(request =>
+            request.VelocityAverageMode == VelocityAverageMode.StrokePeakAveraged &&
+            request.DampingPercentages == strokePeakPercentages));
     }
 
     [AvaloniaFact]
@@ -1693,6 +1789,52 @@ public class SessionDetailViewModelTests
         editor.ApplyTelemetryDataWithoutAnalysisRecompute(telemetry);
 
         Assert.Same(analysis, editor.SessionContext.SessionInsights);
+        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(request =>
+            ReferenceEquals(request.TelemetryData, telemetry) &&
+            request.DampingPercentages == dampingPercentages));
+    }
+
+    [AvaloniaFact]
+    public void RequestSessionInsights_BeforeTelemetryArrives_RunsAfterSuppressedTelemetryLoadWithExistingAnalysisRange()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var dampingPercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(telemetry);
+        var analysis = CreateAnalysisResult();
+        sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(analysis);
+        var editor = CreateEditor(snapshot);
+        editor.SessionContext.AnalysisRange = new TelemetryTimeRange(0.2, 0.4);
+
+        editor.AnalysisWorkspace.RequestSessionInsights();
+
+        Assert.True(editor.SessionContext.SessionInsights.State.IsHidden);
+        sessionAnalysisService.DidNotReceive().Analyze(Arg.Any<SessionInsightsRequest>());
+
+        editor.ApplyTelemetryDataWithoutAnalysisRecompute(telemetry);
+
+        Assert.Null(editor.SessionContext.AnalysisRange);
+        Assert.Same(analysis, editor.SessionContext.SessionInsights);
+        sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(request =>
+            ReferenceEquals(request.TelemetryData, telemetry) &&
+            request.DampingPercentages == dampingPercentages));
+    }
+
+    [AvaloniaFact]
+    public void RequestSessionInsights_BeforeTelemetryArrives_PreservesSinglePendingDemand()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var dampingPercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(telemetry);
+        sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(CreateAnalysisResult());
+        var editor = CreateEditor(snapshot);
+
+        editor.AnalysisWorkspace.RequestSessionInsights();
+        editor.AnalysisWorkspace.RequestSessionInsights();
+
+        sessionAnalysisService.DidNotReceive().Analyze(Arg.Any<SessionInsightsRequest>());
+
+        editor.ApplyTelemetryDataWithoutAnalysisRecompute(telemetry);
+
         sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(request =>
             ReferenceEquals(request.TelemetryData, telemetry) &&
             request.DampingPercentages == dampingPercentages));
@@ -3007,6 +3149,16 @@ public class SessionDetailViewModelTests
             .Returns(Task.CompletedTask);
         preferences.ClearReceivedCalls();
     }
+
+    private static SessionPreferences CreateNonDefaultAnalysisPreferences() =>
+        new(
+            new SignalDisplayPreferences(),
+            new AnalysisPreferences(
+                TravelDistributionMode.DynamicSag,
+                VelocityAverageMode.StrokePeakAveraged,
+                BalanceDisplacementMode.Travel,
+                BalanceSpeedMode.HighSpeed,
+                SessionInsightsTargetProfile.DH));
 
     private static ISessionPreferences CreateSessionPreferences()
     {

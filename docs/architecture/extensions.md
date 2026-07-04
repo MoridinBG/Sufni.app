@@ -95,8 +95,11 @@ child and pins the child's effective `DataContext`; `ReturnChild(child)`
 reattaches the same instance and restores either the child's previous local
 `DataContext` or inherited binding. Extensions that draw their own plot surface
 can wrap that surface in `PlotZoomContainer` to participate in the same modal
-without the app knowing the extension's concrete view type. While borrowed, the
-extension still owns its control state and rendering; the host owns only the
+without the app knowing the extension's concrete view type. The pinned
+`DataContext` preserves bindings that resolve through the control's data
+context; inputs supplied through the original name scope, such as `#Root` or
+`ElementName` bindings, are not carried with the borrowed child. While borrowed,
+the extension still owns its control state and rendering; the host owns only the
 modal placement and close gestures.
 
 ## Database Hooks
@@ -197,7 +200,7 @@ without a long positional constructor. It exposes constrained host operations:
 - run a cancellable operation through `RecordedSessionOperationCoordinator`
 - read processed telemetry and track points through `IRecordedSessionDataReader`
 - create a derived recorded session, update a session's source-absolute
-  origin, rename a session, request recompute, or open a session in a
+  origin, rename or delete a session, request recompute, or open a session in a
   background tab. These callbacks live on the recorded-session host
   operations surface rather than on a second editing service, so editing
   extensions stay scoped to the open recorded-session context.
@@ -205,9 +208,9 @@ without a long positional constructor. It exposes constrained host operations:
 `IRecordedSessionDataReader.GetProcessedTelemetryAsync` delegates to
 `ISessionProcessedTelemetryReader`. While the recorded-session editor is loaded,
 the session is retained so extension readers, plots, and mobile detail generation
-share one decoded `TelemetryData` instance for the current processed BLOB hash.
-That instance is shared infrastructure state and must be treated as read-only by
-extensions.
+share one decoded `TelemetryData` instance for the current `(sessionId, Updated,
+ProcessingFingerprintJson)` processed-payload key. That instance is shared
+infrastructure state and must be treated as read-only by extensions.
 
 `IRecordedSessionDataReader.GetTrackAsync` returns the session-window track
 projection used by the recorded-session view: cached points when the cache is
@@ -296,6 +299,16 @@ contributions each require the matching
 families such as signal toolbar commands, map overlays, analysis
 metrics, plot context actions, row header actions, and time-range
 overlays carry neutral records or command descriptors instead.
+
+Contribution view-model lifetime is owned by the host surface that materializes
+the view model. `IExtensionViewModel` remains a marker contract; when a realized
+contribution view model also implements synchronous `IDisposable`, the host
+disposes it when the contribution is replaced or removed, when the host control
+detaches from the visual tree, or when the recorded-session page controller is
+disposed on final close. Direct host controls reuse owners by contribution key
+across redundant rebuilds, so disposal is tied to removal/replacement rather
+than every slot refresh. Extension view-model disposal must therefore be
+idempotent and must not depend on an async callback from the host.
 
 Recorded-session analysis tab contributions carry a `CreateViewModel`
 factory rather than requiring the tab view model to be created when the

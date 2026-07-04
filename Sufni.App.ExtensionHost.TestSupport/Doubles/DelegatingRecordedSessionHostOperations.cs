@@ -28,6 +28,7 @@ public sealed class DelegatingRecordedSessionHostOperations(
     TryResolveTimelineAlignmentHandler? tryResolveTimelineAlignment = null,
     Func<RecordedSessionTimelineAlignmentTarget, string?, bool>? tryCancelTimelineAlignment = null,
     Func<Guid, string, double, CancellationToken, Task<Guid?>>? createDerivedSessionAsync = null,
+    Func<Guid, CancellationToken, Task<bool>>? deleteSessionAsync = null,
     Func<Guid, double, CancellationToken, Task<bool>>? updateSessionOriginAsync = null,
     Func<Guid, string, CancellationToken, Task<bool>>? renameSessionAsync = null,
     Func<Guid, CancellationToken, Task<bool>>? requestRecomputeAsync = null,
@@ -86,6 +87,12 @@ public sealed class DelegatingRecordedSessionHostOperations(
         CancellationToken cancellationToken = default) =>
         createDerivedSessionAsync?.Invoke(fromSessionId, name, sourceAbsoluteStartSeconds, cancellationToken)
         ?? Task.FromResult<Guid?>(null);
+
+    public Task<bool> DeleteSessionAsync(
+        Guid sessionId,
+        CancellationToken cancellationToken = default) =>
+        deleteSessionAsync?.Invoke(sessionId, cancellationToken)
+        ?? Task.FromResult(false);
 
     public Task<bool> UpdateSessionOriginAsync(
         Guid sessionId,
