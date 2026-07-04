@@ -147,6 +147,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
     private SessionOperationPresentationState sessionOperationState = SessionOperationPresentationState.Hidden;
     private SessionDampingPercentages dampingPercentages = SessionDampingPercentages.Empty;
+    private SessionInsightsResult sessionInsights = SessionInsightsResult.Hidden;
     private bool showAirtime = true;
     private bool showVelocityAirtime;
     private bool showImuAirtime;
@@ -441,7 +442,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             pendingTelemetryInsightsRequest = false;
             requestInsightsAfterDamping = false;
             InvalidateInputs();
-            owner.SessionContext.SessionInsights = SessionInsightsResult.Hidden;
+            owner.SetSessionInsights(SessionInsightsResult.Hidden);
         }
 
         public bool ConsumePendingTelemetryInsightsRequest()
@@ -495,7 +496,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 {
                     pendingInsightsRequest = false;
                     pendingTelemetryInsightsRequest = true;
-                    owner.SessionContext.SessionInsights = SessionInsightsResult.Hidden;
+                    owner.SetSessionInsights(SessionInsightsResult.Hidden);
                 }
 
                 return;
@@ -555,7 +556,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
                 break;
             case SessionInsightsAnalysisResult insights:
-                SessionContext.SessionInsights = insights.Insights;
+                SetSessionInsights(insights.Insights);
                 break;
         }
     }
@@ -1633,7 +1634,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             screenState,
             sessionOperationState,
             dampingPercentages,
-            SignalPlotContextMenuActionsBySignalRowId);
+            SignalPlotContextMenuActionsBySignalRowId,
+            sessionInsights);
         ApplyProjectedEditorState(state);
         editorStateInput.OnNext(state);
     }
@@ -1846,6 +1848,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         var changed = SetProperty(ref sessionOperationState, state, nameof(SessionOperationState));
         SessionContext.SessionOperationState = state;
+        if (changed)
+        {
+            PublishEditorState();
+        }
+    }
+
+    internal void SetSessionInsights(SessionInsightsResult insights)
+    {
+        var changed = sessionInsights != insights;
+        sessionInsights = insights;
+        SessionContext.SessionInsights = insights;
         if (changed)
         {
             PublishEditorState();
