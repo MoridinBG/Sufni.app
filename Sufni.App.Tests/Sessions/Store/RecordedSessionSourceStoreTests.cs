@@ -4,16 +4,18 @@ using NSubstitute;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
+using Sufni.App.ExtensionHost.TestSupport.Async;
 namespace Sufni.App.Tests.Sessions.Store;
 
 public class RecordedSessionSourceStoreTests
 {
+    private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
     private readonly IRecordedSessionSourceRepository sourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
 
     [Fact]
     public void Upsert_PublishesMetadataSnapshot()
     {
-        var store = new RecordedSessionSourceStore(sourceRepository);
+        var store = new RecordedSessionSourceStore(sourceRepository, UiThreadDispatcher);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
         var source = CreateSource();
 
@@ -32,7 +34,7 @@ public class RecordedSessionSourceStoreTests
     [Fact]
     public async Task RefreshAsync_ReplacesCachedMetadataFromDatabase()
     {
-        var store = new RecordedSessionSourceStore(sourceRepository);
+        var store = new RecordedSessionSourceStore(sourceRepository, UiThreadDispatcher);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
         var removed = CreateSource(name: "removed.SST");
         var kept = CreateSource(name: "kept.SST");
@@ -52,7 +54,7 @@ public class RecordedSessionSourceStoreTests
     [Fact]
     public async Task LoadAsync_ReturnsRawSourceFromDatabase()
     {
-        var store = new RecordedSessionSourceStore(sourceRepository);
+        var store = new RecordedSessionSourceStore(sourceRepository, UiThreadDispatcher);
         var source = CreateSource();
         sourceRepository.GetRecordedSessionSourceAsync(source.SessionId).Returns(source);
 
@@ -64,7 +66,7 @@ public class RecordedSessionSourceStoreTests
     [Fact]
     public void Remove_RemovesCachedSnapshot()
     {
-        var store = new RecordedSessionSourceStore(sourceRepository);
+        var store = new RecordedSessionSourceStore(sourceRepository, UiThreadDispatcher);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
         var source = CreateSource();
         store.Upsert(RecordedSessionSourceSnapshot.From(source));

@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Shared.Base;
@@ -12,8 +13,10 @@ namespace Sufni.App.Sessions.Store;
 /// It keeps source identity and hash information in a DynamicData cache and
 /// leaves payload retrieval to explicit load calls.
 /// </summary>
-internal sealed class RecordedSessionSourceStore(IRecordedSessionSourceRepository sourceRepository)
-    : SourceCacheStoreBase<RecordedSessionSourceSnapshot, Guid>(s => s.SessionId), IRecordedSessionSourceStoreWriter
+internal sealed class RecordedSessionSourceStore(
+    IRecordedSessionSourceRepository sourceRepository,
+    IUiThreadDispatcher uiThreadDispatcher)
+    : SourceCacheStoreBase<RecordedSessionSourceSnapshot, Guid>(s => s.SessionId, uiThreadDispatcher), IRecordedSessionSourceStoreWriter
 {
     public Task<RecordedSessionSource?> LoadAsync(Guid sessionId, CancellationToken cancellationToken = default)
     {
@@ -24,7 +27,12 @@ internal sealed class RecordedSessionSourceStore(IRecordedSessionSourceRepositor
     public async Task RefreshAsync()
     {
         var sources = await sourceRepository.GetRecordedSessionSourceSnapshotsAsync();
-        ReplaceWith(sources);
+        await ReplaceWithAsync(sources);
     }
 
+    public void Upsert(RecordedSessionSourceSnapshot snapshot) =>
+        PublishSnapshotAsync(snapshot).GetAwaiter().GetResult();
+
+    public void Remove(Guid sessionId) =>
+        PublishRemoveAsync(sessionId).GetAwaiter().GetResult();
 }

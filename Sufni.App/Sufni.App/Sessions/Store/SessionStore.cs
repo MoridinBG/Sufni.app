@@ -4,6 +4,7 @@ using System.Reactive.Linq;
 using System.Threading.Tasks;
 using DynamicData;
 
+using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Shared.Base;
 namespace Sufni.App.Sessions.Store;
@@ -14,8 +15,10 @@ namespace Sufni.App.Sessions.Store;
 /// startup and updated by coordinators via
 /// <see cref="ISessionStoreWriter"/>.
 /// </summary>
-internal sealed class SessionStore(ISessionRepository sessionRepository)
-    : SourceCacheStoreBase<SessionSnapshot, Guid>(s => s.Id), ISessionStoreWriter
+internal sealed class SessionStore(
+    ISessionRepository sessionRepository,
+    IUiThreadDispatcher uiThreadDispatcher)
+    : SourceCacheStoreBase<SessionSnapshot, Guid>(s => s.Id, uiThreadDispatcher), ISessionStoreWriter
 {
     public IObservable<SessionSnapshot> Watch(Guid id) =>
         WatchCore(id)
@@ -29,6 +32,12 @@ internal sealed class SessionStore(ISessionRepository sessionRepository)
     public async Task RefreshAsync()
     {
         var sessions = await sessionRepository.GetSessionsAsync();
-        ReplaceWith(sessions.Select(SessionSnapshot.From));
+        await ReplaceWithAsync(sessions.Select(SessionSnapshot.From));
     }
+
+    public void Upsert(SessionSnapshot snapshot) =>
+        PublishSnapshotAsync(snapshot).GetAwaiter().GetResult();
+
+    public void Remove(Guid id) =>
+        PublishRemoveAsync(id).GetAwaiter().GetResult();
 }

@@ -8,6 +8,7 @@ using Sufni.App.Bikes.Stores;
 using Sufni.App.LiveDaq.Queries;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
+using Sufni.App.ExtensionHost.TestSupport.Async;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Setups.Models.SensorConfigurations;
@@ -24,8 +25,9 @@ public class LiveDaqKnownBoardsQueryTests
 
     public LiveDaqKnownBoardsQueryTests()
     {
-        setupStore = new SetupStore(setupRepository, boardRepository);
-        bikeStore = new BikeStore(bikeRepository);
+        var uiThreadDispatcher = new InlineUiThreadDispatcher();
+        setupStore = new SetupStore(setupRepository, boardRepository, uiThreadDispatcher);
+        bikeStore = new BikeStore(bikeRepository, uiThreadDispatcher);
     }
 
     private LiveDaqKnownBoardsQuery CreateQuery() => new(

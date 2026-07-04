@@ -5,6 +5,7 @@ using NSubstitute;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
+using Sufni.App.ExtensionHost.TestSupport.Async;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Models;
@@ -12,10 +13,12 @@ using Sufni.App.Setups.Stores;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Stores;
+using Sufni.App.Tests.TestSupport.Async;
 namespace Sufni.App.Tests.Shared.Base;
 
 public class PersistedStoreTests
 {
+    private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
 
     [Fact]
@@ -31,7 +34,7 @@ public class PersistedStoreTests
         };
         var bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
         bikeRepository.GetAllAsync().Returns([bike]);
-        var store = new BikeStore(bikeRepository);
+        var store = new BikeStore(bikeRepository, UiThreadDispatcher);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
         await store.RefreshAsync();
@@ -51,6 +54,28 @@ public class PersistedStoreTests
     }
 
     [Fact]
+    public async Task RefreshAsync_DispatchesCacheReplacement_WhenOffUiThread()
+    {
+        var bike = new Bike
+        {
+            Id = Guid.NewGuid(),
+            Name = "Trail bike",
+            HeadAngle = 64,
+            Updated = 7
+        };
+        var bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
+        bikeRepository.GetAllAsync().Returns([bike]);
+        var dispatcher = new RecordingUiThreadDispatcher(checkAccess: false);
+        var store = new BikeStore(bikeRepository, dispatcher);
+        using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
+
+        await store.RefreshAsync();
+
+        Assert.Equal(1, dispatcher.InvokeCount);
+        Assert.Single(snapshots);
+    }
+
+    [Fact]
     public async Task SetupStore_RefreshLoadsBoardAssociations_AndFindsByBoardId()
     {
         var setupId = Guid.NewGuid();
@@ -66,7 +91,7 @@ public class PersistedStoreTests
         var boardRepository = Substitute.For<ISynchronizableRepository<Board>>();
         setupRepository.GetAllAsync().Returns([setup]);
         boardRepository.GetAllAsync().Returns([board]);
-        var store = new SetupStore(setupRepository, boardRepository);
+        var store = new SetupStore(setupRepository, boardRepository, UiThreadDispatcher);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
         await store.RefreshAsync();
@@ -88,7 +113,7 @@ public class PersistedStoreTests
             Updated = 11
         };
         sessionRepository.GetSessionsAsync().Returns([session]);
-        var store = new SessionStore(sessionRepository);
+        var store = new SessionStore(sessionRepository, UiThreadDispatcher);
         using var snapshotsSubscription = store.Connect().Bind(out var snapshots).Subscribe();
         var watched = new List<SessionSnapshot>();
         using var watchSubscription = store.Watch(sessionId).Subscribe(watched.Add);
@@ -113,7 +138,7 @@ public class PersistedStoreTests
         var device = new PairedDevice("device-1", "Phone", expires);
         var pairedDeviceRepository = Substitute.For<IPairedDeviceRepository>();
         pairedDeviceRepository.GetPairedDevicesAsync().Returns([device]);
-        var store = new PairedDeviceStore(pairedDeviceRepository);
+        var store = new PairedDeviceStore(pairedDeviceRepository, UiThreadDispatcher);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
         await store.RefreshAsync();
