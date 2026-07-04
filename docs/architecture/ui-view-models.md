@@ -70,7 +70,7 @@ There are five kinds of view model in the presentation layer:
   providers; profile-specific shell chrome renders those neutral app-level
   contributions without knowing extension workflow types.
 
-- **Feature page view models** — non-entity top-level screens such as `ImportSessionsViewModel`, `WelcomeScreenViewModel`, and the pairing pages. They own only screen-scoped state, bind directly to controls, attach subscriptions and browse lifetime in `Loaded` / `Unloaded`, and delegate workflows to coordinators and services. `ImportSessionsViewModel` is the canonical example: it keeps datastore / file selection, notifications, and errors; resolves `SelectedSetup` from `ISetupStore.FindByBoardId`; asks `ITelemetryDataStoreService` to browse, load files, and register storage-provider folders; and delegates the actual import lifecycle to `ImportSessionsCoordinator`. For long-running screen actions they prefer the generated async-command `IsRunning` state over duplicate busy flags.
+- **Feature page view models** — non-entity top-level screens such as `ImportSessionsViewModel` and the pairing pages. They own only screen-scoped state, bind directly to controls, attach subscriptions and browse lifetime in `Loaded` / `Unloaded`, and delegate workflows to coordinators and services. `ImportSessionsViewModel` is the canonical example: it keeps datastore / file selection, notifications, and errors; resolves `SelectedSetup` from `ISetupStore.FindByBoardId`; asks `ITelemetryDataStoreService` to browse, load files, and register storage-provider folders; and delegates the actual import lifecycle to `ImportSessionsCoordinator`. For long-running screen actions they prefer the generated async-command `IsRunning` state over duplicate busy flags.
 
 - **List view models** (`ViewModels/ItemLists/`) — `BikeListViewModel`,
   `SetupListViewModel`, `SessionListViewModel`,
@@ -354,7 +354,7 @@ Two pages diverge from that pattern:
 
 `TabPageViewModelBase` (`Shared/Base/TabPageViewModelBase.cs`) is the
 shared base for everything that opens as a top-level tab or stacked
-view (editors, the import view, the welcome screen). It takes
+view (editors and the import view). It takes
 `IShellCoordinator` and `IDialogService` via its constructor and
 provides the shared `IsDirty` machinery, the
 `SaveCommand`/`ResetCommand`/`ExportCommand`/`CloseCommand`

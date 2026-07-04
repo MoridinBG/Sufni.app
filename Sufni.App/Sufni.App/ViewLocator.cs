@@ -37,7 +37,6 @@ public class ViewLocator : IDataTemplate
 
     private static readonly FrozenDictionary<Type, Func<Control>> CommonViewFactories = new Dictionary<Type, Func<Control>>
     {
-        [typeof(WelcomeScreenViewModel)] = static () => new global::Sufni.App.Shell.Views.WelcomeScreenView(),
         [typeof(PairingClientViewModel)] = static () => new global::Sufni.App.SyncAndPairing.Views.PairingClientView(),
         [typeof(LeverageRatioEditorViewModel)] = static () => new global::Sufni.App.Bikes.Views.Editors.LeverageRatioEditorView(),
         [typeof(LiveDaqConfigEditorViewModel)] = static () => new global::Sufni.App.LiveDaq.Views.Editors.LiveDaqConfigEditorView(),

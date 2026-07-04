@@ -44,7 +44,7 @@ graph LR
 - `OnImported()` / `OnTrashed()` — post-action hooks (move file on local stores; `MARK_SST_UPLOADED` / remote trash over the management protocol on network stores).
 - `StartTime`, `Duration` — resolved eagerly from the SST header for display before import (source varies by implementation)
 
-**`ITelemetryDataStoreService`** (`Sufni.App/Sufni.App/Acquisition/Services/ITelemetryDataStoreService.cs`) owns the live `DataStores` collection plus the browse and registration surfaces the UI uses: `StartBrowse()`, `StopBrowse()`, `LoadFilesAsync(...)`, `TryAddStorageProviderAsync(...)`, and `DetectConnectedBoardIdAsync(...)`. The import screen talks to this service directly, and the welcome create-setup flow reaches it through `SetupCoordinator`; neither screen constructs concrete datastore implementations itself.
+**`ITelemetryDataStoreService`** (`Sufni.App/Sufni.App/Acquisition/Services/ITelemetryDataStoreService.cs`) owns the live `DataStores` collection plus the browse and registration surfaces the UI uses: `StartBrowse()`, `StopBrowse()`, `LoadFilesAsync(...)`, `TryAddStorageProviderAsync(...)`, and `DetectConnectedBoardIdAsync(...)`. The import screen talks to this service directly; screens and coordinators do not construct concrete datastore implementations themselves.
 
 ### Import Screen Boundaries
 
@@ -53,7 +53,7 @@ The import-sessions feature is the canonical worked example of the current bound
 - `ImportSessionsViewModel` owns only screen-scoped state: available datastores/files, selected datastore/setup, notifications, and errors.
 - It resolves the current board's setup through `ISetupStore.FindByBoardId(Guid)` and never reads persistence repositories directly.
 - It starts and stops browse in `Loaded` / `Unloaded`, asks `ITelemetryDataStoreService` to load files or register a picked folder, and uses `ImportSessionsCommand.IsRunning` as its busy-state source of truth.
-- `ITelemetryDataStoreService` owns the live `DataStores` collection, mass-storage/network browse lifetime, storage-provider datastore construction, duplicate detection, and one-shot board detection for the welcome-screen create-setup flow.
+- `ITelemetryDataStoreService` owns the live `DataStores` collection, mass-storage/network browse lifetime, storage-provider datastore construction, duplicate detection, and one-shot board detection for setup creation.
 - `ImportSessionsCoordinator` owns the full per-file import / trash workflow, source capture through `RecordedSessionSourceFactory`, processed telemetry derivation through `IRecordedSessionReprocessor`, atomic session/source/track persistence, session/source-store upserts, background execution, and per-file progress reporting.
 
 ### Mass Storage

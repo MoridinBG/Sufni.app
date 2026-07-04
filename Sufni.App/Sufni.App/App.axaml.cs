@@ -333,7 +333,6 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ImportSessionsViewModel>();
         ServiceCollection.AddSingleton<SetupListViewModel>();
         ServiceCollection.AddSingleton<MainPagesViewModel>();
-        ServiceCollection.AddSingleton<WelcomeScreenViewModel>();
         ServiceCollection.AddSingleton<ShellWorkspaceViewModel>();
         ServiceCollection.AddSingleton<ShellRootViewModel>();
 

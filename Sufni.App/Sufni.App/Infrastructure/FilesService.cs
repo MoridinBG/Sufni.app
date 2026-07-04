@@ -33,22 +33,6 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesSe
         target = newTarget;
     }
 
-    // Opening a folder shells out via Process.Start(UseShellExecute), which
-    // Android/iOS do not support.
-    public bool CanOpenLogsFolder => !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
-
-    public Task OpenLogsFolderAsync()
-    {
-        AppPaths.CreateRequiredDirectories();
-
-        if (Directory.Exists(AppPaths.LogsDirectory))
-        {
-            Process.Start(new ProcessStartInfo(AppPaths.LogsDirectory) { UseShellExecute = true });
-        }
-
-        return Task.CompletedTask;
-    }
-
     public async Task<IStorageFolder?> OpenDataStoreFolderAsync()
     {
         Debug.Assert(target != null, nameof(target) + " != null");

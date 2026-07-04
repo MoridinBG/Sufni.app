@@ -115,18 +115,6 @@ internal static class MainPagesViewModelTestFactory
                 SupportsPinch: false,
                 SupportsLongPressContextMenu: false));
 
-    public static WelcomeScreenViewModel CreateWelcomeScreen()
-    {
-        return new WelcomeScreenViewModel(
-            Substitute.For<IShellCoordinator>(),
-            Substitute.For<IDialogService>(),
-            TestCoordinatorSubstitutes.Bike(),
-            TestCoordinatorSubstitutes.Setup(),
-            TestCoordinatorSubstitutes.ImportSessions(),
-            Substitute.For<IFilesService>(),
-            UiThreadDispatcher);
-    }
-
     private static BikeListViewModel CreateBikeListPage() =>
         new(
             new BikeStoreStub(),

@@ -132,7 +132,7 @@ public class MainPagesViewModelTests
     {
         var shell = Substitute.For<IShellCoordinator>();
         var viewModel = MainPagesViewModelTestFactory.Create(shell: shell);
-        var page = MainPagesViewModelTestFactory.CreateWelcomeScreen();
+        var page = new TestTabPageViewModel();
         viewModel.IsDrawerOpen = true;
 
         viewModel.OpenPageCommand.Execute(page);

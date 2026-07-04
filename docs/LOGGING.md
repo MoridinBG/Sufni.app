@@ -286,9 +286,7 @@ Minimum manual validation for the initial implementation:
    written.
 6. Trigger a handled failure and verify that an `Error` entry includes
    the exception when one exists.
-7. Confirm the desktop Welcome screen action opens the expected logs
-   directory.
-8. Confirm Debug builds include `Debug` events and Release builds do
+7. Confirm Debug builds include `Debug` events and Release builds do
    not.
 
 ## Deferred items
