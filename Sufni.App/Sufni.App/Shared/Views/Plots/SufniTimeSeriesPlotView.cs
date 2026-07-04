@@ -33,6 +33,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     private bool isPlotClickCandidate;
     private bool isPlaybackStopClickCandidate;
     private bool suppressLegendTogglePointerRelease;
+    private bool isAttachedToVisualTree;
     private Point plotClickStartPoint;
     private Point playbackStopClickStartPoint;
     private double selectionStartSeconds;
@@ -46,7 +47,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     protected TelemetryPlot PlotModel => plot!;
     protected bool HasPlotModel => plot is not null;
     protected override TelemetryPlot? TimelinePlot => plot;
-    public bool IsPlotReady => plot is not null && HasPlotControl;
+    public bool IsPlotReady => isAttachedToVisualTree && plot is not null && HasPlotControl;
 
     public static readonly StyledProperty<string?> SignalRowIdProperty =
         AvaloniaProperty.Register<SufniTimeSeriesPlotView, string?>(nameof(SignalRowId));
@@ -200,6 +201,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        isAttachedToVisualTree = true;
         base.OnAttachedToVisualTree(e);
 
         keyDownTopLevel = TopLevel.GetTopLevel(this);
@@ -207,10 +209,12 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             KeyDownEvent,
             OnTopLevelKeyDown,
             RoutingStrategies.Bubble);
+        TryApplyPendingLoad();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        isAttachedToVisualTree = false;
         keyDownTopLevel?.RemoveHandler(KeyDownEvent, OnTopLevelKeyDown);
         keyDownTopLevel = null;
         CancelPendingPlotClickEffects();
@@ -231,7 +235,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             return;
         }
 
-        if (!HasPlotControl ||
+        if (!IsPlotReady ||
             !PlotControl.IsPointerOver ||
             Timeline is not { NormalizedCursorPosition: not null } timeline)
         {
@@ -267,19 +271,34 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     public void SetCursorPosition(double position)
     {
-        plot?.SetCursorPosition(position);
+        if (!IsPlotReady)
+        {
+            return;
+        }
+
+        plot!.SetCursorPosition(position);
         RefreshPlot();
     }
 
     public void SetCursorPositionWithReadout(double position)
     {
-        plot?.SetCursorPositionWithReadout(position);
+        if (!IsPlotReady)
+        {
+            return;
+        }
+
+        plot!.SetCursorPositionWithReadout(position);
         RefreshPlot();
     }
 
     public void HideCursorReadout()
     {
-        plot?.HideCursorReadout();
+        if (!IsPlotReady)
+        {
+            return;
+        }
+
+        plot!.HideCursorReadout();
         RefreshPlot();
     }
 
@@ -473,14 +492,19 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         }
 
         Timeline?.SetCursorPosition(seconds / duration);
-        plot?.SetCursorPositionWithReadout(seconds);
+        if (!IsPlotReady)
+        {
+            return;
+        }
+
+        plot!.SetCursorPositionWithReadout(seconds);
         RefreshPlot();
     }
 
     protected bool TryGetTimelineSeconds(PointerEventArgs args, out double seconds)
     {
         seconds = default;
-        if (!HasPlotControl || TimelineDurationSeconds is not { } duration || duration <= 0)
+        if (!IsPlotReady || TimelineDurationSeconds is not { } duration || duration <= 0)
         {
             return false;
         }
@@ -502,13 +526,13 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private void ApplyPlotBackgroundColors()
     {
-        if (plot is null)
+        if (!IsPlotReady)
         {
             return;
         }
 
         var (figure, data) = ResolvePlotBackgrounds();
-        plot.SetBackgroundColors(figure, data);
+        plot!.SetBackgroundColors(figure, data);
         RefreshPlot();
     }
 
@@ -526,12 +550,12 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     protected override void OnThemeChanged(SufniTheme theme)
     {
-        if (plot is null)
+        if (!IsPlotReady)
         {
             return;
         }
 
-        plot.ApplyTheme(theme);
+        plot!.ApplyTheme(theme);
         // Marker / span / readout colors that are baked at LoadTelemetryData time
         // need a full reload to repaint with the new palette.
         RequestReload();
@@ -557,7 +581,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private void ApplyAirtimeVisibility(bool refresh)
     {
-        if (plot is not RecordedTimeSeriesPlot recordedPlot || !HasPlotControl)
+        if (plot is not RecordedTimeSeriesPlot recordedPlot || !IsPlotReady)
         {
             return;
         }
@@ -584,7 +608,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private void ApplyAnalysisSelectionVisibility(bool refresh)
     {
-        if (plot is not RecordedTimeSeriesPlot recordedPlot || !HasPlotControl)
+        if (plot is not RecordedTimeSeriesPlot recordedPlot || !IsPlotReady)
         {
             return;
         }
@@ -686,8 +710,11 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                         && deferredCursorPosition is { } cursorPosition)
                     {
                         timeline.SetCursorPosition(cursorPosition);
-                        plot?.SetCursorPositionWithReadout(cursorSeconds);
-                        RefreshPlot();
+                        if (IsPlotReady)
+                        {
+                            plot!.SetCursorPositionWithReadout(cursorSeconds);
+                            RefreshPlot();
+                        }
                     }
                 }
 
@@ -785,7 +812,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private bool TryShowTelemetryPlotContextMenu(Point point)
     {
-        if (!HasPlotControl)
+        if (!IsPlotReady)
         {
             return false;
         }
@@ -825,7 +852,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private bool TryToggleInteractiveLegend(PointerEventArgs args)
     {
-        if (plot is null || !HasPlotControl || !IsPrimaryPointerPressed(args))
+        if (!IsPlotReady || !IsPrimaryPointerPressed(args))
         {
             return false;
         }
@@ -833,7 +860,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         var point = args.GetPosition(PlotControl);
         var pixel = PlotControl.ToScottPlotPixel(point);
         var plotSize = PlotControl.GetScottPlotPixelSize();
-        if (!plot.TryToggleInteractiveLegendAt(pixel, plotSize))
+        if (!plot!.TryToggleInteractiveLegendAt(pixel, plotSize))
         {
             return false;
         }
@@ -844,7 +871,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         suppressLegendTogglePointerRelease = true;
         PlotControl.Cursor = Cursor.Default;
         SetPreviewRange(null, null);
-        plot.HideCursorReadout();
+        plot!.HideCursorReadout();
         args.Pointer.Capture(null);
         args.Handled = true;
         RefreshPlot();
@@ -948,7 +975,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private bool CanLoadNow()
     {
-        return plot is not null && HasPlotControl;
+        return IsPlotReady;
     }
 
     private void TryApplyPendingLoad()
@@ -964,21 +991,22 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private void LoadIntoPlot()
     {
-        if (plot is null || !HasPlotControl)
+        if (!IsPlotReady)
         {
             return;
         }
 
+        var plotModel = plot!;
         if (!CanLoadPlotData)
         {
-            plot.Clear();
+            plotModel.Clear();
             RefreshPlot();
             return;
         }
 
-        ApplyPlotOptions(plot);
-        plot.Clear();
-        LoadPlotData(plot);
+        ApplyPlotOptions(plotModel);
+        plotModel.Clear();
+        LoadPlotData(plotModel);
         ApplyTimelineCursor();
         ApplyTimelineRange();
         OnPlotDataLoaded();
