@@ -128,7 +128,7 @@ The mobile solutions deliberately omit `Sufni.App.Desktop` and the test projects
 
 ## Testing
 
-The headless test app (`Sufni.App.Tests/TestSupport/Harness/TestApp.cs`) is a subclass of `App` that skips both XAML loading and the DI bootstrap. Tests configure layout profile and capabilities explicitly when those are the behavior under test. `TestApp.SetIsDesktop(...)` is reserved for the remaining platform-lifetime edges, such as extension service-registration context or native plot overlay behavior that still depends on the lifetime flag.
+The headless test app (`Sufni.App.Tests/TestSupport/Harness/TestApp.cs`) is a subclass of `App` that skips both XAML loading and the DI bootstrap. Tests configure layout profile and capabilities explicitly when those are the behavior under test. `TestApp.SetIsDesktop(...)` is reserved for the remaining platform-lifetime edges, such as extension service-registration context.
 
 View-test helpers should select compact/workspace profile and capabilities explicitly rather than assuming platform-based view splits.
 
@@ -140,7 +140,7 @@ The places where platform behavior still differs are deliberately small:
 - **Sync side**. Desktop-capable platforms can host the server; mobile-capable platforms pair and sync as clients. There is no peer-to-peer mode and no path that runs both on one device unless a future platform registers both capabilities deliberately.
 - **Platform-only actions**. Sync server actions, pairing client actions, haptics, mass-storage import, storage-provider import, and native windowing are all capability-gated.
 - **Dialogs**. `DialogService` shows generic prompts as standalone Avalonia `Window`s when the native lifetime has an owner window, and as in-tree overlays when the lifetime is single-view.
-- **Zoomed plot modal**. Double-clicking or double-tapping a plot opens the same live plot control in `PlotZoomOverlayHost`. Desktop windows show a framed modal over a scrim with Esc close. Single-view mobile hosts use an edge-to-edge modal inside the safe area, rotate plot content in portrait-shaped windows, and participate in the hardware-back chain through `TryCloseTransientShellSurface`.
+- **Zoomed plot modal**. Double-clicking or double-tapping a plot opens the same live plot control in `PlotZoomOverlayHost`. Workspace profile shows a framed modal over a scrim; compact profile uses an edge-to-edge modal inside the safe area and rotates plot content in portrait-shaped windows. Escape close follows keyboard input capability, and single-view hosts participate in the hardware-back chain through `TryCloseTransientShellSurface`.
 - **Bike linkage editing**. `BikeEditorViewModel.CanChangeRearSuspensionMode` remains desktop-capability-oriented because the linkage editor canvas is built for a pointer-heavy interaction model.
 
 Anything else (entity editing, save / conflict semantics, sensor calibration, shell navigation semantics, session detail loading, and plot model rendering) goes through the same coordinators, services, stores, and workspace model on every platform.

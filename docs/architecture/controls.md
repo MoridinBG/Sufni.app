@@ -12,8 +12,9 @@ content, and `App.OnFrameworkInitializationCompleted` registers the active host
 with the singleton `IPlotZoomState`. This is parallel to the `DialogService`
 `IDialogHost` carve-out: the shell owns the concrete overlay surface, while view
 models only see a small transient-surface state interface. On Android hardware
-back, `MainViewModel.TryCloseTransientShellSurface()` asks `IPlotZoomState` to
-collapse the zoom modal before closing the drawer or navigating back.
+back, `ShellRootViewModel.TryCloseTransientShellSurface()` asks
+`IPlotZoomState` to collapse the zoom modal before closing the drawer or
+navigating back.
 
 Extension contribution hosts are also reusable controls. The app shell uses
 `AppToolbarContributionsView` for app-level toolbar actions. Recorded-session

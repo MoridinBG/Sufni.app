@@ -63,7 +63,7 @@ layering rules are unchanged — only the folder grouping is slice-first instead
 | **Acquisition** | `Acquisition/` | Telemetry import + DAQ management (`Services/Management`), data-store models, import UI |
 | **SyncAndPairing** | `SyncAndPairing/` | Client sync + pairing coordinators/services/VMs (desktop sync server stays in `Sufni.App.Desktop`) |
 | **MapsAndTracks** | `MapsAndTracks/` | Map view + interaction/viewport controllers, track geometry, track signal plot |
-| **Shell** | `Shell/` | App shell: `MainViewModel`/`MainWindowViewModel`/`MainPagesViewModel`/`WelcomeScreenViewModel`, shell coordinators, navigation behaviors, keyboard shortcuts |
+| **Shell** | `Shell/` | App shell: `ShellRootViewModel`, `ShellWorkspaceViewModel`, `MainPagesViewModel`, shell coordinator, profile shell views, navigation behaviors, keyboard shortcuts |
 | **Shared** | `Shared/` | Cross-slice bases (`Base/`), common helpers, formatting, shared plot bases, shared `Views/` + `DesktopViews/` controls/dialogs/overlays/converters |
 | **Infrastructure** | `Infrastructure/` | Infra services, app JSON/preferences, theming bridge (`Theming/`), and platform-service abstractions (`IServiceDiscovery`, `IHapticFeedback`, `IFriendlyNameProvider`) |
 | **Extensibility** | `Extensibility/` | App-side extension host wiring: capability/view registries, database hooks, sync, recorded-session contributions, notifications (renamed from the old `ExtensionHosting/`) |

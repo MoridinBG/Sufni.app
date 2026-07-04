@@ -133,7 +133,7 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   unconditionally; `MainPagesViewModel` receives
   `LiveDaqListViewModel` as a required dependency on both shells.
 - **View models**: list view models, the import view model,
-  `MainViewModel`, `ShellWorkspaceViewModel`, `ShellRootViewModel`, and
+  `ShellWorkspaceViewModel`, `ShellRootViewModel`, and
   `MainPagesViewModel` as singletons. `MainPagesViewModel` receives
   platform-optional page view models such as pairing client/server surfaces
   based on the registered capabilities and services.

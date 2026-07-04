@@ -23,6 +23,14 @@ Focused presentation references:
 - [Theming](theming.md) — theme snapshots, resource bridge, runtime theme service, and theme ownership.
 - [Plot Rendering](plot-rendering.md) — ScottPlot-backed plot classes and display-time rendering pipeline.
 
+The app root is shared across platform lifetimes. `ShellRootViewModel` is the
+root data context for both the desktop `MainWindow` and mobile `MainView`; it
+composes the primary page surface (`MainPagesViewModel`) with the logical tab
+workspace (`ShellWorkspaceViewModel`). The active `IAppEnvironment.LayoutProfile`
+selects the compact or workspace shell view through `ViewLocator`, while
+`AppCapabilities` and `InputCapabilities` decide which actions and gestures are
+available inside that presentation.
+
 ## Architectural Invariants
 
 These boundaries are the invariants worth preserving even if type names
@@ -41,7 +49,7 @@ or feature wording evolve:
 ```mermaid
 graph TB
     subgraph Presentation["Presentation"]
-        Shell["Shell VMs<br/>MainViewModel / MainWindowViewModel<br/>MainPagesViewModel"]
+        Shell["Shell VMs<br/>ShellRootViewModel<br/>ShellWorkspaceViewModel<br/>MainPagesViewModel"]
         Lists["List VMs<br/>BikeListViewModel<br/>SetupListViewModel<br/>SessionListViewModel<br/>PairedDeviceListViewModel<br/>LiveDaqListViewModel"]
         Rows["Row VMs<br/>BikeRowViewModel<br/>SetupRowViewModel<br/>SessionRowViewModel<br/>PairedDeviceRowViewModel<br/>LiveDaqRowViewModel"]
         Editors["Editor VMs<br/>BikeEditorViewModel<br/>SetupEditorViewModel<br/>SessionDetailViewModel<br/>LiveDaqDetailViewModel<br/>LiveSessionDetailViewModel"]
