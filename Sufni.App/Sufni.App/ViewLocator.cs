@@ -131,7 +131,14 @@ public class ViewLocator : IDataTemplate
 
         if (data is RecordedSessionExtensionPageViewModel extensionPage)
         {
-            return Build(extensionPage.ViewModel);
+            // Host the inner view model in a ContentControl instead of resolving its view
+            // directly. The content presenter assigns the built view's DataContext to its
+            // Content, which for a carousel page is this wrapper - so a directly resolved
+            // view would bind against the wrapper (wrong type) rather than the inner view
+            // model. Re-rooting through a ContentControl whose Content is the inner view
+            // model gives the resolved view the correct DataContext, matching how the
+            // desktop analysis view hosts extension content.
+            return new ContentControl { Content = extensionPage.ViewModel };
         }
 
         if (data is ShellRootPresentation shellPresentation)

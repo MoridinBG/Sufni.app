@@ -77,22 +77,22 @@ public class ExtensionViewRegistryTests
     }
 
     [AvaloniaFact]
-    public void ViewLocator_Build_UsesExtensionRegistryForRecordedSessionExtensionPage()
+    public void ViewLocator_Build_HostsRecordedSessionExtensionPage_OnItsInnerViewModel()
     {
+        // Regression guard: the page wrapper is re-rooted into a ContentControl whose
+        // Content is the inner extension view model, so the hosting presenter binds the
+        // resolved view against that view model. Resolving the view directly here would
+        // instead leave it bound to the page wrapper (wrong type), which blanked the
+        // extension tab in the compact carousel.
         TestApp.SetIsDesktop(false);
 
-        var registry = new ExtensionViewRegistry();
-        registry.Register(
-            typeof(ExtensionViewModel),
-            static () => new TextBlock { Text = "recorded extension" },
-            compactFactory: null,
-            workspaceFactory: null);
-        var locator = new ViewLocator(registry);
+        var locator = new ViewLocator(new ExtensionViewRegistry());
         var page = new RecordedSessionExtensionPageViewModel("Extension", () => new ExtensionViewModel());
 
         var control = locator.Build(page);
 
-        Assert.Equal("recorded extension", Assert.IsType<TextBlock>(control).Text);
+        var host = Assert.IsType<ContentControl>(control);
+        Assert.Same(page.ViewModel, host.Content);
     }
 
     [AvaloniaFact]
