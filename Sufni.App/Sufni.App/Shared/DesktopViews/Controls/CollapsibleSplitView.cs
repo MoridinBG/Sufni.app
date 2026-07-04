@@ -16,7 +16,7 @@ namespace Sufni.App.Shared.DesktopViews.Controls;
 public sealed class CollapsibleSplitView : UserControl
 {
     private const double SplitHandleThickness = 3;
-    private const double TouchSplitHandleTargetThickness = 32;
+    private const double TouchSplitHandleTargetThickness = 16;
     private const double DefaultCollapseThresholdRatio = 0.05;
     private const double DefaultCollapsedHeaderThickness = 34;
     private const double CollapsedHeaderIconSize = 14;
@@ -705,7 +705,8 @@ public sealed class CollapsibleSplitView : UserControl
 
         (dragStartFirstRatio, dragStartSecondRatio) = NormalizeRatios(dragStartFirstSize, dragStartSecondSize);
         isDragging = true;
-        args.Pointer.Capture(splitHandle);
+        var captureTarget = sender as IInputElement ?? splitHandle;
+        args.Pointer.Capture(captureTarget);
         args.Handled = true;
     }
 
