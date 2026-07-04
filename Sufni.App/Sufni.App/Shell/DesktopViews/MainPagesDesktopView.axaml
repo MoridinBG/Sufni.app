@@ -9,12 +9,14 @@ xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:converters="using:Avalonia.Data.Converters"
 xmlns:infra="clr-namespace:Sufni.App.Infrastructure"
+xmlns:syncvm="clr-namespace:Sufni.App.SyncAndPairing.ViewModels"
 xmlns:theming="clr-namespace:Sufni.App.Theming;assembly=Sufni.App.Theming"
 xmlns:viewconverters="clr-namespace:Sufni.App.Shared.Views.Converters"
 xmlns:vm="clr-namespace:Sufni.App.Shell.ViewModels"
 d:DesignHeight="720"
 d:DesignWidth="500"
 x:DataType="vm:MainPagesViewModel"
+MainPages="{Binding}"
 mc:Ignorable="d">
 
     <UserControl.Resources>
@@ -54,12 +56,6 @@ mc:Ignorable="d">
             <Setter Property="Background" Value="{DynamicResource SufniAccentIndicatorNavPipe}" />
         </Style>
     </UserControl.Styles>
-
-    <Interaction.Behaviors>
-        <EventTriggerBehavior EventName="AttachedToVisualTree">
-            <InvokeCommandAction Command="{Binding PairingServerViewModel.LoadedCommand}" />
-        </EventTriggerBehavior>
-    </Interaction.Behaviors>
 
     <Panel>
 
@@ -298,46 +294,53 @@ mc:Ignorable="d">
         </Grid>
 
         <!--  New pairing request  -->
-        <Grid
+        <ContentControl
         Name="PairingRequestPanel"
         Margin="50,0,20,25"
         VerticalAlignment="Bottom"
-        Background="{DynamicResource SufniSelectionSurfaceSubtle}"
-        ColumnDefinitions="* 35"
+        Content="{Binding PairingServerViewModel}"
         IsVisible="{Binding IsPairingRequestVisible}"
-        Opacity="0.9"
-        RowDefinitions="auto 24">
+        Opacity="0.9">
+            <ContentControl.ContentTemplate>
+                <DataTemplate DataType="syncvm:PairingServerViewModel" x:DataType="syncvm:PairingServerViewModel">
+                    <Grid
+                    Background="{DynamicResource SufniSelectionSurfaceSubtle}"
+                    ColumnDefinitions="* 35"
+                    RowDefinitions="auto 24">
 
-            <TextBlock
-            Grid.Row="0"
-            Grid.Column="0"
-            Grid.ColumnSpan="2"
-            Margin="10,10,10,10"
-            FontSize="{StaticResource SufniFontSizeHeading}">
-                <Run Text="Pairing request from " />
-                <LineBreak />
-                <Run FontWeight="Bold" Text="{Binding PairingServerViewModel.RequestingName}" />
-            </TextBlock>
+                        <TextBlock
+                        Grid.Row="0"
+                        Grid.Column="0"
+                        Grid.ColumnSpan="2"
+                        Margin="10,10,10,10"
+                        FontSize="{StaticResource SufniFontSizeHeading}">
+                            <Run Text="Pairing request from " />
+                            <LineBreak />
+                            <Run FontWeight="Bold" Text="{Binding RequestingName}" />
+                        </TextBlock>
 
-            <!--  PIN Display  -->
-            <TextBlock
-            Grid.Row="1"
-            Grid.Column="0"
-            Margin="10,0,10,10"
-            VerticalAlignment="Center"
-            FontSize="24"
-            FontWeight="Bold"
-            LetterSpacing="10"
-            Text="{Binding PairingServerViewModel.PairingPin}" />
+                        <!--  PIN Display  -->
+                        <TextBlock
+                        Grid.Row="1"
+                        Grid.Column="0"
+                        Margin="10,0,10,10"
+                        VerticalAlignment="Center"
+                        FontSize="24"
+                        FontWeight="Bold"
+                        LetterSpacing="10"
+                        Text="{Binding PairingPin}" />
 
-            <!--  Progress Ring  -->
-            <Path
-            Grid.Row="1"
-            Grid.Column="1"
-            Data="{Binding PairingServerViewModel.Remaining, Converter={StaticResource ProgressToArcConverter}}"
-            Fill="{DynamicResource SufniAccentSpinner}"
-            Stroke="{DynamicResource SufniAccentSpinner}"
-            StrokeLineCap="Round" />
-        </Grid>
+                        <!--  Progress Ring  -->
+                        <Path
+                        Grid.Row="1"
+                        Grid.Column="1"
+                        Data="{Binding Remaining, Converter={StaticResource ProgressToArcConverter}}"
+                        Fill="{DynamicResource SufniAccentSpinner}"
+                        Stroke="{DynamicResource SufniAccentSpinner}"
+                        StrokeLineCap="Round" />
+                    </Grid>
+                </DataTemplate>
+            </ContentControl.ContentTemplate>
+        </ContentControl>
     </Panel>
 </UserControl>
