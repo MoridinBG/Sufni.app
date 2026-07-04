@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Shared.Base;
@@ -192,6 +193,7 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
         CurrentTab = Tabs[nextIndex];
     }
 
+    [RelayCommand]
     public void Restore()
     {
         tabHistory.TryPop(out var toRestore);
@@ -202,6 +204,18 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
 
         Tabs.Add(toRestore);
         CurrentTab = toRestore;
+    }
+
+    [RelayCommand]
+    private void SelectNextTab()
+    {
+        SelectRelativeTab(1);
+    }
+
+    [RelayCommand]
+    private void SelectPreviousTab()
+    {
+        SelectRelativeTab(-1);
     }
 
     public void ForgetTabHistory<T>(Func<T, bool> match) where T : ViewModelBase

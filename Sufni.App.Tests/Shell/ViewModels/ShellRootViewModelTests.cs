@@ -1,3 +1,4 @@
+using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.App.Shell.ViewModels;
 
@@ -29,11 +30,82 @@ public class ShellRootViewModelTests
                 SupportsPinch: false,
                 SupportsLongPressContextMenu: false));
 
-        var root = new ShellRootViewModel(pages, workspace, environment, TestDispatcher);
+        var plotZoomState = Substitute.For<IPlotZoomState>();
+
+        var root = new ShellRootViewModel(pages, workspace, environment, plotZoomState, TestDispatcher);
 
         Assert.Same(pages, root.Pages);
         Assert.Same(workspace, root.Workspace);
         Assert.Equal(UiLayoutProfile.Workspace, root.LayoutProfile);
         Assert.Same(environment.Capabilities, root.Capabilities);
+    }
+
+    [Fact]
+    public void TryCloseTransientShellSurface_CollapsesPlotZoomFirst()
+    {
+        var plotZoomState = Substitute.For<IPlotZoomState>();
+        plotZoomState.TryCollapse().Returns(true);
+        var root = CreateRoot(plotZoomState);
+        root.Pages.IsDrawerOpen = true;
+
+        var handled = root.TryCloseTransientShellSurface();
+
+        Assert.True(handled);
+        Assert.True(root.Pages.IsDrawerOpen);
+        plotZoomState.Received(1).TryCollapse();
+    }
+
+    [Fact]
+    public void TryCloseTransientShellSurface_ClosesDrawerWhenZoomDoesNotHandle()
+    {
+        var plotZoomState = Substitute.For<IPlotZoomState>();
+        var root = CreateRoot(plotZoomState);
+        root.Pages.IsDrawerOpen = true;
+
+        var handled = root.TryCloseTransientShellSurface();
+
+        Assert.True(handled);
+        Assert.False(root.Pages.IsDrawerOpen);
+        plotZoomState.Received(1).TryCollapse();
+    }
+
+    [Fact]
+    public void TryCloseTransientShellSurface_ReturnsFalseWhenNoTransientSurfaceIsOpen()
+    {
+        var plotZoomState = Substitute.For<IPlotZoomState>();
+        var root = CreateRoot(plotZoomState);
+
+        var handled = root.TryCloseTransientShellSurface();
+
+        Assert.False(handled);
+        Assert.False(root.Pages.IsDrawerOpen);
+        plotZoomState.Received(1).TryCollapse();
+    }
+
+    private static ShellRootViewModel CreateRoot(IPlotZoomState plotZoomState)
+    {
+        var environment = new AppEnvironment(
+            DefaultLayoutProfile: UiLayoutProfile.Compact,
+            LayoutProfile: UiLayoutProfile.Compact,
+            Capabilities: new AppCapabilities(
+                CanHostSyncServer: false,
+                CanPairAsClient: true,
+                HasHaptics: true,
+                SupportsMassStorageImport: false,
+                SupportsStorageProviderImport: true,
+                SupportsNativeWindowing: false),
+            Input: new InputCapabilities(
+                HasPointer: false,
+                HasTouch: true,
+                HasKeyboard: false,
+                SupportsPinch: true,
+                SupportsLongPressContextMenu: true));
+
+        return new ShellRootViewModel(
+            MainPagesViewModelTestFactory.Create(),
+            new ShellWorkspaceViewModel(TestDispatcher),
+            environment,
+            plotZoomState,
+            TestDispatcher);
     }
 }
