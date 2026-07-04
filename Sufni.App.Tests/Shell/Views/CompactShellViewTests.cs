@@ -130,6 +130,42 @@ public class CompactShellViewTests
     }
 
     [AvaloniaFact]
+    public async Task CompactShellView_SidePanel_UsesDirectLayoutProfileAction()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
+
+        var uiPreferences = Substitute.For<IUiPreferences>();
+        uiPreferences.SetLayoutProfileAsync(Arg.Any<UiLayoutProfile?>()).Returns(Task.CompletedTask);
+        var environment = CreateMobileCompactEnvironment();
+        var pages = MainPagesViewModelTestFactory.Create(
+            appEnvironment: environment,
+            uiPreferences: uiPreferences);
+        var root = CreateRoot(pages, environment);
+        var view = new CompactShellView
+        {
+            DataContext = root,
+        };
+
+        await using var mounted = await MountAsync(view);
+
+        var menuPanel = mounted.View.FindControl<SidePanel>("MenuPanel")
+            ?? throw new InvalidOperationException("Side panel was not found.");
+        var menuItem = menuPanel.FindControl<MenuItem>("LayoutProfileMenuItem")
+            ?? throw new InvalidOperationException("Layout profile menu item was not found.");
+
+        Assert.Equal("workspace", menuItem.Header);
+        Assert.Same(pages.ToggleLayoutProfileCommand, menuItem.Command);
+
+        menuItem.Command!.Execute(menuItem.CommandParameter);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(UiLayoutProfile.Workspace, pages.SelectedLayoutProfile);
+        Assert.Equal("compact", menuItem.Header);
+        await uiPreferences.Received(1).SetLayoutProfileAsync(UiLayoutProfile.Workspace);
+    }
+
+    [AvaloniaFact]
     public async Task CompactShellView_ShowsPairedDevicesPanel_WhenDesktopHostCapabilityIsAvailable()
     {
         ViewTestHelpers.EnsureViewTestResources();

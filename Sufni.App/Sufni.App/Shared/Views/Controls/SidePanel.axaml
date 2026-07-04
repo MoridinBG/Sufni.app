@@ -5,7 +5,6 @@ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:converters="using:Avalonia.Data.Converters"
 xmlns:controls="clr-namespace:Sufni.App.Extensibility.Views"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-xmlns:infra="clr-namespace:Sufni.App.Infrastructure"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:theming="clr-namespace:Sufni.App.Theming;assembly=Sufni.App.Theming"
 xmlns:vm="clr-namespace:Sufni.App.Shell.ViewModels"
@@ -138,25 +137,18 @@ mc:Ignorable="d">
         </MenuItem>
         <Separator />
         <MenuItem
-        Header="{Binding LayoutProfileMenuHeader}"
+        Name="LayoutProfileMenuItem"
+        Command="{Binding ToggleLayoutProfileCommand}"
+        Header="{Binding LayoutProfileActionMenuText}"
         IsVisible="{Binding CanChooseLayoutProfile}">
             <MenuItem.Icon>
                 <Image Width="12" Source="{SvgImage /Assets/cog.svg}" />
             </MenuItem.Icon>
-            <MenuItem
-            Command="{Binding ChooseLayoutProfileCommand}"
-            CommandParameter="{x:Static infra:UiLayoutProfile.Compact}"
-            Header="{Binding CompactLayoutProfileMenuText}" />
-            <MenuItem
-            Command="{Binding ChooseLayoutProfileCommand}"
-            CommandParameter="{x:Static infra:UiLayoutProfile.Workspace}"
-            Header="{Binding WorkspaceLayoutProfileMenuText}" />
-            <Separator IsVisible="{Binding LayoutProfileRestartRequired}" />
-            <MenuItem
-            Header="{Binding LayoutProfileRestartMessage}"
-            IsEnabled="False"
-            IsVisible="{Binding LayoutProfileRestartRequired}" />
         </MenuItem>
+        <MenuItem
+        Header="{Binding LayoutProfileRestartMessage}"
+        IsEnabled="False"
+        IsVisible="{Binding LayoutProfileRestartRequired}" />
         <MenuItem
         Name="ThemeMenuItem"
         Command="{Binding ToggleThemeCommand}"

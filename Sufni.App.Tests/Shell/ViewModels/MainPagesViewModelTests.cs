@@ -113,6 +113,27 @@ public class MainPagesViewModelTests
     }
 
     [Fact]
+    public async Task ToggleLayoutProfileCommand_SavesTargetProfile()
+    {
+        var uiPreferences = Substitute.For<IUiPreferences>();
+        uiPreferences.SetLayoutProfileAsync(Arg.Any<UiLayoutProfile?>()).Returns(Task.CompletedTask);
+        var viewModel = MainPagesViewModelTestFactory.Create(
+            appEnvironment: MainPagesViewModelTestFactory.CreateAppEnvironment(UiLayoutProfile.Compact),
+            uiPreferences: uiPreferences);
+
+        Assert.Equal(UiLayoutProfile.Workspace, viewModel.TargetLayoutProfile);
+        Assert.Equal("workspace", viewModel.LayoutProfileActionMenuText);
+
+        await viewModel.ToggleLayoutProfileCommand.ExecuteAsync(null);
+
+        Assert.Equal(UiLayoutProfile.Workspace, viewModel.SelectedLayoutProfile);
+        Assert.Equal(UiLayoutProfile.Compact, viewModel.TargetLayoutProfile);
+        Assert.Equal("compact", viewModel.LayoutProfileActionMenuText);
+        Assert.True(viewModel.LayoutProfileRestartRequired);
+        await uiPreferences.Received(1).SetLayoutProfileAsync(UiLayoutProfile.Workspace);
+    }
+
+    [Fact]
     public async Task OpenGpsTracksCommand_AddsNotification_WhenGpxWasAlreadyImported()
     {
         var trackCoordinator = TestCoordinatorSubstitutes.Track();

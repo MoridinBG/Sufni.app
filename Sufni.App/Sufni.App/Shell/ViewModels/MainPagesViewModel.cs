@@ -86,6 +86,10 @@ public partial class MainPagesViewModel : ViewModelBase
     public string LayoutProfileMenuHeader => $"layout: {FormatLayoutProfile(SelectedLayoutProfile)}";
     public string CompactLayoutProfileMenuText => FormatLayoutProfileMenuText(UiLayoutProfile.Compact);
     public string WorkspaceLayoutProfileMenuText => FormatLayoutProfileMenuText(UiLayoutProfile.Workspace);
+    public UiLayoutProfile TargetLayoutProfile => SelectedLayoutProfile == UiLayoutProfile.Compact
+        ? UiLayoutProfile.Workspace
+        : UiLayoutProfile.Compact;
+    public string LayoutProfileActionMenuText => FormatLayoutProfile(TargetLayoutProfile).ToLowerInvariant();
     public string LayoutProfileRestartMessage => LayoutProfileRestartRequired
         ? "Restart required to apply layout profile."
         : string.Empty;
@@ -408,6 +412,12 @@ public partial class MainPagesViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task ToggleLayoutProfile()
+    {
+        await ChooseLayoutProfile(TargetLayoutProfile);
+    }
+
+    [RelayCommand]
     private async Task ToggleTheme()
     {
         await themeService.ToggleAsync();
@@ -429,6 +439,8 @@ public partial class MainPagesViewModel : ViewModelBase
         OnPropertyChanged(nameof(LayoutProfileMenuHeader));
         OnPropertyChanged(nameof(CompactLayoutProfileMenuText));
         OnPropertyChanged(nameof(WorkspaceLayoutProfileMenuText));
+        OnPropertyChanged(nameof(TargetLayoutProfile));
+        OnPropertyChanged(nameof(LayoutProfileActionMenuText));
         OnPropertyChanged(nameof(LayoutProfileRestartMessage));
     }
 
