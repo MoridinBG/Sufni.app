@@ -106,6 +106,43 @@ public class LiveTelemetryCaptureSliceTests
         Assert.True(result.MissingFinalStatus);
     }
 
+    [Fact]
+    public void Slice_OpenEndedFractionalStart_UsesCeilStartAndKeepsFinalStatus()
+    {
+        var capture = new LiveTelemetryCapture(
+            Metadata: new Metadata
+            {
+                SourceName = "live",
+                Version = 5,
+                SampleRate = 4,
+                Timestamp = 1_000,
+                Duration = 5,
+            },
+            BikeData: CreateBikeData(),
+            FrontMeasurements: Enumerable.Range(0, 20).Select(index => (ushort)index).ToArray(),
+            RearMeasurements: Enumerable.Range(100, 20).Select(index => (ushort)index).ToArray(),
+            ImuData: null,
+            GpsData: null,
+            Markers: []) with
+        {
+            FinalStatus = new SstFinalStatus
+            {
+                StoppedMonotonicDeltaUs = 5_000_000,
+            },
+            MissingFinalStatus = true,
+        };
+
+        var result = capture.Slice(2.6, null);
+
+        Assert.Equal(1_002, result.Metadata.Timestamp);
+        Assert.Equal(2.4, result.Metadata.Duration);
+        Assert.Equal(Enumerable.Range(11, 9).Select(index => (ushort)index), result.FrontMeasurements);
+        Assert.Equal(Enumerable.Range(111, 9).Select(index => (ushort)index), result.RearMeasurements);
+        Assert.NotNull(result.FinalStatus);
+        Assert.Equal((ulong)2_400_000, result.FinalStatus.StoppedMonotonicDeltaUs);
+        Assert.True(result.MissingFinalStatus);
+    }
+
     private static BikeData CreateBikeData() => new(
         FrontMaxTravel: 180,
         RearMaxTravel: 170,

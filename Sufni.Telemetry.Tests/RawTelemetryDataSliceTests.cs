@@ -49,6 +49,90 @@ public class RawTelemetryDataSliceTests
     }
 
     [Fact]
+    public void Slice_BoundariesOnSampleTicks_UsesHalfOpenWindow()
+    {
+        var raw = CreateRaw(sampleRate: 4, durationSeconds: 5);
+        raw.FrontSegments = [];
+        raw.RearSegments = [];
+        raw.Markers = [new MarkerData(1.0), new MarkerData(3.0)];
+        raw.GpsData = [CreateGps(1_001), CreateGps(1_002), CreateGps(1_003)];
+        raw.TemperatureData =
+        [
+            new TemperatureSample(1_001, 0, 20),
+            new TemperatureSample(1_002, 0, 21),
+            new TemperatureSample(1_003, 0, 22),
+        ];
+
+        var result = raw.Slice(1.0, 3.0);
+
+        Assert.Equal(2.0, result.RecordingDurationSeconds);
+        Assert.Equal(Enumerable.Range(4, 8).Select(index => (ushort)index), result.Front);
+        Assert.Equal(Enumerable.Range(104, 8).Select(index => (ushort)index), result.Rear);
+        Assert.Equal([new MarkerData(0)], result.Markers);
+        Assert.NotNull(result.GpsData);
+        Assert.Equal([CreateGps(1_001), CreateGps(1_002)], result.GpsData);
+        Assert.Equal(
+            [new TemperatureSample(1_001, 0, 20), new TemperatureSample(1_002, 0, 21)],
+            result.TemperatureData);
+    }
+
+    [Fact]
+    public void Slice_FractionalBoundaries_UseSameHalfOpenSourceTimesAcrossStreams()
+    {
+        var raw = CreateRaw(sampleRate: 4, durationSeconds: 5);
+        raw.FrontSegments = [];
+        raw.RearSegments = [];
+        raw.Markers =
+        [
+            new MarkerData(1.0),
+            new MarkerData(1.1),
+            new MarkerData(2.0),
+            new MarkerData(3.0),
+            new MarkerData(3.1),
+        ];
+        raw.GpsData = [CreateGps(1_001), CreateGps(1_002), CreateGps(1_003), CreateGps(1_004)];
+        raw.TemperatureData =
+        [
+            new TemperatureSample(1_001, 0, 20),
+            new TemperatureSample(1_002, 0, 21),
+            new TemperatureSample(1_003, 0, 22),
+            new TemperatureSample(1_004, 0, 23),
+        ];
+        raw.ImuData = new RawImuData
+        {
+            SampleRate = 2,
+            ActiveLocations = [0, 1],
+            Records =
+            [
+                .. Enumerable.Range(0, 10).SelectMany(index => new[]
+                {
+                    CreateImuRecord(index),
+                    CreateImuRecord(index + 100),
+                })
+            ],
+        };
+
+        var result = raw.Slice(1.1, 3.1);
+
+        Assert.Equal(2.0, result.RecordingDurationSeconds);
+        Assert.Equal(Enumerable.Range(5, 8).Select(index => (ushort)index), result.Front);
+        Assert.Equal(Enumerable.Range(105, 8).Select(index => (ushort)index), result.Rear);
+        Assert.Equal(3, result.Markers.Length);
+        Assert.Equal(0, result.Markers[0].TimestampOffset, precision: 12);
+        Assert.Equal(0.9, result.Markers[1].TimestampOffset, precision: 12);
+        Assert.Equal(1.9, result.Markers[2].TimestampOffset, precision: 12);
+        Assert.NotNull(result.GpsData);
+        Assert.Equal([CreateGps(1_002), CreateGps(1_003)], result.GpsData);
+        Assert.Equal(
+            [new TemperatureSample(1_002, 0, 21), new TemperatureSample(1_003, 0, 22)],
+            result.TemperatureData);
+        Assert.NotNull(result.ImuData);
+        Assert.Equal(
+            [(short)3, (short)103, (short)4, (short)104, (short)5, (short)105, (short)6, (short)106],
+            result.ImuData.Records.Select(record => record.Ax));
+    }
+
+    [Fact]
     public void Slice_ToSourceEnd_KeepsAndRebasesFinalStatus()
     {
         var raw = CreateRaw(sampleRate: 10, durationSeconds: 10);
@@ -129,6 +213,63 @@ public class RawTelemetryDataSliceTests
         Assert.Equal((ulong)10, gap.FirstMissingIndex);
         Assert.Equal((ulong)20, gap.MissingCount);
         Assert.Equal((ulong)2_000_000, gap.MissingTimeUs);
+    }
+
+    [Fact]
+    public void Slice_OpenEndedFractionalStart_TrimsSegmentsAndGapsToSourceEnd()
+    {
+        var raw = CreateRaw(sampleRate: 4, durationSeconds: 5);
+        raw.FrontSegments =
+        [
+            new RawCountSegment
+            {
+                FirstIndex = 0,
+                FirstMonotonicDeltaUs = 0,
+                Counts = Enumerable.Range(0, 8).Select(index => (ushort)index).ToArray(),
+            },
+            new RawCountSegment
+            {
+                FirstIndex = 12,
+                FirstMonotonicDeltaUs = 3_000_000,
+                Counts = Enumerable.Range(12, 8).Select(index => (ushort)index).ToArray(),
+            },
+        ];
+        raw.RearSegments = [];
+        raw.Front = raw.FrontSegments.SelectMany(segment => segment.Counts).ToArray();
+        raw.Rear = [];
+        raw.StreamGaps =
+        [
+            new RawStreamGap
+            {
+                StreamKind = SstV5ProtocolConstants.StreamTravel,
+                LocationId = (byte)SstV5ProtocolConstants.SensorForkTravel,
+                FirstMissingIndex = 8,
+                MissingCount = 4,
+                MissingTimeUs = 1_000_000,
+                Reason = "index_gap",
+            },
+        ];
+        raw.FinalStatus = new SstFinalStatus
+        {
+            StoppedMonotonicDeltaUs = 5_000_000,
+        };
+        raw.MissingFinalStatus = true;
+
+        var result = raw.Slice(2.6, null);
+
+        Assert.Equal(2.4, result.RecordingDurationSeconds);
+        Assert.Equal(Enumerable.Range(12, 8).Select(index => (ushort)index), result.Front);
+        var segment = Assert.Single(result.FrontSegments);
+        Assert.Equal((ulong)1, segment.FirstIndex);
+        Assert.Equal((ulong)400_000, segment.FirstMonotonicDeltaUs);
+        Assert.Equal(Enumerable.Range(12, 8).Select(index => (ushort)index), segment.Counts);
+        var gap = Assert.Single(result.StreamGaps);
+        Assert.Equal((ulong)0, gap.FirstMissingIndex);
+        Assert.Equal((ulong)1, gap.MissingCount);
+        Assert.Equal((ulong)250_000, gap.MissingTimeUs);
+        Assert.NotNull(result.FinalStatus);
+        Assert.Equal((ulong)2_400_000, result.FinalStatus.StoppedMonotonicDeltaUs);
+        Assert.True(result.MissingFinalStatus);
     }
 
     [Fact]
