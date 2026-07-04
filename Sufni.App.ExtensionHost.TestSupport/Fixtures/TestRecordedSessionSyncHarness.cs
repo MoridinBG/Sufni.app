@@ -55,12 +55,10 @@ public sealed class TestRecordedSessionSyncHarness : IAsyncDisposable
         trackRepository = new TrackRepository(context);
         sessionRepository = new SessionRepository(context, fingerprintService);
         var sessionTelemetryProcessor = new SessionTelemetryProcessor();
-        var sessionCacheStore = new SessionCacheStore(context);
         sessionTelemetryWriter = new SessionTelemetryWriter(
             sessionRepository,
             trackRepository,
-            sessionTelemetryProcessor,
-            sessionCacheStore);
+            sessionTelemetryProcessor);
         recordedSessionSourceRepository = new RecordedSessionSourceRepository(context);
         syncDataStore = new SynchronizationMergeEngine(context, trackRepository, fingerprintService);
         reprocessor = new RecordedSessionReprocessor(

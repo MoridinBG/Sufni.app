@@ -22,6 +22,19 @@ public sealed class PlotZoomOverlayHost : Panel, IPlotZoomSurface
     private const int AnimationDurationMs = 250;
     private const double DesktopSurfaceMargin = 24;
     private static readonly TimeSpan AnimationDuration = TimeSpan.FromMilliseconds(AnimationDurationMs);
+    private static readonly IAppEnvironment FallbackEnvironment = new AppEnvironment(
+        DefaultLayoutProfile: UiLayoutProfile.Workspace,
+        LayoutProfile: UiLayoutProfile.Workspace,
+        Capabilities: new AppCapabilities(
+            CanHostSyncServer: false,
+            CanPairAsClient: false,
+            SupportsMassStorageImport: false,
+            SupportsStorageProviderImport: false),
+        Input: new InputCapabilities(
+            HasPointer: true,
+            HasTouch: false,
+            HasKeyboard: true,
+            SupportsLongPressContextMenu: false));
 
     private readonly Border scrim;
     private readonly Border modalSurface;
@@ -283,7 +296,7 @@ public sealed class PlotZoomOverlayHost : Panel, IPlotZoomSurface
 
     private void OnTopLevelKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Escape || App.Current?.IsDesktop == false)
+        if (e.Key != Key.Escape || !ResolveEnvironment().Input.HasKeyboard)
         {
             return;
         }
@@ -310,12 +323,12 @@ public sealed class PlotZoomOverlayHost : Panel, IPlotZoomSurface
 
     private void ApplyModalPresentation()
     {
-        var isDesktop = App.Current?.IsDesktop != false;
-        rotationHost.LayoutTransform = !isDesktop && Bounds.Height > Bounds.Width
+        var useWorkspacePresentation = ResolveEnvironment().LayoutProfile == UiLayoutProfile.Workspace;
+        rotationHost.LayoutTransform = !useWorkspacePresentation && Bounds.Height > Bounds.Width
             ? new RotateTransform(90)
             : null;
 
-        if (isDesktop)
+        if (useWorkspacePresentation)
         {
             modalSurface.Margin = new Thickness(DesktopSurfaceMargin);
             modalSurface.CornerRadius = new CornerRadius(8);
@@ -329,6 +342,13 @@ public sealed class PlotZoomOverlayHost : Panel, IPlotZoomSurface
             modalSurface.BoxShadow = default;
             modalSurface.ClipToBounds = false;
         }
+    }
+
+    private static IAppEnvironment ResolveEnvironment()
+    {
+        return App.Current?.Services?.GetService(typeof(IAppEnvironment)) is IAppEnvironment environment
+            ? environment
+            : FallbackEnvironment;
     }
 
     private void RefreshThemeBrushes()

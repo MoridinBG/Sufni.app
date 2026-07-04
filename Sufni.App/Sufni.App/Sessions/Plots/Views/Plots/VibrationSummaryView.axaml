@@ -21,7 +21,16 @@
                             Foreground="{DynamicResource SufniTextPrimaryBrush}"
                             Text="{Binding Title, RelativeSource={RelativeSource TemplatedParent}}" />
 
-                        <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="3" ColumnSpacing="10">
+                        <!--  DataContext is the Stats object so the per-metric bindings are single-node:
+                              while Stats is null (before/while the analysis result is computed) they simply
+                              have a null source rather than traversing Stats.X through a null intermediate,
+                              which is what produced the "Value is null" binding warnings.  -->
+                        <Grid
+                            ColumnDefinitions="Auto,*,Auto"
+                            RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                            RowSpacing="3"
+                            ColumnSpacing="10"
+                            DataContext="{Binding Stats, RelativeSource={RelativeSource TemplatedParent}}">
                             <Grid.Styles>
                                 <Style Selector="TextBlock">
                                     <Setter Property="Foreground" Value="{DynamicResource SufniTextPrimaryBrush}" />
@@ -30,21 +39,21 @@
                             </Grid.Styles>
 
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Compression" />
-                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Stats.CompressionPercent, RelativeSource={RelativeSource TemplatedParent}, StringFormat='{}{0:0.0}%'}" />
-                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Stats.AverageGCompression, RelativeSource={RelativeSource TemplatedParent}, StringFormat='avg {0:0.0} g'}" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CompressionPercent, StringFormat='{}{0:0.0}%'}" />
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding AverageGCompression, StringFormat='avg {0:0.0} g'}" />
 
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Rebound" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Stats.ReboundPercent, RelativeSource={RelativeSource TemplatedParent}, StringFormat='{}{0:0.0}%'}" />
-                            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding Stats.AverageGRebound, RelativeSource={RelativeSource TemplatedParent}, StringFormat='avg {0:0.0} g'}" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ReboundPercent, StringFormat='{}{0:0.0}%'}" />
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding AverageGRebound, StringFormat='avg {0:0.0} g'}" />
 
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="Other" />
-                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Stats.OtherPercent, RelativeSource={RelativeSource TemplatedParent}, StringFormat='{}{0:0.0}%'}" ToolTip.Tip="Share of vibration outside compression and rebound strokes." />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding OtherPercent, StringFormat='{}{0:0.0}%'}" ToolTip.Tip="Share of vibration outside compression and rebound strokes." />
 
                             <TextBlock Grid.Row="3" Grid.Column="0" Text="Overall avg" />
-                            <TextBlock Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Stats.AverageGOverall, RelativeSource={RelativeSource TemplatedParent}, StringFormat='{}{0:0.000} g'}" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding AverageGOverall, StringFormat='{}{0:0.000} g'}" />
 
                             <TextBlock Grid.Row="4" Grid.Column="0" Text="Magic carpet" />
-                            <TextBlock Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Stats.MagicCarpet, RelativeSource={RelativeSource TemplatedParent}, StringFormat='{}{0:0.000}'}" ToolTip.Tip="Suspension movement per unit of felt vibration; higher means a smoother ride." />
+                            <TextBlock Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding MagicCarpet, StringFormat='{}{0:0.000}'}" ToolTip.Tip="Suspension movement per unit of felt vibration; higher means a smoother ride." />
                         </Grid>
                     </StackPanel>
                 </Border>

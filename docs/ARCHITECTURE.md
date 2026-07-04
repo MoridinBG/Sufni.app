@@ -10,7 +10,7 @@ This document is the catalog. Each subsystem is summarized here and the deep det
 
 - [Project Structure](#project-structure)
 - [Platform Abstractions](#platform-abstractions)
-- [Desktop vs Mobile](#desktop-vs-mobile)
+- [Platform Capabilities And Layout Profiles](#platform-capabilities-and-layout-profiles)
 - [Data Acquisition & File Format](#data-acquisition--file-format)
 - [DAQ Management](#daq-management)
 - [Signal Processing & Suspension Kinematics](#signal-processing--suspension-kinematics)
@@ -63,7 +63,7 @@ layering rules are unchanged — only the folder grouping is slice-first instead
 | **Acquisition** | `Acquisition/` | Telemetry import + DAQ management (`Services/Management`), data-store models, import UI |
 | **SyncAndPairing** | `SyncAndPairing/` | Client sync + pairing coordinators/services/VMs (desktop sync server stays in `Sufni.App.Desktop`) |
 | **MapsAndTracks** | `MapsAndTracks/` | Map view + interaction/viewport controllers, track geometry, track signal plot |
-| **Shell** | `Shell/` | App shell: `MainViewModel`/`MainWindowViewModel`/`MainPagesViewModel`/`WelcomeScreenViewModel`, shell coordinators, navigation behaviors, keyboard shortcuts |
+| **Shell** | `Shell/` | App shell: `ShellRootViewModel`, `ShellWorkspaceViewModel`, `MainPagesViewModel`, shell coordinator, profile shell views, navigation behaviors, keyboard shortcuts |
 | **Shared** | `Shared/` | Cross-slice bases (`Base/`), common helpers, formatting, shared plot bases, shared `Views/` + `DesktopViews/` controls/dialogs/overlays/converters |
 | **Infrastructure** | `Infrastructure/` | Infra services, app JSON/preferences, theming bridge (`Theming/`), and platform-service abstractions (`IServiceDiscovery`, `IHapticFeedback`, `IFriendlyNameProvider`) |
 | **Extensibility** | `Extensibility/` | App-side extension host wiring: capability/view registries, database hooks, sync, recorded-session contributions, notifications (renamed from the old `ExtensionHosting/`) |
@@ -85,21 +85,21 @@ Each platform entry point registers its implementations before the shared `App.a
 
 ---
 
-## Desktop vs Mobile
+## Platform Capabilities And Layout Profiles
 
-A cross-cutting reference for the divergence points between the desktop and mobile experiences: shell coordinators (tabs vs back stack), `Views/` vs `DesktopViews/` selection via `ViewLocator`, the `IsDesktop` runtime flag, desktop-only sync server / inbound coordinators, mobile-only pairing client and haptic / friendly-name services, DI composition order, solution scoping, and behavioral differences across feature workflows.
+A cross-cutting reference for the remaining divergence points between platform heads and layout profiles: shared `Compact` / `Workspace` shell presentation, profile-based `ViewLocator` selection, platform capabilities, desktop-capable sync server / inbound coordinators, mobile-capable pairing client and haptic / friendly-name services, DI composition order, solution scoping, and behavioral differences across feature workflows.
 
 Topics in [architecture/desktop-vs-mobile.md](architecture/desktop-vs-mobile.md):
 
 - [Project Layout](architecture/desktop-vs-mobile.md#project-layout) — shared `Sufni.App` and desktop-only `Sufni.App.Desktop`
-- [View Selection](architecture/desktop-vs-mobile.md#view-selection) — `Views/` vs `DesktopViews/` and how `ViewLocator` picks
-- [The IsDesktop Flag](architecture/desktop-vs-mobile.md#the-isdesktop-flag) — where the boundary lives at runtime
-- [Navigation Shells](architecture/desktop-vs-mobile.md#navigation-shells) — `DesktopShellCoordinator` vs `MobileShellCoordinator`
-- [Desktop-Only Surface](architecture/desktop-vs-mobile.md#desktop-only-surface) — sync server, inbound sync, pairing server
-- [Mobile-Only Surface](architecture/desktop-vs-mobile.md#mobile-only-surface) — pairing client, haptics, friendly-name
+- [Layout Profiles And View Selection](architecture/desktop-vs-mobile.md#layout-profiles-and-view-selection) — `Compact` / `Workspace` and profile-based `ViewLocator`
+- [Platform Flag And Capabilities](architecture/desktop-vs-mobile.md#platform-flag-and-capabilities) — `App.IsDesktop`, `AppCapabilities`, and `InputCapabilities`
+- [Shared Navigation Shell](architecture/desktop-vs-mobile.md#shared-navigation-shell) — `ShellWorkspaceCoordinator` and profile-specific shell views
+- [Desktop-Capable Surface](architecture/desktop-vs-mobile.md#desktop-capable-surface) — sync server, inbound sync, pairing server
+- [Mobile-Capable Surface](architecture/desktop-vs-mobile.md#mobile-capable-surface) — pairing client, haptics, friendly-name
 - [DI Composition](architecture/desktop-vs-mobile.md#di-composition) — platform-first then shared registrations
 - [Solution Scoping](architecture/desktop-vs-mobile.md#solution-scoping) — `Sufni.Desktop.sln` / `Android.sln` / `iOS.sln`
-- [Testing](architecture/desktop-vs-mobile.md#testing) — `TestApp.SetIsDesktop(...)`
+- [Testing](architecture/desktop-vs-mobile.md#testing) — explicit profile/capability setup
 - [Behavioral Differences](architecture/desktop-vs-mobile.md#behavioral-differences) — workflow-level divergences
 
 ---
@@ -179,12 +179,12 @@ Presentation-layer topics:
 - [Queries](architecture/ui-state.md#queries) — dependency, known-board, and recorded-session domain query patterns
 - [Coordinators](architecture/ui-workflows.md#coordinators) — entity, shell, sync, pairing, import, inbound-sync coordinators; eager-resolution rules
 - [Dependency Injection](architecture/ui-workflows.md#dependency-injection) — `App.ServiceCollection`, shared vs platform registrations, eager resolution
-- [Navigation](architecture/ui-workflows.md#navigation) — `IShellCoordinator`, mobile back-stack vs desktop tab model
+- [Navigation](architecture/ui-workflows.md#navigation) — `IShellCoordinator`, shared workspace tabs, compact/workspace shell presentation
 - [View Models](architecture/ui-view-models.md#view-models) — shell / page / list / row / editor categories, `TabPageViewModelBase`, `ViewModelBase`
   - [Session Sub-Pages](architecture/ui-view-models.md#session-sub-pages) — recorded/live session tab composition and signal layout preferences
 - [Controls Library](architecture/controls.md#controls-library) — reusable controls in `Shared/Views/Controls/` and `Shared/DesktopViews/Controls/`
 - [Theming](architecture/theming.md#theming) — theme snapshots, resource bridge, runtime theme service, and theme ownership
-- [Plot Rendering](architecture/plot-rendering.md) — `SufniPlot` / `TelemetryPlot`, IMU display, desktop/mobile plot hosting
+- [Plot Rendering](architecture/plot-rendering.md) — `SufniPlot` / `TelemetryPlot`, IMU display, shared plot hosting and input gestures
 
 ---
 
@@ -216,7 +216,7 @@ ScottPlot-based plot classes (shared bases in `Shared/Plots/`, concrete plots in
 Topics in [architecture/plot-rendering.md](architecture/plot-rendering.md):
 
 - [Layering](architecture/plot-rendering.md#layering) — plot classes as adapters over ScottPlot, view ownership
-- [Desktop vs Mobile Hosting](architecture/plot-rendering.md#desktop-vs-mobile-hosting) — extended desktop layouts vs stacked mobile views
+- [Shared Hosting And Input](architecture/plot-rendering.md#shared-hosting-and-input) — shared plot controls with capability-driven gestures
 - [Class Hierarchy](architecture/plot-rendering.md#class-hierarchy) — `SufniPlot` / `TelemetryPlot` / `LiveStreamingPlotBase`
 - [Concrete Plots](architecture/plot-rendering.md#concrete-plots) — Travel / Velocity / Strokes / Balance / IMU / Leverage / Live families
 - [Display-Time Pipeline](architecture/plot-rendering.md#display-time-pipeline) — downsampling, smoothing windows, mobile `MaximumDisplayHz`
@@ -313,7 +313,7 @@ SQLite via the sqlite-net API (`sqlite-net-e` package) with WAL mode. All sync-e
 
 Topics in [architecture/persistence.md](architecture/persistence.md):
 
-- [Schema](architecture/persistence.md#schema) — ER diagram for `session`, `bike`, `setup`, `board`, `track`, `session_recording_source`, `session_cache`, `sync`, `paired_device`
+- [Schema](architecture/persistence.md#schema) — ER diagram for `session`, `bike`, `setup`, `board`, `track`, `session_recording_source`, `sync`, `paired_device`
 - [Database Service](architecture/persistence.md#database-service) — generic `Synchronizable` operations, processed-session transactions, session blob ops, and recorded-source ops
 - [Soft Delete](architecture/persistence.md#soft-delete) — `Deleted` timestamp, 1-day purge window, expired-pair cleanup
 - [Conflict Resolution](architecture/persistence.md#conflict-resolution) — `MergeAsync<T>()` rules: new / remote-delete / local-wins / remote-wins

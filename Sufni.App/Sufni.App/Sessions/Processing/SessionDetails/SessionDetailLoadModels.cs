@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-
-using Sufni.App.Sessions.Models;
 namespace Sufni.App.Sessions.Processing.SessionDetails;
 
 public sealed record DampingSpeedCutoffOwner(Guid BikeId, long BaselineUpdated);
@@ -79,62 +77,31 @@ public sealed record SessionCachePresentationData(
     {
     }
 
-    public static SessionCachePresentationData FromCache(SessionCache cache)
-    {
-        var balanceAvailable = cache.CompressionBalance is not null && cache.ReboundBalance is not null;
-
-        return new SessionCachePresentationData(
-            cache.FrontTravelDistribution,
-            cache.RearTravelDistribution,
-            cache.FrontVelocityDistribution,
-            cache.RearVelocityDistribution,
-            cache.CompressionBalance,
-            cache.ReboundBalance,
-            cache.DampingPercentages,
-            cache.DampingSpeedCutoffs,
-            balanceAvailable);
-    }
-
-    public SessionCache ToCache(Guid sessionId)
-    {
-        return new SessionCache
-        {
-            SessionId = sessionId,
-            FrontTravelDistribution = FrontTravelDistribution,
-            RearTravelDistribution = RearTravelDistribution,
-            FrontVelocityDistribution = FrontVelocityDistribution,
-            RearVelocityDistribution = RearVelocityDistribution,
-            CompressionBalance = BalanceAvailable ? CompressionBalance : null,
-            ReboundBalance = BalanceAvailable ? ReboundBalance : null,
-            DampingPercentages = this.DampingPercentages,
-            DampingSpeedCutoffs = this.DampingSpeedCutoffs,
-        };
-    }
 }
 
 public readonly record struct SessionPresentationDimensions(int Width, int Height)
 {
+    public static SessionPresentationDimensions Default { get; } = new(320, 180);
+
     public int TravelDistributionWidth => Math.Max(1, Width);
     public int TravelDistributionHeight => Math.Max(1, Height);
     public int VelocityDistributionWidth => Math.Max(1, Width - 64);
     public int VelocityDistributionHeight => 478;
 }
 
-public abstract record SessionDesktopLoadResult
+public sealed record MissingSessionData(
+    bool ProcessedTelemetryBlob,
+    bool RecordedSourceMissingOrHashMismatch);
+
+public sealed record SessionDetailData(
+    SessionTelemetryPresentationData TelemetryPresentation,
+    SessionCachePresentationData CachePresentation);
+
+public abstract record SessionDetailLoadResult
 {
-    private SessionDesktopLoadResult() { }
+    private SessionDetailLoadResult() { }
 
-    public sealed record Loaded(SessionTelemetryPresentationData Data) : SessionDesktopLoadResult;
-    public sealed record TelemetryPending : SessionDesktopLoadResult;
-    public sealed record Failed(string ErrorMessage) : SessionDesktopLoadResult;
-}
-
-public abstract record SessionMobileLoadResult
-{
-    private SessionMobileLoadResult() { }
-
-    public sealed record LoadedFromCache(SessionCachePresentationData Data, TelemetryData? Telemetry, SessionTrackPresentationData? TrackData) : SessionMobileLoadResult;
-    public sealed record BuiltCache(SessionCachePresentationData Data, TelemetryData Telemetry, SessionTrackPresentationData TrackData) : SessionMobileLoadResult;
-    public sealed record TelemetryPending : SessionMobileLoadResult;
-    public sealed record Failed(string ErrorMessage) : SessionMobileLoadResult;
+    public sealed record Loaded(SessionDetailData Data) : SessionDetailLoadResult;
+    public sealed record IncompleteLocalData(Guid SessionId, MissingSessionData Missing) : SessionDetailLoadResult;
+    public sealed record Failed(string ErrorMessage) : SessionDetailLoadResult;
 }

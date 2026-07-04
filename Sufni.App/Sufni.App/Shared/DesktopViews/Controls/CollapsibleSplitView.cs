@@ -16,6 +16,7 @@ namespace Sufni.App.Shared.DesktopViews.Controls;
 public sealed class CollapsibleSplitView : UserControl
 {
     private const double SplitHandleThickness = 3;
+    private const double TouchSplitHandleTargetThickness = 16;
     private const double DefaultCollapseThresholdRatio = 0.05;
     private const double DefaultCollapsedHeaderThickness = 34;
     private const double CollapsedHeaderIconSize = 14;
@@ -32,6 +33,11 @@ public sealed class CollapsibleSplitView : UserControl
     private readonly Button firstCollapsedHeader = CreateCollapsedHeader("PART_FirstCollapsedHeader");
     private readonly Button secondCollapsedHeader = CreateCollapsedHeader("PART_SecondCollapsedHeader");
     private readonly Border splitHandle = new() { Name = "PART_SplitHandle" };
+    private readonly Border splitTouchTarget = new()
+    {
+        Name = "PART_SplitTouchTarget",
+        Background = Brushes.Transparent,
+    };
 
     private bool applyingPreferences;
     private bool publishingPreferences;
@@ -160,22 +166,12 @@ public sealed class CollapsibleSplitView : UserControl
         layoutGrid.Children.Add(firstPaneRoot);
         layoutGrid.Children.Add(splitHandle);
         layoutGrid.Children.Add(secondPaneRoot);
+        layoutGrid.Children.Add(splitTouchTarget);
         Content = layoutGrid;
 
         splitHandle[!Border.BackgroundProperty] = new DynamicResourceExtension("SufniSplitterSurface");
-        splitHandle.PointerPressed += OnSplitHandlePointerPressed;
-        splitHandle.PointerMoved += OnSplitHandlePointerMoved;
-        splitHandle.PointerReleased += OnSplitHandlePointerReleased;
-        splitHandle.PointerCaptureLost += OnSplitHandlePointerCaptureLost;
-        splitHandle.AddHandler<TappedEventArgs>(
-            InputElement.DoubleTappedEvent,
-            (_, args) =>
-            {
-                ResetToDefaultsAndPublish();
-                args.Handled = true;
-            },
-            RoutingStrategies.Tunnel | RoutingStrategies.Bubble,
-            handledEventsToo: true);
+        AttachSplitHandleInput(splitHandle);
+        AttachSplitHandleInput(splitTouchTarget);
 
         firstCollapsedHeader.Click += (_, _) => ExpandCollapsedPane(firstPane: true);
         secondCollapsedHeader.Click += (_, _) => ExpandCollapsedPane(firstPane: false);
@@ -356,6 +352,31 @@ public sealed class CollapsibleSplitView : UserControl
         return button;
     }
 
+    private static bool HasTouchInput()
+    {
+        return App.Current?.Services?.GetService(typeof(IAppEnvironment)) is IAppEnvironment environment &&
+            environment.Input.HasTouch;
+    }
+
+    private void AttachSplitHandleInput(InputElement target)
+    {
+        target.PointerPressed += OnSplitHandlePointerPressed;
+        target.PointerMoved += OnSplitHandlePointerMoved;
+        target.PointerReleased += OnSplitHandlePointerReleased;
+        target.PointerCaptureLost += OnSplitHandlePointerCaptureLost;
+        target.AddHandler<TappedEventArgs>(
+            InputElement.DoubleTappedEvent,
+            OnSplitHandleDoubleTapped,
+            RoutingStrategies.Tunnel | RoutingStrategies.Bubble,
+            handledEventsToo: true);
+    }
+
+    private void OnSplitHandleDoubleTapped(object? sender, TappedEventArgs args)
+    {
+        ResetToDefaultsAndPublish();
+        args.Handled = true;
+    }
+
     private void UpdateContentHosts()
     {
         firstContentHost.Content = !isFirstPaneCollapsed ? FirstContent : null;
@@ -533,9 +554,17 @@ public sealed class CollapsibleSplitView : UserControl
             Grid.SetRow(firstPaneRoot, 0);
             Grid.SetColumn(splitHandle, 1);
             Grid.SetRow(splitHandle, 0);
+            Grid.SetColumn(splitTouchTarget, 1);
+            Grid.SetRow(splitTouchTarget, 0);
             Grid.SetColumn(secondPaneRoot, 2);
             Grid.SetRow(secondPaneRoot, 0);
             splitHandle.Cursor = new Cursor(StandardCursorType.SizeWestEast);
+            splitTouchTarget.Cursor = new Cursor(StandardCursorType.SizeWestEast);
+            splitTouchTarget.Width = TouchSplitHandleTargetThickness;
+            splitTouchTarget.Height = double.NaN;
+            splitTouchTarget.HorizontalAlignment = HorizontalAlignment.Center;
+            splitTouchTarget.VerticalAlignment = VerticalAlignment.Stretch;
+            splitTouchTarget.Margin = new Thickness((SplitHandleThickness - TouchSplitHandleTargetThickness) / 2, 0);
         }
         else
         {
@@ -548,13 +577,23 @@ public sealed class CollapsibleSplitView : UserControl
             Grid.SetRow(firstPaneRoot, 0);
             Grid.SetColumn(splitHandle, 0);
             Grid.SetRow(splitHandle, 1);
+            Grid.SetColumn(splitTouchTarget, 0);
+            Grid.SetRow(splitTouchTarget, 1);
             Grid.SetColumn(secondPaneRoot, 0);
             Grid.SetRow(secondPaneRoot, 2);
             splitHandle.Cursor = new Cursor(StandardCursorType.SizeNorthSouth);
+            splitTouchTarget.Cursor = new Cursor(StandardCursorType.SizeNorthSouth);
+            splitTouchTarget.Width = double.NaN;
+            splitTouchTarget.Height = TouchSplitHandleTargetThickness;
+            splitTouchTarget.HorizontalAlignment = HorizontalAlignment.Stretch;
+            splitTouchTarget.VerticalAlignment = VerticalAlignment.Center;
+            splitTouchTarget.Margin = new Thickness(0, (SplitHandleThickness - TouchSplitHandleTargetThickness) / 2);
         }
 
         splitHandle.IsVisible = handleVisible;
         splitHandle.IsHitTestVisible = handleVisible;
+        splitTouchTarget.IsVisible = handleVisible && HasTouchInput();
+        splitTouchTarget.IsHitTestVisible = handleVisible && HasTouchInput();
     }
 
     private void UpdateVisualStates()
@@ -666,7 +705,8 @@ public sealed class CollapsibleSplitView : UserControl
 
         (dragStartFirstRatio, dragStartSecondRatio) = NormalizeRatios(dragStartFirstSize, dragStartSecondSize);
         isDragging = true;
-        args.Pointer.Capture(splitHandle);
+        var captureTarget = sender as IInputElement ?? splitHandle;
+        args.Pointer.Capture(captureTarget);
         args.Handled = true;
     }
 

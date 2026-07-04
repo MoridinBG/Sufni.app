@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -16,6 +17,8 @@ namespace Sufni.App.Sessions.Analysis.Views.Controls;
 public partial class DampingAnalysisHost : AnalysisHostBase
 {
     private RecordedSessionExtensionSlots? subscribedSlots;
+    private INotifyPropertyChanged? subscribedAnalysisWorkspace;
+    private bool canEditDampingSpeedCutoffs;
 
     public static readonly StyledProperty<VelocityAverageMode> VelocityAverageModeProperty =
         AvaloniaProperty.Register<DampingAnalysisHost, VelocityAverageMode>(nameof(VelocityAverageMode));
@@ -23,6 +26,11 @@ public partial class DampingAnalysisHost : AnalysisHostBase
     public static readonly StyledProperty<ISessionAnalysisWorkspace?> AnalysisWorkspaceProperty =
         AvaloniaProperty.Register<DampingAnalysisHost, ISessionAnalysisWorkspace?>(
             nameof(AnalysisWorkspace));
+
+    public static readonly DirectProperty<DampingAnalysisHost, bool> CanEditDampingSpeedCutoffsProperty =
+        AvaloniaProperty.RegisterDirect<DampingAnalysisHost, bool>(
+            nameof(CanEditDampingSpeedCutoffs),
+            host => host.CanEditDampingSpeedCutoffs);
 
     public static readonly StyledProperty<bool> ShowTravelLegendProperty =
         AvaloniaProperty.Register<DampingAnalysisHost, bool>(nameof(ShowTravelLegend));
@@ -69,6 +77,12 @@ public partial class DampingAnalysisHost : AnalysisHostBase
     {
         get => GetValue(AnalysisWorkspaceProperty);
         set => SetValue(AnalysisWorkspaceProperty, value);
+    }
+
+    public bool CanEditDampingSpeedCutoffs
+    {
+        get => canEditDampingSpeedCutoffs;
+        private set => SetAndRaise(CanEditDampingSpeedCutoffsProperty, ref canEditDampingSpeedCutoffs, value);
     }
 
     public bool ShowTravelLegend
@@ -140,20 +154,30 @@ public partial class DampingAnalysisHost : AnalysisHostBase
                 SubscribeToSlots(ExtensionSlots);
                 RefreshMetricAnnotations();
             }
+
+            if (e.Property == AnalysisWorkspaceProperty)
+            {
+                SubscribeToAnalysisWorkspace(AnalysisWorkspace);
+                RefreshCanEditDampingSpeedCutoffs();
+            }
         };
         RefreshMetricAnnotations();
+        RefreshCanEditDampingSpeedCutoffs();
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
         SubscribeToSlots(ExtensionSlots);
+        SubscribeToAnalysisWorkspace(AnalysisWorkspace);
         RefreshMetricAnnotations();
+        RefreshCanEditDampingSpeedCutoffs();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         SubscribeToSlots(null);
+        SubscribeToAnalysisWorkspace(null);
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -179,6 +203,38 @@ public partial class DampingAnalysisHost : AnalysisHostBase
     private void OnAnalysisMetricsChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {
         RefreshMetricAnnotations();
+    }
+
+    private void SubscribeToAnalysisWorkspace(ISessionAnalysisWorkspace? value)
+    {
+        if (ReferenceEquals(subscribedAnalysisWorkspace, value))
+        {
+            return;
+        }
+
+        if (subscribedAnalysisWorkspace is not null)
+        {
+            subscribedAnalysisWorkspace.PropertyChanged -= OnAnalysisWorkspacePropertyChanged;
+        }
+
+        subscribedAnalysisWorkspace = value as INotifyPropertyChanged;
+        if (subscribedAnalysisWorkspace is not null)
+        {
+            subscribedAnalysisWorkspace.PropertyChanged += OnAnalysisWorkspacePropertyChanged;
+        }
+    }
+
+    private void OnAnalysisWorkspacePropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName is nameof(ISessionAnalysisWorkspace.CanEditDampingSpeedCutoffs))
+        {
+            RefreshCanEditDampingSpeedCutoffs();
+        }
+    }
+
+    private void RefreshCanEditDampingSpeedCutoffs()
+    {
+        CanEditDampingSpeedCutoffs = AnalysisWorkspace?.CanEditDampingSpeedCutoffs == true;
     }
 
     private void RefreshMetricAnnotations()

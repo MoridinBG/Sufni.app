@@ -14,6 +14,7 @@ using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Shared.Common;
 using Sufni.App.Shared.Formatting;
+using Sufni.App.Shared.Views.Input;
 using Sufni.App.Shell.Behaviors;
 namespace Sufni.App.Sessions.Plots.Views.Plots;
 
@@ -455,7 +456,7 @@ public class VelocityBandView : TemplatedControl
         pendingMobilePointer = pointer;
         pendingMobileCircuit = circuit;
         pendingMobileLongPress = PeriodicUiTimer.ScheduleOnce(
-            DampingCutoffInteraction.MobileLongPressDelay,
+            PointerGesture.DampingCutoffLongPressDelay,
             CompleteMobileLongPress);
     }
 
@@ -536,11 +537,10 @@ public class VelocityBandView : TemplatedControl
 
     private bool IsPrimaryPointerPressed(PointerEventArgs e)
     {
-        var point = e.GetCurrentPoint(this);
-        return point.Properties.IsLeftButtonPressed || e.Pointer.Type != PointerType.Mouse;
+        return PointerGesture.IsPrimaryPressed(e, this);
     }
 
-    private static bool UsesMobileLongPress() => App.Current?.IsDesktop == false;
+    private static bool UsesMobileLongPress() => PointerGesture.SupportsTouchLongPressContextMenu();
 
     private void RefreshZoneLengths()
     {

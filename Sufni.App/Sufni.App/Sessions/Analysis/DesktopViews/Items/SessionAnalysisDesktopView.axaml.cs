@@ -39,6 +39,12 @@ public partial class SessionAnalysisDesktopView : UserControl
         RebuildTabs();
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        SetWorkspace(DataContext as ISessionAnalysisWorkspace);
+    }
+
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         SetWorkspace(null);
@@ -65,7 +71,16 @@ public partial class SessionAnalysisDesktopView : UserControl
             subscribedAnalysisTabs.CollectionChanged += OnAnalysisTabsChanged;
         }
 
+        SyncHeaderDataContexts();
         RebuildTabs();
+    }
+
+    private void SyncHeaderDataContexts()
+    {
+        FrontTravelDistributionModeComboBox.DataContext = workspace;
+        TravelDistributionModeComboBox.DataContext = workspace;
+        CompressionBalanceHeaderPanel.DataContext = workspace;
+        ReboundBalanceHeaderPanel.DataContext = workspace;
     }
 
     private void OnAnalysisTabsChanged(object? sender, NotifyCollectionChangedEventArgs args)

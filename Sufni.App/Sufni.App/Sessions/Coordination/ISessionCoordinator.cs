@@ -12,11 +12,7 @@ public interface ISessionCoordinator
 {
     Task OpenEditAsync(Guid sessionId);
 
-    Task<SessionDesktopLoadResult> LoadDesktopDetailAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken = default);
-
-    Task<SessionMobileLoadResult> LoadMobileDetailAsync(
+    Task<SessionDetailLoadResult> LoadDetailAsync(
         Guid sessionId,
         SessionPresentationDimensions dimensions,
         CancellationToken cancellationToken = default);

@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.ExtensionHost.Contracts.Capabilities;
 using Sufni.App.Extensibility.Capabilities;
 using Sufni.App.Extensibility.Views;
+using Sufni.App.Infrastructure;
 namespace Sufni.App.Tests.Extensibility.Capabilities;
 
 public class AppExtensionCollectionTests
@@ -91,18 +92,18 @@ public class AppExtensionCollectionTests
     }
 
     [Fact]
-    public void RegisterView_GenericOverload_RegistersSharedAndDesktopFactories()
+    public void RegisterView_GenericOverload_RegistersSharedAndWorkspaceFactories()
     {
         var viewRegistry = new ExtensionViewRegistry();
         var registry = new AppExtensionCapabilityRegistry(viewRegistry);
         var viewModel = new TestViewModel();
 
-        registry.RegisterView<TestViewModel, SharedView, DesktopView>();
+        registry.RegisterView<TestViewModel, SharedView, WorkspaceView>();
 
-        Assert.True(viewRegistry.TryBuild(viewModel, isDesktop: false, out var sharedView));
+        Assert.True(viewRegistry.TryBuild(viewModel, UiLayoutProfile.Compact, out var sharedView));
         Assert.IsType<SharedView>(sharedView);
-        Assert.True(viewRegistry.TryBuild(viewModel, isDesktop: true, out var desktopView));
-        Assert.IsType<DesktopView>(desktopView);
+        Assert.True(viewRegistry.TryBuild(viewModel, UiLayoutProfile.Workspace, out var workspaceView));
+        Assert.IsType<WorkspaceView>(workspaceView);
     }
 
     [Fact]
@@ -114,7 +115,7 @@ public class AppExtensionCollectionTests
         registry.RegisterView<TestViewModel, SharedView>();
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            registry.RegisterView<TestViewModel, DesktopView>());
+            registry.RegisterView<TestViewModel, WorkspaceView>());
 
         Assert.Contains(typeof(TestViewModel).FullName!, exception.Message);
     }
@@ -151,5 +152,5 @@ public class AppExtensionCollectionTests
 
     private sealed class SharedView : Control;
 
-    private sealed class DesktopView : Control;
+    private sealed class WorkspaceView : Control;
 }

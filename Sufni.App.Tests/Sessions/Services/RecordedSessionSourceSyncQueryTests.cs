@@ -35,6 +35,29 @@ public class RecordedSessionSourceSyncQueryTests
     }
 
     [Fact]
+    public async Task GetSourceSyncTargetIdsAsync_RequestsDerivedSource_WhenExistingSourceRowIsStale()
+    {
+        var derivedSessionId = Guid.NewGuid();
+        var sourceSessionId = Guid.NewGuid();
+        var repository = Substitute.For<IRecordedSessionSourceRepository>();
+        var provider = Substitute.For<IRecordedSessionDerivationWindowProvider>();
+        repository.GetSessionIdsMissingRecordedSourceAsync()
+            .Returns([derivedSessionId]);
+        repository.GetSourceBackedSessionIdsAsync().Returns([sourceSessionId]);
+        provider.GetWindowsAsync().Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>
+        {
+            [derivedSessionId] = new(sourceSessionId, 1, null)
+        });
+        provider.GetReferencedSourceSessionIdsAsync().Returns([sourceSessionId]);
+        var query = new RecordedSessionSourceSyncQuery(repository, provider);
+
+        var targetIds = await query.GetSourceSyncTargetIdsAsync();
+
+        Assert.Contains(sourceSessionId, targetIds);
+        Assert.DoesNotContain(derivedSessionId, targetIds);
+    }
+
+    [Fact]
     public async Task GetSourceSyncTargetIdsAsync_KeepsMissingSession_WhenWindowIsSelfOrAbsent()
     {
         var selfWindowSessionId = Guid.NewGuid();

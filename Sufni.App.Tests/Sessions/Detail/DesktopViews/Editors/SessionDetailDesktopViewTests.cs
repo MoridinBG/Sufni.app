@@ -23,7 +23,7 @@ public class SessionDetailDesktopViewTests
         var context = new SessionDetailViewTestContext();
 
         await using var mounted = await context.MountDesktopAsync(
-            loadResult: context.CreateDesktopLoadedState(includeImu: true));
+            loadResult: context.CreateLoadedState(includeImu: true));
 
         var shell = mounted.View.GetVisualDescendants().OfType<SessionShellDesktopView>().Single();
         var signalsHost = shell.FindControl<ContentControl>("SignalsHost");
@@ -59,27 +59,25 @@ public class SessionDetailDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task SessionDetailDesktopView_ShowsSignalsPlaceholders_WhenDesktopTelemetryIsPending()
+    public async Task SessionDetailDesktopView_ReplacesShellWithIncompleteState_WhenLocalDataIsMissing()
     {
         var context = new SessionDetailViewTestContext();
         var snapshot = context.CreateTelemetryBearingSnapshot(hasProcessedData: true);
 
         await using var mounted = await context.MountDesktopAsync(
             snapshot: snapshot,
-            loadResult: new SessionDesktopLoadResult.TelemetryPending());
+            loadResult: new SessionDetailLoadResult.IncompleteLocalData(
+                snapshot.Id,
+                new MissingSessionData(
+                    ProcessedTelemetryBlob: true,
+                    RecordedSourceMissingOrHashMismatch: false)));
 
-        var signalsView = mounted.View.GetVisualDescendants().OfType<RecordedSessionSignalsDesktopView>().Single();
-        var signalHosts = signalsView.GetVisualDescendants()
-            .OfType<PlaceholderOverlayContainer>()
-            .Where(host => host.IsVisible)
-            .ToArray();
-        var progressIndicators = signalsView.GetVisualDescendants()
-            .OfType<Control>()
-            .Where(control => control.Name == "ProgressIndicator" && control.IsVisible)
-            .ToArray();
+        var shell = mounted.View.GetVisualDescendants().OfType<SessionShellDesktopView>().Single();
+        var incompleteText = mounted.View.FindControl<TextBlock>("ScreenIncompleteText");
 
-        Assert.Equal(4, signalHosts.Length);
-        Assert.Equal(4, progressIndicators.Length);
+        Assert.NotNull(incompleteText);
+        Assert.Contains("processed telemetry", incompleteText!.Text);
+        Assert.False(shell.IsVisible);
     }
 
     [AvaloniaFact]
@@ -88,7 +86,7 @@ public class SessionDetailDesktopViewTests
         var context = new SessionDetailViewTestContext();
 
         await using var mounted = await context.MountDesktopAsync(
-            loadResult: new SessionDesktopLoadResult.Failed("boom"));
+            loadResult: new SessionDetailLoadResult.Failed("boom"));
 
         var shell = mounted.View.GetVisualDescendants().OfType<SessionShellDesktopView>().Single();
         var errorText = mounted.View.FindControl<TextBlock>("ScreenErrorText");
@@ -103,7 +101,7 @@ public class SessionDetailDesktopViewTests
         var context = new SessionDetailViewTestContext();
 
         await using var mounted = await context.MountDesktopAsync(
-            loadResult: context.CreateDesktopLoadedState());
+            loadResult: context.CreateLoadedState());
 
         Assert.True(mounted.View.IsFocused);
     }

@@ -8,7 +8,6 @@
 erDiagram
     session ||--o| setup : "setup_id"
     session ||--o| track : "full_track_id"
-    session ||--o| session_cache : "session_id"
     session ||--o| session_recording_source : "session_id"
     setup }o--|| bike : "bike_id"
     board ||--o| setup : "setup_id"
@@ -107,24 +106,6 @@ erDiagram
         int deleted
     }
 
-    session_cache {
-        text session_id PK
-        text front_travel_histogram
-        text rear_travel_histogram
-        text front_velocity_histogram
-        text rear_velocity_histogram
-        text compression_balance
-        text rebound_balance
-        real front_hsc_percentage
-        real front_lsc_percentage
-        real front_lsr_percentage
-        real front_hsr_percentage
-        real rear_hsc_percentage
-        real rear_lsc_percentage
-        real rear_lsr_percentage
-        real rear_hsr_percentage
-    }
-
     sync {
         text server_url PK
         int last_sync_time
@@ -166,7 +147,7 @@ derived-data changes.
 
 Startup migration does not repair or currentize stale `session_processing_fingerprint` values. Legacy, missing, malformed, or dependency-mismatched fingerprints remain classified as stale by the recorded-session projection so recompute can surface derived-data changes explicitly instead of silently rewriting fingerprint state at database initialization.
 
-Persistence consumers inject narrow repository interfaces instead of a single database facade. `ISynchronizableRepository<T>` owns generic soft-delete CRUD for `Synchronizable` entities; `ISessionRepository`, `IRecordedSessionSourceRepository`, `ITrackRepository`, `ISessionCacheStore`, and `IPairedDeviceRepository` own aggregate-specific operations and intent-specific projections; `ISyncDataStore` / `SynchronizationMergeEngine` owns sync timestamps, delta projection, remote apply, and merge conflict resolution. Read paths that only need ids, source snapshots, track payload metadata, full-track reference checks, or processing fingerprint inputs use those projections instead of loading whole aggregates or BLOB columns. `DatabaseMigrationRunner` is the only schema initializer/migrator, and repositories assume `SqliteConnectionContext` has run initialization before handing out the shared connection.
+Persistence consumers inject narrow repository interfaces instead of a single database facade. `ISynchronizableRepository<T>` owns generic soft-delete CRUD for `Synchronizable` entities; `ISessionRepository`, `IRecordedSessionSourceRepository`, `ITrackRepository`, and `IPairedDeviceRepository` own aggregate-specific operations and intent-specific projections; `ISyncDataStore` / `SynchronizationMergeEngine` owns sync timestamps, delta projection, remote apply, and merge conflict resolution. Read paths that only need ids, source snapshots, track payload metadata, full-track reference checks, or processing fingerprint inputs use those projections instead of loading whole aggregates or BLOB columns. `DatabaseMigrationRunner` is the only schema initializer/migrator, and repositories assume `SqliteConnectionContext` has run initialization before handing out the shared connection.
 
 `ISynchronizableRepository<T>` operations on any `Synchronizable` subclass:
 
@@ -191,10 +172,10 @@ There is no `GetSessionPsstAsync` on the repository: consumers that need a `Tele
 
 `ISessionTelemetryWriter` (`Sufni.App/Sufni.App/Sessions/Processing/Services/SessionTelemetryWriter.cs`) sits in front of `ISessionRepository` for processed-data writes and owns the domain computation that precedes persistence:
 
-- `PutProcessedSessionAsync` / `UpdateProcessedDerivedDataAsync` — prepare the session, then delegate to the matching repository transaction; `UpdateProcessedDerivedDataAsync` additionally invalidates `session_cache` on success so the next mobile load rebuilds from the fresh derived data. Preparation links a session without a `full_track_id` to an active track whose `[start_time, end_time]` window contains the session timestamp (`ITrackRepository.FindTrackContainingTimestampAsync`), derives `duration_seconds` from the processed telemetry metadata, derives GPS distance/ascent/descent from the session-window points (the supplied generated track, or points regenerated from the linked full track), **and now persists those resolved points as the cached session-window `track`** so import, live-save, and recompute all store the polyline at derivation time instead of through a later lazy load-path patch.
-- `PatchSessionPsstAsync(id, bytes, fingerprint)` — the **hub upload sink**. It rejects an `InvalidDataException` (mapped to a sync 400) both for bytes that fail MessagePack validation and for a `fingerprint` that does not ordinal-match the row's stored `session_processing_fingerprint` (the bytes are not the ones this row is awaiting). On acceptance it refreshes `duration_seconds` from the blob, preserves existing GPS metrics unless a cached session-window track allows recomputation, writes through `UpdateSessionPsstAsync`, and invalidates `session_cache`.
-- `SwapSessionPsstAsync(id, bytes, fingerprint)` — the **client/load-time commit**. Same metric recomputation and cache invalidation, but with no fingerprint reject: the caller has already matched the downloaded fingerprint against its swap/fill target, so it overwrites the row's blob and fingerprint coherently (a swap may replace a held blob whose fingerprint differs). See [download-then-swap](sync.md#processed-blob-coherence-download-then-swap).
-- `PatchSessionTrackAsync(id, points, gpsOffsetSeconds?)` — recomputes GPS distance/ascent/descent from the supplied projected points and the persisted `duration_seconds` column when it is present. For legacy rows where `duration_seconds` is null but the processed BLOB exists, it reads only the BLOB duration before deriving metrics so a GPS/track edit does not erase the session duration. It then calls `UpdateSessionTrackAsync`, passing a GPS offset only when the caller is intentionally realigning the session-window GPS segment, and invalidates `session_cache` (like the BLOB write paths) so the next mobile load rebuilds the cached presentation from the new track and metrics.
+- `PutProcessedSessionAsync` / `UpdateProcessedDerivedDataAsync` — prepare the session, then delegate to the matching repository transaction. Preparation links a session without a `full_track_id` to an active track whose `[start_time, end_time]` window contains the session timestamp (`ITrackRepository.FindTrackContainingTimestampAsync`), derives `duration_seconds` from the processed telemetry metadata, derives GPS distance/ascent/descent from the session-window points (the supplied generated track, or points regenerated from the linked full track), **and now persists those resolved points as the cached session-window `track`** so import, live-save, and recompute all store the polyline at derivation time instead of through a later lazy load-path patch.
+- `PatchSessionPsstAsync(id, bytes, fingerprint)` — the **hub upload sink**. It rejects an `InvalidDataException` (mapped to a sync 400) both for bytes that fail MessagePack validation and for a `fingerprint` that does not ordinal-match the row's stored `session_processing_fingerprint` (the bytes are not the ones this row is awaiting). On acceptance it refreshes `duration_seconds` from the blob, preserves existing GPS metrics unless a cached session-window track allows recomputation, and writes through `UpdateSessionPsstAsync`.
+- `SwapSessionPsstAsync(id, bytes, fingerprint)` — the **client sync commit**. Same metric recomputation, but with no fingerprint reject: the caller has already matched the downloaded fingerprint against its swap/fill target, so it overwrites the row's blob and fingerprint coherently (a swap may replace a held blob whose fingerprint differs). See [download-then-swap](sync.md#processed-blob-coherence-download-then-swap).
+- `PatchSessionTrackAsync(id, points, gpsOffsetSeconds?)` — recomputes GPS distance/ascent/descent from the supplied projected points and the persisted `duration_seconds` column when it is present. For legacy rows where `duration_seconds` is null but the processed BLOB exists, it reads only the BLOB duration before deriving metrics so a GPS/track edit does not erase the session duration. It then calls `UpdateSessionTrackAsync`, passing a GPS offset only when the caller is intentionally realigning the session-window GPS segment.
 
 `ITrackRepository` owns track lookups: `FindTrackByTimeRangeAsync(startTime, endTime)` returns the active track whose cached `start_time` and `end_time` exactly match the supplied values (GPX import uses this to skip already-imported tracks before writing), `FindTrackContainingTimestampAsync` resolves the session-window containment lookup — ordering by `(end_time - start_time)`, then `start_time`, then `id`, so the tightest covering window wins deterministically — and `GetTracksByIdsAsync` loads full track payloads for write-path metric derivation. Read-only full-track display uses `GetTrackPayloadMetadataAsync(trackId)` followed by `GetTrackPayloadAsync(trackId, updated)`, so `IFullTrackPointReader` can cache deserialized point payloads by `(trackId, updated)` and retry once if the row changes between metadata and payload reads. Session-to-track association is owned by the processed-write pipeline (`ISessionTelemetryWriter`), not the repository.
 
@@ -256,12 +237,11 @@ duplicate extension table ownership during connection-context construction.
 
 ## Soft Delete
 
-`Synchronizable` entities (`Sufni.App/Sufni.App/SyncAndPairing/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track` — carry `Updated` (server timestamp), `ClientUpdated` (local timestamp), and nullable `Deleted` (soft delete timestamp). `paired_device`, `session_cache`, `session_recording_source`, and `sync` are not `Synchronizable` and have their own lifecycles. Startup cleanup also soft-deletes duplicate active tracks that share the same cached start/end seconds, keeps one canonical row, repoints non-deleted sessions to it, and clears affected cached session-window tracks so they regenerate from the canonical full track.
+`Synchronizable` entities (`Sufni.App/Sufni.App/SyncAndPairing/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track` — carry `Updated` (server timestamp), `ClientUpdated` (local timestamp), and nullable `Deleted` (soft delete timestamp). `paired_device`, `session_recording_source`, and `sync` are not `Synchronizable` and have their own lifecycles. Startup cleanup also soft-deletes duplicate active tracks that share the same cached start/end seconds, keeps one canonical row, repoints non-deleted sessions to it, and clears affected cached session-window tracks so they regenerate from the canonical full track.
 
 On database initialization, the `Cleanup()` pass permanently removes:
 
 - `Synchronizable` rows with `Deleted` older than 1 day
-- Orphaned `session_cache` rows whose parent session is past that 1-day grace window
 - `paired_device` rows where `Expires < DateTime.UtcNow`
 
 Recorded-source orphan cleanup runs after initialization through

@@ -2,146 +2,32 @@
     x:Class="Sufni.App.Shell.DesktopViews.MainWindow"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:viewmodels="clr-namespace:Sufni.App.Shell.ViewModels"
-    xmlns:converters="clr-namespace:Sufni.App.Shared.Views.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:overlays="clr-namespace:Sufni.App.Shared.Views.Overlays"
     xmlns:shortcuts="using:Sufni.App.Shell.KeyboardShortcuts"
-    xmlns:vm="clr-namespace:Sufni.App.Shared.Base"
+    xmlns:viewmodels="clr-namespace:Sufni.App.Shell.ViewModels"
     Title="Sufni.App"
     Width="1600"
     Height="1200"
     d:DesignHeight="450"
     d:DesignWidth="800"
-    x:DataType="viewmodels:MainWindowViewModel"
+    x:DataType="viewmodels:ShellRootViewModel"
     Background="{DynamicResource SufniSurfacePage}"
     Icon="/Assets/sufni-icon.png"
     mc:Ignorable="d">
 
-    <Window.Resources>
-        <converters:BoolToFontStyleConverter x:Key="BoolToFontStyleConverter" />
-        <converters:BoolToColorConverter x:Key="BoolToColorConverter" />
-        <converters:IsEqualConverter x:Key="IsEqualConverter" />
-    </Window.Resources>
-
     <Window.KeyBindings>
-        <KeyBinding Command="{Binding CurrentView.CloseCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.MainWindow, Id=close-current-tab}" />
-        <KeyBinding Command="{Binding RestoreCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.MainWindow, Id=restore-closed-tab}" />
-        <KeyBinding Command="{Binding SelectNextTabCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.MainWindow, Id=select-next-tab}" />
-        <KeyBinding Command="{Binding SelectNextTabCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.MainWindow, Id=select-next-tab, Index=1}" />
-        <KeyBinding Command="{Binding SelectPreviousTabCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.MainWindow, Id=select-previous-tab}" />
-        <KeyBinding Command="{Binding SelectPreviousTabCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.MainWindow, Id=select-previous-tab, Index=1}" />
+        <KeyBinding Command="{Binding Workspace.CurrentTab.CloseCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.MainWindow, Id=close-current-tab}" />
+        <KeyBinding Command="{Binding Workspace.RestoreCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.MainWindow, Id=restore-closed-tab}" />
+        <KeyBinding Command="{Binding Workspace.SelectNextTabCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.MainWindow, Id=select-next-tab}" />
+        <KeyBinding Command="{Binding Workspace.SelectNextTabCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.MainWindow, Id=select-next-tab, Index=1}" />
+        <KeyBinding Command="{Binding Workspace.SelectPreviousTabCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.MainWindow, Id=select-previous-tab}" />
+        <KeyBinding Command="{Binding Workspace.SelectPreviousTabCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.MainWindow, Id=select-previous-tab, Index=1}" />
     </Window.KeyBindings>
 
     <Panel>
-        <SplitView
-            CompactPaneLength="{StaticResource SufniNavRailPaneCompactWidth}"
-            DisplayMode="CompactInline"
-            IsPaneOpen="True"
-            OpenPaneLength="450">
-
-            <!--  Left pane with item lists  -->
-            <SplitView.Pane>
-                <ContentControl
-                    BorderBrush="{DynamicResource SufniNavRailBorderRight}"
-                    BorderThickness="0,0,1,0"
-                    Content="{Binding MainPagesViewModel}" />
-            </SplitView.Pane>
-
-            <!--  Main tab area  -->
-            <Grid RowDefinitions="auto *">
-                <Grid Grid.Row="0" ClipToBounds="True">
-                    <TabStrip
-                        Name="TabControl"
-                        Padding="0"
-                        ItemsSource="{Binding Tabs}"
-                        SelectedItem="{Binding CurrentView}">
-
-                        <TabStrip.Styles>
-                            <Style Selector="TabStripItem:pointerover /template/ Border#PART_LayoutRoot">
-                                <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceHover}" />
-                            </Style>
-                            <Style Selector="TabStripItem:selected /template/ Border#PART_LayoutRoot">
-                                <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
-                            </Style>
-                            <Style Selector="TabStripItem:pointerover:selected /template/ Border#PART_LayoutRoot">
-                                <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
-                            </Style>
-                            <Style Selector="TabStripItem:selected /template/ Border#PART_SelectedPipe">
-                                <Setter Property="Background" Value="{DynamicResource SufniAccentIndicatorTabUnderline}" />
-                                <Setter Property="Height" Value="{StaticResource SufniSelectionIndicatorThickness}" />
-                                <Setter Property="Margin" Value="{StaticResource SufniTabIndicatorBleedMargin}" />
-                            </Style>
-                        </TabStrip.Styles>
-
-                        <TabStrip.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="10,0,0,0" ColumnDefinitions="* auto">
-                                    <TextBlock
-                                        x:Name="TabHeaderText"
-                                        Grid.Column="0"
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        FontSize="{StaticResource SufniTabFontSizeWindow}"
-                                        FontStyle="{Binding IsDirty, Converter={StaticResource BoolToFontStyleConverter}}"
-                                        Text="{Binding Name}">
-                                        <TextBlock.Foreground>
-                                            <MultiBinding Converter="{StaticResource BoolToColorConverter}">
-                                                <Binding Path="IsDirty" />
-                                                <Binding ElementName="TabHeaderText" Path="ActualThemeVariant" />
-                                            </MultiBinding>
-                                        </TextBlock.Foreground>
-                                    </TextBlock>
-                                    <Button
-                                        Grid.Column="1"
-                                        Margin="5,3,0,0"
-                                        HorizontalAlignment="Right"
-                                        Classes="embedded"
-                                        Command="{Binding CloseCommand}">
-                                        <Image
-                                            Width="12"
-                                            Opacity="0.4"
-                                            Source="{SvgImage /Assets/fa-xmark.svg}" />
-                                    </Button>
-                                </Grid>
-                            </DataTemplate>
-                        </TabStrip.ItemTemplate>
-                    </TabStrip>
-
-                    <Border
-                        Name="TabDropIndicator"
-                        Width="{StaticResource SufniSelectionIndicatorThickness}"
-                        HorizontalAlignment="Left"
-                        VerticalAlignment="Stretch"
-                        Background="{DynamicResource SufniDropPositionIndicator}"
-                        IsHitTestVisible="False"
-                        IsVisible="False"
-                        ZIndex="1" />
-                </Grid>
-
-                <ItemsControl Grid.Row="1" ItemsSource="{Binding Tabs}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <Panel />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="vm:TabPageViewModelBase">
-                            <ContentControl Margin="0,20,0,0" Content="{Binding}">
-                                <ContentControl.IsVisible>
-                                    <MultiBinding Converter="{StaticResource IsEqualConverter}">
-                                        <Binding />
-                                        <Binding Path="#TabControl.((viewmodels:MainWindowViewModel)DataContext).CurrentView" />
-                                    </MultiBinding>
-                                </ContentControl.IsVisible>
-                            </ContentControl>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </Grid>
-        </SplitView>
-
+        <ContentControl Content="{Binding Presentation}" />
         <overlays:PlotZoomOverlayHost Name="PlotZoomOverlay" />
     </Panel>
 </Window>

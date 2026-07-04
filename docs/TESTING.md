@@ -103,11 +103,12 @@ Do not bombard the SUT with random junk just to create more cases. Prefer inputs
 - **A new test that touches any of those must carry `[Collection("Ui")]`.** Persistence-tier tests (isolated per test by `TempDatabase`/`TempDirectory`) and pure unit tests stay in the default parallel collections — do not add them to the Ui collection.
 - Audited process-global state: `App.ServiceCollection` is only written during startup composition (no test mutates it); `PeriodicUiTimer` is UI-tier only; dispatcher fakes are per-test instances.
 
-## Desktop And Mobile Branches
+## Platform, Profile, And Capability Branches
 
-- When behavior branches on desktop versus mobile mode, cover both relevant branches.
-- Use `TestApp.SetIsDesktop(true)` and `TestApp.SetIsDesktop(false)` only when testing `ViewLocator` or plot gesture branches; other shell-specific behavior should use the same explicit service configuration or view command parameters used in production.
-- Keep the assertion focused on the behavioral difference caused by the platform branch, not on the toggle itself.
+- When behavior branches on platform lifetime, layout profile, app capability, or input capability, cover the relevant branches.
+- Configure `IAppEnvironment`, layout profile, and capabilities explicitly when those are the behavior under test.
+- Use `TestApp.SetIsDesktop(true)` and `TestApp.SetIsDesktop(false)` only for the remaining native lifetime edges that intentionally read the platform flag, such as extension service-registration context or native overlay behavior.
+- Keep the assertion focused on the behavioral difference caused by the branch, not on the toggle itself.
 
 ## Layer Ownership
 

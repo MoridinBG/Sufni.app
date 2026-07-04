@@ -17,17 +17,31 @@ internal sealed class RecordedSessionSourceSyncQuery(
 {
     public async Task<IReadOnlyList<Guid>> GetSourceSyncTargetIdsAsync()
     {
-        var missingSessionSourceIds = await recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync();
-        var windows = await windowProvider.GetWindowsAsync();
+        var missingSessionSourceIds =
+            (IEnumerable<Guid>?)await recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync()
+            ?? Array.Empty<Guid>();
+        var windows =
+            await windowProvider.GetWindowsAsync()
+            ?? new Dictionary<Guid, RecordedSessionDerivationWindow>();
         var targetIds = missingSessionSourceIds
-            .Where(sessionId =>
-                !windows.TryGetValue(sessionId, out var window) ||
-                window.SourceSessionId == sessionId)
+            .Select(sessionId =>
+                windows.TryGetValue(sessionId, out var window)
+                    ? window.SourceSessionId
+                    : sessionId)
             .ToHashSet();
 
-        var existingSourceIds = (await recordedSessionSourceRepository.GetSourceBackedSessionIdsAsync()).ToHashSet();
-        var referencedSourceIds = (await windowProvider.GetReferencedSourceSessionIdsAsync()).ToHashSet();
-        referencedSourceIds.UnionWith(await recordedSessionSourceRepository.GetPersistedDerivationSourceSessionIdsAsync());
+        var existingSourceIds =
+            (((IEnumerable<Guid>?)await recordedSessionSourceRepository.GetSourceBackedSessionIdsAsync())
+             ?? Array.Empty<Guid>())
+            .ToHashSet();
+        var referencedSourceIds =
+            (((IEnumerable<Guid>?)await windowProvider.GetReferencedSourceSessionIdsAsync())
+             ?? Array.Empty<Guid>())
+            .ToHashSet();
+        var persistedDerivationSourceIds =
+            (IEnumerable<Guid>?)await recordedSessionSourceRepository.GetPersistedDerivationSourceSessionIdsAsync()
+            ?? Array.Empty<Guid>();
+        referencedSourceIds.UnionWith(persistedDerivationSourceIds);
         foreach (var sourceId in referencedSourceIds)
         {
             if (!existingSourceIds.Contains(sourceId))

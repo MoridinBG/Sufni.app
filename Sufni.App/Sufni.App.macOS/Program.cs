@@ -20,6 +20,18 @@ namespace Sufni.App.macOS
         // Avalonia configuration, don't remove; also used by visual designer.
         public static AppBuilder BuildAvaloniaApp()
         {
+            App.ServiceCollection.AddAppEnvironment(
+                UiLayoutProfile.Workspace,
+                new AppCapabilities(
+                    CanHostSyncServer: true,
+                    CanPairAsClient: false,
+                    SupportsMassStorageImport: true,
+                    SupportsStorageProviderImport: true),
+                new InputCapabilities(
+                    HasPointer: true,
+                    HasTouch: false,
+                    HasKeyboard: true,
+                    SupportsLongPressContextMenu: false));
             App.ServiceCollection.AddSingleton<ISecureStorage, MacOsSecureStorage>();
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, BonjourServiceDiscovery>("daq");
             DesktopAppBootstrapper.RegisterDesktopSync(App.ServiceCollection);

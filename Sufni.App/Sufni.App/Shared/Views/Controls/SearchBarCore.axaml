@@ -53,7 +53,7 @@ mc:Ignorable="d">
         Width="32"
         HorizontalAlignment="Left"
         Classes="embedded"
-        Command="{Binding $parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).OpenDrawerCommand}"
+        Command="{Binding $parent[v:MainPagesViewBase].MainPages.OpenDrawerCommand}"
         IsVisible="{Binding $parent[controls:SearchBarCore].ShowDrawerButton}">
             <Image Margin="0,2,0,0" Source="{SvgImage /Assets/fa-bars.svg}" />
         </Button>
@@ -80,7 +80,7 @@ mc:Ignorable="d">
         Classes="embedded">
             <Button.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding FallbackValue="{x:False}" Path="$parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).IsPaired" />
+                    <Binding FallbackValue="{x:False}" Path="$parent[v:MainPagesViewBase].MainPages.IsPaired" />
                     <Binding Path="!#CloseButton.IsVisible" />
                 </MultiBinding>
             </Button.IsVisible>

@@ -17,6 +17,7 @@ using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.App.Shared.Views.Overlays;
 using Sufni.App.Theming;
 using Sufni.App.Shared.Views.Plots;
+using Sufni.App.Shared.Views.Input;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Shared.Views.Controls;
 
@@ -902,8 +903,7 @@ public sealed class SignalRow : UserControl
 
     private bool IsPrimaryPointerPressed(PointerEventArgs args)
     {
-        var point = args.GetCurrentPoint(headerButton);
-        return point.Properties.IsLeftButtonPressed || args.Pointer.Type != PointerType.Mouse;
+        return PointerGesture.IsPrimaryPressed(args, headerButton);
     }
 
     private bool IsPointerOverHeaderActions(PointerEventArgs args)

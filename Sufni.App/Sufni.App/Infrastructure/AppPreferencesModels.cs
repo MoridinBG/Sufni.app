@@ -400,6 +400,8 @@ public static class SignalRowIds
     public const string Elevation = "elevation";
 }
 
+public sealed record UiPreferences(UiLayoutProfile? LayoutProfile);
+
 public sealed class AppPreferencesSyncData
 {
     [JsonPropertyName("updated")]

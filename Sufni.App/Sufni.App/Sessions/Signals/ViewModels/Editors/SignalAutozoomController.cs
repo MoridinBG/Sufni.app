@@ -14,48 +14,46 @@ internal sealed class SignalAutozoomController
     public SignalAutozoomController(SessionTimelineLinkViewModel timeline)
     {
         this.timeline = timeline;
-        var autozoomCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
-            AutozoomPlot,
-            CanAutozoomPlot);
-        ActionsBySignalRowId = CreateActionsBySignalRowId(autozoomCommand);
+        var zoomSelectionCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
+            ZoomSelection,
+            CanZoomSelection);
+        ActionsBySignalRowId = CreateActionsBySignalRowId(zoomSelectionCommand);
     }
 
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> ActionsBySignalRowId { get; }
 
     private static IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> CreateActionsBySignalRowId(
-        IRelayCommand<TelemetryPlotContextMenuContext?> autozoomCommand)
+        IRelayCommand<TelemetryPlotContextMenuContext?> zoomSelectionCommand)
     {
-        var autozoom = new TelemetryPlotContextMenuAction("autozoom", "Autozoom", autozoomCommand);
+        var zoomSelection = new TelemetryPlotContextMenuAction("zoom-selection", "Zoom selection", zoomSelectionCommand);
         return new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>
         {
-            [SignalRowIds.Travel] = [autozoom],
-            [SignalRowIds.Velocity] = [autozoom],
-            [SignalRowIds.Imu] = [autozoom],
-            [SignalRowIds.PitchRoll] = [autozoom],
-            [SignalRowIds.Speed] = [autozoom],
-            [SignalRowIds.Elevation] = [autozoom],
+            [SignalRowIds.Travel] = [zoomSelection],
+            [SignalRowIds.Velocity] = [zoomSelection],
+            [SignalRowIds.Imu] = [zoomSelection],
+            [SignalRowIds.PitchRoll] = [zoomSelection],
+            [SignalRowIds.Speed] = [zoomSelection],
+            [SignalRowIds.Elevation] = [zoomSelection],
         };
     }
 
-    private static bool CanAutozoomPlot(TelemetryPlotContextMenuContext? context)
+    private static bool CanZoomSelection(TelemetryPlotContextMenuContext? context)
     {
         return context is not null &&
                double.IsFinite(context.DurationSeconds) &&
                context.DurationSeconds > 0 &&
-               double.IsFinite(context.ClickSeconds);
+               context.AnalysisRange is not null;
     }
 
-    private void AutozoomPlot(TelemetryPlotContextMenuContext? context)
+    private void ZoomSelection(TelemetryPlotContextMenuContext? context)
     {
-        if (context is null || !CanAutozoomPlot(context))
+        if (context is null || !CanZoomSelection(context) || context.AnalysisRange is not { } range)
         {
             return;
         }
 
         var duration = context.DurationSeconds;
-        var (startSeconds, endSeconds) = context.IsClickInsideAnalysisRange && context.AnalysisRange is { } range
-            ? CreateSelectionAutozoomRange(range, duration)
-            : (0d, duration);
+        var (startSeconds, endSeconds) = CreateSelectionAutozoomRange(range, duration);
 
         timeline.SetVisibleRange(startSeconds / duration, endSeconds / duration, this);
     }

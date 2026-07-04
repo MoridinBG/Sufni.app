@@ -21,8 +21,7 @@ public class SessionTelemetryWriterTests
         var sessionRepository = Substitute.For<ISessionRepository>();
         var trackRepository = Substitute.For<ITrackRepository>();
         var telemetryProcessor = new TestSessionTelemetryProcessor();
-        var cacheStore = Substitute.For<ISessionCacheStore>();
-        var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor, cacheStore);
+        var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor);
         var session = new Session(Guid.NewGuid(), "processed", "desc", null);
         var telemetryData = TestTelemetryData.CreateMinimal(duration: 65);
         var payloadData = telemetryData.BinaryForm;
@@ -47,8 +46,7 @@ public class SessionTelemetryWriterTests
         var sessionRepository = Substitute.For<ISessionRepository>();
         var trackRepository = Substitute.For<ITrackRepository>();
         var telemetryProcessor = new TestSessionTelemetryProcessor();
-        var cacheStore = Substitute.For<ISessionCacheStore>();
-        var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor, cacheStore);
+        var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor);
         var session = new Session(Guid.NewGuid(), "recomputed", "desc", null);
         var telemetryData = TestTelemetryData.CreateMinimal(duration: 66);
         var payload = new ProcessedTelemetryPayload(telemetryData, telemetryData.BinaryForm, """{"schemaVersion":3}""");
@@ -59,7 +57,6 @@ public class SessionTelemetryWriterTests
                 Arg.Any<Track?>(),
                 Arg.Any<ProcessingFingerprint>())
             .Returns(callInfo => Task.FromResult<Session?>(callInfo.Arg<Session>()));
-        cacheStore.DeleteSessionCacheAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
 
         var result = await writer.UpdateProcessedDerivedDataAsync(session, payload, newFullTrack: null, fingerprint);
 
@@ -69,7 +66,6 @@ public class SessionTelemetryWriterTests
         Assert.Equal(66, session.DurationSeconds);
         Assert.Equal(0, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
         Assert.Equal(0, telemetryProcessor.ReadProcessedDurationSecondsCallCount);
-        await cacheStore.Received(1).DeleteSessionCacheAsync(session.Id);
     }
 
     [Fact]
@@ -427,8 +423,7 @@ public class SessionTelemetryWriterTests
         var sessionRepository = Substitute.For<ISessionRepository>();
         var trackRepository = Substitute.For<ITrackRepository>();
         var telemetryProcessor = new TestSessionTelemetryProcessor();
-        var cacheStore = Substitute.For<ISessionCacheStore>();
-        var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor, cacheStore);
+        var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor);
         var sessionId = Guid.NewGuid();
         var points = new List<TrackPoint>
         {
@@ -447,7 +442,6 @@ public class SessionTelemetryWriterTests
                 Arg.Any<SessionSummaryMetrics>(),
                 Arg.Any<double?>())
             .Returns(Task.CompletedTask);
-        cacheStore.DeleteSessionCacheAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
 
         await writer.PatchSessionTrackAsync(sessionId, points);
 
@@ -466,8 +460,7 @@ public class SessionTelemetryWriterTests
         var sessionRepository = Substitute.For<ISessionRepository>();
         var trackRepository = Substitute.For<ITrackRepository>();
         var telemetryProcessor = new TestSessionTelemetryProcessor();
-        var cacheStore = Substitute.For<ISessionCacheStore>();
-        var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor, cacheStore);
+        var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor);
         var sessionId = Guid.NewGuid();
         var points = new List<TrackPoint>
         {
@@ -485,7 +478,6 @@ public class SessionTelemetryWriterTests
                 Arg.Any<SessionSummaryMetrics>(),
                 Arg.Any<double?>())
             .Returns(Task.CompletedTask);
-        cacheStore.DeleteSessionCacheAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
 
         await writer.PatchSessionTrackAsync(sessionId, points);
 
@@ -504,8 +496,7 @@ public class SessionTelemetryWriterTests
         var sessionRepository = Substitute.For<ISessionRepository>();
         var trackRepository = Substitute.For<ITrackRepository>();
         var telemetryProcessor = new TestSessionTelemetryProcessor();
-        var cacheStore = Substitute.For<ISessionCacheStore>();
-        var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor, cacheStore);
+        var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor);
         var sessionId = Guid.NewGuid();
         var points = new List<TrackPoint>
         {
@@ -522,7 +513,6 @@ public class SessionTelemetryWriterTests
                 Arg.Any<SessionSummaryMetrics>(),
                 Arg.Any<double?>())
             .Returns(Task.CompletedTask);
-        cacheStore.DeleteSessionCacheAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
 
         await writer.PatchSessionTrackAsync(sessionId, points);
 

@@ -33,7 +33,12 @@ public class SetupCoordinatorTests
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
     private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
 
-    private SetupCoordinator CreateCoordinator()
+    public SetupCoordinatorTests()
+    {
+        editorFactory.CloseSetupEditor(Arg.Any<Guid>()).Returns(Task.CompletedTask);
+    }
+
+    private SetupCoordinator CreateCoordinator(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace)
     {
         SetupCoordinator? coordinator = null;
         coordinator = new(
@@ -46,6 +51,7 @@ public class SetupCoordinatorTests
             filesService,
             backgroundTaskRunner,
             shell,
+            CreateEnvironment(layoutProfile),
             () => editorFactory);
         return coordinator;
     }
@@ -151,9 +157,24 @@ public class SetupCoordinatorTests
         await setupRepository.Received(1).PutAsync(setup);
         setupStore.Received(1).Upsert(Arg.Is<SetupSnapshot>(s =>
             s.Id == existing.Id && s.Name == "renamed" && s.Updated == 7));
-        shell.Received(1).GoBack();
+        shell.DidNotReceive().GoBack();
         var saved = Assert.IsType<SetupSaveResult.Saved>(result);
         Assert.Equal(7, saved.NewBaselineUpdated);
+    }
+
+    [Fact]
+    public async Task SaveAsync_OnCompact_NavigatesBackAfterSave()
+    {
+        var existing = TestSnapshots.Setup(updated: 5);
+        setupStore.Get(existing.Id).Returns(existing);
+        var setup = new Setup(existing.Id, "renamed") { BikeId = existing.BikeId, Updated = 7 };
+
+        await CreateCoordinator(UiLayoutProfile.Compact).SaveAsync(
+            setup,
+            boardId: existing.BoardId,
+            baselineUpdated: 5);
+
+        shell.Received(1).GoBack();
     }
 
     [Fact]
@@ -266,7 +287,7 @@ public class SetupCoordinatorTests
 
         Assert.Equal(SetupDeleteOutcome.Deleted, result.Outcome);
         await setupRepository.Received(1).DeleteAsync(snapshot.Id);
-        editorFactory.Received(1).CloseSetupEditor(snapshot.Id);
+        await editorFactory.Received(1).CloseSetupEditor(snapshot.Id);
         setupStore.Received(1).Remove(snapshot.Id);
     }
 
@@ -309,6 +330,21 @@ public class SetupCoordinatorTests
 
         Assert.Equal(SetupDeleteOutcome.Failed, result.Outcome);
         setupStore.DidNotReceiveWithAnyArgs().Remove(default);
-        editorFactory.DidNotReceive().CloseSetupEditor(Arg.Any<Guid>());
+        await editorFactory.DidNotReceive().CloseSetupEditor(Arg.Any<Guid>());
     }
+
+    private static IAppEnvironment CreateEnvironment(UiLayoutProfile layoutProfile) =>
+        new AppEnvironment(
+            DefaultLayoutProfile: layoutProfile,
+            LayoutProfile: layoutProfile,
+            Capabilities: new AppCapabilities(
+                CanHostSyncServer: true,
+                CanPairAsClient: true,
+                SupportsMassStorageImport: true,
+                SupportsStorageProviderImport: true),
+            Input: new InputCapabilities(
+                HasPointer: true,
+                HasTouch: true,
+                HasKeyboard: true,
+                SupportsLongPressContextMenu: true));
 }

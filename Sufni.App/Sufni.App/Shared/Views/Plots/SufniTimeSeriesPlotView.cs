@@ -18,7 +18,7 @@ using Sufni.App.Shared.Plots;
 using Sufni.App.Theming;
 using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Shared.Common;
-using Sufni.App.Shell.Behaviors;
+using Sufni.App.Shared.Views.Input;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Shared.Views.Plots;
 
@@ -32,23 +32,22 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     private bool isSelectingAnalysisRange;
     private bool isPlotClickCandidate;
     private bool isPlaybackStopClickCandidate;
-    private bool suppressPlotClickClear;
     private bool suppressLegendTogglePointerRelease;
+    private bool isAttachedToVisualTree;
     private Point plotClickStartPoint;
     private Point playbackStopClickStartPoint;
     private double selectionStartSeconds;
     private double selectionEndSeconds;
     private readonly HashSet<string> appliedTimeRangeOverlayIds = new(StringComparer.Ordinal);
-    private IDisposable? mobileAnalysisRangeLongPress;
+    private IDisposable? touchContextMenuLongPress;
     private IDisposable? pendingPlotClickEffects;
-    private Point mobileAnalysisRangeLongPressStartPoint;
-    private double mobileAnalysisRangeLongPressSeconds;
+    private Point touchContextMenuLongPressStartPoint;
     private TopLevel? keyDownTopLevel;
 
     protected TelemetryPlot PlotModel => plot!;
     protected bool HasPlotModel => plot is not null;
     protected override TelemetryPlot? TimelinePlot => plot;
-    public bool IsPlotReady => plot is not null && HasPlotControl;
+    public bool IsPlotReady => isAttachedToVisualTree && plot is not null && HasPlotControl;
 
     public static readonly StyledProperty<string?> SignalRowIdProperty =
         AvaloniaProperty.Register<SufniTimeSeriesPlotView, string?>(nameof(SignalRowId));
@@ -202,6 +201,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        isAttachedToVisualTree = true;
         base.OnAttachedToVisualTree(e);
 
         keyDownTopLevel = TopLevel.GetTopLevel(this);
@@ -209,10 +209,12 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             KeyDownEvent,
             OnTopLevelKeyDown,
             RoutingStrategies.Bubble);
+        TryApplyPendingLoad();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        isAttachedToVisualTree = false;
         keyDownTopLevel?.RemoveHandler(KeyDownEvent, OnTopLevelKeyDown);
         keyDownTopLevel = null;
         CancelPendingPlotClickEffects();
@@ -233,7 +235,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             return;
         }
 
-        if (!HasPlotControl ||
+        if (!IsPlotReady ||
             !PlotControl.IsPointerOver ||
             Timeline is not { NormalizedCursorPosition: not null } timeline)
         {
@@ -269,19 +271,34 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     public void SetCursorPosition(double position)
     {
-        plot?.SetCursorPosition(position);
+        if (!IsPlotReady)
+        {
+            return;
+        }
+
+        plot!.SetCursorPosition(position);
         RefreshPlot();
     }
 
     public void SetCursorPositionWithReadout(double position)
     {
-        plot?.SetCursorPositionWithReadout(position);
+        if (!IsPlotReady)
+        {
+            return;
+        }
+
+        plot!.SetCursorPositionWithReadout(position);
         RefreshPlot();
     }
 
     public void HideCursorReadout()
     {
-        plot?.HideCursorReadout();
+        if (!IsPlotReady)
+        {
+            return;
+        }
+
+        plot!.HideCursorReadout();
         RefreshPlot();
     }
 
@@ -301,7 +318,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                 if (args.ClickCount > 1)
                 {
                     CancelPendingPlotClickEffects();
-                    CancelMobileAnalysisRangeLongPress();
+                    CancelTouchContextMenuLongPress();
                     isPlaybackStopClickCandidate = false;
                     isPlotClickCandidate = false;
                     return;
@@ -335,9 +352,9 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                 }
 
                 var point = args.GetPosition(PlotControl);
-                if (UsesMobileAnalysisRangeGestures())
+                if (UsesTouchContextMenuLongPress())
                 {
-                    StartMobileAnalysisRangeLongPress(args, point);
+                    StartTouchContextMenuLongPress(point);
                     isPlotClickCandidate = true;
                     plotClickStartPoint = point;
                     return;
@@ -390,7 +407,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
             if (isPlotClickCandidate && HasExceededClickMovement(args))
             {
-                CancelMobileAnalysisRangeLongPress();
+                CancelTouchContextMenuLongPress();
                 isPlotClickCandidate = false;
             }
         };
@@ -401,7 +418,6 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             (_, args) =>
             {
                 var stopPlayback = false;
-                var clearAnalysisRange = false;
 
                 if (isPlaybackStopClickCandidate)
                 {
@@ -415,7 +431,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                 if (suppressLegendTogglePointerRelease)
                 {
                     suppressLegendTogglePointerRelease = false;
-                    SchedulePlotClickEffectsIfNeeded(args, stopPlayback, clearAnalysisRange);
+                    SchedulePlotClickEffectsIfNeeded(args, stopPlayback, clearSelection: false);
                     args.Handled = true;
                     return;
                 }
@@ -426,22 +442,14 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                     CompleteSelection(selectionEndSeconds);
                     UpdateTimelineRange();
                     args.Pointer.Capture(null);
-                    SchedulePlotClickEffectsIfNeeded(args, stopPlayback, clearAnalysisRange);
+                    SchedulePlotClickEffectsIfNeeded(args, stopPlayback, clearSelection: false);
                     args.Handled = true;
                     return;
                 }
 
-                if (isPlotClickCandidate && !HasExceededClickMovement(args))
-                {
-                    if (!suppressPlotClickClear)
-                    {
-                        clearAnalysisRange = true;
-                    }
-                }
-
-                SchedulePlotClickEffectsIfNeeded(args, stopPlayback, clearAnalysisRange);
-                CancelMobileAnalysisRangeLongPress();
-                suppressPlotClickClear = false;
+                var clearSelection = isPlotClickCandidate && !HasExceededClickMovement(args);
+                SchedulePlotClickEffectsIfNeeded(args, stopPlayback, clearSelection);
+                CancelTouchContextMenuLongPress();
                 isPlotClickCandidate = false;
                 UpdateTimelineRange();
             },
@@ -459,8 +467,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
             isPlotClickCandidate = false;
             isPlaybackStopClickCandidate = false;
-            suppressPlotClickClear = false;
-            CancelMobileAnalysisRangeLongPress();
+            CancelTouchContextMenuLongPress();
             PlotControl.Cursor = Cursor.Default;
             SetPreviewRange(null, null);
             RefreshPlot();
@@ -485,14 +492,19 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         }
 
         Timeline?.SetCursorPosition(seconds / duration);
-        plot?.SetCursorPositionWithReadout(seconds);
+        if (!IsPlotReady)
+        {
+            return;
+        }
+
+        plot!.SetCursorPositionWithReadout(seconds);
         RefreshPlot();
     }
 
     protected bool TryGetTimelineSeconds(PointerEventArgs args, out double seconds)
     {
         seconds = default;
-        if (!HasPlotControl || TimelineDurationSeconds is not { } duration || duration <= 0)
+        if (!IsPlotReady || TimelineDurationSeconds is not { } duration || duration <= 0)
         {
             return false;
         }
@@ -514,13 +526,13 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private void ApplyPlotBackgroundColors()
     {
-        if (plot is null)
+        if (!IsPlotReady)
         {
             return;
         }
 
         var (figure, data) = ResolvePlotBackgrounds();
-        plot.SetBackgroundColors(figure, data);
+        plot!.SetBackgroundColors(figure, data);
         RefreshPlot();
     }
 
@@ -538,12 +550,12 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     protected override void OnThemeChanged(SufniTheme theme)
     {
-        if (plot is null)
+        if (!IsPlotReady)
         {
             return;
         }
 
-        plot.ApplyTheme(theme);
+        plot!.ApplyTheme(theme);
         // Marker / span / readout colors that are baked at LoadTelemetryData time
         // need a full reload to repaint with the new palette.
         RequestReload();
@@ -569,7 +581,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private void ApplyAirtimeVisibility(bool refresh)
     {
-        if (plot is not RecordedTimeSeriesPlot recordedPlot || !HasPlotControl)
+        if (plot is not RecordedTimeSeriesPlot recordedPlot || !IsPlotReady)
         {
             return;
         }
@@ -596,7 +608,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private void ApplyAnalysisSelectionVisibility(bool refresh)
     {
-        if (plot is not RecordedTimeSeriesPlot recordedPlot || !HasPlotControl)
+        if (plot is not RecordedTimeSeriesPlot recordedPlot || !IsPlotReady)
         {
             return;
         }
@@ -638,13 +650,12 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private bool IsPrimaryPointerPressed(PointerEventArgs args)
     {
-        var point = args.GetCurrentPoint(PlotControl);
-        return point.Properties.IsLeftButtonPressed || args.Pointer.Type != PointerType.Mouse;
+        return PointerGesture.IsPrimaryPressed(args, PlotControl);
     }
 
-    protected virtual IDisposable ScheduleMobileAnalysisRangeLongPress(Action callback)
+    protected virtual IDisposable ScheduleTouchContextMenuLongPress(Action callback)
     {
-        return PeriodicUiTimer.ScheduleOnce(TimeSpan.FromMilliseconds(500), callback);
+        return PeriodicUiTimer.ScheduleOnce(PointerGesture.AnalysisLongPressDelay, callback);
     }
 
     protected virtual IDisposable ScheduleDeferredPlotClickEffects(TimeSpan delay, Action callback)
@@ -664,19 +675,16 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         pendingPlotClickEffects = null;
     }
 
-    private void SchedulePlotClickEffectsIfNeeded(
-        PointerEventArgs args,
-        bool stopPlayback,
-        bool clearAnalysisRange)
+    private void SchedulePlotClickEffectsIfNeeded(PointerEventArgs args, bool stopPlayback, bool clearSelection)
     {
-        if (!stopPlayback && !clearAnalysisRange)
+        if (!stopPlayback && !clearSelection)
         {
             return;
         }
 
         CancelPendingPlotClickEffects();
         var timeline = Timeline;
-        var workspace = SignalsWorkspace;
+        var signalsWorkspace = SignalsWorkspace;
         var deferredCursorSeconds = default(double?);
         var deferredCursorPosition = default(double?);
         if (stopPlayback
@@ -702,14 +710,17 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                         && deferredCursorPosition is { } cursorPosition)
                     {
                         timeline.SetCursorPosition(cursorPosition);
-                        plot?.SetCursorPositionWithReadout(cursorSeconds);
-                        RefreshPlot();
+                        if (IsPlotReady)
+                        {
+                            plot!.SetCursorPositionWithReadout(cursorSeconds);
+                            RefreshPlot();
+                        }
                     }
                 }
 
-                if (clearAnalysisRange)
+                if (clearSelection)
                 {
-                    workspace?.ClearAnalysisRange();
+                    signalsWorkspace?.ClearAnalysisRange();
                 }
             });
     }
@@ -719,24 +730,22 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         return TryGetTimelineSeconds(args, out var seconds) ? seconds : 0;
     }
 
-    private static bool UsesMobileAnalysisRangeGestures()
+    private static bool UsesTouchContextMenuLongPress()
     {
-        return App.Current?.IsDesktop == false;
+        return PointerGesture.SupportsTouchLongPressContextMenu();
     }
 
-    private void StartMobileAnalysisRangeLongPress(PointerEventArgs args, Point startPoint)
+    private void StartTouchContextMenuLongPress(Point startPoint)
     {
-        CancelMobileAnalysisRangeLongPress();
-        suppressPlotClickClear = false;
-        mobileAnalysisRangeLongPressStartPoint = startPoint;
-        mobileAnalysisRangeLongPressSeconds = GetClampedTimeSeconds(args);
-        mobileAnalysisRangeLongPress = ScheduleMobileAnalysisRangeLongPress(CompleteMobileAnalysisRangeLongPress);
+        CancelTouchContextMenuLongPress();
+        touchContextMenuLongPressStartPoint = startPoint;
+        touchContextMenuLongPress = ScheduleTouchContextMenuLongPress(CompleteTouchContextMenuLongPress);
     }
 
-    private void CancelMobileAnalysisRangeLongPress()
+    private void CancelTouchContextMenuLongPress()
     {
-        mobileAnalysisRangeLongPress?.Dispose();
-        mobileAnalysisRangeLongPress = null;
+        touchContextMenuLongPress?.Dispose();
+        touchContextMenuLongPress = null;
     }
 
     private void InstallTelemetryPlotContextMenu()
@@ -785,8 +794,8 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private bool TryShowMobileTelemetryPlotContextMenu(PointerEventArgs args)
     {
-        if (App.Current?.IsDesktop != false ||
-            !IsSecondaryPointerPressed(args))
+        if (!PointerGesture.SupportsTouchLongPressContextMenu() ||
+            !PointerGesture.IsSecondaryPressed(args, PlotControl))
         {
             return false;
         }
@@ -803,7 +812,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private bool TryShowTelemetryPlotContextMenu(Point point)
     {
-        if (!HasPlotControl)
+        if (!IsPlotReady)
         {
             return false;
         }
@@ -814,9 +823,8 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             return false;
         }
 
-        CancelMobileAnalysisRangeLongPress();
+        CancelTouchContextMenuLongPress();
         isPlotClickCandidate = false;
-        suppressPlotClickClear = true;
         if (PlotControl.Menu is not { } menu)
         {
             return false;
@@ -824,12 +832,6 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
         menu.ShowContextMenu(pixel);
         return true;
-    }
-
-    private bool IsSecondaryPointerPressed(PointerEventArgs args)
-    {
-        var point = args.GetCurrentPoint(PlotControl);
-        return point.Properties.IsRightButtonPressed;
     }
 
     private bool IsContextMenuPixelInDataArea(ScottPlotPixel pixel)
@@ -850,7 +852,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private bool TryToggleInteractiveLegend(PointerEventArgs args)
     {
-        if (plot is null || !HasPlotControl || !IsPrimaryPointerPressed(args))
+        if (!IsPlotReady || !IsPrimaryPointerPressed(args))
         {
             return false;
         }
@@ -858,28 +860,27 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         var point = args.GetPosition(PlotControl);
         var pixel = PlotControl.ToScottPlotPixel(point);
         var plotSize = PlotControl.GetScottPlotPixelSize();
-        if (!plot.TryToggleInteractiveLegendAt(pixel, plotSize))
+        if (!plot!.TryToggleInteractiveLegendAt(pixel, plotSize))
         {
             return false;
         }
 
-        CancelMobileAnalysisRangeLongPress();
+        CancelTouchContextMenuLongPress();
         isSelectingAnalysisRange = false;
         isPlotClickCandidate = false;
-        suppressPlotClickClear = false;
         suppressLegendTogglePointerRelease = true;
         PlotControl.Cursor = Cursor.Default;
         SetPreviewRange(null, null);
-        plot.HideCursorReadout();
+        plot!.HideCursorReadout();
         args.Pointer.Capture(null);
         args.Handled = true;
         RefreshPlot();
         return true;
     }
 
-    private void CompleteMobileAnalysisRangeLongPress()
+    private void CompleteTouchContextMenuLongPress()
     {
-        CancelMobileAnalysisRangeLongPress();
+        CancelTouchContextMenuLongPress();
         if (SignalsWorkspace is null ||
             TimelineDurationSeconds is not { } duration ||
             duration <= 0 ||
@@ -888,19 +889,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             return;
         }
 
-        if (AnalysisRange is { } range &&
-            mobileAnalysisRangeLongPressSeconds >= range.StartSeconds &&
-            mobileAnalysisRangeLongPressSeconds <= range.EndSeconds &&
-            TryShowTelemetryPlotContextMenu(mobileAnalysisRangeLongPressStartPoint))
-        {
-            return;
-        }
-
-        SignalsWorkspace.SetAnalysisRangeBoundary(mobileAnalysisRangeLongPressSeconds);
-        RaiseEvent(new RoutedEventArgs(HapticFeedbackBehavior.LongPressFeedbackRequestedEvent));
-        suppressPlotClickClear = true;
-        isPlotClickCandidate = false;
-        RefreshPlot();
+        TryShowTelemetryPlotContextMenu(touchContextMenuLongPressStartPoint);
     }
 
     private void SetPreviewRange(double? startSeconds, double? endSeconds)
@@ -953,8 +942,8 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     private bool HasExceededClickMovement(PointerEventArgs args)
     {
         var point = args.GetPosition(PlotControl);
-        var startPoint = mobileAnalysisRangeLongPress is not null
-            ? mobileAnalysisRangeLongPressStartPoint
+        var startPoint = touchContextMenuLongPress is not null
+            ? touchContextMenuLongPressStartPoint
             : plotClickStartPoint;
         var delta = point - startPoint;
         return Math.Abs(delta.X) > ClickMovementThresholdPixels ||
@@ -986,7 +975,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private bool CanLoadNow()
     {
-        return plot is not null && HasPlotControl;
+        return IsPlotReady;
     }
 
     private void TryApplyPendingLoad()
@@ -1002,21 +991,22 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private void LoadIntoPlot()
     {
-        if (plot is null || !HasPlotControl)
+        if (!IsPlotReady)
         {
             return;
         }
 
+        var plotModel = plot!;
         if (!CanLoadPlotData)
         {
-            plot.Clear();
+            plotModel.Clear();
             RefreshPlot();
             return;
         }
 
-        ApplyPlotOptions(plot);
-        plot.Clear();
-        LoadPlotData(plot);
+        ApplyPlotOptions(plotModel);
+        plotModel.Clear();
+        LoadPlotData(plotModel);
         ApplyTimelineCursor();
         ApplyTimelineRange();
         OnPlotDataLoaded();

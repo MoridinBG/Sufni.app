@@ -273,7 +273,26 @@ public class SynchronizationClientService : ISynchronizationClientService
             incompleteSourceIds.Count);
     }
 
-    public async Task SyncAll(IProgress<SynchronizationProgressSnapshot>? progress = null)
+    private async Task<SynchronizationRunResult> VerifyLocalCompleteness()
+    {
+        var missingProcessedSessionCount = (await sessionRepository.GetIncompleteSessionIdsAsync()).Count;
+        var incompleteRecordedSourceCount = (await recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync()).Count;
+
+        if (missingProcessedSessionCount == 0 && incompleteRecordedSourceCount == 0)
+        {
+            return new SynchronizationRunResult.Completed();
+        }
+
+        logger.Information(
+            "Synchronization client run completed with incomplete local data: {MissingProcessedSessionCount} session blob(s) and {IncompleteRecordedSourceCount} recorded source(s) still missing",
+            missingProcessedSessionCount,
+            incompleteRecordedSourceCount);
+        return new SynchronizationRunResult.IncompleteLocalData(
+            missingProcessedSessionCount,
+            incompleteRecordedSourceCount);
+    }
+
+    public async Task<SynchronizationRunResult> SyncAll(IProgress<SynchronizationProgressSnapshot>? progress = null)
     {
         try
         {
@@ -293,6 +312,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             await RunPhaseAsync(progress, SynchronizationPhase.PullingIncompleteSessions, "Downloading session data", 4, async () => unresolvedSwaps = await PullIncompleteSessions(swaps));
             await RunPhaseAsync(progress, SynchronizationPhase.PushingIncompleteSessionSources, "Uploading recorded sources", 5, PushIncompleteSessionSources);
             await RunPhaseAsync(progress, SynchronizationPhase.PullingIncompleteSessionSources, "Downloading recorded sources", 6, PullIncompleteSessionSources);
+            var result = await VerifyLocalCompleteness();
 
             // Only advance the single sync watermark when every swap committed. A swap is
             // derived from the pulled-metadata delta and BLOB writes do not bump `updated`,
@@ -309,6 +329,8 @@ public class SynchronizationClientService : ISynchronizationClientService
                     "Holding sync watermark: {UnresolvedSwapCount} session-blob swap(s) did not resolve this run and will be retried next sync",
                     unresolvedSwaps);
             }
+
+            return result;
         }
         catch (System.Exception exception)
         {

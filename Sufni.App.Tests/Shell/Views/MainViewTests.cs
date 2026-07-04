@@ -22,34 +22,33 @@ namespace Sufni.App.Tests.Shell.Views;
 public class MainViewTests
 {
     [AvaloniaFact]
-    public async Task MainView_AttachesNavigationPageHost_WhenLoaded_AndDetachesWhenUnloaded()
+    public void ViewLocator_BuildsCompactShellView_ForCompactShellRoot()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+
+        var root = CreateRoot(MainPagesViewModelTestFactory.Create());
+        var view = new ViewLocator().Build(root);
+
+        Assert.IsType<CompactShellView>(view);
+    }
+
+    [AvaloniaFact]
+    public async Task MainView_UsesWorkspaceHost_WhenLoaded()
     {
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
 
-        var mainPages = MainPagesViewModelTestFactory.Create();
-        var navigationHost = Substitute.For<IMobileNavigationShellHost>();
-        var pageHost = Substitute.For<IMobileNavigationPageHost>();
-        var viewModel = new MainViewModel(
-            mainPages,
-            navigationHost,
-            Substitute.For<IPlotZoomState>(),
-            new InlineUiThreadDispatcher());
+        var root = CreateRoot(MainPagesViewModelTestFactory.Create());
         var view = new MainView
         {
-            DataContext = viewModel,
+            DataContext = root,
         };
-        view.SetNavigationPageHost(pageHost);
 
-        var mounted = await MountAsync(view);
-        var navigationPage = mounted.View.FindControl<NavigationPage>("RootNavigationPage");
+        await using var mounted = await MountAsync(view);
+        var workspaceHost = mounted.View.FindControl<ContentControl>("WorkspaceRootHost");
 
-        Assert.NotNull(navigationPage);
-        pageHost.Received(1).Attach(navigationPage!);
-
-        await mounted.DisposeAsync();
-
-        pageHost.Received(1).Detach(navigationPage!);
+        Assert.NotNull(workspaceHost);
+        Assert.True(workspaceHost!.IsVisible);
     }
 
     [AvaloniaFact]
@@ -60,17 +59,11 @@ public class MainViewTests
 
         var server = new TestSynchronizationServerService();
         var mainPages = MainPagesViewModelTestFactory.Create(syncCoordinator: CreateSyncCoordinator(server));
-        var navigationHost = Substitute.For<IMobileNavigationShellHost>();
-        var viewModel = new MainViewModel(
-            mainPages,
-            navigationHost,
-            Substitute.For<IPlotZoomState>(),
-            new InlineUiThreadDispatcher());
+        var root = CreateRoot(mainPages);
         var view = new MainView
         {
-            DataContext = viewModel,
+            DataContext = root,
         };
-        view.SetNavigationPageHost(Substitute.For<IMobileNavigationPageHost>());
 
         await using var mounted = await MountAsync(view);
 
@@ -106,6 +99,30 @@ public class MainViewTests
     {
         var host = await ViewTestHelpers.ShowViewAsync(view);
         return new MountedMainView(host, view);
+    }
+
+    private static ShellRootViewModel CreateRoot(MainPagesViewModel mainPages)
+    {
+        var environment = new AppEnvironment(
+            DefaultLayoutProfile: UiLayoutProfile.Compact,
+            LayoutProfile: UiLayoutProfile.Compact,
+            Capabilities: new AppCapabilities(
+                CanHostSyncServer: false,
+                CanPairAsClient: true,
+                SupportsMassStorageImport: false,
+                SupportsStorageProviderImport: true),
+            Input: new InputCapabilities(
+                HasPointer: false,
+                HasTouch: true,
+                HasKeyboard: false,
+                SupportsLongPressContextMenu: true));
+
+        return new ShellRootViewModel(
+            mainPages,
+            new ShellWorkspaceViewModel(new InlineUiThreadDispatcher()),
+            environment,
+            Substitute.For<IPlotZoomState>(),
+            new InlineUiThreadDispatcher());
     }
 
     private static SyncCoordinator CreateSyncCoordinator(ISynchronizationServerService server) =>

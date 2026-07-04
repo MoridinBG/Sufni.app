@@ -17,6 +17,18 @@ namespace Sufni.App.Android
         protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
         {
             LoggingBootstrapper.Initialize("Android");
+            App.ServiceCollection.AddAppEnvironment(
+                UiLayoutProfile.Compact,
+                new AppCapabilities(
+                    CanHostSyncServer: false,
+                    CanPairAsClient: true,
+                    SupportsMassStorageImport: false,
+                    SupportsStorageProviderImport: true),
+                new InputCapabilities(
+                    HasPointer: false,
+                    HasTouch: true,
+                    HasKeyboard: false,
+                    SupportsLongPressContextMenu: true));
             MobileAppBootstrapper.RegisterMobileSync(
                 App.ServiceCollection,
                 static () => new AndroidSecureStorage(),

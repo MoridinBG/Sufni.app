@@ -46,7 +46,12 @@ internal static class MainPagesViewModelTestFactory
         IThemeService? themeService = null,
         ISyncCoordinator? syncCoordinator = null,
         IShellCoordinator? shell = null,
+        ShellWorkspaceViewModel? workspace = null,
+        IAppEnvironment? appEnvironment = null,
+        ILayoutProfileTransitionState? layoutProfileTransitionState = null,
+        IUiPreferences? uiPreferences = null,
         IEnumerable<IAppToolbarContributionProvider>? appToolbarContributionProviders = null,
+        PairingClientViewModel? pairingClientPage = null,
         PairingServerViewModel? pairingServerViewModel = null,
         IEnumerable<IExtensionStateRefreshParticipant>? extensionStateRefreshParticipants = null)
     {
@@ -55,6 +60,7 @@ internal static class MainPagesViewModelTestFactory
         trackCoordinator ??= TestCoordinatorSubstitutes.Track();
         syncCoordinator ??= TestCoordinatorSubstitutes.Sync();
         shell ??= Substitute.For<IShellCoordinator>();
+        workspace ??= new ShellWorkspaceViewModel(UiThreadDispatcher);
 
         appDataRefresher.RefreshAsync().Returns(Task.CompletedTask);
         if (themeService is null)
@@ -64,6 +70,12 @@ internal static class MainPagesViewModelTestFactory
             themeService.EffectiveMode.Returns(SufniThemeMode.Dark);
             themeService.IsSystemThemeAvailable.Returns(false);
         }
+        appEnvironment ??= CreateAppEnvironment();
+        if (uiPreferences is null)
+        {
+            uiPreferences = Substitute.For<IUiPreferences>();
+            uiPreferences.SetLayoutProfileAsync(Arg.Any<UiLayoutProfile?>()).Returns(Task.CompletedTask);
+        }
 
         return new MainPagesViewModel(
             appDataRefresher,
@@ -71,7 +83,11 @@ internal static class MainPagesViewModelTestFactory
             trackCoordinator,
             syncCoordinator,
             shell,
+            workspace,
             themeService,
+            appEnvironment,
+            layoutProfileTransitionState ?? new LayoutProfileTransitionState(),
+            uiPreferences,
             CreateBikeListPage(),
             CreateSessionListPage(),
             CreateSetupListPage(),
@@ -80,21 +96,28 @@ internal static class MainPagesViewModelTestFactory
             CreatePairedDeviceListPage(),
             UiThreadDispatcher,
             appToolbarContributionProviders,
+            pairingClientPage: pairingClientPage,
             pairingServerViewModel: pairingServerViewModel,
             extensionStateRefreshParticipants: extensionStateRefreshParticipants);
     }
 
-    public static WelcomeScreenViewModel CreateWelcomeScreen()
-    {
-        return new WelcomeScreenViewModel(
-            Substitute.For<IShellCoordinator>(),
-            Substitute.For<IDialogService>(),
-            TestCoordinatorSubstitutes.Bike(),
-            TestCoordinatorSubstitutes.Setup(),
-            TestCoordinatorSubstitutes.ImportSessions(),
-            Substitute.For<IFilesService>(),
-            UiThreadDispatcher);
-    }
+    public static IAppEnvironment CreateAppEnvironment(
+        UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace,
+        AppCapabilities? capabilities = null,
+        InputCapabilities? input = null) =>
+        new AppEnvironment(
+            DefaultLayoutProfile: layoutProfile,
+            LayoutProfile: layoutProfile,
+            Capabilities: capabilities ?? new AppCapabilities(
+                CanHostSyncServer: true,
+                CanPairAsClient: false,
+                SupportsMassStorageImport: true,
+                SupportsStorageProviderImport: true),
+            Input: input ?? new InputCapabilities(
+                HasPointer: true,
+                HasTouch: false,
+                HasKeyboard: true,
+                SupportsLongPressContextMenu: false));
 
     private static BikeListViewModel CreateBikeListPage() =>
         new(

@@ -271,13 +271,13 @@ structurally impossible, and there is nothing to update here when
 usual. If a new theme-invariant telemetry color is added, put it behind
 `SufniThemes` rather than borrowing it from either variant.
 
-## Capturing Desktop vs Mobile Variants
+## Capturing Layout Variants
 
-The production app uses `App.Current.IsDesktop` (via `ViewLocator`) to
-select between desktop and mobile views. The screenshot project usually
+The production app uses `IAppEnvironment.LayoutProfile` (via `ViewLocator`) to
+select between compact and workspace views. The screenshot project usually
 bypasses `ViewLocator` and instantiates views directly — to screenshot a
-mobile view, construct the mobile view class; for a desktop view,
-construct the desktop view class.
+compact view, construct the compact/common view class; for a workspace view,
+construct the workspace view class.
 
 When the scenario does register `ViewLocator` at runtime (see below),
 `App.Current` is the `ScreenshotApp` instance, but its `IsDesktop` stays

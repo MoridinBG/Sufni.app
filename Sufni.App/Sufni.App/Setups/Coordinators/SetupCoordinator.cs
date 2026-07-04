@@ -28,6 +28,7 @@ public class SetupCoordinator(
     IFilesService filesService,
     IBackgroundTaskRunner backgroundTaskRunner,
     IShellCoordinator shell,
+    IAppEnvironment appEnvironment,
     Func<IEditorFactory> editorFactory)
     : ISetupCoordinator
 {
@@ -93,7 +94,10 @@ public class SetupCoordinator(
 
             var saved = SetupSnapshot.From(setup, boardId);
             setupStore.Upsert(saved);
-            _ = shell.GoBack();
+            if (appEnvironment.LayoutProfile == UiLayoutProfile.Compact)
+            {
+                _ = shell.GoBack();
+            }
 
             logger.Information("Setup save completed for {SetupId}", setup.Id);
             return new SetupSaveResult.Saved(saved.Updated);
@@ -125,7 +129,7 @@ public class SetupCoordinator(
         try { await ReassignBoardAsync(snapshot?.BoardId, null, setupId); }
         catch (Exception ex) { logger.Warning(ex, "Best-effort board reassign failed after setup delete"); }
 
-        editorFactory().CloseSetupEditor(setupId);
+        await editorFactory().CloseSetupEditor(setupId);
         setupStore.Remove(setupId);
 
         logger.Information("Setup delete completed for {SetupId}", setupId);

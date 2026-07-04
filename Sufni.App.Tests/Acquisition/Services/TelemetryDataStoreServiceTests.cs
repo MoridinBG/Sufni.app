@@ -33,6 +33,20 @@ public class TelemetryDataStoreServiceTests
     }
 
     [Fact]
+    public async Task DetectConnectedBoardIdAsync_ReturnsNullWithoutProbe_WhenMassStorageUnsupported()
+    {
+        var backgroundTaskRunner = new RecordingBackgroundTaskRunner();
+        var service = CreateService(
+            backgroundTaskRunner: backgroundTaskRunner,
+            appEnvironment: CreateEnvironment(supportsMassStorageImport: false));
+
+        var detected = await service.DetectConnectedBoardIdAsync();
+
+        Assert.Null(detected);
+        Assert.Equal(0, backgroundTaskRunner.InvocationCount);
+    }
+
+    [Fact]
     public async Task LoadFilesAsync_UsesBackgroundRunnerToReadDataStoreFiles()
     {
         var backgroundTaskRunner = new RecordingBackgroundTaskRunner();
@@ -92,6 +106,27 @@ public class TelemetryDataStoreServiceTests
         var boardId = Guid.NewGuid();
         boardIdInspector.InspectAsync(IPAddress.Loopback, 5555).Returns(Task.FromResult<Guid?>(boardId));
         var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
+        service.StartBrowse();
+
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, "2")));
+
+        var store = Assert.Single(service.DataStores);
+        Assert.Equal("gosst://127.0.0.1:5555", store.Name);
+        Assert.Equal(boardId, store.BoardId);
+    }
+
+    [Fact]
+    public void ServiceAdded_AddsDiscoveredNetworkDataStore_WhenMassStorageUnsupported()
+    {
+        var serviceDiscovery = Substitute.For<IServiceDiscovery>();
+        var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
+        var boardId = Guid.NewGuid();
+        boardIdInspector.InspectAsync(IPAddress.Loopback, 5555).Returns(Task.FromResult<Guid?>(boardId));
+        var service = CreateService(
+            serviceDiscovery: serviceDiscovery,
+            boardIdInspector: boardIdInspector,
+            appEnvironment: CreateEnvironment(supportsMassStorageImport: false));
         service.StartBrowse();
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
@@ -190,7 +225,8 @@ public class TelemetryDataStoreServiceTests
         IDaqBrowseOwner? browseOwner = null,
         IBackgroundTaskRunner? backgroundTaskRunner = null,
         IServiceDiscovery? serviceDiscovery = null,
-        ILiveDaqBoardIdInspector? boardIdInspector = null)
+        ILiveDaqBoardIdInspector? boardIdInspector = null,
+        IAppEnvironment? appEnvironment = null)
     {
         if (browseOwner is null)
         {
@@ -204,8 +240,24 @@ public class TelemetryDataStoreServiceTests
             Substitute.For<IDaqManagementService>(),
             boardIdInspector ?? Substitute.For<ILiveDaqBoardIdInspector>(),
             backgroundTaskRunner ?? new InlineBackgroundTaskRunner(),
-            new InlineUiThreadDispatcher());
+            new InlineUiThreadDispatcher(),
+            appEnvironment);
     }
+
+    private static IAppEnvironment CreateEnvironment(bool supportsMassStorageImport) =>
+        new AppEnvironment(
+            DefaultLayoutProfile: UiLayoutProfile.Compact,
+            LayoutProfile: UiLayoutProfile.Compact,
+            Capabilities: new AppCapabilities(
+                CanHostSyncServer: false,
+                CanPairAsClient: true,
+                SupportsMassStorageImport: supportsMassStorageImport,
+                SupportsStorageProviderImport: true),
+            Input: new InputCapabilities(
+                HasPointer: false,
+                HasTouch: true,
+                HasKeyboard: false,
+                SupportsLongPressContextMenu: true));
 
     private static ITelemetryDataStore CreateDataStore(string name)
     {

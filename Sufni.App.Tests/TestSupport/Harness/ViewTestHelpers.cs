@@ -8,6 +8,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Sufni.App;
+using Sufni.App.Infrastructure;
 using Sufni.App.Theming;
 
 using Sufni.App.Infrastructure.Theming;
@@ -16,7 +17,7 @@ namespace Sufni.App.Tests.TestSupport.Harness;
 public static class ViewTestHelpers
 {
     private const string ViewTemplatesRegisteredKey = "__ViewTestHelpers_ViewTemplatesRegistered";
-    private const string ViewTemplatesDesktopModeKey = "__ViewTestHelpers_ViewTemplatesDesktopMode";
+    private const string ViewTemplatesLayoutProfileKey = "__ViewTestHelpers_ViewTemplatesLayoutProfile";
 
     public static Window ShowView(Control view)
     {
@@ -67,16 +68,20 @@ public static class ViewTestHelpers
 
     public static void EnsureViewTestDataTemplates(bool isDesktop)
     {
+        TestApp.SetIsDesktop(isDesktop);
+        EnsureViewTestDataTemplates(isDesktop ? UiLayoutProfile.Workspace : UiLayoutProfile.Compact);
+    }
+
+    public static void EnsureViewTestDataTemplates(UiLayoutProfile layoutProfile)
+    {
         var application = Application.Current
             ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
 
-        TestApp.SetIsDesktop(isDesktop);
-
         if (application.Resources.TryGetValue(ViewTemplatesRegisteredKey, out var registered)
             && registered is true
-            && application.Resources.TryGetValue(ViewTemplatesDesktopModeKey, out var currentMode)
-            && currentMode is bool registeredDesktopMode
-            && registeredDesktopMode == isDesktop)
+            && application.Resources.TryGetValue(ViewTemplatesLayoutProfileKey, out var currentMode)
+            && currentMode is UiLayoutProfile registeredLayoutProfile
+            && registeredLayoutProfile == layoutProfile)
         {
             return;
         }
@@ -86,9 +91,9 @@ public static class ViewTestHelpers
             application.DataTemplates.Remove(existingLocator);
         }
 
-        application.DataTemplates.Add(new ViewLocator());
+        application.DataTemplates.Add(new ViewLocator(CreateAppEnvironment(layoutProfile)));
         application.Resources[ViewTemplatesRegisteredKey] = true;
-        application.Resources[ViewTemplatesDesktopModeKey] = isDesktop;
+        application.Resources[ViewTemplatesLayoutProfileKey] = layoutProfile;
     }
 
     public static void EnsurePlotViewStyle()
@@ -138,4 +143,19 @@ public static class ViewTestHelpers
             .OfType<T>()
             .FirstOrDefault(control => control.Name == name);
     }
+
+    private static IAppEnvironment CreateAppEnvironment(UiLayoutProfile layoutProfile) =>
+        new AppEnvironment(
+            DefaultLayoutProfile: layoutProfile,
+            LayoutProfile: layoutProfile,
+            Capabilities: new AppCapabilities(
+                CanHostSyncServer: true,
+                CanPairAsClient: true,
+                SupportsMassStorageImport: true,
+                SupportsStorageProviderImport: true),
+            Input: new InputCapabilities(
+                HasPointer: true,
+                HasTouch: true,
+                HasKeyboard: true,
+                SupportsLongPressContextMenu: true));
 }

@@ -11,6 +11,7 @@ using Sufni.App.Bikes.Queries;
 using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Bikes.ViewModels.Editors;
+using Sufni.App.Infrastructure;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Sessions.Processing.SessionDetails;
@@ -21,6 +22,7 @@ internal class BikeCoordinator(
     ISynchronizableRepository<Bike> bikeRepository,
     IBikeDependencyQuery dependencyQuery,
     IShellCoordinator shell,
+    IAppEnvironment appEnvironment,
     IBikeEditorService bikeEditorService,
     IBikeRearSuspensionValidator rearSuspensionValidator,
     Func<IEditorFactory> editorFactory)
@@ -182,7 +184,10 @@ internal class BikeCoordinator(
             await bikeRepository.PutAsync(bike);
             var saved = BikeSnapshot.From(bike);
             bikeStore.Upsert(saved);
-            _ = shell.GoBack();
+            if (appEnvironment.LayoutProfile == UiLayoutProfile.Compact)
+            {
+                _ = shell.GoBack();
+            }
 
             logger.Information("Bike save completed for {BikeId}", bike.Id);
             return new BikeSaveResult.Saved(saved.Updated, analysisResult);
@@ -267,7 +272,7 @@ internal class BikeCoordinator(
             return new BikeDeleteResult(BikeDeleteOutcome.Failed, e.Message);
         }
 
-        editorFactory().CloseBikeEditor(bikeId);
+        await editorFactory().CloseBikeEditor(bikeId);
         bikeStore.Remove(bikeId);
         logger.Information("Bike delete completed for {BikeId}", bikeId);
         return new BikeDeleteResult(BikeDeleteOutcome.Deleted);

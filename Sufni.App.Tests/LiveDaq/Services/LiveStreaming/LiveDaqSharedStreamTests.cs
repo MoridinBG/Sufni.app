@@ -444,7 +444,7 @@ public class LiveDaqSharedStreamTests
             }
         });
 
-        const int publishedFrameCount = 1100;
+        const int publishedFrameCount = 4096;
         var publishTask = Task.Run(() =>
         {
             for (var index = 1; index <= publishedFrameCount; index++)

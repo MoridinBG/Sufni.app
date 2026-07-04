@@ -22,7 +22,7 @@ mc:Ignorable="d">
 
     <Interaction.Behaviors>
         <EventTriggerBehavior EventName="Loaded">
-            <InvokeCommandAction Command="{Binding LoadedCommand}" />
+            <InvokeCommandAction Command="{Binding LoadedCommand}" CommandParameter="{Binding ElementName=Root, Path=Bounds}" />
         </EventTriggerBehavior>
         <EventTriggerBehavior EventName="Unloaded">
             <InvokeCommandAction Command="{Binding UnloadedCommand}" />
@@ -129,6 +129,13 @@ mc:Ignorable="d">
             <StackPanel Spacing="12">
                 <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="Could not load session" />
                 <TextBlock Name="ScreenErrorText" HorizontalAlignment="Center" Text="{Binding SessionContext.ScreenState.Message}" TextAlignment="Center" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
+        <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Padding="24" Background="{DynamicResource SufniFieldSurface}" BorderBrush="{DynamicResource SufniFieldBorder}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding SessionContext.ScreenState.IsIncompleteLocalData}">
+            <StackPanel Spacing="12">
+                <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="Session data incomplete" />
+                <TextBlock Name="ScreenIncompleteText" HorizontalAlignment="Center" Text="{Binding SessionContext.ScreenState.Message}" TextAlignment="Center" TextWrapping="Wrap" />
             </StackPanel>
         </Border>
 

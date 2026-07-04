@@ -39,6 +39,7 @@ public sealed class AppPreferences : IAppPreferences
     public IMapPreferences Map { get; }
     public ISessionPreferences Session { get; }
     public IThemePreferences Theme { get; }
+    public IUiPreferences Ui { get; }
     public IObservable<Unit> SyncDataApplied => syncDataAppliedSubject.AsObservable();
 
     public AppPreferences()
@@ -58,6 +59,7 @@ public sealed class AppPreferences : IAppPreferences
         Map = new MapPreferences(this);
         Session = new RecordedSessionPreferences(this);
         Theme = new ThemePreferences(this);
+        Ui = new UiPreferenceStore(this);
     }
 
     private async Task<TResult> ReadAsync<TResult>(Func<AppPreferencesDocument, TResult> read)
@@ -147,11 +149,10 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    // Persists a change WITHOUT advancing the document's sync clock. A no-bump
-    // write keeps the document from winning whole-document last-writer-wins sync,
-    // so a purely local normalization cannot overwrite a peer's unrelated
-    // preferences. Use only for changes that every device derives identically.
-    private async Task UpdateWithoutAdvancingSyncClockAsync(Action<AppPreferencesDocument> update)
+    // Persists a local/no-bump change WITHOUT advancing the document's sync clock.
+    // This keeps preferences that are intentionally excluded from sync, or
+    // per-device normalizations, from overwriting peers' synced preferences.
+    private async Task UpdateLocalAsync(Action<AppPreferencesDocument> update)
     {
         await gate.WaitAsync();
         try
@@ -244,6 +245,20 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
+    private sealed class UiPreferenceStore(AppPreferences owner) : IUiPreferences
+    {
+        public Task<UiPreferences> GetAsync()
+        {
+            return owner.ReadAsync(document => document.Ui.ToModel());
+        }
+
+        public Task SetLayoutProfileAsync(UiLayoutProfile? layoutProfile)
+        {
+            return owner.UpdateLocalAsync(document =>
+                document.Ui.LayoutProfile = layoutProfile?.ToString());
+        }
+    }
+
     private sealed class RecordedSessionPreferences(AppPreferences owner) : ISessionPreferences
     {
         public Task<SessionPreferences> GetRecordedAsync(Guid sessionId)
@@ -286,7 +301,7 @@ public sealed class AppPreferences : IAppPreferences
 
         public Task ResetRecordedProcessingToDefaultLocallyAsync(Guid sessionId)
         {
-            return owner.UpdateWithoutAdvancingSyncClockAsync(document =>
+            return owner.UpdateLocalAsync(document =>
             {
                 // Reset only Processing to the default; the session's other
                 // preferences (signal display, analysis, signal layout, layout) are preserved.
@@ -326,6 +341,7 @@ public sealed class AppPreferences : IAppPreferences
         public MapPreferencesDocument Maps { get; set; } = new();
         public SessionPreferencesGroupDocument Session { get; set; } = new();
         public ThemePreferencesDocument Theme { get; set; } = new();
+        public UiPreferencesDocument Ui { get; set; } = new();
 
         public AppPreferencesDocument Normalize(int targetVersion)
         {
@@ -336,6 +352,7 @@ public sealed class AppPreferences : IAppPreferences
             Session.Sessions ??= [];
             Session.Normalize();
             Theme ??= new ThemePreferencesDocument();
+            Ui ??= new UiPreferencesDocument();
             return this;
         }
 
@@ -403,6 +420,19 @@ public sealed class AppPreferences : IAppPreferences
                 Mode = theme.Mode,
             };
             Normalize(targetVersion);
+        }
+    }
+
+    private sealed class UiPreferencesDocument
+    {
+        public string? LayoutProfile { get; set; }
+
+        public UiPreferences ToModel()
+        {
+            return new UiPreferences(
+                Enum.TryParse<UiLayoutProfile>(LayoutProfile, ignoreCase: false, out var parsed)
+                    ? parsed
+                    : null);
         }
     }
 

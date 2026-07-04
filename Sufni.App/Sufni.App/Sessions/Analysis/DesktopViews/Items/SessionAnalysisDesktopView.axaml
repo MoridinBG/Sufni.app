@@ -94,9 +94,9 @@ mc:Ignorable="d">
                                 <ComboBox
                                 Name="FrontTravelDistributionModeComboBox"
                                 Width="170"
-                                IsVisible="{Binding !#AnalysisContentHost.DataContext.RearAnalysisState.ReservesLayout}"
-                                ItemsSource="{Binding #AnalysisContentHost.DataContext.TravelDistributionModeOptions}"
-                                SelectedValue="{Binding #AnalysisContentHost.DataContext.SelectedTravelDistributionMode, Mode=TwoWay}"
+                                IsVisible="{Binding !RearAnalysisState.ReservesLayout}"
+                                ItemsSource="{Binding TravelDistributionModeOptions}"
+                                SelectedValue="{Binding SelectedTravelDistributionMode, Mode=TwoWay}"
                                 SelectedValueBinding="{Binding Value, DataType=vm:TravelDistributionModeOption}"
                                 ToolTip.Tip="Choose whether spring stats show active stroke movement or overall ride height.">
                                     <ComboBox.ItemTemplate>
@@ -124,9 +124,9 @@ mc:Ignorable="d">
                                 <ComboBox
                                 Name="TravelDistributionModeComboBox"
                                 Width="170"
-                                IsVisible="{Binding #AnalysisContentHost.DataContext.RearAnalysisState.ReservesLayout}"
-                                ItemsSource="{Binding #AnalysisContentHost.DataContext.TravelDistributionModeOptions}"
-                                SelectedValue="{Binding #AnalysisContentHost.DataContext.SelectedTravelDistributionMode, Mode=TwoWay}"
+                                IsVisible="{Binding RearAnalysisState.ReservesLayout}"
+                                ItemsSource="{Binding TravelDistributionModeOptions}"
+                                SelectedValue="{Binding SelectedTravelDistributionMode, Mode=TwoWay}"
                                 SelectedValueBinding="{Binding Value, DataType=vm:TravelDistributionModeOption}"
                                 ToolTip.Tip="Choose whether spring stats show active stroke movement or overall ride height.">
                                     <ComboBox.ItemTemplate>
@@ -295,14 +295,15 @@ mc:Ignorable="d">
                     Title="Compression balance">
                         <controls:BalanceAnalysisHost.HeaderContent>
                             <StackPanel
-                            IsVisible="{Binding !#AnalysisContentHost.DataContext.ReboundBalanceState.ReservesLayout}"
+                            Name="CompressionBalanceHeaderPanel"
+                            IsVisible="{Binding !ReboundBalanceState.ReservesLayout}"
                             Orientation="Horizontal"
                             Spacing="8">
                                 <ComboBox
                                 Name="CompressionBalanceDisplacementModeComboBox"
                                 Width="150"
-                                ItemsSource="{Binding #AnalysisContentHost.DataContext.BalanceDisplacementModeOptions}"
-                                SelectedValue="{Binding #AnalysisContentHost.DataContext.SelectedBalanceDisplacementMode, Mode=TwoWay}"
+                                ItemsSource="{Binding BalanceDisplacementModeOptions}"
+                                SelectedValue="{Binding SelectedBalanceDisplacementMode, Mode=TwoWay}"
                                 SelectedValueBinding="{Binding Value, DataType=vm:BalanceDisplacementModeOption}"
                                 ToolTip.Tip="Zenith uses deepest stroke travel. Travel uses start-to-end stroke distance.">
                                     <ComboBox.ItemTemplate>
@@ -315,8 +316,8 @@ mc:Ignorable="d">
                                 <ComboBox
                                 Name="CompressionBalanceSpeedModeComboBox"
                                 Width="150"
-                                ItemsSource="{Binding #AnalysisContentHost.DataContext.BalanceSpeedModeOptions}"
-                                SelectedValue="{Binding #AnalysisContentHost.DataContext.SelectedBalanceSpeedMode, Mode=TwoWay}"
+                                ItemsSource="{Binding BalanceSpeedModeOptions}"
+                                SelectedValue="{Binding SelectedBalanceSpeedMode, Mode=TwoWay}"
                                 SelectedValueBinding="{Binding Value, DataType=vm:BalanceSpeedModeOption}"
                                 ToolTip.Tip="Choose whether balance slopes use low-speed strokes, high-speed strokes, or both.">
                                     <ComboBox.ItemTemplate>
@@ -345,14 +346,15 @@ mc:Ignorable="d">
                     Title="Rebound balance">
                         <controls:BalanceAnalysisHost.HeaderContent>
                             <StackPanel
-                            IsVisible="{Binding #AnalysisContentHost.DataContext.ReboundBalanceState.ReservesLayout}"
+                            Name="ReboundBalanceHeaderPanel"
+                            IsVisible="{Binding ReboundBalanceState.ReservesLayout}"
                             Orientation="Horizontal"
                             Spacing="8">
                                 <ComboBox
                                 Name="BalanceDisplacementModeComboBox"
                                 Width="150"
-                                ItemsSource="{Binding #AnalysisContentHost.DataContext.BalanceDisplacementModeOptions}"
-                                SelectedValue="{Binding #AnalysisContentHost.DataContext.SelectedBalanceDisplacementMode, Mode=TwoWay}"
+                                ItemsSource="{Binding BalanceDisplacementModeOptions}"
+                                SelectedValue="{Binding SelectedBalanceDisplacementMode, Mode=TwoWay}"
                                 SelectedValueBinding="{Binding Value, DataType=vm:BalanceDisplacementModeOption}"
                                 ToolTip.Tip="Zenith uses deepest stroke travel. Travel uses start-to-end stroke distance.">
                                     <ComboBox.ItemTemplate>
@@ -365,8 +367,8 @@ mc:Ignorable="d">
                                 <ComboBox
                                 Name="BalanceSpeedModeComboBox"
                                 Width="150"
-                                ItemsSource="{Binding #AnalysisContentHost.DataContext.BalanceSpeedModeOptions}"
-                                SelectedValue="{Binding #AnalysisContentHost.DataContext.SelectedBalanceSpeedMode, Mode=TwoWay}"
+                                ItemsSource="{Binding BalanceSpeedModeOptions}"
+                                SelectedValue="{Binding SelectedBalanceSpeedMode, Mode=TwoWay}"
                                 SelectedValueBinding="{Binding Value, DataType=vm:BalanceSpeedModeOption}"
                                 ToolTip.Tip="Choose whether balance slopes use low-speed strokes, high-speed strokes, or both.">
                                     <ComboBox.ItemTemplate>

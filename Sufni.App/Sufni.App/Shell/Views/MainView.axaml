@@ -8,24 +8,24 @@ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:vm="clr-namespace:Sufni.App.Shell.ViewModels"
 d:DesignHeight="600"
 d:DesignWidth="500"
-x:DataType="vm:MainViewModel"
+x:DataType="vm:ShellRootViewModel"
 Background="{DynamicResource SufniBackgroundDisabled}"
 mc:Ignorable="d">
     <Panel TopLevel.AutoSafeAreaPadding="True" Background="{DynamicResource SufniRegion}">
-        <NavigationPage Name="RootNavigationPage" />
+        <ContentControl Name="WorkspaceRootHost" Content="{Binding Presentation}" />
         <c:PlotZoomOverlayHost Name="PlotZoomOverlay" />
         <c:BusyOverlay
             Name="SyncBusyOverlay"
             BusyMessageFontWeight="Bold"
-            ConsumesInput="{Binding MainPagesViewModel.SyncInProgress}"
+            ConsumesInput="{Binding Pages.SyncInProgress}"
             IndicatorForeground="{DynamicResource SufniAccentColor}"
-            IsActive="{Binding MainPagesViewModel.SyncInProgress}"
-            IsProgressIndeterminate="{Binding MainPagesViewModel.SyncProgressIsIndeterminate}"
-            IsVisible="{Binding MainPagesViewModel.SyncInProgress}"
-            Message="{Binding MainPagesViewModel.SyncProgressText}"
+            IsActive="{Binding Pages.SyncInProgress}"
+            IsProgressIndeterminate="{Binding Pages.SyncProgressIsIndeterminate}"
+            IsVisible="{Binding Pages.SyncInProgress}"
+            Message="{Binding Pages.SyncProgressText}"
             MessageForeground="{DynamicResource SufniAccentColor}"
-            ProgressValue="{Binding MainPagesViewModel.SyncProgressValue}"
-            ShowProgress="{Binding MainPagesViewModel.SyncInProgress}"
+            ProgressValue="{Binding Pages.SyncProgressValue}"
+            ShowProgress="{Binding Pages.SyncInProgress}"
             ShowTint="True"
             TintBackground="{DynamicResource SufniBackgroundDisabled}"
             UseStackLayout="True" />

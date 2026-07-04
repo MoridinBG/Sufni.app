@@ -152,7 +152,7 @@ public class SyncCoordinator : ISyncCoordinator
             }
 
             logger.Verbose("Running remote synchronization phases");
-            await backgroundTaskRunner.RunAsync(() =>
+            var result = await backgroundTaskRunner.RunAsync(() =>
                 synchronizationClientService.SyncAll(new SyncProgressReporter(ReportOutboundServiceProgress)));
 
             logger.Verbose("Refreshing local stores after synchronization");
@@ -164,8 +164,9 @@ public class SyncCoordinator : ISyncCoordinator
                 IsDeterminate: true);
             await RefreshStoresOnUiThreadAsync();
 
-            logger.Information("Synchronization completed");
-            SyncCompleted?.Invoke(this, new SyncCompletedEventArgs("Sync successful"));
+            var completionMessage = GetCompletionMessage(result);
+            logger.Information("Synchronization completed: {CompletionMessage}", completionMessage);
+            SyncCompleted?.Invoke(this, new SyncCompletedEventArgs(completionMessage));
         }
         catch (Exception e)
         {
@@ -328,6 +329,15 @@ public class SyncCoordinator : ISyncCoordinator
             CurrentStep = currentStep,
             TotalSteps = 6,
             IsDeterminate = true
+        };
+
+    private static string GetCompletionMessage(SynchronizationRunResult result) =>
+        result switch
+        {
+            SynchronizationRunResult.Completed => "Sync successful",
+            SynchronizationRunResult.IncompleteLocalData incomplete =>
+                $"Sync incomplete: {incomplete.MissingProcessedSessionCount} session blob(s) and {incomplete.IncompleteRecordedSourceCount} recorded source(s) still missing",
+            _ => "Sync completed"
         };
 
     private async Task RefreshStoresOnUiThreadAsync()

@@ -86,6 +86,11 @@ public partial class App : Application
         IsDesktop = isDesktop;
     }
 
+    internal void SetServicesForTests(IServiceProvider? services)
+    {
+        Services = services;
+    }
+
     public override void Initialize()
     {
         // Read the persisted theme mode before XAML loads so the first frame
@@ -129,25 +134,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton(extensionCapabilityRegistry);
         ServiceCollection.AddSingleton<IAppExtensionCapabilityRegistry>(extensionCapabilityRegistry);
 
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime)
-        {
-            ServiceCollection.AddSingleton<IMainWindowShellHost>(sp =>
-                sp.GetRequiredService<MainWindowViewModel>());
-            ServiceCollection.AddSingleton<IShellCoordinator>(sp =>
-                new DesktopShellCoordinator(() => sp.GetRequiredService<IMainWindowShellHost>()));
-            ServiceCollection.AddSingleton<ISessionLayoutStrategy, DesktopSessionLayoutStrategy>();
-        }
-        else if (ApplicationLifetime is ISingleViewApplicationLifetime)
-        {
-            ServiceCollection.AddSingleton<MobileNavigationShellHost>();
-            ServiceCollection.AddSingleton<IMobileNavigationShellHost>(sp =>
-                sp.GetRequiredService<MobileNavigationShellHost>());
-            ServiceCollection.AddSingleton<IMobileNavigationPageHost>(sp =>
-                sp.GetRequiredService<MobileNavigationShellHost>());
-            ServiceCollection.AddSingleton<IShellCoordinator>(sp =>
-                new MobileShellCoordinator(sp.GetRequiredService<IMobileNavigationShellHost>()));
-            ServiceCollection.AddSingleton<ISessionLayoutStrategy, MobileSessionLayoutStrategy>();
-        }
+        ServiceCollection.AddSingleton<IShellCoordinator, ShellWorkspaceCoordinator>();
 
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
         ServiceCollection.AddSingleton<ViewLocator>(sp => new ViewLocator(
@@ -155,6 +142,7 @@ public partial class App : Application
             sp));
         ServiceCollection.AddSingleton<IBackgroundTaskRunner, BackgroundTaskRunner>();
         ServiceCollection.AddSingleton<IUiThreadDispatcher, AvaloniaUiThreadDispatcher>();
+        ServiceCollection.AddSingleton<ILayoutProfileTransitionState, LayoutProfileTransitionState>();
         ServiceCollection.AddSingleton<IKinematicSolutionCache, KinematicSolutionCache>();
         ServiceCollection.AddSingleton<IRearTravelCalibrationBuilder, RearTravelCalibrationBuilder>();
         ServiceCollection.AddSingleton<IBikeRearSuspensionValidator, BikeRearSuspensionValidator>();
@@ -178,7 +166,6 @@ public partial class App : Application
         ServiceCollection.AddSingleton(typeof(ISynchronizableRepository<>), typeof(SynchronizableRepository<>));
         ServiceCollection.AddSingleton<IPairedDeviceRepository, PairedDeviceRepository>();
         ServiceCollection.AddSingleton<IRecordedSessionSourceRepository, RecordedSessionSourceRepository>();
-        ServiceCollection.AddSingleton<ISessionCacheStore, SessionCacheStore>();
         ServiceCollection.AddSingleton<ITrackRepository, TrackRepository>();
         ServiceCollection.AddSingleton<ISessionTrackReader, SessionTrackReader>();
         ServiceCollection.AddSingleton<IFullTrackPointReader, FullTrackPointReader>();
@@ -197,6 +184,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IThemeService, ThemeService>();
         ServiceCollection.AddSingleton<IMapPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Map);
         ServiceCollection.AddSingleton<ISessionPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Session);
+        ServiceCollection.AddSingleton<IUiPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Ui);
         ServiceCollection.AddSingleton<ITileLayerService, TileLayerService>();
         ServiceCollection.AddSingleton<IMapViewModelFactory, MapViewModelFactory>();
         ServiceCollection.AddSingleton<FilesService>();
@@ -242,11 +230,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ITrackCoordinator>(sp => sp.GetRequiredService<TrackCoordinator>());
         ServiceCollection.AddSingleton<SessionLoader>(sp => new SessionLoader(
             sp.GetRequiredService<ISessionStoreWriter>(),
-            sp.GetRequiredService<ISessionRepository>(),
-            sp.GetRequiredService<ISessionTelemetryWriter>(),
             sp.GetRequiredService<ISessionProcessedTelemetryReader>(),
-            sp.GetRequiredService<ISessionCacheStore>(),
-            sp.GetRequiredService<IHttpApiService>(),
             sp.GetRequiredService<IBackgroundTaskRunner>(),
             sp.GetRequiredService<ITrackCoordinator>(),
             sp.GetRequiredService<ISessionPresentationService>(),
@@ -275,6 +259,7 @@ public partial class App : Application
             sp.GetRequiredService<IBackgroundTaskRunner>(),
             sp.GetRequiredService<ISessionPreferences>(),
             sp.GetRequiredService<IShellCoordinator>(),
+            sp.GetRequiredService<IAppEnvironment>(),
             sp.GetRequiredService<ISessionRecomputeEngine>(),
             sp.GetRequiredService<Func<IEditorFactory>>(),
             sp.GetRequiredService<IRecordedSessionDerivationWindowCache>(),
@@ -341,9 +326,8 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ImportSessionsViewModel>();
         ServiceCollection.AddSingleton<SetupListViewModel>();
         ServiceCollection.AddSingleton<MainPagesViewModel>();
-        ServiceCollection.AddSingleton<WelcomeScreenViewModel>();
-        ServiceCollection.AddSingleton<MainViewModel>();
-        ServiceCollection.AddSingleton<MainWindowViewModel>();
+        ServiceCollection.AddSingleton<ShellWorkspaceViewModel>();
+        ServiceCollection.AddSingleton<ShellRootViewModel>();
 
         Extensions.RegisterCapabilities(extensionCapabilityRegistry);
 
@@ -371,21 +355,9 @@ public partial class App : Application
         _ = Services.GetRequiredService<IPairedDeviceCoordinator>();
         _ = Services.GetRequiredService<ISyncCoordinator>();
 
-        // Mobile-only: eagerly resolve so DeviceId / IsPaired probe runs
-        // before the pairing screen is opened.
-        if (!IsDesktop)
-        {
-            _ = Services.GetService<IPairingClientCoordinator>();
-        }
-
-        // Desktop-only: eagerly resolve so the constructor's
-        // PairingRequested/PairingConfirmed event subscriptions wire up
-        // before the desktop view loads.
-        if (IsDesktop)
-        {
-            _ = Services.GetService<IPairingServerCoordinator>();
-            _ = Services.GetService<IInboundSyncCoordinator>();
-        }
+        ResolveCapabilityEagerServices(
+            Services,
+            Services.GetRequiredService<IAppEnvironment>().Capabilities);
 
         foreach (var eagerServiceType in extensionCapabilityRegistry.EagerServiceTypes)
         {
@@ -401,12 +373,11 @@ public partial class App : Application
 
         var fileService = Services.GetRequiredService<IFilesService>();
         var dialogHost = Services.GetRequiredService<IDialogHost>();
-        var shellCoordinator = Services.GetRequiredService<IShellCoordinator>();
 
         switch (ApplicationLifetime)
         {
             case IClassicDesktopStyleApplicationLifetime desktop:
-                var mainWindowViewModel = Services.GetRequiredService<MainWindowViewModel>();
+                var desktopShellRootViewModel = Services.GetRequiredService<ShellRootViewModel>();
                 var mainWindow = new MainWindow();
                 desktop.MainWindow = mainWindow;
                 Services.GetRequiredService<IPlotZoomState>()
@@ -415,17 +386,15 @@ public partial class App : Application
                 dialogHost.SetOwner(mainWindow);
                 dialogHost.SetOverlayHost(mainWindow);
                 dialogHost.SetPresentationMode(DialogPresentationMode.Window);
-                mainWindow.DataContext = mainWindowViewModel;
+                mainWindow.DataContext = desktopShellRootViewModel;
                 desktop.Exit += (_, _) => LoggingBootstrapper.FlushAndClose();
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
-                var mainViewModel = Services.GetRequiredService<MainViewModel>();
-                var mobileNavigationPageHost = Services.GetRequiredService<IMobileNavigationPageHost>();
+                var shellRootViewModel = Services.GetRequiredService<ShellRootViewModel>();
                 var mainView = new MainView
                 {
-                    DataContext = mainViewModel
+                    DataContext = shellRootViewModel
                 };
-                mainView.SetNavigationPageHost(mobileNavigationPageHost);
                 Services.GetRequiredService<IPlotZoomState>()
                     .SetSurface(mainView.FindControl<PlotZoomOverlayHost>("PlotZoomOverlay"));
                 singleViewPlatform.MainView = mainView;
@@ -440,13 +409,7 @@ public partial class App : Application
                     Debug.Assert(topLevel is not null);
                     topLevel.BackRequested += (_, e) =>
                     {
-                        var handled = mainViewModel.TryCloseTransientShellSurface();
-                        if (!handled)
-                        {
-                            handled = shellCoordinator.GoBack();
-                        }
-
-                        e.Handled = handled;
+                        e.Handled = shellRootViewModel.HandleBackRequest();
                     };
                     fileService.SetTarget(topLevel);
                 };
@@ -469,6 +432,24 @@ public partial class App : Application
         return Design.IsDesignMode
             || ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime
                 and not ISingleViewApplicationLifetime;
+    }
+
+    internal static void ResolveCapabilityEagerServices(
+        IServiceProvider services,
+        AppCapabilities capabilities)
+    {
+        if (capabilities.CanPairAsClient)
+        {
+            // Resolve so DeviceId / IsPaired probe runs before the pairing screen is opened.
+            _ = services.GetService<IPairingClientCoordinator>();
+        }
+
+        if (capabilities.CanHostSyncServer)
+        {
+            // Resolve so pairing and inbound-sync event subscriptions wire up before views load.
+            _ = services.GetService<IPairingServerCoordinator>();
+            _ = services.GetService<IInboundSyncCoordinator>();
+        }
     }
 
     static partial void RegisterBuildTimeExtensions(AppExtensionCollection extensions, bool isDesktop);

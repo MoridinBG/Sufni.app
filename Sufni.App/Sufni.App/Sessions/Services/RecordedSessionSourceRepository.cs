@@ -99,26 +99,25 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
         var query = $"""
                      SELECT
                          s.id,
-                         s.{SessionProcessingFingerprintColumn},
-                         source.source_hash
+                         s.{SessionProcessingFingerprintColumn}
                      FROM session s
-                     LEFT JOIN session_recording_source source ON source.session_id = s.id
                      WHERE s.deleted IS null
                      """;
+        var sourceHashRows = await connection.QueryAsync<RecordedSessionSourceHashRow>(
+            "SELECT session_id, source_hash FROM session_recording_source");
+        var sourceHashesBySessionId = sourceHashRows.ToDictionary(row => row.SessionId, row => row.SourceHash);
         var rows = await connection.QueryAsync<SessionSourceStatusRow>(query);
         return
         [
             .. rows
                 .Where(row =>
                 {
-                    if (string.IsNullOrWhiteSpace(row.SourceHash))
-                    {
-                        return true;
-                    }
-
-                    var expectedSourceHash = TryReadFingerprintSourceHash(row.ProcessingFingerprintJson);
-                    return !string.IsNullOrWhiteSpace(expectedSourceHash) &&
-                           !StringComparer.Ordinal.Equals(row.SourceHash, expectedSourceHash);
+                    var persistedFingerprint = TryReadProcessingFingerprint(row.ProcessingFingerprintJson);
+                    var sourceSessionId = persistedFingerprint?.DerivationWindow?.SourceSessionId ?? row.Id;
+                    sourceHashesBySessionId.TryGetValue(sourceSessionId, out var sourceHash);
+                    return RecordedSessionSourceCompleteness.IsSourceMissingOrHashMismatch(
+                        sourceHash,
+                        persistedFingerprint);
                 })
                 .Select(row => row.Id)
         ];
@@ -246,7 +245,7 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
         }
     }
 
-    private static string? TryReadFingerprintSourceHash(string? processingFingerprintJson)
+    private static ProcessingFingerprint? TryReadProcessingFingerprint(string? processingFingerprintJson)
     {
         if (string.IsNullOrWhiteSpace(processingFingerprintJson))
         {
@@ -255,21 +254,12 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
 
         try
         {
-            using var document = JsonDocument.Parse(processingFingerprintJson);
-            foreach (var property in document.RootElement.EnumerateObject())
-            {
-                if (string.Equals(property.Name, "SourceHash", StringComparison.OrdinalIgnoreCase) &&
-                    property.Value.ValueKind == JsonValueKind.String)
-                {
-                    return property.Value.GetString();
-                }
-            }
+            return AppJson.Deserialize<ProcessingFingerprint>(processingFingerprintJson);
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or NotSupportedException)
         {
+            return null;
         }
-
-        return null;
     }
 
     private static ProcessingFingerprint? TryReadFingerprint(string? processingFingerprintJson)
@@ -293,6 +283,15 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
     {
         [Column("session_id")]
         public Guid SessionId { get; set; }
+    }
+
+    private sealed class RecordedSessionSourceHashRow
+    {
+        [Column("session_id")]
+        public Guid SessionId { get; set; }
+
+        [Column("source_hash")]
+        public string SourceHash { get; set; } = null!;
     }
 
     private sealed class RecordedSessionSourceSnapshotRow
@@ -327,9 +326,6 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
 
         [Column("session_processing_fingerprint")]
         public string? ProcessingFingerprintJson { get; set; }
-
-        [Column("source_hash")]
-        public string? SourceHash { get; set; }
     }
 
     private sealed class SessionFingerprintSourceRow

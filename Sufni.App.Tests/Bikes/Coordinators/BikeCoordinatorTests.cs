@@ -30,7 +30,12 @@ public class BikeCoordinatorTests
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
     private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
 
-    private BikeCoordinator CreateCoordinator()
+    public BikeCoordinatorTests()
+    {
+        editorFactory.CloseBikeEditor(Arg.Any<Guid>()).Returns(Task.CompletedTask);
+    }
+
+    private BikeCoordinator CreateCoordinator(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace)
     {
         BikeCoordinator? coordinator = null;
         coordinator = new(
@@ -38,6 +43,7 @@ public class BikeCoordinatorTests
             bikeRepository,
             dependencyQuery,
             shell,
+            CreateEnvironment(layoutProfile),
             bikeEditorService,
             rearSuspensionValidator,
             () => editorFactory);
@@ -210,10 +216,31 @@ public class BikeCoordinatorTests
             s.RearWheelDiameterMm == 750 &&
             s.ImageRotationDegrees == 13.5 &&
             s.Updated == 7));
-        shell.Received(1).GoBack();
+        shell.DidNotReceive().GoBack();
         var saved = Assert.IsType<BikeSaveResult.Saved>(result);
         Assert.Equal(7, saved.NewBaselineUpdated);
         Assert.IsType<BikeEditorAnalysisResult.Unavailable>(saved.AnalysisResult);
+    }
+
+    [Fact]
+    public async Task SaveAsync_OnCompact_NavigatesBackAfterSave()
+    {
+        var existing = TestSnapshots.Bike(updated: 5);
+        bikeStore.Get(existing.Id).Returns(existing);
+        var coordinator = CreateCoordinator(UiLayoutProfile.Compact);
+
+        var bike = new Bike(existing.Id, "renamed")
+        {
+            HeadAngle = 65,
+            ForkStroke = 160,
+            FrontWheelDiameterMm = 760,
+            RearWheelDiameterMm = 750,
+            Updated = 7,
+        };
+
+        await coordinator.SaveAsync(bike, baselineUpdated: 5);
+
+        shell.Received(1).GoBack();
     }
 
     [Fact]
@@ -394,7 +421,7 @@ public class BikeCoordinatorTests
             TaskCreationOptions.RunContinuationsAsynchronously);
         bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(_ => analysisCompletion.Task);
-        var coordinator = CreateCoordinator();
+        var coordinator = CreateCoordinator(UiLayoutProfile.Compact);
         var linkage = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
         var bike = new Bike(existing.Id, "full sus")
         {
@@ -467,7 +494,7 @@ public class BikeCoordinatorTests
 
         Assert.Equal(BikeDeleteOutcome.InUse, result.Outcome);
         await bikeRepository.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
-        editorFactory.DidNotReceive().CloseBikeEditor(Arg.Any<Guid>());
+        await editorFactory.DidNotReceive().CloseBikeEditor(Arg.Any<Guid>());
         bikeStore.DidNotReceiveWithAnyArgs().Remove(default);
     }
 
@@ -482,7 +509,7 @@ public class BikeCoordinatorTests
 
         Assert.Equal(BikeDeleteOutcome.Deleted, result.Outcome);
         await bikeRepository.Received(1).DeleteAsync(id);
-        editorFactory.Received(1).CloseBikeEditor(id);
+        await editorFactory.Received(1).CloseBikeEditor(id);
         bikeStore.Received(1).Remove(id);
     }
 
@@ -498,6 +525,21 @@ public class BikeCoordinatorTests
 
         Assert.Equal(BikeDeleteOutcome.Failed, result.Outcome);
         bikeStore.DidNotReceiveWithAnyArgs().Remove(default);
-        editorFactory.DidNotReceive().CloseBikeEditor(Arg.Any<Guid>());
+        await editorFactory.DidNotReceive().CloseBikeEditor(Arg.Any<Guid>());
     }
+
+    private static IAppEnvironment CreateEnvironment(UiLayoutProfile layoutProfile) =>
+        new AppEnvironment(
+            DefaultLayoutProfile: layoutProfile,
+            LayoutProfile: layoutProfile,
+            Capabilities: new AppCapabilities(
+                CanHostSyncServer: true,
+                CanPairAsClient: true,
+                SupportsMassStorageImport: true,
+                SupportsStorageProviderImport: true),
+            Input: new InputCapabilities(
+                HasPointer: true,
+                HasTouch: true,
+                HasKeyboard: true,
+                SupportsLongPressContextMenu: true));
 }

@@ -46,6 +46,7 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
     private readonly DispatcherTimer massStorageScanTimer;
+    private readonly bool supportsMassStorageImport;
     private int massStorageRefreshInProgress;
     private volatile bool isBrowsing;
     private IDisposable? browseLease;
@@ -55,6 +56,9 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
 
     private async Task RefreshMassStorageDataStoresAsync(CancellationToken cancellationToken = default)
     {
+        if (!supportsMassStorageImport)
+            return;
+
         if (Interlocked.Exchange(ref massStorageRefreshInProgress, 1) == 1)
             return;
 
@@ -198,7 +202,8 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
         IDaqManagementService daqManagementService,
         ILiveDaqBoardIdInspector liveDaqBoardIdInspector,
         IBackgroundTaskRunner backgroundTaskRunner,
-        IUiThreadDispatcher? uiThreadDispatcher = null)
+        IUiThreadDispatcher? uiThreadDispatcher = null,
+        IAppEnvironment? appEnvironment = null)
     {
         this.serviceDiscovery = serviceDiscovery;
         this.browseOwner = browseOwner;
@@ -206,6 +211,7 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
         this.liveDaqBoardIdInspector = liveDaqBoardIdInspector;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
+        supportsMassStorageImport = appEnvironment?.Capabilities.SupportsMassStorageImport ?? true;
 
         // Service edge case documented in ui.md: services may own a
         // DispatcherTimer for cadence; PeriodicUiTimer is not used here because
@@ -223,7 +229,11 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
         isBrowsing = true;
         serviceDiscovery.ServiceAdded += OnServiceAdded;
         serviceDiscovery.ServiceRemoved += OnServiceRemoved;
-        massStorageScanTimer.Start();
+        if (supportsMassStorageImport)
+        {
+            massStorageScanTimer.Start();
+        }
+
         browseLease = browseOwner.AcquireBrowse();
     }
 
@@ -316,7 +326,9 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
     }
 
     public Task<Guid?> DetectConnectedBoardIdAsync(CancellationToken cancellationToken = default) =>
-        backgroundTaskRunner.RunAsync(() =>
+        !supportsMassStorageImport
+            ? Task.FromResult<Guid?>(null)
+            : backgroundTaskRunner.RunAsync(() =>
         {
             // Pure read: do not construct a MassStorageTelemetryDataStore,
             // its constructor creates the uploaded/ subdirectory as a side

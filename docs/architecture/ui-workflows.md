@@ -14,7 +14,7 @@ and are registered as singletons.
 
 | Coordinator                                                               | Lifetime     | Owns                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `IShellCoordinator` (`DesktopShellCoordinator`, `MobileShellCoordinator`) | per shell    | `Open` / `OpenOrFocus<T>` / `Close` / `CloseIfOpen<T>` / `GoBack` — the only navigation surface                                                                                                                                                                                                                                                                                                                                                                     |
+| `IShellCoordinator` (`ShellWorkspaceCoordinator`)                         | shared       | `Open` / `OpenOrFocus<T>` / `OpenInBackground<T>` / `Close` / `CloseIfOpen<T>` / `GoBack` — the only navigation surface; delegates to `ShellWorkspaceViewModel` in both layout profiles                                                                                                                                                                                                                                                                              |
 | `BikeCoordinator`                                                         | shared       | Open create/edit, save with conflict detection, delete (gated by `IBikeDependencyQuery`)                                                                                                                                                                                                                                                                                                                                                                            |
 | `SetupCoordinator`                                                        | shared       | Same as above + the `Board` row association (clears the previous board on save / delete) and the "create setup for detected board" flow                                                                                                                                                                                                                                                                                                                             |
 | `SessionCoordinator`                                                      | shared       | Thin router over `SessionLoader` (reads) and `SessionCommandService` (writes): `OpenEditAsync` routes through `IEditorFactory`, loads delegate to `SessionLoader`, and save / delete / recompute requests delegate to `SessionCommandService`. It owns no event subscriptions and is not eagerly resolved                                                                                                                                                                                                                                                |
@@ -33,17 +33,17 @@ singletons):
 
 | Use case            | Owns                                                                                                                                                       |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SessionLoader`     | Desktop/mobile detail loads; mobile `LoadMobileDetailAsync` transparently fetches missing processed telemetry from the server before returning              |
+| `SessionLoader`     | Unified local-only session detail load; missing local processed telemetry or recorded-source payloads return an incomplete-local-data result                  |
 | `SessionCommandService` | Every store-writing session command: `SaveAsync` (metadata save with in-memory store-snapshot optimistic-concurrency conflict detection; preserves processing fingerprints on metadata-only saves), `DeleteAsync` (clears the session's stored preferences, deletes through repositories whose soft delete applies extension cascades atomically, removes the recorded source only when the derivation-window provider says no live session still references it, and cleans up orphaned generated tracks only after the active-session `full_track_id` projection shows no other session references that track), create-only `SaveLiveCaptureAsync` (persists live captures as processed session + raw source + optional generated track), extension-host editing helpers (`CreateDerivedSessionAsync`, `UpdateSessionOriginAsync`, `RenameSessionAsync`) for trim/split workflows, and `RequestRecomputeAsync` / `RequestRecomputeAllAsync` (both delegated to `SessionRecomputeEngine`) |
 | `SessionRecomputeEngine` | Serialized, per-session **cancel-and-replace** recompute engine and the single owner of recompute liveness. `RequestRecomputeAsync` rebuilds processed telemetry from the raw source against the current setup/bike inputs and the hydrated `IRecordedSessionProcessingOptionCache`; the reprocessor returns a `ProcessedTelemetryPayload` carrying the decoded telemetry, serialized bytes, and fingerprint JSON, and `SessionTelemetryWriter.UpdateProcessedDerivedDataAsync` commits that payload after the in-transaction DB-input fingerprint check. If that derived write replaces the session's previous full track, the engine deletes the previous track only after the active-session `full_track_id` projection shows it is no longer referenced. A newer request for the same session cancels and replaces the in-flight one (which resolves to `Superseded`), and a run whose DB inputs change underneath it re-enqueues itself until it converges. `IsActive` reports an in-flight run. Cancellation bounds correctness (no stale commit), not CPU — an in-flight reprocess is not interrupted, only prevented from committing. `RequestRecomputeAllAsync` hydrates the processing-option cache, enumerates active ids through the session-id projection (`ISessionRepository.GetActiveSessionIdsAsync()`), and fans them through `RequestRecomputeAsync` with a degree of parallelism scaled to `Environment.ProcessorCount`, returning a `SessionRecomputeAllResult` tally and reporting per-session progress through an optional `IProgress<SessionRecomputeAllProgress>` so the caller can drive a determinate progress dialog; sessions that cannot be recomputed are counted and skipped, not surfaced as failures. The staleness prompt (`SessionStalenessReconciler`) offers "Recompute all" alongside "Recompute" — it builds those buttons through the dialog service's generic `ShowChoiceAsync` prompt (the service stays recompute-agnostic; the reconciler owns the choice ids and what they mean) and runs the bulk recompute behind a modal, equally generic `ShowProgressAsync` loading dialog |
 | `SessionSyncApplier`| Subscribes to the desktop server's `SynchronizationDataArrived`, `SessionDataArrived`, and `SessionSourceDataArrived`, applying inbound session data to the stores |
 
 `InboundSyncCoordinator`, `SessionSyncApplier`, `PairedDeviceCoordinator`,
-`PairingClientCoordinator` (mobile), `PairingServerCoordinator`
-(desktop) and `SyncCoordinator` are eagerly resolved in
-`App.axaml.cs` after `BuildServiceProvider()` so their constructor
-event subscriptions wire up before any sync, pairing, or telemetry
-arrival can happen.
+`PairingClientCoordinator` on client-capable mobile heads,
+`PairingServerCoordinator` on server-capable desktop heads, and
+`SyncCoordinator` are eagerly resolved in `App.axaml.cs` after
+`BuildServiceProvider()` so their constructor event subscriptions wire up
+before any sync, pairing, or telemetry arrival can happen.
 
 ## Dependency Injection
 
@@ -58,14 +58,15 @@ and calls `BuildServiceProvider()`. There is no separate
 the composition root.
 
 Extension module startup is part of the same composition root. `App`
-computes desktop/mobile mode, calls the build-time partial
+computes the native platform mode, calls the build-time partial
 `RegisterBuildTimeExtensions(App.Extensions)`, registers the
-`ExtensionViewRegistry`, then lets modules register services before
-core shared services. After module and core services are present,
-`AppExtensionCapabilityRegistry` is registered as a singleton and
-modules register capabilities. No assembly scanning occurs; public
-builds have no partial implementation and therefore no modules. See
-[Extension Host](extensions.md#module-startup).
+profile-aware `ExtensionViewRegistry`, then lets modules register
+services before core shared services. `AppExtensionServiceRegistrationContext.IsDesktop`
+remains platform-based for service registration. After module and core
+services are present, `AppExtensionCapabilityRegistry` is registered as a
+singleton and modules register profile-based view capabilities. No assembly
+scanning occurs; public builds have no partial implementation and therefore no
+modules. See [Extension Host](extensions.md#module-startup).
 
 Shared registrations in `App.OnFrameworkInitializationCompleted`:
 
@@ -74,12 +75,12 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   services/capabilities supplied by `App.Extensions` before the
   service provider is built. Capabilities include eager service
   resolution and app toolbar action contributions.
-- **Shell**: `IShellCoordinator` chosen by application lifetime —
-  `DesktopShellCoordinator` for `IClassicDesktopStyleApplicationLifetime`,
-  `MobileShellCoordinator` for `ISingleViewApplicationLifetime`. Both
-  receive a factory for a narrow shell-host interface rather than the
-  concrete shell view model, so the shell can be resolved lazily and
-  tested against substitutes.
+- **Shell**: `ShellWorkspaceViewModel`, `ShellRootViewModel`, and the single
+  `IShellCoordinator` implementation, `ShellWorkspaceCoordinator`, are shared
+  registrations. Single-view lifetimes additionally register
+  `MobileNavigationShellHost` behind `IMobileNavigationShellHost` and
+  `IMobileNavigationPageHost` for native host/back integration; this host
+  mirrors the shared workspace instead of owning a separate navigation model.
 - **Services**: `IHttpApiService`, `IBackgroundTaskRunner`,
   `IUiThreadDispatcher`, `IDaqManagementService`, `ITelemetryDataStoreService`,
   SQLite repository interfaces, `ISyncDataStore`, `IExtensionDatabaseConnection`,
@@ -131,13 +132,11 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   `LiveDaqCoordinator`, `LiveDaqListViewModel`. All registered
   unconditionally; `MainPagesViewModel` receives
   `LiveDaqListViewModel` as a required dependency on both shells.
-- **View models**: list view models, the import view model and the
-  welcome screen as singletons; `MainViewModel` and
-  `MainWindowViewModel` as singletons; `MainPagesViewModel` via an
-  explicit factory because it takes both store refresh roots and
-  platform-optional page view models. Two of its dependencies
-  (`PairingClientViewModel`, `PairingServerViewModel`) are optional
-  and platform-specific.
+- **View models**: list view models, the import view model,
+  `ShellWorkspaceViewModel`, `ShellRootViewModel`, and
+  `MainPagesViewModel` as singletons. `MainPagesViewModel` receives
+  platform-optional page view models such as pairing client/server surfaces
+  based on the registered capabilities and services.
 
 Concrete datastore construction, management-protocol ownership,
 file-picker lifetime (including the generic `IFilePickerService` seam and
@@ -147,17 +146,17 @@ behind these service registrations rather than being created ad hoc in
 view models.
 
 Platform entry points add (a strict subset depending on the
-platform): `ISecureStorage`, `IServiceDiscovery` (registered as
-keyed singletons under `"gosst"` and optionally `"sync"`),
-`IHapticFeedback`, `IFriendlyNameProvider`,
-`ISynchronizationServerService` + `IPairingServerCoordinator` +
-`IInboundSyncCoordinator` + `PairingServerViewModel` (desktop only),
-or `ISynchronizationClientService` + `IPairingClientCoordinator` +
-`PairingClientViewModel` (mobile only). Platform mode is determined
-once from the Avalonia application lifetime and stored on `App.IsDesktop`;
-direct reads stay at the view composition edge (`ViewLocator` and plot gesture
-handling), while services receive any shell-specific presentation choice from
-composition.
+platform): `IAppEnvironment` with default layout profile, `AppCapabilities`,
+and `InputCapabilities`; `ISecureStorage`; `IServiceDiscovery` (registered as
+keyed singletons under `"gosst"` and optionally `"sync"`); `IHapticFeedback`;
+`IFriendlyNameProvider`; `ISynchronizationServerService` +
+`IPairingServerCoordinator` + `IInboundSyncCoordinator` +
+`PairingServerViewModel` on server-capable desktop heads; or
+`ISynchronizationClientService` + `IPairingClientCoordinator` +
+`PairingClientViewModel` on client-capable mobile heads. Platform mode is
+determined once from the Avalonia application lifetime and stored on
+`App.IsDesktop`, but presentation selection flows through
+`IAppEnvironment.LayoutProfile`, and UI actions are gated by capabilities.
 
 After `BuildServiceProvider()`, the lifetime wiring resolves
 `IDialogHost` and configures dialog presentation for the shell:
@@ -183,9 +182,10 @@ coordinators to know their concrete types.
 
 Navigation is owned exclusively by `IShellCoordinator`. View models
 never poke at shell controls directly — they call `shell.Open(view)`,
-`shell.OpenOrFocus<T>(match, factory)`, `shell.Close(view)`,
-`shell.CloseIfOpen<T>(match)`, or `shell.GoBack()`. `GoBack()`
-returns `true` only when the active shell consumed the back request.
+`shell.OpenOrFocus<T>(match, factory)`, `shell.OpenInBackground<T>(match, factory)`,
+`shell.Close(view)`, `shell.CloseIfOpen<T>(match)`, or `shell.GoBack()`.
+`GoBack()` returns `true` only when the shared workspace consumed the back
+request.
 
 App-defined keyboard shortcuts are listed in
 `KeyboardShortcutRegistry`, grouped by source and shortcut ID in
@@ -196,39 +196,31 @@ platform command modifier (`Meta` / Cmd on macOS and iOS, `Control`
 on Windows, Linux, and Android). Native text editing, focus traversal,
 and control-internal keys stay local to their controls.
 
-- **Mobile** — `MobileShellCoordinator` wraps
-  `IMobileNavigationShellHost`. `MainViewModel` sets the root view to
-  `MainPagesViewModel`; the host owns the logical stack and
-  materializes each view model as a `ContentPage` in the root
-  `NavigationPage` attached by `MainView`. `Open` pushes,
-  `OpenOrFocus` also pushes (mobile has no concept of focusing an
-  existing tab), `OpenInBackground` is a no-op, `Close` closes only the
-  current top view, and `GoBack` pops only when the stack is above the root.
-  `MainViewModel`
-  handles mobile back by closing the main drawer first, then delegating
-  to `shell.GoBack()`. The Android back button is wired in
-  `App.OnFrameworkInitializationCompleted` to use that bool return as
-  `e.Handled`, so back bubbles to the platform when the drawer is
-  closed and the navigation stack is already at root.
-- **Desktop** — `DesktopShellCoordinator` wraps `MainWindowViewModel`,
-  which holds an `ObservableCollection<TabPageViewModelBase> Tabs`
-  and a `CurrentView`. `OpenOrFocus<T>(match, create)` walks
-  `Tabs.OfType<T>().FirstOrDefault(match)` and reuses the existing
-  tab if found. If no open tab matches, it removes and reuses the most
-  recent matching closed tab from `tabHistory` before creating a new
-  one; all older matching closed-tab entries are dropped so one logical
-  tab cannot retain multiple restore-history references. `Close`
-  removes the tab through `MainWindowViewModel.CloseTabPage`, which
-  preserves a `tabHistory` stack so `RestoreCommand` can re-open the
-  most recently closed tab. `OpenInBackground<T>(match, create)` uses the
-  same matching/restoration behavior for workflows that need to create a tab
-  without stealing focus, such as opening the second part of a split recorded
-  session. The desktop tab strip previews reordering
-  by fading the dragged tab and showing an insertion indicator, then
-  commits the drop through `MainWindowViewModel.MoveTab`; this changes
-  the shell collection order and keeps the moved tab active.
-  `GoBack` returns `false` and is otherwise a no-op on desktop.
+`ShellWorkspaceCoordinator` translates every coordinator call into
+`ShellWorkspaceViewModel` operations. `OpenOrFocus<T>(match, create)` walks the
+open tab collection, reuses a matching tab when found, restores a matching
+closed-history tab when available, and otherwise creates a new tab through the
+caller-supplied factory. `OpenInBackground<T>(match, create)` uses the same
+dedupe/restoration behavior without selecting the tab. `Close` and
+`CloseIfOpen<T>` remove tabs through the tab page close path so dirty editors
+continue to run their close commands and unsaved-change prompts. `GoBack()`
+selects the previously focused tab when possible, otherwise clears the current
+detail surface and returns to the primary shell surface.
 
-`DesktopViews/` continues to provide extended layouts (side panels,
-richer controls) that the desktop tab renders instead of the mobile
-view.
+`ShellRootViewModel` is the data context for both platform lifetimes. The
+layout profile controls presentation only:
+
+- **Compact profile** — `CompactShellView` presents the shared workspace as the
+  primary page plus the focused detail surface. Single-view mobile lifetimes
+  host it through `MainView` and `MobileNavigationShellHost` so safe areas,
+  plot overlays, and hardware back requests are wired to the native host. Back
+  closes transient surfaces first, then delegates to `shell.GoBack()`.
+- **Workspace profile** — `WorkspaceShellView` presents the same tab collection
+  with a persistent rail and tab strip. Reordering previews by fading the
+  dragged tab and showing an insertion indicator, then commits through
+  `ShellWorkspaceViewModel.MoveTab`.
+
+The first screen is the primary navigation with no detail tab selected. The
+workspace profile shows a neutral empty workspace state until a tab opens.
+Profile-specific views are resolved by `ViewLocator` from
+`IAppEnvironment.LayoutProfile`, not from platform.

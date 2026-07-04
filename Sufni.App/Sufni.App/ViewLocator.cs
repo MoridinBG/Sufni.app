@@ -21,6 +21,7 @@ using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Setups.ViewModels.Editors;
 using Sufni.App.Setups.ViewModels.ItemLists;
 using Sufni.App.Setups.ViewModels.SensorConfigurations;
+using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Base;
 using Sufni.App.Shell.ViewModels;
 using Sufni.App.SyncAndPairing.ViewModels;
@@ -32,25 +33,13 @@ public class ViewLocator : IDataTemplate
 {
     private readonly IExtensionViewRegistry extensionViewRegistry;
     private readonly IServiceProvider serviceProvider;
+    private readonly IAppEnvironment? appEnvironment;
 
-    private static readonly FrozenDictionary<Type, Func<Control>> ViewFactories = new Dictionary<Type, Func<Control>>
+    private static readonly FrozenDictionary<Type, Func<Control>> CommonViewFactories = new Dictionary<Type, Func<Control>>
     {
-        [typeof(MainViewModel)] = static () => new global::Sufni.App.Shell.Views.MainView(),
-        [typeof(MainPagesViewModel)] = static () => new global::Sufni.App.Shell.Views.MainPagesView(),
-        [typeof(WelcomeScreenViewModel)] = static () => new global::Sufni.App.Shell.Views.WelcomeScreenView(),
         [typeof(PairingClientViewModel)] = static () => new global::Sufni.App.SyncAndPairing.Views.PairingClientView(),
-        [typeof(ImportSessionsViewModel)] = static () => new global::Sufni.App.Acquisition.Views.ImportSessionsView(),
-        [typeof(BikeListViewModel)] = static () => new global::Sufni.App.Bikes.Views.ItemLists.BikeListView(),
-        [typeof(LiveDaqListViewModel)] = static () => new global::Sufni.App.LiveDaq.Views.ItemLists.LiveDaqListView(),
-        [typeof(SessionListViewModel)] = static () => new global::Sufni.App.Sessions.Lists.Views.ItemLists.SessionListView(),
-        [typeof(SetupListViewModel)] = static () => new global::Sufni.App.Setups.Views.ItemLists.SetupListView(),
-        [typeof(BikeEditorViewModel)] = static () => new global::Sufni.App.Bikes.Views.Editors.BikeEditorView(),
         [typeof(LeverageRatioEditorViewModel)] = static () => new global::Sufni.App.Bikes.Views.Editors.LeverageRatioEditorView(),
         [typeof(LiveDaqConfigEditorViewModel)] = static () => new global::Sufni.App.LiveDaq.Views.Editors.LiveDaqConfigEditorView(),
-        [typeof(LiveDaqDetailViewModel)] = static () => new global::Sufni.App.LiveDaq.Views.Editors.LiveDaqDetailView(),
-        [typeof(LiveSessionDetailViewModel)] = static () => new global::Sufni.App.LiveDaq.Views.Editors.LiveSessionDetailView(),
-        [typeof(SessionDetailViewModel)] = static () => new global::Sufni.App.Sessions.Detail.Views.Editors.SessionDetailView(),
-        [typeof(SetupEditorViewModel)] = static () => new global::Sufni.App.Setups.Views.Editors.SetupEditorView(),
         [typeof(JointViewModel)] = static () => new global::Sufni.App.Bikes.Views.LinkageParts.JointView(),
         [typeof(LinearForkSensorConfigurationViewModel)] = static () => new global::Sufni.App.Setups.Views.SensorConfigurations.LinearForkSensorConfigurationView(),
         [typeof(LinearShockSensorConfigurationViewModel)] = static () => new global::Sufni.App.Setups.Views.SensorConfigurations.LinearShockSensorConfigurationView(),
@@ -68,7 +57,22 @@ public class ViewLocator : IDataTemplate
         [typeof(VibrationPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.VibrationPageView(),
     }.ToFrozenDictionary();
 
-    private static readonly FrozenDictionary<Type, Func<Control>> DesktopViewFactories = new Dictionary<Type, Func<Control>>
+    private static readonly FrozenDictionary<Type, Func<Control>> CompactViewFactories = new Dictionary<Type, Func<Control>>
+    {
+        [typeof(ImportSessionsViewModel)] = static () => new global::Sufni.App.Acquisition.Views.ImportSessionsView(),
+        [typeof(BikeListViewModel)] = static () => new global::Sufni.App.Bikes.Views.ItemLists.BikeListView(),
+        [typeof(LiveDaqListViewModel)] = static () => new global::Sufni.App.LiveDaq.Views.ItemLists.LiveDaqListView(),
+        [typeof(PairedDeviceListViewModel)] = static () => new global::Sufni.App.SyncAndPairing.DesktopViews.ItemLists.PairedDeviceListDesktopView(),
+        [typeof(SessionListViewModel)] = static () => new global::Sufni.App.Sessions.Lists.Views.ItemLists.SessionListView(),
+        [typeof(SetupListViewModel)] = static () => new global::Sufni.App.Setups.Views.ItemLists.SetupListView(),
+        [typeof(BikeEditorViewModel)] = static () => new global::Sufni.App.Bikes.Views.Editors.BikeEditorView(),
+        [typeof(LiveDaqDetailViewModel)] = static () => new global::Sufni.App.LiveDaq.Views.Editors.LiveDaqDetailView(),
+        [typeof(LiveSessionDetailViewModel)] = static () => new global::Sufni.App.LiveDaq.Views.Editors.LiveSessionDetailView(),
+        [typeof(SessionDetailViewModel)] = static () => new global::Sufni.App.Sessions.Detail.Views.Editors.SessionDetailView(),
+        [typeof(SetupEditorViewModel)] = static () => new global::Sufni.App.Setups.Views.Editors.SetupEditorView(),
+    }.ToFrozenDictionary();
+
+    private static readonly FrozenDictionary<Type, Func<Control>> WorkspaceViewFactories = new Dictionary<Type, Func<Control>>
     {
         [typeof(MainPagesViewModel)] = static () => new global::Sufni.App.Shell.DesktopViews.MainPagesDesktopView(),
         [typeof(ImportSessionsViewModel)] = static () => new global::Sufni.App.Acquisition.DesktopViews.ImportSessionsDesktopView(),
@@ -85,19 +89,36 @@ public class ViewLocator : IDataTemplate
     }.ToFrozenDictionary();
 
     public ViewLocator()
-        : this(new ExtensionViewRegistry(), EmptyServiceProvider.Instance)
+        : this(new ExtensionViewRegistry(), EmptyServiceProvider.Instance, appEnvironment: null)
     {
     }
 
     internal ViewLocator(IExtensionViewRegistry extensionViewRegistry)
-        : this(extensionViewRegistry, EmptyServiceProvider.Instance)
+        : this(extensionViewRegistry, EmptyServiceProvider.Instance, appEnvironment: null)
+    {
+    }
+
+    internal ViewLocator(IAppEnvironment appEnvironment)
+        : this(new ExtensionViewRegistry(), EmptyServiceProvider.Instance, appEnvironment)
     {
     }
 
     internal ViewLocator(IExtensionViewRegistry extensionViewRegistry, IServiceProvider serviceProvider)
+        : this(
+            extensionViewRegistry,
+            serviceProvider,
+            serviceProvider.GetService(typeof(IAppEnvironment)) as IAppEnvironment)
+    {
+    }
+
+    private ViewLocator(
+        IExtensionViewRegistry extensionViewRegistry,
+        IServiceProvider serviceProvider,
+        IAppEnvironment? appEnvironment)
     {
         this.extensionViewRegistry = extensionViewRegistry;
         this.serviceProvider = serviceProvider;
+        this.appEnvironment = appEnvironment;
     }
 
     public Control? Build(object? data)
@@ -105,30 +126,51 @@ public class ViewLocator : IDataTemplate
         if (data is null)
             return null;
 
-        var isDesktop = App.Current?.IsDesktop == true;
         var viewModelType = data.GetType();
 
         if (data is RecordedSessionExtensionPageViewModel extensionPage)
         {
-            return Build(extensionPage.ViewModel);
+            // Host the inner view model in a ContentControl instead of resolving its view
+            // directly. The content presenter assigns the built view's DataContext to its
+            // Content, which for a carousel page is this wrapper - so a directly resolved
+            // view would bind against the wrapper (wrong type) rather than the inner view
+            // model. Re-rooting through a ContentControl whose Content is the inner view
+            // model gives the resolved view the correct DataContext, matching how the
+            // desktop analysis view hosts extension content.
+            return new ContentControl { Content = extensionPage.ViewModel };
         }
 
-        if (extensionViewRegistry.TryBuild(data, isDesktop, serviceProvider, out var extensionView))
+        if (data is ShellRootPresentation shellPresentation)
+        {
+            var shellView = shellPresentation.LayoutProfile == UiLayoutProfile.Compact
+                ? (Control)new global::Sufni.App.Shell.Views.CompactShellView()
+                : new global::Sufni.App.Shell.DesktopViews.WorkspaceShellView();
+            shellView.DataContext = shellPresentation.Root;
+            return shellView;
+        }
+
+        if (data is ShellRootViewModel { LayoutProfile: UiLayoutProfile.Compact })
+        {
+            return new global::Sufni.App.Shell.Views.CompactShellView();
+        }
+
+        if (data is ShellRootViewModel { LayoutProfile: UiLayoutProfile.Workspace })
+        {
+            return new global::Sufni.App.Shell.DesktopViews.WorkspaceShellView();
+        }
+
+        var layoutProfile = ResolveLayoutProfile();
+        if (extensionViewRegistry.TryBuild(data, layoutProfile, serviceProvider, out var extensionView))
         {
             return extensionView;
         }
 
-        if (isDesktop && DesktopViewFactories.TryGetValue(viewModelType, out var desktopFactory))
+        if (TryBuildProfileView(viewModelType, layoutProfile, out var profileView))
         {
-            return desktopFactory();
+            return profileView;
         }
 
-        if (ViewFactories.TryGetValue(viewModelType, out var factory))
-        {
-            return factory();
-        }
-
-        var fallbackName = viewModelType.FullName!.Replace("ViewModel", isDesktop ? "DesktopView" : "View");
+        var fallbackName = viewModelType.FullName!.Replace("ViewModel", FallbackViewSuffix(layoutProfile));
         return new TextBlock { Text = fallbackName };
     }
 
@@ -141,12 +183,44 @@ public class ViewLocator : IDataTemplate
             return Match(extensionPage.ViewModel);
         }
 
-        var isDesktop = App.Current?.IsDesktop == true;
+        var layoutProfile = ResolveLayoutProfile();
         var viewModelType = data.GetType();
-        return data is ViewModelBase ||
-               extensionViewRegistry.Matches(viewModelType, isDesktop) ||
-               ViewFactories.ContainsKey(viewModelType) ||
-               (isDesktop && DesktopViewFactories.ContainsKey(viewModelType));
+        return data is ShellRootPresentation ||
+               data is ViewModelBase ||
+               extensionViewRegistry.Matches(viewModelType, layoutProfile) ||
+               CommonViewFactories.ContainsKey(viewModelType) ||
+               CompactViewFactories.ContainsKey(viewModelType) ||
+               WorkspaceViewFactories.ContainsKey(viewModelType);
     }
 
+    private UiLayoutProfile ResolveLayoutProfile() =>
+        appEnvironment?.LayoutProfile ?? UiLayoutProfile.Compact;
+
+    private static bool TryBuildProfileView(
+        Type viewModelType,
+        UiLayoutProfile layoutProfile,
+        out Control control)
+    {
+        var profileFactories = layoutProfile == UiLayoutProfile.Workspace
+            ? WorkspaceViewFactories
+            : CompactViewFactories;
+
+        if (profileFactories.TryGetValue(viewModelType, out var profileFactory))
+        {
+            control = profileFactory();
+            return true;
+        }
+
+        if (CommonViewFactories.TryGetValue(viewModelType, out var commonFactory))
+        {
+            control = commonFactory();
+            return true;
+        }
+
+        control = null!;
+        return false;
+    }
+
+    private static string FallbackViewSuffix(UiLayoutProfile layoutProfile) =>
+        layoutProfile == UiLayoutProfile.Workspace ? "DesktopView" : "View";
 }

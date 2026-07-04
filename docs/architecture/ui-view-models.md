@@ -49,27 +49,28 @@ classDiagram
 
 There are five kinds of view model in the presentation layer:
 
-- **Shell view models** — `MainViewModel` (mobile), `MainWindowViewModel`
-  (desktop), and `MainPagesViewModel` compose the page view models for
-  binding and forward shell-level concerns. `MainPagesViewModel` is
-  the only place that holds references to multiple page view models
+- **Shell view models** — `ShellRootViewModel`, `ShellWorkspaceViewModel`,
+  and `MainPagesViewModel` compose the app shell for both platform
+  lifetimes. `ShellRootViewModel` is the root data context for `MainWindow`
+  and `MainView`; it exposes the selected layout profile, platform
+  capabilities, the primary page surface, and the shared workspace.
+  `ShellWorkspaceViewModel` owns the logical tab collection, current tab,
+  tab history, open/focus, background open, close, restore, back, and reorder
+  behavior used by both compact and workspace presentations. `MainPagesViewModel`
+  is the only place that holds references to multiple primary page view models
   at once; this is the explicit "view composition" carve-out from the
   no-VM-on-VM rule. It keeps observable mirrors of `SyncCoordinator`'s
-  `IsRunning` / `IsPaired` / progress snapshot and forwards
-  `SyncCompleted` / `SyncFailed` notifications to the active page, but
-  it owns no workflows of its own. Mobile binds those mirrors to a
-  blocking shell-level `BusyOverlay`; desktop binds them to the
-  paired-devices surface, using a panel overlay when the paired-devices
-  list is open and a spinner in the paired-devices button when it is
-  closed. The triggering of the initial store refresh
-  (`LoadDatabaseContent`) also lives here so the database load happens
-  exactly once after the shell is constructed. It also exposes
-  app toolbar command and view contributions from DI-created app
-  toolbar contribution providers; the desktop nav rail and mobile side
-  panel render those neutral app-level contributions without knowing
-  extension workflow types.
+  `IsRunning` / `IsPaired` / progress snapshot and forwards `SyncCompleted` /
+  `SyncFailed` notifications to the active page, but it owns no workflows of
+  its own. Compact and workspace shell views bind those mirrors differently,
+  but both read the same view models. The triggering of the initial store
+  refresh (`LoadDatabaseContent`) also lives here so the database load happens
+  exactly once after the shell is constructed. It also exposes app toolbar
+  command and view contributions from DI-created app toolbar contribution
+  providers; profile-specific shell chrome renders those neutral app-level
+  contributions without knowing extension workflow types.
 
-- **Feature page view models** — non-entity top-level screens such as `ImportSessionsViewModel`, `WelcomeScreenViewModel`, and the pairing pages. They own only screen-scoped state, bind directly to controls, attach subscriptions and browse lifetime in `Loaded` / `Unloaded`, and delegate workflows to coordinators and services. `ImportSessionsViewModel` is the canonical example: it keeps datastore / file selection, notifications, and errors; resolves `SelectedSetup` from `ISetupStore.FindByBoardId`; asks `ITelemetryDataStoreService` to browse, load files, and register storage-provider folders; and delegates the actual import lifecycle to `ImportSessionsCoordinator`. For long-running screen actions they prefer the generated async-command `IsRunning` state over duplicate busy flags.
+- **Feature page view models** — non-entity top-level screens such as `ImportSessionsViewModel` and the pairing pages. They own only screen-scoped state, bind directly to controls, attach subscriptions and browse lifetime in `Loaded` / `Unloaded`, and delegate workflows to coordinators and services. `ImportSessionsViewModel` is the canonical example: it keeps datastore / file selection, notifications, and errors; resolves `SelectedSetup` from `ISetupStore.FindByBoardId`; asks `ITelemetryDataStoreService` to browse, load files, and register storage-provider folders; and delegates the actual import lifecycle to `ImportSessionsCoordinator`. For long-running screen actions they prefer the generated async-command `IsRunning` state over duplicate busy flags.
 
 - **List view models** (`ViewModels/ItemLists/`) — `BikeListViewModel`,
   `SetupListViewModel`, `SessionListViewModel`,
@@ -180,10 +181,11 @@ There are five kinds of view model in the presentation layer:
   `ProcessingPreferenceWorkflow` owns the
   confirm-recompute-persist flow that runs when a processing
   preference change is committed. The editor constructs them and
-  delegates; it no longer owns those flows. Shell-shaped behavior (load pipeline,
-  inactive-tab deferral) is an injected `ISessionLayoutStrategy` selected
-  by `EditorFactory`; collaborators reach the editor through the
-  `ISessionOperationGateway` contract rather than delegate bundles.
+  delegates; it no longer owns those flows. Session detail loading uses one
+  local-only `SessionCoordinator.LoadDetailAsync` path; inactive-tab deferral is
+  supplied by `EditorFactory` as workspace/profile policy. Collaborators reach
+  the editor through the `ISessionOperationGateway` contract rather than
+  delegate bundles.
   The recorded editor subscribes to `IRecordedSessionProjection.WatchSession`
   in `Loaded` and disposes that subscription in `Unloaded`. Initial or
   runtime domain snapshots that are recomputable prompt the user to
@@ -352,7 +354,7 @@ Two pages diverge from that pattern:
 
 `TabPageViewModelBase` (`Shared/Base/TabPageViewModelBase.cs`) is the
 shared base for everything that opens as a top-level tab or stacked
-view (editors, the import view, the welcome screen). It takes
+view (editors and the import view). It takes
 `IShellCoordinator` and `IDialogService` via its constructor and
 provides the shared `IsDirty` machinery, the
 `SaveCommand`/`ResetCommand`/`ExportCommand`/`CloseCommand`

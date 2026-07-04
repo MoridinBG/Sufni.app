@@ -95,6 +95,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IDisposable analysisResultSubscription;
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
     private readonly Func<IEditorFactory> editorFactory;
+    private readonly ILayoutProfileTransitionState layoutProfileTransitionState;
     private bool observedInitialDomain;
     private RecordedSessionDomainSnapshot? deferredDomain;
     private readonly AnalysisSelectionController analysisSelectionController = new();
@@ -129,10 +130,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private bool hasBeenActivated;
     private readonly SignalRowActionsController signalRowActions;
     private readonly SignalAutozoomController signalAutozoomController;
+    private readonly IRelayCommand<TelemetryPlotContextMenuContext?> setAnalysisRangeStartCommand;
+    private readonly IRelayCommand<TelemetryPlotContextMenuContext?> setAnalysisRangeEndCommand;
+    private readonly IRelayCommand<TelemetryPlotContextMenuContext?> clearAnalysisRangeFromContextCommand;
     private readonly IRelayCommand<TelemetryPlotContextMenuContext?> markGpsEventCommand;
     private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markGpsTelemetryEventCommand;
+    private readonly IRelayCommand<TelemetryPlotContextMenuContext?> cancelGpsTimelineAlignmentCommand;
     private readonly DampingCutoffWorkflow dampingCutoffWorkflow;
-    private readonly ISessionLayoutStrategy layoutStrategy;
+    private readonly bool deferDomainHandlingWhenInactive;
     private IDisposable? processedTelemetryRetention;
 
     #endregion Private fields
@@ -591,9 +596,25 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private static IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> CreateSignalPlotContextMenuActionsBySignalRowId(
         IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> baseActions,
+        IRelayCommand<TelemetryPlotContextMenuContext?> setAnalysisRangeStartCommand,
+        IRelayCommand<TelemetryPlotContextMenuContext?> setAnalysisRangeEndCommand,
+        IRelayCommand<TelemetryPlotContextMenuContext?> clearAnalysisRangeCommand,
         IRelayCommand<TelemetryPlotContextMenuContext?> markGpsEventCommand,
-        IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markGpsTelemetryEventCommand)
+        IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markGpsTelemetryEventCommand,
+        IRelayCommand<TelemetryPlotContextMenuContext?> cancelGpsTimelineAlignmentCommand)
     {
+        var setAnalysisRangeStart = new TelemetryPlotContextMenuAction(
+            "analysis-range-set-start",
+            "Set analysis start here",
+            setAnalysisRangeStartCommand);
+        var setAnalysisRangeEnd = new TelemetryPlotContextMenuAction(
+            "analysis-range-set-end",
+            "Set analysis end here",
+            setAnalysisRangeEndCommand);
+        var clearAnalysisRange = new TelemetryPlotContextMenuAction(
+            "analysis-range-clear",
+            "Clear analysis range",
+            clearAnalysisRangeCommand);
         var markGpsEvent = new TelemetryPlotContextMenuAction(
             "gps-mark-gps-event",
             "Mark GPS event here",
@@ -602,26 +623,38 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             "gps-mark-telemetry-event",
             "Mark telemetry event here",
             markGpsTelemetryEventCommand);
+        var cancelGpsTimelineAlignment = new TelemetryPlotContextMenuAction(
+            "gps-cancel-alignment",
+            "Cancel GPS alignment",
+            cancelGpsTimelineAlignmentCommand);
 
         return CreateSignalPlotContextMenuActionsBySignalRowId(
             baseActions,
+            setAnalysisRangeStart,
+            setAnalysisRangeEnd,
+            clearAnalysisRange,
             markGpsEvent,
-            markGpsTelemetryEvent);
+            markGpsTelemetryEvent,
+            cancelGpsTimelineAlignment);
     }
 
     private static IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> CreateSignalPlotContextMenuActionsBySignalRowId(
         IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> baseActions,
+        TelemetryPlotContextMenuAction setAnalysisRangeStart,
+        TelemetryPlotContextMenuAction setAnalysisRangeEnd,
+        TelemetryPlotContextMenuAction clearAnalysisRange,
         TelemetryPlotContextMenuAction markGpsEvent,
-        TelemetryPlotContextMenuAction markGpsTelemetryEvent)
+        TelemetryPlotContextMenuAction markGpsTelemetryEvent,
+        TelemetryPlotContextMenuAction cancelGpsTimelineAlignment)
     {
         return new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>
         {
-            [SignalRowIds.Travel] = AppendContextMenuActions(baseActions, SignalRowIds.Travel, markGpsEvent, markGpsTelemetryEvent),
-            [SignalRowIds.Velocity] = AppendContextMenuActions(baseActions, SignalRowIds.Velocity, markGpsEvent, markGpsTelemetryEvent),
-            [SignalRowIds.Imu] = AppendContextMenuActions(baseActions, SignalRowIds.Imu, markGpsEvent, markGpsTelemetryEvent),
-            [SignalRowIds.PitchRoll] = AppendContextMenuActions(baseActions, SignalRowIds.PitchRoll, markGpsEvent, markGpsTelemetryEvent),
-            [SignalRowIds.Speed] = AppendContextMenuActions(baseActions, SignalRowIds.Speed, markGpsEvent, markGpsTelemetryEvent),
-            [SignalRowIds.Elevation] = AppendContextMenuActions(baseActions, SignalRowIds.Elevation, markGpsEvent, markGpsTelemetryEvent),
+            [SignalRowIds.Travel] = AppendContextMenuActions(baseActions, SignalRowIds.Travel, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent, cancelGpsTimelineAlignment),
+            [SignalRowIds.Velocity] = AppendContextMenuActions(baseActions, SignalRowIds.Velocity, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent, cancelGpsTimelineAlignment),
+            [SignalRowIds.Imu] = AppendContextMenuActions(baseActions, SignalRowIds.Imu, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent, cancelGpsTimelineAlignment),
+            [SignalRowIds.PitchRoll] = AppendContextMenuActions(baseActions, SignalRowIds.PitchRoll, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent, cancelGpsTimelineAlignment),
+            [SignalRowIds.Speed] = AppendContextMenuActions(baseActions, SignalRowIds.Speed, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent, cancelGpsTimelineAlignment),
+            [SignalRowIds.Elevation] = AppendContextMenuActions(baseActions, SignalRowIds.Elevation, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent, cancelGpsTimelineAlignment),
         };
     }
 
@@ -656,12 +689,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         try
         {
-            await layoutStrategy.LoadDetailAsync(
-                sessionCoordinator,
-                Id,
-                lastPresentationDimensions,
-                presentationApplier,
-                token);
+            var dimensions = lastPresentationDimensions ?? SessionPresentationDimensions.Default;
+            var result = await sessionCoordinator.LoadDetailAsync(Id, dimensions, token);
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            presentationApplier.ApplyLoadResult(result);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -918,6 +953,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         markGpsEventCommand.NotifyCanExecuteChanged();
         markGpsTelemetryEventCommand.NotifyCanExecuteChanged();
+        cancelGpsTimelineAlignmentCommand.NotifyCanExecuteChanged();
     }
 
     private static bool IsTelemetryPlotContext(TelemetryPlotContextMenuContext? context)
@@ -950,6 +986,48 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         _ = ((IRecordedSessionHostOperations)this).TryBeginTimelineAlignment(
             RecordedSessionTimelineAlignmentTarget.GpsTrack,
             context!.ClickSeconds);
+    }
+
+    private bool CanSetAnalysisRangeFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        return SessionContext.TelemetryData is not null &&
+               IsTelemetryPlotContext(context);
+    }
+
+    private bool CanClearAnalysisRangeFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        return (SessionContext.AnalysisRange is not null || pendingAnalysisRangeBoundary is not null) &&
+               IsTelemetryPlotContext(context);
+    }
+
+    private void SetAnalysisRangeStartFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        if (!CanSetAnalysisRangeFromPlotContext(context))
+        {
+            return;
+        }
+
+        SetAnalysisRangeStartBoundary(context!.ClickSeconds);
+    }
+
+    private void SetAnalysisRangeEndFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        if (!CanSetAnalysisRangeFromPlotContext(context))
+        {
+            return;
+        }
+
+        SetAnalysisRangeEndBoundary(context!.ClickSeconds);
+    }
+
+    private void ClearAnalysisRangeFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        if (!CanClearAnalysisRangeFromPlotContext(context))
+        {
+            return;
+        }
+
+        ClearAnalysisRange();
     }
 
     private bool CanMarkGpsTelemetryEventFromPlotContext(TelemetryPlotContextMenuContext? context)
@@ -987,6 +1065,24 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         // One-way: on success the store upsert drives the refreshed track and
         // baseline through the session-detail watch reaction, like recompute.
+    }
+
+    private bool CanCancelGpsTimelineAlignmentFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        return IsPendingTimelineAlignment(RecordedSessionTimelineAlignmentTarget.GpsTrack, subjectId: null) &&
+               IsTelemetryPlotContext(context);
+    }
+
+    private void CancelGpsTimelineAlignmentFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        if (!CanCancelGpsTimelineAlignmentFromPlotContext(context))
+        {
+            return;
+        }
+
+        _ = ((IRecordedSessionHostOperations)this).TryCancelTimelineAlignment(
+            RecordedSessionTimelineAlignmentTarget.GpsTrack,
+            subjectId: null);
     }
 
     private static double NormalizeGpsOffsetSeconds(double gpsOffsetSeconds) =>
@@ -1156,18 +1252,19 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         IDialogService dialogService,
         ISessionPreferences sessionPreferences,
         IUiThreadDispatcher uiThreadDispatcher,
-        ISessionLayoutStrategy layoutStrategy,
+        bool deferDomainHandlingWhenInactive,
         IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache,
         ISessionProcessedTelemetryReader processedTelemetryReader,
         IRecordedSessionAnalysisResultStateFactory analysisResultStateFactory,
         IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache,
         Func<IEditorFactory> editorFactory,
         IBikeCoordinator? bikeCoordinator = null,
-        ExtensionHostDependencies? extensionHost = null)
+        ExtensionHostDependencies? extensionHost = null,
+        ILayoutProfileTransitionState? layoutProfileTransitionState = null)
         : base(shell, dialogService, uiThreadDispatcher)
     {
         ArgumentNullException.ThrowIfNull(sessionPreferences);
-        this.layoutStrategy = layoutStrategy;
+        this.deferDomainHandlingWhenInactive = deferDomainHandlingWhenInactive;
 
         this.sessionCoordinator = sessionCoordinator;
         this.trackCoordinator = trackCoordinator;
@@ -1183,22 +1280,39 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         analysisResultSubscription = analysisResultState.Connect().Subscribe(OnAnalysisResultChanged);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
+        this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
         recordedPreferenceStore = new RecordedPreferenceStore(
             sessionPreferences,
             () => Id,
             ErrorMessages.Add);
         signalRowActions = new SignalRowActionsController(SessionContext);
         signalAutozoomController = new SignalAutozoomController(Timeline);
+        setAnalysisRangeStartCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
+            SetAnalysisRangeStartFromPlotContext,
+            CanSetAnalysisRangeFromPlotContext);
+        setAnalysisRangeEndCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
+            SetAnalysisRangeEndFromPlotContext,
+            CanSetAnalysisRangeFromPlotContext);
+        clearAnalysisRangeFromContextCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
+            ClearAnalysisRangeFromPlotContext,
+            CanClearAnalysisRangeFromPlotContext);
         markGpsEventCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
             MarkGpsEventFromPlotContext,
             CanMarkGpsEventFromPlotContext);
         markGpsTelemetryEventCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
             MarkGpsTelemetryEventFromPlotContextAsync,
             CanMarkGpsTelemetryEventFromPlotContext);
+        cancelGpsTimelineAlignmentCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
+            CancelGpsTimelineAlignmentFromPlotContext,
+            CanCancelGpsTimelineAlignmentFromPlotContext);
         SignalPlotContextMenuActionsBySignalRowId = CreateSignalPlotContextMenuActionsBySignalRowId(
             signalAutozoomController.ActionsBySignalRowId,
+            setAnalysisRangeStartCommand,
+            setAnalysisRangeEndCommand,
+            clearAnalysisRangeFromContextCommand,
             markGpsEventCommand,
-            markGpsTelemetryEventCommand);
+            markGpsTelemetryEventCommand,
+            cancelGpsTimelineAlignmentCommand);
         SessionContext.SignalPlotContextMenuActionsBySignalRowId = SignalPlotContextMenuActionsBySignalRowId;
         session = SessionFromSnapshot(snapshot);
         Id = snapshot.Id;
@@ -1765,6 +1879,54 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SetAnalysisRange(pendingBoundary, clampedBoundarySeconds);
     }
 
+    private void SetAnalysisRangeStartBoundary(double boundarySeconds)
+    {
+        if (SessionContext.TelemetryData is null ||
+            !TelemetryTimeRange.TryClampBoundary(boundarySeconds, SessionContext.TelemetryData.Metadata.Duration, out var clampedBoundarySeconds))
+        {
+            pendingAnalysisRangeBoundary = null;
+            return;
+        }
+
+        if (SessionContext.AnalysisRange is { } range)
+        {
+            SetAnalysisRange(clampedBoundarySeconds, range.EndSeconds);
+            return;
+        }
+
+        if (pendingAnalysisRangeBoundary is not { } pendingBoundary)
+        {
+            pendingAnalysisRangeBoundary = clampedBoundarySeconds;
+            return;
+        }
+
+        SetAnalysisRange(clampedBoundarySeconds, pendingBoundary);
+    }
+
+    private void SetAnalysisRangeEndBoundary(double boundarySeconds)
+    {
+        if (SessionContext.TelemetryData is null ||
+            !TelemetryTimeRange.TryClampBoundary(boundarySeconds, SessionContext.TelemetryData.Metadata.Duration, out var clampedBoundarySeconds))
+        {
+            pendingAnalysisRangeBoundary = null;
+            return;
+        }
+
+        if (SessionContext.AnalysisRange is { } range)
+        {
+            SetAnalysisRange(range.StartSeconds, clampedBoundarySeconds);
+            return;
+        }
+
+        if (pendingAnalysisRangeBoundary is not { } pendingBoundary)
+        {
+            pendingAnalysisRangeBoundary = clampedBoundarySeconds;
+            return;
+        }
+
+        SetAnalysisRange(pendingBoundary, clampedBoundarySeconds);
+    }
+
     public void SetAnalysisRangeBoundaryFromMarker(double markerSeconds)
     {
         SetAnalysisRangeBoundary(markerSeconds);
@@ -1773,12 +1935,19 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     [RelayCommand]
     private async Task Loaded(Rect? bounds = null)
     {
+        var wasLoaded = viewLoaded;
         viewLoaded = true;
         processedTelemetryRetention ??= processedTelemetryReader.Retain(Id);
         var dimensions = CreatePresentationDimensions(bounds);
         if (dimensions is not null)
         {
             lastPresentationDimensions = dimensions;
+        }
+
+        if (wasLoaded)
+        {
+            UpdateRecordedSessionExtensionHostState();
+            return;
         }
 
         // Subscribe before the awaited restore so a remote sync apply that
@@ -1818,7 +1987,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     }
 
     private bool ShouldDeferDomainHandling() =>
-        layoutStrategy.DefersDomainHandlingWhenInactive &&
+        deferDomainHandlingWhenInactive &&
         hasBeenActivated &&
         !IsTabActive;
 
@@ -1838,6 +2007,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     [RelayCommand]
     private async Task Unloaded()
     {
+        if (layoutProfileTransitionState.IsTransitioning)
+        {
+            return;
+        }
+
         await StopLoadedSessionAsync();
     }
 

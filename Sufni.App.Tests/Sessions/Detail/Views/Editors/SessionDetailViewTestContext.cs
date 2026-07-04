@@ -84,7 +84,9 @@ internal sealed class SessionDetailViewTestContext
             hasProcessedData: hasProcessedData);
     }
 
-    public SessionDesktopLoadResult.Loaded CreateDesktopLoadedState(bool includeImu = false)
+    public SessionDetailLoadResult.Loaded CreateLoadedState(
+        bool includeImu = false,
+        bool includeBalance = true)
     {
         var telemetry = TestTelemetryData.CreateProcessed();
         if (includeImu)
@@ -92,43 +94,39 @@ internal sealed class SessionDetailViewTestContext
             telemetry.ImuData = TestTelemetryData.CreateWithImu().ImuData;
         }
 
-        return new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
-            telemetry,
-            FullTrackId: null,
-            FullTrackPoints: null,
-            TrackPoints: null,
-            MediaColumnWidth: null,
-            DampingPercentages: new SessionDampingPercentages(10, 20, 30, 40, 50, 60, 70, 80),
-            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-            DampingSpeedCutoffOwner: null));
-    }
-
-    public SessionMobileLoadResult.LoadedFromCache CreateMobileLoadedState(
-        bool includeBalance = true,
-        bool includeTelemetry = true)
-    {
-        return new SessionMobileLoadResult.LoadedFromCache(new SessionCachePresentationData(
+        var percentages = new SessionDampingPercentages(10, 20, 30, 40, 50, 60, 70, 80);
+        var cachePresentation = new SessionCachePresentationData(
             FrontTravelDistribution: DefaultSvg,
             RearTravelDistribution: DefaultSvg,
             FrontVelocityDistribution: DefaultSvg,
             RearVelocityDistribution: DefaultSvg,
             CompressionBalance: includeBalance ? DefaultSvg : null,
             ReboundBalance: includeBalance ? DefaultSvg : null,
-            DampingPercentages: new SessionDampingPercentages(10, 20, 30, 40, 50, 60, 70, 80),
+            DampingPercentages: percentages,
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-            BalanceAvailable: includeBalance),
-            includeTelemetry ? TestTelemetryData.CreateProcessed() : null,
-            null);
+            BalanceAvailable: includeBalance);
+
+        return new SessionDetailLoadResult.Loaded(new SessionDetailData(
+            new SessionTelemetryPresentationData(
+                telemetry,
+                FullTrackId: null,
+                FullTrackPoints: null,
+                TrackPoints: null,
+                MediaColumnWidth: null,
+                DampingPercentages: percentages,
+                DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
+                DampingSpeedCutoffOwner: null),
+            cachePresentation));
     }
 
     public async Task<MountedSessionDetailView<SessionDetailView>> MountMobileAsync(
         SessionSnapshot? snapshot = null,
-        SessionMobileLoadResult? loadResult = null)
+        SessionDetailLoadResult? loadResult = null)
     {
         snapshot ??= CreateTelemetryLightSnapshot();
         ConfigureStores(snapshot);
-        sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
-            .Returns(loadResult ?? CreateMobileLoadedState());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(loadResult ?? CreateLoadedState());
 
         ViewTestHelpers.EnsureSessionDetailViewSetup(isDesktop: false);
 
@@ -144,12 +142,12 @@ internal sealed class SessionDetailViewTestContext
 
     public async Task<MountedSessionDetailView<SessionDetailDesktopView>> MountDesktopAsync(
         SessionSnapshot? snapshot = null,
-        SessionDesktopLoadResult? loadResult = null)
+        SessionDetailLoadResult? loadResult = null)
     {
         snapshot ??= CreateTelemetryBearingSnapshot();
         ConfigureStores(snapshot);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(loadResult ?? CreateDesktopLoadedState());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(loadResult ?? CreateLoadedState());
 
         ViewTestHelpers.EnsureSessionDetailViewSetup(isDesktop: true);
 
@@ -187,9 +185,7 @@ internal sealed class SessionDetailViewTestContext
             dialogService,
             sessionPreferences,
             dispatcher,
-            isDesktopLayout
-                ? new DesktopSessionLayoutStrategy()
-                : new MobileSessionLayoutStrategy(),
+            deferDomainHandlingWhenInactive: isDesktopLayout,
             new InMemoryRecordedSessionProcessingOptionCache(),
             new TestSessionProcessedTelemetryReader(),
             analysisResultStateFactory,

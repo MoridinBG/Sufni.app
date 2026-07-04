@@ -3,6 +3,7 @@ using Avalonia.Headless.XUnit;
 
 using Sufni.App.ExtensionHost.Contracts.Capabilities;
 using Sufni.App.Extensibility.Views;
+using Sufni.App.Infrastructure;
 using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.Extensibility.Views;
 
@@ -10,30 +11,48 @@ namespace Sufni.App.Tests.Extensibility.Views;
 public class ExtensionViewRegistryTests
 {
     [Fact]
-    public void TryBuild_UsesDesktopFactory_WhenDesktopFactoryRegistered()
+    public void TryBuild_UsesWorkspaceFactory_WhenWorkspaceFactoryRegistered()
     {
         var registry = new ExtensionViewRegistry();
         registry.Register(
             typeof(ExtensionViewModel),
             static () => new TextBlock { Text = "shared" },
-            static () => new TextBlock { Text = "desktop" });
+            compactFactory: null,
+            workspaceFactory: static () => new TextBlock { Text = "workspace" });
 
-        var matched = registry.TryBuild(new ExtensionViewModel(), isDesktop: true, out var control);
+        var matched = registry.TryBuild(new ExtensionViewModel(), UiLayoutProfile.Workspace, out var control);
 
         Assert.True(matched);
-        Assert.Equal("desktop", Assert.IsType<TextBlock>(control).Text);
+        Assert.Equal("workspace", Assert.IsType<TextBlock>(control).Text);
     }
 
     [Fact]
-    public void TryBuild_FallsBackToSharedFactory_OnDesktopWithoutDesktopFactory()
+    public void TryBuild_UsesCompactFactory_WhenCompactFactoryRegistered()
     {
         var registry = new ExtensionViewRegistry();
         registry.Register(
             typeof(ExtensionViewModel),
             static () => new TextBlock { Text = "shared" },
-            desktopFactory: null);
+            compactFactory: static () => new TextBlock { Text = "compact" },
+            workspaceFactory: null);
 
-        var matched = registry.TryBuild(new ExtensionViewModel(), isDesktop: true, out var control);
+        var matched = registry.TryBuild(new ExtensionViewModel(), UiLayoutProfile.Compact, out var control);
+
+        Assert.True(matched);
+        Assert.Equal("compact", Assert.IsType<TextBlock>(control).Text);
+    }
+
+    [Fact]
+    public void TryBuild_FallsBackToSharedFactory_OnWorkspaceWithoutWorkspaceFactory()
+    {
+        var registry = new ExtensionViewRegistry();
+        registry.Register(
+            typeof(ExtensionViewModel),
+            static () => new TextBlock { Text = "shared" },
+            compactFactory: null,
+            workspaceFactory: null);
+
+        var matched = registry.TryBuild(new ExtensionViewModel(), UiLayoutProfile.Workspace, out var control);
 
         Assert.True(matched);
         Assert.Equal("shared", Assert.IsType<TextBlock>(control).Text);
@@ -48,7 +67,8 @@ public class ExtensionViewRegistryTests
         registry.Register(
             typeof(ExtensionViewModel),
             static () => new TextBlock { Text = "extension" },
-            desktopFactory: null);
+            compactFactory: null,
+            workspaceFactory: null);
         var locator = new ViewLocator(registry);
 
         var control = locator.Build(new ExtensionViewModel());
@@ -57,21 +77,28 @@ public class ExtensionViewRegistryTests
     }
 
     [AvaloniaFact]
-    public void ViewLocator_Build_UsesExtensionRegistryForRecordedSessionExtensionPage()
+    public void ViewLocator_Build_HostsRecordedSessionExtensionPage_OnItsInnerViewModel()
     {
+        // Regression guard: the page wrapper is re-rooted into a ContentControl whose
+        // Content is the inner extension view model, so the hosting presenter binds the
+        // resolved view against that view model. Resolving the view directly here would
+        // instead leave it bound to the page wrapper (wrong type), which blanked the
+        // extension tab in the compact carousel.
         TestApp.SetIsDesktop(false);
 
         var registry = new ExtensionViewRegistry();
         registry.Register(
             typeof(ExtensionViewModel),
             static () => new TextBlock { Text = "recorded extension" },
-            desktopFactory: null);
+            compactFactory: null,
+            workspaceFactory: null);
         var locator = new ViewLocator(registry);
         var page = new RecordedSessionExtensionPageViewModel("Extension", () => new ExtensionViewModel(), ownsViewModel: true);
 
         var control = locator.Build(page);
 
-        Assert.Equal("recorded extension", Assert.IsType<TextBlock>(control).Text);
+        var host = Assert.IsType<ContentControl>(control);
+        Assert.Same(page.ViewModel, host.Content);
     }
 
     [AvaloniaFact]
@@ -83,7 +110,8 @@ public class ExtensionViewRegistryTests
         registry.Register(
             typeof(ExtensionViewModel),
             static () => new TextBlock(),
-            desktopFactory: null);
+            compactFactory: null,
+            workspaceFactory: null);
         var locator = new ViewLocator(registry);
         var page = new RecordedSessionExtensionPageViewModel("Extension", () => new ExtensionViewModel(), ownsViewModel: true);
 
@@ -110,7 +138,8 @@ public class ExtensionViewRegistryTests
         registry.Register(
             typeof(ExtensionViewModel),
             static () => new TextBlock(),
-            desktopFactory: null);
+            compactFactory: null,
+            workspaceFactory: null);
         var locator = new ViewLocator(registry);
 
         Assert.True(locator.Match(new ExtensionViewModel()));

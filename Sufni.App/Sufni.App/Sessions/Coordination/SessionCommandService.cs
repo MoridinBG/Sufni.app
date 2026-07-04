@@ -45,6 +45,7 @@ public sealed class SessionCommandService
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ISessionPreferences sessionPreferences;
     private readonly IShellCoordinator shell;
+    private readonly IAppEnvironment appEnvironment;
     private readonly ISessionRecomputeEngine recomputeEngine;
     private readonly Func<IEditorFactory> editorFactory;
     private readonly IRecordedSessionDerivationWindowCache derivationWindowCache;
@@ -64,6 +65,7 @@ public sealed class SessionCommandService
         IBackgroundTaskRunner backgroundTaskRunner,
         ISessionPreferences sessionPreferences,
         IShellCoordinator shell,
+        IAppEnvironment appEnvironment,
         ISessionRecomputeEngine recomputeEngine,
         Func<IEditorFactory> editorFactory,
         IRecordedSessionDerivationWindowCache derivationWindowCache,
@@ -82,6 +84,7 @@ public sealed class SessionCommandService
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.sessionPreferences = sessionPreferences;
         this.shell = shell;
+        this.appEnvironment = appEnvironment;
         this.recomputeEngine = recomputeEngine;
         this.editorFactory = editorFactory;
         this.derivationWindowCache = derivationWindowCache;
@@ -247,7 +250,10 @@ public sealed class SessionCommandService
             }
             var saved = SessionSnapshot.From(fresh);
             sessionStore.Upsert(saved);
-            _ = shell.GoBack();
+            if (appEnvironment.LayoutProfile == UiLayoutProfile.Compact)
+            {
+                _ = shell.GoBack();
+            }
 
             logger.Information("Session save completed for {SessionId}", session.Id);
             return new SessionSaveResult.Saved(saved.Updated);
@@ -425,7 +431,7 @@ public sealed class SessionCommandService
             return new SessionDeleteResult(SessionDeleteOutcome.Failed, e.Message);
         }
 
-        editorFactory().CloseSessionDetail(sessionId);
+        await editorFactory().CloseSessionDetail(sessionId);
         sessionStore.Remove(sessionId);
         logger.Information("Session delete completed for {SessionId}", sessionId);
         return new SessionDeleteResult(SessionDeleteOutcome.Deleted);

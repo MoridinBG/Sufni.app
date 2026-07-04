@@ -370,6 +370,47 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
+    public async Task Initialization_DropsLegacySessionCacheTable_AndDoesNotRecreateIt()
+    {
+        using var tempDatabase = new TempDatabase("legacy-session-cache.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var sessionId = Guid.NewGuid().ToString();
+
+        using (var seedConnection = new SQLiteConnection(databasePath))
+        {
+            seedConnection.Execute(
+                """
+                CREATE TABLE session_cache (
+                    session_id TEXT PRIMARY KEY,
+                    compact_signal_rows TEXT NOT NULL
+                )
+                """);
+            seedConnection.Execute(
+                "INSERT INTO session_cache (session_id, compact_signal_rows) VALUES (?, ?)",
+                sessionId,
+                "[]");
+        }
+
+        var firstRun = new TestPersistenceHarness(databasePath);
+        _ = await firstRun.GetSessionsAsync();
+
+        using (var firstVerification = new SQLiteConnection(databasePath))
+        {
+            var tables = firstVerification.Query<SqliteMasterRow>(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'session_cache'");
+            Assert.Empty(tables);
+        }
+
+        var secondRun = new TestPersistenceHarness(databasePath);
+        _ = await secondRun.GetSessionsAsync();
+
+        using var secondVerification = new SQLiteConnection(databasePath);
+        var recreatedTables = secondVerification.Query<SqliteMasterRow>(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'session_cache'");
+        Assert.Empty(recreatedTables);
+    }
+
+    [Fact]
     public async Task Initialization_CreatesExtensionSchemaVersionTable()
     {
         using var tempDatabase = new TempDatabase("extension-schema-version.db");

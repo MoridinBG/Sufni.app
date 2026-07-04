@@ -246,6 +246,56 @@ public class MapViewTests
     }
 
     [AvaloniaFact]
+    public async Task DataContextChange_UnsubscribesPreviousViewModel()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+
+        var oldViewModel = CreateViewModelWithTrack();
+        var newViewModel = CreateViewModelWithTrack();
+        var timeline = new SessionTimelineLinkViewModel();
+        var view = new MapView
+        {
+            DataContext = oldViewModel,
+            Timeline = timeline,
+        };
+
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+
+        try
+        {
+            var mapControl = view.FindControl<MapControl>("MapControl");
+            Assert.NotNull(mapControl);
+
+            view.DataContext = newViewModel;
+            timeline.SetVisibleRange(0.25, 0.5, new object());
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            view.ZoomToNormalizedRange(0, 1);
+            await ViewTestHelpers.FlushDispatcherAsync();
+            var fullViewport = mapControl!.Map.Navigator.Viewport;
+
+            oldViewModel.SessionTrackPoints =
+            [
+                new TrackPoint(0, 0, 0, null),
+                new TrackPoint(1, 1_000, 1_000, null),
+                new TrackPoint(2, 2_000, 2_000, null),
+                new TrackPoint(3, 3_000, 3_000, null),
+            ];
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            var afterOldViewModelChange = mapControl.Map.Navigator.Viewport;
+            Assert.Equal(fullViewport.CenterX, afterOldViewModelChange.CenterX, 6);
+            Assert.Equal(fullViewport.CenterY, afterOldViewModelChange.CenterY, 6);
+            Assert.Equal(fullViewport.Resolution, afterOldViewModelChange.Resolution, 6);
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task TimelineRangeUpdate_ForStraightTrackSegment_ZoomsToTrackSegment()
     {
         ViewTestHelpers.EnsureViewTestResources();

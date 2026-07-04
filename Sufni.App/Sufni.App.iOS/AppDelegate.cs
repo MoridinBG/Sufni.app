@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.iOS;
 using Foundation;
+using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Infrastructure;
 using UIKit;
 
@@ -19,16 +20,31 @@ namespace Sufni.App.iOS
         {
             LoggingBootstrapper.Initialize("iOS", new OsLogSink(LoggingBootstrapper.OutputTemplate));
             InstallLifecycleObservers();
+            App.ServiceCollection.AddAppEnvironment(
+                UiLayoutProfile.Compact,
+                new AppCapabilities(
+                    CanHostSyncServer: false,
+                    CanPairAsClient: true,
+                    SupportsMassStorageImport: false,
+                    SupportsStorageProviderImport: true),
+                new InputCapabilities(
+                    HasPointer: false,
+                    HasTouch: true,
+                    HasKeyboard: false,
+                    SupportsLongPressContextMenu: true));
             MobileAppBootstrapper.RegisterMobileSync(
                 App.ServiceCollection,
                 static () => new IosSecureStorage(),
                 static () => new IosFriendlyNameProvider(),
                 static _ => new BonjourServiceDiscovery(),
                 static () => new IosHapticFeedback());
+            RegisterPlatformExtensions(App.ServiceCollection);
 
             return MobileAppBootstrapper.ConfigureMobileAvalonia(
                 base.CustomizeAppBuilder(builder));
         }
+
+        static partial void RegisterPlatformExtensions(IServiceCollection services);
 
         private void InstallLifecycleObservers()
         {

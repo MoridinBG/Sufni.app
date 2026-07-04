@@ -77,7 +77,7 @@ public class SessionDetailViewModelTests
         IBikeCoordinator? bikeCoordinator = null,
         IReadOnlyList<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories = null,
         IUiThreadDispatcher? uiThreadDispatcher = null,
-        ISessionLayoutStrategy? layoutStrategy = null,
+        bool deferDomainHandlingWhenInactive = true,
         IRecordedSessionProcessingOptionCache? processingOptionCache = null,
         TestSessionProcessedTelemetryReader? processedTelemetryReader = null,
         IRecordedSessionDerivationWindowCache? derivationWindowCache = null,
@@ -107,7 +107,7 @@ public class SessionDetailViewModelTests
             dialogService,
             preferencesService,
             dispatcher,
-            layoutStrategy ?? new DesktopSessionLayoutStrategy(),
+            deferDomainHandlingWhenInactive,
             processingOptionCache ?? new InMemoryRecordedSessionProcessingOptionCache(),
             processedTelemetryReader ?? new TestSessionProcessedTelemetryReader(),
             analysisResultStateFactory,
@@ -432,12 +432,104 @@ public class SessionDetailViewModelTests
         foreach (var rowId in expectedRowIds)
         {
             var actions = editor.SignalPlotContextMenuActionsBySignalRowId[rowId];
-            Assert.Contains(actions, action => action.Id == "autozoom" && action.Label == "Autozoom");
+            Assert.Contains(actions, action => action.Id == "zoom-selection" && action.Label == "Zoom selection");
+            Assert.Contains(actions, action => action.Id == "analysis-range-set-start" && action.Label == "Set analysis start here");
+            Assert.Contains(actions, action => action.Id == "analysis-range-set-end" && action.Label == "Set analysis end here");
+            Assert.Contains(actions, action => action.Id == "analysis-range-clear" && action.Label == "Clear analysis range");
             Assert.Contains(actions, action => action.Id == "gps-mark-gps-event");
             Assert.Contains(actions, action => action.Id == "gps-mark-telemetry-event");
 
             Assert.All(actions, action => Assert.NotNull(action.Command));
         }
+    }
+
+    [AvaloniaFact]
+    public void AnalysisRangeContextMenuActions_SetStartEndAndClearRange()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        editor.SessionContext.TelemetryData = TestTelemetryData.CreateMinimal(duration: 10);
+        var setStart = GetPlotContextAction(editor, "analysis-range-set-start");
+        var setEnd = GetPlotContextAction(editor, "analysis-range-set-end");
+        var clear = GetPlotContextAction(editor, "analysis-range-clear");
+        var startContext = new TelemetryPlotContextMenuContext(SignalRowIds.Travel, 3, 10, null);
+        var endContext = new TelemetryPlotContextMenuContext(SignalRowIds.Travel, 7, 10, null);
+
+        Assert.True(setStart.Command.CanExecute(startContext));
+        Assert.True(setEnd.Command.CanExecute(endContext));
+        Assert.False(clear.Command.CanExecute(startContext));
+
+        setStart.Command.Execute(startContext);
+        Assert.Null(editor.SessionContext.AnalysisRange);
+
+        setEnd.Command.Execute(endContext);
+        Assert.Equal(3, editor.SessionContext.AnalysisRange?.StartSeconds);
+        Assert.Equal(7, editor.SessionContext.AnalysisRange?.EndSeconds);
+
+        setStart.Command.Execute(new TelemetryPlotContextMenuContext(
+            SignalRowIds.Travel,
+            ClickSeconds: 2,
+            DurationSeconds: 10,
+            AnalysisRange: editor.SessionContext.AnalysisRange));
+        Assert.Equal(2, editor.SessionContext.AnalysisRange?.StartSeconds);
+        Assert.Equal(7, editor.SessionContext.AnalysisRange?.EndSeconds);
+
+        setEnd.Command.Execute(new TelemetryPlotContextMenuContext(
+            SignalRowIds.Travel,
+            ClickSeconds: 8,
+            DurationSeconds: 10,
+            AnalysisRange: editor.SessionContext.AnalysisRange));
+        Assert.Equal(2, editor.SessionContext.AnalysisRange?.StartSeconds);
+        Assert.Equal(8, editor.SessionContext.AnalysisRange?.EndSeconds);
+
+        var clearContext = new TelemetryPlotContextMenuContext(
+            SignalRowIds.Travel,
+            ClickSeconds: 5,
+            DurationSeconds: 10,
+            AnalysisRange: editor.SessionContext.AnalysisRange);
+        Assert.True(clear.Command.CanExecute(clearContext));
+        clear.Command.Execute(clearContext);
+
+        Assert.Null(editor.SessionContext.AnalysisRange);
+        Assert.False(editor.IsDirty);
+    }
+
+    [AvaloniaFact]
+    public void AnalysisRangeContextMenuActions_CannotExecuteWithoutTelemetryOrValidContext()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        var setStart = GetPlotContextAction(editor, "analysis-range-set-start");
+        var setEnd = GetPlotContextAction(editor, "analysis-range-set-end");
+        var clear = GetPlotContextAction(editor, "analysis-range-clear");
+        var context = new TelemetryPlotContextMenuContext(SignalRowIds.Travel, 3, 10, null);
+
+        Assert.False(setStart.Command.CanExecute(context));
+        Assert.False(setEnd.Command.CanExecute(context));
+        Assert.False(clear.Command.CanExecute(context));
+
+        editor.SessionContext.TelemetryData = TestTelemetryData.CreateMinimal(duration: 10);
+        Assert.False(setStart.Command.CanExecute(null));
+        Assert.False(setEnd.Command.CanExecute(new TelemetryPlotContextMenuContext("unknown", 3, 10, null)));
+        Assert.False(clear.Command.CanExecute(new TelemetryPlotContextMenuContext(SignalRowIds.Travel, double.NaN, 10, null)));
+    }
+
+    [AvaloniaFact]
+    public void AnalysisRangeContextMenuClear_ClearsPendingBoundary()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        editor.SessionContext.TelemetryData = TestTelemetryData.CreateMinimal(duration: 10);
+        var setStart = GetPlotContextAction(editor, "analysis-range-set-start");
+        var setEnd = GetPlotContextAction(editor, "analysis-range-set-end");
+        var clear = GetPlotContextAction(editor, "analysis-range-clear");
+        var startContext = new TelemetryPlotContextMenuContext(SignalRowIds.Travel, 3, 10, null);
+        var endContext = new TelemetryPlotContextMenuContext(SignalRowIds.Travel, 7, 10, null);
+
+        setStart.Command.Execute(startContext);
+        Assert.True(clear.Command.CanExecute(startContext));
+
+        clear.Command.Execute(startContext);
+        setEnd.Command.Execute(endContext);
+
+        Assert.Null(editor.SessionContext.AnalysisRange);
     }
 
     [AvaloniaFact]
@@ -519,7 +611,7 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void AutozoomPlot_FullSession_WhenClickOutsideSelection()
+    public void ZoomSelection_UsesSelectionRegardlessOfClickPosition()
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
         var action = GetAutozoomAction(editor);
@@ -530,8 +622,8 @@ public class SessionDetailViewModelTests
             DurationSeconds: 10,
             AnalysisRange: new TelemetryTimeRange(2, 4)));
 
-        Assert.Equal(0, editor.Timeline.VisibleRangeStart, 6);
-        Assert.Equal(1, editor.Timeline.VisibleRangeEnd, 6);
+        Assert.Equal(0.19, editor.Timeline.VisibleRangeStart, 6);
+        Assert.Equal(0.41, editor.Timeline.VisibleRangeEnd, 6);
     }
 
     [AvaloniaFact]
@@ -804,16 +896,28 @@ public class SessionDetailViewModelTests
         var telemetry = TestTelemetryData.CreateProcessed();
         var trackPoints = new List<TrackPoint> { new(1, 1, 1, 0) };
         var fullTrackPoints = new List<TrackPoint> { new(2, 2, 2, 0) };
-        var result = new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
-            telemetry,
-            Guid.NewGuid(),
-            fullTrackPoints,
-            trackPoints,
-            400.0,
-            new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8),
-            DampingSpeedCutoffs.Default,
-            null));
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>()).Returns(result);
+        var percentages = new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8);
+        var result = new SessionDetailLoadResult.Loaded(new SessionDetailData(
+            new SessionTelemetryPresentationData(
+                telemetry,
+                Guid.NewGuid(),
+                fullTrackPoints,
+                trackPoints,
+                400.0,
+                percentages,
+                DampingSpeedCutoffs.Default,
+                null),
+            new SessionCachePresentationData(
+                "front-travel",
+                "rear-travel",
+                "front-velocity",
+                "rear-velocity",
+                null,
+                null,
+                percentages,
+                DampingSpeedCutoffs.Default,
+                false)));
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>()).Returns(result);
         SetDesktop(true);
 
         var editor = CreateEditor(snapshot);
@@ -842,8 +946,8 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         var factory = new TestRecordedSessionExtensionFactory("test");
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
         SetDesktop(true);
 
         var editor = CreateEditor(
@@ -866,8 +970,8 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         var processedTelemetryReader = new TestSessionProcessedTelemetryReader();
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
         SetDesktop(true);
 
         var editor = CreateEditor(
@@ -891,7 +995,7 @@ public class SessionDetailViewModelTests
         var watch = new Subject<RecordedSessionDomainSnapshot>();
         var factory = new TestRecordedSessionExtensionFactory("test");
         var selectedRange = new TelemetryTimeRange(0.05, 0.2);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(telemetry));
         SetDesktop(true);
 
@@ -924,7 +1028,7 @@ public class SessionDetailViewModelTests
         var telemetry = TestTelemetryData.CreateProcessed();
         var factory = new TestRecordedSessionExtensionFactory("test");
         var selectedRange = new TelemetryTimeRange(0.05, 0.2);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(telemetry));
         SetDesktop(true);
 
@@ -986,8 +1090,8 @@ public class SessionDetailViewModelTests
         var factory = new TestRecordedSessionExtensionFactory("test");
         var windowCache = Substitute.For<IRecordedSessionDerivationWindowCache>();
         windowCache.RefreshSessionAsync(snapshot.Id).Returns(Task.CompletedTask);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
         sessionCoordinator.RequestRecomputeAsync(snapshot.Id, RecomputeReason.SourceWindowChanged)
             .Returns(Task.FromResult<SessionRecomputeResult>(new SessionRecomputeResult.Recomputed(10)));
         SetDesktop(true);
@@ -1010,8 +1114,8 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         var factory = new TestRecordedSessionExtensionFactory("test");
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
         sessionCoordinator.DeleteAsync(snapshot.Id)
             .Returns(new SessionDeleteResult(SessionDeleteOutcome.Deleted));
         SetDesktop(true);
@@ -1034,8 +1138,8 @@ public class SessionDetailViewModelTests
         var factory = new TestRecordedSessionExtensionFactory("test");
         var editorFactory = Substitute.For<IEditorFactory>();
         sessionStore.Get(part2.Id).Returns(part2);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
         SetDesktop(true);
 
         var editor = CreateEditor(
@@ -1063,8 +1167,8 @@ public class SessionDetailViewModelTests
                 extensionPage.DisplayName,
                 extensionPage,
                 RequestedIndex: 1)));
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
         SetDesktop(true);
 
         var editor = CreateEditor(
@@ -1092,8 +1196,8 @@ public class SessionDetailViewModelTests
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         var factory = new TestRecordedSessionExtensionFactory("test");
         var observedProperties = new List<string?>();
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
         SetDesktop(true);
 
         var editor = CreateEditor(
@@ -1131,8 +1235,8 @@ public class SessionDetailViewModelTests
                 "media-pane",
                 Order: 0,
                 new TestContributionViewModel())));
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
         SetDesktop(true);
 
         var editor = CreateEditor(
@@ -1167,7 +1271,7 @@ public class SessionDetailViewModelTests
             telemetry,
             dampingSpeedCutoffs: previewCutoffs);
         var owner = new DampingSpeedCutoffOwner(Guid.NewGuid(), 7);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(telemetry, initialCutoffs, owner));
         SetDesktop(true);
 
@@ -1212,7 +1316,7 @@ public class SessionDetailViewModelTests
                 DampingSpeedCircuit.Rebound,
                 270)
             .Returns(new BikeDampingSpeedCutoffUpdateResult.Saved(savedBike));
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(telemetry, initialCutoffs, owner));
         SetDesktop(true);
 
@@ -1251,7 +1355,7 @@ public class SessionDetailViewModelTests
                     Imu: true,
                     VelocitySmoothing: PlotSmoothingLevel.Strong),
                 new AnalysisPreferences()));
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(telemetry));
         SetDesktop(true);
 
@@ -1276,7 +1380,7 @@ public class SessionDetailViewModelTests
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
         ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
         SetDesktop(true);
 
@@ -1302,7 +1406,7 @@ public class SessionDetailViewModelTests
                 snapshot.Id,
                 Arg.Do<Func<SessionPreferences, SessionPreferences>>(value => update = value))
             .Returns(Task.CompletedTask);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(CreateVibrationTelemetry()));
         SetDesktop(true);
 
@@ -1329,7 +1433,7 @@ public class SessionDetailViewModelTests
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
         ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(CreateVibrationTelemetry()));
         SetDesktop(true);
 
@@ -1367,7 +1471,7 @@ public class SessionDetailViewModelTests
                 snapshot.Id,
                 Arg.Do<Func<SessionPreferences, SessionPreferences>>(value => update = value))
             .Returns(Task.CompletedTask);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(CreateVibrationTelemetry()));
         SetDesktop(true);
         var signalLayout = new SignalLayoutPreferences(
@@ -1410,7 +1514,7 @@ public class SessionDetailViewModelTests
                 new SessionPaneSizePreference(SessionLayoutPaneIds.ExtensionMedia, 0.3),
             ]));
         ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default with { Layout = layout });
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(CreateVibrationTelemetry()));
         SetDesktop(true);
 
@@ -1434,7 +1538,7 @@ public class SessionDetailViewModelTests
                 snapshot.Id,
                 Arg.Do<Func<SessionPreferences, SessionPreferences>>(value => update = value))
             .Returns(Task.CompletedTask);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(CreateVibrationTelemetry()));
         SetDesktop(true);
         var layout = new SessionLayoutPreferences(
@@ -1469,7 +1573,7 @@ public class SessionDetailViewModelTests
                 snapshot.Id,
                 Arg.Do<Func<SessionPreferences, SessionPreferences>>(value => update = value))
             .Returns(Task.CompletedTask);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
         var recomputeRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         sessionCoordinator.RequestRecomputeAsync(snapshot.Id, Arg.Any<RecomputeReason>())
@@ -1517,7 +1621,7 @@ public class SessionDetailViewModelTests
                     BalanceDisplacementMode.Travel,
                     BalanceSpeedMode.HighSpeed,
                     SessionInsightsTargetProfile.DH)));
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
         SetDesktop(true);
 
@@ -1537,7 +1641,7 @@ public class SessionDetailViewModelTests
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var preferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
         ConfigureRecordedPreferences(preferences, snapshot.Id, CreateNonDefaultAnalysisPreferences());
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
         SetDesktop(true);
 
@@ -1556,7 +1660,7 @@ public class SessionDetailViewModelTests
         var syncStream = new Subject<SessionPreferences>();
         preferences.ObserveRecorded(snapshot.Id).Returns(syncStream);
         ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
         SetDesktop(true);
 
@@ -1585,7 +1689,7 @@ public class SessionDetailViewModelTests
         var syncStream = new Subject<SessionPreferences>();
         preferences.ObserveRecorded(snapshot.Id).Returns(syncStream);
         ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
         sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(CreateAnalysisResult());
         SetDesktop(true);
@@ -1617,7 +1721,7 @@ public class SessionDetailViewModelTests
         var dispatcher = new RecordingUiThreadDispatcher(checkAccess: false);
         preferences.ObserveRecorded(snapshot.Id).Returns(syncStream);
         ConfigureRecordedPreferences(preferences, snapshot.Id, SessionPreferences.Default);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
         SetDesktop(true);
 
@@ -1658,7 +1762,7 @@ public class SessionDetailViewModelTests
                 snapshot.Id,
                 Arg.Do<Func<SessionPreferences, SessionPreferences>>(value => update = value))
             .Returns(Task.CompletedTask);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(telemetry));
         SetDesktop(true);
 
@@ -1687,7 +1791,7 @@ public class SessionDetailViewModelTests
         var strokePeakPercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(
             telemetry,
             velocityAverageMode: VelocityAverageMode.StrokePeakAveraged);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(telemetry));
         SetDesktop(true);
 
@@ -1713,16 +1817,27 @@ public class SessionDetailViewModelTests
         var telemetry = TestTelemetryData.CreateProcessed();
         var dampingPercentages = new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8);
         var analysis = CreateAnalysisResult();
-        var result = new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
-            telemetry,
-            FullTrackId: null,
-            FullTrackPoints: null,
-            TrackPoints: null,
-            MediaColumnWidth: null,
-            DampingPercentages: dampingPercentages,
-            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-            DampingSpeedCutoffOwner: null));
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>()).Returns(result);
+        var result = new SessionDetailLoadResult.Loaded(new SessionDetailData(
+            new SessionTelemetryPresentationData(
+                telemetry,
+                FullTrackId: null,
+                FullTrackPoints: null,
+                TrackPoints: null,
+                MediaColumnWidth: null,
+                DampingPercentages: dampingPercentages,
+                DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
+                DampingSpeedCutoffOwner: null),
+            new SessionCachePresentationData(
+                "front-travel",
+                "rear-travel",
+                "front-velocity",
+                "rear-velocity",
+                null,
+                null,
+                dampingPercentages,
+                DampingSpeedCutoffs.Default,
+                false)));
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>()).Returns(result);
         sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(analysis);
         sessionPresentationService.ClearReceivedCalls();
         sessionAnalysisService.ClearReceivedCalls();
@@ -1871,7 +1986,7 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         var telemetry = CreateVibrationTelemetry();
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(telemetry));
         SetDesktop(true);
 
@@ -2006,7 +2121,7 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         var telemetry = CreateVibrationTelemetry(frameImu: false);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(telemetry));
         SetDesktop(true);
 
@@ -2024,7 +2139,7 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         var telemetry = CreateVibrationTelemetry(forkImu: false, frameImu: false);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(telemetry));
         SetDesktop(true);
 
@@ -2042,7 +2157,7 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         var telemetry = CreateVibrationTelemetry(frontStrokes: false, rearStrokes: false);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(telemetry));
         SetDesktop(true);
 
@@ -2060,24 +2175,26 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Loaded_OnDesktop_WhenTelemetryLaterPending_ClearsVibrationStates()
+    public async Task WatchRefresh_OnDesktop_WhenTelemetryLaterPending_ClearsVibrationStates()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = CreateVibrationTelemetry();
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(
                 Task.FromResult(LoadedDesktopResult(telemetry)),
-                Task.FromResult<SessionDesktopLoadResult>(new SessionDesktopLoadResult.TelemetryPending()));
+                Task.FromResult<SessionDetailLoadResult>(IncompleteResult(snapshot.Id)));
         SetDesktop(true);
 
-        var editor = CreateEditor(snapshot);
+        var editor = CreateEditor(snapshot, watch.AsObservable());
         await editor.LoadedCommand.ExecuteAsync(null);
 
         Assert.True(editor.SessionContext.FrontForkVibrationState.IsReady);
 
-        await editor.LoadedCommand.ExecuteAsync(null);
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.FingerprintChanged));
 
-        Assert.True(editor.SessionContext.FrontForkVibrationState.IsHidden);
+        await WaitForAsync(() => editor.SessionContext.FrontForkVibrationState.IsHidden);
         Assert.True(editor.SessionContext.FrontFrameVibrationState.IsHidden);
         Assert.True(editor.SessionContext.RearForkVibrationState.IsHidden);
         Assert.True(editor.SessionContext.RearFrameVibrationState.IsHidden);
@@ -2087,7 +2204,7 @@ public class SessionDetailViewModelTests
     public async Task Loaded_OnMobile_AppliesCacheResult_AndRemovesBalancePageWhenUnavailable()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var result = new SessionMobileLoadResult.LoadedFromCache(new SessionCachePresentationData(
+        var result = LoadedResult(new SessionCachePresentationData(
             "front-travel",
             null,
             "front-velocity",
@@ -2097,13 +2214,12 @@ public class SessionDetailViewModelTests
             new SessionDampingPercentages(1, null, 2, null, 3, null, 4, null),
             DampingSpeedCutoffs.Default,
             false),
-            TestTelemetryData.CreateProcessed(),
-            null);
-        sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            TestTelemetryData.CreateProcessed());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(result);
         SetDesktop(false);
 
-        var editor = CreateEditor(snapshot, layoutStrategy: new MobileSessionLayoutStrategy());
+        var editor = CreateEditor(snapshot, deferDomainHandlingWhenInactive: false);
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
         var springPage = editor.Pages.OfType<SpringPageViewModel>().Single();
 
@@ -2129,6 +2245,28 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Loaded_OnMobile_IncompleteLocalData_SetsIncompleteScreenState()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var result = new SessionDetailLoadResult.IncompleteLocalData(
+            snapshot.Id,
+            new MissingSessionData(
+                ProcessedTelemetryBlob: true,
+                RecordedSourceMissingOrHashMismatch: false));
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(result);
+        SetDesktop(false);
+
+        var editor = CreateEditor(snapshot, deferDomainHandlingWhenInactive: false);
+        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
+
+        Assert.Equal(SessionScreenStateKind.IncompleteLocalData, editor.SessionContext.ScreenState.Kind);
+        Assert.Contains("processed telemetry", editor.SessionContext.ScreenState.Message);
+        Assert.Contains("Run sync", editor.SessionContext.ScreenState.Message);
+        Assert.True(editor.IsComplete);
+    }
+
+    [AvaloniaFact]
     public async Task Loaded_OnMobile_FromCacheWithNoStrokes_ShowsNoDataAnalysis()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
@@ -2137,7 +2275,7 @@ public class SessionDetailViewModelTests
             rearStrokes: false,
             forkImu: false,
             frameImu: false);
-        var result = new SessionMobileLoadResult.LoadedFromCache(new SessionCachePresentationData(
+        var result = LoadedResult(new SessionCachePresentationData(
             null,
             null,
             null,
@@ -2147,13 +2285,12 @@ public class SessionDetailViewModelTests
             SessionDampingPercentages.Empty,
             DampingSpeedCutoffs.Default,
             false),
-            telemetry,
-            null);
-        sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            telemetry);
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(result);
         SetDesktop(false);
 
-        var editor = CreateEditor(snapshot, layoutStrategy: new MobileSessionLayoutStrategy());
+        var editor = CreateEditor(snapshot, deferDomainHandlingWhenInactive: false);
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
 
         Assert.Equal(SurfaceStateKind.NoData, editor.SessionContext.FrontAnalysisState.Kind);
@@ -2163,32 +2300,17 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Loaded_OnMobile_FromCacheWithoutTelemetry_HidesExtendedAnalysis()
+    public async Task Loaded_OnMobile_IncompleteLocalData_HidesExtendedAnalysis()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var result = new SessionMobileLoadResult.LoadedFromCache(new SessionCachePresentationData(
-            "front-travel",
-            "rear-travel",
-            "front-velocity",
-            "rear-velocity",
-            null,
-            null,
-            new SessionDampingPercentages(1, null, 2, null, 3, null, 4, null),
-            DampingSpeedCutoffs.Default,
-            false),
-            null,
-            null);
-        sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+        var result = IncompleteResult(snapshot.Id);
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(result);
         SetDesktop(false);
 
-        var editor = CreateEditor(snapshot, layoutStrategy: new MobileSessionLayoutStrategy());
+        var editor = CreateEditor(snapshot, deferDomainHandlingWhenInactive: false);
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
-        var springPage = editor.Pages.OfType<SpringPageViewModel>().Single();
-        var dampingPage = editor.Pages.OfType<DampingPageViewModel>().Single();
 
-        Assert.True(springPage.FrontDistributionState.IsReady);
-        Assert.True(dampingPage.FrontDistributionState.IsReady);
         Assert.True(editor.SessionContext.FrontAnalysisState.IsHidden);
         Assert.True(editor.SessionContext.RearAnalysisState.IsHidden);
         Assert.True(editor.SessionContext.SessionInsights.State.IsHidden);
@@ -2208,7 +2330,7 @@ public class SessionDetailViewModelTests
             new(0, 0, 0, null),
             new(1, 100, 100, null),
         };
-        var result = new SessionMobileLoadResult.LoadedFromCache(new SessionCachePresentationData(
+        var result = LoadedResult(new SessionCachePresentationData(
             "front-travel",
             null,
             "front-velocity",
@@ -2220,11 +2342,11 @@ public class SessionDetailViewModelTests
             false),
             TestTelemetryData.CreateProcessed(),
             new SessionTrackPresentationData(Guid.NewGuid(), fullTrackPoints, trackPoints, 400));
-        sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(result);
         SetDesktop(false);
 
-        var editor = CreateEditor(snapshot, layoutStrategy: new MobileSessionLayoutStrategy());
+        var editor = CreateEditor(snapshot, deferDomainHandlingWhenInactive: false);
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
 
         Assert.Same(trackPoints, editor.SessionContext.TrackPoints);
@@ -2236,23 +2358,23 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Loaded_WhenTelemetryPending_EntersWaitingStatesWithoutError()
+    public async Task Loaded_WhenLocalDataIncomplete_EntersIncompleteScreenState()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
         SetDesktop(true);
 
         var editor = CreateEditor(snapshot);
         await editor.LoadedCommand.ExecuteAsync(null);
 
         Assert.False(editor.IsComplete);
-        Assert.True(editor.SessionContext.ScreenState.IsReady);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SessionContext.TravelSignalState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SessionContext.VelocitySignalState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SessionContext.ImuSignalState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SessionContext.FrontAnalysisState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SessionContext.RearAnalysisState.Kind);
+        Assert.Equal(SessionScreenStateKind.IncompleteLocalData, editor.SessionContext.ScreenState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.SessionContext.TravelSignalState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.SessionContext.VelocitySignalState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.SessionContext.ImuSignalState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.SessionContext.FrontAnalysisState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.SessionContext.RearAnalysisState.Kind);
         Assert.True(editor.SessionContext.FrontForkVibrationState.IsHidden);
         Assert.True(editor.SessionContext.FrontFrameVibrationState.IsHidden);
         Assert.True(editor.SessionContext.RearForkVibrationState.IsHidden);
@@ -2265,8 +2387,8 @@ public class SessionDetailViewModelTests
     public async Task Loaded_WhenCoordinatorFails_SetsScreenError()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDesktopLoadResult.Failed("boom"));
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(new SessionDetailLoadResult.Failed("boom"));
         SetDesktop(true);
 
         var editor = CreateEditor(snapshot);
@@ -2282,12 +2404,12 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         var telemetry = TestTelemetryData.CreateProcessed();
-        var pending = new TaskCompletionSource<SessionDesktopLoadResult>();
+        var pending = new TaskCompletionSource<SessionDetailLoadResult>();
 
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(callInfo => AwaitWithCancellation(
                 pending.Task,
-                callInfo.ArgAt<CancellationToken>(1)));
+                callInfo.ArgAt<CancellationToken>(2)));
         SetDesktop(true);
 
         var editor = CreateEditor(snapshot);
@@ -2295,15 +2417,7 @@ public class SessionDetailViewModelTests
         await Task.Yield();
 
         editor.UnloadedCommand.Execute(null);
-        pending.SetResult(new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
-            telemetry,
-            null,
-            null,
-            null,
-            null,
-            new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8),
-            DampingSpeedCutoffs.Default,
-            null)));
+        pending.SetResult(LoadedDesktopResult(telemetry));
 
         await loadTask;
 
@@ -2315,20 +2429,20 @@ public class SessionDetailViewModelTests
     public async Task Unloaded_OnMobile_CancelsInFlightLoad_AndDropsCacheResult()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
-        var pending = new TaskCompletionSource<SessionMobileLoadResult>();
+        var pending = new TaskCompletionSource<SessionDetailLoadResult>();
 
-        sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(callInfo => AwaitWithCancellation(
                 pending.Task,
                 callInfo.ArgAt<CancellationToken>(2)));
         SetDesktop(false);
 
-        var editor = CreateEditor(snapshot, layoutStrategy: new MobileSessionLayoutStrategy());
+        var editor = CreateEditor(snapshot, deferDomainHandlingWhenInactive: false);
         var loadTask = editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
         await Task.Yield();
 
         editor.UnloadedCommand.Execute(null);
-        pending.SetResult(new SessionMobileLoadResult.BuiltCache(new SessionCachePresentationData(
+        pending.SetResult(LoadedResult(new SessionCachePresentationData(
             "front-travel",
             null,
             "front-velocity",
@@ -2350,28 +2464,17 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task SaveAfter_LoadedFromCacheWithNullTelemetry_PreservesHasProcessedData()
+    public async Task SaveAfter_IncompleteLocalData_PreservesHasProcessedData()
     {
         var snapshot = TestSnapshots.Session(updated: 5, hasProcessedData: true);
-        var result = new SessionMobileLoadResult.LoadedFromCache(new SessionCachePresentationData(
-            "front-travel",
-            null,
-            "front-velocity",
-            null,
-            null,
-            null,
-            new SessionDampingPercentages(1, null, 2, null, 3, null, 4, null),
-            DampingSpeedCutoffs.Default,
-            false),
-            null,
-            null);
-        sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+        var result = IncompleteResult(snapshot.Id);
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(result);
         sessionCoordinator.SaveAsync(Arg.Any<Session>(), 5)
             .Returns(new SessionSaveResult.Saved(11));
         SetDesktop(false);
 
-        var editor = CreateEditor(snapshot, layoutStrategy: new MobileSessionLayoutStrategy());
+        var editor = CreateEditor(snapshot, deferDomainHandlingWhenInactive: false);
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
         editor.Name = "renamed";
 
@@ -2383,30 +2486,14 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task LaterLoad_SupersedesEarlierCompletion()
+    public async Task Loaded_WhenAlreadyLoaded_DoesNotStartSecondLoad()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         var firstTelemetry = TestTelemetryData.CreateProcessed();
-        var secondTelemetry = TestTelemetryData.CreateProcessed();
-        var firstPending = new TaskCompletionSource<SessionDesktopLoadResult>();
-        var callCount = 0;
+        var firstPending = new TaskCompletionSource<SessionDetailLoadResult>();
 
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
-            {
-                callCount++;
-                return callCount == 1
-                    ? AwaitWithCancellation(firstPending.Task, callInfo.ArgAt<CancellationToken>(1))
-                    : Task.FromResult<SessionDesktopLoadResult>(new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
-                        secondTelemetry,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SessionDampingPercentages(10, 20, 30, 40, 50, 60, 70, 80),
-                        DampingSpeedCutoffs.Default,
-                        null)));
-            });
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => AwaitWithCancellation(firstPending.Task, callInfo.ArgAt<CancellationToken>(2)));
         SetDesktop(true);
 
         var editor = CreateEditor(snapshot);
@@ -2414,20 +2501,12 @@ public class SessionDetailViewModelTests
         await Task.Yield();
 
         var secondLoad = editor.LoadedCommand.ExecuteAsync(null);
-        firstPending.SetResult(new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
-            firstTelemetry,
-            null,
-            null,
-            null,
-            null,
-            new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8),
-            DampingSpeedCutoffs.Default,
-            null)));
+        firstPending.SetResult(LoadedDesktopResult(firstTelemetry));
 
         await Task.WhenAll(firstLoad, secondLoad);
 
-        Assert.Same(secondTelemetry, editor.SessionContext.TelemetryData);
-        Assert.Equal(10, editor.DampingPage.FrontHscPercentage);
+        Assert.Same(firstTelemetry, editor.SessionContext.TelemetryData);
+        await sessionCoordinator.Received(1).LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
@@ -2435,37 +2514,37 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         var watch = new Subject<RecordedSessionDomainSnapshot>();
-        var initialResult = new SessionDesktopLoadResult.TelemetryPending();
+        var initialResult = IncompleteResult(snapshot.Id);
         var refreshLoadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var refreshPending = new TaskCompletionSource<SessionDesktopLoadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var refreshPending = new TaskCompletionSource<SessionDetailLoadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var finalLoadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var finalPending = new TaskCompletionSource<SessionDesktopLoadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finalPending = new TaskCompletionSource<SessionDetailLoadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var finalTelemetry = TestTelemetryData.CreateProcessed();
         var finalResultApplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var callCount = 0;
 
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
-                var cancellationToken = callInfo.ArgAt<CancellationToken>(1);
+                var cancellationToken = callInfo.ArgAt<CancellationToken>(2);
                 callCount++;
                 return callCount switch
                 {
-                    1 => Task.FromResult<SessionDesktopLoadResult>(initialResult),
+                    1 => Task.FromResult<SessionDetailLoadResult>(initialResult),
                     2 => StartRefreshLoad(refreshPending.Task, cancellationToken),
                     _ => StartFinalLoad(finalPending.Task, cancellationToken)
                 };
 
-                Task<SessionDesktopLoadResult> StartRefreshLoad(
-                    Task<SessionDesktopLoadResult> task,
+                Task<SessionDetailLoadResult> StartRefreshLoad(
+                    Task<SessionDetailLoadResult> task,
                     CancellationToken token)
                 {
                     refreshLoadStarted.TrySetResult();
                     return AwaitWithCancellation(task, token);
                 }
 
-                Task<SessionDesktopLoadResult> StartFinalLoad(
-                    Task<SessionDesktopLoadResult> task,
+                Task<SessionDetailLoadResult> StartFinalLoad(
+                    Task<SessionDetailLoadResult> task,
                     CancellationToken token)
                 {
                     finalLoadStarted.TrySetResult();
@@ -2507,26 +2586,10 @@ public class SessionDetailViewModelTests
         await refreshLoadStarted.Task;
         watch.OnNext(DomainFromSnapshot(snapshot with { HasProcessedData = false }, DerivedChangeKind.ProcessedDataAvailabilityChanged));
         watch.OnNext(DomainFromSnapshot(snapshot with { HasProcessedData = true }, DerivedChangeKind.ProcessedDataAvailabilityChanged));
-        refreshPending.SetResult(new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
-            TestTelemetryData.CreateProcessed(),
-            null,
-            null,
-            null,
-            null,
-            new SessionDampingPercentages(9, 9, 9, 9, 9, 9, 9, 9),
-            DampingSpeedCutoffs.Default,
-            null)));
+        refreshPending.SetResult(LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
 
         await finalLoadStarted.Task;
-        finalPending.SetResult(new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
-            finalTelemetry,
-            null,
-            null,
-            null,
-            null,
-            new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8),
-            DampingSpeedCutoffs.Default,
-            null)));
+        finalPending.SetResult(LoadedDesktopResult(finalTelemetry));
 
         await finalResultApplied.Task;
 
@@ -2535,7 +2598,7 @@ public class SessionDetailViewModelTests
         // (initial + three refreshes = four invocations). Only the final, uncancelled
         // load applies its result, so rapid refreshes never surface stale telemetry.
         Assert.Same(finalTelemetry, editor.SessionContext.TelemetryData);
-        await sessionCoordinator.Received(4).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
+        await sessionCoordinator.Received(4).LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>());
         watch.Dispose();
     }
 
@@ -2547,8 +2610,8 @@ public class SessionDetailViewModelTests
         var watch = new Subject<RecordedSessionDomainSnapshot>();
         var recomputeCalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         sessionStore.Get(snapshot.Id).Returns(snapshot, snapshot);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
         dialogService.ShowChoiceAsync(
                 Arg.Any<string>(),
                 Arg.Any<string>(),
@@ -2592,8 +2655,8 @@ public class SessionDetailViewModelTests
             DerivedChangeKind.Initial,
             new SessionStaleness.DependencyHashChanged());
 
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
         dialogService.ShowChoiceAsync(
                 Arg.Any<string>(),
                 Arg.Any<string>(),
@@ -2645,7 +2708,7 @@ public class SessionDetailViewModelTests
         var loadCount = 0;
 
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 loadCount++;
@@ -2693,7 +2756,7 @@ public class SessionDetailViewModelTests
 
         Assert.Contains(null, telemetryChanges);
         Assert.Same(freshTelemetry, editor.SessionContext.TelemetryData);
-        await sessionCoordinator.Received(2).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
+        await sessionCoordinator.Received(2).LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
@@ -2701,8 +2764,8 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(name: "trail run", hasProcessedData: true, updated: 5);
         var watch = new Subject<RecordedSessionDomainSnapshot>();
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
         dialogService.ShowChoiceAsync(
                 Arg.Any<string>(),
                 Arg.Any<string>(),
@@ -2806,9 +2869,16 @@ public class SessionDetailViewModelTests
 
     private static TelemetryPlotContextMenuAction GetAutozoomAction(SessionDetailViewModel editor)
     {
+        return GetPlotContextAction(editor, "zoom-selection");
+    }
+
+    private static TelemetryPlotContextMenuAction GetPlotContextAction(
+        SessionDetailViewModel editor,
+        string id)
+    {
         return Assert.Single(
             editor.SignalPlotContextMenuActionsBySignalRowId[SignalRowIds.Travel],
-            action => action.Id == "autozoom");
+            action => action.Id == id);
     }
 
     private static async Task WaitForAsync(Func<bool> condition)
@@ -2825,8 +2895,8 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true, updated: 5);
         var watch = new Subject<RecordedSessionDomainSnapshot>();
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
 
         var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
         await editor.LoadedCommand.ExecuteAsync(null);
@@ -2849,8 +2919,8 @@ public class SessionDetailViewModelTests
         var recomputedSnapshot = snapshot with { Updated = 8 };
         var watch = new Subject<RecordedSessionDomainSnapshot>();
         var recomputeCalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
         dialogService.ShowChoiceAsync(
                 Arg.Any<string>(),
                 Arg.Any<string>(),
@@ -2892,8 +2962,8 @@ public class SessionDetailViewModelTests
     {
         var snapshot = TestSnapshots.Session(name: "trail run", description: "persisted", hasProcessedData: true, updated: 5);
         var watch = new Subject<RecordedSessionDomainSnapshot>();
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
         dialogService.ShowChoiceAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<DialogChoice>>())
             .Returns(call => call.Arg<IReadOnlyList<DialogChoice>>().First(c => c.Label == "Cancel").Id);
 
@@ -2919,8 +2989,8 @@ public class SessionDetailViewModelTests
         var snapshot = TestSnapshots.Session(name: "trail run", hasProcessedData: true, updated: 5);
         var watch = new Subject<RecordedSessionDomainSnapshot>();
         var promptShown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
         dialogService.ShowChoiceAsync(
                 Arg.Any<string>(),
                 Arg.Any<string>(),
@@ -2965,7 +3035,7 @@ public class SessionDetailViewModelTests
         var freshTelemetry = TestTelemetryData.CreateProcessed();
         var loadCount = 0;
 
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 loadCount++;
@@ -2988,7 +3058,7 @@ public class SessionDetailViewModelTests
         await WaitForAsync(() => ReferenceEquals(editor.SessionContext.TelemetryData, freshTelemetry));
 
         Assert.Equal(updatedSnapshot.Updated, editor.BaselineUpdated);
-        await sessionCoordinator.Received(2).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
+        await sessionCoordinator.Received(2).LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>());
         await dialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
     }
 
@@ -3000,7 +3070,7 @@ public class SessionDetailViewModelTests
         var watch = new Subject<RecordedSessionDomainSnapshot>();
         var oldTelemetry = TestTelemetryData.CreateProcessed();
 
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(LoadedDesktopResult(oldTelemetry));
         dialogService.ShowConfirmationAsync(
                 Arg.Any<string>(),
@@ -3022,7 +3092,7 @@ public class SessionDetailViewModelTests
         Assert.Equal("dirty draft", editor.DescriptionText);
         Assert.Equal(snapshot.Updated, editor.BaselineUpdated);
         Assert.Same(oldTelemetry, editor.SessionContext.TelemetryData);
-        await sessionCoordinator.Received(1).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
+        await sessionCoordinator.Received(1).LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>());
         await dialogService.Received(1).ShowConfirmationAsync(
             Arg.Any<string>(),
             Arg.Any<string>());
@@ -3035,8 +3105,8 @@ public class SessionDetailViewModelTests
         var metadataSnapshot = snapshot with { Updated = 8, Description = "remote" };
         var derivedSnapshot = snapshot with { Updated = 9 };
         var watch = new Subject<RecordedSessionDomainSnapshot>();
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDesktopLoadResult.TelemetryPending());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
 
         var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
@@ -3074,7 +3144,7 @@ public class SessionDetailViewModelTests
         var freshTelemetry = TestTelemetryData.CreateProcessed();
         var loadCount = 0;
 
-        sessionCoordinator.LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 loadCount++;
@@ -3100,7 +3170,7 @@ public class SessionDetailViewModelTests
         await WaitForAsync(() => ReferenceEquals(editor.SessionContext.TelemetryData, freshTelemetry));
 
         // Derived axis applied: plots never show stale telemetry even with a pending prompt.
-        await sessionCoordinator.Received(2).LoadDesktopDetailAsync(snapshot.Id, Arg.Any<CancellationToken>());
+        await sessionCoordinator.Received(2).LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>());
         // Metadata axis decided independently: prompt shown, declined -> draft kept and
         // the baseline held back so the next save still detects the conflict.
         await dialogService.Received(1).ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
@@ -3123,21 +3193,59 @@ public class SessionDetailViewModelTests
         staleness ?? new SessionStaleness.Current(),
         changeKind);
 
-    private static SessionDesktopLoadResult LoadedDesktopResult(
+    private static SessionDetailLoadResult LoadedDesktopResult(
         TelemetryData telemetry,
         DampingSpeedCutoffs? dampingSpeedCutoffs = null,
-        DampingSpeedCutoffOwner? dampingSpeedCutoffOwner = null)
+        DampingSpeedCutoffOwner? dampingSpeedCutoffOwner = null,
+        SessionDampingPercentages? dampingPercentages = null)
     {
-        return new SessionDesktopLoadResult.Loaded(new SessionTelemetryPresentationData(
-            telemetry,
-            null,
-            null,
-            null,
-            null,
-            new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8),
-            dampingSpeedCutoffs ?? DampingSpeedCutoffs.Default,
-            dampingSpeedCutoffOwner));
+        var cutoffs = dampingSpeedCutoffs ?? DampingSpeedCutoffs.Default;
+        var percentages = dampingPercentages ?? new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8);
+        return new SessionDetailLoadResult.Loaded(new SessionDetailData(
+            new SessionTelemetryPresentationData(
+                telemetry,
+                null,
+                null,
+                null,
+                null,
+                percentages,
+                cutoffs,
+                dampingSpeedCutoffOwner),
+            new SessionCachePresentationData(
+                FrontTravelDistribution: "front-travel",
+                RearTravelDistribution: "rear-travel",
+                FrontVelocityDistribution: "front-velocity",
+                RearVelocityDistribution: "rear-velocity",
+                CompressionBalance: "compression-balance",
+                ReboundBalance: "rebound-balance",
+                DampingPercentages: percentages,
+                DampingSpeedCutoffs: cutoffs,
+                BalanceAvailable: true,
+                DampingSpeedCutoffOwner: dampingSpeedCutoffOwner)));
     }
+
+    private static SessionDetailLoadResult LoadedResult(
+        SessionCachePresentationData cachePresentation,
+        TelemetryData telemetry,
+        SessionTrackPresentationData? trackData = null) =>
+        new SessionDetailLoadResult.Loaded(new SessionDetailData(
+            new SessionTelemetryPresentationData(
+                telemetry,
+                trackData?.FullTrackId,
+                trackData?.FullTrackPoints,
+                trackData?.TrackPoints,
+                trackData?.MediaColumnWidth,
+                cachePresentation.DampingPercentages,
+                cachePresentation.DampingSpeedCutoffs,
+                cachePresentation.DampingSpeedCutoffOwner),
+            cachePresentation));
+
+    private static SessionDetailLoadResult IncompleteResult(Guid sessionId) =>
+        new SessionDetailLoadResult.IncompleteLocalData(
+            sessionId,
+            new MissingSessionData(
+                ProcessedTelemetryBlob: true,
+                RecordedSourceMissingOrHashMismatch: false));
 
     private static void ConfigureRecordedPreferences(
         ISessionPreferences preferences,

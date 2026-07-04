@@ -138,5 +138,29 @@
                     TextWrapping="Wrap" />
             </StackPanel>
         </Border>
+
+        <Border
+            MaxWidth="420"
+            Padding="24"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Background="{DynamicResource SufniBackground}"
+            BorderBrush="{DynamicResource SufniBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="6"
+            IsVisible="{Binding ScreenState.IsIncompleteLocalData}">
+            <StackPanel Spacing="12">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontSize="20"
+                    FontWeight="SemiBold"
+                    Text="Session data incomplete" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    Text="{Binding ScreenState.Message}"
+                    TextAlignment="Center"
+                    TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
     </Grid>
 </UserControl>

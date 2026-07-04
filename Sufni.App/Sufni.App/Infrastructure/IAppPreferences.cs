@@ -12,6 +12,7 @@ public interface IAppPreferences
     IMapPreferences Map { get; }
     ISessionPreferences Session { get; }
     IThemePreferences Theme { get; }
+    IUiPreferences Ui { get; }
     Task<AppPreferencesSyncData?> GetSyncDataAsync(long since);
     Task ApplySyncDataAsync(AppPreferencesSyncData? preferences);
 
@@ -19,6 +20,12 @@ public interface IAppPreferences
     // only see emissions that happen after they subscribe. Local writes do not
     // emit through this — view models drive those directly.
     IObservable<Unit> SyncDataApplied { get; }
+}
+
+public interface IUiPreferences
+{
+    Task<UiPreferences> GetAsync();
+    Task SetLayoutProfileAsync(UiLayoutProfile? layoutProfile);
 }
 
 public interface IMapPreferences

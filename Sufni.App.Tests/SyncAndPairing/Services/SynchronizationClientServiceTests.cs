@@ -26,8 +26,10 @@ public class SynchronizationClientServiceTests
     {
         httpApiService.ServerUrl.Returns("https://temporary-sync-endpoint.test");
         httpApiService.GetIncompleteSessionIdsAsync().Returns([]);
+        sessionRepository.GetIncompleteSessionIdsAsync().Returns([]);
         sessionRepository.GetIncompleteSessionIdsWithFingerprintAsync().Returns([]);
         httpApiService.GetIncompleteSessionSourceIdsAsync().Returns([]);
+        recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync().Returns([]);
         recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([]);
         appPreferences.GetSyncDataAsync(Arg.Any<long>()).Returns((AppPreferencesSyncData?)null);
         appPreferences.ApplySyncDataAsync(Arg.Any<AppPreferencesSyncData?>()).Returns(Task.CompletedTask);
@@ -264,10 +266,11 @@ public class SynchronizationClientServiceTests
         // The peer does not yet hold the target BLOB, so the swap cannot commit.
         httpApiService.GetSessionPsstAsync(sessionId).Returns((SessionDataTransfer?)null);
 
-        await CreateService().SyncAll();
+        var result = await CreateService().SyncAll();
 
         // The watermark stays back so the next run re-derives and retries the swap;
         // advancing it would strand the swap permanently (BLOB writes do not bump updated).
+        Assert.IsType<SynchronizationRunResult.Completed>(result);
         await sessionTelemetryWriter.DidNotReceive().SwapSessionPsstAsync(
             Arg.Any<Guid>(), Arg.Any<byte[]>(), Arg.Any<string?>());
         await syncDataStore.DidNotReceive().UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
@@ -289,6 +292,66 @@ public class SynchronizationClientServiceTests
 
         await sessionTelemetryWriter.Received(1).SwapSessionPsstAsync(sessionId, Arg.Any<byte[]>(), target);
         await syncDataStore.Received(1).UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
+    }
+
+    [Fact]
+    public async Task SyncAll_ReturnsCompleted_WhenCompletenessVerificationPasses()
+    {
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+
+        var result = await CreateService().SyncAll();
+
+        Assert.IsType<SynchronizationRunResult.Completed>(result);
+    }
+
+    [Fact]
+    public async Task SyncAll_ReturnsIncompleteLocalData_WhenCompletenessVerificationFindsMissingData()
+    {
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        sessionRepository.GetIncompleteSessionIdsAsync().Returns([Guid.NewGuid(), Guid.NewGuid()]);
+        recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync().Returns([Guid.NewGuid()]);
+
+        var result = await CreateService().SyncAll();
+
+        var incomplete = Assert.IsType<SynchronizationRunResult.IncompleteLocalData>(result);
+        Assert.Equal(2, incomplete.MissingProcessedSessionCount);
+        Assert.Equal(1, incomplete.IncompleteRecordedSourceCount);
+        await syncDataStore.Received(1).UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
+    }
+
+    [Fact]
+    public async Task SyncAll_VerifiesCompletenessAfterPullingRecordedSources()
+    {
+        var calls = new List<string>();
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync()
+            .Returns(_ =>
+            {
+                calls.Add("pull-sources");
+                return Task.FromResult<IReadOnlyList<Guid>>([]);
+            });
+        sessionRepository.GetIncompleteSessionIdsAsync()
+            .Returns(_ =>
+            {
+                calls.Add("verify-sessions");
+                return Task.FromResult(new List<Guid>());
+            });
+        recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync()
+            .Returns(_ =>
+            {
+                calls.Add("verify-sources");
+                return Task.FromResult(new List<Guid>());
+            });
+
+        await CreateService().SyncAll();
+
+        Assert.Equal(["pull-sources", "verify-sessions", "verify-sources"], calls);
     }
 
     [Fact]
