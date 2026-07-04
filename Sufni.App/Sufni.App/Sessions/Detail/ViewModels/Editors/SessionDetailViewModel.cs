@@ -146,6 +146,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private IDisposable? processedTelemetryRetention;
     private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
     private SessionOperationPresentationState sessionOperationState = SessionOperationPresentationState.Hidden;
+    private SessionDampingPercentages dampingPercentages = SessionDampingPercentages.Empty;
     private bool showAirtime = true;
     private bool showVelocityAirtime;
     private bool showImuAirtime;
@@ -271,9 +272,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     internal void ApplyDampingPercentages(SessionDampingPercentages percentages)
     {
+        var changed = dampingPercentages != percentages;
+        dampingPercentages = percentages;
         SessionContext.DampingPercentages = percentages;
         DampingPage.ApplyDampingPercentages(percentages);
         UpdateRecordedSessionExtensionHostState();
+        if (changed)
+        {
+            PublishEditorState();
+        }
     }
 
     internal void ApplyDampingSpeedCutoffContext(
@@ -311,7 +318,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             selectedBalanceDisplacementMode,
             selectedBalanceSpeedMode,
             SessionContext.DampingSpeedCutoffs,
-            SessionContext.DampingPercentages,
+            dampingPercentages,
             selectedSessionInsightsTargetProfile);
 
     private void InvalidateAnalysisInputs()
@@ -982,7 +989,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 Timeline,
                 new RecordedSessionTimelineAlignmentState(pendingTimelineAlignmentMark)),
             new RecordedSessionAnalysisState(
-                SessionContext.DampingPercentages,
+                dampingPercentages,
                 SessionContext.DampingSpeedCutoffs,
                 selectedVelocityAverageMode,
                 selectedTravelDistributionMode));
@@ -1624,7 +1631,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 ActiveRearAnalysisSelection,
                 analysisSelectionController.HighlightRanges),
             screenState,
-            sessionOperationState);
+            sessionOperationState,
+            dampingPercentages);
         ApplyProjectedEditorState(state);
         editorStateInput.OnNext(state);
     }

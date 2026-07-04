@@ -2093,7 +2093,7 @@ public class SessionDetailViewModelTests
         editor.SessionContext.TelemetryData = TestTelemetryData.CreateProcessed();
         sessionAnalysisService.ClearReceivedCalls();
 
-        editor.SessionContext.DampingPercentages = new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8);
+        editor.ApplyDampingPercentages(new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8));
 
         sessionAnalysisService.DidNotReceive().Analyze(Arg.Any<SessionInsightsRequest>());
     }

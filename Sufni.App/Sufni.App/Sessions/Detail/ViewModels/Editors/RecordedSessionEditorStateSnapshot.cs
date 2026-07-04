@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.App.Infrastructure;
@@ -24,7 +25,8 @@ internal static class RecordedSessionEditorStateSnapshot
         RecordedAnalysisModeState? analysisModes = null,
         AnalysisSelectionState? analysisSelection = null,
         SessionScreenPresentationState? screenState = null,
-        SessionOperationPresentationState? operationState = null)
+        SessionOperationPresentationState? operationState = null,
+        SessionDampingPercentages? dampingPercentages = null)
     {
         var toggles = signalToggles ?? RecordedSignalToggleState.From(context);
         var modes = analysisModes ?? RecordedAnalysisModeState.From(context);
@@ -88,7 +90,7 @@ internal static class RecordedSessionEditorStateSnapshot
                     FrontFrameVibration: context.FrontFrameVibrationState,
                     RearForkVibration: context.RearForkVibrationState,
                     RearFrameVibration: context.RearFrameVibrationState),
-                DampingPercentages: context.DampingPercentages,
+                DampingPercentages: dampingPercentages ?? context.DampingPercentages,
                 PlotDampingSpeedCutoffs: context.PlotDampingSpeedCutoffs,
                 CanEditDampingSpeedCutoffs: context.CanEditDampingSpeedCutoffs,
                 SessionInsights: context.SessionInsights,
