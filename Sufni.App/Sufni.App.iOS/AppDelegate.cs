@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.iOS;
 using Foundation;
+using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Infrastructure;
 using UIKit;
 
@@ -40,10 +41,13 @@ namespace Sufni.App.iOS
                 static () => new IosFriendlyNameProvider(),
                 static _ => new BonjourServiceDiscovery(),
                 static () => new IosHapticFeedback());
+            RegisterPlatformExtensions(App.ServiceCollection);
 
             return MobileAppBootstrapper.ConfigureMobileAvalonia(
                 base.CustomizeAppBuilder(builder));
         }
+
+        static partial void RegisterPlatformExtensions(IServiceCollection services);
 
         private void InstallLifecycleObservers()
         {
