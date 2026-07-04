@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
-using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Shared.Base;
@@ -11,7 +10,7 @@ using Sufni.App.Shell.ViewModels;
 using Sufni.App.Shell.Views;
 namespace Sufni.App.Shell.Coordinators;
 
-public sealed class MobileNavigationShellHost : ObservableObject, IMobileNavigationShellHost, IMobileNavigationPageHost
+public sealed class MobileNavigationShellHost : IMobileNavigationShellHost, IMobileNavigationPageHost
 {
     private readonly ShellWorkspaceViewModel workspace;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
@@ -31,53 +30,12 @@ public sealed class MobileNavigationShellHost : ObservableObject, IMobileNavigat
         workspace.PropertyChanged += OnWorkspacePropertyChanged;
     }
 
-    public ViewModelBase CurrentView
-    {
-        get
-        {
-            lock (syncRoot)
-            {
-                if (workspace.CurrentTab is { } currentTab)
-                {
-                    return currentTab;
-                }
-
-                return rootEntry?.ViewModel
-                    ?? throw new InvalidOperationException("The mobile navigation root has not been set.");
-            }
-        }
-    }
-
-    public bool CanGoBack
-    {
-        get
-        {
-            return workspace.CurrentTab is not null;
-        }
-    }
-
-    public IReadOnlyList<ViewModelBase> LogicalStack
-    {
-        get
-        {
-            lock (syncRoot)
-            {
-                return rootEntry is null
-                    ? []
-                    : workspace.CurrentTab is { } currentTab
-                        ? [rootEntry.ViewModel, currentTab]
-                        : [rootEntry.ViewModel];
-            }
-        }
-    }
-
     public void SetRoot(ViewModelBase root)
     {
         ArgumentNullException.ThrowIfNull(root);
 
         NavigationPage? navigationPage;
         ContentPage[] pages;
-        var shouldNotifyAfterRootChange = workspace.CurrentTab is null;
         lock (syncRoot)
         {
             rootEntry = GetOrCreateEntry(root);
@@ -91,51 +49,10 @@ public sealed class MobileNavigationShellHost : ObservableObject, IMobileNavigat
             pages = BuildAttachedPages();
         }
 
-        if (shouldNotifyAfterRootChange)
-        {
-            NotifyStackPropertiesChanged();
-        }
-
-        if (shouldNotifyAfterRootChange && navigationPage is not null)
+        if (navigationPage is not null)
         {
             QueueNavigationOperation(() => MaterializeAttachedStackAsync(navigationPage, pages));
         }
-    }
-
-    public void Push(ViewModelBase viewModel)
-    {
-        ArgumentNullException.ThrowIfNull(viewModel);
-
-        if (viewModel is not TabPageViewModelBase tab)
-        {
-            throw new InvalidOperationException("Mobile navigation detail surfaces must be tab pages.");
-        }
-
-        workspace.OpenOrFocus(tab);
-    }
-
-    public bool Pop()
-    {
-        if (!workspace.GoBack())
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    public bool Close(ViewModelBase viewModel)
-    {
-        ArgumentNullException.ThrowIfNull(viewModel);
-
-        if (viewModel is not TabPageViewModelBase tab ||
-            !ReferenceEquals(workspace.CurrentTab, tab))
-        {
-            return false;
-        }
-
-        workspace.CloseTab(tab, rememberForRestore: false);
-        return true;
     }
 
     public void Attach(NavigationPage navigationPage)
@@ -207,13 +124,6 @@ public sealed class MobileNavigationShellHost : ObservableObject, IMobileNavigat
             : [rootEntry.Page];
     }
 
-    private void NotifyStackPropertiesChanged()
-    {
-        OnPropertyChanged(nameof(CurrentView));
-        OnPropertyChanged(nameof(CanGoBack));
-        OnPropertyChanged(nameof(LogicalStack));
-    }
-
     private void OnWorkspacePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
         if (args.PropertyName != nameof(ShellWorkspaceViewModel.CurrentTab))
@@ -228,8 +138,6 @@ public sealed class MobileNavigationShellHost : ObservableObject, IMobileNavigat
             navigationPage = attachedNavigationPage;
             pages = BuildAttachedPages();
         }
-
-        NotifyStackPropertiesChanged();
 
         if (navigationPage is not null)
         {

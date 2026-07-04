@@ -12,96 +12,54 @@ public class MobileNavigationShellHostTests
     private static readonly InlineUiThreadDispatcher TestDispatcher = new();
 
     [AvaloniaFact]
-    public void SetRoot_InitializesLogicalStack()
+    public void SetRoot_ClearsCurrentWorkspaceTab()
     {
         var root = new TestViewModel();
-        var host = CreateHost();
+        var workspace = CreateWorkspace();
+        var tab = new TestTabPage();
+        workspace.OpenOrFocus(tab);
+        var host = CreateHost(workspace);
 
         host.SetRoot(root);
 
-        Assert.Same(root, host.CurrentView);
-        Assert.False(host.CanGoBack);
-        Assert.Equal([root], host.LogicalStack);
+        Assert.Null(workspace.CurrentTab);
+        Assert.Contains(tab, workspace.Tabs);
     }
 
     [AvaloniaFact]
-    public void Push_UpdatesCurrentViewCanGoBackAndLogicalStack()
-    {
-        var root = new TestViewModel();
-        var pushed = new TestTabPage();
-        var host = CreateHost();
-        host.SetRoot(root);
-
-        host.Push(pushed);
-
-        Assert.Same(pushed, host.CurrentView);
-        Assert.True(host.CanGoBack);
-        Assert.Equal([root, pushed], host.LogicalStack);
-    }
-
-    [AvaloniaFact]
-    public void Pop_ReturnsFalseAtRoot_AndTrueAboveRoot()
-    {
-        var root = new TestViewModel();
-        var pushed = new TestTabPage();
-        var host = CreateHost();
-        host.SetRoot(root);
-
-        Assert.False(host.Pop());
-
-        host.Push(pushed);
-
-        Assert.True(host.Pop());
-        Assert.Same(root, host.CurrentView);
-        Assert.False(host.CanGoBack);
-        Assert.Equal([root], host.LogicalStack);
-    }
-
-    [AvaloniaFact]
-    public void Pop_ReturnsToPreviouslyFocusedWorkspaceTab()
+    public void WorkspaceCurrentTab_DrivesHostState()
     {
         var root = new TestViewModel();
         var first = new TestTabPage();
         var second = new TestTabPage();
-        var host = CreateHost();
+        var workspace = CreateWorkspace();
+        var host = CreateHost(workspace);
         host.SetRoot(root);
-        host.Push(first);
-        host.Push(second);
 
-        Assert.True(host.Pop());
+        workspace.OpenOrFocus(first);
+        workspace.OpenOrFocus(second);
 
-        Assert.Same(first, host.CurrentView);
-        Assert.True(host.CanGoBack);
-        Assert.Equal([root, first], host.LogicalStack);
+        Assert.Same(second, workspace.CurrentTab);
+
+        Assert.True(workspace.GoBack());
+        Assert.Same(first, workspace.CurrentTab);
     }
 
     [AvaloniaFact]
-    public void Close_OnlyClosesCurrentTopView()
+    public void HostInterface_ExposesOnlyRootSetup()
     {
-        var root = new TestViewModel();
-        var pushed = new TestTabPage();
-        var other = new TestViewModel();
-        var host = CreateHost();
-        host.SetRoot(root);
-        host.Push(pushed);
+        var methods = typeof(IMobileNavigationShellHost)
+            .GetMethods()
+            .Select(method => method.Name)
+            .Order()
+            .ToArray();
 
-        Assert.False(host.Close(root));
-        Assert.False(host.Close(other));
-        Assert.True(host.Close(pushed));
-        Assert.Same(root, host.CurrentView);
-        Assert.Equal([root], host.LogicalStack);
+        Assert.Equal(["SetRoot"], methods);
     }
 
-    [AvaloniaFact]
-    public void Push_RejectsNonTabDetailSurface()
-    {
-        var host = CreateHost();
-        host.SetRoot(new TestViewModel());
+    private static ShellWorkspaceViewModel CreateWorkspace() => new(TestDispatcher);
 
-        Assert.Throws<InvalidOperationException>(() => host.Push(new TestViewModel()));
-    }
-
-    private static MobileNavigationShellHost CreateHost() => new(new ShellWorkspaceViewModel(TestDispatcher), TestDispatcher);
+    private static MobileNavigationShellHost CreateHost(ShellWorkspaceViewModel workspace) => new(workspace, TestDispatcher);
 
     private sealed class TestViewModel : ViewModelBase
     {
