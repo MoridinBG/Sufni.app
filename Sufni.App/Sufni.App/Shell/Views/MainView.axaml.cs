@@ -1,14 +1,18 @@
 using Avalonia.Controls;
+using Sufni.App.Infrastructure;
+using Sufni.App.Shell.ViewModels;
 
 namespace Sufni.App.Shell.Views
 {
     public partial class MainView : UserControl
     {
         private IMobileNavigationPageHost? navigationPageHost;
+        private bool isNavigationPageAttached;
 
         public MainView()
         {
             InitializeComponent();
+            DataContextChanged += (_, _) => SyncShellHost();
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
         }
@@ -16,20 +20,59 @@ namespace Sufni.App.Shell.Views
         public void SetNavigationPageHost(IMobileNavigationPageHost pageHost)
         {
             navigationPageHost = pageHost;
-            if (IsLoaded)
-            {
-                pageHost.Attach(RootNavigationPage);
-            }
+            AttachNavigationPageIfNeeded();
         }
 
         private void OnLoaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
-            navigationPageHost?.Attach(RootNavigationPage);
+            SyncShellHost();
         }
 
         private void OnUnloaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
+            DetachNavigationPageIfNeeded();
+        }
+
+        private void SyncShellHost()
+        {
+            var useNativeNavigation = UsesNativeNavigation();
+            RootNavigationPage.IsVisible = useNativeNavigation;
+            WorkspaceRootHost.IsVisible = !useNativeNavigation;
+            WorkspaceRootHost.Content = useNativeNavigation ? null : DataContext;
+
+            if (useNativeNavigation)
+            {
+                AttachNavigationPageIfNeeded();
+                return;
+            }
+
+            DetachNavigationPageIfNeeded();
+        }
+
+        private bool UsesNativeNavigation() =>
+            DataContext is not ShellRootViewModel root ||
+            root.LayoutProfile == UiLayoutProfile.Compact;
+
+        private void AttachNavigationPageIfNeeded()
+        {
+            if (!IsLoaded || isNavigationPageAttached || !UsesNativeNavigation())
+            {
+                return;
+            }
+
+            navigationPageHost?.Attach(RootNavigationPage);
+            isNavigationPageAttached = navigationPageHost is not null;
+        }
+
+        private void DetachNavigationPageIfNeeded()
+        {
+            if (!isNavigationPageAttached)
+            {
+                return;
+            }
+
             navigationPageHost?.Detach(RootNavigationPage);
+            isNavigationPageAttached = false;
         }
     }
 }

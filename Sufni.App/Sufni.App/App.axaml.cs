@@ -412,12 +412,15 @@ public partial class App : Application
                 var shellRootViewModel = Services.GetRequiredService<ShellRootViewModel>();
                 var mobileNavigationShellHost = Services.GetRequiredService<IMobileNavigationShellHost>();
                 var mobileNavigationPageHost = Services.GetRequiredService<IMobileNavigationPageHost>();
-                mobileNavigationShellHost.SetRoot(shellRootViewModel);
                 var mainView = new MainView
                 {
                     DataContext = shellRootViewModel
                 };
-                mainView.SetNavigationPageHost(mobileNavigationPageHost);
+                if (shellRootViewModel.LayoutProfile == UiLayoutProfile.Compact)
+                {
+                    mobileNavigationShellHost.SetRoot(shellRootViewModel);
+                    mainView.SetNavigationPageHost(mobileNavigationPageHost);
+                }
                 Services.GetRequiredService<IPlotZoomState>()
                     .SetSurface(mainView.FindControl<PlotZoomOverlayHost>("PlotZoomOverlay"));
                 singleViewPlatform.MainView = mainView;
