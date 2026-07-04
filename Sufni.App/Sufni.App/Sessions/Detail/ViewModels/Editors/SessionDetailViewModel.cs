@@ -1598,13 +1598,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 RequestCurrentSessionInsights(respectSuppression: true);
                 PersistRecordedAnalysisPreferencesIfEnabled();
                 break;
-            case nameof(RecordedSessionContext.SelectedPage):
-                if (IsSessionInsightsPageSelected)
-                {
-                    RequestCurrentSessionInsights(respectSuppression: true);
-                }
-
-                break;
             case nameof(RecordedSessionContext.DampingSpeedCutoffs):
                 RequestCurrentAnalysisResults(!suppressInsightsRecompute, respectSuppression: true);
                 UpdateRecordedSessionExtensionHostState();
@@ -1939,7 +1932,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         switch (intent)
         {
             case RecordedSessionEditorIntent.SelectPageIndex select:
-                SessionContext.SelectedPageIndex = select.PageIndex;
+                SelectPageIndex(select.PageIndex);
                 break;
             case RecordedSessionEditorIntent.SetAnalysisRange set:
                 if (set.Range is { } range)
@@ -1992,6 +1985,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 LayoutPreferences = set.Preferences;
                 break;
         }
+    }
+
+    private void SelectPageIndex(int pageIndex)
+    {
+        SessionContext.SelectedPageIndex = pageIndex;
+        if (IsSessionInsightsPageSelected)
+        {
+            RequestCurrentSessionInsights(respectSuppression: true);
+        }
+
+        PublishEditorState();
     }
 
     public void SetAnalysisRange(double startSeconds, double endSeconds)

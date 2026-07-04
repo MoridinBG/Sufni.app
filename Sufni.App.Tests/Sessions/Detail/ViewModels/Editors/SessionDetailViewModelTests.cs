@@ -1713,7 +1713,7 @@ public class SessionDetailViewModelTests
 
         var editor = CreateEditor(snapshot, sessionPreferences: preferences);
         await editor.LoadedCommand.ExecuteAsync(null);
-        editor.SessionContext.SelectedPageIndex = editor.Pages
+        editor.MobileWorkspace.SelectedPageIndex = editor.Pages
             .Select((page, index) => (page, index))
             .Single(entry => entry.page is SessionInsightsPageViewModel)
             .index;
@@ -1892,7 +1892,7 @@ public class SessionDetailViewModelTests
         editor.ApplyDampingPercentages(dampingPercentages);
         sessionAnalysisService.ClearReceivedCalls();
 
-        editor.SessionContext.SelectedPageIndex = editor.Pages
+        editor.MobileWorkspace.SelectedPageIndex = editor.Pages
             .Select((page, index) => (page, index))
             .Single(entry => entry.page is SessionInsightsPageViewModel)
             .index;
@@ -1982,7 +1982,7 @@ public class SessionDetailViewModelTests
         sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(analysis);
         var editor = CreateEditor(snapshot);
 
-        editor.SessionContext.SelectedPageIndex = editor.Pages
+        editor.MobileWorkspace.SelectedPageIndex = editor.Pages
             .Select((page, index) => (page, index))
             .Single(entry => entry.page is SessionInsightsPageViewModel)
             .index;
