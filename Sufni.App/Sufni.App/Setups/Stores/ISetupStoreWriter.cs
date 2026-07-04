@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Sufni.App.Setups.Stores;
@@ -15,15 +17,13 @@ public interface ISetupStoreWriter : ISetupStore
     /// Load setups (and their board associations) from the database
     /// and replace the current contents.
     /// </summary>
-    Task RefreshAsync();
+    Task RefreshAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Insert or replace the snapshot for a setup.
-    /// </summary>
-    void Upsert(SetupSnapshot snapshot);
+    Task PublishSetupsChangedAsync(
+        IReadOnlyCollection<Guid> setupIds,
+        CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Remove a setup from the store by id. No-op if not present.
-    /// </summary>
-    void Remove(Guid id);
+    Task PublishSetupsRemovedAsync(
+        IReadOnlyCollection<Guid> setupIds,
+        CancellationToken cancellationToken = default);
 }

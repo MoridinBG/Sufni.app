@@ -145,7 +145,7 @@ public class SetupCoordinatorTests
     // ----- SaveAsync -----
 
     [Fact]
-    public async Task SaveAsync_HappyPath_PersistsSetup_AndUpsertsSnapshot()
+    public async Task SaveAsync_HappyPath_PersistsSetup_AndPublishesChange()
     {
         var existing = TestSnapshots.Setup(updated: 5);
         setupStore.Get(existing.Id).Returns(existing);
@@ -155,8 +155,9 @@ public class SetupCoordinatorTests
         var result = await CreateCoordinator().SaveAsync(setup, boardId: existing.BoardId, baselineUpdated: 5);
 
         await setupRepository.Received(1).PutAsync(setup);
-        setupStore.Received(1).Upsert(Arg.Is<SetupSnapshot>(s =>
-            s.Id == existing.Id && s.Name == "renamed" && s.Updated == 7));
+        await setupStore.Received(1).PublishSetupsChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(existing.Id)),
+            Arg.Any<CancellationToken>());
         shell.DidNotReceive().GoBack();
         var saved = Assert.IsType<SetupSaveResult.Saved>(result);
         Assert.Equal(7, saved.NewBaselineUpdated);
@@ -255,7 +256,9 @@ public class SetupCoordinatorTests
         var conflict = Assert.IsType<SetupSaveResult.Conflict>(result);
         Assert.Same(current, conflict.CurrentSnapshot);
         await setupRepository.DidNotReceive().PutAsync(Arg.Any<Setup>());
-        setupStore.DidNotReceive().Upsert(Arg.Any<SetupSnapshot>());
+        await setupStore.DidNotReceive().PublishSetupsChangedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
         shell.DidNotReceive().GoBack();
     }
 
@@ -271,14 +274,16 @@ public class SetupCoordinatorTests
         var result = await CreateCoordinator().SaveAsync(setup, boardId: null, baselineUpdated: 5);
 
         Assert.IsType<SetupSaveResult.Failed>(result);
-        setupStore.DidNotReceive().Upsert(Arg.Any<SetupSnapshot>());
+        await setupStore.DidNotReceive().PublishSetupsChangedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
         shell.DidNotReceive().GoBack();
     }
 
     // ----- DeleteAsync -----
 
     [Fact]
-    public async Task DeleteAsync_HappyPath_DeletesClosesAndRemoves()
+    public async Task DeleteAsync_HappyPath_DeletesClosesAndPublishesRemoval()
     {
         var snapshot = TestSnapshots.Setup();
         setupStore.Get(snapshot.Id).Returns(snapshot);
@@ -288,7 +293,9 @@ public class SetupCoordinatorTests
         Assert.Equal(SetupDeleteOutcome.Deleted, result.Outcome);
         await setupRepository.Received(1).DeleteAsync(snapshot.Id);
         await editorFactory.Received(1).CloseSetupEditor(snapshot.Id);
-        setupStore.Received(1).Remove(snapshot.Id);
+        await setupStore.Received(1).PublishSetupsRemovedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(snapshot.Id)),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -316,7 +323,9 @@ public class SetupCoordinatorTests
         var result = await CreateCoordinator().DeleteAsync(snapshot.Id);
 
         Assert.Equal(SetupDeleteOutcome.Deleted, result.Outcome);
-        setupStore.Received(1).Remove(snapshot.Id);
+        await setupStore.Received(1).PublishSetupsRemovedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(snapshot.Id)),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -329,7 +338,9 @@ public class SetupCoordinatorTests
         var result = await CreateCoordinator().DeleteAsync(snapshot.Id);
 
         Assert.Equal(SetupDeleteOutcome.Failed, result.Outcome);
-        setupStore.DidNotReceiveWithAnyArgs().Remove(default);
+        await setupStore.DidNotReceive().PublishSetupsRemovedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
         await editorFactory.DidNotReceive().CloseSetupEditor(Arg.Any<Guid>());
     }
 

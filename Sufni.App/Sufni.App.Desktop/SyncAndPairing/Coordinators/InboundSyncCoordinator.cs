@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Serilog;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
@@ -24,7 +23,6 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<InboundSyncCoordinator>();
 
-    private readonly ISynchronizableRepository<Board> boardRepository;
     private readonly ISynchronizableRepository<Bike> bikeRepository;
     private readonly ISynchronizableRepository<Setup> setupRepository;
     private readonly IBikeStoreWriter bikeStoreWriter;
@@ -32,7 +30,6 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
     private readonly IUiThreadDispatcher uiThreadDispatcher;
 
     public InboundSyncCoordinator(
-        ISynchronizableRepository<Board> boardRepository,
         ISynchronizableRepository<Bike> bikeRepository,
         ISynchronizableRepository<Setup> setupRepository,
         IBikeStoreWriter bikeStoreWriter,
@@ -40,7 +37,6 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
         ISynchronizationServerService synchronizationServer,
         IUiThreadDispatcher? uiThreadDispatcher = null)
     {
-        this.boardRepository = boardRepository;
         this.bikeRepository = bikeRepository;
         this.setupRepository = setupRepository;
         this.bikeStoreWriter = bikeStoreWriter;
@@ -56,7 +52,6 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
         {
             try
             {
-                var boards = await boardRepository.GetAllAsync();
                 var removedBikeIds = new List<Guid>();
                 var changedBikeIds = new List<Guid>();
                 var removedBikeCount = 0;
@@ -76,25 +71,43 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
                     }
                 }
 
-                await bikeStoreWriter.PublishBikesRemovedAsync(removedBikeIds);
-                await bikeStoreWriter.PublishBikesChangedAsync(changedBikeIds);
+                if (removedBikeIds.Count > 0)
+                {
+                    await bikeStoreWriter.PublishBikesRemovedAsync(removedBikeIds);
+                }
+
+                if (changedBikeIds.Count > 0)
+                {
+                    await bikeStoreWriter.PublishBikesChangedAsync(changedBikeIds);
+                }
 
                 var removedSetupCount = 0;
                 var upsertedSetupCount = 0;
+                var removedSetupIds = new List<Guid>();
+                var changedSetupIds = new List<Guid>();
                 foreach (var setup in e.Data.Setups)
                 {
                     var freshSetup = await setupRepository.GetAsync(setup.Id);
                     if (freshSetup is null)
                     {
-                        setupStoreWriter.Remove(setup.Id);
+                        removedSetupIds.Add(setup.Id);
                         removedSetupCount++;
                     }
                     else
                     {
-                        var board = boards.FirstOrDefault(b => b?.SetupId == freshSetup.Id, null);
-                        setupStoreWriter.Upsert(SetupSnapshot.From(freshSetup, board?.Id));
+                        changedSetupIds.Add(freshSetup.Id);
                         upsertedSetupCount++;
                     }
+                }
+
+                if (removedSetupIds.Count > 0)
+                {
+                    await setupStoreWriter.PublishSetupsRemovedAsync(removedSetupIds);
+                }
+
+                if (changedSetupIds.Count > 0)
+                {
+                    await setupStoreWriter.PublishSetupsChangedAsync(changedSetupIds);
                 }
 
                 logger.Verbose(

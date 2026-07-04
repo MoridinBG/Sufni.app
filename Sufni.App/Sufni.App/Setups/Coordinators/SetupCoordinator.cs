@@ -93,7 +93,7 @@ public class SetupCoordinator(
             await ReassignBoardAsync(current?.BoardId, boardId, setup.Id);
 
             var saved = SetupSnapshot.From(setup, boardId);
-            setupStore.Upsert(saved);
+            await setupStore.PublishSetupsChangedAsync([setup.Id]);
             if (appEnvironment.LayoutProfile == UiLayoutProfile.Compact)
             {
                 _ = shell.GoBack();
@@ -130,7 +130,7 @@ public class SetupCoordinator(
         catch (Exception ex) { logger.Warning(ex, "Best-effort board reassign failed after setup delete"); }
 
         await editorFactory().CloseSetupEditor(setupId);
-        setupStore.Remove(setupId);
+        await setupStore.PublishSetupsRemovedAsync([setupId]);
 
         logger.Information("Setup delete completed for {SetupId}", setupId);
         return new SetupDeleteResult(SetupDeleteOutcome.Deleted);
@@ -185,7 +185,7 @@ public class SetupCoordinator(
             await setupRepository.PutAsync(payload.Setup);
             await ReassignBoardAsync(originalBoardId: null, resolvedBoardId, payload.Setup.Id);
             var setupSnapshot = SetupSnapshot.From(payload.Setup, resolvedBoardId);
-            setupStore.Upsert(setupSnapshot);
+            await setupStore.PublishSetupsChangedAsync([payload.Setup.Id], cancellationToken);
 
             logger.Information(
                 "Setup import completed for {SetupId} (bike {BikeId}, board {BoardId})",

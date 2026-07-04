@@ -66,7 +66,7 @@ public class LiveDaqKnownBoardsQueryTests
         var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "enduro setup", bikeId: Guid.NewGuid(), boardId: boardId);
         var bike = TestSnapshots.Bike(id: setup.BikeId, name: "enduro bike");
 
-        setupStore.Upsert(setup);
+        await SeedSetupAsync(setup);
         await SeedBikeAsync(bike);
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
@@ -84,7 +84,7 @@ public class LiveDaqKnownBoardsQueryTests
         var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "park setup", bikeId: Guid.NewGuid(), boardId: boardId);
         var bike = TestSnapshots.Bike(id: setup.BikeId, name: "demo bike");
 
-        setupStore.Upsert(setup);
+        await SeedSetupAsync(setup);
         await SeedBikeAsync(bike);
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
@@ -114,7 +114,7 @@ public class LiveDaqKnownBoardsQueryTests
         Assert.Null(initialRecord.SetupName);
 
         var nextChange = WaitForRecordsAsync(query.Changes, ignoreReplay: true);
-        setupStore.Upsert(setup);
+        await SeedSetupAsync(setup);
         var updatedRecords = await nextChange;
 
         var updatedRecord = Assert.Single(updatedRecords);
@@ -130,7 +130,7 @@ public class LiveDaqKnownBoardsQueryTests
         var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "trail setup", bikeId: Guid.NewGuid(), boardId: boardId);
         var bike = TestSnapshots.Bike(id: setup.BikeId, name: "old bike name");
 
-        setupStore.Upsert(setup);
+        await SeedSetupAsync(setup);
         await SeedBikeAsync(bike);
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
@@ -152,7 +152,7 @@ public class LiveDaqKnownBoardsQueryTests
         var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "known setup", bikeId: Guid.NewGuid(), boardId: boardId);
         var bike = TestSnapshots.Bike(id: setup.BikeId, name: "known bike");
 
-        setupStore.Upsert(setup);
+        await SeedSetupAsync(setup);
         await SeedBikeAsync(bike);
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
@@ -180,7 +180,7 @@ public class LiveDaqKnownBoardsQueryTests
             })
         };
 
-        setupStore.Upsert(setup);
+        await SeedSetupAsync(setup);
         await SeedBikeAsync(bike);
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
@@ -212,7 +212,7 @@ public class LiveDaqKnownBoardsQueryTests
             })
         };
 
-        setupStore.Upsert(setup);
+        await SeedSetupAsync(setup);
         await SeedBikeAsync(bike);
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
@@ -251,7 +251,7 @@ public class LiveDaqKnownBoardsQueryTests
             }),
         };
 
-        setupStore.Upsert(setup);
+        await SeedSetupAsync(setup);
         await SeedBikeAsync(bike);
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
@@ -299,7 +299,7 @@ public class LiveDaqKnownBoardsQueryTests
             }),
         };
 
-        setupStore.Upsert(setup);
+        await SeedSetupAsync(setup);
         await SeedBikeAsync(bike);
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
@@ -332,7 +332,7 @@ public class LiveDaqKnownBoardsQueryTests
             })
         };
 
-        setupStore.Upsert(setup);
+        await SeedSetupAsync(setup);
         await SeedBikeAsync(bike);
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
@@ -351,6 +351,24 @@ public class LiveDaqKnownBoardsQueryTests
 
     private async Task SeedBikeAsync(BikeSnapshot bike) =>
         await bikeStore.CommitBikeAsync(Bike.FromSnapshot(bike));
+
+    private async Task SeedSetupAsync(SetupSnapshot setup)
+    {
+        var entity = new Setup(setup.Id, setup.Name)
+        {
+            BikeId = setup.BikeId,
+            FrontSensorConfigurationJson = setup.FrontSensorConfigurationJson,
+            RearSensorConfigurationJson = setup.RearSensorConfigurationJson,
+            Updated = setup.Updated
+        };
+
+        setupRepository.GetAsync(setup.Id).Returns(Task.FromResult<Setup?>(entity));
+        boardRepository.GetAllAsync().Returns(Task.FromResult(setup.BoardId.HasValue
+            ? new List<Board> { new(setup.BoardId.Value, setup.Id) }
+            : new List<Board>()));
+
+        await setupStore.PublishSetupsChangedAsync(new[] { setup.Id });
+    }
 
     private static async Task<IReadOnlyList<KnownLiveDaqRecord>> WaitForRecordsAsync(
         IObservable<IReadOnlyList<KnownLiveDaqRecord>> changes,

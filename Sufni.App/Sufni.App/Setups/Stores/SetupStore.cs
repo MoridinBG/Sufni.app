@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 using Sufni.App.ExtensionHost.Contracts.Services;
@@ -18,10 +20,12 @@ internal sealed class SetupStore(
     public SetupSnapshot? FindByBoardId(Guid boardId) =>
         Items.FirstOrDefault(s => s.BoardId == boardId);
 
-    public async Task RefreshAsync()
+    public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var setups = await setupRepository.GetAllAsync();
         var boards = await boardRepository.GetAllAsync();
+        cancellationToken.ThrowIfCancellationRequested();
 
         await ReplaceWithAsync(setups.Select(setup =>
         {
@@ -30,9 +34,45 @@ internal sealed class SetupStore(
         }));
     }
 
-    public void Upsert(SetupSnapshot snapshot) =>
-        PublishSnapshotAsync(snapshot).GetAwaiter().GetResult();
+    public async Task PublishSetupsChangedAsync(
+        IReadOnlyCollection<Guid> setupIds,
+        CancellationToken cancellationToken = default)
+    {
+        var snapshots = new List<SetupSnapshot>();
+        var removedIds = new List<Guid>();
+        var boards = await boardRepository.GetAllAsync();
 
-    public void Remove(Guid id) =>
-        PublishRemoveAsync(id).GetAwaiter().GetResult();
+        foreach (var setupId in setupIds.Distinct())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var setup = await setupRepository.GetAsync(setupId);
+            if (setup is null)
+            {
+                removedIds.Add(setupId);
+            }
+            else
+            {
+                var board = boards.FirstOrDefault(b => b?.SetupId == setup.Id, null);
+                snapshots.Add(SetupSnapshot.From(setup, board?.Id));
+            }
+        }
+
+        if (snapshots.Count > 0)
+        {
+            await PublishSnapshotsAsync(snapshots);
+        }
+
+        if (removedIds.Count > 0)
+        {
+            await PublishRemovalsAsync(removedIds);
+        }
+    }
+
+    public Task PublishSetupsRemovedAsync(
+        IReadOnlyCollection<Guid> setupIds,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return PublishRemovalsAsync(setupIds.Distinct());
+    }
 }

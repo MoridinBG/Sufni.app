@@ -14,20 +14,14 @@ namespace Sufni.App.Tests.SyncAndPairing.Coordinators;
 [Collection("Ui")]
 public class InboundSyncCoordinatorTests
 {
-    private readonly ISynchronizableRepository<Board> boardRepository = Substitute.For<ISynchronizableRepository<Board>>();
     private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
     private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
     private readonly IBikeStoreWriter bikeStore = Substitute.For<IBikeStoreWriter>();
     private readonly ISetupStoreWriter setupStore = Substitute.For<ISetupStoreWriter>();
     private readonly ISynchronizationServerService server = Substitute.For<ISynchronizationServerService>();
 
-    private InboundSyncCoordinator CreateCoordinator(List<Board>? boards = null)
-    {
-        // Bike/setup handlers reload authoritative state on every arrival,
-        // so always seed board lookups to avoid null task results.
-        boardRepository.GetAllAsync().Returns(Task.FromResult(boards ?? new List<Board>()));
-        return new InboundSyncCoordinator(boardRepository, bikeRepository, setupRepository, bikeStore, setupStore, server);
-    }
+    private InboundSyncCoordinator CreateCoordinator() =>
+        new(bikeRepository, setupRepository, bikeStore, setupStore, server);
 
     private static async Task DrainDispatcherAsync() =>
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -91,18 +85,14 @@ public class InboundSyncCoordinatorTests
             Arg.Any<CancellationToken>());
     }
 
-    // ----- Setups with matching and non-matching boards -----
+    // ----- Setups -----
 
     [AvaloniaFact]
-    public async Task SynchronizationDataArrived_UpsertsNonDeletedSetup_WithMatchingBoardId()
+    public async Task SynchronizationDataArrived_PublishesNonDeletedSetupChange()
     {
         var setupId = Guid.NewGuid();
-        var boardId = Guid.NewGuid();
         setupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(new Setup(setupId, "fresh tuned") { BikeId = Guid.NewGuid(), Updated = 8 }));
-        var coordinator = CreateCoordinator(boards: new List<Board>
-        {
-            new(boardId, setupId),
-        });
+        var coordinator = CreateCoordinator();
 
         var data = new SynchronizationData
         {
@@ -112,19 +102,17 @@ public class InboundSyncCoordinatorTests
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
         await DrainDispatcherAsync();
 
-        setupStore.Received(1).Upsert(Arg.Is<SetupSnapshot>(s =>
-            s.Id == setupId && s.Name == "fresh tuned" && s.BoardId == boardId && s.Updated == 8));
+        await setupStore.Received(1).PublishSetupsChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(setupId)),
+            Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
-    public async Task SynchronizationDataArrived_UpsertsSetup_WithNullBoardId_WhenNoMatchingBoard()
+    public async Task SynchronizationDataArrived_PublishesSetupChange_WhenAuthoritativeSetupExists()
     {
         var setupId = Guid.NewGuid();
         setupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(new Setup(setupId, "untuned") { BikeId = Guid.NewGuid(), Updated = 3 }));
-        var coordinator = CreateCoordinator(boards: new List<Board>
-        {
-            new(Guid.NewGuid(), Guid.NewGuid()),
-        });
+        var coordinator = CreateCoordinator();
 
         var data = new SynchronizationData
         {
@@ -134,8 +122,9 @@ public class InboundSyncCoordinatorTests
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
         await DrainDispatcherAsync();
 
-        setupStore.Received(1).Upsert(Arg.Is<SetupSnapshot>(s =>
-            s.Id == setupId && s.BoardId == null));
+        await setupStore.Received(1).PublishSetupsChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(setupId)),
+            Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
@@ -152,8 +141,12 @@ public class InboundSyncCoordinatorTests
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
         await DrainDispatcherAsync();
 
-        setupStore.Received(1).Remove(setupId);
-        setupStore.DidNotReceiveWithAnyArgs().Upsert(default!);
+        await setupStore.Received(1).PublishSetupsRemovedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(setupId)),
+            Arg.Any<CancellationToken>());
+        await setupStore.DidNotReceive().PublishSetupsChangedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
     }
 
     // ----- Mixed payload -----
@@ -178,6 +171,8 @@ public class InboundSyncCoordinatorTests
         await bikeStore.Received(1).PublishBikesChangedAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(bikeId)),
             Arg.Any<CancellationToken>());
-        setupStore.Received(1).Upsert(Arg.Is<SetupSnapshot>(s => s.Id == setupId && s.Name == "authoritative setup"));
+        await setupStore.Received(1).PublishSetupsChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(setupId)),
+            Arg.Any<CancellationToken>());
     }
 }
