@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Sufni.App.Extensibility.Capabilities;
 using Sufni.App.Extensibility.Views;
 using Sufni.App.ExtensionHost.Contracts.Capabilities;
+using Sufni.App.Infrastructure;
 namespace Sufni.App.ExtensionHost.TestSupport.Harness;
 
 /// <summary>
@@ -24,14 +25,20 @@ public sealed class TestExtensionCapabilityRegistry : IAppExtensionCapabilityReg
 
     public void RegisterEagerService(Type serviceType) => inner.RegisterEagerService(serviceType);
 
-    public void RegisterView(Type viewModelType, Func<Control> sharedFactory, Func<Control>? desktopFactory = null) =>
-        inner.RegisterView(viewModelType, sharedFactory, desktopFactory);
+    public void RegisterView(
+        Type viewModelType,
+        Func<Control> sharedFactory,
+        Func<Control>? compactFactory = null,
+        Func<Control>? workspaceFactory = null) =>
+        inner.RegisterView(viewModelType, sharedFactory, compactFactory, workspaceFactory);
 
     public void RegisterView(
         Type viewModelType,
         Func<IServiceProvider, Control> sharedFactory,
-        Func<IServiceProvider, Control>? desktopFactory = null) =>
-        inner.RegisterView(viewModelType, sharedFactory, desktopFactory);
+        Func<IServiceProvider, Control>? compactFactory = null,
+        Func<IServiceProvider, Control>? workspaceFactory = null) =>
+        inner.RegisterView(viewModelType, sharedFactory, compactFactory, workspaceFactory);
 
-    public bool Matches(Type viewModelType, bool isDesktop) => viewRegistry.Matches(viewModelType, isDesktop);
+    public bool Matches(Type viewModelType, UiLayoutProfile layoutProfile) =>
+        viewRegistry.Matches(viewModelType, layoutProfile);
 }

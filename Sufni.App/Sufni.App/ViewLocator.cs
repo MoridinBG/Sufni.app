@@ -146,9 +146,7 @@ public class ViewLocator : IDataTemplate
         }
 
         var layoutProfile = ResolveLayoutProfile();
-        var isWorkspaceProfile = layoutProfile == UiLayoutProfile.Workspace;
-
-        if (extensionViewRegistry.TryBuild(data, isWorkspaceProfile, serviceProvider, out var extensionView))
+        if (extensionViewRegistry.TryBuild(data, layoutProfile, serviceProvider, out var extensionView))
         {
             return extensionView;
         }
@@ -172,10 +170,9 @@ public class ViewLocator : IDataTemplate
         }
 
         var layoutProfile = ResolveLayoutProfile();
-        var isWorkspaceProfile = layoutProfile == UiLayoutProfile.Workspace;
         var viewModelType = data.GetType();
         return data is ViewModelBase ||
-               extensionViewRegistry.Matches(viewModelType, isWorkspaceProfile) ||
+               extensionViewRegistry.Matches(viewModelType, layoutProfile) ||
                CommonViewFactories.ContainsKey(viewModelType) ||
                CompactViewFactories.ContainsKey(viewModelType) ||
                WorkspaceViewFactories.ContainsKey(viewModelType);

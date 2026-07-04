@@ -33,7 +33,8 @@ public static class AppExtensionRegistrationExtensions
     public static void RegisterView<TViewModel>(
         this IAppExtensionCapabilityRegistry registry,
         Func<IServiceProvider, Control> sharedFactory,
-        Func<IServiceProvider, Control>? desktopFactory = null)
+        Func<IServiceProvider, Control>? compactFactory = null,
+        Func<IServiceProvider, Control>? workspaceFactory = null)
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(sharedFactory);
@@ -41,19 +42,35 @@ public static class AppExtensionRegistrationExtensions
         registry.RegisterView(
             typeof(TViewModel),
             sharedFactory,
-            desktopFactory);
+            compactFactory,
+            workspaceFactory);
     }
 
-    public static void RegisterView<TViewModel, TSharedView, TDesktopView>(
+    public static void RegisterView<TViewModel, TSharedView, TWorkspaceView>(
         this IAppExtensionCapabilityRegistry registry)
         where TSharedView : Control, new()
-        where TDesktopView : Control, new()
+        where TWorkspaceView : Control, new()
     {
         ArgumentNullException.ThrowIfNull(registry);
 
         registry.RegisterView(
             typeof(TViewModel),
             static () => new TSharedView(),
-            static () => new TDesktopView());
+            workspaceFactory: static () => new TWorkspaceView());
+    }
+
+    public static void RegisterView<TViewModel, TSharedView, TCompactView, TWorkspaceView>(
+        this IAppExtensionCapabilityRegistry registry)
+        where TSharedView : Control, new()
+        where TCompactView : Control, new()
+        where TWorkspaceView : Control, new()
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+
+        registry.RegisterView(
+            typeof(TViewModel),
+            static () => new TSharedView(),
+            compactFactory: static () => new TCompactView(),
+            workspaceFactory: static () => new TWorkspaceView());
     }
 }

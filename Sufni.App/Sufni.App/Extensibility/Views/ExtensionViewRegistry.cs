@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Avalonia.Controls;
 using Sufni.App;
 
+using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Common;
 namespace Sufni.App.Extensibility.Views;
 
@@ -10,7 +11,11 @@ internal sealed class ExtensionViewRegistry : IExtensionViewRegistry
 {
     private readonly Dictionary<Type, ExtensionViewFactories> factoriesByViewModelType = [];
 
-    public void Register(Type viewModelType, Func<Control> sharedFactory, Func<Control>? desktopFactory)
+    public void Register(
+        Type viewModelType,
+        Func<Control> sharedFactory,
+        Func<Control>? compactFactory,
+        Func<Control>? workspaceFactory)
     {
         ArgumentNullException.ThrowIfNull(viewModelType);
         ArgumentNullException.ThrowIfNull(sharedFactory);
@@ -18,13 +23,15 @@ internal sealed class ExtensionViewRegistry : IExtensionViewRegistry
         Register(
             viewModelType,
             _ => sharedFactory(),
-            desktopFactory is null ? null : _ => desktopFactory());
+            compactFactory is null ? null : _ => compactFactory(),
+            workspaceFactory is null ? null : _ => workspaceFactory());
     }
 
     public void Register(
         Type viewModelType,
         Func<IServiceProvider, Control> sharedFactory,
-        Func<IServiceProvider, Control>? desktopFactory)
+        Func<IServiceProvider, Control>? compactFactory,
+        Func<IServiceProvider, Control>? workspaceFactory)
     {
         ArgumentNullException.ThrowIfNull(viewModelType);
         ArgumentNullException.ThrowIfNull(sharedFactory);
@@ -35,15 +42,22 @@ internal sealed class ExtensionViewRegistry : IExtensionViewRegistry
                 $"An extension view is already registered for view-model type '{viewModelType.FullName}'.");
         }
 
-        factoriesByViewModelType[viewModelType] = new ExtensionViewFactories(sharedFactory, desktopFactory);
+        factoriesByViewModelType[viewModelType] = new ExtensionViewFactories(
+            sharedFactory,
+            compactFactory,
+            workspaceFactory);
     }
 
-    public bool TryBuild(object data, bool isDesktop, out Control control)
+    public bool TryBuild(object data, UiLayoutProfile layoutProfile, out Control control)
     {
-        return TryBuild(data, isDesktop, EmptyServiceProvider.Instance, out control);
+        return TryBuild(data, layoutProfile, EmptyServiceProvider.Instance, out control);
     }
 
-    public bool TryBuild(object data, bool isDesktop, IServiceProvider serviceProvider, out Control control)
+    public bool TryBuild(
+        object data,
+        UiLayoutProfile layoutProfile,
+        IServiceProvider serviceProvider,
+        out Control control)
     {
         ArgumentNullException.ThrowIfNull(data);
         ArgumentNullException.ThrowIfNull(serviceProvider);
@@ -55,13 +69,18 @@ internal sealed class ExtensionViewRegistry : IExtensionViewRegistry
             return false;
         }
 
-        control = isDesktop && factories.DesktopFactory is not null
-            ? factories.DesktopFactory(serviceProvider)
-            : factories.SharedFactory(serviceProvider);
+        control = layoutProfile switch
+        {
+            UiLayoutProfile.Compact when factories.CompactFactory is not null =>
+                factories.CompactFactory(serviceProvider),
+            UiLayoutProfile.Workspace when factories.WorkspaceFactory is not null =>
+                factories.WorkspaceFactory(serviceProvider),
+            _ => factories.SharedFactory(serviceProvider),
+        };
         return true;
     }
 
-    public bool Matches(Type viewModelType, bool isDesktop)
+    public bool Matches(Type viewModelType, UiLayoutProfile layoutProfile)
     {
         ArgumentNullException.ThrowIfNull(viewModelType);
 
@@ -70,6 +89,7 @@ internal sealed class ExtensionViewRegistry : IExtensionViewRegistry
 
     private sealed record ExtensionViewFactories(
         Func<IServiceProvider, Control> SharedFactory,
-        Func<IServiceProvider, Control>? DesktopFactory);
+        Func<IServiceProvider, Control>? CompactFactory,
+        Func<IServiceProvider, Control>? WorkspaceFactory);
 
 }

@@ -35,16 +35,21 @@ internal sealed class AppExtensionCapabilityRegistry : IAppExtensionCapabilityRe
         RegisterEagerService(typeof(TService));
     }
 
-    public void RegisterView(Type viewModelType, Func<Control> sharedFactory, Func<Control>? desktopFactory = null)
+    public void RegisterView(
+        Type viewModelType,
+        Func<Control> sharedFactory,
+        Func<Control>? compactFactory = null,
+        Func<Control>? workspaceFactory = null)
     {
-        viewRegistry.Register(viewModelType, sharedFactory, desktopFactory);
+        viewRegistry.Register(viewModelType, sharedFactory, compactFactory, workspaceFactory);
     }
 
     public void RegisterView(
         Type viewModelType,
         Func<IServiceProvider, Control> sharedFactory,
-        Func<IServiceProvider, Control>? desktopFactory = null)
+        Func<IServiceProvider, Control>? compactFactory = null,
+        Func<IServiceProvider, Control>? workspaceFactory = null)
     {
-        viewRegistry.Register(viewModelType, sharedFactory, desktopFactory);
+        viewRegistry.Register(viewModelType, sharedFactory, compactFactory, workspaceFactory);
     }
 }
