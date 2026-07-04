@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Sufni.App.Sessions.Store;
@@ -15,7 +17,15 @@ public interface ISessionStoreWriter : ISessionStore
     /// Load all sessions from the database and replace the current
     /// contents.
     /// </summary>
-    Task RefreshAsync();
+    Task RefreshAsync(CancellationToken cancellationToken = default);
+
+    Task PublishSessionsChangedAsync(
+        IReadOnlyCollection<Guid> sessionIds,
+        CancellationToken cancellationToken = default);
+
+    Task PublishSessionsRemovedAsync(
+        IReadOnlyCollection<Guid> sessionIds,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Insert or replace the snapshot for a session. Typically called

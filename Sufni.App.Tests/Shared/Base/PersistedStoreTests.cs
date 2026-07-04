@@ -110,7 +110,7 @@ public class PersistedStoreTests
     }
 
     [Fact]
-    public async Task SessionStore_RefreshLoadsMetadata_AndWatchIgnoresRemovals()
+    public async Task SessionStore_RefreshLoadsMetadata_AndPublishMutationsUpdateCache()
     {
         var sessionId = Guid.NewGuid();
         var session = new Session(sessionId, "Morning run", "desc", null, 100)
@@ -125,9 +125,15 @@ public class PersistedStoreTests
         using var watchSubscription = store.Watch(sessionId).Subscribe(watched.Add);
 
         await store.RefreshAsync();
-        store.Remove(sessionId);
-        var updated = SessionSnapshot.From(session) with { Name = "Evening run", Updated = 12 };
-        store.Upsert(updated);
+        await store.PublishSessionsRemovedAsync([sessionId]);
+        var updatedSession = new Session(sessionId, "Evening run", "desc", null, 100)
+        {
+            HasProcessedData = true,
+            Updated = 12
+        };
+        var updated = SessionSnapshot.From(updatedSession);
+        sessionRepository.GetSessionAsync(sessionId).Returns(updatedSession);
+        await store.PublishSessionsChangedAsync([sessionId]);
 
         var snapshot = Assert.Single(snapshots);
         Assert.Equal(updated, snapshot);

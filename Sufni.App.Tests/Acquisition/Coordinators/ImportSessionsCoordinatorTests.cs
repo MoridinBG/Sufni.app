@@ -34,7 +34,6 @@ public class ImportSessionsCoordinatorTests
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
     private readonly RecordingBackgroundTaskRunner backgroundTaskRunner = new();
-    private IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
     private readonly IDaqManagementService daqManagementService = Substitute.For<IDaqManagementService>();
     private readonly IRecordedSessionReprocessor reprocessor = Substitute.For<IRecordedSessionReprocessor>();
 
@@ -90,7 +89,6 @@ public class ImportSessionsCoordinatorTests
         sessionStore,
         sourceStore,
         backgroundTaskRunner,
-        uiThreadDispatcher,
         daqManagementService,
         reprocessor,
         editorFactory);
@@ -173,7 +171,7 @@ public class ImportSessionsCoordinatorTests
     // ----- ImportAsync per-file branches -----
 
     [Fact]
-    public async Task ImportAsync_ShouldBeImportedTrue_ReadsSourceReprocessesWritesSessionSourceUpsertsAndReports()
+    public async Task ImportAsync_ShouldBeImportedTrue_ReadsSourceReprocessesWritesSessionSourcePublishesAndReports()
     {
         var (setup, bike) = SeedSetupAndBike();
         var startTime = new DateTime(2025, 6, 1, 12, 34, 56, DateTimeKind.Utc);
@@ -210,13 +208,14 @@ public class ImportSessionsCoordinatorTests
         await file.Received(1).OnImported();
         await file.DidNotReceive().OnTrashed();
 
-        // Store upsert and result list.
-        sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s =>
-            s.Name == "ride-01" && s.SetupId == setup.Id && s.HasProcessedData));
-        sourceStore.Received(1).Upsert(Arg.Is<RecordedSessionSourceSnapshot>(s =>
-            s.SourceName == "ride-01.SST"));
         Assert.Single(result.Imported);
         Assert.Empty(result.Failures);
+        await sessionStore.Received(1).PublishSessionsChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(result.Imported[0].Id)),
+            Arg.Any<CancellationToken>());
+        await sourceStore.Received(1).PublishSourcesChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(result.Imported[0].Id)),
+            Arg.Any<CancellationToken>());
 
         // Progress reported.
         var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
@@ -226,19 +225,20 @@ public class ImportSessionsCoordinatorTests
     }
 
     [Fact]
-    public async Task ImportAsync_UpsertsSessionAndSourceThroughUiDispatcher()
+    public async Task ImportAsync_PublishesSessionAndSourceThroughStoreWriters()
     {
         var (setup, _) = SeedSetupAndBike();
         var file = CreateTelemetryFile(shouldBeImported: true);
-        var dispatcher = new RecordingUiThreadDispatcher();
-        uiThreadDispatcher = dispatcher;
 
         var coordinator = CreateCoordinator();
-        await coordinator.ImportAsync([file], setup.Id);
+        var result = await coordinator.ImportAsync([file], setup.Id);
 
-        Assert.Equal(1, dispatcher.InvokeCount);
-        sessionStore.Received(1).Upsert(Arg.Any<SessionSnapshot>());
-        sourceStore.Received(1).Upsert(Arg.Any<RecordedSessionSourceSnapshot>());
+        await sessionStore.Received(1).PublishSessionsChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(result.Imported[0].Id)),
+            Arg.Any<CancellationToken>());
+        await sourceStore.Received(1).PublishSourcesChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(result.Imported[0].Id)),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -288,12 +288,12 @@ public class ImportSessionsCoordinatorTests
                 track.Points[0].Epe2d == 1f &&
                 track.Points[0].Epe3d == 2f),
             Arg.Any<RecordedSessionSource>());
-        sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s =>
-            s.Name == "ride-gps" &&
-            s.FullTrackId != null));
         Assert.Single(result.Imported);
         Assert.NotNull(result.Imported[0].FullTrackId);
         Assert.Empty(result.Failures);
+        await sessionStore.Received(1).PublishSessionsChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(result.Imported[0].Id)),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -312,7 +312,9 @@ public class ImportSessionsCoordinatorTests
             Arg.Any<ProcessedTelemetryPayload>(),
             Arg.Any<Track?>(),
             Arg.Any<RecordedSessionSource?>());
-        sessionStore.DidNotReceiveWithAnyArgs().Upsert(default!);
+        await sessionStore.DidNotReceive().PublishSessionsChangedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
         Assert.Empty(result.Imported);
         Assert.Empty(result.Failures);
     }
@@ -363,7 +365,9 @@ public class ImportSessionsCoordinatorTests
             Arg.Any<ProcessedTelemetryPayload>(),
             Arg.Any<Track?>(),
             Arg.Any<RecordedSessionSource?>());
-        sessionStore.DidNotReceiveWithAnyArgs().Upsert(default!);
+        await sessionStore.DidNotReceive().PublishSessionsChangedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
 
         var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
         var reported = Assert.Single(nonProgressEvents);
@@ -392,7 +396,9 @@ public class ImportSessionsCoordinatorTests
         Assert.Equal("persist-fail", failure.FileName);
         Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
         await file.DidNotReceive().OnImported();
-        sessionStore.DidNotReceiveWithAnyArgs().Upsert(default!);
+        await sessionStore.DidNotReceive().PublishSessionsChangedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -409,7 +415,9 @@ public class ImportSessionsCoordinatorTests
         var failure = Assert.Single(result.Failures);
         Assert.Equal("post-import-fail", failure.FileName);
         Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
-        sessionStore.DidNotReceiveWithAnyArgs().Upsert(default!);
+        await sessionStore.DidNotReceive().PublishSessionsChangedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -456,7 +464,9 @@ public class ImportSessionsCoordinatorTests
             Arg.Any<ProcessedTelemetryPayload>(),
             Arg.Any<Track?>(),
             Arg.Any<RecordedSessionSource?>());
-        sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s => s.Name == "ok"));
+        await sessionStore.Received(1).PublishSessionsChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(result.Imported[0].Id)),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

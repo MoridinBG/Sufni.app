@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Sufni.App.Sessions.Store;
@@ -9,7 +11,15 @@ namespace Sufni.App.Sessions.Store;
 /// </summary>
 public interface IRecordedSessionSourceStoreWriter : IRecordedSessionSourceStore
 {
-    Task RefreshAsync();
+    Task RefreshAsync(CancellationToken cancellationToken = default);
+    Task PublishSourcesChangedAsync(
+        IReadOnlyCollection<Guid> sessionIds,
+        CancellationToken cancellationToken = default);
+
+    Task PublishSourcesRemovedAsync(
+        IReadOnlyCollection<Guid> sessionIds,
+        CancellationToken cancellationToken = default);
+
     void Upsert(RecordedSessionSourceSnapshot snapshot);
     void Remove(Guid sessionId);
 }

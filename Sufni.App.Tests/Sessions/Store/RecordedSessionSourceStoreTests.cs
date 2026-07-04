@@ -13,13 +13,16 @@ public class RecordedSessionSourceStoreTests
     private readonly IRecordedSessionSourceRepository sourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
 
     [Fact]
-    public void Upsert_PublishesMetadataSnapshot()
+    public async Task PublishSourcesChangedAsync_ReReadsAndPublishesMetadataSnapshot()
     {
         var store = new RecordedSessionSourceStore(sourceRepository, UiThreadDispatcher);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
         var source = CreateSource();
+        var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
+        sourceRepository.GetRecordedSessionSourceSnapshotAsync(source.SessionId)
+            .Returns(Task.FromResult<RecordedSessionSourceSnapshot?>(sourceSnapshot));
 
-        store.Upsert(RecordedSessionSourceSnapshot.From(source));
+        await store.PublishSourcesChangedAsync([source.SessionId]);
 
         _ = sourceRepository.DidNotReceiveWithAnyArgs().PutRecordedSessionSourceAsync(default!);
         var snapshot = Assert.Single(snapshots);
@@ -39,7 +42,9 @@ public class RecordedSessionSourceStoreTests
         var removed = CreateSource(name: "removed.SST");
         var kept = CreateSource(name: "kept.SST");
 
-        store.Upsert(RecordedSessionSourceSnapshot.From(removed));
+        sourceRepository.GetRecordedSessionSourceSnapshotAsync(removed.SessionId)
+            .Returns(Task.FromResult<RecordedSessionSourceSnapshot?>(RecordedSessionSourceSnapshot.From(removed)));
+        await store.PublishSourcesChangedAsync([removed.SessionId]);
         sourceRepository.GetRecordedSessionSourceSnapshotsAsync().Returns([RecordedSessionSourceSnapshot.From(kept)]);
 
         await store.RefreshAsync();
@@ -64,14 +69,16 @@ public class RecordedSessionSourceStoreTests
     }
 
     [Fact]
-    public void Remove_RemovesCachedSnapshot()
+    public async Task PublishSourcesRemovedAsync_RemovesCachedSnapshot()
     {
         var store = new RecordedSessionSourceStore(sourceRepository, UiThreadDispatcher);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
         var source = CreateSource();
-        store.Upsert(RecordedSessionSourceSnapshot.From(source));
+        sourceRepository.GetRecordedSessionSourceSnapshotAsync(source.SessionId)
+            .Returns(Task.FromResult<RecordedSessionSourceSnapshot?>(RecordedSessionSourceSnapshot.From(source)));
+        await store.PublishSourcesChangedAsync([source.SessionId]);
 
-        store.Remove(source.SessionId);
+        await store.PublishSourcesRemovedAsync([source.SessionId]);
 
         _ = sourceRepository.DidNotReceiveWithAnyArgs().DeleteRecordedSessionSourceAsync(default);
         Assert.Empty(snapshots);

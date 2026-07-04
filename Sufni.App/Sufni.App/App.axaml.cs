@@ -266,10 +266,7 @@ public partial class App : Application
             sp.GetRequiredService<IRecordedSessionDerivationWindowProvider>()));
         ServiceCollection.AddSingleton<SessionSyncApplier>(sp => new SessionSyncApplier(
             sp.GetRequiredService<ISessionStoreWriter>(),
-            sp.GetRequiredService<ISessionRepository>(),
-            sp.GetRequiredService<IRecordedSessionSourceRepository>(),
             sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
-            sp.GetRequiredService<IUiThreadDispatcher>(),
             sp.GetService<ISynchronizationServerService>()));
         ServiceCollection.AddSingleton<ISessionCoordinator, SessionCoordinator>();
         ServiceCollection.AddSingleton<ProcessingOptionsResetMigration>(sp => new ProcessingOptionsResetMigration(
@@ -313,7 +310,6 @@ public partial class App : Application
                 sp.GetRequiredService<ISessionStoreWriter>(),
                 sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
                 sp.GetRequiredService<IBackgroundTaskRunner>(),
-                sp.GetRequiredService<IUiThreadDispatcher>(),
                 sp.GetRequiredService<IDaqManagementService>(),
                 sp.GetRequiredService<IRecordedSessionReprocessor>(),
                 sp.GetRequiredService<IEditorFactory>()));

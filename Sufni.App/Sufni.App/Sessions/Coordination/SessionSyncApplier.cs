@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Sessions.Services;
@@ -16,24 +14,15 @@ public sealed class SessionSyncApplier
     private static readonly ILogger logger = Log.ForContext<SessionSyncApplier>();
 
     private readonly ISessionStoreWriter sessionStore;
-    private readonly ISessionRepository sessionRepository;
-    private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
-    private readonly IUiThreadDispatcher uiThreadDispatcher;
 
     public SessionSyncApplier(
         ISessionStoreWriter sessionStore,
-        ISessionRepository sessionRepository,
-        IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IRecordedSessionSourceStoreWriter sourceStore,
-        IUiThreadDispatcher uiThreadDispatcher,
         ISynchronizationServerService? synchronizationServer = null)
     {
         this.sessionStore = sessionStore;
-        this.sessionRepository = sessionRepository;
-        this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.sourceStore = sourceStore;
-        this.uiThreadDispatcher = uiThreadDispatcher;
 
         if (synchronizationServer is not null)
         {
@@ -58,7 +47,7 @@ public sealed class SessionSyncApplier
     private async Task HandleSynchronizationDataArrivedAsync(SynchronizationDataArrivedEventArgs e)
     {
         var removals = new List<Guid>();
-        var upserts = new List<SessionSnapshot>();
+        var changes = new List<Guid>();
 
         foreach (var session in e.Data.Sessions)
         {
@@ -68,30 +57,23 @@ public sealed class SessionSyncApplier
                 continue;
             }
 
-            var fresh = await sessionRepository.GetSessionAsync(session.Id);
-            if (fresh is not null)
-            {
-                upserts.Add(SessionSnapshot.From(fresh));
-            }
+            changes.Add(session.Id);
         }
 
         logger.Verbose(
             "Applying inbound session synchronization with {RemovalCount} removals and {UpsertCount} upserts",
             removals.Count,
-            upserts.Count);
+            changes.Count);
 
-        await uiThreadDispatcher.InvokeAsync(() =>
+        if (removals.Count > 0)
         {
-            foreach (var id in removals)
-            {
-                sessionStore.Remove(id);
-            }
+            await sessionStore.PublishSessionsRemovedAsync(removals);
+        }
 
-            foreach (var snapshot in upserts)
-            {
-                sessionStore.Upsert(snapshot);
-            }
-        });
+        if (changes.Count > 0)
+        {
+            await sessionStore.PublishSessionsChangedAsync(changes);
+        }
     }
 
     private async void OnSessionDataArrived(object? sender, SessionDataArrivedEventArgs e)
@@ -110,18 +92,7 @@ public sealed class SessionSyncApplier
     {
         logger.Verbose("Applying inbound session data for {SessionId}", e.SessionId);
 
-        var fresh = await sessionRepository.GetSessionAsync(e.SessionId);
-        if (fresh is null)
-        {
-            logger.Verbose("Ignoring inbound session data because session {SessionId} is missing", e.SessionId);
-            return;
-        }
-
-        var snapshot = SessionSnapshot.From(fresh);
-        await uiThreadDispatcher.InvokeAsync(() =>
-        {
-            sessionStore.Upsert(snapshot);
-        });
+        await sessionStore.PublishSessionsChangedAsync([e.SessionId]);
     }
 
     private async void OnSessionSourceDataArrived(object? sender, SessionDataArrivedEventArgs e)
@@ -140,16 +111,6 @@ public sealed class SessionSyncApplier
     {
         logger.Verbose("Applying inbound recorded source for {SessionId}", e.SessionId);
 
-        var snapshot = await recordedSessionSourceRepository.GetRecordedSessionSourceSnapshotAsync(e.SessionId);
-        if (snapshot is null)
-        {
-            logger.Verbose("Ignoring inbound recorded source because source {SessionId} is missing", e.SessionId);
-            return;
-        }
-
-        await uiThreadDispatcher.InvokeAsync(() =>
-        {
-            sourceStore.Upsert(snapshot);
-        });
+        await sourceStore.PublishSourcesChangedAsync([e.SessionId]);
     }
 }

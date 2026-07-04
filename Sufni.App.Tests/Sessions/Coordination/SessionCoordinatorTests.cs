@@ -60,7 +60,6 @@ public class SessionCoordinatorTests
     private readonly IRecordedSessionReprocessor reprocessor = Substitute.For<IRecordedSessionReprocessor>();
     private readonly IRecordedSessionDataReader recordedSessionDataReader = Substitute.For<IRecordedSessionDataReader>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
-    private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
     private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
     private readonly ISessionRecomputeEngine recomputeEngine = Substitute.For<ISessionRecomputeEngine>();
     private readonly IRecordedSessionDerivationWindowCache derivationWindowCache = Substitute.For<IRecordedSessionDerivationWindowCache>();
@@ -145,10 +144,7 @@ public class SessionCoordinatorTests
     private SessionSyncApplier CreateSyncApplier(ISynchronizationServerService? sync = null) =>
         new(
             sessionStore,
-            sessionRepository,
-            recordedSessionSourceRepository,
             sourceStore,
-            uiThreadDispatcher,
             sync);
 
     // ----- OpenEditAsync -----
@@ -889,81 +885,82 @@ public class SessionCoordinatorTests
     // ----- Sync arrival handlers -----
 
     [AvaloniaFact]
-    public async Task Constructor_SubscribesToSyncEvents_AndUpsertsOnSessionDataArrived()
+    public async Task Constructor_SubscribesToSyncEvents_AndPublishesOnSessionDataArrived()
     {
         var sync = Substitute.For<ISynchronizationServerService>();
         _ = CreateSyncApplier(sync);
 
         var sessionId = Guid.NewGuid();
-        var fresh = new Session(sessionId, "n", "", null) { Updated = 4, HasProcessedData = true };
-        sessionRepository.GetSessionAsync(sessionId).Returns(fresh);
 
         sync.SessionDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(sessionId));
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
-        sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s =>
-            s.Id == sessionId && s.Updated == 4));
+        await sessionStore.Received(1).PublishSessionsChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(sessionId)),
+            Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
-    public async Task Constructor_OnSessionDataArrived_IgnoresDatabaseFailure()
+    public async Task Constructor_OnSessionDataArrived_IgnoresPublicationFailure()
     {
         var sync = Substitute.For<ISynchronizationServerService>();
         _ = CreateSyncApplier(sync);
 
         var sessionId = Guid.NewGuid();
-        sessionRepository.GetSessionAsync(sessionId).ThrowsAsync(new InvalidOperationException());
+        sessionStore.PublishSessionsChangedAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException());
 
         sync.SessionDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(sessionId));
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
-        sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
+        await sessionStore.Received(1).PublishSessionsChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(sessionId)),
+            Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
-    public async Task Constructor_SubscribesToSourceEvents_AndUpsertsOnSessionSourceDataArrived()
+    public async Task Constructor_SubscribesToSourceEvents_AndPublishesOnSessionSourceDataArrived()
     {
         var sync = Substitute.For<ISynchronizationServerService>();
         _ = CreateSyncApplier(sync);
 
         var source = CreateRecordedSource(Guid.NewGuid());
-        var snapshot = RecordedSessionSourceSnapshot.From(source);
-        recordedSessionSourceRepository.GetRecordedSessionSourceSnapshotAsync(source.SessionId).Returns(snapshot);
 
         sync.SessionSourceDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(source.SessionId));
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
-        sourceStore.Received(1).Upsert(Arg.Is<RecordedSessionSourceSnapshot>(value =>
-            value.SessionId == source.SessionId &&
-            value.SourceHash == source.SourceHash));
+        await sourceStore.Received(1).PublishSourcesChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(source.SessionId)),
+            Arg.Any<CancellationToken>());
         await recordedSessionSourceRepository.DidNotReceive().GetRecordedSessionSourceAsync(source.SessionId);
     }
 
     [AvaloniaFact]
-    public async Task Constructor_OnSessionSourceDataArrived_IgnoresDatabaseFailure()
+    public async Task Constructor_OnSessionSourceDataArrived_IgnoresPublicationFailure()
     {
         var sync = Substitute.For<ISynchronizationServerService>();
         _ = CreateSyncApplier(sync);
 
         var sessionId = Guid.NewGuid();
-        recordedSessionSourceRepository.GetRecordedSessionSourceSnapshotAsync(sessionId).ThrowsAsync(new InvalidOperationException());
+        sourceStore.PublishSourcesChangedAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException());
 
         sync.SessionSourceDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(sessionId));
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
-        sourceStore.DidNotReceive().Upsert(Arg.Any<RecordedSessionSourceSnapshot>());
+        await sourceStore.Received(1).PublishSourcesChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(sessionId)),
+            Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
-    public async Task Constructor_OnSynchronizationDataArrived_RemovesDeletedSessionsAndUpsertsLive()
+    public async Task Constructor_OnSynchronizationDataArrived_PublishesDeletedAndLiveSessions()
     {
         var sync = Substitute.For<ISynchronizationServerService>();
         _ = CreateSyncApplier(sync);
 
         var liveId = Guid.NewGuid();
         var deletedId = Guid.NewGuid();
-        var fresh = new Session(liveId, "live", "", null) { Updated = 6 };
-        sessionRepository.GetSessionAsync(liveId).Returns(fresh);
 
         var data = new SynchronizationData
         {
@@ -977,18 +974,23 @@ public class SessionCoordinatorTests
         sync.SynchronizationDataArrived += Raise.EventWith(sync, new SynchronizationDataArrivedEventArgs(data));
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
-        sessionStore.Received(1).Remove(deletedId);
-        sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s => s.Id == liveId && s.Updated == 6));
+        await sessionStore.Received(1).PublishSessionsRemovedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(deletedId)),
+            Arg.Any<CancellationToken>());
+        await sessionStore.Received(1).PublishSessionsChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(liveId)),
+            Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
-    public async Task Constructor_OnSynchronizationDataArrived_IgnoresDatabaseFailure()
+    public async Task Constructor_OnSynchronizationDataArrived_IgnoresPublicationFailure()
     {
         var sync = Substitute.For<ISynchronizationServerService>();
         _ = CreateSyncApplier(sync);
 
         var liveId = Guid.NewGuid();
-        sessionRepository.GetSessionAsync(liveId).ThrowsAsync(new InvalidOperationException());
+        sessionStore.PublishSessionsChangedAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException());
 
         var data = new SynchronizationData
         {
@@ -1001,8 +1003,12 @@ public class SessionCoordinatorTests
         sync.SynchronizationDataArrived += Raise.EventWith(sync, new SynchronizationDataArrivedEventArgs(data));
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
-        sessionStore.DidNotReceive().Upsert(Arg.Any<SessionSnapshot>());
-        sessionStore.DidNotReceive().Remove(Arg.Any<Guid>());
+        await sessionStore.Received(1).PublishSessionsChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(liveId)),
+            Arg.Any<CancellationToken>());
+        await sessionStore.DidNotReceive().PublishSessionsRemovedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
     }
 
     private static RecordedSessionSource CreateRecordedSource(Guid sessionId)

@@ -36,7 +36,6 @@ public class ImportSessionsCoordinator(
     ISessionStoreWriter sessionStore,
     IRecordedSessionSourceStoreWriter sourceStore,
     IBackgroundTaskRunner backgroundTaskRunner,
-    IUiThreadDispatcher uiThreadDispatcher,
     IDaqManagementService daqManagementService,
     IRecordedSessionReprocessor reprocessor,
     IEditorFactory editorFactory) : IImportSessionsCoordinator
@@ -168,11 +167,8 @@ public class ImportSessionsCoordinator(
                         await telemetryFile.OnImported();
 
                         var snapshot = SessionSnapshot.From(persisted);
-                        await uiThreadDispatcher.InvokeAsync(() =>
-                        {
-                            sessionStore.Upsert(snapshot);
-                            sourceStore.Upsert(RecordedSessionSourceSnapshot.From(source));
-                        });
+                        await sessionStore.PublishSessionsChangedAsync([snapshot.Id]);
+                        await sourceStore.PublishSourcesChangedAsync([source.SessionId]);
                         imported.Add(snapshot);
                         progress?.Report(new SessionImportEvent.Imported(snapshot));
                     }
