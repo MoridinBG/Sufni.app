@@ -5,12 +5,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
+using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Base;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Coordinators;
 namespace Sufni.App.SyncAndPairing.ViewModels;
 
-public partial class PairingClientViewModel : ViewModelBase
+public partial class PairingClientViewModel : TabPageViewModelBase
 {
     #region Observable properties
 
@@ -25,7 +26,6 @@ public partial class PairingClientViewModel : ViewModelBase
     #region Private members
 
     private readonly IPairingClientCoordinator coordinator;
-    private readonly IShellCoordinator shell;
 
     #endregion Private members
 
@@ -34,11 +34,12 @@ public partial class PairingClientViewModel : ViewModelBase
     public PairingClientViewModel(
         IPairingClientCoordinator coordinator,
         IShellCoordinator shell,
+        IDialogService dialogService,
         IUiThreadDispatcher uiThreadDispatcher)
-        : base(uiThreadDispatcher)
+        : base(shell, dialogService, uiThreadDispatcher)
     {
         this.coordinator = coordinator;
-        this.shell = shell;
+        Name = "Pair";
 
         DisplayName = coordinator.DisplayName;
         ServerUrl = coordinator.ServerUrl;
@@ -133,12 +134,6 @@ public partial class PairingClientViewModel : ViewModelBase
     private void Unloaded()
     {
         coordinator.StopBrowsing();
-    }
-
-    [RelayCommand]
-    private void OpenPreviousPage()
-    {
-        _ = shell.GoBack();
     }
 
     #endregion Commands

@@ -6,6 +6,7 @@ using Avalonia.VisualTree;
 using AvaloniaProgressRing;
 using NSubstitute;
 
+using Sufni.App.Infrastructure;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.ViewModels;
 using Sufni.App.SyncAndPairing.Views;
@@ -23,7 +24,7 @@ public class PairingClientViewTests
     {
         var coordinator = CreateCoordinator(displayName: "Phone", serverUrl: null, isPaired: false);
         var shell = Substitute.For<IShellCoordinator>();
-        var viewModel = new PairingClientViewModel(coordinator, shell, new InlineUiThreadDispatcher());
+        var viewModel = CreateViewModel(coordinator, shell);
 
         await using (var mounted = await MountAsync(viewModel))
         {
@@ -59,7 +60,7 @@ public class PairingClientViewTests
         var coordinator = CreateCoordinator(displayName: "Phone", serverUrl: "https://desktop", isPaired: false);
         coordinator.RequestPairingAsync("Phone").Returns(new RequestPairingResult.Sent());
         var shell = Substitute.For<IShellCoordinator>();
-        var viewModel = new PairingClientViewModel(coordinator, shell, new InlineUiThreadDispatcher());
+        var viewModel = CreateViewModel(coordinator, shell);
 
         await using var mounted = await MountAsync(viewModel);
 
@@ -89,7 +90,7 @@ public class PairingClientViewTests
     {
         var coordinator = CreateCoordinator(displayName: "Phone", serverUrl: null, isPaired: true);
         var shell = Substitute.For<IShellCoordinator>();
-        var viewModel = new PairingClientViewModel(coordinator, shell, new InlineUiThreadDispatcher());
+        var viewModel = CreateViewModel(coordinator, shell);
 
         await using var mounted = await MountAsync(viewModel);
 
@@ -117,7 +118,7 @@ public class PairingClientViewTests
         var coordinator = CreateCoordinator(displayName: "Phone", serverUrl: "https://desktop", isPaired: false);
         coordinator.RequestPairingAsync("Phone").Returns(new RequestPairingResult.Failed("network"));
         var shell = Substitute.For<IShellCoordinator>();
-        var viewModel = new PairingClientViewModel(coordinator, shell, new InlineUiThreadDispatcher());
+        var viewModel = CreateViewModel(coordinator, shell);
 
         await using var mounted = await MountAsync(viewModel);
 
@@ -138,7 +139,7 @@ public class PairingClientViewTests
         var coordinator = CreateCoordinator(displayName: "Phone", serverUrl: null, isPaired: true);
         coordinator.UnpairAsync().Returns(new UnpairResult.LocalOnly("remote offline"));
         var shell = Substitute.For<IShellCoordinator>();
-        var viewModel = new PairingClientViewModel(coordinator, shell, new InlineUiThreadDispatcher());
+        var viewModel = CreateViewModel(coordinator, shell);
 
         await using var mounted = await MountAsync(viewModel);
 
@@ -163,6 +164,15 @@ public class PairingClientViewTests
         coordinator.UnpairAsync().Returns(new UnpairResult.Unpaired());
         return coordinator;
     }
+
+    private static PairingClientViewModel CreateViewModel(
+        IPairingClientCoordinator coordinator,
+        IShellCoordinator shell) =>
+        new(
+            coordinator,
+            shell,
+            Substitute.For<IDialogService>(),
+            new InlineUiThreadDispatcher());
 
     private static async Task<MountedPairingClientView> MountAsync(PairingClientViewModel viewModel)
     {
