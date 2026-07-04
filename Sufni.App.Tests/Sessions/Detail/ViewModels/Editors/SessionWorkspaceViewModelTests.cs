@@ -164,12 +164,17 @@ public class SessionWorkspaceViewModelTests
         var context = new RecordedSessionContext();
         var gateway = new TestSessionOperationGateway();
         var actions = new RecordedSessionEditorActions();
+        var state = new Subject<RecordedSessionEditorState>();
         var workspace = new SessionAnalysisWorkspaceViewModel(
-            context,
+            state,
+            () => context.ExtensionSlots,
             gateway,
             actions,
             new RelayCommand<TelemetryRangeSelection?>(_ => { }),
             Substitute.For<IRecordedSessionAnalysisResultState>());
+        context.PropertyChanged += (_, _) =>
+            state.OnNext(RecordedSessionEditorStateSnapshot.From(context, SessionPreferences.Default));
+        state.OnNext(RecordedSessionEditorStateSnapshot.From(context, SessionPreferences.Default));
         return (context, gateway, actions, workspace);
     }
 

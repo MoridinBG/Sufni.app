@@ -1335,7 +1335,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             editorActions);
         MediaWorkspace = new SessionMediaWorkspaceViewModel(SessionContext);
         AnalysisWorkspace = new SessionAnalysisWorkspaceViewModel(
-            SessionContext,
+            editorStateController.State,
+            () => ExtensionSlots,
             this,
             editorActions,
             SelectAnalysisRangeCommand,
