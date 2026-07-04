@@ -30,6 +30,11 @@ public class BikeCoordinatorTests
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
     private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
 
+    public BikeCoordinatorTests()
+    {
+        editorFactory.CloseBikeEditor(Arg.Any<Guid>()).Returns(Task.CompletedTask);
+    }
+
     private BikeCoordinator CreateCoordinator()
     {
         BikeCoordinator? coordinator = null;
@@ -420,7 +425,7 @@ public class BikeCoordinatorTests
 
         Assert.Equal(BikeDeleteOutcome.InUse, result.Outcome);
         await bikeRepository.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
-        editorFactory.DidNotReceive().CloseBikeEditor(Arg.Any<Guid>());
+        await editorFactory.DidNotReceive().CloseBikeEditor(Arg.Any<Guid>());
         bikeStore.DidNotReceiveWithAnyArgs().Remove(default);
     }
 
@@ -435,7 +440,7 @@ public class BikeCoordinatorTests
 
         Assert.Equal(BikeDeleteOutcome.Deleted, result.Outcome);
         await bikeRepository.Received(1).DeleteAsync(id);
-        editorFactory.Received(1).CloseBikeEditor(id);
+        await editorFactory.Received(1).CloseBikeEditor(id);
         bikeStore.Received(1).Remove(id);
     }
 
@@ -451,6 +456,6 @@ public class BikeCoordinatorTests
 
         Assert.Equal(BikeDeleteOutcome.Failed, result.Outcome);
         bikeStore.DidNotReceiveWithAnyArgs().Remove(default);
-        editorFactory.DidNotReceive().CloseBikeEditor(Arg.Any<Guid>());
+        await editorFactory.DidNotReceive().CloseBikeEditor(Arg.Any<Guid>());
     }
 }

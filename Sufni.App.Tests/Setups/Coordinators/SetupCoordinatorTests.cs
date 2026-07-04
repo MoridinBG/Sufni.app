@@ -33,6 +33,11 @@ public class SetupCoordinatorTests
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
     private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
 
+    public SetupCoordinatorTests()
+    {
+        editorFactory.CloseSetupEditor(Arg.Any<Guid>()).Returns(Task.CompletedTask);
+    }
+
     private SetupCoordinator CreateCoordinator()
     {
         SetupCoordinator? coordinator = null;
@@ -266,7 +271,7 @@ public class SetupCoordinatorTests
 
         Assert.Equal(SetupDeleteOutcome.Deleted, result.Outcome);
         await setupRepository.Received(1).DeleteAsync(snapshot.Id);
-        editorFactory.Received(1).CloseSetupEditor(snapshot.Id);
+        await editorFactory.Received(1).CloseSetupEditor(snapshot.Id);
         setupStore.Received(1).Remove(snapshot.Id);
     }
 
@@ -309,6 +314,6 @@ public class SetupCoordinatorTests
 
         Assert.Equal(SetupDeleteOutcome.Failed, result.Outcome);
         setupStore.DidNotReceiveWithAnyArgs().Remove(default);
-        editorFactory.DidNotReceive().CloseSetupEditor(Arg.Any<Guid>());
+        await editorFactory.DidNotReceive().CloseSetupEditor(Arg.Any<Guid>());
     }
 }

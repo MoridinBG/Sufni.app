@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 
 using Sufni.App.Shared.Base;
 namespace Sufni.App.Shell.Coordinators;
@@ -35,7 +36,7 @@ public interface IShellCoordinator
     /// Close the first view of type <typeparamref name="T"/> matching
     /// <paramref name="match"/>, if any.
     /// </summary>
-    void CloseIfOpen<T>(Func<T, bool> match, bool forgetRestoreHistory = false) where T : ViewModelBase;
+    Task CloseIfOpen<T>(Func<T, bool> match, bool forgetRestoreHistory = false) where T : ViewModelBase;
 
     /// <summary>
     /// Return from the current workspace detail surface to the previous tab

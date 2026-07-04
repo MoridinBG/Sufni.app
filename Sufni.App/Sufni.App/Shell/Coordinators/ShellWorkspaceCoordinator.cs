@@ -1,13 +1,19 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 
+using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Base;
 using Sufni.App.Shell.ViewModels;
 
 namespace Sufni.App.Shell.Coordinators;
 
-public sealed class ShellWorkspaceCoordinator(ShellWorkspaceViewModel workspace) : IShellCoordinator
+public sealed class ShellWorkspaceCoordinator(
+    ShellWorkspaceViewModel workspace,
+    IAppEnvironment appEnvironment) : IShellCoordinator
 {
+    private bool ShouldRememberClosedTabs => appEnvironment.LayoutProfile == UiLayoutProfile.Workspace;
+
     public void Open(ViewModelBase view)
     {
         if (view is TabPageViewModelBase tab)
@@ -63,11 +69,11 @@ public sealed class ShellWorkspaceCoordinator(ShellWorkspaceViewModel workspace)
     {
         if (view is TabPageViewModelBase tab)
         {
-            workspace.CloseTab(tab, rememberForRestore: true);
+            workspace.CloseTab(tab, rememberForRestore: ShouldRememberClosedTabs);
         }
     }
 
-    public void CloseIfOpen<T>(Func<T, bool> match, bool forgetRestoreHistory = false) where T : ViewModelBase
+    public async Task CloseIfOpen<T>(Func<T, bool> match, bool forgetRestoreHistory = false) where T : ViewModelBase
     {
         ArgumentNullException.ThrowIfNull(match);
 
@@ -79,7 +85,8 @@ public sealed class ShellWorkspaceCoordinator(ShellWorkspaceViewModel workspace)
 
         if (existing is TabPageViewModelBase tab)
         {
-            workspace.CloseTab(tab, rememberForRestore: !forgetRestoreHistory);
+            await tab.PrepareCloseAsync();
+            workspace.CloseTab(tab, rememberForRestore: !forgetRestoreHistory && ShouldRememberClosedTabs);
         }
     }
 

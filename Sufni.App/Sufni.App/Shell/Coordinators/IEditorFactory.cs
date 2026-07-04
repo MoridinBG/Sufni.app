@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 
 using Sufni.App.Bikes.Stores;
 using Sufni.App.LiveDaq.Queries;
@@ -14,13 +15,13 @@ public interface IEditorFactory
 
     void OpenBikeEditor(BikeSnapshot snapshot);
 
-    void CloseBikeEditor(Guid bikeId);
+    Task CloseBikeEditor(Guid bikeId);
 
     void OpenNewSetupEditor(SetupSnapshot snapshot);
 
     void OpenSetupEditor(SetupSnapshot snapshot);
 
-    void CloseSetupEditor(Guid setupId);
+    Task CloseSetupEditor(Guid setupId);
 
     void OpenSessionDetail(SessionSnapshot snapshot);
 
@@ -28,7 +29,7 @@ public interface IEditorFactory
 
     void OpenImportSessions();
 
-    void CloseSessionDetail(Guid sessionId);
+    Task CloseSessionDetail(Guid sessionId);
 
     void OpenLiveDaqDetail(LiveDaqSnapshot snapshot, ILiveDaqSharedStream sharedStream);
 

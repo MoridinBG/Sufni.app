@@ -75,6 +75,7 @@ public class SessionCoordinatorTests
         sessionPreferences.RemoveRecordedAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         sessionPreferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<SessionPreferences, SessionPreferences>>())
             .Returns(Task.CompletedTask);
+        editorFactory.CloseSessionDetail(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         derivationWindowProvider.IsRecordingSourceReferencedAsync(Arg.Any<Guid>())
             .Returns(Task.FromResult(false));
     }
@@ -516,7 +517,7 @@ public class SessionCoordinatorTests
         sourceStore.Received(1).Remove(id);
         await trackEntityRepository.Received(1).DeleteAsync(trackId);
         await sessionPreferences.Received(1).RemoveRecordedAsync(id);
-        editorFactory.Received(1).CloseSessionDetail(id);
+        await editorFactory.Received(1).CloseSessionDetail(id);
         sessionStore.Received(1).Remove(id);
     }
 
@@ -535,7 +536,7 @@ public class SessionCoordinatorTests
         await recordedSessionSourceRepository.Received(1).DeleteRecordedSessionSourceAsync(id);
         sourceStore.Received(1).Remove(id);
         await trackEntityRepository.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
-        editorFactory.Received(1).CloseSessionDetail(id);
+        await editorFactory.Received(1).CloseSessionDetail(id);
         sessionStore.Received(1).Remove(id);
     }
 
@@ -575,7 +576,7 @@ public class SessionCoordinatorTests
         await recordedSessionSourceRepository.Received(1).DeleteRecordedSessionSourceAsync(id);
         sourceStore.Received(1).Remove(id);
         await trackEntityRepository.Received(1).DeleteAsync(trackId);
-        editorFactory.Received(1).CloseSessionDetail(id);
+        await editorFactory.Received(1).CloseSessionDetail(id);
         sessionStore.Received(1).Remove(id);
     }
 
@@ -590,7 +591,7 @@ public class SessionCoordinatorTests
         Assert.Equal(SessionDeleteOutcome.Failed, result.Outcome);
         await sessionPreferences.DidNotReceive().RemoveRecordedAsync(id);
         sessionStore.DidNotReceiveWithAnyArgs().Remove(default);
-        editorFactory.DidNotReceive().CloseSessionDetail(Arg.Any<Guid>());
+        await editorFactory.DidNotReceive().CloseSessionDetail(Arg.Any<Guid>());
     }
 
     // ----- Session detail load workflow -----

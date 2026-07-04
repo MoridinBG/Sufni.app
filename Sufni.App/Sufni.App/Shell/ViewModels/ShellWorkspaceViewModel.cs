@@ -103,7 +103,18 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
         isClosing = true;
         var closingTab = CurrentTab;
 
-        Tabs.Remove(tab);
+        if (!Tabs.Remove(tab))
+        {
+            isClosing = false;
+            return;
+        }
+
+        if (ReferenceEquals(previousActiveTab, tab) ||
+            previousActiveTab is not null && !Tabs.Contains(previousActiveTab))
+        {
+            previousActiveTab = null;
+        }
+
         if (rememberForRestore)
         {
             RemoveTabHistory<TabPageViewModelBase>(
@@ -114,7 +125,9 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
 
         if (tab != previousActiveTab && tab == closingTab)
         {
-            CurrentTab = previousActiveTab ?? (Tabs.Count == 0 ? null : Tabs[0]);
+            CurrentTab = previousActiveTab is not null && Tabs.Contains(previousActiveTab)
+                ? previousActiveTab
+                : Tabs.Count == 0 ? null : Tabs[0];
         }
 
         isClosing = false;

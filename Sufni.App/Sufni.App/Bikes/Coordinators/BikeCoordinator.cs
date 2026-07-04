@@ -267,7 +267,7 @@ internal class BikeCoordinator(
             return new BikeDeleteResult(BikeDeleteOutcome.Failed, e.Message);
         }
 
-        editorFactory().CloseBikeEditor(bikeId);
+        await editorFactory().CloseBikeEditor(bikeId);
         bikeStore.Remove(bikeId);
         logger.Information("Bike delete completed for {BikeId}", bikeId);
         return new BikeDeleteResult(BikeDeleteOutcome.Deleted);

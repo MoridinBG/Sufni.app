@@ -123,6 +123,8 @@ public partial class TabPageViewModelBase : ViewModelBase
 
     public bool CanDeleteItem => DeleteCommand.CanExecute(false);
 
+    public Task PrepareCloseAsync() => CloseImplementation();
+
     protected void NotifyDeleteCommandStateChanged()
     {
         DeleteCommand.NotifyCanExecuteChanged();
@@ -171,7 +173,7 @@ public partial class TabPageViewModelBase : ViewModelBase
     {
         if (!IsDirty)
         {
-            await CloseImplementation();
+            await PrepareCloseAsync();
             shell.Close(this);
             return;
         }
@@ -181,19 +183,19 @@ public partial class TabPageViewModelBase : ViewModelBase
         {
             case PromptResult.Yes:
                 await Save();
-                await CloseImplementation();
+                await PrepareCloseAsync();
                 shell.Close(this);
                 break;
             case PromptResult.No:
                 await Reset();
-                await CloseImplementation();
+                await PrepareCloseAsync();
                 shell.Close(this);
                 break;
             case PromptResult.Cancel:
                 break;
             case PromptResult.Ok:
                 await Reset();
-                await CloseImplementation();
+                await PrepareCloseAsync();
                 shell.Close(this);
                 break;
             default:

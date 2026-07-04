@@ -1,3 +1,4 @@
+using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Base;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Shell.ViewModels;
@@ -204,31 +205,75 @@ public class ShellWorkspaceCoordinatorTests
         Assert.Empty(workspace.Tabs);
     }
 
-    // ----- CloseIfOpen -----
-
     [Fact]
-    public void CloseIfOpen_ClosesMatchingTab_WhenPresent()
+    public void Close_DoesNotRememberClosedTab_WhenLayoutProfileIsCompact()
     {
         var workspace = CreateWorkspace();
         var tab = new TestTabPageViewModel();
         workspace.OpenOrFocus(tab);
-        var coordinator = CreateCoordinator(workspace);
+        var coordinator = CreateCoordinator(workspace, UiLayoutProfile.Compact);
 
-        coordinator.CloseIfOpen<TestTabPageViewModel>(_ => true);
+        coordinator.Close(tab);
+        workspace.Restore();
 
         Assert.Null(workspace.CurrentTab);
         Assert.Empty(workspace.Tabs);
     }
 
     [Fact]
-    public void CloseIfOpen_ForgetsRestoreHistory_WhenRequested()
+    public void CloseTab_DoesNotSelectRemovedPreviousTab_WhenCurrentTabClosesLater()
+    {
+        var workspace = CreateWorkspace();
+        var previous = new TestTabPageViewModel(id: 1);
+        var current = new TestTabPageViewModel(id: 2);
+        workspace.OpenOrFocus(previous);
+        workspace.OpenOrFocus(current);
+
+        workspace.CloseTab(previous);
+        workspace.CloseTab(current);
+
+        Assert.Null(workspace.CurrentTab);
+        Assert.DoesNotContain(previous, workspace.Tabs);
+    }
+
+    // ----- CloseIfOpen -----
+
+    [Fact]
+    public async Task CloseIfOpen_ClosesMatchingTab_WhenPresent()
+    {
+        var workspace = CreateWorkspace();
+        var tab = new TestTabPageViewModel();
+        workspace.OpenOrFocus(tab);
+        var coordinator = CreateCoordinator(workspace);
+
+        await coordinator.CloseIfOpen<TestTabPageViewModel>(_ => true);
+
+        Assert.Null(workspace.CurrentTab);
+        Assert.Empty(workspace.Tabs);
+    }
+
+    [Fact]
+    public async Task CloseIfOpen_RunsCloseCleanup_WhenPresent()
+    {
+        var workspace = CreateWorkspace();
+        var tab = new TestTabPageViewModel();
+        workspace.OpenOrFocus(tab);
+        var coordinator = CreateCoordinator(workspace);
+
+        await coordinator.CloseIfOpen<TestTabPageViewModel>(_ => true);
+
+        Assert.Equal(1, tab.CloseCount);
+    }
+
+    [Fact]
+    public async Task CloseIfOpen_ForgetsRestoreHistory_WhenRequested()
     {
         var workspace = CreateWorkspace();
         var closed = new TestTabPageViewModel(id: 1);
         workspace.OpenOrFocus(closed);
         var coordinator = CreateCoordinator(workspace);
 
-        coordinator.CloseIfOpen<TestTabPageViewModel>(tab => tab.Id == 1, forgetRestoreHistory: true);
+        await coordinator.CloseIfOpen<TestTabPageViewModel>(tab => tab.Id == 1, forgetRestoreHistory: true);
         var factoryInvoked = false;
         coordinator.OpenOrFocus<TestTabPageViewModel>(
             match: tab => tab.Id == 1,
@@ -243,7 +288,22 @@ public class ShellWorkspaceCoordinatorTests
     }
 
     [Fact]
-    public void CloseIfOpen_ForgetsRestoreHistory_EvenWhenNoMatchingOpenTab()
+    public async Task CloseIfOpen_DoesNotRememberClosedTab_WhenLayoutProfileIsCompact()
+    {
+        var workspace = CreateWorkspace();
+        var closed = new TestTabPageViewModel(id: 1);
+        workspace.OpenOrFocus(closed);
+        var coordinator = CreateCoordinator(workspace, UiLayoutProfile.Compact);
+
+        await coordinator.CloseIfOpen<TestTabPageViewModel>(tab => tab.Id == 1);
+        workspace.Restore();
+
+        Assert.Null(workspace.CurrentTab);
+        Assert.Empty(workspace.Tabs);
+    }
+
+    [Fact]
+    public async Task CloseIfOpen_ForgetsRestoreHistory_EvenWhenNoMatchingOpenTab()
     {
         var workspace = CreateWorkspace();
         var closed = new TestTabPageViewModel(id: 1);
@@ -251,7 +311,7 @@ public class ShellWorkspaceCoordinatorTests
         workspace.CloseTab(closed);
         var coordinator = CreateCoordinator(workspace);
 
-        coordinator.CloseIfOpen<TestTabPageViewModel>(tab => tab.Id == 1, forgetRestoreHistory: true);
+        await coordinator.CloseIfOpen<TestTabPageViewModel>(tab => tab.Id == 1, forgetRestoreHistory: true);
         var factoryInvoked = false;
         coordinator.OpenOrFocus<TestTabPageViewModel>(
             match: tab => tab.Id == 1,
@@ -266,14 +326,14 @@ public class ShellWorkspaceCoordinatorTests
     }
 
     [Fact]
-    public void CloseIfOpen_IsNoOp_WhenNoMatchingTab()
+    public async Task CloseIfOpen_IsNoOp_WhenNoMatchingTab()
     {
         var workspace = CreateWorkspace();
         var tab = new TestTabPageViewModel(id: 1);
         workspace.OpenOrFocus(tab);
         var coordinator = CreateCoordinator(workspace);
 
-        coordinator.CloseIfOpen<TestTabPageViewModel>(candidate => candidate.Id == 2);
+        await coordinator.CloseIfOpen<TestTabPageViewModel>(candidate => candidate.Id == 2);
 
         Assert.Same(tab, workspace.CurrentTab);
         Assert.Equal([tab], workspace.Tabs);
@@ -328,7 +388,28 @@ public class ShellWorkspaceCoordinatorTests
 
     private static ShellWorkspaceViewModel CreateWorkspace() => new(TestDispatcher);
 
-    private static ShellWorkspaceCoordinator CreateCoordinator(ShellWorkspaceViewModel workspace) => new(workspace);
+    private static ShellWorkspaceCoordinator CreateCoordinator(
+        ShellWorkspaceViewModel workspace,
+        UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
+        new(workspace, CreateEnvironment(layoutProfile));
+
+    private static IAppEnvironment CreateEnvironment(UiLayoutProfile layoutProfile) =>
+        new AppEnvironment(
+            DefaultLayoutProfile: layoutProfile,
+            LayoutProfile: layoutProfile,
+            Capabilities: new AppCapabilities(
+                CanHostSyncServer: true,
+                CanPairAsClient: true,
+                HasHaptics: false,
+                SupportsMassStorageImport: true,
+                SupportsStorageProviderImport: true,
+                SupportsNativeWindowing: true),
+            Input: new InputCapabilities(
+                HasPointer: true,
+                HasTouch: true,
+                HasKeyboard: true,
+                SupportsPinch: true,
+                SupportsLongPressContextMenu: true));
 
     private sealed class TestTabPageViewModel : TabPageViewModelBase
     {
@@ -339,6 +420,13 @@ public class ShellWorkspaceCoordinatorTests
         }
 
         public int Id { get; }
+        public int CloseCount { get; private set; }
+
+        protected override Task CloseImplementation()
+        {
+            CloseCount++;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class TestViewModel : ViewModelBase

@@ -70,13 +70,13 @@ public class EditorFactoryTests
     }
 
     [Fact]
-    public void CloseBikeEditor_ClosesMatchingEditorAndForgetsRestoreHistory()
+    public async Task CloseBikeEditor_ClosesMatchingEditorAndForgetsRestoreHistory()
     {
         var shell = new CapturingShellCoordinator();
         var snapshot = TestSnapshots.Bike();
         var factory = CreateFactory(shell);
 
-        factory.CloseBikeEditor(snapshot.Id);
+        await factory.CloseBikeEditor(snapshot.Id);
 
         Assert.Equal(typeof(BikeEditorViewModel), shell.CloseIfOpenType);
         Assert.True(shell.CloseIfOpenForgetRestoreHistory);
@@ -121,13 +121,13 @@ public class EditorFactoryTests
     }
 
     [Fact]
-    public void CloseSetupEditor_ClosesMatchingEditorAndForgetsRestoreHistory()
+    public async Task CloseSetupEditor_ClosesMatchingEditorAndForgetsRestoreHistory()
     {
         var shell = new CapturingShellCoordinator();
         var snapshot = TestSnapshots.Setup();
         var factory = CreateFactory(shell);
 
-        factory.CloseSetupEditor(snapshot.Id);
+        await factory.CloseSetupEditor(snapshot.Id);
 
         Assert.Equal(typeof(SetupEditorViewModel), shell.CloseIfOpenType);
         Assert.True(shell.CloseIfOpenForgetRestoreHistory);
@@ -190,13 +190,13 @@ public class EditorFactoryTests
     }
 
     [Fact]
-    public void CloseSessionDetail_ClosesMatchingEditorAndForgetsRestoreHistory()
+    public async Task CloseSessionDetail_ClosesMatchingEditorAndForgetsRestoreHistory()
     {
         var shell = new CapturingShellCoordinator();
         var snapshot = TestSnapshots.Session();
         var factory = CreateFactory(shell);
 
-        factory.CloseSessionDetail(snapshot.Id);
+        await factory.CloseSessionDetail(snapshot.Id);
 
         Assert.Equal(typeof(SessionDetailViewModel), shell.CloseIfOpenType);
         Assert.True(shell.CloseIfOpenForgetRestoreHistory);
@@ -369,12 +369,13 @@ public class EditorFactoryTests
         {
         }
 
-        public void CloseIfOpen<T>(Func<T, bool> match, bool forgetRestoreHistory = false)
+        public Task CloseIfOpen<T>(Func<T, bool> match, bool forgetRestoreHistory = false)
             where T : ViewModelBase
         {
             CloseIfOpenType = typeof(T);
             CloseIfOpenMatch = match;
             CloseIfOpenForgetRestoreHistory = forgetRestoreHistory;
+            return Task.CompletedTask;
         }
 
         public bool GoBack()

@@ -425,7 +425,7 @@ public sealed class SessionCommandService
             return new SessionDeleteResult(SessionDeleteOutcome.Failed, e.Message);
         }
 
-        editorFactory().CloseSessionDetail(sessionId);
+        await editorFactory().CloseSessionDetail(sessionId);
         sessionStore.Remove(sessionId);
         logger.Information("Session delete completed for {SessionId}", sessionId);
         return new SessionDeleteResult(SessionDeleteOutcome.Deleted);

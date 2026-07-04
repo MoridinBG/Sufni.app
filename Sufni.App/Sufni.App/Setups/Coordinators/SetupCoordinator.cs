@@ -125,7 +125,7 @@ public class SetupCoordinator(
         try { await ReassignBoardAsync(snapshot?.BoardId, null, setupId); }
         catch (Exception ex) { logger.Warning(ex, "Best-effort board reassign failed after setup delete"); }
 
-        editorFactory().CloseSetupEditor(setupId);
+        await editorFactory().CloseSetupEditor(setupId);
         setupStore.Remove(setupId);
 
         logger.Information("Setup delete completed for {SetupId}", setupId);

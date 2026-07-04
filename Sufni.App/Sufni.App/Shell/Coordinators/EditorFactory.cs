@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
@@ -77,9 +78,9 @@ internal sealed class EditorFactory(
             () => CreateBikeEditor(snapshot, isNew: false));
     }
 
-    public void CloseBikeEditor(Guid bikeId)
+    public Task CloseBikeEditor(Guid bikeId)
     {
-        shell.CloseIfOpen<BikeEditorViewModel>(editor => editor.Id == bikeId, forgetRestoreHistory: true);
+        return shell.CloseIfOpen<BikeEditorViewModel>(editor => editor.Id == bikeId, forgetRestoreHistory: true);
     }
 
     public BikeEditorViewModel CreateBikeEditor(BikeSnapshot snapshot, bool isNew) =>
@@ -106,9 +107,9 @@ internal sealed class EditorFactory(
             () => CreateSetupEditor(snapshot, isNew: false));
     }
 
-    public void CloseSetupEditor(Guid setupId)
+    public Task CloseSetupEditor(Guid setupId)
     {
-        shell.CloseIfOpen<SetupEditorViewModel>(editor => editor.Id == setupId, forgetRestoreHistory: true);
+        return shell.CloseIfOpen<SetupEditorViewModel>(editor => editor.Id == setupId, forgetRestoreHistory: true);
     }
 
     public SetupEditorViewModel CreateSetupEditor(SetupSnapshot snapshot, bool isNew) =>
@@ -143,9 +144,9 @@ internal sealed class EditorFactory(
             () => CreateSessionDetail(snapshot));
     }
 
-    public void CloseSessionDetail(Guid sessionId)
+    public Task CloseSessionDetail(Guid sessionId)
     {
-        shell.CloseIfOpen<SessionDetailViewModel>(editor => editor.Id == sessionId, forgetRestoreHistory: true);
+        return shell.CloseIfOpen<SessionDetailViewModel>(editor => editor.Id == sessionId, forgetRestoreHistory: true);
     }
 
     public SessionDetailViewModel CreateSessionDetail(SessionSnapshot snapshot) =>
