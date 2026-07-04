@@ -46,6 +46,23 @@ public class MobileNavigationShellHostTests
     }
 
     [AvaloniaFact]
+    public void RemovingWorkspaceTab_EvictsMaterializedPage()
+    {
+        var root = new TestViewModel();
+        var tab = new TestTabPage();
+        var workspace = CreateWorkspace();
+        var host = CreateHost(workspace);
+        host.SetRoot(root);
+
+        workspace.OpenOrFocus(tab);
+        Assert.Equal(2, GetMaterializedPageCount(host));
+
+        workspace.CloseTab(tab, rememberForRestore: false);
+
+        Assert.Equal(1, GetMaterializedPageCount(host));
+    }
+
+    [AvaloniaFact]
     public void HostInterface_ExposesOnlyRootSetup()
     {
         var methods = typeof(IMobileNavigationShellHost)
@@ -60,6 +77,16 @@ public class MobileNavigationShellHostTests
     private static ShellWorkspaceViewModel CreateWorkspace() => new(TestDispatcher);
 
     private static MobileNavigationShellHost CreateHost(ShellWorkspaceViewModel workspace) => new(workspace, TestDispatcher);
+
+    private static int GetMaterializedPageCount(MobileNavigationShellHost host)
+    {
+        var field = typeof(MobileNavigationShellHost).GetField(
+            "materializedPages",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+        var pages = Assert.IsAssignableFrom<System.Collections.IDictionary>(field?.GetValue(host));
+        return pages.Count;
+    }
 
     private sealed class TestViewModel : ViewModelBase
     {

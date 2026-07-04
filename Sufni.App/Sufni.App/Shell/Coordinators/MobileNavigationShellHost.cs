@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -28,6 +29,7 @@ public sealed class MobileNavigationShellHost : IMobileNavigationShellHost, IMob
         this.workspace = workspace;
         this.uiThreadDispatcher = uiThreadDispatcher;
         workspace.PropertyChanged += OnWorkspacePropertyChanged;
+        workspace.Tabs.CollectionChanged += OnWorkspaceTabsChanged;
     }
 
     public void SetRoot(ViewModelBase root)
@@ -143,6 +145,58 @@ public sealed class MobileNavigationShellHost : IMobileNavigationShellHost, IMob
         {
             QueueNavigationOperation(() => MaterializeAttachedStackAsync(navigationPage, pages));
         }
+    }
+
+    private void OnWorkspaceTabsChanged(object? sender, NotifyCollectionChangedEventArgs args)
+    {
+        if (args.Action == NotifyCollectionChangedAction.Reset)
+        {
+            EvictClosedPages();
+            return;
+        }
+
+        if (args.OldItems is null)
+        {
+            return;
+        }
+
+        foreach (var item in args.OldItems)
+        {
+            if (item is ViewModelBase viewModel)
+            {
+                EvictClosedPage(viewModel);
+            }
+        }
+    }
+
+    private void EvictClosedPages()
+    {
+        lock (syncRoot)
+        {
+            foreach (var viewModel in new List<ViewModelBase>(materializedPages.Keys))
+            {
+                EvictClosedPageLocked(viewModel);
+            }
+        }
+    }
+
+    private void EvictClosedPage(ViewModelBase viewModel)
+    {
+        lock (syncRoot)
+        {
+            EvictClosedPageLocked(viewModel);
+        }
+    }
+
+    private void EvictClosedPageLocked(ViewModelBase viewModel)
+    {
+        if (ReferenceEquals(rootEntry?.ViewModel, viewModel) ||
+            viewModel is TabPageViewModelBase tab && workspace.Tabs.Contains(tab))
+        {
+            return;
+        }
+
+        materializedPages.Remove(viewModel);
     }
 
     private void QueueNavigationOperation(Func<Task> operation)
