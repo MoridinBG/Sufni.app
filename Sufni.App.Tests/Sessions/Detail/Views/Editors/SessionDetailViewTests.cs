@@ -18,7 +18,7 @@ public class SessionDetailViewTests
         var context = new SessionDetailViewTestContext();
 
         await using var mounted = await context.MountMobileAsync(
-            loadResult: context.CreateMobileLoadedState(includeBalance: false));
+            loadResult: context.CreateLoadedState(includeBalance: false));
 
         var carousel = mounted.View.GetVisualDescendants()
             .OfType<CarouselPage>()

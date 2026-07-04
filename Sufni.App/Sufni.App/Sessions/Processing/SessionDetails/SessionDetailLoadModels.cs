@@ -114,6 +114,8 @@ public sealed record SessionCachePresentationData(
 
 public readonly record struct SessionPresentationDimensions(int Width, int Height)
 {
+    public static SessionPresentationDimensions Default { get; } = new(320, 180);
+
     public int TravelDistributionWidth => Math.Max(1, Width);
     public int TravelDistributionHeight => Math.Max(1, Height);
     public int VelocityDistributionWidth => Math.Max(1, Width - 64);
@@ -124,22 +126,15 @@ public sealed record MissingSessionData(
     bool ProcessedTelemetryBlob,
     bool RecordedSourceMissingOrHashMismatch);
 
-public abstract record SessionDesktopLoadResult
+public sealed record SessionDetailData(
+    SessionTelemetryPresentationData TelemetryPresentation,
+    SessionCachePresentationData CachePresentation);
+
+public abstract record SessionDetailLoadResult
 {
-    private SessionDesktopLoadResult() { }
+    private SessionDetailLoadResult() { }
 
-    public sealed record Loaded(SessionTelemetryPresentationData Data) : SessionDesktopLoadResult;
-    public sealed record TelemetryPending : SessionDesktopLoadResult;
-    public sealed record Failed(string ErrorMessage) : SessionDesktopLoadResult;
-}
-
-public abstract record SessionMobileLoadResult
-{
-    private SessionMobileLoadResult() { }
-
-    public sealed record LoadedFromCache(SessionCachePresentationData Data, TelemetryData? Telemetry, SessionTrackPresentationData? TrackData) : SessionMobileLoadResult;
-    public sealed record BuiltCache(SessionCachePresentationData Data, TelemetryData Telemetry, SessionTrackPresentationData TrackData) : SessionMobileLoadResult;
-    public sealed record IncompleteLocalData(Guid SessionId, MissingSessionData Missing) : SessionMobileLoadResult;
-    public sealed record TelemetryPending : SessionMobileLoadResult;
-    public sealed record Failed(string ErrorMessage) : SessionMobileLoadResult;
+    public sealed record Loaded(SessionDetailData Data) : SessionDetailLoadResult;
+    public sealed record IncompleteLocalData(Guid SessionId, MissingSessionData Missing) : SessionDetailLoadResult;
+    public sealed record Failed(string ErrorMessage) : SessionDetailLoadResult;
 }

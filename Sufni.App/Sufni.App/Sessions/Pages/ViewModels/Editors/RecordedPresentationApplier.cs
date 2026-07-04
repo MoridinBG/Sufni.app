@@ -65,6 +65,10 @@ internal sealed class RecordedPresentationApplier
         context.TrackPoints = null;
         context.MediaColumnWidth = null;
         owner.ApplyDampingPercentages(SessionDampingPercentages.Empty);
+        context.FrontAnalysisState = SurfacePresentationState.Hidden;
+        context.RearAnalysisState = SurfacePresentationState.Hidden;
+        context.CompressionBalanceState = SurfacePresentationState.Hidden;
+        context.ReboundBalanceState = SurfacePresentationState.Hidden;
         HideVibrationStates();
         ApplyRecordedPlotAvailability(null);
         SetRecordedSignalBaseStates(
@@ -74,6 +78,12 @@ internal sealed class RecordedPresentationApplier
             SurfacePresentationState.Hidden,
             SurfacePresentationState.Hidden,
             SurfacePresentationState.Hidden);
+        springPage.FrontDistributionState = SurfacePresentationState.Hidden;
+        springPage.RearDistributionState = SurfacePresentationState.Hidden;
+        dampingPage.FrontDistributionState = SurfacePresentationState.Hidden;
+        dampingPage.RearDistributionState = SurfacePresentationState.Hidden;
+        balancePage.CompressionBalanceState = SurfacePresentationState.Hidden;
+        balancePage.ReboundBalanceState = SurfacePresentationState.Hidden;
     }
 
     public void ApplyRecordedLoadingStates(bool mapExpected)
@@ -130,79 +140,45 @@ internal sealed class RecordedPresentationApplier
         balancePage.ReboundBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance chart.");
     }
 
-    public void ApplyDesktopLoadResult(SessionDesktopLoadResult result)
+    public void ApplyLoadResult(SessionDetailLoadResult result)
     {
         switch (result)
         {
-            case SessionDesktopLoadResult.Loaded loaded:
+            case SessionDetailLoadResult.Loaded loaded:
+                var telemetryPresentation = loaded.Data.TelemetryPresentation;
+                var cachePresentation = loaded.Data.CachePresentation;
+                ApplyCachePresentation(cachePresentation);
                 owner.ApplyDampingSpeedCutoffContext(
-                    loaded.Data.DampingSpeedCutoffs,
-                    loaded.Data.DampingSpeedCutoffOwner);
-                owner.ApplyTelemetryDataWithoutAnalysisRecompute(loaded.Data.TelemetryData);
-                owner.SetSessionFullTrack(loaded.Data.FullTrackId);
-                context.FullTrackPoints = loaded.Data.FullTrackPoints;
-                context.TrackPoints = loaded.Data.TrackPoints;
-                context.MediaColumnWidth = loaded.Data.MediaColumnWidth;
-                owner.ApplyModeAwareDampingPercentages(loaded.Data.DampingPercentages);
-                ApplyRecordedLoadedStates(loaded.Data);
-                break;
-
-            case SessionDesktopLoadResult.TelemetryPending:
-                ClearRecordedPresentation();
-                ApplyRecordedWaitingStates(owner.CurrentSessionFullTrack is not null);
-                break;
-
-            case SessionDesktopLoadResult.Failed failed:
-                ClearRecordedPresentation();
-                context.ScreenState = SessionScreenPresentationState.Error($"Could not load session data: {failed.ErrorMessage}");
-                break;
-        }
-    }
-
-    public void ApplyMobileLoadResult(SessionMobileLoadResult result)
-    {
-        switch (result)
-        {
-            case SessionMobileLoadResult.LoadedFromCache loadedFromCache:
-                ApplyCachePresentation(loadedFromCache.Data);
-                owner.ApplyTelemetryDataWithoutAnalysisRecompute(loadedFromCache.Telemetry);
+                    telemetryPresentation.DampingSpeedCutoffs,
+                    telemetryPresentation.DampingSpeedCutoffOwner);
+                owner.ApplyTelemetryDataWithoutAnalysisRecompute(telemetryPresentation.TelemetryData);
+                owner.SetSessionFullTrack(telemetryPresentation.FullTrackId);
+                context.FullTrackPoints = telemetryPresentation.FullTrackPoints;
+                context.TrackPoints = telemetryPresentation.TrackPoints;
+                context.MediaColumnWidth = telemetryPresentation.MediaColumnWidth;
+                owner.ApplyModeAwareDampingPercentages(telemetryPresentation.DampingPercentages);
                 ApplyMobileExtendedAnalysisStates(
-                    loadedFromCache.Telemetry,
-                    HasFrontCacheAnalysis(loadedFromCache.Data),
-                    HasRearCacheAnalysis(loadedFromCache.Data),
-                    loadedFromCache.Data.BalanceAvailable);
-                ApplyRecordedReadySignalStates(context.TelemetryData);
-                ApplyMobileTrackPresentation(loadedFromCache.TrackData);
+                    telemetryPresentation.TelemetryData,
+                    HasFrontCacheAnalysis(cachePresentation),
+                    HasRearCacheAnalysis(cachePresentation),
+                    cachePresentation.BalanceAvailable);
+                ApplyRecordedReadySignalStates(telemetryPresentation.TelemetryData);
+                context.MapState = CreateMapState(
+                    telemetryPresentation.TrackPoints,
+                    telemetryPresentation.FullTrackId is not null);
                 context.ScreenState = SessionScreenPresentationState.Ready;
                 owner.IsComplete = true;
                 break;
 
-            case SessionMobileLoadResult.BuiltCache builtCache:
-                ApplyCachePresentation(builtCache.Data);
-                owner.ApplyTelemetryDataWithoutAnalysisRecompute(builtCache.Telemetry);
-                ApplyMobileExtendedAnalysisStates(
-                    builtCache.Telemetry,
-                    HasFrontCacheAnalysis(builtCache.Data),
-                    HasRearCacheAnalysis(builtCache.Data),
-                    builtCache.Data.BalanceAvailable);
-                ApplyRecordedReadySignalStates(context.TelemetryData);
-                ApplyMobileTrackPresentation(builtCache.TrackData);
-                context.ScreenState = SessionScreenPresentationState.Ready;
-                owner.IsComplete = true;
-                break;
-
-            case SessionMobileLoadResult.TelemetryPending:
-                ApplyRecordedWaitingStates(mapExpected: false);
-                break;
-
-            case SessionMobileLoadResult.IncompleteLocalData incomplete:
+            case SessionDetailLoadResult.IncompleteLocalData incomplete:
                 ClearRecordedPresentation();
                 context.ScreenState = SessionScreenPresentationState.IncompleteLocalData(
                     FormatIncompleteLocalDataMessage(incomplete.Missing));
-                owner.IsComplete = false;
+                owner.IsComplete = context.SessionSnapshot?.HasProcessedData ?? false;
                 break;
 
-            case SessionMobileLoadResult.Failed failed:
+            case SessionDetailLoadResult.Failed failed:
+                ClearRecordedPresentation();
                 context.ScreenState = SessionScreenPresentationState.Error($"Could not load session data: {failed.ErrorMessage}");
                 break;
         }
@@ -444,15 +420,6 @@ internal sealed class RecordedPresentationApplier
             context.CompressionBalanceState = SurfacePresentationState.Hidden;
             context.ReboundBalanceState = SurfacePresentationState.Hidden;
         }
-    }
-
-    private void ApplyMobileTrackPresentation(SessionTrackPresentationData? trackData)
-    {
-        owner.SetSessionFullTrack(trackData?.FullTrackId);
-        context.FullTrackPoints = trackData?.FullTrackPoints;
-        context.TrackPoints = trackData?.TrackPoints;
-        context.MediaColumnWidth = trackData?.MediaColumnWidth;
-        context.MapState = CreateMapState(trackData?.TrackPoints, trackData?.FullTrackId is not null);
     }
 
     private void ApplyRecordedPlotAvailability(TelemetryData? telemetry)

@@ -45,16 +45,11 @@ public class SessionCoordinator : ISessionCoordinator
         return Task.CompletedTask;
     }
 
-    public Task<SessionDesktopLoadResult> LoadDesktopDetailAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken = default)
-        => sessionLoader.LoadDesktopDetailAsync(sessionId, cancellationToken);
-
-    public Task<SessionMobileLoadResult> LoadMobileDetailAsync(
+    public Task<SessionDetailLoadResult> LoadDetailAsync(
         Guid sessionId,
         SessionPresentationDimensions dimensions,
         CancellationToken cancellationToken = default)
-        => sessionLoader.LoadMobileDetailAsync(sessionId, dimensions, cancellationToken);
+        => sessionLoader.LoadDetailAsync(sessionId, dimensions, cancellationToken);
 
     public Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated) =>
         commandService.SaveAsync(session, baselineUpdated);

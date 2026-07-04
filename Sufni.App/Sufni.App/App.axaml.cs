@@ -129,18 +129,13 @@ public partial class App : Application
         ServiceCollection.AddSingleton(extensionCapabilityRegistry);
         ServiceCollection.AddSingleton<IAppExtensionCapabilityRegistry>(extensionCapabilityRegistry);
 
-        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime)
-        {
-            ServiceCollection.AddSingleton<ISessionLayoutStrategy, DesktopSessionLayoutStrategy>();
-        }
-        else if (ApplicationLifetime is ISingleViewApplicationLifetime)
+        if (ApplicationLifetime is ISingleViewApplicationLifetime)
         {
             ServiceCollection.AddSingleton<MobileNavigationShellHost>();
             ServiceCollection.AddSingleton<IMobileNavigationShellHost>(sp =>
                 sp.GetRequiredService<MobileNavigationShellHost>());
             ServiceCollection.AddSingleton<IMobileNavigationPageHost>(sp =>
                 sp.GetRequiredService<MobileNavigationShellHost>());
-            ServiceCollection.AddSingleton<ISessionLayoutStrategy, MobileSessionLayoutStrategy>();
         }
 
         ServiceCollection.AddSingleton<IShellCoordinator, ShellWorkspaceCoordinator>();
@@ -240,7 +235,6 @@ public partial class App : Application
         ServiceCollection.AddSingleton<SessionLoader>(sp => new SessionLoader(
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<ISessionProcessedTelemetryReader>(),
-            sp.GetRequiredService<ISessionCacheStore>(),
             sp.GetRequiredService<IBackgroundTaskRunner>(),
             sp.GetRequiredService<ITrackCoordinator>(),
             sp.GetRequiredService<ISessionPresentationService>(),

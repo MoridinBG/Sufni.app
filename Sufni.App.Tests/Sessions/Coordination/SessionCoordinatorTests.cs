@@ -84,7 +84,6 @@ public class SessionCoordinatorTests
         new(
             sessionStore,
             processedTelemetryReader,
-            sessionCacheStore,
             backgroundTaskRunner,
             trackCoordinator,
             sessionPresentationService,
@@ -100,6 +99,20 @@ public class SessionCoordinatorTests
 
         processedTelemetryReader.Set(sessionId, telemetry);
     }
+
+    private static SessionCachePresentationData CachePresentation(
+        SessionDampingPercentages? percentages = null,
+        DampingSpeedCutoffs? cutoffs = null) =>
+        new(
+            FrontTravelDistribution: "front-travel",
+            RearTravelDistribution: null,
+            FrontVelocityDistribution: "front-velocity",
+            RearVelocityDistribution: null,
+            CompressionBalance: null,
+            ReboundBalance: null,
+            DampingPercentages: percentages ?? SessionDampingPercentages.Empty,
+            DampingSpeedCutoffs: cutoffs ?? DampingSpeedCutoffs.Default,
+            BalanceAvailable: false);
 
     private SessionCommandService CreateCommandService() =>
         new(
@@ -581,14 +594,16 @@ public class SessionCoordinatorTests
         editorFactory.DidNotReceive().CloseSessionDetail(Arg.Any<Guid>());
     }
 
-    // ----- Desktop / Mobile load workflows -----
+    // ----- Session detail load workflow -----
 
     [Fact]
-    public async Task LoadDesktopDetailAsync_ReturnsLoaded_WhenTelemetryPresent()
+    public async Task LoadDetailAsync_ReturnsLoaded_WhenTelemetryPresent()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
         var percentages = new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8);
+        var dimensions = new SessionPresentationDimensions(320, 180);
+        var cacheData = CachePresentation(percentages);
         var trackData = new SessionTrackPresentationData(
             Guid.NewGuid(),
             [new TrackPoint(1, 1, 1, 0)],
@@ -599,28 +614,29 @@ public class SessionCoordinatorTests
         SetLocalTelemetry(snapshot.Id, telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(trackData);
-        sessionPresentationService
-            .CalculateDampingPercentages(
+        sessionPresentationService.BuildCachePresentation(
                 telemetry,
-                Arg.Any<TelemetryTimeRange?>(),
-                Arg.Any<VelocityAverageMode>(),
+                dimensions,
+                Arg.Any<CancellationToken>(),
                 Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(percentages);
+            .Returns(cacheData);
 
-        var result = await CreateCoordinator().LoadDesktopDetailAsync(snapshot.Id);
+        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, dimensions);
 
-        var loaded = Assert.IsType<SessionDesktopLoadResult.Loaded>(result);
-        Assert.Same(telemetry, loaded.Data.TelemetryData);
-        Assert.Same(trackData.TrackPoints, loaded.Data.TrackPoints);
-        Assert.Equal(400.0, loaded.Data.MediaColumnWidth);
-        Assert.Equal(percentages, loaded.Data.DampingPercentages);
+        var loaded = Assert.IsType<SessionDetailLoadResult.Loaded>(result);
+        Assert.Same(telemetry, loaded.Data.TelemetryPresentation.TelemetryData);
+        Assert.Same(trackData.TrackPoints, loaded.Data.TelemetryPresentation.TrackPoints);
+        Assert.Equal(400.0, loaded.Data.TelemetryPresentation.MediaColumnWidth);
+        Assert.Equal(percentages, loaded.Data.TelemetryPresentation.DampingPercentages);
+        Assert.Equal(cacheData, loaded.Data.CachePresentation with { DampingSpeedCutoffOwner = null });
     }
 
     [Fact]
-    public async Task LoadDesktopDetailAsync_UsesBikeDampingSpeedCutoffs()
+    public async Task LoadDetailAsync_UsesBikeDampingSpeedCutoffs()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
+        var dimensions = new SessionPresentationDimensions(320, 180);
         var cutoffs = DampingSpeedCutoffs.FromValues(110, 220, 330, 440);
         var bike = TestSnapshots.Bike(updated: 17) with
         {
@@ -630,38 +646,42 @@ public class SessionCoordinatorTests
             RearReboundDampingCutoffMmPerSecond = cutoffs.Rear.ReboundMmPerSecond,
         };
         var percentages = new SessionDampingPercentages(11, 12, 13, 14, 15, 16, 17, 18);
+        var cacheData = CachePresentation(percentages, cutoffs);
 
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         domainQuery.Get(snapshot.Id).Returns(DomainWithBike(snapshot, bike));
         SetLocalTelemetry(snapshot.Id, telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(new SessionTrackPresentationData(null, null, null, null));
-        sessionPresentationService
-            .CalculateDampingPercentages(
+        sessionPresentationService.BuildCachePresentation(
                 telemetry,
-                Arg.Any<TelemetryTimeRange?>(),
-                Arg.Any<VelocityAverageMode>(),
+                dimensions,
+                Arg.Any<CancellationToken>(),
                 Arg.Is<DampingSpeedCutoffs?>(value => value == cutoffs))
-            .Returns(percentages);
+            .Returns(cacheData);
 
-        var result = await CreateCoordinator().LoadDesktopDetailAsync(snapshot.Id);
+        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, dimensions);
 
-        var loaded = Assert.IsType<SessionDesktopLoadResult.Loaded>(result);
-        Assert.Equal(cutoffs, loaded.Data.DampingSpeedCutoffs);
-        Assert.Equal(percentages, loaded.Data.DampingPercentages);
-        Assert.Equal(new DampingSpeedCutoffOwner(bike.Id, bike.Updated), loaded.Data.DampingSpeedCutoffOwner);
+        var loaded = Assert.IsType<SessionDetailLoadResult.Loaded>(result);
+        Assert.Equal(cutoffs, loaded.Data.TelemetryPresentation.DampingSpeedCutoffs);
+        Assert.Equal(percentages, loaded.Data.TelemetryPresentation.DampingPercentages);
+        Assert.Equal(new DampingSpeedCutoffOwner(bike.Id, bike.Updated), loaded.Data.TelemetryPresentation.DampingSpeedCutoffOwner);
+        Assert.Equal(new DampingSpeedCutoffOwner(bike.Id, bike.Updated), loaded.Data.CachePresentation.DampingSpeedCutoffOwner);
     }
 
     [Fact]
-    public async Task LoadDesktopDetailAsync_ReturnsTelemetryPending_WhenTelemetryMissing()
+    public async Task LoadDetailAsync_ReturnsIncompleteLocalData_WhenTelemetryMissing()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         SetLocalTelemetry(snapshot.Id, null);
 
-        var result = await CreateCoordinator().LoadDesktopDetailAsync(snapshot.Id);
+        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
 
-        Assert.IsType<SessionDesktopLoadResult.TelemetryPending>(result);
+        var incomplete = Assert.IsType<SessionDetailLoadResult.IncompleteLocalData>(result);
+        Assert.Equal(snapshot.Id, incomplete.SessionId);
+        Assert.True(incomplete.Missing.ProcessedTelemetryBlob);
+        Assert.False(incomplete.Missing.RecordedSourceMissingOrHashMismatch);
         await trackCoordinator.DidNotReceive().LoadSessionTrackAsync(
             Arg.Any<Guid>(),
             Arg.Any<Guid?>(),
@@ -670,232 +690,15 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
-    public async Task LoadDesktopDetailAsync_ReturnsFailed_WhenSnapshotClaimsTelemetryButBlobMissing()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        SetLocalTelemetry(snapshot.Id, null);
-
-        var result = await CreateCoordinator().LoadDesktopDetailAsync(snapshot.Id);
-
-        Assert.IsType<SessionDesktopLoadResult.Failed>(result);
-    }
-
-    [Fact]
-    public async Task LoadDesktopDetailAsync_ReturnsFailed_WhenTrackCoordinatorThrows()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.CreateProcessed();
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        SetLocalTelemetry(snapshot.Id, telemetry);
-        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException("track failed"));
-
-        var result = await CreateCoordinator().LoadDesktopDetailAsync(snapshot.Id);
-
-        Assert.IsType<SessionDesktopLoadResult.Failed>(result);
-    }
-
-    [Fact]
-    public async Task LoadMobileDetailAsync_ReturnsCacheHit_WhenCacheExists()
-    {
-        var sessionId = Guid.NewGuid();
-        var cache = new SessionCache { SessionId = sessionId, FrontTravelDistribution = "cached" };
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var trackData = new SessionTrackPresentationData(Guid.NewGuid(), [], [], 400);
-        sessionCacheStore.GetSessionCacheAsync(sessionId).Returns(cache);
-        SetLocalTelemetry(sessionId, telemetry);
-        trackCoordinator.LoadSessionTrackAsync(sessionId, null, telemetry, Arg.Any<CancellationToken>())
-            .Returns(trackData);
-
-        var result = await CreateCoordinator().LoadMobileDetailAsync(sessionId, new SessionPresentationDimensions(320, 180));
-
-        var loaded = Assert.IsType<SessionMobileLoadResult.LoadedFromCache>(result);
-        Assert.Equal("cached", loaded.Data.FrontTravelDistribution);
-        Assert.Same(telemetry, loaded.Telemetry);
-        Assert.Same(trackData, loaded.TrackData);
-        Assert.Equal(1, processedTelemetryReader.GetCallCount(sessionId));
-        await http.DidNotReceive().GetSessionPsstAsync(Arg.Any<Guid>());
-    }
-
-    [Fact]
-    public async Task LoadMobileDetailAsync_ReturnsCacheHit_WithNullTelemetry_WhenLocalTelemetryMissing()
-    {
-        var sessionId = Guid.NewGuid();
-        var cache = new SessionCache { SessionId = sessionId, FrontTravelDistribution = "cached" };
-        sessionCacheStore.GetSessionCacheAsync(sessionId).Returns(cache);
-        SetLocalTelemetry(sessionId, null);
-
-        var result = await CreateCoordinator().LoadMobileDetailAsync(sessionId, new SessionPresentationDimensions(320, 180));
-
-        var loaded = Assert.IsType<SessionMobileLoadResult.LoadedFromCache>(result);
-        Assert.Equal("cached", loaded.Data.FrontTravelDistribution);
-        Assert.Null(loaded.Telemetry);
-        Assert.Null(loaded.TrackData);
-        Assert.Equal(1, processedTelemetryReader.GetCallCount(sessionId));
-        await http.DidNotReceive().GetSessionPsstAsync(Arg.Any<Guid>());
-    }
-
-    [Fact]
-    public async Task LoadMobileDetailAsync_RecomputesCachedDampingPercentages_WhenBikeCutoffsChangedAndTelemetryIsAvailable()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var cachedCutoffs = DampingSpeedCutoffs.FromValues(100, 100, 100, 100);
-        var currentCutoffs = DampingSpeedCutoffs.FromValues(250, 350, 450, 550);
-        var bike = TestSnapshots.Bike(updated: 21) with
-        {
-            FrontCompressionDampingCutoffMmPerSecond = currentCutoffs.Front.CompressionMmPerSecond,
-            FrontReboundDampingCutoffMmPerSecond = currentCutoffs.Front.ReboundMmPerSecond,
-            RearCompressionDampingCutoffMmPerSecond = currentCutoffs.Rear.CompressionMmPerSecond,
-            RearReboundDampingCutoffMmPerSecond = currentCutoffs.Rear.ReboundMmPerSecond,
-        };
-        var stalePercentages = new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8);
-        var currentPercentages = new SessionDampingPercentages(11, 12, 13, 14, 15, 16, 17, 18);
-        var cache = new SessionCache
-        {
-            SessionId = snapshot.Id,
-            FrontTravelDistribution = "cached",
-            DampingPercentages = stalePercentages,
-            DampingSpeedCutoffs = cachedCutoffs,
-        };
-
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        domainQuery.Get(snapshot.Id).Returns(DomainWithBike(snapshot, bike));
-        sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns(cache);
-        SetLocalTelemetry(snapshot.Id, telemetry);
-        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
-            .Returns(new SessionTrackPresentationData(null, null, null, null));
-        sessionPresentationService
-            .CalculateDampingPercentages(
-                telemetry,
-                Arg.Any<TelemetryTimeRange?>(),
-                Arg.Any<VelocityAverageMode>(),
-                Arg.Is<DampingSpeedCutoffs?>(value => value == currentCutoffs))
-            .Returns(currentPercentages);
-
-        var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
-
-        var loaded = Assert.IsType<SessionMobileLoadResult.LoadedFromCache>(result);
-        Assert.Equal(currentPercentages, loaded.Data.DampingPercentages);
-        Assert.Equal(currentCutoffs, loaded.Data.DampingSpeedCutoffs);
-        Assert.Equal(new DampingSpeedCutoffOwner(bike.Id, bike.Updated), loaded.Data.DampingSpeedCutoffOwner);
-        await sessionCacheStore.DidNotReceive().PutSessionCacheAsync(Arg.Any<SessionCache>());
-    }
-
-    [Fact]
-    public async Task LoadMobileDetailAsync_BuildsAndPersistsCache_WhenCacheMissing()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var trackData = new SessionTrackPresentationData(Guid.NewGuid(), [], [], 400);
-        var cacheData = new SessionCachePresentationData(
-            "front-travel",
-            null,
-            "front-velocity",
-            null,
-            null,
-            null,
-            new SessionDampingPercentages(1, null, 2, null, 3, null, 4, null),
-            DampingSpeedCutoffs.Default,
-            false);
-
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
-        SetLocalTelemetry(snapshot.Id, telemetry);
-        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
-            .Returns(trackData);
-        sessionPresentationService.BuildCachePresentation(
-                telemetry,
-                new SessionPresentationDimensions(320, 180),
-                Arg.Any<CancellationToken>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(cacheData);
-
-        var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
-
-        var built = Assert.IsType<SessionMobileLoadResult.BuiltCache>(result);
-        Assert.Equal("front-travel", built.Data.FrontTravelDistribution);
-        Assert.Same(telemetry, built.Telemetry);
-        Assert.Same(trackData, built.TrackData);
-        await sessionCacheStore.Received(1).PutSessionCacheAsync(Arg.Is<SessionCache>(cache =>
-            cache.SessionId == snapshot.Id && cache.FrontTravelDistribution == "front-travel"));
-    }
-
-    [Fact]
-    public async Task LoadMobileDetailAsync_BuildsAndPersistsCache_WithCurrentBikeCutoffs()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var cutoffs = DampingSpeedCutoffs.FromValues(125, 235, 345, 455);
-        var bike = TestSnapshots.Bike(updated: 31) with
-        {
-            FrontCompressionDampingCutoffMmPerSecond = cutoffs.Front.CompressionMmPerSecond,
-            FrontReboundDampingCutoffMmPerSecond = cutoffs.Front.ReboundMmPerSecond,
-            RearCompressionDampingCutoffMmPerSecond = cutoffs.Rear.CompressionMmPerSecond,
-            RearReboundDampingCutoffMmPerSecond = cutoffs.Rear.ReboundMmPerSecond,
-        };
-        var cacheData = new SessionCachePresentationData(
-            "front-travel",
-            null,
-            "front-velocity",
-            null,
-            null,
-            null,
-            new SessionDampingPercentages(1, null, 2, null, 3, null, 4, null),
-            cutoffs,
-            false);
-
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        domainQuery.Get(snapshot.Id).Returns(DomainWithBike(snapshot, bike));
-        sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
-        SetLocalTelemetry(snapshot.Id, telemetry);
-        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
-            .Returns(new SessionTrackPresentationData(null, null, null, null));
-        sessionPresentationService.BuildCachePresentation(
-                telemetry,
-                new SessionPresentationDimensions(320, 180),
-                Arg.Any<CancellationToken>(),
-                Arg.Is<DampingSpeedCutoffs?>(value => value == cutoffs))
-            .Returns(cacheData);
-
-        var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
-
-        var built = Assert.IsType<SessionMobileLoadResult.BuiltCache>(result);
-        Assert.Equal(cutoffs, built.Data.DampingSpeedCutoffs);
-        Assert.Equal(new DampingSpeedCutoffOwner(bike.Id, bike.Updated), built.Data.DampingSpeedCutoffOwner);
-        await sessionCacheStore.Received(1).PutSessionCacheAsync(Arg.Is<SessionCache>(cache =>
-            cache.SessionId == snapshot.Id &&
-            cache.DampingSpeedCutoffs == cutoffs));
-    }
-
-    [Fact]
-    public async Task LoadMobileDetailAsync_ReturnsIncompleteLocalData_WhenTelemetryMissing()
+    public async Task LoadDetailAsync_DoesNotDownloadMissingTelemetry()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
         SetLocalTelemetry(snapshot.Id, null);
 
-        var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
 
-        var incomplete = Assert.IsType<SessionMobileLoadResult.IncompleteLocalData>(result);
-        Assert.Equal(snapshot.Id, incomplete.SessionId);
-        Assert.True(incomplete.Missing.ProcessedTelemetryBlob);
-        Assert.False(incomplete.Missing.RecordedSourceMissingOrHashMismatch);
-    }
-
-    [Fact]
-    public async Task LoadMobileDetailAsync_DoesNotDownloadMissingTelemetry()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: false);
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
-        SetLocalTelemetry(snapshot.Id, null);
-
-        var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
-
-        Assert.IsType<SessionMobileLoadResult.IncompleteLocalData>(result);
+        Assert.IsType<SessionDetailLoadResult.IncompleteLocalData>(result);
         await http.DidNotReceive().GetSessionPsstAsync(Arg.Any<Guid>());
         await sessionTelemetryWriter.DidNotReceive().SwapSessionPsstAsync(
             Arg.Any<Guid>(),
@@ -904,79 +707,111 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
-    public async Task LoadMobileDetailAsync_ReturnsIncompleteLocalData_WhenSnapshotClaimsTelemetryButBlobMissing()
+    public async Task LoadDetailAsync_ReturnsIncompleteLocalData_WhenSnapshotClaimsTelemetryButBlobMissing()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
         SetLocalTelemetry(snapshot.Id, null);
 
-        var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
 
-        var incomplete = Assert.IsType<SessionMobileLoadResult.IncompleteLocalData>(result);
+        var incomplete = Assert.IsType<SessionDetailLoadResult.IncompleteLocalData>(result);
         Assert.True(incomplete.Missing.ProcessedTelemetryBlob);
     }
 
     [Fact]
-    public async Task LoadMobileDetailAsync_ReturnsFailed_WhenPresentationFails()
+    public async Task LoadDetailAsync_ReturnsFailed_WhenTrackCoordinatorThrows()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
+        SetLocalTelemetry(snapshot.Id, telemetry);
+        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("track failed"));
+
+        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+
+        Assert.IsType<SessionDetailLoadResult.Failed>(result);
+    }
+
+    [Fact]
+    public async Task LoadDetailAsync_BuildsPresentationInMemoryWithoutSessionCachePersistence()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var dimensions = new SessionPresentationDimensions(320, 180);
+        var cacheData = CachePresentation(new SessionDampingPercentages(1, null, 2, null, 3, null, 4, null));
+
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
         SetLocalTelemetry(snapshot.Id, telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(new SessionTrackPresentationData(null, null, null, null));
         sessionPresentationService.BuildCachePresentation(
                 telemetry,
-                new SessionPresentationDimensions(320, 180),
+                dimensions,
+                Arg.Any<CancellationToken>(),
+                Arg.Any<DampingSpeedCutoffs?>())
+            .Returns(cacheData);
+
+        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, dimensions);
+
+        var loaded = Assert.IsType<SessionDetailLoadResult.Loaded>(result);
+        Assert.Equal("front-travel", loaded.Data.CachePresentation.FrontTravelDistribution);
+        await sessionCacheStore.DidNotReceive().GetSessionCacheAsync(Arg.Any<Guid>());
+        await sessionCacheStore.DidNotReceive().PutSessionCacheAsync(Arg.Any<SessionCache>());
+    }
+
+    [Fact]
+    public async Task LoadDetailAsync_ReturnsFailed_WhenPresentationFails()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var dimensions = new SessionPresentationDimensions(320, 180);
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        SetLocalTelemetry(snapshot.Id, telemetry);
+        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
+            .Returns(new SessionTrackPresentationData(null, null, null, null));
+        sessionPresentationService.BuildCachePresentation(
+                telemetry,
+                dimensions,
                 Arg.Any<CancellationToken>(),
                 Arg.Any<DampingSpeedCutoffs?>())
             .Throws(new InvalidOperationException("render failed"));
 
-        var result = await CreateCoordinator().LoadMobileDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, dimensions);
 
-        Assert.IsType<SessionMobileLoadResult.Failed>(result);
+        Assert.IsType<SessionDetailLoadResult.Failed>(result);
     }
 
     [Fact]
-    public async Task LoadMobileDetailAsync_CancellationDuringCacheBuild_SkipsCacheWrite()
+    public async Task LoadDetailAsync_CancellationDuringPresentationBuild_DoesNotWriteSessionCache()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
+        var dimensions = new SessionPresentationDimensions(320, 180);
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        sessionCacheStore.GetSessionCacheAsync(snapshot.Id).Returns((SessionCache?)null);
         SetLocalTelemetry(snapshot.Id, telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(new SessionTrackPresentationData(null, null, null, null));
         sessionPresentationService.BuildCachePresentation(
                 telemetry,
-                new SessionPresentationDimensions(320, 180),
+                dimensions,
                 Arg.Any<CancellationToken>(),
                 Arg.Any<DampingSpeedCutoffs?>())
             .Returns(callInfo =>
             {
                 var token = callInfo.ArgAt<CancellationToken>(2);
                 token.ThrowIfCancellationRequested();
-                return new SessionCachePresentationData(
-                    "front-travel",
-                    null,
-                    "front-velocity",
-                    null,
-                    null,
-                    null,
-                    new SessionDampingPercentages(1, null, 2, null, 3, null, 4, null),
-                    DampingSpeedCutoffs.Default,
-                    false);
+                return CachePresentation();
             });
 
         using var cancellationTokenSource = new CancellationTokenSource();
         cancellationTokenSource.Cancel();
 
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            CreateCoordinator().LoadMobileDetailAsync(
+            CreateCoordinator().LoadDetailAsync(
                 snapshot.Id,
-                new SessionPresentationDimensions(320, 180),
+                dimensions,
                 cancellationTokenSource.Token));
 
         await sessionCacheStore.DidNotReceive().PutSessionCacheAsync(Arg.Any<SessionCache>());

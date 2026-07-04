@@ -133,7 +133,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IRelayCommand<TelemetryPlotContextMenuContext?> markGpsEventCommand;
     private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markGpsTelemetryEventCommand;
     private readonly DampingCutoffWorkflow dampingCutoffWorkflow;
-    private readonly ISessionLayoutStrategy layoutStrategy;
+    private readonly bool deferDomainHandlingWhenInactive;
     private IDisposable? processedTelemetryRetention;
 
     #endregion Private fields
@@ -538,12 +538,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         try
         {
-            await layoutStrategy.LoadDetailAsync(
-                sessionCoordinator,
-                Id,
-                lastPresentationDimensions,
-                presentationApplier,
-                token);
+            var dimensions = lastPresentationDimensions ?? SessionPresentationDimensions.Default;
+            var result = await sessionCoordinator.LoadDetailAsync(Id, dimensions, token);
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            presentationApplier.ApplyLoadResult(result);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -1029,7 +1031,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         IDialogService dialogService,
         ISessionPreferences sessionPreferences,
         IUiThreadDispatcher uiThreadDispatcher,
-        ISessionLayoutStrategy layoutStrategy,
+        bool deferDomainHandlingWhenInactive,
         IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache,
         ISessionProcessedTelemetryReader processedTelemetryReader,
         IRecordedSessionAnalysisResultStateFactory analysisResultStateFactory,
@@ -1040,7 +1042,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         : base(shell, dialogService, uiThreadDispatcher)
     {
         ArgumentNullException.ThrowIfNull(sessionPreferences);
-        this.layoutStrategy = layoutStrategy;
+        this.deferDomainHandlingWhenInactive = deferDomainHandlingWhenInactive;
 
         this.sessionCoordinator = sessionCoordinator;
         this.trackCoordinator = trackCoordinator;
@@ -1683,7 +1685,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     }
 
     private bool ShouldDeferDomainHandling() =>
-        layoutStrategy.DefersDomainHandlingWhenInactive &&
+        deferDomainHandlingWhenInactive &&
         hasBeenActivated &&
         !IsTabActive;
 

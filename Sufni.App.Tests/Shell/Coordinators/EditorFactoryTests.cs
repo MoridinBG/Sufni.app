@@ -311,7 +311,22 @@ public class EditorFactoryTests
             shell,
             Substitute.For<IDialogService>(),
             uiThreadDispatcher,
-            new DesktopSessionLayoutStrategy(),
+            new AppEnvironment(
+                UiLayoutProfile.Workspace,
+                UiLayoutProfile.Workspace,
+                new AppCapabilities(
+                    CanHostSyncServer: true,
+                    CanPairAsClient: false,
+                    HasHaptics: false,
+                    SupportsMassStorageImport: true,
+                    SupportsStorageProviderImport: true,
+                    SupportsNativeWindowing: true),
+                new InputCapabilities(
+                    HasPointer: true,
+                    HasTouch: false,
+                    HasKeyboard: true,
+                    SupportsPinch: false,
+                    SupportsLongPressContextMenu: false)),
             Array.Empty<IRecordedSessionExtensionFactory>(),
             Substitute.For<IExtensionDatabaseConnection>(),
             Substitute.For<IRecordedSessionDataReader>(),

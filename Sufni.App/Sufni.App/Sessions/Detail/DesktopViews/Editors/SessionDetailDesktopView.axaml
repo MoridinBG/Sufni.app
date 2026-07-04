@@ -22,7 +22,7 @@ mc:Ignorable="d">
 
     <Interaction.Behaviors>
         <EventTriggerBehavior EventName="Loaded">
-            <InvokeCommandAction Command="{Binding LoadedCommand}" />
+            <InvokeCommandAction Command="{Binding LoadedCommand}" CommandParameter="{Binding ElementName=Root, Path=Bounds}" />
         </EventTriggerBehavior>
         <EventTriggerBehavior EventName="Unloaded">
             <InvokeCommandAction Command="{Binding UnloadedCommand}" />

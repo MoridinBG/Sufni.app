@@ -22,7 +22,6 @@ public sealed class SessionLoader
 
     private readonly ISessionStoreWriter sessionStore;
     private readonly ISessionProcessedTelemetryReader processedTelemetryReader;
-    private readonly ISessionCacheStore sessionCacheStore;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ITrackCoordinator trackCoordinator;
     private readonly ISessionPresentationService sessionPresentationService;
@@ -31,7 +30,6 @@ public sealed class SessionLoader
     internal SessionLoader(
         ISessionStoreWriter sessionStore,
         ISessionProcessedTelemetryReader processedTelemetryReader,
-        ISessionCacheStore sessionCacheStore,
         IBackgroundTaskRunner backgroundTaskRunner,
         ITrackCoordinator trackCoordinator,
         ISessionPresentationService sessionPresentationService,
@@ -39,147 +37,29 @@ public sealed class SessionLoader
     {
         this.sessionStore = sessionStore;
         this.processedTelemetryReader = processedTelemetryReader;
-        this.sessionCacheStore = sessionCacheStore;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.trackCoordinator = trackCoordinator;
         this.sessionPresentationService = sessionPresentationService;
         this.recordedSessionDomainQuery = recordedSessionDomainQuery;
     }
 
-    public async Task<SessionDesktopLoadResult> LoadDesktopDetailAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken = default)
-    {
-        logger.Information("Starting desktop session load for {SessionId}", sessionId);
-
-        try
-        {
-            logger.Verbose("Loading telemetry data for desktop session {SessionId}", sessionId);
-            var telemetryData = await LoadTelemetryDataAsync(sessionId, cancellationToken);
-            if (telemetryData is null)
-            {
-                if (sessionStore.Get(sessionId) is { HasProcessedData: true })
-                {
-                    logger.Error(
-                        "Desktop session load failed because telemetry data was marked present but could not be read for {SessionId}",
-                        sessionId);
-                    return new SessionDesktopLoadResult.Failed("Session data is marked as present but could not be read.");
-                }
-
-                logger.Warning("Desktop session load is waiting for telemetry data for {SessionId}", sessionId);
-                return new SessionDesktopLoadResult.TelemetryPending();
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var fullTrackId = sessionStore.Get(sessionId)?.FullTrackId;
-            logger.Verbose("Resolving track data for desktop session {SessionId}", sessionId);
-            var trackData = await trackCoordinator.LoadSessionTrackAsync(
-                sessionId,
-                fullTrackId,
-                telemetryData,
-                cancellationToken);
-
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var dampingSpeedCutoffContext = ResolveDampingSpeedCutoffContext(sessionId);
-            logger.Verbose("Calculating presentation data for desktop session {SessionId}", sessionId);
-            var dampingPercentages = await backgroundTaskRunner.RunAsync(
-                () => sessionPresentationService.CalculateDampingPercentages(
-                    telemetryData,
-                    dampingSpeedCutoffs: dampingSpeedCutoffContext.Cutoffs),
-                cancellationToken);
-
-            logger.Information("Desktop session load completed for {SessionId}", sessionId);
-            return new SessionDesktopLoadResult.Loaded(
-                new SessionTelemetryPresentationData(
-                    telemetryData,
-                    trackData.FullTrackId,
-                    trackData.FullTrackPoints,
-                    trackData.TrackPoints,
-                    trackData.MediaColumnWidth,
-                    dampingPercentages,
-                    dampingSpeedCutoffContext.Cutoffs,
-                    dampingSpeedCutoffContext.Owner));
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception e)
-        {
-            logger.Error(e, "Desktop session load failed for {SessionId}", sessionId);
-            return new SessionDesktopLoadResult.Failed(e.Message);
-        }
-    }
-
-    public async Task<SessionMobileLoadResult> LoadMobileDetailAsync(
+    public async Task<SessionDetailLoadResult> LoadDetailAsync(
         Guid sessionId,
         SessionPresentationDimensions dimensions,
         CancellationToken cancellationToken = default)
     {
-        logger.Information("Starting mobile session load for {SessionId}", sessionId);
+        logger.Information("Starting session detail load for {SessionId}", sessionId);
 
         try
         {
             var dampingSpeedCutoffContext = ResolveDampingSpeedCutoffContext(sessionId);
 
-            logger.Verbose("Checking cached mobile presentation for session {SessionId}", sessionId);
-            var cached = await backgroundTaskRunner.RunAsync(
-                () => sessionCacheStore.GetSessionCacheAsync(sessionId),
-                cancellationToken);
-            if (cached is not null)
-            {
-                logger.Verbose("Mobile session cache hit for {SessionId}", sessionId);
-                var cachedTelemetryData = await LoadTelemetryDataAsync(sessionId, cancellationToken);
-                SessionTrackPresentationData? cachedTrackData = null;
-                if (cachedTelemetryData is null)
-                {
-                    logger.Warning("Mobile session cache is present but local telemetry could not be read for {SessionId}", sessionId);
-                }
-                else
-                {
-                    var cachedFullTrackId = sessionStore.Get(sessionId)?.FullTrackId;
-                    logger.Verbose("Resolving cached mobile track data for session {SessionId}", sessionId);
-                    cachedTrackData = await trackCoordinator.LoadSessionTrackAsync(
-                        sessionId,
-                        cachedFullTrackId,
-                        cachedTelemetryData,
-                        cancellationToken);
-                }
-
-                logger.Information("Mobile session load completed from cache for {SessionId}", sessionId);
-                var cachedPresentation = SessionCachePresentationData.FromCache(cached) with
-                {
-                    DampingSpeedCutoffOwner = dampingSpeedCutoffContext.Owner,
-                };
-                if (cachedTelemetryData is not null && cachedPresentation.DampingSpeedCutoffs != dampingSpeedCutoffContext.Cutoffs)
-                {
-                    logger.Verbose("Recomputing cached damping percentages for session {SessionId} because bike cutoffs changed", sessionId);
-                    var dampingPercentages = await backgroundTaskRunner.RunAsync(
-                        () => sessionPresentationService.CalculateDampingPercentages(
-                            cachedTelemetryData,
-                            dampingSpeedCutoffs: dampingSpeedCutoffContext.Cutoffs),
-                        cancellationToken);
-                    cachedPresentation = cachedPresentation with
-                    {
-                        DampingPercentages = dampingPercentages,
-                        DampingSpeedCutoffs = dampingSpeedCutoffContext.Cutoffs,
-                    };
-                }
-
-                return new SessionMobileLoadResult.LoadedFromCache(
-                    cachedPresentation,
-                    cachedTelemetryData,
-                    cachedTrackData);
-            }
-
-            logger.Verbose("Mobile session cache miss for {SessionId}", sessionId);
+            logger.Verbose("Loading local telemetry data for session {SessionId}", sessionId);
             var telemetryData = await LoadTelemetryDataAsync(sessionId, cancellationToken);
             if (telemetryData is null)
             {
-                logger.Warning("Mobile session load found incomplete local telemetry data for {SessionId}", sessionId);
-                return new SessionMobileLoadResult.IncompleteLocalData(
+                logger.Warning("Session detail load found incomplete local telemetry data for {SessionId}", sessionId);
+                return new SessionDetailLoadResult.IncompleteLocalData(
                     sessionId,
                     new MissingSessionData(
                         ProcessedTelemetryBlob: true,
@@ -188,18 +68,18 @@ public sealed class SessionLoader
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            var mobileFullTrackId = sessionStore.Get(sessionId)?.FullTrackId;
-            logger.Verbose("Resolving track data for mobile session {SessionId}", sessionId);
+            var fullTrackId = sessionStore.Get(sessionId)?.FullTrackId;
+            logger.Verbose("Resolving track data for session {SessionId}", sessionId);
             var trackData = await trackCoordinator.LoadSessionTrackAsync(
                 sessionId,
-                mobileFullTrackId,
+                fullTrackId,
                 telemetryData,
                 cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            logger.Verbose("Building mobile session cache for {SessionId}", sessionId);
-            var presentation = await backgroundTaskRunner.RunAsync(
+            logger.Verbose("Building session presentation data for {SessionId}", sessionId);
+            var cachePresentation = await backgroundTaskRunner.RunAsync(
                 () => sessionPresentationService.BuildCachePresentation(
                     telemetryData,
                     dimensions,
@@ -207,17 +87,23 @@ public sealed class SessionLoader
                     dampingSpeedCutoffContext.Cutoffs),
                 cancellationToken);
 
-            presentation = presentation with { DampingSpeedCutoffOwner = dampingSpeedCutoffContext.Owner };
+            cachePresentation = cachePresentation with { DampingSpeedCutoffOwner = dampingSpeedCutoffContext.Owner };
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            logger.Verbose("Persisting mobile session cache for {SessionId}", sessionId);
-            await backgroundTaskRunner.RunAsync(
-                () => sessionCacheStore.PutSessionCacheAsync(presentation.ToCache(sessionId)),
-                cancellationToken);
-
-            logger.Information("Mobile session load completed for {SessionId}", sessionId);
-            return new SessionMobileLoadResult.BuiltCache(presentation, telemetryData, trackData);
+            logger.Information("Session detail load completed for {SessionId}", sessionId);
+            return new SessionDetailLoadResult.Loaded(
+                new SessionDetailData(
+                    new SessionTelemetryPresentationData(
+                        telemetryData,
+                        trackData.FullTrackId,
+                        trackData.FullTrackPoints,
+                        trackData.TrackPoints,
+                        trackData.MediaColumnWidth,
+                        cachePresentation.DampingPercentages,
+                        cachePresentation.DampingSpeedCutoffs,
+                        cachePresentation.DampingSpeedCutoffOwner),
+                    cachePresentation));
         }
         catch (OperationCanceledException)
         {
@@ -225,8 +111,8 @@ public sealed class SessionLoader
         }
         catch (Exception e)
         {
-            logger.Error(e, "Mobile session load failed for {SessionId}", sessionId);
-            return new SessionMobileLoadResult.Failed(e.Message);
+            logger.Error(e, "Session detail load failed for {SessionId}", sessionId);
+            return new SessionDetailLoadResult.Failed(e.Message);
         }
     }
 
