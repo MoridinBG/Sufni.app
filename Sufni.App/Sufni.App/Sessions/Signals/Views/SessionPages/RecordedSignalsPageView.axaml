@@ -18,7 +18,6 @@ mc:Ignorable="d">
 
     <ScrollViewer
     x:Name="PageScrollViewer"
-    Width="{Binding $parent[ScrollViewer].Bounds.Width}"
     IsScrollChainingEnabled="False">
         <StackPanel Spacing="10">
             <views:RecordedSessionToolbarContributionsView ExtensionSlots="{Binding Workspace.ExtensionSlots}" />
@@ -54,10 +53,7 @@ mc:Ignorable="d">
             PresentationState="{Binding MediaWorkspace.MapState}">
                 <controls:PlaceholderOverlayContainer.ReadyContent>
                     <v:MapView
-                    Name="MobileMapView"
-                    DataContext="{Binding MediaWorkspace.MapViewModel}"
-                    ExtensionSlots="{Binding $parent[controls:PlaceholderOverlayContainer].DataContext.MediaWorkspace.ExtensionSlots}"
-                    Timeline="{Binding $parent[controls:PlaceholderOverlayContainer].DataContext.MediaWorkspace.Timeline}" />
+                    Name="MobileMapView" />
                 </controls:PlaceholderOverlayContainer.ReadyContent>
                 <controls:PlaceholderOverlayContainer.PlaceholderContent>
                     <controls:SurfacePlaceholderCard Title="Map" />

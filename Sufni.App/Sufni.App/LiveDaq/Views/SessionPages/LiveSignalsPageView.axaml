@@ -15,7 +15,6 @@ mc:Ignorable="d">
 
     <ScrollViewer
     x:Name="PageScrollViewer"
-    Width="{Binding $parent[ScrollViewer].Bounds.Width}"
     IsScrollChainingEnabled="False">
         <StackPanel Spacing="10">
             <Grid MinHeight="{Binding #PageScrollViewer.Bounds.Height}">
@@ -32,9 +31,7 @@ mc:Ignorable="d">
             PresentationState="{Binding MediaWorkspace.MapState}">
                 <controls:PlaceholderOverlayContainer.ReadyContent>
                     <v:MapView
-                    Name="MobileMapView"
-                    DataContext="{Binding MediaWorkspace.MapViewModel}"
-                    Timeline="{Binding $parent[controls:PlaceholderOverlayContainer].DataContext.MediaWorkspace.Timeline}" />
+                    Name="MobileMapView" />
                 </controls:PlaceholderOverlayContainer.ReadyContent>
                 <controls:PlaceholderOverlayContainer.PlaceholderContent>
                     <controls:SurfacePlaceholderCard Title="Map" />

@@ -52,10 +52,7 @@ mc:Ignorable="d">
                                 <v:MapView
                                     x:Name="MapViewControl"
                                     HorizontalAlignment="Stretch"
-                                    VerticalAlignment="Stretch"
-                                    DataContext="{Binding MapViewModel}"
-                                    ExtensionSlots="{Binding $parent[controls:PlaceholderOverlayContainer].((vm:ISessionMediaWorkspace)DataContext).ExtensionSlots}"
-                                    Timeline="{Binding $parent[controls:PlaceholderOverlayContainer].((vm:ISessionMediaWorkspace)DataContext).Timeline}" />
+                                    VerticalAlignment="Stretch" />
                             </controls:PlaceholderOverlayContainer.ReadyContent>
                             <controls:PlaceholderOverlayContainer.PlaceholderContent>
                                 <controls:SurfacePlaceholderCard Title="Map" />

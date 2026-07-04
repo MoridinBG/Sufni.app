@@ -94,6 +94,7 @@ public partial class SessionMediaDesktopView : UserControl
             }
         }
 
+        SyncMapView();
         UpdateMediaLayout();
     }
 
@@ -106,10 +107,20 @@ public partial class SessionMediaDesktopView : UserControl
     {
         if (args.PropertyName is nameof(ISessionMediaWorkspace.MapState)
             or nameof(ISessionMediaWorkspace.MediaPaneState)
+            or nameof(ISessionMediaWorkspace.MapViewModel)
+            or nameof(ISessionMediaWorkspace.ExtensionSlots)
             or nameof(ISessionMediaWorkspace.HasMediaContent))
         {
+            SyncMapView();
             UpdateMediaLayout();
         }
+    }
+
+    private void SyncMapView()
+    {
+        MapViewControl.DataContext = workspace?.MapViewModel;
+        MapViewControl.ExtensionSlots = workspace?.ExtensionSlots;
+        MapViewControl.Timeline = workspace?.Timeline;
     }
 
     private void OnPrimaryMediaSplitPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs args)
