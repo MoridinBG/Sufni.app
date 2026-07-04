@@ -513,6 +513,26 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public void AnalysisRangeContextMenuClear_ClearsPendingBoundary()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        editor.SessionContext.TelemetryData = TestTelemetryData.CreateMinimal(duration: 10);
+        var setStart = GetPlotContextAction(editor, "analysis-range-set-start");
+        var setEnd = GetPlotContextAction(editor, "analysis-range-set-end");
+        var clear = GetPlotContextAction(editor, "analysis-range-clear");
+        var startContext = new TelemetryPlotContextMenuContext(SignalRowIds.Travel, 3, 10, null);
+        var endContext = new TelemetryPlotContextMenuContext(SignalRowIds.Travel, 7, 10, null);
+
+        setStart.Command.Execute(startContext);
+        Assert.True(clear.Command.CanExecute(startContext));
+
+        clear.Command.Execute(startContext);
+        setEnd.Command.Execute(endContext);
+
+        Assert.Null(editor.SessionContext.AnalysisRange);
+    }
+
+    [AvaloniaFact]
     public async Task GpsContextMenuAlignment_PersistsOffsetThroughCoordinator()
     {
         var fullTrackId = Guid.NewGuid();

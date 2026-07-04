@@ -868,7 +868,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private bool CanClearAnalysisRangeFromPlotContext(TelemetryPlotContextMenuContext? context)
     {
-        return SessionContext.AnalysisRange is not null &&
+        return (SessionContext.AnalysisRange is not null || pendingAnalysisRangeBoundary is not null) &&
                IsTelemetryPlotContext(context);
     }
 

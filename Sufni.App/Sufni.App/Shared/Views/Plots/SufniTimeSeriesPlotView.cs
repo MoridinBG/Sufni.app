@@ -32,7 +32,6 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     private bool isSelectingAnalysisRange;
     private bool isPlotClickCandidate;
     private bool isPlaybackStopClickCandidate;
-    private bool suppressPlotClickClear;
     private bool suppressLegendTogglePointerRelease;
     private Point plotClickStartPoint;
     private Point playbackStopClickStartPoint;
@@ -400,7 +399,6 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             (_, args) =>
             {
                 var stopPlayback = false;
-                var clearAnalysisRange = false;
 
                 if (isPlaybackStopClickCandidate)
                 {
@@ -414,7 +412,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                 if (suppressLegendTogglePointerRelease)
                 {
                     suppressLegendTogglePointerRelease = false;
-                    SchedulePlotClickEffectsIfNeeded(args, stopPlayback, clearAnalysisRange);
+                    SchedulePlotClickEffectsIfNeeded(args, stopPlayback);
                     args.Handled = true;
                     return;
                 }
@@ -425,22 +423,13 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                     CompleteSelection(selectionEndSeconds);
                     UpdateTimelineRange();
                     args.Pointer.Capture(null);
-                    SchedulePlotClickEffectsIfNeeded(args, stopPlayback, clearAnalysisRange);
+                    SchedulePlotClickEffectsIfNeeded(args, stopPlayback);
                     args.Handled = true;
                     return;
                 }
 
-                if (isPlotClickCandidate && !HasExceededClickMovement(args))
-                {
-                    if (!suppressPlotClickClear)
-                    {
-                        clearAnalysisRange = true;
-                    }
-                }
-
-                SchedulePlotClickEffectsIfNeeded(args, stopPlayback, clearAnalysisRange);
+                SchedulePlotClickEffectsIfNeeded(args, stopPlayback);
                 CancelTouchContextMenuLongPress();
-                suppressPlotClickClear = false;
                 isPlotClickCandidate = false;
                 UpdateTimelineRange();
             },
@@ -458,7 +447,6 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
             isPlotClickCandidate = false;
             isPlaybackStopClickCandidate = false;
-            suppressPlotClickClear = false;
             CancelTouchContextMenuLongPress();
             PlotControl.Cursor = Cursor.Default;
             SetPreviewRange(null, null);
@@ -662,19 +650,15 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         pendingPlotClickEffects = null;
     }
 
-    private void SchedulePlotClickEffectsIfNeeded(
-        PointerEventArgs args,
-        bool stopPlayback,
-        bool clearAnalysisRange)
+    private void SchedulePlotClickEffectsIfNeeded(PointerEventArgs args, bool stopPlayback)
     {
-        if (!stopPlayback && !clearAnalysisRange)
+        if (!stopPlayback)
         {
             return;
         }
 
         CancelPendingPlotClickEffects();
         var timeline = Timeline;
-        var workspace = SignalsWorkspace;
         var deferredCursorSeconds = default(double?);
         var deferredCursorPosition = default(double?);
         if (stopPlayback
@@ -704,11 +688,6 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                         RefreshPlot();
                     }
                 }
-
-                if (clearAnalysisRange)
-                {
-                    workspace?.ClearAnalysisRange();
-                }
             });
     }
 
@@ -725,7 +704,6 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     private void StartTouchContextMenuLongPress(Point startPoint)
     {
         CancelTouchContextMenuLongPress();
-        suppressPlotClickClear = false;
         touchContextMenuLongPressStartPoint = startPoint;
         touchContextMenuLongPress = ScheduleTouchContextMenuLongPress(CompleteTouchContextMenuLongPress);
     }
@@ -813,7 +791,6 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
         CancelTouchContextMenuLongPress();
         isPlotClickCandidate = false;
-        suppressPlotClickClear = true;
         if (PlotControl.Menu is not { } menu)
         {
             return false;
@@ -857,7 +834,6 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         CancelTouchContextMenuLongPress();
         isSelectingAnalysisRange = false;
         isPlotClickCandidate = false;
-        suppressPlotClickClear = false;
         suppressLegendTogglePointerRelease = true;
         PlotControl.Cursor = Cursor.Default;
         SetPreviewRange(null, null);

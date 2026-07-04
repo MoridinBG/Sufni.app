@@ -239,7 +239,7 @@ public class RecordedSessionSignalsDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task RecordedSessionSignalsDesktopView_VelocityPlotClick_ClearsAnalysisRange()
+    public async Task RecordedSessionSignalsDesktopView_VelocityPlotClick_DoesNotClearAnalysisRange()
     {
         var workspace = new RecordedSessionSignalsWorkspaceStub(CreateMinimal());
 
@@ -262,9 +262,9 @@ public class RecordedSessionSignalsDesktopViewTests
         await Task.Delay(TimeSpan.FromMilliseconds(600));
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        Assert.Equal(1, workspace.ClearAnalysisRangeCallCount);
-        Assert.Null(workspace.AnalysisRange);
-        Assert.DoesNotContain(plot.Plot.PlottableList.OfType<HorizontalSpan>(), span => span.IsVisible);
+        Assert.Equal(0, workspace.ClearAnalysisRangeCallCount);
+        Assert.NotNull(workspace.AnalysisRange);
+        Assert.Contains(plot.Plot.PlottableList.OfType<HorizontalSpan>(), span => span.IsVisible);
     }
 
     private static async Task<MountedRecordedSessionSignalsDesktopView> MountAsync(RecordedSessionSignalsWorkspaceStub workspace)

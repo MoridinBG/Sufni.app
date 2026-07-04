@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
-using NSubstitute;
 using Sufni.Telemetry;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
 using static Sufni.App.Tests.TestSupport.Fixtures.PlotTestHelpers;
@@ -167,17 +166,14 @@ public class TimeSeriesPlotPlaybackRequestTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotView_DoubleClick_CancelsPendingStopAndAnalysisClear()
+    public async Task TravelPlotView_DoubleClick_CancelsPendingStop()
     {
         var timeline = new SessionTimelineLinkViewModel();
         var stopRequests = 0;
         timeline.PlaybackStopRequested += (_, _) => stopRequests++;
-        var workspace = Substitute.For<IRecordedSessionSignalsWorkspace>();
-        workspace.AnalysisRange.Returns(new TelemetryTimeRange(1, 2));
         var view = new DeferredClickTravelPlotView
         {
             Timeline = timeline,
-            SignalsWorkspace = workspace,
         };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
@@ -200,7 +196,6 @@ public class TimeSeriesPlotPlaybackRequestTests
 
         Assert.False(view.HasPendingClickEffects);
         Assert.Equal(0, stopRequests);
-        workspace.DidNotReceive().ClearAnalysisRange();
     }
 
     private sealed class DeferredClickTravelPlotView : TravelPlotView
