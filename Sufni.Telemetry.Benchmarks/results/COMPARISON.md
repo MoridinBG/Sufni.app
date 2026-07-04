@@ -2,7 +2,7 @@
 
 Performance bracket for Workstream C (§6.1 `Filters` Savitzky-Golay → `TensorPrimitives.Dot`,
 §6.2 `Strokes` per-stroke reductions, §6.3 `TelemetryStatistics.Frequency` mean-removal
-sum → `TensorPrimitives.Sum`). Correctness is owned separately by the §11.1 golden-output
+sum → `TensorPrimitives.Sum`). Correctness is owned separately by the §11.1 regression-output
 test; this measures performance only.
 
 - **Baseline (pre-SIMD):** untouched DSP tree, before §3.2 and §6.1–6.3.
