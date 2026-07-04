@@ -715,13 +715,17 @@ public partial class MapView : UserControl
             bool buildTimeIndex)
         {
             var coordinates = points.Select(point => (point.X, point.Y).ToCoordinate()).ToArray();
-            var lineString = new LineString(coordinates);
-            var lineFeature = new GeometryFeature { Geometry = lineString };
+            var lineString = coordinates.Length >= 2
+                ? new LineString(coordinates)
+                : new LineString([]);
+            var lineFeatures = coordinates.Length >= 2
+                ? [new GeometryFeature { Geometry = lineString }]
+                : Array.Empty<IFeature>();
             return new RenderedTrackGeometry(
                 points,
                 coordinates,
                 lineString,
-                [lineFeature],
+                lineFeatures,
                 CreateMarkerFeatures(points),
                 buildTimeIndex ? new TrackPointTimeIndex(points) : null,
                 generation);
