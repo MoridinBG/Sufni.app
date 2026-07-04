@@ -392,7 +392,6 @@ public partial class App : Application
 
         var fileService = Services.GetRequiredService<IFilesService>();
         var dialogHost = Services.GetRequiredService<IDialogHost>();
-        var shellCoordinator = Services.GetRequiredService<IShellCoordinator>();
 
         switch (ApplicationLifetime)
         {
@@ -431,15 +430,23 @@ public partial class App : Application
                 {
                     var topLevel = TopLevel.GetTopLevel(singleViewPlatform.MainView);
                     Debug.Assert(topLevel is not null);
-                    topLevel.BackRequested += (_, e) =>
+                    topLevel.BackRequested += async (_, e) =>
                     {
                         var handled = shellRootViewModel.TryCloseTransientShellSurface();
-                        if (!handled)
+                        if (handled)
                         {
-                            handled = shellCoordinator.GoBack();
+                            e.Handled = true;
+                            return;
                         }
 
-                        e.Handled = handled;
+                        if (shellRootViewModel.Workspace.CurrentTab is null)
+                        {
+                            e.Handled = false;
+                            return;
+                        }
+
+                        e.Handled = true;
+                        await shellRootViewModel.Workspace.CloseCurrentAsync();
                     };
                     fileService.SetTarget(topLevel);
                 };

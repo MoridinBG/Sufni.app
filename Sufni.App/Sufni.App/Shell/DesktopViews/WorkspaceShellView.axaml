@@ -21,6 +21,7 @@
     </UserControl.Resources>
 
     <SplitView
+        Name="RootSplitView"
         CompactPaneLength="{StaticResource SufniNavRailPaneCompactWidth}"
         DisplayMode="CompactInline"
         IsPaneOpen="True"
@@ -35,9 +36,13 @@
         </SplitView.Pane>
 
         <Grid RowDefinitions="auto *">
-            <Grid Grid.Row="0" ClipToBounds="True">
+            <Grid
+                Grid.Row="0"
+                ClipToBounds="True"
+                ColumnDefinitions="* auto">
                 <TabStrip
                     Name="TabControl"
+                    Grid.Column="0"
                     Padding="0"
                     ItemsSource="{Binding Workspace.Tabs}"
                     SelectedItem="{Binding Workspace.CurrentTab}">
@@ -93,8 +98,30 @@
                     </TabStrip.ItemTemplate>
                 </TabStrip>
 
+                <Button
+                    Name="CurrentTabCloseButton"
+                    Grid.Column="1"
+                    Width="42"
+                    Height="42"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Stretch"
+                    Classes="embedded"
+                    Command="{Binding Workspace.CurrentTab.CloseCommand}">
+                    <Button.IsVisible>
+                        <MultiBinding Converter="{x:Static avaloniaConverters:BoolConverters.And}">
+                            <Binding Path="Workspace.CurrentTab" Converter="{x:Static avaloniaConverters:ObjectConverters.IsNotNull}" />
+                            <Binding Path="!Capabilities.SupportsNativeWindowing" />
+                        </MultiBinding>
+                    </Button.IsVisible>
+                    <Image
+                        Width="14"
+                        Opacity="0.65"
+                        Source="{SvgImage /Assets/fa-xmark.svg}" />
+                </Button>
+
                 <Border
                     Name="TabDropIndicator"
+                    Grid.Column="0"
                     Width="{StaticResource SufniSelectionIndicatorThickness}"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Stretch"

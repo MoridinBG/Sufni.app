@@ -45,6 +45,9 @@ public static class TabStripMiddleClickHandler
 public partial class WorkspaceShellView : UserControl
 {
     private const double TabDragMovementThresholdPixels = 6;
+    private const double MaxPagesPaneLength = 450;
+    private const double MinPagesPaneLength = 96;
+    private const double MinWorkspaceContentLength = 320;
 
     private TabStripItem? draggedTabItem;
     private TabPageViewModelBase? draggedTab;
@@ -57,6 +60,7 @@ public partial class WorkspaceShellView : UserControl
     {
         InitializeComponent();
         TabStripMiddleClickHandler.Register();
+        SizeChanged += (_, _) => UpdateResponsivePaneLength();
 
         TabControl.AddHandler<PointerPressedEventArgs>(
             InputElement.PointerPressedEvent,
@@ -69,6 +73,22 @@ public partial class WorkspaceShellView : UserControl
             OnTabPointerReleased,
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
+    }
+
+    private void UpdateResponsivePaneLength()
+    {
+        RootSplitView.OpenPaneLength = ResolveOpenPaneLength(Bounds.Width);
+    }
+
+    private static double ResolveOpenPaneLength(double width)
+    {
+        if (!double.IsFinite(width) || width <= 0)
+        {
+            return MaxPagesPaneLength;
+        }
+
+        var largestLengthLeavingContent = Math.Max(MinPagesPaneLength, width - MinWorkspaceContentLength);
+        return Math.Clamp(largestLengthLeavingContent, MinPagesPaneLength, MaxPagesPaneLength);
     }
 
     private ShellWorkspaceViewModel? Workspace =>
