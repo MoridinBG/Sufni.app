@@ -342,7 +342,6 @@ public partial class App : Application
         ServiceCollection.AddSingleton<MainViewModel>();
         ServiceCollection.AddSingleton<ShellWorkspaceViewModel>();
         ServiceCollection.AddSingleton<ShellRootViewModel>();
-        ServiceCollection.AddSingleton<MainWindowViewModel>();
 
         Extensions.RegisterCapabilities(extensionCapabilityRegistry);
 
@@ -405,7 +404,7 @@ public partial class App : Application
         switch (ApplicationLifetime)
         {
             case IClassicDesktopStyleApplicationLifetime desktop:
-                var mainWindowViewModel = Services.GetRequiredService<MainWindowViewModel>();
+                var desktopShellRootViewModel = Services.GetRequiredService<ShellRootViewModel>();
                 var mainWindow = new MainWindow();
                 desktop.MainWindow = mainWindow;
                 Services.GetRequiredService<IPlotZoomState>()
@@ -414,7 +413,7 @@ public partial class App : Application
                 dialogHost.SetOwner(mainWindow);
                 dialogHost.SetOverlayHost(mainWindow);
                 dialogHost.SetPresentationMode(DialogPresentationMode.Window);
-                mainWindow.DataContext = mainWindowViewModel;
+                mainWindow.DataContext = desktopShellRootViewModel;
                 desktop.Exit += (_, _) => LoggingBootstrapper.FlushAndClose();
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:

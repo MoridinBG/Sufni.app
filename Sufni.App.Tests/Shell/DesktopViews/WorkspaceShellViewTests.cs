@@ -75,6 +75,34 @@ public class WorkspaceShellViewTests
         Assert.Equal([tab], tabControl.Items);
     }
 
+    [AvaloniaFact]
+    public async Task WorkspaceShellView_TabDragFeedback_FadesDraggedTabAndShowsInsertionIndicator()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+
+        await using var mounted = await MountAsync(new WorkspaceShellView
+        {
+            DataContext = CreateRoot(),
+        });
+
+        var tabItem = new TabStripItem();
+
+        mounted.View.BeginTabDragFeedback(tabItem);
+        mounted.View.ShowTabDropIndicator(120);
+
+        Assert.True(mounted.View.IsTabDragFeedbackVisible);
+        Assert.True(tabItem.Opacity < 1);
+        Assert.True(mounted.View.IsTabDropIndicatorVisible);
+        Assert.True(mounted.View.TabDropIndicatorX > 0);
+
+        mounted.View.EndTabDragFeedback();
+
+        Assert.False(mounted.View.IsTabDragFeedbackVisible);
+        Assert.Equal(1, tabItem.Opacity);
+        Assert.False(mounted.View.IsTabDropIndicatorVisible);
+    }
+
     private static ShellRootViewModel CreateRoot()
     {
         var environment = new AppEnvironment(

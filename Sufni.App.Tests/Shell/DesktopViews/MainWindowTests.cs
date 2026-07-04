@@ -1,9 +1,10 @@
 using Avalonia;
-using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
+using NSubstitute;
 
+using Sufni.App.Infrastructure;
 using Sufni.App.Shell.DesktopViews;
 using Sufni.App.Shell.KeyboardShortcuts;
 using Sufni.App.Shell.ViewModels;
@@ -15,6 +16,8 @@ namespace Sufni.App.Tests.Shell.DesktopViews;
 [Collection("Ui")]
 public class MainWindowTests
 {
+    private static readonly InlineUiThreadDispatcher TestDispatcher = new();
+
     [AvaloniaFact]
     public async Task MainWindow_UsesShortcutRegistryForWindowShortcuts()
     {
@@ -65,20 +68,17 @@ public class MainWindowTests
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
 
-        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
-        var viewModel = new MainWindowViewModel(
-            MainPagesViewModelTestFactory.Create(),
-            welcome,
-            new InlineUiThreadDispatcher());
+        var root = CreateRoot();
         var first = new TestTabPageViewModel();
         var second = new TestTabPageViewModel();
-        viewModel.OpenView(first);
-        viewModel.OpenView(second);
-        viewModel.OpenView(welcome);
+        var third = new TestTabPageViewModel();
+        root.Workspace.OpenOrFocus(first);
+        root.Workspace.OpenOrFocus(second);
+        root.Workspace.OpenOrFocus(third);
 
         await using var mounted = await MountAsync(new MainWindow
         {
-            DataContext = viewModel,
+            DataContext = root,
             Width = 900,
             Height = 700,
         });
@@ -89,7 +89,7 @@ public class MainWindowTests
         var handledNext = mounted.Window.TryHandleRegisteredTabShortcut(next.Key, next.KeyModifiers);
 
         Assert.True(handledNext);
-        Assert.Same(first, viewModel.CurrentView);
+        Assert.Same(first, root.Workspace.CurrentTab);
 
         var previous = Shortcut(
             KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow,
@@ -97,7 +97,7 @@ public class MainWindowTests
         var handledPrevious = mounted.Window.TryHandleRegisteredTabShortcut(previous.Key, previous.KeyModifiers);
 
         Assert.True(handledPrevious);
-        Assert.Same(welcome, viewModel.CurrentView);
+        Assert.Same(third, root.Workspace.CurrentTab);
     }
 
     [AvaloniaFact]
@@ -106,18 +106,15 @@ public class MainWindowTests
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
 
-        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
-        var viewModel = new MainWindowViewModel(
-            MainPagesViewModelTestFactory.Create(),
-            welcome,
-            new InlineUiThreadDispatcher());
+        var root = CreateRoot();
         var first = new TestTabPageViewModel();
-        viewModel.OpenView(first);
-        viewModel.OpenView(welcome);
+        var second = new TestTabPageViewModel();
+        root.Workspace.OpenOrFocus(first);
+        root.Workspace.OpenOrFocus(second);
 
         await using var mounted = await MountAsync(new MainWindow
         {
-            DataContext = viewModel,
+            DataContext = root,
             Width = 900,
             Height = 700,
         });
@@ -137,7 +134,7 @@ public class MainWindowTests
         mounted.Window.RaiseEvent(args);
 
         Assert.True(args.Handled);
-        Assert.Same(first, viewModel.CurrentView);
+        Assert.Same(first, root.Workspace.CurrentTab);
     }
 
     [AvaloniaFact]
@@ -146,18 +143,15 @@ public class MainWindowTests
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
 
-        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
-        var viewModel = new MainWindowViewModel(
-            MainPagesViewModelTestFactory.Create(),
-            welcome,
-            new InlineUiThreadDispatcher());
+        var root = CreateRoot();
         var first = new TestTabPageViewModel();
-        viewModel.OpenView(first);
-        viewModel.OpenView(welcome);
+        var second = new TestTabPageViewModel();
+        root.Workspace.OpenOrFocus(first);
+        root.Workspace.OpenOrFocus(second);
 
         await using var mounted = await MountAsync(new MainWindow
         {
-            DataContext = viewModel,
+            DataContext = root,
             Width = 900,
             Height = 700,
         });
@@ -168,7 +162,7 @@ public class MainWindowTests
             KeyModifiers.Control);
 
         Assert.True(handled);
-        Assert.Same(first, viewModel.CurrentView);
+        Assert.Same(first, root.Workspace.CurrentTab);
     }
 
     [AvaloniaFact]
@@ -177,18 +171,15 @@ public class MainWindowTests
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
 
-        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
-        var viewModel = new MainWindowViewModel(
-            MainPagesViewModelTestFactory.Create(),
-            welcome,
-            new InlineUiThreadDispatcher());
+        var root = CreateRoot();
         var first = new TestTabPageViewModel();
-        viewModel.OpenView(first);
-        viewModel.OpenView(welcome);
+        var second = new TestTabPageViewModel();
+        root.Workspace.OpenOrFocus(first);
+        root.Workspace.OpenOrFocus(second);
 
         await using var mounted = await MountAsync(new MainWindow
         {
-            DataContext = viewModel,
+            DataContext = root,
             Width = 900,
             Height = 700,
         });
@@ -197,7 +188,7 @@ public class MainWindowTests
             RawKeyEventType.KeyDown,
             Key.Tab,
             KeyModifiers.Control);
-        var selectedAfterDown = viewModel.CurrentView;
+        var selectedAfterDown = root.Workspace.CurrentTab;
         var handledUp = mounted.Window.TryHandleRawTabShortcut(
             RawKeyEventType.KeyUp,
             Key.Tab,
@@ -206,7 +197,7 @@ public class MainWindowTests
         Assert.True(handledDown);
         Assert.True(handledUp);
         Assert.Same(first, selectedAfterDown);
-        Assert.Same(first, viewModel.CurrentView);
+        Assert.Same(first, root.Workspace.CurrentTab);
     }
 
     [AvaloniaFact]
@@ -215,17 +206,13 @@ public class MainWindowTests
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
 
-        var welcome = MainPagesViewModelTestFactory.CreateWelcomeScreen();
-        var viewModel = new MainWindowViewModel(
-            MainPagesViewModelTestFactory.Create(),
-            welcome,
-            new InlineUiThreadDispatcher());
+        var root = CreateRoot();
         var first = new TestTabPageViewModel();
-        viewModel.OpenView(first);
+        root.Workspace.OpenOrFocus(first);
 
         await using var mounted = await MountAsync(new MainWindow
         {
-            DataContext = viewModel,
+            DataContext = root,
             Width = 900,
             Height = 700,
         });
@@ -238,36 +225,7 @@ public class MainWindowTests
         Assert.False(mounted.Window.TryHandleRegisteredTabShortcut(
             bracketShortcut.Key,
             bracketShortcut.KeyModifiers));
-        Assert.Same(first, viewModel.CurrentView);
-    }
-
-    [AvaloniaFact]
-    public async Task MainWindow_TabDragFeedback_FadesDraggedTabAndShowsInsertionIndicator()
-    {
-        ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
-
-        await using var mounted = await MountAsync(new MainWindow
-        {
-            Width = 900,
-            Height = 700,
-        });
-
-        var tabItem = new TabStripItem();
-
-        mounted.Window.BeginTabDragFeedback(tabItem);
-        mounted.Window.ShowTabDropIndicator(120);
-
-        Assert.True(mounted.Window.IsTabDragFeedbackVisible);
-        Assert.True(tabItem.Opacity < 1);
-        Assert.True(mounted.Window.IsTabDropIndicatorVisible);
-        Assert.True(mounted.Window.TabDropIndicatorX > 0);
-
-        mounted.Window.EndTabDragFeedback();
-
-        Assert.False(mounted.Window.IsTabDragFeedbackVisible);
-        Assert.Equal(1, tabItem.Opacity);
-        Assert.False(mounted.Window.IsTabDropIndicatorVisible);
+        Assert.Same(first, root.Workspace.CurrentTab);
     }
 
     private static async Task<MountedMainWindow> MountAsync(MainWindow window)
@@ -289,6 +247,33 @@ public class MainWindowTests
 
     private static KeyGesture Shortcut(string source, string id, int index = 0) =>
         KeyboardShortcutRegistry.GesturesBySource[source][id][index];
+
+    private static ShellRootViewModel CreateRoot()
+    {
+        var environment = new AppEnvironment(
+            DefaultLayoutProfile: UiLayoutProfile.Workspace,
+            LayoutProfile: UiLayoutProfile.Workspace,
+            Capabilities: new AppCapabilities(
+                CanHostSyncServer: true,
+                CanPairAsClient: true,
+                HasHaptics: false,
+                SupportsMassStorageImport: true,
+                SupportsStorageProviderImport: true,
+                SupportsNativeWindowing: true),
+            Input: new InputCapabilities(
+                HasPointer: true,
+                HasTouch: false,
+                HasKeyboard: true,
+                SupportsPinch: false,
+                SupportsLongPressContextMenu: false));
+
+        return new ShellRootViewModel(
+            MainPagesViewModelTestFactory.Create(),
+            new ShellWorkspaceViewModel(TestDispatcher),
+            environment,
+            Substitute.For<IPlotZoomState>(),
+            TestDispatcher);
+    }
 }
 
 internal sealed class MountedMainWindow(MainWindow window) : IAsyncDisposable

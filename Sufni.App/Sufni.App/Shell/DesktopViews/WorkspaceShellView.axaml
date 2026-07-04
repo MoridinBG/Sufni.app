@@ -92,6 +92,16 @@
                         </DataTemplate>
                     </TabStrip.ItemTemplate>
                 </TabStrip>
+
+                <Border
+                    Name="TabDropIndicator"
+                    Width="{StaticResource SufniSelectionIndicatorThickness}"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Stretch"
+                    Background="{DynamicResource SufniDropPositionIndicator}"
+                    IsHitTestVisible="False"
+                    IsVisible="False"
+                    ZIndex="1" />
             </Grid>
 
             <Grid Grid.Row="1">
