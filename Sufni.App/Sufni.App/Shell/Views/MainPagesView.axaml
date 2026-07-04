@@ -15,6 +15,7 @@ d:DesignHeight="720"
 d:DesignWidth="500"
 x:DataType="vm:MainPagesViewModel"
 Background="{DynamicResource SufniRegion}"
+MainPages="{Binding}"
 mc:Ignorable="d">
     <DrawerPage
     Name="MainDrawerPage"
