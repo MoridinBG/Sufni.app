@@ -114,7 +114,9 @@ public class SessionCoordinatorTests
             DampingSpeedCutoffs: cutoffs ?? DampingSpeedCutoffs.Default,
             BalanceAvailable: false);
 
-    private SessionCommandService CreateCommandService(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
+    private SessionCommandService CreateCommandService(
+        UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace,
+        ISessionPersistenceTransactionRunner? sessionPersistenceTransactions = null) =>
         new(
             sessionStore,
             sessionRepository,
@@ -133,7 +135,8 @@ public class SessionCoordinatorTests
             recomputeEngine,
             () => editorFactory,
             derivationWindowCache,
-            derivationWindowProvider);
+            derivationWindowProvider,
+            sessionPersistenceTransactions);
 
     private SessionCoordinator CreateCoordinator(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
         new(
@@ -562,6 +565,36 @@ public class SessionCoordinatorTests
         await trackEntityRepository.Received(1).DeleteAsync(trackId);
         await sessionPreferences.Received(1).RemoveRecordedAsync(id);
         await editorFactory.Received(1).CloseSessionDetail(id);
+        await sessionStore.Received(1).PublishSessionsRemovedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task DeleteAsync_UsesTransactionRunner_WhenProvided()
+    {
+        var id = Guid.NewGuid();
+        var trackId = Guid.NewGuid();
+        var transactionRunner = Substitute.For<ISessionPersistenceTransactionRunner>();
+        sessionRepository.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
+        sessionRepository.HasOtherActiveSessionWithFullTrackAsync(trackId, id).Returns(false);
+
+        var result = await CreateCommandService(sessionPersistenceTransactions: transactionRunner)
+            .DeleteAsync(id);
+
+        Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
+        await transactionRunner.Received(1).DeleteSessionAsync(
+            id,
+            trackId,
+            deleteFullTrack: true,
+            deleteSource: true,
+            Arg.Any<CancellationToken>());
+        await sessionEntityRepository.DidNotReceive().DeleteAsync(id);
+        await recordedSessionSourceRepository.DidNotReceive().DeleteRecordedSessionSourceAsync(id);
+        await trackEntityRepository.DidNotReceive().DeleteAsync(trackId);
+        await sourceStore.Received(1).PublishSourcesRemovedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
+            Arg.Any<CancellationToken>());
         await sessionStore.Received(1).PublishSessionsRemovedAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
             Arg.Any<CancellationToken>());

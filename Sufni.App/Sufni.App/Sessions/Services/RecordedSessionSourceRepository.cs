@@ -168,7 +168,7 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
     public async Task DeleteRecordedSessionSourceAsync(Guid sessionId)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
-        await connection.ExecuteAsync("DELETE FROM session_recording_source WHERE session_id=?", sessionId);
+        await DeleteRecordedSessionSourceAsync(connection, sessionId);
     }
 
     public async Task<int> DeleteOrphanedRecordedSessionSourcesAsync(IReadOnlyCollection<Guid> retainedSourceSessionIds)
@@ -212,6 +212,21 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
         ValidateRecordedSessionSource(source);
         return connection.Execute(PutRecordedSessionSourceSql, CreatePutRecordedSessionSourceValues(source));
     }
+
+    internal static int DeleteRecordedSessionSourceInTransaction(
+        SQLiteConnection connection,
+        Guid sessionId) =>
+        DeleteRecordedSessionSource(connection, sessionId);
+
+    private static int DeleteRecordedSessionSource(
+        SQLiteConnection connection,
+        Guid sessionId) =>
+        connection.Execute("DELETE FROM session_recording_source WHERE session_id=?", sessionId);
+
+    private static Task<int> DeleteRecordedSessionSourceAsync(
+        SQLiteAsyncConnection connection,
+        Guid sessionId) =>
+        connection.ExecuteAsync("DELETE FROM session_recording_source WHERE session_id=?", sessionId);
 
     private static object?[] CreatePutRecordedSessionSourceValues(RecordedSessionSource source) =>
     [

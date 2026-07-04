@@ -51,6 +51,7 @@ public sealed class SessionCommandService
     private readonly Func<IEditorFactory> editorFactory;
     private readonly IRecordedSessionDerivationWindowCache derivationWindowCache;
     private readonly IRecordedSessionDerivationWindowProvider derivationWindowProvider;
+    private readonly ISessionPersistenceTransactionRunner? sessionPersistenceTransactions;
 
     public SessionCommandService(
         ISessionStoreWriter sessionStore,
@@ -70,7 +71,8 @@ public sealed class SessionCommandService
         ISessionRecomputeEngine recomputeEngine,
         Func<IEditorFactory> editorFactory,
         IRecordedSessionDerivationWindowCache derivationWindowCache,
-        IRecordedSessionDerivationWindowProvider derivationWindowProvider)
+        IRecordedSessionDerivationWindowProvider derivationWindowProvider,
+        ISessionPersistenceTransactionRunner? sessionPersistenceTransactions = null)
     {
         this.sessionStore = sessionStore;
         this.sessionRepository = sessionRepository;
@@ -90,6 +92,7 @@ public sealed class SessionCommandService
         this.editorFactory = editorFactory;
         this.derivationWindowCache = derivationWindowCache;
         this.derivationWindowProvider = derivationWindowProvider;
+        this.sessionPersistenceTransactions = sessionPersistenceTransactions;
     }
 
     public Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, RecomputeReason reason) =>
@@ -389,6 +392,7 @@ public sealed class SessionCommandService
             var session = await sessionRepository.GetSessionAsync(sessionId);
             var trackId = session?.FullTrack;
             var shouldDeleteTrack = false;
+            var shouldDeleteSource = !await derivationWindowProvider.IsRecordingSourceReferencedAsync(sessionId);
 
             if (trackId.HasValue)
             {
@@ -397,31 +401,58 @@ public sealed class SessionCommandService
                     sessionId);
             }
 
-            await sessionEntityRepository.DeleteAsync(sessionId);
-            if (!await derivationWindowProvider.IsRecordingSourceReferencedAsync(sessionId))
+            if (sessionPersistenceTransactions is null)
             {
-                await recordedSessionSourceRepository.DeleteRecordedSessionSourceAsync(sessionId);
+                await sessionEntityRepository.DeleteAsync(sessionId);
+
+                if (shouldDeleteSource)
+                {
+                    await recordedSessionSourceRepository.DeleteRecordedSessionSourceAsync(sessionId);
+                }
+
+                if (shouldDeleteTrack && trackId.HasValue)
+                {
+                    try
+                    {
+                        await trackEntityRepository.DeleteAsync(trackId.Value);
+                    }
+                    catch (Exception e)
+                    {
+                        logger.Warning(
+                            e,
+                            "Failed to delete orphaned track {TrackId} after deleting session {SessionId}",
+                            trackId.Value,
+                            sessionId);
+                    }
+                }
+            }
+            else
+            {
+                await sessionPersistenceTransactions.DeleteSessionAsync(
+                    sessionId,
+                    trackId,
+                    shouldDeleteTrack,
+                    shouldDeleteSource);
+            }
+
+            if (shouldDeleteSource)
+            {
                 await sourceStore.PublishSourcesRemovedAsync([sessionId]);
             }
-
-            if (shouldDeleteTrack && trackId.HasValue)
-            {
-                try
-                {
-                    await trackEntityRepository.DeleteAsync(trackId.Value);
-                }
-                catch (Exception e)
-                {
-                    logger.Warning(e, "Failed to delete orphaned track {TrackId} after deleting session {SessionId}", trackId.Value, sessionId);
-                }
-            }
-
-            await sessionPreferences.RemoveRecordedAsync(sessionId);
         }
         catch (Exception e)
         {
             logger.Error(e, "Session delete failed for {SessionId}", sessionId);
             return new SessionDeleteResult(SessionDeleteOutcome.Failed, e.Message);
+        }
+
+        try
+        {
+            await sessionPreferences.RemoveRecordedAsync(sessionId);
+        }
+        catch (Exception e)
+        {
+            logger.Warning(e, "Failed to remove recorded-session preferences after deleting session {SessionId}", sessionId);
         }
 
         await editorFactory().CloseSessionDetail(sessionId);
