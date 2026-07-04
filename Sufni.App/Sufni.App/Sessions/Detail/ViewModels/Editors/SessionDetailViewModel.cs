@@ -176,6 +176,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private List<TrackPoint>? fullTrackPoints;
     private List<TrackPoint>? trackPoints;
     private TrackTimeRange? trackTimelineContext;
+    private MapViewModel? mapViewModel;
     private bool showAirtime = true;
     private bool showVelocityAirtime;
     private bool showImuAirtime;
@@ -250,7 +251,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     public TelemetrySourceVisibilityStore SourceVisibility => SessionContext.SourceVisibility;
     public PreferencesPageViewModel PreferencesPage { get; } = new();
-    public MapViewModel? MapViewModel => SessionContext.MapViewModel;
+    public MapViewModel? MapViewModel => mapViewModel;
     public IReadOnlyList<SignalRowAction> TravelHeaderActions => signalRowActions.TravelHeaderActions;
     public IReadOnlyList<SignalRowAction> VelocityHeaderActions => signalRowActions.VelocityHeaderActions;
     public IReadOnlyList<SignalRowAction> ImuHeaderActions => signalRowActions.ImuHeaderActions;
@@ -1603,8 +1604,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         Pages.Add(NotesPage);
         Pages.Add(PreferencesPage);
         Pages.CollectionChanged += OnPagesChanged;
-        SessionContext.MapViewModel = mapViewModelFactory.Create();
-        _ = SessionContext.MapViewModel.InitializeAsync();
+        mapViewModel = mapViewModelFactory.Create();
+        SessionContext.MapViewModel = mapViewModel;
+        _ = mapViewModel.InitializeAsync();
         if (snapshot.HasProcessedData)
         {
             presentationApplier.ApplyRecordedLoadingStates(snapshot.FullTrackId is not null);
