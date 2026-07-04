@@ -23,15 +23,18 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
 {
     private readonly RecordedSessionContext context;
     private readonly ISessionOperationGateway gateway;
+    private readonly RecordedSessionEditorActions actions;
 
     public SessionAnalysisWorkspaceViewModel(
         RecordedSessionContext context,
         ISessionOperationGateway gateway,
+        RecordedSessionEditorActions actions,
         IRelayCommand<TelemetryRangeSelection?> selectAnalysisRangeCommand,
         IRecordedSessionAnalysisResultState analysisResultState)
     {
         this.context = context;
         this.gateway = gateway;
+        this.actions = actions;
         SelectAnalysisRangeCommand = selectAnalysisRangeCommand;
         AnalysisResultState = analysisResultState;
         context.PropertyChanged += OnContextPropertyChanged;
@@ -44,31 +47,31 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
     public TravelDistributionMode SelectedTravelDistributionMode
     {
         get => context.SelectedTravelDistributionMode;
-        set => context.SelectedTravelDistributionMode = value;
+        set => actions.SetTravelDistributionMode(value);
     }
 
     public BalanceDisplacementMode SelectedBalanceDisplacementMode
     {
         get => context.SelectedBalanceDisplacementMode;
-        set => context.SelectedBalanceDisplacementMode = value;
+        set => actions.SetBalanceDisplacementMode(value);
     }
 
     public BalanceSpeedMode SelectedBalanceSpeedMode
     {
         get => context.SelectedBalanceSpeedMode;
-        set => context.SelectedBalanceSpeedMode = value;
+        set => actions.SetBalanceSpeedMode(value);
     }
 
     public VelocityAverageMode SelectedVelocityAverageMode
     {
         get => context.SelectedVelocityAverageMode;
-        set => context.SelectedVelocityAverageMode = value;
+        set => actions.SetVelocityAverageMode(value);
     }
 
     public SessionInsightsTargetProfile SelectedSessionInsightsTargetProfile
     {
         get => context.SelectedSessionInsightsTargetProfile;
-        set => context.SelectedSessionInsightsTargetProfile = value;
+        set => actions.SetSessionInsightsTargetProfile(value);
     }
 
     public RecordedSessionExtensionSlots ExtensionSlots => context.ExtensionSlots;

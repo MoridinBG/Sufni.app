@@ -11,11 +11,16 @@ namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 internal sealed class SessionShellMobileWorkspaceViewModel : ObservableObject, ISessionShellMobileWorkspace
 {
     private readonly RecordedSessionContext context;
+    private readonly RecordedSessionEditorActions actions;
 
-    public SessionShellMobileWorkspaceViewModel(TabPageViewModelBase editor, RecordedSessionContext context)
+    public SessionShellMobileWorkspaceViewModel(
+        TabPageViewModelBase editor,
+        RecordedSessionContext context,
+        RecordedSessionEditorActions actions)
     {
         Editor = editor;
         this.context = context;
+        this.actions = actions;
         context.PropertyChanged += OnContextPropertyChanged;
     }
 
@@ -26,7 +31,7 @@ internal sealed class SessionShellMobileWorkspaceViewModel : ObservableObject, I
     public int SelectedPageIndex
     {
         get => context.SelectedPageIndex;
-        set => context.SelectedPageIndex = value;
+        set => actions.SelectPageIndex(value);
     }
 
     public PageViewModelBase? SelectedPage => context.SelectedPage;

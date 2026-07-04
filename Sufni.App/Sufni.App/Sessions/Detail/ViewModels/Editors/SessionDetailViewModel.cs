@@ -93,6 +93,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache;
     private readonly IRecordedSessionAnalysisResultState analysisResultState;
     private readonly IDisposable analysisResultSubscription;
+    private readonly RecordedSessionEditorActions editorActions = new();
+    private readonly IDisposable editorActionsSubscription;
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
     private readonly Func<IEditorFactory> editorFactory;
     private readonly ILayoutProfileTransitionState layoutProfileTransitionState;
@@ -1278,6 +1280,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         analysisResultState.Invalidate(analysisInputs);
         analysisRequestScheduler = new AnalysisRequestScheduler(this, analysisInputs);
         analysisResultSubscription = analysisResultState.Connect().Subscribe(OnAnalysisResultChanged);
+        editorActionsSubscription = editorActions.Intents.Subscribe(ApplyRecordedSessionEditorIntent);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
@@ -1318,14 +1321,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
         SessionContext.SessionSnapshot = snapshot;
-        MobileWorkspace = new SessionShellMobileWorkspaceViewModel(this, SessionContext);
+        MobileWorkspace = new SessionShellMobileWorkspaceViewModel(this, SessionContext, editorActions);
         SignalsWorkspace = new RecordedSessionSignalsWorkspaceViewModel(
             SessionContext,
-            this);
+            editorActions);
         MediaWorkspace = new SessionMediaWorkspaceViewModel(SessionContext);
         AnalysisWorkspace = new SessionAnalysisWorkspaceViewModel(
             SessionContext,
             this,
+            editorActions,
             SelectAnalysisRangeCommand,
             analysisResultState);
         SidebarWorkspace = new SessionSidebarWorkspaceViewModel(
@@ -1759,6 +1763,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         await StopLoadedSessionAsync();
         extensionPagesController?.Dispose();
+        editorActionsSubscription.Dispose();
+        editorActions.Dispose();
         analysisResultSubscription.Dispose();
         analysisResultState.Dispose();
         MapViewModel?.Dispose();
@@ -1795,6 +1801,66 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         signalRowActions.RefreshAnalysisSelectionActionStates();
+    }
+
+    private void ApplyRecordedSessionEditorIntent(RecordedSessionEditorIntent intent)
+    {
+        switch (intent)
+        {
+            case RecordedSessionEditorIntent.SelectPageIndex select:
+                SessionContext.SelectedPageIndex = select.PageIndex;
+                break;
+            case RecordedSessionEditorIntent.SetAnalysisRange set:
+                if (set.Range is { } range)
+                {
+                    SetAnalysisRange(range.StartSeconds, range.EndSeconds);
+                }
+                else
+                {
+                    ClearAnalysisRange();
+                }
+
+                break;
+            case RecordedSessionEditorIntent.SetAnalysisRangeBoundary set:
+                SetAnalysisRangeBoundary(set.Seconds);
+                break;
+            case RecordedSessionEditorIntent.ClearAnalysisRange:
+                ClearAnalysisRange();
+                break;
+            case RecordedSessionEditorIntent.SelectAnalysisRange select:
+                SelectAnalysisRange(select.Selection);
+                break;
+            case RecordedSessionEditorIntent.ClearAnalysisSelection:
+                SelectAnalysisRange(null);
+                break;
+            case RecordedSessionEditorIntent.SetTravelDistributionMode set:
+                SessionContext.SelectedTravelDistributionMode = set.Mode;
+                break;
+            case RecordedSessionEditorIntent.SetBalanceDisplacementMode set:
+                SessionContext.SelectedBalanceDisplacementMode = set.Mode;
+                break;
+            case RecordedSessionEditorIntent.SetBalanceSpeedMode set:
+                SessionContext.SelectedBalanceSpeedMode = set.Mode;
+                break;
+            case RecordedSessionEditorIntent.SetVelocityAverageMode set:
+                SessionContext.SelectedVelocityAverageMode = set.Mode;
+                break;
+            case RecordedSessionEditorIntent.SetSessionInsightsTargetProfile set:
+                SessionContext.SelectedSessionInsightsTargetProfile = set.Profile;
+                break;
+            case RecordedSessionEditorIntent.SetDampingSpeedCutoffs set:
+                SessionContext.DampingSpeedCutoffs = set.Cutoffs;
+                break;
+            case RecordedSessionEditorIntent.SetSignalDisplayPreferences set:
+                SignalDisplayPreferences = set.Preferences;
+                break;
+            case RecordedSessionEditorIntent.SetSignalLayoutPreferences set:
+                SignalLayoutPreferences = set.Preferences;
+                break;
+            case RecordedSessionEditorIntent.SetLayoutPreferences set:
+                LayoutPreferences = set.Preferences;
+                break;
+        }
     }
 
     public void SetAnalysisRange(double startSeconds, double endSeconds)

@@ -27,8 +27,9 @@ public class SessionWorkspaceViewModelTests
     public void RecordedSessionSignalsWorkspace_ForwardsActionsAndContextChanges()
     {
         var context = new RecordedSessionContext();
-        var gateway = new TestSessionOperationGateway();
-        var workspace = new RecordedSessionSignalsWorkspaceViewModel(context, gateway);
+        using var actions = new RecordedSessionEditorActions();
+        var intents = Subscribe(actions);
+        var workspace = new RecordedSessionSignalsWorkspaceViewModel(context, actions);
         var changes = TrackPropertyChanges(workspace);
 
         workspace.SignalLayoutPreferences = context.SignalLayoutPreferences;
@@ -37,18 +38,21 @@ public class SessionWorkspaceViewModelTests
         workspace.SetAnalysisRangeBoundary(2.25);
         context.TravelSignalState = SurfacePresentationState.Ready;
 
-        Assert.Equal(context.SignalLayoutPreferences, Assert.Single(gateway.SignalLayoutPreferences));
-        Assert.Equal((1.25, 3.5), Assert.Single(gateway.AnalysisRanges));
-        Assert.Equal(1, gateway.AnalysisRangeClearCount);
-        Assert.Equal(2.25, Assert.Single(gateway.AnalysisRangeBoundaries));
+        Assert.Collection(
+            intents,
+            intent => Assert.Equal(context.SignalLayoutPreferences, Assert.IsType<RecordedSessionEditorIntent.SetSignalLayoutPreferences>(intent).Preferences),
+            intent => Assert.Equal(new TelemetryTimeRange(1.25, 3.5), Assert.IsType<RecordedSessionEditorIntent.SetAnalysisRange>(intent).Range),
+            intent => Assert.IsType<RecordedSessionEditorIntent.ClearAnalysisRange>(intent),
+            intent => Assert.Equal(2.25, Assert.IsType<RecordedSessionEditorIntent.SetAnalysisRangeBoundary>(intent).Seconds));
         Assert.Equal(SurfacePresentationState.Ready, workspace.TravelSignalState);
         Assert.Contains(nameof(RecordedSessionSignalsWorkspaceViewModel.TravelSignalState), changes);
     }
 
     [Fact]
-    public void SessionAnalysisWorkspace_ModeSetters_WriteTheContext()
+    public void SessionAnalysisWorkspace_ModeSetters_EmitActions()
     {
-        var (context, _, workspace) = CreateAnalysisWorkspace();
+        var (_, _, actions, workspace) = CreateAnalysisWorkspace();
+        var intents = Subscribe(actions);
 
         workspace.SelectedTravelDistributionMode = TravelDistributionMode.DynamicSag;
         workspace.SelectedBalanceDisplacementMode = BalanceDisplacementMode.Speed;
@@ -56,17 +60,19 @@ public class SessionWorkspaceViewModelTests
         workspace.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
         workspace.SelectedSessionInsightsTargetProfile = SessionInsightsTargetProfile.Enduro;
 
-        Assert.Equal(TravelDistributionMode.DynamicSag, context.SelectedTravelDistributionMode);
-        Assert.Equal(BalanceDisplacementMode.Speed, context.SelectedBalanceDisplacementMode);
-        Assert.Equal(BalanceSpeedMode.HighSpeed, context.SelectedBalanceSpeedMode);
-        Assert.Equal(VelocityAverageMode.StrokePeakAveraged, context.SelectedVelocityAverageMode);
-        Assert.Equal(SessionInsightsTargetProfile.Enduro, context.SelectedSessionInsightsTargetProfile);
+        Assert.Collection(
+            intents,
+            intent => Assert.Equal(TravelDistributionMode.DynamicSag, Assert.IsType<RecordedSessionEditorIntent.SetTravelDistributionMode>(intent).Mode),
+            intent => Assert.Equal(BalanceDisplacementMode.Speed, Assert.IsType<RecordedSessionEditorIntent.SetBalanceDisplacementMode>(intent).Mode),
+            intent => Assert.Equal(BalanceSpeedMode.HighSpeed, Assert.IsType<RecordedSessionEditorIntent.SetBalanceSpeedMode>(intent).Mode),
+            intent => Assert.Equal(VelocityAverageMode.StrokePeakAveraged, Assert.IsType<RecordedSessionEditorIntent.SetVelocityAverageMode>(intent).Mode),
+            intent => Assert.Equal(SessionInsightsTargetProfile.Enduro, Assert.IsType<RecordedSessionEditorIntent.SetSessionInsightsTargetProfile>(intent).Profile));
     }
 
     [Fact]
     public async Task SessionAnalysisWorkspace_DampingCallbacks_RouteThroughTheGateway()
     {
-        var (_, gateway, workspace) = CreateAnalysisWorkspace();
+        var (_, gateway, _, workspace) = CreateAnalysisWorkspace();
 
         workspace.PreviewDampingSpeedCutoff(SuspensionType.Front, DampingSpeedCircuit.Compression, 123);
         workspace.CancelDampingSpeedCutoffPreview();
@@ -80,7 +86,7 @@ public class SessionWorkspaceViewModelTests
     [Fact]
     public void SessionAnalysisWorkspace_AnalysisTexts_TrackContextChanges()
     {
-        var (context, _, workspace) = CreateAnalysisWorkspace();
+        var (context, _, _, workspace) = CreateAnalysisWorkspace();
         var changes = TrackPropertyChanges(workspace);
 
         context.AnalysisRange = new TelemetryTimeRange(1, 3);
@@ -151,16 +157,18 @@ public class SessionWorkspaceViewModelTests
         Assert.Contains(nameof(RecordedSessionContext.SelectedPageDisplayName), changes);
     }
 
-    private static (RecordedSessionContext Context, TestSessionOperationGateway Gateway, SessionAnalysisWorkspaceViewModel Workspace) CreateAnalysisWorkspace()
+    private static (RecordedSessionContext Context, TestSessionOperationGateway Gateway, RecordedSessionEditorActions Actions, SessionAnalysisWorkspaceViewModel Workspace) CreateAnalysisWorkspace()
     {
         var context = new RecordedSessionContext();
         var gateway = new TestSessionOperationGateway();
+        var actions = new RecordedSessionEditorActions();
         var workspace = new SessionAnalysisWorkspaceViewModel(
             context,
             gateway,
+            actions,
             new RelayCommand<TelemetryRangeSelection?>(_ => { }),
             Substitute.For<IRecordedSessionAnalysisResultState>());
-        return (context, gateway, workspace);
+        return (context, gateway, actions, workspace);
     }
 
     [Fact]
@@ -194,9 +202,12 @@ public class SessionWorkspaceViewModelTests
     public void SessionShellMobileWorkspace_ForwardsPresentationStateChanges()
     {
         var context = new RecordedSessionContext();
+        using var actions = new RecordedSessionEditorActions();
+        var intents = Subscribe(actions);
         var workspace = new SessionShellMobileWorkspaceViewModel(
             new TestTabPageViewModel(new InlineUiThreadDispatcher()),
-            context);
+            context,
+            actions);
         var changes = TrackPropertyChanges(workspace);
 
         context.ScreenState = SessionScreenPresentationState.Loading("Loading session.");
@@ -220,7 +231,8 @@ public class SessionWorkspaceViewModelTests
 
         workspace.SelectedPageIndex = 0;
 
-        Assert.Equal(0, context.SelectedPageIndex);
+        var intent = Assert.IsType<RecordedSessionEditorIntent.SelectPageIndex>(Assert.Single(intents));
+        Assert.Equal(0, intent.PageIndex);
     }
 
     [Fact]
@@ -279,7 +291,8 @@ public class SessionWorkspaceViewModelTests
     public void SignalsWorkspace_DoesNotRebroadcastUndeclaredContextProperties()
     {
         var context = new RecordedSessionContext();
-        var workspace = new RecordedSessionSignalsWorkspaceViewModel(context, new TestSessionOperationGateway());
+        using var actions = new RecordedSessionEditorActions();
+        var workspace = new RecordedSessionSignalsWorkspaceViewModel(context, actions);
         var changes = TrackPropertyChanges(workspace);
 
         context.ScreenState = SessionScreenPresentationState.Loading("Loading session.");
@@ -310,6 +323,13 @@ public class SessionWorkspaceViewModelTests
             }
         };
         return changes;
+    }
+
+    private static List<RecordedSessionEditorIntent> Subscribe(RecordedSessionEditorActions actions)
+    {
+        var intents = new List<RecordedSessionEditorIntent>();
+        actions.Intents.Subscribe(intents.Add);
+        return intents;
     }
 
     private sealed class TestOwner : ObservableObject

@@ -17,14 +17,14 @@ namespace Sufni.App.Sessions.Signals.ViewModels.Editors;
 internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObject, IRecordedSessionSignalsWorkspace
 {
     private readonly RecordedSessionContext context;
-    private readonly ISessionOperationGateway gateway;
+    private readonly RecordedSessionEditorActions actions;
 
     public RecordedSessionSignalsWorkspaceViewModel(
         RecordedSessionContext context,
-        ISessionOperationGateway gateway)
+        RecordedSessionEditorActions actions)
     {
         this.context = context;
-        this.gateway = gateway;
+        this.actions = actions;
         context.PropertyChanged += OnContextPropertyChanged;
     }
 
@@ -53,7 +53,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
     public SignalLayoutPreferences SignalLayoutPreferences
     {
         get => context.SignalLayoutPreferences;
-        set => gateway.SetSignalLayoutPreferences(value);
+        set => actions.SetSignalLayoutPreferences(value);
     }
 
     public TelemetrySourceVisibilityStore SourceVisibility => context.SourceVisibility;
@@ -108,17 +108,20 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
 
     public void SetAnalysisRange(double startSeconds, double endSeconds)
     {
-        gateway.SetAnalysisRange(startSeconds, endSeconds);
+        if (TelemetryTimeRange.TryCreate(startSeconds, endSeconds, out var range))
+        {
+            actions.SetAnalysisRange(range);
+        }
     }
 
     public void ClearAnalysisRange()
     {
-        gateway.ClearAnalysisRange();
+        actions.ClearAnalysisRange();
     }
 
     public void SetAnalysisRangeBoundary(double boundarySeconds)
     {
-        gateway.SetAnalysisRangeBoundary(boundarySeconds);
+        actions.SetAnalysisRangeBoundary(boundarySeconds);
     }
 
     internal static readonly HashSet<string> ForwardedProperties =
