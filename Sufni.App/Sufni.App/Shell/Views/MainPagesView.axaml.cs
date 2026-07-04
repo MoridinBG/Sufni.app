@@ -6,5 +6,6 @@ public partial class MainPagesView : MainPagesViewBase
     {
         InitializeComponent();
         RegisterDrawerMenuAutoClose(MenuPanel, MainDrawerPage);
+        RegisterPrimaryPageSelection(PagesTabbedPage);
     }
 }

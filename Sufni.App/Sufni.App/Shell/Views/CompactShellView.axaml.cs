@@ -8,5 +8,6 @@ public partial class CompactShellView : MainPagesViewBase
     {
         InitializeComponent();
         RegisterDrawerMenuAutoClose(MenuPanel, MainDrawerPage);
+        RegisterPrimaryPageSelection(PagesTabbedPage);
     }
 }

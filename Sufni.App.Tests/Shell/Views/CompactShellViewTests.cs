@@ -73,6 +73,31 @@ public class CompactShellViewTests
     }
 
     [AvaloniaFact]
+    public async Task CompactShellView_SelectedPrimaryIndex_UpdatesTabbedPageSelection()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
+
+        var root = CreateRoot();
+        var view = new CompactShellView
+        {
+            DataContext = root,
+        };
+
+        await using var mounted = await MountAsync(view);
+
+        var tabbedPage = mounted.View.FindControl<TabbedPage>("PagesTabbedPage");
+
+        Assert.NotNull(tabbedPage);
+        Assert.Equal(0, tabbedPage!.SelectedIndex);
+
+        root.Pages.SelectedPrimaryIndex = 2;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(2, tabbedPage.SelectedIndex);
+    }
+
+    [AvaloniaFact]
     public async Task CompactShellView_BindsMainPagesAndPrimaryPageContent()
     {
         ViewTestHelpers.EnsureViewTestResources();

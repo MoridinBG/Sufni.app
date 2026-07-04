@@ -57,7 +57,6 @@ mc:Ignorable="d">
             <TabbedPage
             Name="PagesTabbedPage"
             Background="{DynamicResource SufniBackgroundDisabled}"
-            SelectedIndex="{Binding Pages.SelectedPrimaryIndex, Mode=TwoWay}"
             TabPlacement="Bottom">
                 <TabbedPage.Pages>
                     <ContentPage
