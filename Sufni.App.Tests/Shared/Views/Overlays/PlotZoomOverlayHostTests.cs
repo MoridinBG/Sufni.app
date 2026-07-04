@@ -49,7 +49,7 @@ public class PlotZoomOverlayHostTests
     [AvaloniaFact]
     public async Task EscapeKey_ClosesOverlay()
     {
-        TestApp.SetIsDesktop(true);
+        using var environment = TestApp.UsePointerInput();
         await using var mounted = await MountAsync();
         await OpenAsync(mounted.Container);
         var args = new KeyEventArgs
@@ -68,6 +68,26 @@ public class PlotZoomOverlayHostTests
     }
 
     [AvaloniaFact]
+    public async Task EscapeKey_Ignored_WhenInputHasNoKeyboard()
+    {
+        using var environment = TestApp.UseTouchInput();
+        await using var mounted = await MountAsync();
+        await OpenAsync(mounted.Container);
+        var args = new KeyEventArgs
+        {
+            RoutedEvent = InputElement.KeyDownEvent,
+            Source = mounted.Host,
+            Key = Key.Escape,
+        };
+
+        mounted.Host.RaiseEvent(args);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.False(args.Handled);
+        Assert.True(mounted.Overlay.IsZoomOpen);
+    }
+
+    [AvaloniaFact]
     public async Task ContainerDetachedWhileZoomed_ClosesImmediatelyAndReturnsChild()
     {
         await using var mounted = await MountAsync();
@@ -83,27 +103,20 @@ public class PlotZoomOverlayHostTests
     }
 
     [AvaloniaFact]
-    public async Task Open_AppliesRotation_WhenMobileAndPortrait()
+    public async Task Open_AppliesRotation_WhenCompactAndPortrait()
     {
-        TestApp.SetIsDesktop(false);
-        try
-        {
-            await using var mounted = await MountAsync(width: 320, height: 640);
+        using var environment = TestApp.UseTouchInput();
+        await using var mounted = await MountAsync(width: 320, height: 640);
 
-            await OpenAsync(mounted.Container);
+        await OpenAsync(mounted.Container);
 
-            Assert.IsType<RotateTransform>(GetRotationHost(mounted.Overlay).LayoutTransform);
-        }
-        finally
-        {
-            TestApp.SetIsDesktop(true);
-        }
+        Assert.IsType<RotateTransform>(GetRotationHost(mounted.Overlay).LayoutTransform);
     }
 
     [AvaloniaFact]
-    public async Task Open_NeverRotates_WhenDesktop()
+    public async Task Open_NeverRotates_WhenWorkspace()
     {
-        TestApp.SetIsDesktop(true);
+        using var environment = TestApp.UsePointerInput();
         await using var mounted = await MountAsync(width: 320, height: 640);
 
         await OpenAsync(mounted.Container);
