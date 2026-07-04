@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Reflection;
+using System.Reactive.Subjects;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NSubstitute;
@@ -9,6 +10,7 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
+using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Analysis.ViewModels.Editors;
@@ -203,10 +205,12 @@ public class SessionWorkspaceViewModelTests
     {
         var context = new RecordedSessionContext();
         using var actions = new RecordedSessionEditorActions();
+        using var state = new Subject<RecordedSessionEditorState>();
         var intents = Subscribe(actions);
         var workspace = new SessionShellMobileWorkspaceViewModel(
             new TestTabPageViewModel(new InlineUiThreadDispatcher()),
-            context,
+            context.Pages,
+            state,
             actions);
         var changes = TrackPropertyChanges(workspace);
 
@@ -215,6 +219,7 @@ public class SessionWorkspaceViewModelTests
         context.Pages.Add(new PageViewModelBase("Signals"));
         context.Pages.Add(new PageViewModelBase("Damping"));
         context.SelectedPageIndex = 1;
+        state.OnNext(RecordedSessionEditorStateSnapshot.From(context, SessionPreferences.Default));
 
         Assert.Equal(context.ScreenState, workspace.ScreenState);
         Assert.Equal(context.SessionOperationState, workspace.SessionOperationState);

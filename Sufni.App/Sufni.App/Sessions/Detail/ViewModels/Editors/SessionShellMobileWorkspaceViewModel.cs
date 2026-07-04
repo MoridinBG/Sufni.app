@@ -1,84 +1,83 @@
+using System;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
+using System.Collections.Specialized;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
-
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Shared.Base;
+
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
-internal sealed class SessionShellMobileWorkspaceViewModel : ObservableObject, ISessionShellMobileWorkspace
+internal sealed class SessionShellMobileWorkspaceViewModel : ObservableObject, ISessionShellMobileWorkspace, IDisposable
 {
-    private readonly RecordedSessionContext context;
     private readonly RecordedSessionEditorActions actions;
+    private readonly IDisposable stateSubscription;
+    private int selectedPageIndex;
+    private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
+    private SessionOperationPresentationState sessionOperationState = SessionOperationPresentationState.Hidden;
 
     public SessionShellMobileWorkspaceViewModel(
         TabPageViewModelBase editor,
-        RecordedSessionContext context,
+        ObservableCollection<PageViewModelBase> pages,
+        IObservable<RecordedSessionEditorState> state,
         RecordedSessionEditorActions actions)
     {
+        ArgumentNullException.ThrowIfNull(pages);
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(actions);
+
         Editor = editor;
-        this.context = context;
+        Pages = pages;
         this.actions = actions;
-        context.PropertyChanged += OnContextPropertyChanged;
+        Pages.CollectionChanged += OnPagesChanged;
+        stateSubscription = state.Subscribe(ApplyState);
     }
 
     public TabPageViewModelBase Editor { get; }
 
-    public ObservableCollection<PageViewModelBase> Pages => context.Pages;
+    public ObservableCollection<PageViewModelBase> Pages { get; }
 
     public int SelectedPageIndex
     {
-        get => context.SelectedPageIndex;
+        get => selectedPageIndex;
         set => actions.SelectPageIndex(value);
     }
 
-    public PageViewModelBase? SelectedPage => context.SelectedPage;
+    public PageViewModelBase? SelectedPage => Pages.Count == 0
+        ? null
+        : Pages[Math.Clamp(SelectedPageIndex, 0, Pages.Count - 1)];
 
-    public int PageCount => context.PageCount;
+    public int PageCount => Pages.Count;
 
-    public string SelectedPageDisplayName => context.SelectedPageDisplayName;
+    public string SelectedPageDisplayName => SelectedPage?.DisplayName ?? string.Empty;
 
-    public SessionScreenPresentationState ScreenState => context.ScreenState;
+    public SessionScreenPresentationState ScreenState => screenState;
 
-    public SessionOperationPresentationState SessionOperationState => context.SessionOperationState;
+    public SessionOperationPresentationState SessionOperationState => sessionOperationState;
 
-    private void OnContextPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    public void Dispose()
     {
-        if (args.PropertyName is nameof(RecordedSessionContext.ScreenState))
-        {
-            OnPropertyChanged(nameof(ScreenState));
-            return;
-        }
+        Pages.CollectionChanged -= OnPagesChanged;
+        stateSubscription.Dispose();
+    }
 
-        if (args.PropertyName is nameof(RecordedSessionContext.SessionOperationState))
-        {
-            OnPropertyChanged(nameof(SessionOperationState));
-            return;
-        }
-
-        if (args.PropertyName is nameof(RecordedSessionContext.SelectedPageIndex))
-        {
-            OnPropertyChanged(nameof(SelectedPageIndex));
-            return;
-        }
-
-        if (args.PropertyName is nameof(RecordedSessionContext.SelectedPage))
+    private void ApplyState(RecordedSessionEditorState state)
+    {
+        if (SetProperty(ref selectedPageIndex, state.Intent.SelectedPageIndex, nameof(SelectedPageIndex)))
         {
             OnPropertyChanged(nameof(SelectedPage));
-            return;
-        }
-
-        if (args.PropertyName is nameof(RecordedSessionContext.PageCount))
-        {
-            OnPropertyChanged(nameof(PageCount));
-            return;
-        }
-
-        if (args.PropertyName is nameof(RecordedSessionContext.SelectedPageDisplayName))
-        {
             OnPropertyChanged(nameof(SelectedPageDisplayName));
         }
+
+        SetProperty(ref screenState, state.Presentation.ScreenState, nameof(ScreenState));
+        SetProperty(ref sessionOperationState, state.Presentation.OperationState, nameof(SessionOperationState));
+    }
+
+    private void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
+    {
+        OnPropertyChanged(nameof(SelectedPage));
+        OnPropertyChanged(nameof(PageCount));
+        OnPropertyChanged(nameof(SelectedPageDisplayName));
     }
 }

@@ -91,4 +91,4 @@ internal sealed record RecordedAnalysisPresentationState(
 internal sealed record AnalysisSelectionState(
     TelemetryRangeSelection? ActiveFront,
     TelemetryRangeSelection? ActiveRear,
-    IReadOnlyList<TelemetryTimeRange> HighlightRanges);
+    IReadOnlyList<TelemetryHighlightRange> HighlightRanges);

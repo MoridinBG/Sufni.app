@@ -18,6 +18,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using System.Threading;
 using System;
@@ -95,6 +96,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IDisposable analysisResultSubscription;
     private readonly RecordedSessionEditorActions editorActions = new();
     private readonly IDisposable editorActionsSubscription;
+    private readonly Subject<RecordedSessionEditorState> editorStateInput = new();
+    private readonly RecordedSessionEditorStateController editorStateController;
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
     private readonly Func<IEditorFactory> editorFactory;
     private readonly ILayoutProfileTransitionState layoutProfileTransitionState;
@@ -1281,6 +1284,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         analysisRequestScheduler = new AnalysisRequestScheduler(this, analysisInputs);
         analysisResultSubscription = analysisResultState.Connect().Subscribe(OnAnalysisResultChanged);
         editorActionsSubscription = editorActions.Intents.Subscribe(ApplyRecordedSessionEditorIntent);
+        editorStateController = new RecordedSessionEditorStateController(editorStateInput);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
@@ -1321,7 +1325,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
         SessionContext.SessionSnapshot = snapshot;
-        MobileWorkspace = new SessionShellMobileWorkspaceViewModel(this, SessionContext, editorActions);
+        MobileWorkspace = new SessionShellMobileWorkspaceViewModel(
+            this,
+            Pages,
+            editorStateController.State,
+            editorActions);
         SignalsWorkspace = new RecordedSessionSignalsWorkspaceViewModel(
             SessionContext,
             editorActions);
@@ -1419,6 +1427,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         PreferencesPage.ProcessingPreferenceChangeCommitted += OnProcessingPreferenceChangeCommitted;
 
         ResetImplementation();
+        PublishEditorState();
     }
 
     #endregion
@@ -1577,6 +1586,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 UpdateRecordedSessionExtensionHostState();
                 break;
         }
+
+        PublishEditorState();
+    }
+
+    private void PublishEditorState()
+    {
+        editorStateInput.OnNext(RecordedSessionEditorStateSnapshot.From(
+            SessionContext,
+            recordedPreferenceStore.Current));
     }
 
     private void EvaluateDirtinessFromPageChange()
@@ -1763,8 +1781,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         await StopLoadedSessionAsync();
         extensionPagesController?.Dispose();
-        editorActionsSubscription.Dispose();
-        editorActions.Dispose();
         analysisResultSubscription.Dispose();
         analysisResultState.Dispose();
         MapViewModel?.Dispose();
