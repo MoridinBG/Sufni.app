@@ -412,7 +412,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                 if (suppressLegendTogglePointerRelease)
                 {
                     suppressLegendTogglePointerRelease = false;
-                    SchedulePlotClickEffectsIfNeeded(args, stopPlayback);
+                    SchedulePlotClickEffectsIfNeeded(args, stopPlayback, clearSelection: false);
                     args.Handled = true;
                     return;
                 }
@@ -423,12 +423,13 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                     CompleteSelection(selectionEndSeconds);
                     UpdateTimelineRange();
                     args.Pointer.Capture(null);
-                    SchedulePlotClickEffectsIfNeeded(args, stopPlayback);
+                    SchedulePlotClickEffectsIfNeeded(args, stopPlayback, clearSelection: false);
                     args.Handled = true;
                     return;
                 }
 
-                SchedulePlotClickEffectsIfNeeded(args, stopPlayback);
+                var clearSelection = isPlotClickCandidate && !HasExceededClickMovement(args);
+                SchedulePlotClickEffectsIfNeeded(args, stopPlayback, clearSelection);
                 CancelTouchContextMenuLongPress();
                 isPlotClickCandidate = false;
                 UpdateTimelineRange();
@@ -650,15 +651,16 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         pendingPlotClickEffects = null;
     }
 
-    private void SchedulePlotClickEffectsIfNeeded(PointerEventArgs args, bool stopPlayback)
+    private void SchedulePlotClickEffectsIfNeeded(PointerEventArgs args, bool stopPlayback, bool clearSelection)
     {
-        if (!stopPlayback)
+        if (!stopPlayback && !clearSelection)
         {
             return;
         }
 
         CancelPendingPlotClickEffects();
         var timeline = Timeline;
+        var signalsWorkspace = SignalsWorkspace;
         var deferredCursorSeconds = default(double?);
         var deferredCursorPosition = default(double?);
         if (stopPlayback
@@ -687,6 +689,11 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                         plot?.SetCursorPositionWithReadout(cursorSeconds);
                         RefreshPlot();
                     }
+                }
+
+                if (clearSelection)
+                {
+                    signalsWorkspace?.ClearAnalysisRange();
                 }
             });
     }

@@ -135,6 +135,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IRelayCommand<TelemetryPlotContextMenuContext?> clearAnalysisRangeFromContextCommand;
     private readonly IRelayCommand<TelemetryPlotContextMenuContext?> markGpsEventCommand;
     private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markGpsTelemetryEventCommand;
+    private readonly IRelayCommand<TelemetryPlotContextMenuContext?> cancelGpsTimelineAlignmentCommand;
     private readonly DampingCutoffWorkflow dampingCutoffWorkflow;
     private readonly bool deferDomainHandlingWhenInactive;
     private IDisposable? processedTelemetryRetention;
@@ -480,7 +481,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         IRelayCommand<TelemetryPlotContextMenuContext?> setAnalysisRangeEndCommand,
         IRelayCommand<TelemetryPlotContextMenuContext?> clearAnalysisRangeCommand,
         IRelayCommand<TelemetryPlotContextMenuContext?> markGpsEventCommand,
-        IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markGpsTelemetryEventCommand)
+        IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markGpsTelemetryEventCommand,
+        IRelayCommand<TelemetryPlotContextMenuContext?> cancelGpsTimelineAlignmentCommand)
     {
         var setAnalysisRangeStart = new TelemetryPlotContextMenuAction(
             "analysis-range-set-start",
@@ -502,6 +504,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             "gps-mark-telemetry-event",
             "Mark telemetry event here",
             markGpsTelemetryEventCommand);
+        var cancelGpsTimelineAlignment = new TelemetryPlotContextMenuAction(
+            "gps-cancel-alignment",
+            "Cancel GPS alignment",
+            cancelGpsTimelineAlignmentCommand);
 
         return CreateSignalPlotContextMenuActionsBySignalRowId(
             baseActions,
@@ -509,7 +515,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             setAnalysisRangeEnd,
             clearAnalysisRange,
             markGpsEvent,
-            markGpsTelemetryEvent);
+            markGpsTelemetryEvent,
+            cancelGpsTimelineAlignment);
     }
 
     private static IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> CreateSignalPlotContextMenuActionsBySignalRowId(
@@ -518,16 +525,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         TelemetryPlotContextMenuAction setAnalysisRangeEnd,
         TelemetryPlotContextMenuAction clearAnalysisRange,
         TelemetryPlotContextMenuAction markGpsEvent,
-        TelemetryPlotContextMenuAction markGpsTelemetryEvent)
+        TelemetryPlotContextMenuAction markGpsTelemetryEvent,
+        TelemetryPlotContextMenuAction cancelGpsTimelineAlignment)
     {
         return new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>
         {
-            [SignalRowIds.Travel] = AppendContextMenuActions(baseActions, SignalRowIds.Travel, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent),
-            [SignalRowIds.Velocity] = AppendContextMenuActions(baseActions, SignalRowIds.Velocity, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent),
-            [SignalRowIds.Imu] = AppendContextMenuActions(baseActions, SignalRowIds.Imu, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent),
-            [SignalRowIds.PitchRoll] = AppendContextMenuActions(baseActions, SignalRowIds.PitchRoll, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent),
-            [SignalRowIds.Speed] = AppendContextMenuActions(baseActions, SignalRowIds.Speed, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent),
-            [SignalRowIds.Elevation] = AppendContextMenuActions(baseActions, SignalRowIds.Elevation, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent),
+            [SignalRowIds.Travel] = AppendContextMenuActions(baseActions, SignalRowIds.Travel, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent, cancelGpsTimelineAlignment),
+            [SignalRowIds.Velocity] = AppendContextMenuActions(baseActions, SignalRowIds.Velocity, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent, cancelGpsTimelineAlignment),
+            [SignalRowIds.Imu] = AppendContextMenuActions(baseActions, SignalRowIds.Imu, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent, cancelGpsTimelineAlignment),
+            [SignalRowIds.PitchRoll] = AppendContextMenuActions(baseActions, SignalRowIds.PitchRoll, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent, cancelGpsTimelineAlignment),
+            [SignalRowIds.Speed] = AppendContextMenuActions(baseActions, SignalRowIds.Speed, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent, cancelGpsTimelineAlignment),
+            [SignalRowIds.Elevation] = AppendContextMenuActions(baseActions, SignalRowIds.Elevation, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent, cancelGpsTimelineAlignment),
         };
     }
 
@@ -826,6 +834,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         markGpsEventCommand.NotifyCanExecuteChanged();
         markGpsTelemetryEventCommand.NotifyCanExecuteChanged();
+        cancelGpsTimelineAlignmentCommand.NotifyCanExecuteChanged();
     }
 
     private static bool IsTelemetryPlotContext(TelemetryPlotContextMenuContext? context)
@@ -937,6 +946,24 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         // One-way: on success the store upsert drives the refreshed track and
         // baseline through the session-detail watch reaction, like recompute.
+    }
+
+    private bool CanCancelGpsTimelineAlignmentFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        return IsPendingTimelineAlignment(RecordedSessionTimelineAlignmentTarget.GpsTrack, subjectId: null) &&
+               IsTelemetryPlotContext(context);
+    }
+
+    private void CancelGpsTimelineAlignmentFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        if (!CanCancelGpsTimelineAlignmentFromPlotContext(context))
+        {
+            return;
+        }
+
+        _ = ((IRecordedSessionHostOperations)this).TryCancelTimelineAlignment(
+            RecordedSessionTimelineAlignmentTarget.GpsTrack,
+            subjectId: null);
     }
 
     private static double NormalizeGpsOffsetSeconds(double gpsOffsetSeconds) =>
@@ -1144,13 +1171,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         markGpsTelemetryEventCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
             MarkGpsTelemetryEventFromPlotContextAsync,
             CanMarkGpsTelemetryEventFromPlotContext);
+        cancelGpsTimelineAlignmentCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
+            CancelGpsTimelineAlignmentFromPlotContext,
+            CanCancelGpsTimelineAlignmentFromPlotContext);
         SignalPlotContextMenuActionsBySignalRowId = CreateSignalPlotContextMenuActionsBySignalRowId(
             signalAutozoomController.ActionsBySignalRowId,
             setAnalysisRangeStartCommand,
             setAnalysisRangeEndCommand,
             clearAnalysisRangeFromContextCommand,
             markGpsEventCommand,
-            markGpsTelemetryEventCommand);
+            markGpsTelemetryEventCommand,
+            cancelGpsTimelineAlignmentCommand);
         SessionContext.SignalPlotContextMenuActionsBySignalRowId = SignalPlotContextMenuActionsBySignalRowId;
         session = SessionFromSnapshot(snapshot);
         Id = snapshot.Id;
