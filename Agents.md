@@ -102,8 +102,8 @@ The layer roles are consistent across slices:
     `IEditorFactory` from snapshots or live-session contexts, never by
     another view model. Persisted-entity editors implement
     `IEditorActions` for the shared `CommonButtonLine`.
-  - The shell view models (`MainViewModel`, `MainWindowViewModel`,
-    `MainPagesViewModel`, `WelcomeScreenViewModel`) live in `Shell/ViewModels/`.
+  - The shell view models (`ShellRootViewModel`, `ShellWorkspaceViewModel`,
+    `MainPagesViewModel`) live in `Shell/ViewModels/`.
     The base classes `ViewModelBase`, `ItemListViewModelBase`, and
     `TabPageViewModelBase` live in `Shared/Base/` — look at them before adding
     new view models.
@@ -299,10 +299,9 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
 - **MVVM** with CommunityToolkit.Mvvm source generators
   (`[ObservableProperty]`, `[RelayCommand]`). Views are XAML with
   compiled bindings, view models contain no direct UI dependencies.
-- **Navigation** flows through `IShellCoordinator`
-  (`DesktopShellCoordinator` for tabs, `MobileShellCoordinator` for
-  the back stack). View models never poke at the shell view model
-  directly.
+- **Navigation** flows through `IShellCoordinator`, implemented by
+  `ShellWorkspaceCoordinator` for the shared compact/workspace tab stack.
+  View models never poke at the shell view model directly.
 - **Strategy pattern** for sensor calibrations: `ISensorConfiguration`
   with polymorphic JSON deserialization selected by a `Type`
   discriminator.
