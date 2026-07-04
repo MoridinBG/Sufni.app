@@ -88,7 +88,7 @@ Prefer the smallest view unit that owns the behavior.
 
 - Reusable subviews should usually get isolated tests with a lightweight data context.
 - Composed views should test their own bindings, structure, and content switching without re-testing child controls that already have their own coverage.
-- When desktop and mobile views differ in XAML, test both relevant variants only for observable differences. Do not duplicate common binding tests across both variants unless the binding path, command path, template, or lifecycle behavior actually differs.
+- When compact and workspace views differ in XAML, test both relevant variants only for observable differences. Do not duplicate common binding tests across both variants unless the binding path, command path, template, or lifecycle behavior actually differs.
 
 This keeps failures local and avoids duplicating the same assertions across layers.
 
@@ -203,14 +203,15 @@ Mounted view tests often need explicit dispatcher control.
 Do not assume a host-window close will always reproduce every lifecycle callback exactly as a live app would.
 If unloaded behavior is the contract under test, verify that the specific lifecycle path is actually exercised in headless mode before depending on it.
 
-## Platform Variants
+## Layout Profiles
 
-When a feature has separate desktop and mobile views, treat the XAML split as part of the public surface.
+When a feature has separate compact and workspace views, treat the XAML split as part of the public surface.
 
 - Cover both variants when the structure differs.
 - Assert the behavior that differs, not just that the files are different.
 - Prefer one or two focused tests per divergence: different shared subview usage, different button placement, different template content, or different content composition.
 - Do not duplicate common binding, text, or command assertions in both variants when the observable contract is the same.
+- Configure layout profile and capabilities explicitly in the test setup instead of relying on the platform lifetime flag.
 
 The value is in catching regressions where one variant drifts from the intended UI contract.
 
