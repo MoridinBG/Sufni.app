@@ -36,7 +36,6 @@ namespace Sufni.App.Shell.Views
             var useNativeNavigation = UsesNativeNavigation();
             RootNavigationPage.IsVisible = useNativeNavigation;
             WorkspaceRootHost.IsVisible = !useNativeNavigation;
-            WorkspaceRootHost.Content = useNativeNavigation ? null : DataContext;
 
             if (useNativeNavigation)
             {

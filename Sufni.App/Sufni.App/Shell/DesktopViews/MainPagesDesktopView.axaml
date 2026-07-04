@@ -236,11 +236,6 @@ mc:Ignorable="d">
                         Command="{Binding ChooseLayoutProfileCommand}"
                         CommandParameter="{x:Static infra:UiLayoutProfile.Workspace}"
                         Header="{Binding WorkspaceLayoutProfileMenuText}" />
-                        <Separator IsVisible="{Binding LayoutProfileRestartRequired}" />
-                        <MenuItem
-                        Header="{Binding LayoutProfileRestartMessage}"
-                        IsEnabled="False"
-                        IsVisible="{Binding LayoutProfileRestartRequired}" />
                     </MenuFlyout>
                 </Button.Flyout>
 

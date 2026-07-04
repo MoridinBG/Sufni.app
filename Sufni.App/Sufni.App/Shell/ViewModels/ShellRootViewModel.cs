@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Base;
@@ -7,6 +8,9 @@ namespace Sufni.App.Shell.ViewModels;
 public sealed class ShellRootViewModel : ViewModelBase
 {
     private readonly IPlotZoomState plotZoomState;
+    private readonly IAppEnvironment appEnvironment;
+    private UiLayoutProfile layoutProfile;
+    private ShellRootPresentation presentation;
 
     public ShellRootViewModel(
         MainPagesViewModel pages,
@@ -18,14 +22,34 @@ public sealed class ShellRootViewModel : ViewModelBase
     {
         Pages = pages;
         Workspace = workspace;
-        LayoutProfile = appEnvironment.LayoutProfile;
+        this.appEnvironment = appEnvironment;
+        layoutProfile = appEnvironment.LayoutProfile;
+        presentation = new ShellRootPresentation(this, layoutProfile);
         Capabilities = appEnvironment.Capabilities;
         this.plotZoomState = plotZoomState;
+        appEnvironment.PropertyChanged += OnAppEnvironmentPropertyChanged;
     }
 
     public MainPagesViewModel Pages { get; }
     public ShellWorkspaceViewModel Workspace { get; }
-    public UiLayoutProfile LayoutProfile { get; }
+    public UiLayoutProfile LayoutProfile
+    {
+        get => layoutProfile;
+        private set
+        {
+            if (SetProperty(ref layoutProfile, value))
+            {
+                Presentation = new ShellRootPresentation(this, value);
+            }
+        }
+    }
+
+    public ShellRootPresentation Presentation
+    {
+        get => presentation;
+        private set => SetProperty(ref presentation, value);
+    }
+
     public AppCapabilities Capabilities { get; }
 
     public bool HandleBackRequest()
@@ -53,4 +77,14 @@ public sealed class ShellRootViewModel : ViewModelBase
         Pages.IsDrawerOpen = false;
         return true;
     }
+
+    private void OnAppEnvironmentPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(IAppEnvironment.LayoutProfile))
+        {
+            LayoutProfile = appEnvironment.LayoutProfile;
+        }
+    }
 }
+
+public sealed record ShellRootPresentation(ShellRootViewModel Root, UiLayoutProfile LayoutProfile);

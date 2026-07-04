@@ -38,6 +38,7 @@ public partial class MainPagesViewModel : ViewModelBase
     private readonly IThemeService themeService;
     private readonly IAppEnvironment appEnvironment;
     private readonly IUiPreferences uiPreferences;
+    private readonly ShellWorkspaceViewModel workspace;
     private readonly IReadOnlyList<IExtensionStateRefreshParticipant> extensionStateRefreshParticipants;
     private MainPrimaryPageViewModel? activePrimaryPage;
 
@@ -57,7 +58,6 @@ public partial class MainPagesViewModel : ViewModelBase
     [ObservableProperty] public partial SufniThemeMode NextThemeMode { get; set; }
     [ObservableProperty] public partial bool IsSystemThemeAvailable { get; set; }
     [ObservableProperty] public partial UiLayoutProfile SelectedLayoutProfile { get; set; }
-    [ObservableProperty] public partial bool LayoutProfileRestartRequired { get; set; }
 
     #endregion
 
@@ -90,9 +90,6 @@ public partial class MainPagesViewModel : ViewModelBase
         ? UiLayoutProfile.Workspace
         : UiLayoutProfile.Compact;
     public string LayoutProfileActionMenuText => FormatLayoutProfile(TargetLayoutProfile).ToLowerInvariant();
-    public string LayoutProfileRestartMessage => LayoutProfileRestartRequired
-        ? "Restart required to apply layout profile."
-        : string.Empty;
 
     #region Constructors
 
@@ -102,6 +99,7 @@ public partial class MainPagesViewModel : ViewModelBase
         ITrackCoordinator trackCoordinator,
         ISyncCoordinator syncCoordinator,
         IShellCoordinator shell,
+        ShellWorkspaceViewModel workspace,
         IThemeService themeService,
         IAppEnvironment appEnvironment,
         IUiPreferences uiPreferences,
@@ -123,6 +121,7 @@ public partial class MainPagesViewModel : ViewModelBase
         this.trackCoordinator = trackCoordinator;
         this.syncCoordinator = syncCoordinator;
         this.shell = shell;
+        this.workspace = workspace;
         this.themeService = themeService;
         this.appEnvironment = appEnvironment;
         this.uiPreferences = uiPreferences;
@@ -190,6 +189,7 @@ public partial class MainPagesViewModel : ViewModelBase
         SyncThemeState();
         SelectedLayoutProfile = appEnvironment.LayoutProfile;
         SyncLayoutProfileState();
+        appEnvironment.PropertyChanged += OnAppEnvironmentPropertyChanged;
 
         _ = LoadDatabaseContent();
     }
@@ -406,9 +406,23 @@ public partial class MainPagesViewModel : ViewModelBase
     [RelayCommand]
     private async Task ChooseLayoutProfile(UiLayoutProfile profile)
     {
+        if (profile == appEnvironment.LayoutProfile)
+        {
+            SelectedLayoutProfile = profile;
+            SyncLayoutProfileState();
+            await uiPreferences.SetLayoutProfileAsync(profile);
+            return;
+        }
+
+        if (profile == UiLayoutProfile.Compact)
+        {
+            await workspace.CloseBackgroundTabsAsync();
+        }
+
+        await uiPreferences.SetLayoutProfileAsync(profile);
+        appEnvironment.SetLayoutProfile(profile);
         SelectedLayoutProfile = profile;
         SyncLayoutProfileState();
-        await uiPreferences.SetLayoutProfileAsync(profile);
     }
 
     [RelayCommand]
@@ -435,13 +449,11 @@ public partial class MainPagesViewModel : ViewModelBase
 
     private void SyncLayoutProfileState()
     {
-        LayoutProfileRestartRequired = SelectedLayoutProfile != appEnvironment.LayoutProfile;
         OnPropertyChanged(nameof(LayoutProfileMenuHeader));
         OnPropertyChanged(nameof(CompactLayoutProfileMenuText));
         OnPropertyChanged(nameof(WorkspaceLayoutProfileMenuText));
         OnPropertyChanged(nameof(TargetLayoutProfile));
         OnPropertyChanged(nameof(LayoutProfileActionMenuText));
-        OnPropertyChanged(nameof(LayoutProfileRestartMessage));
     }
 
     private string FormatLayoutProfileMenuText(UiLayoutProfile profile)
@@ -450,11 +462,6 @@ public partial class MainPagesViewModel : ViewModelBase
         if (SelectedLayoutProfile == profile)
         {
             label += " (selected)";
-        }
-
-        if (appEnvironment.LayoutProfile != profile)
-        {
-            label += " - restart required";
         }
 
         return label;
@@ -467,6 +474,15 @@ public partial class MainPagesViewModel : ViewModelBase
             UiLayoutProfile.Workspace => "Workspace",
             _ => profile.ToString(),
         };
+
+    private void OnAppEnvironmentPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(IAppEnvironment.LayoutProfile))
+        {
+            SelectedLayoutProfile = appEnvironment.LayoutProfile;
+            SyncLayoutProfileState();
+        }
+    }
 
     private static SufniThemeMode ResolveNextThemeMode(SufniThemeMode current, bool systemThemeAvailable)
         => current switch

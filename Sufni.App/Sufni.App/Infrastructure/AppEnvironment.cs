@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.IO;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,19 +27,59 @@ public sealed record InputCapabilities(
     bool SupportsPinch,
     bool SupportsLongPressContextMenu);
 
-public interface IAppEnvironment
+public interface IAppEnvironment : INotifyPropertyChanged
 {
     UiLayoutProfile DefaultLayoutProfile { get; }
     UiLayoutProfile LayoutProfile { get; }
     AppCapabilities Capabilities { get; }
     InputCapabilities Input { get; }
+    void SetLayoutProfile(UiLayoutProfile layoutProfile);
 }
 
-public sealed record AppEnvironment(
-    UiLayoutProfile DefaultLayoutProfile,
-    UiLayoutProfile LayoutProfile,
-    AppCapabilities Capabilities,
-    InputCapabilities Input) : IAppEnvironment;
+public sealed class AppEnvironment : IAppEnvironment
+{
+    private UiLayoutProfile layoutProfile;
+
+    public AppEnvironment(
+        UiLayoutProfile DefaultLayoutProfile,
+        UiLayoutProfile LayoutProfile,
+        AppCapabilities Capabilities,
+        InputCapabilities Input)
+    {
+        this.DefaultLayoutProfile = DefaultLayoutProfile;
+        layoutProfile = LayoutProfile;
+        this.Capabilities = Capabilities;
+        this.Input = Input;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public UiLayoutProfile DefaultLayoutProfile { get; }
+
+    public UiLayoutProfile LayoutProfile
+    {
+        get => layoutProfile;
+        private set
+        {
+            if (layoutProfile == value)
+            {
+                return;
+            }
+
+            layoutProfile = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LayoutProfile)));
+        }
+    }
+
+    public AppCapabilities Capabilities { get; }
+
+    public InputCapabilities Input { get; }
+
+    public void SetLayoutProfile(UiLayoutProfile layoutProfile)
+    {
+        LayoutProfile = layoutProfile;
+    }
+}
 
 public static class AppEnvironmentRegistration
 {

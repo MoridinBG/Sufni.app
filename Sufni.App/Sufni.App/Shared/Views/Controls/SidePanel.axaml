@@ -146,10 +146,6 @@ mc:Ignorable="d">
             </MenuItem.Icon>
         </MenuItem>
         <MenuItem
-        Header="{Binding LayoutProfileRestartMessage}"
-        IsEnabled="False"
-        IsVisible="{Binding LayoutProfileRestartRequired}" />
-        <MenuItem
         Name="ThemeMenuItem"
         Command="{Binding ToggleThemeCommand}"
         Header="theme">

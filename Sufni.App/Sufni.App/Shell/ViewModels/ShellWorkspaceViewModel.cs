@@ -98,6 +98,26 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
         return true;
     }
 
+    public async Task CloseBackgroundTabsAsync()
+    {
+        var currentTab = CurrentTab;
+        foreach (var tab in Tabs.ToArray())
+        {
+            if (ReferenceEquals(tab, currentTab))
+            {
+                continue;
+            }
+
+            await tab.PrepareCloseAsync();
+            CloseTab(tab, rememberForRestore: false);
+        }
+
+        if (currentTab is not null && Tabs.Contains(currentTab))
+        {
+            CurrentTab = currentTab;
+        }
+    }
+
     public void CloseTab(TabPageViewModelBase tab, bool rememberForRestore = true)
     {
         isClosing = true;

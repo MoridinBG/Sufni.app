@@ -134,6 +134,15 @@ public class ViewLocator : IDataTemplate
             return Build(extensionPage.ViewModel);
         }
 
+        if (data is ShellRootPresentation shellPresentation)
+        {
+            var shellView = shellPresentation.LayoutProfile == UiLayoutProfile.Compact
+                ? (Control)new global::Sufni.App.Shell.Views.CompactShellView()
+                : new global::Sufni.App.Shell.DesktopViews.WorkspaceShellView();
+            shellView.DataContext = shellPresentation.Root;
+            return shellView;
+        }
+
         if (data is ShellRootViewModel { LayoutProfile: UiLayoutProfile.Compact })
         {
             return new global::Sufni.App.Shell.Views.CompactShellView();
@@ -170,7 +179,8 @@ public class ViewLocator : IDataTemplate
 
         var layoutProfile = ResolveLayoutProfile();
         var viewModelType = data.GetType();
-        return data is ViewModelBase ||
+        return data is ShellRootPresentation ||
+               data is ViewModelBase ||
                extensionViewRegistry.Matches(viewModelType, layoutProfile) ||
                CommonViewFactories.ContainsKey(viewModelType) ||
                CompactViewFactories.ContainsKey(viewModelType) ||

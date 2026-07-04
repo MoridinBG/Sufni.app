@@ -46,6 +46,7 @@ internal static class MainPagesViewModelTestFactory
         IThemeService? themeService = null,
         ISyncCoordinator? syncCoordinator = null,
         IShellCoordinator? shell = null,
+        ShellWorkspaceViewModel? workspace = null,
         IAppEnvironment? appEnvironment = null,
         IUiPreferences? uiPreferences = null,
         IEnumerable<IAppToolbarContributionProvider>? appToolbarContributionProviders = null,
@@ -57,6 +58,7 @@ internal static class MainPagesViewModelTestFactory
         trackCoordinator ??= TestCoordinatorSubstitutes.Track();
         syncCoordinator ??= TestCoordinatorSubstitutes.Sync();
         shell ??= Substitute.For<IShellCoordinator>();
+        workspace ??= new ShellWorkspaceViewModel(UiThreadDispatcher);
 
         appDataRefresher.RefreshAsync().Returns(Task.CompletedTask);
         if (themeService is null)
@@ -79,6 +81,7 @@ internal static class MainPagesViewModelTestFactory
             trackCoordinator,
             syncCoordinator,
             shell,
+            workspace,
             themeService,
             appEnvironment,
             uiPreferences,

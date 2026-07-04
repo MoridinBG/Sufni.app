@@ -27,7 +27,7 @@
     </Window.KeyBindings>
 
     <Panel>
-        <ContentControl Content="{Binding}" />
+        <ContentControl Content="{Binding Presentation}" />
         <overlays:PlotZoomOverlayHost Name="PlotZoomOverlay" />
     </Panel>
 </Window>
