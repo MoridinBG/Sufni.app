@@ -10,12 +10,16 @@ namespace Sufni.App.Sessions.Pages.ViewModels.Editors;
 
 /// <summary>
 /// Owns the damping-cutoff preview/commit state machine for a recorded
-/// session: preview stages rounded values on the context, cancel restores
-/// the preview origin, commit persists through the bike coordinator and
-/// reconciles the Saved/Conflict/Failed outcome back onto the context.
+/// session: preview stages rounded values through owner-supplied setters,
+/// cancel restores the preview origin, commit persists through the bike
+/// coordinator, and reconciles the Saved/Conflict/Failed outcome back
+/// through the owner.
 /// </summary>
 internal sealed class DampingCutoffWorkflow(
-    RecordedSessionContext context,
+    Func<DampingSpeedCutoffs> currentCutoffs,
+    Action<bool> setCanEdit,
+    Action<DampingSpeedCutoffs> setDampingSpeedCutoffs,
+    Action<DampingSpeedCutoffs> setPlotDampingSpeedCutoffs,
     IBikeCoordinator? bikeCoordinator,
     Action<string> reportError)
 {
@@ -30,9 +34,9 @@ internal sealed class DampingCutoffWorkflow(
         persistedCutoffs = cutoffs.ClampValues();
         previewOrigin = null;
         owner = cutoffOwner;
-        context.CanEditDampingSpeedCutoffs = owner is not null;
-        context.PlotDampingSpeedCutoffs = persistedCutoffs;
-        context.DampingSpeedCutoffs = persistedCutoffs;
+        setCanEdit(owner is not null);
+        setPlotDampingSpeedCutoffs(persistedCutoffs);
+        setDampingSpeedCutoffs(persistedCutoffs);
     }
 
     public void Preview(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond)
@@ -42,11 +46,11 @@ internal sealed class DampingCutoffWorkflow(
             return;
         }
 
-        previewOrigin ??= context.DampingSpeedCutoffs;
-        context.DampingSpeedCutoffs = context.DampingSpeedCutoffs.With(
+        previewOrigin ??= currentCutoffs();
+        setDampingSpeedCutoffs(currentCutoffs().With(
             side,
             circuit,
-            DampingCutoffEditing.RoundDragValue(cutoffMmPerSecond));
+            DampingCutoffEditing.RoundDragValue(cutoffMmPerSecond)));
     }
 
     public void CancelPreview()
@@ -57,7 +61,7 @@ internal sealed class DampingCutoffWorkflow(
         }
 
         previewOrigin = null;
-        context.DampingSpeedCutoffs = origin;
+        setDampingSpeedCutoffs(origin);
     }
 
     public async Task CommitAsync(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond)
@@ -68,12 +72,12 @@ internal sealed class DampingCutoffWorkflow(
         }
 
         previewOrigin = null;
-        var committedCutoffs = context.DampingSpeedCutoffs.With(
+        var committedCutoffs = currentCutoffs().With(
             side,
             circuit,
             DampingCutoffEditing.RoundDragValue(cutoffMmPerSecond));
-        context.DampingSpeedCutoffs = committedCutoffs;
-        context.PlotDampingSpeedCutoffs = committedCutoffs;
+        setDampingSpeedCutoffs(committedCutoffs);
+        setPlotDampingSpeedCutoffs(committedCutoffs);
 
         var result = await bikeCoordinator.UpdateDampingSpeedCutoffAsync(
             cutoffOwner.BikeId,
@@ -98,8 +102,8 @@ internal sealed class DampingCutoffWorkflow(
                 break;
 
             case BikeDampingSpeedCutoffUpdateResult.Failed failed:
-                context.DampingSpeedCutoffs = persistedCutoffs;
-                context.PlotDampingSpeedCutoffs = persistedCutoffs;
+                setDampingSpeedCutoffs(persistedCutoffs);
+                setPlotDampingSpeedCutoffs(persistedCutoffs);
                 reportError($"Could not save damping cutoff: {failed.ErrorMessage}");
                 break;
         }

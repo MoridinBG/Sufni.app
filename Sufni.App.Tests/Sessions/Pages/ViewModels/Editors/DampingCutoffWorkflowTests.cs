@@ -16,7 +16,16 @@ public class DampingCutoffWorkflowTests
     private readonly IBikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();
     private readonly List<string> errors = [];
 
-    private DampingCutoffWorkflow CreateWorkflow() => new(context, bikeCoordinator, errors.Add);
+    private DampingCutoffWorkflow CreateWorkflow()
+    {
+        return new DampingCutoffWorkflow(
+            () => context.DampingSpeedCutoffs,
+            value => context.CanEditDampingSpeedCutoffs = value,
+            value => context.DampingSpeedCutoffs = value,
+            value => context.PlotDampingSpeedCutoffs = value,
+            bikeCoordinator,
+            errors.Add);
+    }
 
     private static DampingSpeedCutoffs Cutoffs() => DampingSpeedCutoffs.FromValues(100, 200, 300, 400);
 

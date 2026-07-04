@@ -281,7 +281,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         DampingSpeedCutoffOwner? owner)
     {
         dampingCutoffWorkflow.ApplyContext(cutoffs, owner);
-        OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
     }
 
     public void PreviewDampingSpeedCutoff(
@@ -1431,7 +1430,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             ResetCommand);
         IsComplete = snapshot.HasProcessedData;
         dampingCutoffWorkflow = new DampingCutoffWorkflow(
-            SessionContext,
+            () => SessionContext.DampingSpeedCutoffs,
+            SetCanEditDampingSpeedCutoffs,
+            SetDampingSpeedCutoffs,
+            SetPlotDampingSpeedCutoffs,
             bikeCoordinator,
             ErrorMessages.Add);
         stalenessReconciler = new SessionStalenessReconciler(
@@ -1610,10 +1612,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
                 UpdateRecordedSessionExtensionHostState();
                 break;
-            case nameof(RecordedSessionContext.DampingSpeedCutoffs):
-                RequestCurrentAnalysisResults(!suppressInsightsRecompute, respectSuppression: true);
-                UpdateRecordedSessionExtensionHostState();
-                break;
         }
 
         PublishEditorState();
@@ -1771,6 +1769,42 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         selectedSessionInsightsTargetProfile = profile;
         RequestCurrentSessionInsights(respectSuppression: true);
         PersistRecordedAnalysisPreferencesIfEnabled();
+        PublishEditorState();
+    }
+
+    private void SetCanEditDampingSpeedCutoffs(bool value)
+    {
+        if (SessionContext.CanEditDampingSpeedCutoffs == value)
+        {
+            return;
+        }
+
+        SessionContext.CanEditDampingSpeedCutoffs = value;
+        OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
+        PublishEditorState();
+    }
+
+    private void SetDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs)
+    {
+        if (SessionContext.DampingSpeedCutoffs == cutoffs)
+        {
+            return;
+        }
+
+        SessionContext.DampingSpeedCutoffs = cutoffs;
+        RequestCurrentAnalysisResults(!suppressInsightsRecompute, respectSuppression: true);
+        UpdateRecordedSessionExtensionHostState();
+        PublishEditorState();
+    }
+
+    private void SetPlotDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs)
+    {
+        if (SessionContext.PlotDampingSpeedCutoffs == cutoffs)
+        {
+            return;
+        }
+
+        SessionContext.PlotDampingSpeedCutoffs = cutoffs;
         PublishEditorState();
     }
 
@@ -2048,7 +2082,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 SetSessionInsightsTargetProfile(set.Profile);
                 break;
             case RecordedSessionEditorIntent.SetDampingSpeedCutoffs set:
-                SessionContext.DampingSpeedCutoffs = set.Cutoffs;
+                SetDampingSpeedCutoffs(set.Cutoffs);
                 break;
             case RecordedSessionEditorIntent.SetSignalDisplayPreferences set:
                 SignalDisplayPreferences = set.Preferences;
