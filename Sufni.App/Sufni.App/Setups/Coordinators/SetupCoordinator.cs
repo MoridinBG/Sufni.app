@@ -14,23 +14,19 @@ using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Setups.ViewModels.Editors;
 using Sufni.App.Shell.Coordinators;
-using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Setups.Coordinators;
 
 public class SetupCoordinator(
     ISetupStoreWriter setupStore,
     IBikeStoreWriter bikeStore,
-    ISynchronizableRepository<Setup> setupRepository,
-    ISynchronizableRepository<Bike> bikeRepository,
-    ISynchronizableRepository<Board> boardRepository,
     ITelemetryDataStoreService telemetryDataStoreService,
     IFilesService filesService,
     IBackgroundTaskRunner backgroundTaskRunner,
     IShellCoordinator shell,
     IAppEnvironment appEnvironment,
     Func<IEditorFactory> editorFactory,
-    ISetupPersistenceTransactionRunner? setupPersistenceTransactions = null)
+    ISetupPersistenceTransactionRunner setupPersistenceTransactions)
     : ISetupCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SetupCoordinator>();
@@ -89,15 +85,7 @@ public class SetupCoordinator(
                     boardId);
             }
 
-            if (setupPersistenceTransactions is null)
-            {
-                await setupRepository.PutAsync(setup);
-                await ReassignBoardAsync(current?.BoardId, boardId, setup.Id);
-            }
-            else
-            {
-                await setupPersistenceTransactions.SaveSetupAsync(setup, current?.BoardId, boardId);
-            }
+            await setupPersistenceTransactions.SaveSetupAsync(setup, current?.BoardId, boardId);
 
             var saved = SetupSnapshot.From(setup, boardId);
             await setupStore.PublishSetupsChangedAsync([setup.Id]);
@@ -124,26 +112,12 @@ public class SetupCoordinator(
 
         try
         {
-            if (setupPersistenceTransactions is null)
-            {
-                await setupRepository.DeleteAsync(setupId);
-            }
-            else
-            {
-                await setupPersistenceTransactions.DeleteSetupAsync(setupId, snapshot?.BoardId);
-            }
+            await setupPersistenceTransactions.DeleteSetupAsync(setupId, snapshot?.BoardId);
         }
         catch (Exception e)
         {
             logger.Error(e, "Setup delete failed for {SetupId}", setupId);
             return new SetupDeleteResult(SetupDeleteOutcome.Failed, e.Message);
-        }
-
-        if (setupPersistenceTransactions is null)
-        {
-            // Best-effort: a dangling board row is harmless.
-            try { await ReassignBoardAsync(snapshot?.BoardId, null, setupId); }
-            catch (Exception ex) { logger.Warning(ex, "Best-effort board reassign failed after setup delete"); }
         }
 
         await editorFactory().CloseSetupEditor(setupId);
@@ -195,20 +169,11 @@ public class SetupCoordinator(
         {
             var (resolvedBoardId, boardWarning) = ResolveImportedBoardId(payload.BoardId);
 
-            if (setupPersistenceTransactions is null)
-            {
-                await bikeRepository.PutAsync(payload.Bike);
-                await setupRepository.PutAsync(payload.Setup);
-                await ReassignBoardAsync(originalBoardId: null, resolvedBoardId, payload.Setup.Id);
-            }
-            else
-            {
-                await setupPersistenceTransactions.ImportSetupAsync(
-                    payload.Bike,
-                    payload.Setup,
-                    resolvedBoardId,
-                    cancellationToken);
-            }
+            await setupPersistenceTransactions.ImportSetupAsync(
+                payload.Bike,
+                payload.Setup,
+                resolvedBoardId,
+                cancellationToken);
 
             var bikeSnapshot = BikeSnapshot.From(payload.Bike);
             var setupSnapshot = SetupSnapshot.From(payload.Setup, resolvedBoardId);
@@ -285,22 +250,6 @@ public class SetupCoordinator(
         return (null, $"Board ID {importedBoardId.Value} was dropped because another setup uses it.");
     }
 
-    // Clear the previous board's setup pointer (if any) and set the new
-    // board's setup pointer (if any). No-op when the assignment hasn't
-    // changed. Boards are never deleted — they may be picked up later.
-    private async Task ReassignBoardAsync(Guid? originalBoardId, Guid? newBoardId, Guid setupId)
-    {
-        if (originalBoardId == newBoardId) return;
-
-        if (originalBoardId.HasValue)
-        {
-            await boardRepository.PutAsync(new Board(originalBoardId.Value, null));
-        }
-        if (newBoardId.HasValue)
-        {
-            await boardRepository.PutAsync(new Board(newBoardId.Value, setupId));
-        }
-    }
 }
 
 public abstract record SetupSaveResult
