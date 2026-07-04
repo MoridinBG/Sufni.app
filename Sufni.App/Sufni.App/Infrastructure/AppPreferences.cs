@@ -35,6 +35,9 @@ public sealed class AppPreferences : IAppPreferences
     // for it. Initial-value-less: subscribers care about future emissions, not
     // a snapshot of "has sync ever happened".
     private readonly Subject<Unit> syncDataAppliedSubject = new();
+    private readonly object recordedPreferenceSubjectsGate = new();
+    private readonly Dictionary<Guid, Subject<PreferenceValueChange<SessionPreferences>>> recordedPreferenceSubjects = [];
+    private readonly Subject<PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>> allRecordedPreferencesSubject = new();
 
     public IMapPreferences Map { get; }
     public ISessionPreferences Session { get; }
@@ -108,7 +111,7 @@ public sealed class AppPreferences : IAppPreferences
         // Apply under the gate, signal outside it. The signal is what
         // downstream services (TileLayerService, SessionDetailViewModel) use
         // to know the JSON file has new content and they should re-read.
-        bool applied = false;
+        var applied = false;
         await gate.WaitAsync();
         try
         {
@@ -120,6 +123,19 @@ public sealed class AppPreferences : IAppPreferences
 
             document.ApplySyncData(preferences, documentVersion);
             await WriteDocumentCoreAsync(document);
+            var recordedPreferences = document.Session.ToModelDictionary();
+            var recordedChanges = GetObservedRecordedSessionIds()
+                .Select(sessionId => (
+                    sessionId,
+                    recordedPreferences.TryGetValue(sessionId, out var value)
+                        ? value
+                        : SessionPreferences.Default))
+                .ToArray();
+            PublishRecordedPreferenceChanges(
+                recordedPreferences,
+                PreferenceChangeOrigin.SyncApply,
+                advancesSyncClock: false,
+                recordedChanges);
             applied = true;
         }
         finally
@@ -165,6 +181,55 @@ public sealed class AppPreferences : IAppPreferences
         {
             gate.Release();
         }
+    }
+
+    private Subject<PreferenceValueChange<SessionPreferences>> GetRecordedPreferenceSubject(Guid sessionId)
+    {
+        lock (recordedPreferenceSubjectsGate)
+        {
+            if (!recordedPreferenceSubjects.TryGetValue(sessionId, out var subject))
+            {
+                subject = new Subject<PreferenceValueChange<SessionPreferences>>();
+                recordedPreferenceSubjects[sessionId] = subject;
+            }
+
+            return subject;
+        }
+    }
+
+    private Guid[] GetObservedRecordedSessionIds()
+    {
+        lock (recordedPreferenceSubjectsGate)
+        {
+            return recordedPreferenceSubjects.Keys.ToArray();
+        }
+    }
+
+    private void PublishRecordedPreferenceChanges(
+        IReadOnlyDictionary<Guid, SessionPreferences> allRecorded,
+        PreferenceChangeOrigin origin,
+        bool advancesSyncClock,
+        params (Guid SessionId, SessionPreferences Value)[] recordedChanges)
+    {
+        foreach (var (sessionId, value) in recordedChanges)
+        {
+            Subject<PreferenceValueChange<SessionPreferences>>? subject;
+            lock (recordedPreferenceSubjectsGate)
+            {
+                recordedPreferenceSubjects.TryGetValue(sessionId, out subject);
+            }
+
+            subject?.OnNext(new PreferenceValueChange<SessionPreferences>(
+                value,
+                origin,
+                advancesSyncClock));
+        }
+
+        allRecordedPreferencesSubject.OnNext(
+            new PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>(
+                allRecorded,
+                origin,
+                advancesSyncClock));
     }
 
     private static long GetCurrentTimestamp() => DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -269,53 +334,157 @@ public sealed class AppPreferences : IAppPreferences
         public Task<IReadOnlyDictionary<Guid, SessionPreferences>> GetAllRecordedAsync()
         {
             return owner.ReadAsync<IReadOnlyDictionary<Guid, SessionPreferences>>(document =>
-            {
-                var result = new Dictionary<Guid, SessionPreferences>();
-                foreach (var (key, value) in document.Session.Sessions)
-                {
-                    if (value is not null && Guid.TryParse(key, out var sessionId))
-                    {
-                        result[sessionId] = value.ToModel();
-                    }
-                }
-
-                return result;
-            });
+                document.Session.ToModelDictionary());
         }
 
-        public Task UpdateRecordedAsync(Guid sessionId, Func<SessionPreferences, SessionPreferences> update)
+        public async Task UpdateRecordedAsync(Guid sessionId, Func<SessionPreferences, SessionPreferences> update)
         {
             ArgumentNullException.ThrowIfNull(update);
 
-            return owner.UpdateAsync(document =>
+            await owner.gate.WaitAsync();
+            try
             {
+                var document = await owner.ReadDocumentCoreAsync();
                 var current = document.Session.GetRecorded(sessionId);
-                document.Session.Sessions[SessionKey(sessionId)] = SessionPreferencesDocument.FromModel(update(current));
-            });
-        }
-
-        public Task RemoveRecordedAsync(Guid sessionId)
-        {
-            return owner.UpdateAsync(document => document.Session.Sessions.Remove(SessionKey(sessionId)));
-        }
-
-        public Task ResetRecordedProcessingToDefaultLocallyAsync(Guid sessionId)
-        {
-            return owner.UpdateLocalAsync(document =>
+                var updated = update(current);
+                document.Session.Sessions[SessionKey(sessionId)] = SessionPreferencesDocument.FromModel(updated);
+                document.Updated = GetCurrentTimestamp();
+                await owner.WriteDocumentCoreAsync(document);
+                owner.PublishRecordedPreferenceChanges(
+                    document.Session.ToModelDictionary(),
+                    PreferenceChangeOrigin.LocalWrite,
+                    advancesSyncClock: true,
+                    (sessionId, updated));
+            }
+            finally
             {
+                owner.gate.Release();
+            }
+        }
+
+        public async Task RemoveRecordedAsync(Guid sessionId)
+        {
+            await owner.gate.WaitAsync();
+            try
+            {
+                var document = await owner.ReadDocumentCoreAsync();
+                document.Session.Sessions.Remove(SessionKey(sessionId));
+                document.Updated = GetCurrentTimestamp();
+                await owner.WriteDocumentCoreAsync(document);
+                owner.PublishRecordedPreferenceChanges(
+                    document.Session.ToModelDictionary(),
+                    PreferenceChangeOrigin.LocalWrite,
+                    advancesSyncClock: true,
+                    (sessionId, SessionPreferences.Default));
+            }
+            finally
+            {
+                owner.gate.Release();
+            }
+        }
+
+        public async Task ResetRecordedProcessingToDefaultLocallyAsync(Guid sessionId)
+        {
+            await owner.gate.WaitAsync();
+            try
+            {
+                var document = await owner.ReadDocumentCoreAsync();
                 // Reset only Processing to the default; the session's other
                 // preferences (signal display, analysis, signal layout, layout) are preserved.
                 var current = document.Session.GetRecorded(sessionId);
                 var reset = current with { Processing = new SessionProcessingPreferences() };
                 document.Session.Sessions[SessionKey(sessionId)] = SessionPreferencesDocument.FromModel(reset);
-            });
+                await owner.WriteDocumentCoreAsync(document);
+                owner.PublishRecordedPreferenceChanges(
+                    document.Session.ToModelDictionary(),
+                    PreferenceChangeOrigin.LocalNoSyncClockWrite,
+                    advancesSyncClock: false,
+                    (sessionId, reset));
+            }
+            finally
+            {
+                owner.gate.Release();
+            }
         }
 
         public IObservable<SessionPreferences> ObserveRecorded(Guid sessionId)
         {
-            return owner.SyncDataApplied
-                .SelectMany(_ => Observable.FromAsync(() => GetRecordedAsync(sessionId)))
+            return ObserveRecordedChanges(sessionId)
+                .Select(change => change.Value)
                 .DistinctUntilChanged();
+        }
+
+        public IObservable<PreferenceValueChange<SessionPreferences>> ObserveRecordedChanges(Guid sessionId)
+        {
+            return Observable
+                .FromAsync(async () => new PreferenceValueChange<SessionPreferences>(
+                    await GetRecordedAsync(sessionId),
+                    PreferenceChangeOrigin.SyncApply,
+                    AdvancesSyncClock: false))
+                .Concat(owner.GetRecordedPreferenceSubject(sessionId))
+                .DistinctUntilChanged();
+        }
+
+        public IObservable<PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>> ObserveAllRecordedChanges()
+        {
+            return Observable
+                .FromAsync(async () => new PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>(
+                    await GetAllRecordedAsync(),
+                    PreferenceChangeOrigin.SyncApply,
+                    AdvancesSyncClock: false))
+                .Concat(owner.allRecordedPreferencesSubject)
+                .DistinctUntilChanged(AllRecordedPreferenceChangeComparer.Instance);
+        }
+
+        private sealed class AllRecordedPreferenceChangeComparer :
+            IEqualityComparer<PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>>
+        {
+            public static readonly AllRecordedPreferenceChangeComparer Instance = new();
+
+            public bool Equals(
+                PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>? previous,
+                PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>? current)
+            {
+                if (ReferenceEquals(previous, current))
+                {
+                    return true;
+                }
+
+                if (previous is null || current is null)
+                {
+                    return false;
+                }
+
+                return previous.Origin == current.Origin &&
+                    previous.AdvancesSyncClock == current.AdvancesSyncClock &&
+                    RecordedPreferenceDictionariesEqual(previous.Value, current.Value);
+            }
+
+            public int GetHashCode(PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>> change)
+            {
+                return HashCode.Combine(change.Origin, change.AdvancesSyncClock);
+            }
+
+            private static bool RecordedPreferenceDictionariesEqual(
+                IReadOnlyDictionary<Guid, SessionPreferences> previous,
+                IReadOnlyDictionary<Guid, SessionPreferences> current)
+            {
+                if (previous.Count != current.Count)
+                {
+                    return false;
+                }
+
+                foreach (var (sessionId, previousPreferences) in previous)
+                {
+                    if (!current.TryGetValue(sessionId, out var currentPreferences) ||
+                        previousPreferences != currentPreferences)
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
         }
 
         private static string SessionKey(Guid sessionId) => sessionId.ToString("D");
@@ -474,6 +643,15 @@ public sealed class AppPreferences : IAppPreferences
             return Sessions.TryGetValue(sessionId.ToString("D"), out var preferences) && preferences is not null
                 ? preferences.ToModel()
                 : SessionPreferences.Default;
+        }
+
+        public IReadOnlyDictionary<Guid, SessionPreferences> ToModelDictionary()
+        {
+            return Sessions
+                .Where(pair => pair.Value is not null && Guid.TryParse(pair.Key, out _))
+                .ToDictionary(
+                    pair => Guid.Parse(pair.Key),
+                    pair => pair.Value!.ToModel());
         }
     }
 

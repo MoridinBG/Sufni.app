@@ -7,6 +7,18 @@ using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Theming;
 namespace Sufni.App.Infrastructure;
 
+public enum PreferenceChangeOrigin
+{
+    LocalWrite,
+    LocalNoSyncClockWrite,
+    SyncApply
+}
+
+public sealed record PreferenceValueChange<T>(
+    T Value,
+    PreferenceChangeOrigin Origin,
+    bool AdvancesSyncClock);
+
 public interface IAppPreferences
 {
     IMapPreferences Map { get; }
@@ -62,8 +74,9 @@ public interface ISessionPreferences
     // theme, layout, or plot preferences.
     Task ResetRecordedProcessingToDefaultLocallyAsync(Guid sessionId);
 
-    // Emits whenever remote sync writes a (potentially) new value for this
-    // session. Cold: no replay of the current value on subscribe — pair with
-    // GetRecordedAsync if you need the initial read.
+    // Replays the current value and emits local writes, local no-sync-clock
+    // writes, and remote sync applies.
     IObservable<SessionPreferences> ObserveRecorded(Guid sessionId);
+    IObservable<PreferenceValueChange<SessionPreferences>> ObserveRecordedChanges(Guid sessionId);
+    IObservable<PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>> ObserveAllRecordedChanges();
 }

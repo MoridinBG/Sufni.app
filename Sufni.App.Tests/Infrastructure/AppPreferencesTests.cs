@@ -1054,7 +1054,23 @@ public class AppPreferencesTests
         var sessionId = Guid.NewGuid();
         var preferences = new AppPreferences(preferencesPath);
 
-        var next = preferences.Session.ObserveRecorded(sessionId).FirstAsync().ToTask();
+        var initialEmission = new TaskCompletionSource<SessionPreferences>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var syncEmission = new TaskCompletionSource<SessionPreferences>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var emissions = 0;
+        using var subscription = preferences.Session.ObserveRecorded(sessionId)
+            .Subscribe(value =>
+            {
+                if (Interlocked.Increment(ref emissions) == 1)
+                {
+                    initialEmission.TrySetResult(value);
+                }
+                else
+                {
+                    syncEmission.TrySetResult(value);
+                }
+            });
+
+        AssertDefaultSessionPreferences(await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5)));
 
         await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
         {
@@ -1074,21 +1090,35 @@ public class AppPreferencesTests
             },
         });
 
-        var observed = await next.WaitAsync(TimeSpan.FromSeconds(5));
+        var observed = await syncEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(TravelDistributionMode.DynamicSag, observed.Analysis.TravelDistributionMode);
     }
 
     [Fact]
-    public async Task ObserveRecorded_DoesNotEmitOnLocalUpdate()
+    public async Task ObserveRecorded_EmitsOnLocalUpdate()
     {
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
         var sessionId = Guid.NewGuid();
         var preferences = new AppPreferences(preferencesPath);
 
+        var initialEmission = new TaskCompletionSource<SessionPreferences>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var localEmission = new TaskCompletionSource<SessionPreferences>(TaskCreationOptions.RunContinuationsAsynchronously);
         var emissions = 0;
         using var subscription = preferences.Session.ObserveRecorded(sessionId)
-            .Subscribe(_ => Interlocked.Increment(ref emissions));
+            .Subscribe(value =>
+            {
+                if (Interlocked.Increment(ref emissions) == 1)
+                {
+                    initialEmission.TrySetResult(value);
+                }
+                else
+                {
+                    localEmission.TrySetResult(value);
+                }
+            });
+
+        AssertDefaultSessionPreferences(await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5)));
 
         await preferences.Session.UpdateRecordedAsync(sessionId, current =>
             current with
@@ -1096,7 +1126,228 @@ public class AppPreferencesTests
                 Analysis = current.Analysis with { TravelDistributionMode = TravelDistributionMode.DynamicSag },
             });
 
-        Assert.Equal(0, emissions);
+        var observed = await localEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(TravelDistributionMode.DynamicSag, observed.Analysis.TravelDistributionMode);
+    }
+
+    [Fact]
+    public async Task ObserveRecorded_ReplaysCurrentValue_OnSubscribe()
+    {
+        using var tempDirectory = new TempDirectory("sufni-preferences-test");
+        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
+        var sessionId = Guid.NewGuid();
+        var preferences = new AppPreferences(preferencesPath);
+
+        await preferences.Session.UpdateRecordedAsync(sessionId, current =>
+            current with
+            {
+                Analysis = current.Analysis with { TravelDistributionMode = TravelDistributionMode.DynamicSag },
+            });
+
+        var observed = await preferences.Session.ObserveRecorded(sessionId)
+            .FirstAsync()
+            .ToTask()
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(TravelDistributionMode.DynamicSag, observed.Analysis.TravelDistributionMode);
+    }
+
+    [Fact]
+    public async Task ObserveRecordedChanges_ReportsWriteOriginAndSyncClock()
+    {
+        using var tempDirectory = new TempDirectory("sufni-preferences-test");
+        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
+        var sessionId = Guid.NewGuid();
+        var preferences = new AppPreferences(preferencesPath);
+
+        var initialEmission = new TaskCompletionSource<PreferenceValueChange<SessionPreferences>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var localEmission = new TaskCompletionSource<PreferenceValueChange<SessionPreferences>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resetEmission = new TaskCompletionSource<PreferenceValueChange<SessionPreferences>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var emissions = 0;
+        using var subscription = preferences.Session.ObserveRecordedChanges(sessionId)
+            .Subscribe(change =>
+            {
+                var emission = Interlocked.Increment(ref emissions);
+                if (emission == 1)
+                {
+                    initialEmission.TrySetResult(change);
+                }
+                else if (emission == 2)
+                {
+                    localEmission.TrySetResult(change);
+                }
+                else
+                {
+                    resetEmission.TrySetResult(change);
+                }
+            });
+
+        var initial = await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PreferenceChangeOrigin.SyncApply, initial.Origin);
+        Assert.False(initial.AdvancesSyncClock);
+        AssertDefaultSessionPreferences(initial.Value);
+
+        await preferences.Session.UpdateRecordedAsync(sessionId, current =>
+            current with
+            {
+                Analysis = current.Analysis with { TravelDistributionMode = TravelDistributionMode.DynamicSag },
+                Processing = new SessionProcessingPreferences(VelocityFilterWindowMilliseconds: 250),
+            });
+
+        var local = await localEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PreferenceChangeOrigin.LocalWrite, local.Origin);
+        Assert.True(local.AdvancesSyncClock);
+        Assert.Equal(TravelDistributionMode.DynamicSag, local.Value.Analysis.TravelDistributionMode);
+        Assert.Equal(250, local.Value.Processing.VelocityFilterWindowMilliseconds);
+
+        await preferences.Session.ResetRecordedProcessingToDefaultLocallyAsync(sessionId);
+
+        var reset = await resetEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PreferenceChangeOrigin.LocalNoSyncClockWrite, reset.Origin);
+        Assert.False(reset.AdvancesSyncClock);
+        Assert.Equal(TravelDistributionMode.DynamicSag, reset.Value.Analysis.TravelDistributionMode);
+        Assert.Equal(
+            TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds,
+            reset.Value.Processing.VelocityFilterWindowMilliseconds);
+    }
+
+    [Fact]
+    public async Task ObserveRecordedChanges_EmitsNoClockReset_WhenValueMatchesReplay()
+    {
+        using var tempDirectory = new TempDirectory("sufni-preferences-test");
+        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
+        var sessionId = Guid.NewGuid();
+        var preferences = new AppPreferences(preferencesPath);
+
+        var initialEmission = new TaskCompletionSource<PreferenceValueChange<SessionPreferences>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resetEmission = new TaskCompletionSource<PreferenceValueChange<SessionPreferences>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var emissions = 0;
+        using var subscription = preferences.Session.ObserveRecordedChanges(sessionId)
+            .Subscribe(change =>
+            {
+                if (Interlocked.Increment(ref emissions) == 1)
+                {
+                    initialEmission.TrySetResult(change);
+                }
+                else
+                {
+                    resetEmission.TrySetResult(change);
+                }
+            });
+
+        var initial = await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PreferenceChangeOrigin.SyncApply, initial.Origin);
+        AssertDefaultSessionPreferences(initial.Value);
+
+        await preferences.Session.ResetRecordedProcessingToDefaultLocallyAsync(sessionId);
+
+        var reset = await resetEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PreferenceChangeOrigin.LocalNoSyncClockWrite, reset.Origin);
+        Assert.False(reset.AdvancesSyncClock);
+        AssertDefaultSessionPreferences(reset.Value);
+    }
+
+    [Fact]
+    public async Task ObserveAllRecordedChanges_ReplaysAndEmitsLocalWrites()
+    {
+        using var tempDirectory = new TempDirectory("sufni-preferences-test");
+        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
+        var sessionId = Guid.NewGuid();
+        var preferences = new AppPreferences(preferencesPath);
+
+        var initialEmission = new TaskCompletionSource<PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var localEmission = new TaskCompletionSource<PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var emissions = 0;
+        using var subscription = preferences.Session.ObserveAllRecordedChanges()
+            .Subscribe(change =>
+            {
+                if (Interlocked.Increment(ref emissions) == 1)
+                {
+                    initialEmission.TrySetResult(change);
+                }
+                else
+                {
+                    localEmission.TrySetResult(change);
+                }
+            });
+
+        var initial = await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PreferenceChangeOrigin.SyncApply, initial.Origin);
+        Assert.False(initial.AdvancesSyncClock);
+        Assert.Empty(initial.Value);
+
+        await preferences.Session.UpdateRecordedAsync(sessionId, current =>
+            current with
+            {
+                Analysis = current.Analysis with { TravelDistributionMode = TravelDistributionMode.DynamicSag },
+            });
+
+        var local = await localEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PreferenceChangeOrigin.LocalWrite, local.Origin);
+        Assert.True(local.AdvancesSyncClock);
+        Assert.True(local.Value.TryGetValue(sessionId, out var stored));
+        Assert.Equal(TravelDistributionMode.DynamicSag, stored.Analysis.TravelDistributionMode);
+    }
+
+    [Fact]
+    public async Task ObserveAllRecordedChanges_DistinctUntilChanged_SquashesIdenticalRefresh()
+    {
+        using var tempDirectory = new TempDirectory("sufni-preferences-test");
+        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
+        var sessionId = Guid.NewGuid();
+        var preferences = new AppPreferences(preferencesPath);
+
+        var initialEmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstStoredEmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var duplicateEmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var emissions = 0;
+        using var subscription = preferences.Session.ObserveAllRecordedChanges()
+            .Subscribe(_ =>
+            {
+                var emission = Interlocked.Increment(ref emissions);
+                if (emission == 1)
+                {
+                    initialEmission.TrySetResult();
+                }
+                else if (emission == 2)
+                {
+                    firstStoredEmission.TrySetResult();
+                }
+                else
+                {
+                    duplicateEmission.TrySetResult();
+                }
+            });
+        await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var stored = SessionPreferences.Default with
+        {
+            Analysis = SessionPreferences.Default.Analysis with
+            {
+                TravelDistributionMode = TravelDistributionMode.DynamicSag,
+            },
+        };
+        await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
+        {
+            Updated = 100,
+            Session = new SessionPreferencesSyncData
+            {
+                Sessions = { [sessionId] = stored },
+            },
+        });
+        await firstStoredEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
+        {
+            Updated = 101,
+            Session = new SessionPreferencesSyncData
+            {
+                Sessions = { [sessionId] = stored },
+            },
+        });
+
+        await AssertDoesNotCompleteAsync(duplicateEmission.Task, TimeSpan.FromMilliseconds(100));
+        Assert.Equal(2, emissions);
     }
 
     [Fact]
@@ -1126,20 +1377,27 @@ public class AppPreferencesTests
         var preferences = new AppPreferences(preferencesPath);
 
         var emissions = 0;
-        var firstEmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var initialEmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstStoredEmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var duplicateEmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var subscription = preferences.Session.ObserveRecorded(sessionId)
             .Subscribe(_ =>
             {
-                if (Interlocked.Increment(ref emissions) == 1)
+                var emission = Interlocked.Increment(ref emissions);
+                if (emission == 1)
                 {
-                    firstEmission.TrySetResult();
+                    initialEmission.TrySetResult();
+                }
+                else if (emission == 2)
+                {
+                    firstStoredEmission.TrySetResult();
                 }
                 else
                 {
                     duplicateEmission.TrySetResult();
                 }
             });
+        await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         var stored = SessionPreferences.Default with
         {
@@ -1156,7 +1414,7 @@ public class AppPreferencesTests
                 Sessions = { [sessionId] = stored },
             },
         });
-        await firstEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await firstStoredEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
         {
@@ -1168,7 +1426,7 @@ public class AppPreferencesTests
         });
 
         await AssertDoesNotCompleteAsync(duplicateEmission.Task, TimeSpan.FromMilliseconds(100));
-        Assert.Equal(1, emissions);
+        Assert.Equal(2, emissions);
     }
 
     private static async Task AssertDoesNotCompleteAsync(Task task, TimeSpan timeout)
