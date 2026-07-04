@@ -119,6 +119,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly CancellableOperation loadOperation = new();
     private SessionPresentationDimensions? lastPresentationDimensions;
     private double? pendingAnalysisRangeBoundary;
+    private TelemetryTimeRange? analysisRange;
     private RecordedSessionTimelineAlignmentMark? pendingTimelineAlignmentMark;
     private RecordedSessionAnalysisInputs analysisInputs;
     private readonly AnalysisRequestScheduler analysisRequestScheduler;
@@ -266,7 +267,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } = SessionInsightsPresentation.BalanceSpeedModeOptions;
     public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } = SessionInsightsPresentation.VelocityAverageModeOptions;
     public IReadOnlyList<SessionInsightsTargetProfileOption> SessionInsightsTargetProfileOptions { get; } = SessionInsightsPresentation.SessionInsightsTargetProfileOptions;
-    public string SessionAnalysisRangeText => SessionContext.AnalysisRange is { } range
+    public string SessionAnalysisRangeText => analysisRange is { } range
         ? $"Selected range {FormatSeconds(range.StartSeconds)}-{FormatSeconds(range.EndSeconds)}s"
         : "Full session";
     public string SessionAnalysisModesText => SessionInsightsPresentation.DescribeModes(
@@ -334,7 +335,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private RecordedSessionAnalysisInputs CreateCurrentAnalysisInputs() =>
         new(
             telemetryGeneration,
-            SessionContext.AnalysisRange,
+            analysisRange,
             selectedTravelDistributionMode,
             selectedVelocityAverageMode,
             selectedBalanceDisplacementMode,
@@ -590,7 +591,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        if (SessionContext.AnalysisRange is null && selectedVelocityAverageMode == VelocityAverageMode.SampleAveraged)
+        if (analysisRange is null && selectedVelocityAverageMode == VelocityAverageMode.SampleAveraged)
         {
             ApplyDampingPercentages(sampleAveragedPercentages);
             return;
@@ -607,6 +608,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private bool IsSessionInsightsPageSelected => ReferenceEquals(SessionContext.SelectedPage, AnalysisPage);
 
     internal Guid? CurrentSessionFullTrack => session.FullTrack;
+
+    internal TelemetryTimeRange? CurrentAnalysisRange => analysisRange;
 
     internal void SetSessionFullTrack(Guid? fullTrackId)
     {
@@ -679,7 +682,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             analysisRequestScheduler.ConsumePendingTelemetryInsightsRequest() ||
             IsSessionInsightsPageSelected;
 
-        if (SessionContext.AnalysisRange is not null)
+        if (analysisRange is not null)
         {
             ClearAnalysisRange();
             if (suppressAnalysisRecompute && includeDeferredInsights)
@@ -1004,7 +1007,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 snapshot?.DurationSeconds,
                 viewLoaded,
                 IsTabActive),
-            new RecordedSessionSelectionState(SessionContext.AnalysisRange),
+            new RecordedSessionSelectionState(analysisRange),
             new RecordedSessionTimelineState(
                 SessionContext.TrackTimelineContext,
                 timelineDurationSeconds,
@@ -1133,7 +1136,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private bool CanClearAnalysisRangeFromPlotContext(TelemetryPlotContextMenuContext? context)
     {
-        return (SessionContext.AnalysisRange is not null || pendingAnalysisRangeBoundary is not null) &&
+        return (analysisRange is not null || pendingAnalysisRangeBoundary is not null) &&
                IsTelemetryPlotContext(context);
     }
 
@@ -1612,7 +1615,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void ClearDampingRangeSelections()
     {
-        if (!analysisSelectionController.ClearDampingRangeSelections(SessionContext.TelemetryData, SessionContext.AnalysisRange))
+        if (!analysisSelectionController.ClearDampingRangeSelections(SessionContext.TelemetryData, analysisRange))
         {
             return;
         }
@@ -1662,7 +1665,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             CreateAnalysisPresentationState(),
             dampingSpeedCutoffs,
             plotDampingSpeedCutoffs,
-            canEditDampingSpeedCutoffs);
+            canEditDampingSpeedCutoffs,
+            new RecordedAnalysisRangeState(analysisRange));
         ApplyProjectedEditorState(state);
         editorStateInput.OnNext(state);
     }
@@ -1875,11 +1879,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void ApplyAnalysisRange(TelemetryTimeRange? range)
     {
-        if (SessionContext.AnalysisRange == range)
+        if (analysisRange == range)
         {
             return;
         }
 
+        analysisRange = range;
         SessionContext.AnalysisRange = range;
         OnPropertyChanged(nameof(SessionAnalysisRangeText));
         ClearAnalysisSelections();
@@ -2269,7 +2274,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     [RelayCommand]
     private void SelectAnalysisRange(TelemetryRangeSelection? selection)
     {
-        if (!analysisSelectionController.Select(selection, SessionContext.TelemetryData, SessionContext.AnalysisRange)) return;
+        if (!analysisSelectionController.Select(selection, SessionContext.TelemetryData, analysisRange)) return;
 
         PublishAnalysisSelectionState();
         signalRowActions.ClearAnalysisSelectionToggles();
@@ -2371,7 +2376,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public void ClearAnalysisRange()
     {
         pendingAnalysisRangeBoundary = null;
-        if (SessionContext.AnalysisRange is null)
+        if (analysisRange is null)
         {
             return;
         }
@@ -2388,7 +2393,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        if (SessionContext.AnalysisRange is { } range)
+        if (analysisRange is { } range)
         {
             if (Math.Abs(clampedBoundarySeconds - range.StartSeconds) <= Math.Abs(clampedBoundarySeconds - range.EndSeconds))
             {
@@ -2420,7 +2425,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        if (SessionContext.AnalysisRange is { } range)
+        if (analysisRange is { } range)
         {
             SetAnalysisRange(clampedBoundarySeconds, range.EndSeconds);
             return;
@@ -2444,7 +2449,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        if (SessionContext.AnalysisRange is { } range)
+        if (analysisRange is { } range)
         {
             SetAnalysisRange(range.StartSeconds, clampedBoundarySeconds);
             return;

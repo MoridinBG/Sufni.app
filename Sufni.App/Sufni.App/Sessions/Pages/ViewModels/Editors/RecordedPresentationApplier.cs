@@ -264,15 +264,16 @@ internal sealed class RecordedPresentationApplier
 
     private RecordedAnalysisPresentationState CreateAnalysisRangeState(TelemetryData telemetry)
     {
+        var analysisRange = owner.CurrentAnalysisRange;
         return new RecordedAnalysisPresentationState(
-            AnalysisSurfaceState.ForSuspension(telemetry, SuspensionType.Front, context.AnalysisRange),
-            AnalysisSurfaceState.ForSuspension(telemetry, SuspensionType.Rear, context.AnalysisRange),
-            AnalysisSurfaceState.ForBalance(telemetry, BalanceType.Compression, context.AnalysisRange),
-            AnalysisSurfaceState.ForBalance(telemetry, BalanceType.Rebound, context.AnalysisRange),
-            AnalysisSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Fork, context.AnalysisRange),
-            AnalysisSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Frame, context.AnalysisRange),
-            AnalysisSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Fork, context.AnalysisRange),
-            AnalysisSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Frame, context.AnalysisRange));
+            AnalysisSurfaceState.ForSuspension(telemetry, SuspensionType.Front, analysisRange),
+            AnalysisSurfaceState.ForSuspension(telemetry, SuspensionType.Rear, analysisRange),
+            AnalysisSurfaceState.ForBalance(telemetry, BalanceType.Compression, analysisRange),
+            AnalysisSurfaceState.ForBalance(telemetry, BalanceType.Rebound, analysisRange),
+            AnalysisSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Fork, analysisRange),
+            AnalysisSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Frame, analysisRange),
+            AnalysisSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Fork, analysisRange),
+            AnalysisSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Frame, analysisRange));
     }
 
     private static SurfacePresentationState CreateMapState(IReadOnlyCollection<TrackPoint>? trackPoints, bool mapExpected)

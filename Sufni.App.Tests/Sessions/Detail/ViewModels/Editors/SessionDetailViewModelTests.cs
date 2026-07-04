@@ -1947,7 +1947,10 @@ public class SessionDetailViewModelTests
         var analysis = CreateAnalysisResult();
         sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(analysis);
         var editor = CreateEditor(snapshot);
-        editor.SessionContext.AnalysisRange = new TelemetryTimeRange(0.2, 0.4);
+        editor.SetTelemetryData(telemetry);
+        editor.SetAnalysisRange(0.2, 0.4);
+        editor.SetTelemetryData(null);
+        sessionAnalysisService.ClearReceivedCalls();
 
         editor.AnalysisWorkspace.RequestSessionInsights();
 

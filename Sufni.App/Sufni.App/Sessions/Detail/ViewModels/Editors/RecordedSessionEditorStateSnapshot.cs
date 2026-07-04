@@ -35,10 +35,14 @@ internal static class RecordedSessionEditorStateSnapshot
         RecordedAnalysisPresentationState? analysisSurfaces = null,
         DampingSpeedCutoffs? dampingSpeedCutoffs = null,
         DampingSpeedCutoffs? plotDampingSpeedCutoffs = null,
-        bool? canEditDampingSpeedCutoffs = null)
+        bool? canEditDampingSpeedCutoffs = null,
+        RecordedAnalysisRangeState? analysisRangeState = null)
     {
         var toggles = signalToggles ?? RecordedSignalToggleState.From(context);
         var modes = analysisModes ?? RecordedAnalysisModeState.From(context);
+        var currentAnalysisRange = analysisRangeState is { } ownerAnalysisRange
+            ? ownerAnalysisRange.AnalysisRange
+            : context.AnalysisRange;
         var surfaces = signalSurfaces ?? RecordedSignalSurfaceState.From(context);
         var media = mediaPresentation ?? RecordedMediaPresentationState.From(context);
         var analysis = analysisSurfaces ?? new RecordedAnalysisPresentationState(
@@ -61,7 +65,7 @@ internal static class RecordedSessionEditorStateSnapshot
             Preferences: preferences,
             Intent: new RecordedSessionEditorIntentState(
                 SelectedPageIndex: context.SelectedPageIndex,
-                AnalysisRange: context.AnalysisRange,
+                AnalysisRange: currentAnalysisRange,
                 SelectedTravelDistributionMode: modes.SelectedTravelDistributionMode,
                 SelectedBalanceDisplacementMode: modes.SelectedBalanceDisplacementMode,
                 SelectedBalanceSpeedMode: modes.SelectedBalanceSpeedMode,
@@ -115,6 +119,8 @@ internal static class RecordedSessionEditorStateSnapshot
                 HighlightRanges: context.AnalysisSelectionHighlightRanges));
     }
 }
+
+internal sealed record RecordedAnalysisRangeState(TelemetryTimeRange? AnalysisRange);
 
 internal sealed record RecordedAnalysisModeState(
     TravelDistributionMode SelectedTravelDistributionMode,
