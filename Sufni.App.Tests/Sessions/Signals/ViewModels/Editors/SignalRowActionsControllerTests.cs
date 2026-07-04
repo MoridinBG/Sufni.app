@@ -12,18 +12,12 @@ public class SignalRowActionsControllerTests
 
     public SignalRowActionsControllerTests()
     {
-        controller = new SignalRowActionsController(context);
+        controller = CreateController(context);
     }
 
     [Fact]
-    public void Constructor_PublishesHeaderActionPairsToContext()
+    public void Constructor_CreatesHeaderActionPairs()
     {
-        Assert.Same(controller.TravelHeaderActions, context.TravelHeaderActions);
-        Assert.Same(controller.VelocityHeaderActions, context.VelocityHeaderActions);
-        Assert.Same(controller.ImuHeaderActions, context.ImuHeaderActions);
-        Assert.Same(controller.PitchRollHeaderActions, context.PitchRollHeaderActions);
-        Assert.Same(controller.SpeedHeaderActions, context.SpeedHeaderActions);
-        Assert.Same(controller.ElevationHeaderActions, context.ElevationHeaderActions);
         Assert.Equal(
             ["travel_airtime", "travel_analysis_selection"],
             controller.TravelHeaderActions.Select(action => action.Id));
@@ -63,11 +57,11 @@ public class SignalRowActionsControllerTests
     }
 
     [Fact]
-    public void ContextShowFlagChange_UpdatesAirtimeActionCheckedState()
+    public void ExternalShowFlagChange_DoesNotUpdateAirtimeActionCheckedState()
     {
         context.ShowVelocityAirtime = true;
 
-        Assert.True(controller.VelocityHeaderActions[0].IsChecked);
+        Assert.False(controller.VelocityHeaderActions[0].IsChecked);
     }
 
     [Fact]
@@ -131,5 +125,35 @@ public class SignalRowActionsControllerTests
             controller.SpeedHeaderActions[1],
             controller.ElevationHeaderActions[1],
         ];
+    }
+
+    private static SignalRowActionsController CreateController(RecordedSessionContext context)
+    {
+        return new SignalRowActionsController(
+            () => context.HasAnalysisSelection,
+            () => context.ShowAirtime,
+            value => context.ShowAirtime = value,
+            () => context.ShowVelocityAirtime,
+            value => context.ShowVelocityAirtime = value,
+            () => context.ShowImuAirtime,
+            value => context.ShowImuAirtime = value,
+            () => context.ShowPitchRollAirtime,
+            value => context.ShowPitchRollAirtime = value,
+            () => context.ShowSpeedAirtime,
+            value => context.ShowSpeedAirtime = value,
+            () => context.ShowElevationAirtime,
+            value => context.ShowElevationAirtime = value,
+            () => context.ShowAnalysisSelection,
+            value => context.ShowAnalysisSelection = value,
+            () => context.ShowVelocityAnalysisSelection,
+            value => context.ShowVelocityAnalysisSelection = value,
+            () => context.ShowImuAnalysisSelection,
+            value => context.ShowImuAnalysisSelection = value,
+            () => context.ShowPitchRollAnalysisSelection,
+            value => context.ShowPitchRollAnalysisSelection = value,
+            () => context.ShowSpeedAnalysisSelection,
+            value => context.ShowSpeedAnalysisSelection = value,
+            () => context.ShowElevationAnalysisSelection,
+            value => context.ShowElevationAnalysisSelection = value);
     }
 }

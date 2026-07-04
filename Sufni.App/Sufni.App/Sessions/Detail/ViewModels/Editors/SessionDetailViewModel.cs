@@ -1296,7 +1296,38 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             sessionPreferences,
             () => Id,
             ErrorMessages.Add);
-        signalRowActions = new SignalRowActionsController(SessionContext);
+        signalRowActions = new SignalRowActionsController(
+            () => SessionContext.HasAnalysisSelection,
+            () => SessionContext.ShowAirtime,
+            value => SessionContext.ShowAirtime = value,
+            () => SessionContext.ShowVelocityAirtime,
+            value => SessionContext.ShowVelocityAirtime = value,
+            () => SessionContext.ShowImuAirtime,
+            value => SessionContext.ShowImuAirtime = value,
+            () => SessionContext.ShowPitchRollAirtime,
+            value => SessionContext.ShowPitchRollAirtime = value,
+            () => SessionContext.ShowSpeedAirtime,
+            value => SessionContext.ShowSpeedAirtime = value,
+            () => SessionContext.ShowElevationAirtime,
+            value => SessionContext.ShowElevationAirtime = value,
+            () => SessionContext.ShowAnalysisSelection,
+            value => SessionContext.ShowAnalysisSelection = value,
+            () => SessionContext.ShowVelocityAnalysisSelection,
+            value => SessionContext.ShowVelocityAnalysisSelection = value,
+            () => SessionContext.ShowImuAnalysisSelection,
+            value => SessionContext.ShowImuAnalysisSelection = value,
+            () => SessionContext.ShowPitchRollAnalysisSelection,
+            value => SessionContext.ShowPitchRollAnalysisSelection = value,
+            () => SessionContext.ShowSpeedAnalysisSelection,
+            value => SessionContext.ShowSpeedAnalysisSelection = value,
+            () => SessionContext.ShowElevationAnalysisSelection,
+            value => SessionContext.ShowElevationAnalysisSelection = value);
+        SessionContext.TravelHeaderActions = signalRowActions.TravelHeaderActions;
+        SessionContext.VelocityHeaderActions = signalRowActions.VelocityHeaderActions;
+        SessionContext.ImuHeaderActions = signalRowActions.ImuHeaderActions;
+        SessionContext.PitchRollHeaderActions = signalRowActions.PitchRollHeaderActions;
+        SessionContext.SpeedHeaderActions = signalRowActions.SpeedHeaderActions;
+        SessionContext.ElevationHeaderActions = signalRowActions.ElevationHeaderActions;
         signalAutozoomController = new SignalAutozoomController(Timeline);
         setAnalysisRangeStartCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
             SetAnalysisRangeStartFromPlotContext,

@@ -1,21 +1,42 @@
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System;
 
-using Sufni.App.Sessions.Detail.ViewModels.Editors;
 namespace Sufni.App.Sessions.Signals.ViewModels.Editors;
 
 /// <summary>
 /// Owns the per-row plot header actions for a recorded session: the six
 /// airtime toggles and six analysis-selection toggles, their icon and
-/// tool-tip state, and the context subscription that keeps them in sync
-/// with the Show* properties.
+/// tool-tip state.
 /// </summary>
 internal sealed class SignalRowActionsController
 {
-    private readonly RecordedSessionContext context;
+    private readonly Func<bool> hasAnalysisSelection;
+    private readonly Func<bool> showAirtime;
+    private readonly Action<bool> setShowAirtime;
+    private readonly Func<bool> showVelocityAirtime;
+    private readonly Action<bool> setShowVelocityAirtime;
+    private readonly Func<bool> showImuAirtime;
+    private readonly Action<bool> setShowImuAirtime;
+    private readonly Func<bool> showPitchRollAirtime;
+    private readonly Action<bool> setShowPitchRollAirtime;
+    private readonly Func<bool> showSpeedAirtime;
+    private readonly Action<bool> setShowSpeedAirtime;
+    private readonly Func<bool> showElevationAirtime;
+    private readonly Action<bool> setShowElevationAirtime;
+    private readonly Func<bool> showAnalysisSelection;
+    private readonly Action<bool> setShowAnalysisSelection;
+    private readonly Func<bool> showVelocityAnalysisSelection;
+    private readonly Action<bool> setShowVelocityAnalysisSelection;
+    private readonly Func<bool> showImuAnalysisSelection;
+    private readonly Action<bool> setShowImuAnalysisSelection;
+    private readonly Func<bool> showPitchRollAnalysisSelection;
+    private readonly Action<bool> setShowPitchRollAnalysisSelection;
+    private readonly Func<bool> showSpeedAnalysisSelection;
+    private readonly Action<bool> setShowSpeedAnalysisSelection;
+    private readonly Func<bool> showElevationAnalysisSelection;
+    private readonly Action<bool> setShowElevationAnalysisSelection;
     private readonly SignalRowAction showAirtimeAction;
     private readonly SignalRowAction showVelocityAirtimeAction;
     private readonly SignalRowAction showImuAirtimeAction;
@@ -36,98 +57,130 @@ internal sealed class SignalRowActionsController
     public IReadOnlyList<SignalRowAction> SpeedHeaderActions { get; }
     public IReadOnlyList<SignalRowAction> ElevationHeaderActions { get; }
 
-    public SignalRowActionsController(RecordedSessionContext context)
+    public SignalRowActionsController(
+        Func<bool> hasAnalysisSelection,
+        Func<bool> showAirtime,
+        Action<bool> setShowAirtime,
+        Func<bool> showVelocityAirtime,
+        Action<bool> setShowVelocityAirtime,
+        Func<bool> showImuAirtime,
+        Action<bool> setShowImuAirtime,
+        Func<bool> showPitchRollAirtime,
+        Action<bool> setShowPitchRollAirtime,
+        Func<bool> showSpeedAirtime,
+        Action<bool> setShowSpeedAirtime,
+        Func<bool> showElevationAirtime,
+        Action<bool> setShowElevationAirtime,
+        Func<bool> showAnalysisSelection,
+        Action<bool> setShowAnalysisSelection,
+        Func<bool> showVelocityAnalysisSelection,
+        Action<bool> setShowVelocityAnalysisSelection,
+        Func<bool> showImuAnalysisSelection,
+        Action<bool> setShowImuAnalysisSelection,
+        Func<bool> showPitchRollAnalysisSelection,
+        Action<bool> setShowPitchRollAnalysisSelection,
+        Func<bool> showSpeedAnalysisSelection,
+        Action<bool> setShowSpeedAnalysisSelection,
+        Func<bool> showElevationAnalysisSelection,
+        Action<bool> setShowElevationAnalysisSelection)
     {
-        this.context = context;
-        showAirtimeAction = CreateAirtimeAction("travel_airtime", context.ShowAirtime, () => context.ShowAirtime = !context.ShowAirtime);
-        showVelocityAirtimeAction = CreateAirtimeAction("velocity_airtime", context.ShowVelocityAirtime, () => context.ShowVelocityAirtime = !context.ShowVelocityAirtime);
-        showImuAirtimeAction = CreateAirtimeAction("imu_airtime", context.ShowImuAirtime, () => context.ShowImuAirtime = !context.ShowImuAirtime);
-        showPitchRollAirtimeAction = CreateAirtimeAction("pitch_roll_airtime", context.ShowPitchRollAirtime, () => context.ShowPitchRollAirtime = !context.ShowPitchRollAirtime);
-        showSpeedAirtimeAction = CreateAirtimeAction("speed_airtime", context.ShowSpeedAirtime, () => context.ShowSpeedAirtime = !context.ShowSpeedAirtime);
-        showElevationAirtimeAction = CreateAirtimeAction("elevation_airtime", context.ShowElevationAirtime, () => context.ShowElevationAirtime = !context.ShowElevationAirtime);
-        showAnalysisSelectionAction = CreateAnalysisSelectionAction("travel_analysis_selection", context.ShowAnalysisSelection, () => context.ShowAnalysisSelection = !context.ShowAnalysisSelection);
-        showVelocityAnalysisSelectionAction = CreateAnalysisSelectionAction("velocity_analysis_selection", context.ShowVelocityAnalysisSelection, () => context.ShowVelocityAnalysisSelection = !context.ShowVelocityAnalysisSelection);
-        showImuAnalysisSelectionAction = CreateAnalysisSelectionAction("imu_analysis_selection", context.ShowImuAnalysisSelection, () => context.ShowImuAnalysisSelection = !context.ShowImuAnalysisSelection);
-        showPitchRollAnalysisSelectionAction = CreateAnalysisSelectionAction("pitch_roll_analysis_selection", context.ShowPitchRollAnalysisSelection, () => context.ShowPitchRollAnalysisSelection = !context.ShowPitchRollAnalysisSelection);
-        showSpeedAnalysisSelectionAction = CreateAnalysisSelectionAction("speed_analysis_selection", context.ShowSpeedAnalysisSelection, () => context.ShowSpeedAnalysisSelection = !context.ShowSpeedAnalysisSelection);
-        showElevationAnalysisSelectionAction = CreateAnalysisSelectionAction("elevation_analysis_selection", context.ShowElevationAnalysisSelection, () => context.ShowElevationAnalysisSelection = !context.ShowElevationAnalysisSelection);
+        this.hasAnalysisSelection = hasAnalysisSelection;
+        this.showAirtime = showAirtime;
+        this.setShowAirtime = setShowAirtime;
+        this.showVelocityAirtime = showVelocityAirtime;
+        this.setShowVelocityAirtime = setShowVelocityAirtime;
+        this.showImuAirtime = showImuAirtime;
+        this.setShowImuAirtime = setShowImuAirtime;
+        this.showPitchRollAirtime = showPitchRollAirtime;
+        this.setShowPitchRollAirtime = setShowPitchRollAirtime;
+        this.showSpeedAirtime = showSpeedAirtime;
+        this.setShowSpeedAirtime = setShowSpeedAirtime;
+        this.showElevationAirtime = showElevationAirtime;
+        this.setShowElevationAirtime = setShowElevationAirtime;
+        this.showAnalysisSelection = showAnalysisSelection;
+        this.setShowAnalysisSelection = setShowAnalysisSelection;
+        this.showVelocityAnalysisSelection = showVelocityAnalysisSelection;
+        this.setShowVelocityAnalysisSelection = setShowVelocityAnalysisSelection;
+        this.showImuAnalysisSelection = showImuAnalysisSelection;
+        this.setShowImuAnalysisSelection = setShowImuAnalysisSelection;
+        this.showPitchRollAnalysisSelection = showPitchRollAnalysisSelection;
+        this.setShowPitchRollAnalysisSelection = setShowPitchRollAnalysisSelection;
+        this.showSpeedAnalysisSelection = showSpeedAnalysisSelection;
+        this.setShowSpeedAnalysisSelection = setShowSpeedAnalysisSelection;
+        this.showElevationAnalysisSelection = showElevationAnalysisSelection;
+        this.setShowElevationAnalysisSelection = setShowElevationAnalysisSelection;
+
+        showAirtimeAction = CreateBoundAirtimeAction("travel_airtime", showAirtime, setShowAirtime);
+        showVelocityAirtimeAction = CreateBoundAirtimeAction("velocity_airtime", showVelocityAirtime, setShowVelocityAirtime);
+        showImuAirtimeAction = CreateBoundAirtimeAction("imu_airtime", showImuAirtime, setShowImuAirtime);
+        showPitchRollAirtimeAction = CreateBoundAirtimeAction("pitch_roll_airtime", showPitchRollAirtime, setShowPitchRollAirtime);
+        showSpeedAirtimeAction = CreateBoundAirtimeAction("speed_airtime", showSpeedAirtime, setShowSpeedAirtime);
+        showElevationAirtimeAction = CreateBoundAirtimeAction("elevation_airtime", showElevationAirtime, setShowElevationAirtime);
+        showAnalysisSelectionAction = CreateBoundAnalysisSelectionAction("travel_analysis_selection", showAnalysisSelection, setShowAnalysisSelection);
+        showVelocityAnalysisSelectionAction = CreateBoundAnalysisSelectionAction("velocity_analysis_selection", showVelocityAnalysisSelection, setShowVelocityAnalysisSelection);
+        showImuAnalysisSelectionAction = CreateBoundAnalysisSelectionAction("imu_analysis_selection", showImuAnalysisSelection, setShowImuAnalysisSelection);
+        showPitchRollAnalysisSelectionAction = CreateBoundAnalysisSelectionAction("pitch_roll_analysis_selection", showPitchRollAnalysisSelection, setShowPitchRollAnalysisSelection);
+        showSpeedAnalysisSelectionAction = CreateBoundAnalysisSelectionAction("speed_analysis_selection", showSpeedAnalysisSelection, setShowSpeedAnalysisSelection);
+        showElevationAnalysisSelectionAction = CreateBoundAnalysisSelectionAction("elevation_analysis_selection", showElevationAnalysisSelection, setShowElevationAnalysisSelection);
         TravelHeaderActions = [showAirtimeAction, showAnalysisSelectionAction];
         VelocityHeaderActions = [showVelocityAirtimeAction, showVelocityAnalysisSelectionAction];
         ImuHeaderActions = [showImuAirtimeAction, showImuAnalysisSelectionAction];
         PitchRollHeaderActions = [showPitchRollAirtimeAction, showPitchRollAnalysisSelectionAction];
         SpeedHeaderActions = [showSpeedAirtimeAction, showSpeedAnalysisSelectionAction];
         ElevationHeaderActions = [showElevationAirtimeAction, showElevationAnalysisSelectionAction];
-        context.TravelHeaderActions = TravelHeaderActions;
-        context.VelocityHeaderActions = VelocityHeaderActions;
-        context.ImuHeaderActions = ImuHeaderActions;
-        context.PitchRollHeaderActions = PitchRollHeaderActions;
-        context.SpeedHeaderActions = SpeedHeaderActions;
-        context.ElevationHeaderActions = ElevationHeaderActions;
-        context.PropertyChanged += OnContextPropertyChanged;
     }
 
     public void RefreshAnalysisSelectionActionStates()
     {
-        var hasSelection = context.HasAnalysisSelection;
-        UpdateAnalysisSelectionAction(showAnalysisSelectionAction, context.ShowAnalysisSelection, hasSelection);
-        UpdateAnalysisSelectionAction(showVelocityAnalysisSelectionAction, context.ShowVelocityAnalysisSelection, hasSelection);
-        UpdateAnalysisSelectionAction(showImuAnalysisSelectionAction, context.ShowImuAnalysisSelection, hasSelection);
-        UpdateAnalysisSelectionAction(showPitchRollAnalysisSelectionAction, context.ShowPitchRollAnalysisSelection, hasSelection);
-        UpdateAnalysisSelectionAction(showSpeedAnalysisSelectionAction, context.ShowSpeedAnalysisSelection, hasSelection);
-        UpdateAnalysisSelectionAction(showElevationAnalysisSelectionAction, context.ShowElevationAnalysisSelection, hasSelection);
+        var hasSelection = hasAnalysisSelection();
+        UpdateAnalysisSelectionAction(showAnalysisSelectionAction, showAnalysisSelection(), hasSelection);
+        UpdateAnalysisSelectionAction(showVelocityAnalysisSelectionAction, showVelocityAnalysisSelection(), hasSelection);
+        UpdateAnalysisSelectionAction(showImuAnalysisSelectionAction, showImuAnalysisSelection(), hasSelection);
+        UpdateAnalysisSelectionAction(showPitchRollAnalysisSelectionAction, showPitchRollAnalysisSelection(), hasSelection);
+        UpdateAnalysisSelectionAction(showSpeedAnalysisSelectionAction, showSpeedAnalysisSelection(), hasSelection);
+        UpdateAnalysisSelectionAction(showElevationAnalysisSelectionAction, showElevationAnalysisSelection(), hasSelection);
     }
 
     public void ClearAnalysisSelectionToggles()
     {
-        context.ShowAnalysisSelection = false;
-        context.ShowVelocityAnalysisSelection = false;
-        context.ShowImuAnalysisSelection = false;
-        context.ShowPitchRollAnalysisSelection = false;
-        context.ShowSpeedAnalysisSelection = false;
-        context.ShowElevationAnalysisSelection = false;
+        SetAnalysisSelection(showAnalysisSelectionAction, setShowAnalysisSelection, false);
+        SetAnalysisSelection(showVelocityAnalysisSelectionAction, setShowVelocityAnalysisSelection, false);
+        SetAnalysisSelection(showImuAnalysisSelectionAction, setShowImuAnalysisSelection, false);
+        SetAnalysisSelection(showPitchRollAnalysisSelectionAction, setShowPitchRollAnalysisSelection, false);
+        SetAnalysisSelection(showSpeedAnalysisSelectionAction, setShowSpeedAnalysisSelection, false);
+        SetAnalysisSelection(showElevationAnalysisSelectionAction, setShowElevationAnalysisSelection, false);
     }
 
-    private void OnContextPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    private void ToggleAirtime(Func<bool> get, Action<bool> set, SignalRowAction action)
     {
-        switch (args.PropertyName)
-        {
-            case nameof(RecordedSessionContext.ShowAirtime):
-                UpdateAirtimeAction(showAirtimeAction, context.ShowAirtime);
-                break;
-            case nameof(RecordedSessionContext.ShowVelocityAirtime):
-                UpdateAirtimeAction(showVelocityAirtimeAction, context.ShowVelocityAirtime);
-                break;
-            case nameof(RecordedSessionContext.ShowImuAirtime):
-                UpdateAirtimeAction(showImuAirtimeAction, context.ShowImuAirtime);
-                break;
-            case nameof(RecordedSessionContext.ShowPitchRollAirtime):
-                UpdateAirtimeAction(showPitchRollAirtimeAction, context.ShowPitchRollAirtime);
-                break;
-            case nameof(RecordedSessionContext.ShowSpeedAirtime):
-                UpdateAirtimeAction(showSpeedAirtimeAction, context.ShowSpeedAirtime);
-                break;
-            case nameof(RecordedSessionContext.ShowElevationAirtime):
-                UpdateAirtimeAction(showElevationAirtimeAction, context.ShowElevationAirtime);
-                break;
-            case nameof(RecordedSessionContext.ShowAnalysisSelection):
-                UpdateAnalysisSelectionAction(showAnalysisSelectionAction, context.ShowAnalysisSelection, context.HasAnalysisSelection);
-                break;
-            case nameof(RecordedSessionContext.ShowVelocityAnalysisSelection):
-                UpdateAnalysisSelectionAction(showVelocityAnalysisSelectionAction, context.ShowVelocityAnalysisSelection, context.HasAnalysisSelection);
-                break;
-            case nameof(RecordedSessionContext.ShowImuAnalysisSelection):
-                UpdateAnalysisSelectionAction(showImuAnalysisSelectionAction, context.ShowImuAnalysisSelection, context.HasAnalysisSelection);
-                break;
-            case nameof(RecordedSessionContext.ShowPitchRollAnalysisSelection):
-                UpdateAnalysisSelectionAction(showPitchRollAnalysisSelectionAction, context.ShowPitchRollAnalysisSelection, context.HasAnalysisSelection);
-                break;
-            case nameof(RecordedSessionContext.ShowSpeedAnalysisSelection):
-                UpdateAnalysisSelectionAction(showSpeedAnalysisSelectionAction, context.ShowSpeedAnalysisSelection, context.HasAnalysisSelection);
-                break;
-            case nameof(RecordedSessionContext.ShowElevationAnalysisSelection):
-                UpdateAnalysisSelectionAction(showElevationAnalysisSelectionAction, context.ShowElevationAnalysisSelection, context.HasAnalysisSelection);
-                break;
-        }
+        var value = !get();
+        set(value);
+        UpdateAirtimeAction(action, value);
+    }
+
+    private void ToggleAnalysisSelection(Func<bool> get, Action<bool> set, SignalRowAction action)
+    {
+        SetAnalysisSelection(action, set, !get());
+    }
+
+    private void SetAnalysisSelection(SignalRowAction action, Action<bool> set, bool value)
+    {
+        set(value);
+        UpdateAnalysisSelectionAction(action, value, hasAnalysisSelection());
+    }
+
+    private SignalRowAction CreateBoundAirtimeAction(string id, Func<bool> get, Action<bool> set)
+    {
+        SignalRowAction action = null!;
+        action = CreateAirtimeAction(id, get(), () => ToggleAirtime(get, set, action));
+        return action;
+    }
+
+    private SignalRowAction CreateBoundAnalysisSelectionAction(string id, Func<bool> get, Action<bool> set)
+    {
+        SignalRowAction action = null!;
+        action = CreateAnalysisSelectionAction(id, get(), () => ToggleAnalysisSelection(get, set, action));
+        return action;
     }
 
     private static SignalRowAction CreateAirtimeAction(string id, bool isChecked, Action toggle)
@@ -155,7 +208,7 @@ internal sealed class SignalRowActionsController
             Command = new RelayCommand(toggle),
             Tone = SignalRowActionTone.Default,
         };
-        UpdateAnalysisSelectionAction(action, isChecked, context.HasAnalysisSelection);
+        UpdateAnalysisSelectionAction(action, isChecked, hasAnalysisSelection());
         return action;
     }
 
