@@ -18,7 +18,6 @@ namespace Sufni.App.Sessions.Pages.ViewModels.Editors;
 internal sealed class RecordedPresentationApplier
 {
     private readonly SessionDetailViewModel owner;
-    private readonly RecordedSessionContext context;
     private readonly ObservableCollection<PageViewModelBase> pages;
     private readonly SpringPageViewModel springPage;
     private readonly DampingPageViewModel dampingPage;
@@ -30,7 +29,6 @@ internal sealed class RecordedPresentationApplier
 
     public RecordedPresentationApplier(
         SessionDetailViewModel owner,
-        RecordedSessionContext context,
         ObservableCollection<PageViewModelBase> pages,
         SpringPageViewModel springPage,
         DampingPageViewModel dampingPage,
@@ -41,7 +39,6 @@ internal sealed class RecordedPresentationApplier
         PreferencesPageViewModel preferencesPage)
     {
         this.owner = owner;
-        this.context = context;
         this.pages = pages;
         this.springPage = springPage;
         this.dampingPage = dampingPage;

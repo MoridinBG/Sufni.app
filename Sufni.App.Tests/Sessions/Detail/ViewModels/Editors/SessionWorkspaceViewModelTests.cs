@@ -40,8 +40,8 @@ public class SessionWorkspaceViewModelTests
             actions);
         var changes = TrackPropertyChanges(workspace);
         context.PropertyChanged += (_, _) =>
-            state.OnNext(RecordedSessionEditorStateSnapshot.From(context, SessionPreferences.Default));
-        state.OnNext(RecordedSessionEditorStateSnapshot.From(context, SessionPreferences.Default));
+            state.OnNext(CreateState(context));
+        state.OnNext(CreateState(context));
 
         workspace.SignalLayoutPreferences = context.SignalLayoutPreferences;
         workspace.SetAnalysisRange(1.25, 3.5);
@@ -182,8 +182,8 @@ public class SessionWorkspaceViewModelTests
             new RelayCommand<TelemetryRangeSelection?>(_ => { }),
             Substitute.For<IRecordedSessionAnalysisResultState>());
         context.PropertyChanged += (_, _) =>
-            state.OnNext(RecordedSessionEditorStateSnapshot.From(context, SessionPreferences.Default));
-        state.OnNext(RecordedSessionEditorStateSnapshot.From(context, SessionPreferences.Default));
+            state.OnNext(CreateState(context));
+        state.OnNext(CreateState(context));
         return (context, gateway, actions, workspace);
     }
 
@@ -199,8 +199,8 @@ public class SessionWorkspaceViewModelTests
             () => context.ExtensionSlots);
         var changes = TrackPropertyChanges(workspace);
         context.PropertyChanged += (_, _) =>
-            state.OnNext(RecordedSessionEditorStateSnapshot.From(context, SessionPreferences.Default));
-        state.OnNext(RecordedSessionEditorStateSnapshot.From(context, SessionPreferences.Default));
+            state.OnNext(CreateState(context));
+        state.OnNext(CreateState(context));
 
         Assert.False(workspace.HasMediaContent);
 
@@ -241,7 +241,7 @@ public class SessionWorkspaceViewModelTests
         context.Pages.Add(new PageViewModelBase("Signals"));
         context.Pages.Add(new PageViewModelBase("Damping"));
         context.SelectedPageIndex = 1;
-        state.OnNext(RecordedSessionEditorStateSnapshot.From(context, SessionPreferences.Default));
+        state.OnNext(CreateState(context));
 
         Assert.Equal(context.ScreenState, workspace.ScreenState);
         Assert.Equal(context.SessionOperationState, workspace.SessionOperationState);
@@ -327,11 +327,11 @@ public class SessionWorkspaceViewModelTests
             () => context.ExtensionSlots,
             actions);
         var changes = TrackPropertyChanges(workspace);
-        state.OnNext(RecordedSessionEditorStateSnapshot.From(context, SessionPreferences.Default));
+        state.OnNext(CreateState(context));
         changes.Clear();
 
         context.ScreenState = SessionScreenPresentationState.Loading("Loading session.");
-        state.OnNext(RecordedSessionEditorStateSnapshot.From(context, SessionPreferences.Default));
+        state.OnNext(CreateState(context));
 
         Assert.Empty(changes);
     }
@@ -359,6 +359,78 @@ public class SessionWorkspaceViewModelTests
             }
         };
         return changes;
+    }
+
+    private static RecordedSessionEditorState CreateState(RecordedSessionContext context)
+    {
+        return RecordedSessionEditorStateSnapshot.From(
+            SessionPreferences.Default,
+            context.TravelHeaderActions,
+            context.VelocityHeaderActions,
+            context.ImuHeaderActions,
+            context.PitchRollHeaderActions,
+            context.SpeedHeaderActions,
+            context.ElevationHeaderActions,
+            new RecordedSignalToggleState(
+                context.ShowAirtime,
+                context.ShowVelocityAirtime,
+                context.ShowImuAirtime,
+                context.ShowPitchRollAirtime,
+                context.ShowSpeedAirtime,
+                context.ShowElevationAirtime,
+                context.ShowAnalysisSelection,
+                context.ShowVelocityAnalysisSelection,
+                context.ShowImuAnalysisSelection,
+                context.ShowPitchRollAnalysisSelection,
+                context.ShowSpeedAnalysisSelection,
+                context.ShowElevationAnalysisSelection),
+            new RecordedAnalysisModeState(
+                context.SelectedTravelDistributionMode,
+                context.SelectedBalanceDisplacementMode,
+                context.SelectedBalanceSpeedMode,
+                context.SelectedVelocityAverageMode,
+                context.SelectedSessionInsightsTargetProfile),
+            new AnalysisSelectionState(
+                context.ActiveFrontAnalysisSelection,
+                context.ActiveRearAnalysisSelection,
+                context.AnalysisSelectionHighlightRanges),
+            context.ScreenState,
+            context.SessionOperationState,
+            context.DampingPercentages,
+            context.SignalPlotContextMenuActionsBySignalRowId,
+            context.SessionInsights,
+            new RecordedSignalSurfaceState(
+                context.TravelSignalState,
+                context.VelocitySignalState,
+                context.ImuSignalState,
+                context.PitchRollSignalState,
+                context.SpeedSignalState,
+                context.ElevationSignalState),
+            new RecordedMediaPresentationState(
+                context.MapState,
+                context.MediaPaneState,
+                context.MediaColumnWidth,
+                context.MediaUrl),
+            new RecordedAnalysisPresentationState(
+                context.FrontAnalysisState,
+                context.RearAnalysisState,
+                context.CompressionBalanceState,
+                context.ReboundBalanceState,
+                context.FrontForkVibrationState,
+                context.FrontFrameVibrationState,
+                context.RearForkVibrationState,
+                context.RearFrameVibrationState),
+            context.DampingSpeedCutoffs,
+            context.PlotDampingSpeedCutoffs,
+            context.CanEditDampingSpeedCutoffs,
+            new RecordedAnalysisRangeState(context.AnalysisRange),
+            new RecordedPageSelectionState(context.SelectedPageIndex),
+            new RecordedSessionLoadedDataState(
+                context.SessionSnapshot,
+                context.TelemetryData,
+                context.FullTrackPoints,
+                context.TrackPoints,
+                context.TrackTimelineContext));
     }
 
     private static List<RecordedSessionEditorIntent> Subscribe(RecordedSessionEditorActions actions)

@@ -1585,7 +1585,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         AnalysisPage = new SessionInsightsPageViewModel(AnalysisWorkspace);
         presentationApplier = new RecordedPresentationApplier(
             this,
-            SessionContext,
             Pages,
             SpringPage,
             DampingPage,
@@ -1699,7 +1698,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private void PublishEditorState()
     {
         var state = RecordedSessionEditorStateSnapshot.From(
-            SessionContext,
             recordedPreferenceStore.Current,
             TravelHeaderActions,
             VelocityHeaderActions,

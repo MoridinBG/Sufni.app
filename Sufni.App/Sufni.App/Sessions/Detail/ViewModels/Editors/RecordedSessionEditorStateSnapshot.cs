@@ -15,113 +15,90 @@ namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 internal static class RecordedSessionEditorStateSnapshot
 {
     public static RecordedSessionEditorState From(
-        RecordedSessionContext context,
         SessionPreferences preferences,
-        IReadOnlyList<SignalRowAction>? travelHeaderActions = null,
-        IReadOnlyList<SignalRowAction>? velocityHeaderActions = null,
-        IReadOnlyList<SignalRowAction>? imuHeaderActions = null,
-        IReadOnlyList<SignalRowAction>? pitchRollHeaderActions = null,
-        IReadOnlyList<SignalRowAction>? speedHeaderActions = null,
-        IReadOnlyList<SignalRowAction>? elevationHeaderActions = null,
-        RecordedSignalToggleState? signalToggles = null,
-        RecordedAnalysisModeState? analysisModes = null,
-        AnalysisSelectionState? analysisSelection = null,
-        SessionScreenPresentationState? screenState = null,
-        SessionOperationPresentationState? operationState = null,
-        SessionDampingPercentages? dampingPercentages = null,
-        IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>? signalPlotContextMenuActionsBySignalRowId = null,
-        SessionInsightsResult? sessionInsights = null,
-        RecordedSignalSurfaceState? signalSurfaces = null,
-        RecordedMediaPresentationState? mediaPresentation = null,
-        RecordedAnalysisPresentationState? analysisSurfaces = null,
-        DampingSpeedCutoffs? dampingSpeedCutoffs = null,
-        DampingSpeedCutoffs? plotDampingSpeedCutoffs = null,
-        bool? canEditDampingSpeedCutoffs = null,
-        RecordedAnalysisRangeState? analysisRangeState = null,
-        RecordedPageSelectionState? pageSelectionState = null,
-        RecordedSessionLoadedDataState? loadedDataState = null)
+        IReadOnlyList<SignalRowAction> travelHeaderActions,
+        IReadOnlyList<SignalRowAction> velocityHeaderActions,
+        IReadOnlyList<SignalRowAction> imuHeaderActions,
+        IReadOnlyList<SignalRowAction> pitchRollHeaderActions,
+        IReadOnlyList<SignalRowAction> speedHeaderActions,
+        IReadOnlyList<SignalRowAction> elevationHeaderActions,
+        RecordedSignalToggleState signalToggles,
+        RecordedAnalysisModeState analysisModes,
+        AnalysisSelectionState analysisSelection,
+        SessionScreenPresentationState screenState,
+        SessionOperationPresentationState operationState,
+        SessionDampingPercentages dampingPercentages,
+        IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> signalPlotContextMenuActionsBySignalRowId,
+        SessionInsightsResult sessionInsights,
+        RecordedSignalSurfaceState signalSurfaces,
+        RecordedMediaPresentationState mediaPresentation,
+        RecordedAnalysisPresentationState analysisSurfaces,
+        DampingSpeedCutoffs dampingSpeedCutoffs,
+        DampingSpeedCutoffs plotDampingSpeedCutoffs,
+        bool canEditDampingSpeedCutoffs,
+        RecordedAnalysisRangeState analysisRangeState,
+        RecordedPageSelectionState pageSelectionState,
+        RecordedSessionLoadedDataState loadedDataState)
     {
-        var toggles = signalToggles ?? RecordedSignalToggleState.From(context);
-        var modes = analysisModes ?? RecordedAnalysisModeState.From(context);
-        var loadedData = loadedDataState ?? RecordedSessionLoadedDataState.From(context);
-        var currentSelectedPageIndex = pageSelectionState?.SelectedPageIndex ?? context.SelectedPageIndex;
-        var currentAnalysisRange = analysisRangeState is { } ownerAnalysisRange
-            ? ownerAnalysisRange.AnalysisRange
-            : context.AnalysisRange;
-        var surfaces = signalSurfaces ?? RecordedSignalSurfaceState.From(context);
-        var media = mediaPresentation ?? RecordedMediaPresentationState.From(context);
-        var analysis = analysisSurfaces ?? new RecordedAnalysisPresentationState(
-            context.FrontAnalysisState,
-            context.RearAnalysisState,
-            context.CompressionBalanceState,
-            context.ReboundBalanceState,
-            context.FrontForkVibrationState,
-            context.FrontFrameVibrationState,
-            context.RearForkVibrationState,
-            context.RearFrameVibrationState);
-
         return new RecordedSessionEditorState(
             Domain: null,
-            Session: loadedData.Session,
-            TelemetryData: loadedData.TelemetryData,
-            FullTrackPoints: loadedData.FullTrackPoints,
-            TrackPoints: loadedData.TrackPoints,
-            TrackTimelineContext: loadedData.TrackTimelineContext,
+            Session: loadedDataState.Session,
+            TelemetryData: loadedDataState.TelemetryData,
+            FullTrackPoints: loadedDataState.FullTrackPoints,
+            TrackPoints: loadedDataState.TrackPoints,
+            TrackTimelineContext: loadedDataState.TrackTimelineContext,
             Preferences: preferences,
             Intent: new RecordedSessionEditorIntentState(
-                SelectedPageIndex: currentSelectedPageIndex,
-                AnalysisRange: currentAnalysisRange,
-                SelectedTravelDistributionMode: modes.SelectedTravelDistributionMode,
-                SelectedBalanceDisplacementMode: modes.SelectedBalanceDisplacementMode,
-                SelectedBalanceSpeedMode: modes.SelectedBalanceSpeedMode,
-                SelectedVelocityAverageMode: modes.SelectedVelocityAverageMode,
-                SelectedSessionInsightsTargetProfile: modes.SelectedSessionInsightsTargetProfile,
-                DampingSpeedCutoffs: dampingSpeedCutoffs ?? context.DampingSpeedCutoffs,
+                SelectedPageIndex: pageSelectionState.SelectedPageIndex,
+                AnalysisRange: analysisRangeState.AnalysisRange,
+                SelectedTravelDistributionMode: analysisModes.SelectedTravelDistributionMode,
+                SelectedBalanceDisplacementMode: analysisModes.SelectedBalanceDisplacementMode,
+                SelectedBalanceSpeedMode: analysisModes.SelectedBalanceSpeedMode,
+                SelectedVelocityAverageMode: analysisModes.SelectedVelocityAverageMode,
+                SelectedSessionInsightsTargetProfile: analysisModes.SelectedSessionInsightsTargetProfile,
+                DampingSpeedCutoffs: dampingSpeedCutoffs,
                 SignalDisplayPreferences: preferences.SignalDisplay,
                 SignalLayoutPreferences: preferences.SignalLayout,
                 LayoutPreferences: preferences.Layout),
             Presentation: new RecordedSessionEditorPresentationState(
-                MapState: media.MapState,
-                MediaPaneState: media.MediaPaneState,
-                MediaColumnWidth: media.MediaColumnWidth,
-                MediaUrl: media.MediaUrl,
+                MapState: mediaPresentation.MapState,
+                MediaPaneState: mediaPresentation.MediaPaneState,
+                MediaColumnWidth: mediaPresentation.MediaColumnWidth,
+                MediaUrl: mediaPresentation.MediaUrl,
                 Signals: new RecordedSignalPresentationState(
-                    Travel: surfaces.Travel,
-                    Velocity: surfaces.Velocity,
-                    Imu: surfaces.Imu,
-                    PitchRoll: surfaces.PitchRoll,
-                    Speed: surfaces.Speed,
-                    Elevation: surfaces.Elevation,
-                    ShowAirtime: toggles.ShowAirtime,
-                    ShowVelocityAirtime: toggles.ShowVelocityAirtime,
-                    ShowImuAirtime: toggles.ShowImuAirtime,
-                    ShowPitchRollAirtime: toggles.ShowPitchRollAirtime,
-                    ShowSpeedAirtime: toggles.ShowSpeedAirtime,
-                    ShowElevationAirtime: toggles.ShowElevationAirtime,
-                    ShowAnalysisSelection: toggles.ShowAnalysisSelection,
-                    ShowVelocityAnalysisSelection: toggles.ShowVelocityAnalysisSelection,
-                    ShowImuAnalysisSelection: toggles.ShowImuAnalysisSelection,
-                    ShowPitchRollAnalysisSelection: toggles.ShowPitchRollAnalysisSelection,
-                    ShowSpeedAnalysisSelection: toggles.ShowSpeedAnalysisSelection,
-                    ShowElevationAnalysisSelection: toggles.ShowElevationAnalysisSelection,
-                    TravelHeaderActions: travelHeaderActions ?? context.TravelHeaderActions,
-                    VelocityHeaderActions: velocityHeaderActions ?? context.VelocityHeaderActions,
-                    ImuHeaderActions: imuHeaderActions ?? context.ImuHeaderActions,
-                    PitchRollHeaderActions: pitchRollHeaderActions ?? context.PitchRollHeaderActions,
-                    SpeedHeaderActions: speedHeaderActions ?? context.SpeedHeaderActions,
-                    ElevationHeaderActions: elevationHeaderActions ?? context.ElevationHeaderActions),
-                Analysis: analysis,
-                DampingPercentages: dampingPercentages ?? context.DampingPercentages,
-                PlotDampingSpeedCutoffs: plotDampingSpeedCutoffs ?? context.PlotDampingSpeedCutoffs,
-                CanEditDampingSpeedCutoffs: canEditDampingSpeedCutoffs ?? context.CanEditDampingSpeedCutoffs,
-                SessionInsights: sessionInsights ?? context.SessionInsights,
-                SignalPlotContextMenuActionsBySignalRowId: signalPlotContextMenuActionsBySignalRowId ?? context.SignalPlotContextMenuActionsBySignalRowId,
-                ScreenState: screenState ?? context.ScreenState,
-                OperationState: operationState ?? context.SessionOperationState),
-            AnalysisSelection: analysisSelection ?? new AnalysisSelectionState(
-                ActiveFront: context.ActiveFrontAnalysisSelection,
-                ActiveRear: context.ActiveRearAnalysisSelection,
-                HighlightRanges: context.AnalysisSelectionHighlightRanges));
+                    Travel: signalSurfaces.Travel,
+                    Velocity: signalSurfaces.Velocity,
+                    Imu: signalSurfaces.Imu,
+                    PitchRoll: signalSurfaces.PitchRoll,
+                    Speed: signalSurfaces.Speed,
+                    Elevation: signalSurfaces.Elevation,
+                    ShowAirtime: signalToggles.ShowAirtime,
+                    ShowVelocityAirtime: signalToggles.ShowVelocityAirtime,
+                    ShowImuAirtime: signalToggles.ShowImuAirtime,
+                    ShowPitchRollAirtime: signalToggles.ShowPitchRollAirtime,
+                    ShowSpeedAirtime: signalToggles.ShowSpeedAirtime,
+                    ShowElevationAirtime: signalToggles.ShowElevationAirtime,
+                    ShowAnalysisSelection: signalToggles.ShowAnalysisSelection,
+                    ShowVelocityAnalysisSelection: signalToggles.ShowVelocityAnalysisSelection,
+                    ShowImuAnalysisSelection: signalToggles.ShowImuAnalysisSelection,
+                    ShowPitchRollAnalysisSelection: signalToggles.ShowPitchRollAnalysisSelection,
+                    ShowSpeedAnalysisSelection: signalToggles.ShowSpeedAnalysisSelection,
+                    ShowElevationAnalysisSelection: signalToggles.ShowElevationAnalysisSelection,
+                    TravelHeaderActions: travelHeaderActions,
+                    VelocityHeaderActions: velocityHeaderActions,
+                    ImuHeaderActions: imuHeaderActions,
+                    PitchRollHeaderActions: pitchRollHeaderActions,
+                    SpeedHeaderActions: speedHeaderActions,
+                    ElevationHeaderActions: elevationHeaderActions),
+                Analysis: analysisSurfaces,
+                DampingPercentages: dampingPercentages,
+                PlotDampingSpeedCutoffs: plotDampingSpeedCutoffs,
+                CanEditDampingSpeedCutoffs: canEditDampingSpeedCutoffs,
+                SessionInsights: sessionInsights,
+                SignalPlotContextMenuActionsBySignalRowId: signalPlotContextMenuActionsBySignalRowId,
+                ScreenState: screenState,
+                OperationState: operationState),
+            AnalysisSelection: analysisSelection);
     }
 }
 
@@ -134,36 +111,14 @@ internal sealed record RecordedSessionLoadedDataState(
     TelemetryData? TelemetryData,
     IReadOnlyList<TrackPoint>? FullTrackPoints,
     IReadOnlyList<TrackPoint>? TrackPoints,
-    TrackTimeRange? TrackTimelineContext)
-{
-    public static RecordedSessionLoadedDataState From(RecordedSessionContext context)
-    {
-        return new RecordedSessionLoadedDataState(
-            context.SessionSnapshot,
-            context.TelemetryData,
-            context.FullTrackPoints,
-            context.TrackPoints,
-            context.TrackTimelineContext);
-    }
-}
+    TrackTimeRange? TrackTimelineContext);
 
 internal sealed record RecordedAnalysisModeState(
     TravelDistributionMode SelectedTravelDistributionMode,
     BalanceDisplacementMode SelectedBalanceDisplacementMode,
     BalanceSpeedMode SelectedBalanceSpeedMode,
     VelocityAverageMode SelectedVelocityAverageMode,
-    SessionInsightsTargetProfile SelectedSessionInsightsTargetProfile)
-{
-    public static RecordedAnalysisModeState From(RecordedSessionContext context)
-    {
-        return new RecordedAnalysisModeState(
-            context.SelectedTravelDistributionMode,
-            context.SelectedBalanceDisplacementMode,
-            context.SelectedBalanceSpeedMode,
-            context.SelectedVelocityAverageMode,
-            context.SelectedSessionInsightsTargetProfile);
-    }
-}
+    SessionInsightsTargetProfile SelectedSessionInsightsTargetProfile);
 
 internal sealed record RecordedSignalSurfaceState(
     SurfacePresentationState Travel,
@@ -171,35 +126,13 @@ internal sealed record RecordedSignalSurfaceState(
     SurfacePresentationState Imu,
     SurfacePresentationState PitchRoll,
     SurfacePresentationState Speed,
-    SurfacePresentationState Elevation)
-{
-    public static RecordedSignalSurfaceState From(RecordedSessionContext context)
-    {
-        return new RecordedSignalSurfaceState(
-            context.TravelSignalState,
-            context.VelocitySignalState,
-            context.ImuSignalState,
-            context.PitchRollSignalState,
-            context.SpeedSignalState,
-            context.ElevationSignalState);
-    }
-}
+    SurfacePresentationState Elevation);
 
 internal sealed record RecordedMediaPresentationState(
     SurfacePresentationState MapState,
     SurfacePresentationState MediaPaneState,
     double? MediaColumnWidth,
-    string? MediaUrl)
-{
-    public static RecordedMediaPresentationState From(RecordedSessionContext context)
-    {
-        return new RecordedMediaPresentationState(
-            context.MapState,
-            context.MediaPaneState,
-            context.MediaColumnWidth,
-            context.MediaUrl);
-    }
-}
+    string? MediaUrl);
 
 internal sealed record RecordedSignalToggleState(
     bool ShowAirtime,
@@ -213,22 +146,4 @@ internal sealed record RecordedSignalToggleState(
     bool ShowImuAnalysisSelection,
     bool ShowPitchRollAnalysisSelection,
     bool ShowSpeedAnalysisSelection,
-    bool ShowElevationAnalysisSelection)
-{
-    public static RecordedSignalToggleState From(RecordedSessionContext context)
-    {
-        return new RecordedSignalToggleState(
-            ShowAirtime: context.ShowAirtime,
-            ShowVelocityAirtime: context.ShowVelocityAirtime,
-            ShowImuAirtime: context.ShowImuAirtime,
-            ShowPitchRollAirtime: context.ShowPitchRollAirtime,
-            ShowSpeedAirtime: context.ShowSpeedAirtime,
-            ShowElevationAirtime: context.ShowElevationAirtime,
-            ShowAnalysisSelection: context.ShowAnalysisSelection,
-            ShowVelocityAnalysisSelection: context.ShowVelocityAnalysisSelection,
-            ShowImuAnalysisSelection: context.ShowImuAnalysisSelection,
-            ShowPitchRollAnalysisSelection: context.ShowPitchRollAnalysisSelection,
-            ShowSpeedAnalysisSelection: context.ShowSpeedAnalysisSelection,
-            ShowElevationAnalysisSelection: context.ShowElevationAnalysisSelection);
-    }
-}
+    bool ShowElevationAnalysisSelection);
