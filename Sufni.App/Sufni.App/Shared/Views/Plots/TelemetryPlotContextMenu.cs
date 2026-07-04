@@ -11,7 +11,7 @@ internal sealed class TelemetryPlotContextMenu : IPlotMenu
 {
     private static readonly string[] NormalActionOrder =
     [
-        "autozoom",
+        "zoom-selection",
         "save-current-selection",
         "analysis-range-set-start",
         "analysis-range-clear",
@@ -214,7 +214,8 @@ internal sealed class TelemetryPlotContextMenu : IPlotMenu
             "private-session-editing-trim-until-end" => "Trim > Trim until end",
             "private-session-editing-split-from-here" => "Trim > Split here",
             "private-session-editing-undo-trim" => "Trim > Undo trim",
-            _ => id == "autozoom" ? "Autozoom" : id,
+            "zoom-selection" => "Zoom selection",
+            _ => id,
         };
     }
 
