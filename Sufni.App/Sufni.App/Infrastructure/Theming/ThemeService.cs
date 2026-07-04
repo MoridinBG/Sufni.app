@@ -1,4 +1,5 @@
 using System;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Platform;
@@ -13,7 +14,7 @@ public sealed class ThemeService : IThemeService, IDisposable
 {
     private readonly IThemePreferences themePreferences;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
-    private readonly IDisposable? syncSubscription;
+    private readonly IDisposable? themePreferenceSubscription;
 
     public ThemeService(IAppPreferences appPreferences, IUiThreadDispatcher? uiThreadDispatcher = null)
     {
@@ -24,8 +25,12 @@ public sealed class ThemeService : IThemeService, IDisposable
 
         // Inbound sync writes the new mode to the document but does not invoke
         // SetAsync, so without this we'd persist the new value yet keep
-        // rendering the previous variant until the next restart.
-        syncSubscription = appPreferences.SyncDataApplied.Subscribe(OnSyncDataApplied);
+        // rendering the previous variant until the next restart. Local writes
+        // are already applied before persisting.
+        themePreferenceSubscription = themePreferences.ObserveModeChanges()
+            .Skip(1)
+            .Where(change => change.Origin == PreferenceChangeOrigin.SyncApply)
+            .Subscribe(change => OnSyncedModeChanged(change.Value));
     }
 
     public SufniThemeMode Mode { get; private set; }
@@ -58,12 +63,25 @@ public sealed class ThemeService : IThemeService, IDisposable
 
     public void Dispose()
     {
-        syncSubscription?.Dispose();
+        themePreferenceSubscription?.Dispose();
     }
 
-    private void OnSyncDataApplied(System.Reactive.Unit unit)
+    private void OnSyncedModeChanged(SufniThemeMode mode)
     {
-        _ = ReconcileWithPersistedAsync();
+        _ = ApplyObservedModeAsync(mode);
+    }
+
+    private async Task ApplyObservedModeAsync(SufniThemeMode mode)
+    {
+        RefreshSystemThemeAvailability();
+
+        var persisted = NormalizeMode(mode);
+        if (persisted == Mode && IsRequestedVariantApplied(persisted))
+        {
+            return;
+        }
+
+        await ApplyOnUiThreadAsync(persisted);
     }
 
     public Task ToggleAsync()

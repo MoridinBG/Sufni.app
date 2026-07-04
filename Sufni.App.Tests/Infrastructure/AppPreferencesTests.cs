@@ -42,6 +42,10 @@ public class AppPreferencesTests
         Assert.Equal(layer.Id, customLayer.Id);
         Assert.Equal("Trail maps", customLayer.Name);
 
+        customLayer.Name = "Mutated outside preferences";
+        var rereadCustomLayer = Assert.Single(await reloaded.Map.GetCustomLayersAsync());
+        Assert.Equal("Trail maps", rereadCustomLayer.Name);
+
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
         var maps = json.RootElement.GetProperty("maps");
         Assert.Equal(layer.Id.ToString("D"), maps.GetProperty("selectedLayerId").GetString());
@@ -89,6 +93,76 @@ public class AppPreferencesTests
     }
 
     [Fact]
+    public async Task MapPreferences_ObserveChanges_ReplaysAndReportsLocalAndSyncOrigins()
+    {
+        using var tempDirectory = new TempDirectory("sufni-preferences-test");
+        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
+        var localLayerId = Guid.NewGuid();
+        var syncedLayer = new TileLayerConfig
+        {
+            Id = Guid.NewGuid(),
+            Name = "Synced custom",
+            UrlTemplate = "https://tiles.example/{z}/{x}/{y}.png",
+            AttributionText = "Example",
+            AttributionUrl = "https://tiles.example",
+            MaxZoom = 18,
+            IsCustom = true,
+        };
+        var preferences = new AppPreferences(preferencesPath);
+
+        var initialEmission = new TaskCompletionSource<PreferenceValueChange<MapPreferencesValue>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var localEmission = new TaskCompletionSource<PreferenceValueChange<MapPreferencesValue>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var syncEmission = new TaskCompletionSource<PreferenceValueChange<MapPreferencesValue>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var emissions = 0;
+        using var subscription = preferences.Map.ObserveChanges()
+            .Subscribe(change =>
+            {
+                var emission = Interlocked.Increment(ref emissions);
+                if (emission == 1)
+                {
+                    initialEmission.TrySetResult(change);
+                }
+                else if (emission == 2)
+                {
+                    localEmission.TrySetResult(change);
+                }
+                else
+                {
+                    syncEmission.TrySetResult(change);
+                }
+            });
+
+        var initial = await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PreferenceChangeOrigin.SyncApply, initial.Origin);
+        Assert.False(initial.AdvancesSyncClock);
+        Assert.Null(initial.Value.SelectedLayerId);
+        Assert.Empty(initial.Value.CustomLayers);
+
+        await preferences.Map.SetSelectedLayerIdAsync(localLayerId);
+
+        var local = await localEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PreferenceChangeOrigin.LocalWrite, local.Origin);
+        Assert.True(local.AdvancesSyncClock);
+        Assert.Equal(localLayerId, local.Value.SelectedLayerId);
+
+        await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
+        {
+            Updated = 9_999_999_999,
+            Maps = new MapPreferencesSyncData
+            {
+                SelectedLayerId = syncedLayer.Id,
+                CustomLayers = [syncedLayer],
+            },
+        });
+
+        var synced = await syncEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PreferenceChangeOrigin.SyncApply, synced.Origin);
+        Assert.False(synced.AdvancesSyncClock);
+        Assert.Equal(syncedLayer.Id, synced.Value.SelectedLayerId);
+        Assert.Equal(syncedLayer.Id, Assert.Single(synced.Value.CustomLayers).Id);
+    }
+
+    [Fact]
     public async Task ThemePreferences_DefaultMode_IsDark_WhenFileIsMissing()
     {
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
@@ -113,6 +187,59 @@ public class AppPreferencesTests
 
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
         Assert.Equal("Light", json.RootElement.GetProperty("theme").GetProperty("mode").GetString());
+    }
+
+    [Fact]
+    public async Task ThemePreferences_ObserveModeChanges_ReplaysAndReportsLocalAndSyncOrigins()
+    {
+        using var tempDirectory = new TempDirectory("sufni-preferences-test");
+        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
+        var preferences = new AppPreferences(preferencesPath);
+
+        var initialEmission = new TaskCompletionSource<PreferenceValueChange<SufniThemeMode>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var localEmission = new TaskCompletionSource<PreferenceValueChange<SufniThemeMode>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var syncEmission = new TaskCompletionSource<PreferenceValueChange<SufniThemeMode>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var emissions = 0;
+        using var subscription = preferences.Theme.ObserveModeChanges()
+            .Subscribe(change =>
+            {
+                var emission = Interlocked.Increment(ref emissions);
+                if (emission == 1)
+                {
+                    initialEmission.TrySetResult(change);
+                }
+                else if (emission == 2)
+                {
+                    localEmission.TrySetResult(change);
+                }
+                else
+                {
+                    syncEmission.TrySetResult(change);
+                }
+            });
+
+        var initial = await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PreferenceChangeOrigin.SyncApply, initial.Origin);
+        Assert.False(initial.AdvancesSyncClock);
+        Assert.Equal(SufniThemeMode.Dark, initial.Value);
+
+        await preferences.Theme.SetModeAsync(SufniThemeMode.Light);
+
+        var local = await localEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PreferenceChangeOrigin.LocalWrite, local.Origin);
+        Assert.True(local.AdvancesSyncClock);
+        Assert.Equal(SufniThemeMode.Light, local.Value);
+
+        await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
+        {
+            Updated = 9_999_999_999,
+            Theme = new ThemePreferencesSyncData { Mode = SufniThemeMode.Dark.ToString() },
+        });
+
+        var synced = await syncEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PreferenceChangeOrigin.SyncApply, synced.Origin);
+        Assert.False(synced.AdvancesSyncClock);
+        Assert.Equal(SufniThemeMode.Dark, synced.Value);
     }
 
     [Fact]
@@ -141,6 +268,43 @@ public class AppPreferencesTests
         var preferences = new AppPreferences(preferencesPath);
 
         Assert.Equal(SufniThemeMode.Dark, await preferences.Theme.GetModeAsync());
+    }
+
+    [Fact]
+    public async Task UiPreferences_ObserveChanges_ReplaysAndReportsNoClockLocalWrites()
+    {
+        using var tempDirectory = new TempDirectory("sufni-preferences-test");
+        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
+        var preferences = new AppPreferences(preferencesPath);
+
+        var initialEmission = new TaskCompletionSource<PreferenceValueChange<UiPreferences>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var localEmission = new TaskCompletionSource<PreferenceValueChange<UiPreferences>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var emissions = 0;
+        using var subscription = preferences.Ui.ObserveChanges()
+            .Subscribe(change =>
+            {
+                if (Interlocked.Increment(ref emissions) == 1)
+                {
+                    initialEmission.TrySetResult(change);
+                }
+                else
+                {
+                    localEmission.TrySetResult(change);
+                }
+            });
+
+        var initial = await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PreferenceChangeOrigin.SyncApply, initial.Origin);
+        Assert.False(initial.AdvancesSyncClock);
+        Assert.Null(initial.Value.LayoutProfile);
+
+        await preferences.Ui.SetLayoutProfileAsync(UiLayoutProfile.Workspace);
+
+        var local = await localEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PreferenceChangeOrigin.LocalNoSyncClockWrite, local.Origin);
+        Assert.False(local.AdvancesSyncClock);
+        Assert.Equal(UiLayoutProfile.Workspace, local.Value.LayoutProfile);
+        Assert.Null(await preferences.GetSyncDataAsync(0));
     }
 
     [Fact]

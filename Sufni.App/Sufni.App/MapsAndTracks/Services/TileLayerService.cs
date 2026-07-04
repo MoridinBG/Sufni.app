@@ -23,9 +23,9 @@ public class TileLayerService : ITileLayerService, IDisposable
 
     private readonly IMapPreferences mapPreferences;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
-    private readonly IDisposable syncAppliedSubscription;
-    // Serializes refresh-after-sync bodies. AppPreferences gates apply so
-    // SyncDataApplied events fire back-to-back.
+    private readonly IDisposable mapPreferenceSubscription;
+    // Serializes refresh-after-preference-change bodies. AppPreferences gates
+    // applies so sync preference events fire back-to-back.
     private readonly SemaphoreSlim refreshGate = new(1, 1);
     private Task? initializationTask;
 
@@ -50,11 +50,14 @@ public class TileLayerService : ITileLayerService, IDisposable
         mapPreferences = appPreferences.Map;
         this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
 
-        // SyncDataApplied fires on whichever thread happens to be awaiting
-        // ApplySyncDataAsync. Marshal the refresh onto the UI thread because
-        // AvailableLayers is bound to the UI.
-        syncAppliedSubscription = appPreferences.SyncDataApplied
-            .Subscribe(_ => OnSyncDataApplied());
+        // Preference changes fire on whichever thread happens to be awaiting
+        // ApplySyncDataAsync. Marshal sync refreshes onto the UI thread because
+        // AvailableLayers is bound to the UI. Local writes are already reflected
+        // by this service's mutating methods.
+        mapPreferenceSubscription = mapPreferences.ObserveChanges()
+            .Skip(1)
+            .Where(change => change.Origin == PreferenceChangeOrigin.SyncApply)
+            .Subscribe(change => OnMapPreferencesChanged(change.Value));
     }
 
     public Task InitializeAsync()
@@ -137,7 +140,7 @@ public class TileLayerService : ITileLayerService, IDisposable
 
     public void Dispose()
     {
-        syncAppliedSubscription.Dispose();
+        mapPreferenceSubscription.Dispose();
         selectedLayerSubject.Dispose();
         refreshGate.Dispose();
     }
@@ -153,23 +156,23 @@ public class TileLayerService : ITileLayerService, IDisposable
         return true;
     }
 
-    private void OnSyncDataApplied()
+    private void OnMapPreferencesChanged(MapPreferencesValue preferences)
     {
         if (uiThreadDispatcher.CheckAccess())
         {
-            _ = RefreshFromPreferencesSafelyAsync();
+            _ = RefreshFromPreferencesSafelyAsync(preferences);
             return;
         }
 
-        _ = uiThreadDispatcher.InvokeAsync(RefreshFromPreferencesSafelyAsync);
+        _ = uiThreadDispatcher.InvokeAsync(() => RefreshFromPreferencesSafelyAsync(preferences));
     }
 
-    private async Task RefreshFromPreferencesSafelyAsync()
+    private async Task RefreshFromPreferencesSafelyAsync(MapPreferencesValue preferences)
     {
         await refreshGate.WaitAsync();
         try
         {
-            await RefreshFromPreferencesAsync();
+            await RefreshFromPreferencesAsync(preferences);
         }
         catch (Exception ex)
         {
@@ -181,16 +184,13 @@ public class TileLayerService : ITileLayerService, IDisposable
         }
     }
 
-    private async Task RefreshFromPreferencesAsync()
+    private async Task RefreshFromPreferencesAsync(MapPreferencesValue preferences)
     {
         if (initializationTask is null) return;
 
         // Serialize against InitializeCoreAsync — both mutate AvailableLayers
         // and selectedLayer.
         await initializationTask;
-
-        var customLayers = await mapPreferences.GetCustomLayersAsync();
-        var selectedId = await mapPreferences.GetSelectedLayerIdAsync();
 
         for (var i = AvailableLayers.Count - 1; i >= 0; i--)
         {
@@ -200,13 +200,13 @@ public class TileLayerService : ITileLayerService, IDisposable
             }
         }
 
-        foreach (var layer in customLayers)
+        foreach (var layer in preferences.CustomLayers)
         {
             layer.IsCustom = true;
             AvailableLayers.Add(layer);
         }
 
-        var resolved = selectedId is { } id
+        var resolved = preferences.SelectedLayerId is { } id
             ? AvailableLayers.FirstOrDefault(l => l.Id == id) ?? AvailableLayers.First()
             : AvailableLayers.First();
 

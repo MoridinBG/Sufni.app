@@ -19,6 +19,10 @@ public sealed record PreferenceValueChange<T>(
     PreferenceChangeOrigin Origin,
     bool AdvancesSyncClock);
 
+public sealed record MapPreferencesValue(
+    Guid? SelectedLayerId,
+    IReadOnlyList<TileLayerConfig> CustomLayers);
+
 public interface IAppPreferences
 {
     IMapPreferences Map { get; }
@@ -38,6 +42,7 @@ public interface IUiPreferences
 {
     Task<UiPreferences> GetAsync();
     Task SetLayoutProfileAsync(UiLayoutProfile? layoutProfile);
+    IObservable<PreferenceValueChange<UiPreferences>> ObserveChanges();
 }
 
 public interface IMapPreferences
@@ -46,12 +51,14 @@ public interface IMapPreferences
     Task SetSelectedLayerIdAsync(Guid selectedLayerId);
     Task<IReadOnlyList<TileLayerConfig>> GetCustomLayersAsync();
     Task SetCustomLayersAsync(IReadOnlyList<TileLayerConfig> customLayers);
+    IObservable<PreferenceValueChange<MapPreferencesValue>> ObserveChanges();
 }
 
 public interface IThemePreferences
 {
     Task<SufniThemeMode> GetModeAsync();
     Task SetModeAsync(SufniThemeMode mode);
+    IObservable<PreferenceValueChange<SufniThemeMode>> ObserveModeChanges();
 }
 
 public interface ISessionPreferences

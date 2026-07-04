@@ -36,6 +36,9 @@ public sealed class AppPreferences : IAppPreferences
     // for it. Initial-value-less: subscribers care about future emissions, not
     // a snapshot of "has sync ever happened".
     private readonly Subject<Unit> syncDataAppliedSubject = new();
+    private readonly Subject<PreferenceValueChange<MapPreferencesValue>> mapPreferencesSubject = new();
+    private readonly Subject<PreferenceValueChange<SufniThemeMode>> themePreferencesSubject = new();
+    private readonly Subject<PreferenceValueChange<UiPreferences>> uiPreferencesSubject = new();
     private readonly object recordedPreferenceSubjectsGate = new();
     private readonly Dictionary<Guid, Subject<PreferenceValueChange<SessionPreferences>>> recordedPreferenceSubjects = [];
     private readonly Subject<PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>> allRecordedPreferencesSubject = new();
@@ -126,6 +129,14 @@ public sealed class AppPreferences : IAppPreferences
             next.ApplySyncData(preferences, documentVersion);
             await WriteDocumentCoreAsync(next);
             document = next;
+            PublishMapPreferenceChange(
+                next.Maps.ToModel(),
+                PreferenceChangeOrigin.SyncApply,
+                advancesSyncClock: false);
+            PublishThemePreferenceChange(
+                next.Theme.GetMode(),
+                PreferenceChangeOrigin.SyncApply,
+                advancesSyncClock: false);
             var recordedPreferences = next.Session.ToModelDictionary();
             var recordedChanges = GetObservedRecordedSessionIds()
                 .Select(sessionId => (
@@ -237,6 +248,53 @@ public sealed class AppPreferences : IAppPreferences
                 advancesSyncClock));
     }
 
+    private void PublishMapPreferenceChange(
+        MapPreferencesValue value,
+        PreferenceChangeOrigin origin,
+        bool advancesSyncClock)
+    {
+        mapPreferencesSubject.OnNext(new PreferenceValueChange<MapPreferencesValue>(
+            value,
+            origin,
+            advancesSyncClock));
+    }
+
+    private void PublishThemePreferenceChange(
+        SufniThemeMode value,
+        PreferenceChangeOrigin origin,
+        bool advancesSyncClock)
+    {
+        themePreferencesSubject.OnNext(new PreferenceValueChange<SufniThemeMode>(
+            value,
+            origin,
+            advancesSyncClock));
+    }
+
+    private void PublishUiPreferenceChange(
+        UiPreferences value,
+        PreferenceChangeOrigin origin,
+        bool advancesSyncClock)
+    {
+        uiPreferencesSubject.OnNext(new PreferenceValueChange<UiPreferences>(
+            value,
+            origin,
+            advancesSyncClock));
+    }
+
+    private static TileLayerConfig CloneTileLayerConfig(TileLayerConfig layer)
+    {
+        return new TileLayerConfig
+        {
+            Id = layer.Id,
+            Name = layer.Name,
+            UrlTemplate = layer.UrlTemplate,
+            AttributionText = layer.AttributionText,
+            AttributionUrl = layer.AttributionUrl,
+            MaxZoom = layer.MaxZoom,
+            IsCustom = layer.IsCustom,
+        };
+    }
+
     private static long GetCurrentTimestamp() => DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
     private AppPreferencesDocument CloneDocument()
@@ -305,20 +363,117 @@ public sealed class AppPreferences : IAppPreferences
 
         public Task SetSelectedLayerIdAsync(Guid selectedLayerId)
         {
-            return owner.UpdateAsync(document =>
+            return SetAsync(document =>
                 document.Maps.SelectedLayerId = selectedLayerId.ToString("D"));
         }
 
         public Task<IReadOnlyList<TileLayerConfig>> GetCustomLayersAsync()
         {
             return owner.ReadAsync<IReadOnlyList<TileLayerConfig>>(document =>
-                document.Maps.CustomLayers?.Where(layer => layer is not null).ToList() ?? []);
+                document.Maps.GetCustomLayers());
         }
 
         public Task SetCustomLayersAsync(IReadOnlyList<TileLayerConfig> customLayers)
         {
-            return owner.UpdateAsync(document =>
-                document.Maps.CustomLayers = customLayers.ToList());
+            return SetAsync(document =>
+                document.Maps.SetCustomLayers(customLayers));
+        }
+
+        public IObservable<PreferenceValueChange<MapPreferencesValue>> ObserveChanges()
+        {
+            return Observable
+                .FromAsync(async () => new PreferenceValueChange<MapPreferencesValue>(
+                    await owner.ReadAsync(document => document.Maps.ToModel()),
+                    PreferenceChangeOrigin.SyncApply,
+                    AdvancesSyncClock: false))
+                .Concat(owner.mapPreferencesSubject)
+                .DistinctUntilChanged(MapPreferenceChangeComparer.Instance);
+        }
+
+        private async Task SetAsync(Action<AppPreferencesDocument> update)
+        {
+            await owner.gate.WaitAsync();
+            try
+            {
+                var next = owner.CloneDocument();
+                update(next);
+                next.Updated = GetCurrentTimestamp();
+                await owner.WriteDocumentCoreAsync(next);
+                owner.document = next;
+                owner.PublishMapPreferenceChange(
+                    next.Maps.ToModel(),
+                    PreferenceChangeOrigin.LocalWrite,
+                    advancesSyncClock: true);
+            }
+            finally
+            {
+                owner.gate.Release();
+            }
+        }
+
+        private sealed class MapPreferenceChangeComparer :
+            IEqualityComparer<PreferenceValueChange<MapPreferencesValue>>
+        {
+            public static readonly MapPreferenceChangeComparer Instance = new();
+
+            public bool Equals(
+                PreferenceValueChange<MapPreferencesValue>? previous,
+                PreferenceValueChange<MapPreferencesValue>? current)
+            {
+                if (ReferenceEquals(previous, current))
+                {
+                    return true;
+                }
+
+                if (previous is null || current is null)
+                {
+                    return false;
+                }
+
+                return previous.Origin == current.Origin &&
+                    previous.AdvancesSyncClock == current.AdvancesSyncClock &&
+                    previous.Value.SelectedLayerId == current.Value.SelectedLayerId &&
+                    TileLayerListsEqual(previous.Value.CustomLayers, current.Value.CustomLayers);
+            }
+
+            public int GetHashCode(PreferenceValueChange<MapPreferencesValue> change)
+            {
+                return HashCode.Combine(
+                    change.Origin,
+                    change.AdvancesSyncClock,
+                    change.Value.SelectedLayerId);
+            }
+
+            private static bool TileLayerListsEqual(
+                IReadOnlyList<TileLayerConfig> previous,
+                IReadOnlyList<TileLayerConfig> current)
+            {
+                if (previous.Count != current.Count)
+                {
+                    return false;
+                }
+
+                for (var i = 0; i < previous.Count; i++)
+                {
+                    if (!TileLayersEqual(previous[i], current[i]))
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            private static bool TileLayersEqual(TileLayerConfig previous, TileLayerConfig current)
+            {
+                return previous.Id == current.Id &&
+                    previous.Name == current.Name &&
+                    previous.UrlTemplate == current.UrlTemplate &&
+                    previous.AttributionText == current.AttributionText &&
+                    previous.AttributionUrl == current.AttributionUrl &&
+                    previous.MaxZoom == current.MaxZoom &&
+                    previous.IsCustom == current.IsCustom;
+            }
         }
     }
 
@@ -331,8 +486,38 @@ public sealed class AppPreferences : IAppPreferences
 
         public Task SetLayoutProfileAsync(UiLayoutProfile? layoutProfile)
         {
-            return owner.UpdateLocalAsync(document =>
-                document.Ui.LayoutProfile = layoutProfile?.ToString());
+            return SetAsync(layoutProfile);
+        }
+
+        public IObservable<PreferenceValueChange<UiPreferences>> ObserveChanges()
+        {
+            return Observable
+                .FromAsync(async () => new PreferenceValueChange<UiPreferences>(
+                    await GetAsync(),
+                    PreferenceChangeOrigin.SyncApply,
+                    AdvancesSyncClock: false))
+                .Concat(owner.uiPreferencesSubject)
+                .DistinctUntilChanged();
+        }
+
+        private async Task SetAsync(UiLayoutProfile? layoutProfile)
+        {
+            await owner.gate.WaitAsync();
+            try
+            {
+                var next = owner.CloneDocument();
+                next.Ui.LayoutProfile = layoutProfile?.ToString();
+                await owner.WriteDocumentCoreAsync(next);
+                owner.document = next;
+                owner.PublishUiPreferenceChange(
+                    next.Ui.ToModel(),
+                    PreferenceChangeOrigin.LocalNoSyncClockWrite,
+                    advancesSyncClock: false);
+            }
+            finally
+            {
+                owner.gate.Release();
+            }
         }
     }
 
@@ -514,7 +699,39 @@ public sealed class AppPreferences : IAppPreferences
 
         public Task SetModeAsync(SufniThemeMode mode)
         {
-            return owner.UpdateAsync(document => document.Theme.Mode = mode.ToString());
+            return SetAsync(mode);
+        }
+
+        public IObservable<PreferenceValueChange<SufniThemeMode>> ObserveModeChanges()
+        {
+            return Observable
+                .FromAsync(async () => new PreferenceValueChange<SufniThemeMode>(
+                    await GetModeAsync(),
+                    PreferenceChangeOrigin.SyncApply,
+                    AdvancesSyncClock: false))
+                .Concat(owner.themePreferencesSubject)
+                .DistinctUntilChanged();
+        }
+
+        private async Task SetAsync(SufniThemeMode mode)
+        {
+            await owner.gate.WaitAsync();
+            try
+            {
+                var next = owner.CloneDocument();
+                next.Theme.Mode = mode.ToString();
+                next.Updated = GetCurrentTimestamp();
+                await owner.WriteDocumentCoreAsync(next);
+                owner.document = next;
+                owner.PublishThemePreferenceChange(
+                    next.Theme.GetMode(),
+                    PreferenceChangeOrigin.LocalWrite,
+                    advancesSyncClock: true);
+            }
+            finally
+            {
+                owner.gate.Release();
+            }
         }
     }
 
@@ -564,7 +781,7 @@ public sealed class AppPreferences : IAppPreferences
                     SelectedLayerId = Guid.TryParse(Maps.SelectedLayerId, out var selectedLayerId)
                         ? selectedLayerId
                         : null,
-                    CustomLayers = Maps.CustomLayers?.Where(layer => layer is not null).ToList() ?? [],
+                    CustomLayers = Maps.GetCustomLayers().ToList(),
                 },
                 Session = new SessionPreferencesSyncData
                 {
@@ -589,7 +806,10 @@ public sealed class AppPreferences : IAppPreferences
             Maps = new MapPreferencesDocument
             {
                 SelectedLayerId = maps.SelectedLayerId?.ToString("D"),
-                CustomLayers = maps.CustomLayers?.Where(layer => layer is not null).ToList() ?? [],
+                CustomLayers = maps.CustomLayers?
+                    .Where(layer => layer is not null)
+                    .Select(CloneTileLayerConfig)
+                    .ToList() ?? [],
             };
             Session = new SessionPreferencesGroupDocument
             {
@@ -636,6 +856,31 @@ public sealed class AppPreferences : IAppPreferences
     {
         public string? SelectedLayerId { get; set; }
         public List<TileLayerConfig>? CustomLayers { get; set; } = [];
+
+        public MapPreferencesValue ToModel()
+        {
+            return new MapPreferencesValue(
+                Guid.TryParse(SelectedLayerId, out var selectedLayerId)
+                    ? selectedLayerId
+                    : null,
+                GetCustomLayers());
+        }
+
+        public IReadOnlyList<TileLayerConfig> GetCustomLayers()
+        {
+            return CustomLayers?
+                .Where(layer => layer is not null)
+                .Select(CloneTileLayerConfig)
+                .ToList() ?? [];
+        }
+
+        public void SetCustomLayers(IReadOnlyList<TileLayerConfig> customLayers)
+        {
+            CustomLayers = customLayers
+                .Where(layer => layer is not null)
+                .Select(CloneTileLayerConfig)
+                .ToList();
+        }
     }
 
     private sealed class SessionPreferencesGroupDocument
