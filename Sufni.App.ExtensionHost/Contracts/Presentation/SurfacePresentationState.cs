@@ -64,6 +64,7 @@ public enum SessionScreenStateKind
 {
     Loading,
     Ready,
+    IncompleteLocalData,
     Error,
 }
 
@@ -73,6 +74,7 @@ public sealed record SessionScreenPresentationState(
 {
     public bool IsLoading => Kind == SessionScreenStateKind.Loading;
     public bool IsReady => Kind == SessionScreenStateKind.Ready;
+    public bool IsIncompleteLocalData => Kind == SessionScreenStateKind.IncompleteLocalData;
     public bool IsError => Kind == SessionScreenStateKind.Error;
 
     public static SessionScreenPresentationState Ready { get; } = new(SessionScreenStateKind.Ready, null);
@@ -85,5 +87,10 @@ public sealed record SessionScreenPresentationState(
     public static SessionScreenPresentationState Error(string? message)
     {
         return new SessionScreenPresentationState(SessionScreenStateKind.Error, message);
+    }
+
+    public static SessionScreenPresentationState IncompleteLocalData(string? message)
+    {
+        return new SessionScreenPresentationState(SessionScreenStateKind.IncompleteLocalData, message);
     }
 }

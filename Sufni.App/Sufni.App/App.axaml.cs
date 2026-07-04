@@ -239,11 +239,8 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ITrackCoordinator>(sp => sp.GetRequiredService<TrackCoordinator>());
         ServiceCollection.AddSingleton<SessionLoader>(sp => new SessionLoader(
             sp.GetRequiredService<ISessionStoreWriter>(),
-            sp.GetRequiredService<ISessionRepository>(),
-            sp.GetRequiredService<ISessionTelemetryWriter>(),
             sp.GetRequiredService<ISessionProcessedTelemetryReader>(),
             sp.GetRequiredService<ISessionCacheStore>(),
-            sp.GetRequiredService<IHttpApiService>(),
             sp.GetRequiredService<IBackgroundTaskRunner>(),
             sp.GetRequiredService<ITrackCoordinator>(),
             sp.GetRequiredService<ISessionPresentationService>(),

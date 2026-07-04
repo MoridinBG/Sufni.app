@@ -1987,6 +1987,28 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Loaded_OnMobile_IncompleteLocalData_SetsIncompleteScreenState()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var result = new SessionMobileLoadResult.IncompleteLocalData(
+            snapshot.Id,
+            new MissingSessionData(
+                ProcessedTelemetryBlob: true,
+                RecordedSourceMissingOrHashMismatch: false));
+        sessionCoordinator.LoadMobileDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(result);
+        SetDesktop(false);
+
+        var editor = CreateEditor(snapshot, layoutStrategy: new MobileSessionLayoutStrategy());
+        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
+
+        Assert.Equal(SessionScreenStateKind.IncompleteLocalData, editor.SessionContext.ScreenState.Kind);
+        Assert.Contains("processed telemetry", editor.SessionContext.ScreenState.Message);
+        Assert.Contains("Run sync", editor.SessionContext.ScreenState.Message);
+        Assert.False(editor.IsComplete);
+    }
+
+    [AvaloniaFact]
     public async Task Loaded_OnMobile_FromCacheWithNoStrokes_ShowsNoDataAnalysis()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);

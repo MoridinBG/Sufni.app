@@ -195,10 +195,35 @@ internal sealed class RecordedPresentationApplier
                 ApplyRecordedWaitingStates(mapExpected: false);
                 break;
 
+            case SessionMobileLoadResult.IncompleteLocalData incomplete:
+                ClearRecordedPresentation();
+                context.ScreenState = SessionScreenPresentationState.IncompleteLocalData(
+                    FormatIncompleteLocalDataMessage(incomplete.Missing));
+                owner.IsComplete = false;
+                break;
+
             case SessionMobileLoadResult.Failed failed:
                 context.ScreenState = SessionScreenPresentationState.Error($"Could not load session data: {failed.ErrorMessage}");
                 break;
         }
+    }
+
+    private static string FormatIncompleteLocalDataMessage(MissingSessionData missing)
+    {
+        var missingParts = new List<string>();
+        if (missing.ProcessedTelemetryBlob)
+        {
+            missingParts.Add("processed telemetry");
+        }
+
+        if (missing.RecordedSourceMissingOrHashMismatch)
+        {
+            missingParts.Add("recorded source");
+        }
+
+        return missingParts.Count == 0
+            ? "Local session data is incomplete. Run sync and try again."
+            : $"Local session data is incomplete: {string.Join(", ", missingParts)}. Run sync and try again.";
     }
 
     public void RefreshAnalysisRangeStates()

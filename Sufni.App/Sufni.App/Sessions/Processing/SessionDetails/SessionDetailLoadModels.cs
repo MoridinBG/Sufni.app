@@ -120,6 +120,10 @@ public readonly record struct SessionPresentationDimensions(int Width, int Heigh
     public int VelocityDistributionHeight => 478;
 }
 
+public sealed record MissingSessionData(
+    bool ProcessedTelemetryBlob,
+    bool RecordedSourceMissingOrHashMismatch);
+
 public abstract record SessionDesktopLoadResult
 {
     private SessionDesktopLoadResult() { }
@@ -135,6 +139,7 @@ public abstract record SessionMobileLoadResult
 
     public sealed record LoadedFromCache(SessionCachePresentationData Data, TelemetryData? Telemetry, SessionTrackPresentationData? TrackData) : SessionMobileLoadResult;
     public sealed record BuiltCache(SessionCachePresentationData Data, TelemetryData Telemetry, SessionTrackPresentationData TrackData) : SessionMobileLoadResult;
+    public sealed record IncompleteLocalData(Guid SessionId, MissingSessionData Missing) : SessionMobileLoadResult;
     public sealed record TelemetryPending : SessionMobileLoadResult;
     public sealed record Failed(string ErrorMessage) : SessionMobileLoadResult;
 }

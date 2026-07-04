@@ -14,7 +14,6 @@ using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
-using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Sessions.Coordination;
 
 public sealed class SessionLoader
@@ -22,11 +21,8 @@ public sealed class SessionLoader
     private static readonly ILogger logger = Log.ForContext<SessionLoader>();
 
     private readonly ISessionStoreWriter sessionStore;
-    private readonly ISessionRepository sessionRepository;
-    private readonly ISessionTelemetryWriter sessionTelemetryWriter;
     private readonly ISessionProcessedTelemetryReader processedTelemetryReader;
     private readonly ISessionCacheStore sessionCacheStore;
-    private readonly IHttpApiService httpApiService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ITrackCoordinator trackCoordinator;
     private readonly ISessionPresentationService sessionPresentationService;
@@ -34,22 +30,16 @@ public sealed class SessionLoader
 
     internal SessionLoader(
         ISessionStoreWriter sessionStore,
-        ISessionRepository sessionRepository,
-        ISessionTelemetryWriter sessionTelemetryWriter,
         ISessionProcessedTelemetryReader processedTelemetryReader,
         ISessionCacheStore sessionCacheStore,
-        IHttpApiService httpApiService,
         IBackgroundTaskRunner backgroundTaskRunner,
         ITrackCoordinator trackCoordinator,
         ISessionPresentationService sessionPresentationService,
         IRecordedSessionDomainQuery recordedSessionDomainQuery)
     {
         this.sessionStore = sessionStore;
-        this.sessionRepository = sessionRepository;
-        this.sessionTelemetryWriter = sessionTelemetryWriter;
         this.processedTelemetryReader = processedTelemetryReader;
         this.sessionCacheStore = sessionCacheStore;
-        this.httpApiService = httpApiService;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.trackCoordinator = trackCoordinator;
         this.sessionPresentationService = sessionPresentationService;
@@ -185,11 +175,15 @@ public sealed class SessionLoader
             }
 
             logger.Verbose("Mobile session cache miss for {SessionId}", sessionId);
-            var telemetryData = await EnsureTelemetryDataAvailableForLoadAsync(sessionId, cancellationToken);
+            var telemetryData = await LoadTelemetryDataAsync(sessionId, cancellationToken);
             if (telemetryData is null)
             {
-                logger.Warning("Mobile session load is waiting for telemetry data for {SessionId}", sessionId);
-                return new SessionMobileLoadResult.TelemetryPending();
+                logger.Warning("Mobile session load found incomplete local telemetry data for {SessionId}", sessionId);
+                return new SessionMobileLoadResult.IncompleteLocalData(
+                    sessionId,
+                    new MissingSessionData(
+                        ProcessedTelemetryBlob: true,
+                        RecordedSourceMissingOrHashMismatch: false));
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -246,50 +240,4 @@ public sealed class SessionLoader
 
     private Task<TelemetryData?> LoadTelemetryDataAsync(Guid sessionId, CancellationToken cancellationToken) =>
         processedTelemetryReader.GetAsync(sessionId, cancellationToken);
-
-    private async Task<TelemetryData?> EnsureTelemetryDataAvailableForLoadAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken)
-    {
-        var telemetryData = await LoadTelemetryDataAsync(sessionId, cancellationToken);
-        if (telemetryData is not null)
-        {
-            logger.Verbose("Telemetry data cache hit for session {SessionId}", sessionId);
-            return telemetryData;
-        }
-
-        var current = sessionStore.Get(sessionId);
-        if (current is { HasProcessedData: true })
-        {
-            throw new InvalidOperationException("Session data is marked as present but could not be read.");
-        }
-
-        logger.Verbose("Downloading telemetry data during load for session {SessionId}", sessionId);
-        var transfer = await httpApiService.GetSessionPsstAsync(sessionId);
-        if (transfer is null)
-        {
-            logger.Warning("Telemetry data is not yet available from the server for session {SessionId}", sessionId);
-            return null;
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-
-        // Commit the downloaded bytes with their fingerprint so the row coherently
-        // advertises what it now holds. The fingerprint is written as-is
-        // here; the sync phase-4 pull is the path that match-checks against a target.
-        await backgroundTaskRunner.RunAsync(
-            () => sessionTelemetryWriter.SwapSessionPsstAsync(sessionId, transfer.Data, transfer.Fingerprint),
-            cancellationToken);
-
-        var fresh = await backgroundTaskRunner.RunAsync(
-            () => sessionRepository.GetSessionAsync(sessionId),
-            cancellationToken);
-        if (fresh is not null)
-        {
-            sessionStore.Upsert(SessionSnapshot.From(fresh));
-        }
-
-        logger.Verbose("Reloading telemetry data after server download for session {SessionId}", sessionId);
-        return await LoadTelemetryDataAsync(sessionId, cancellationToken);
-    }
 }
