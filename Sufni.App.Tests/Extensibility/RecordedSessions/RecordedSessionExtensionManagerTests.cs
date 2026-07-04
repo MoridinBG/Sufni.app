@@ -355,6 +355,37 @@ public class RecordedSessionExtensionManagerTests
     }
 
     [Fact]
+    public async Task ExtensionSlots_RemainsStableAcrossStateUpdatesSlotMirrorsAndReinitialize()
+    {
+        var factory = new TestRecordedSessionExtensionFactory("test");
+        var manager = CreateManager([factory]);
+        var hostSlots = manager.ExtensionSlots;
+        var contribution = new RecordedSessionToolbarViewContribution(
+            "test",
+            "toolbar",
+            Order: 1,
+            RecordedSessionToolbarZone.Trailing,
+            new TestContributionViewModel());
+
+        await manager.InitializeAsync(CreateState(isLoaded: true));
+        manager.UpdateHostState(CreateState(isLoaded: true, isActive: true));
+        factory.Scope!.Slots.SignalToolbarViews.Add(contribution);
+
+        Assert.Same(hostSlots, manager.ExtensionSlots);
+        Assert.Equal([contribution], hostSlots.SignalToolbarViews);
+
+        await manager.DisposeScopesAsync();
+
+        Assert.Same(hostSlots, manager.ExtensionSlots);
+        Assert.Empty(hostSlots.SignalToolbarViews);
+
+        await manager.InitializeAsync(CreateState(isLoaded: true));
+
+        Assert.Same(hostSlots, manager.ExtensionSlots);
+        Assert.Empty(hostSlots.SignalToolbarViews);
+    }
+
+    [Fact]
     public async Task DisposeScopesAsync_DisposesScopesAndAllowsReinitialize()
     {
         var factory = new TestRecordedSessionExtensionFactory("test");
