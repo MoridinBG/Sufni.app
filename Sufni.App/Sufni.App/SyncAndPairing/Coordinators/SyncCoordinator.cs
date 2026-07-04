@@ -1,4 +1,5 @@
 using System;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
 using Serilog;
 using Sufni.App.ExtensionHost.Contracts.Services;
@@ -85,11 +86,7 @@ public class SyncCoordinator : ISyncCoordinator
 
         if (pairingClientCoordinator is not null)
         {
-            pairingClientCoordinator.IsPairedChanged += (_, _) =>
-            {
-                IsPairedChanged?.Invoke(this, EventArgs.Empty);
-                CanSyncChanged?.Invoke(this, EventArgs.Empty);
-            };
+            _ = pairingClientCoordinator.PairedState.Subscribe(_ => PublishPairedStateChangeOnUiThread());
             pairingClientCoordinator.PairingConfirmed += (_, _) => _ = SyncAllAsync();
         }
 
@@ -187,6 +184,23 @@ public class SyncCoordinator : ISyncCoordinator
         }
 
         uiThreadDispatcher.Post(() => Progress = snapshot);
+    }
+
+    private void PublishPairedStateChangeOnUiThread()
+    {
+        if (uiThreadDispatcher.CheckAccess())
+        {
+            PublishPairedStateChange();
+            return;
+        }
+
+        uiThreadDispatcher.Post(PublishPairedStateChange);
+    }
+
+    private void PublishPairedStateChange()
+    {
+        IsPairedChanged?.Invoke(this, EventArgs.Empty);
+        CanSyncChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void SetOutboundSyncRunning(bool value)

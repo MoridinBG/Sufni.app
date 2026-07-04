@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using System.Windows.Input;
+using System.Reactive.Linq;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Svg.Skia;
@@ -295,6 +296,7 @@ public class MainPagesDesktopViewTests
         var pairingClientCoordinator = Substitute.For<IPairingClientCoordinator>();
         pairingClientCoordinator.DisplayName.Returns("Phone");
         pairingClientCoordinator.IsPaired.Returns(isPaired);
+        pairingClientCoordinator.PairedState.Returns(Observable.Return(isPaired));
 
         return new PairingClientViewModel(
             pairingClientCoordinator,

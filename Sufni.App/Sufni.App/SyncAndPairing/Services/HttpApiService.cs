@@ -8,6 +8,8 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Security;
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
@@ -38,6 +40,8 @@ internal class HttpApiService : IHttpApiService
     private readonly HttpClient client;
     private readonly System.Threading.Lock certificateStateGate = new();
     private readonly System.Threading.Lock tokenRefreshStateGate = new();
+    private readonly System.Threading.Lock pairedStateGate = new();
+    private readonly ReplaySubject<bool> pairedStateSubject = new(1);
     private Task Initialization { get; }
     private readonly ISecureStorage secureStorage;
     private Task? inFlightTokenRefreshTask;
@@ -46,6 +50,10 @@ internal class HttpApiService : IHttpApiService
     private string? lastObservedCertificateThumbprint;
     private string? refreshToken;
     private DateTimeOffset? tokenExpiry;
+    private bool pairedState;
+    private bool pairedStateInitialized;
+
+    public IObservable<bool> PairedState => pairedStateSubject.AsObservable();
 
     #endregion
 
@@ -144,6 +152,22 @@ internal class HttpApiService : IHttpApiService
         }
     }
 
+    private void PublishPairedState(bool value)
+    {
+        lock (pairedStateGate)
+        {
+            if (pairedStateInitialized && pairedState == value)
+            {
+                return;
+            }
+
+            pairedState = value;
+            pairedStateInitialized = true;
+        }
+
+        pairedStateSubject.OnNext(value);
+    }
+
     private void ResetPendingPairingCertificate()
     {
         lock (certificateStateGate)
@@ -197,6 +221,7 @@ internal class HttpApiService : IHttpApiService
         await secureStorage.RemoveAsync(RefreshTokenKey);
         await secureStorage.RemoveAsync(ServerUrlKey);
         await secureStorage.RemoveAsync(ServerCertificateThumbprintKey);
+        PublishPairedState(false);
     }
 
     private async Task<HttpResponseMessage> SendWithLoggingAsync(
@@ -287,6 +312,7 @@ internal class HttpApiService : IHttpApiService
         ServerUrl = await secureStorage.GetStringAsync(ServerUrlKey);
         refreshToken = await secureStorage.GetStringAsync(RefreshTokenKey);
         pinnedServerCertificateThumbprint = await secureStorage.GetStringAsync(ServerCertificateThumbprintKey);
+        PublishPairedState(refreshToken is not null);
 
         logger.Verbose(
             "HTTP API service initialized with stored server URL present {HasServerUrl}, refresh token present {HasRefreshToken}, and pinned certificate present {HasPinnedCertificate}",
@@ -346,6 +372,7 @@ internal class HttpApiService : IHttpApiService
 
         await secureStorage.SetStringAsync(RefreshTokenKey, tokens.RefreshToken);
         await PersistPinnedCertificateAsync();
+        PublishPairedState(true);
     }
 
     public async Task UnpairAsync(string deviceId)
@@ -375,7 +402,10 @@ internal class HttpApiService : IHttpApiService
     {
         await Initialization;
 
-        return refreshToken is not null;
+        lock (pairedStateGate)
+        {
+            return pairedStateInitialized && pairedState;
+        }
     }
 
     private async Task EnsureTokenFreshAsync(bool forceRefresh)

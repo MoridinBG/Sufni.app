@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http;
+using System.Reactive.Subjects;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.ExtensionHost.Contracts.Services;
@@ -20,6 +21,24 @@ public class PairingClientCoordinatorTests
     private readonly IServiceDiscovery serviceDiscovery = Substitute.For<IServiceDiscovery>();
     private readonly IFriendlyNameProvider friendlyNameProvider = Substitute.For<IFriendlyNameProvider>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
+    private readonly BehaviorSubject<bool> pairedState = new(false);
+
+    public PairingClientCoordinatorTests()
+    {
+        httpApiService.PairedState.Returns(pairedState);
+        httpApiService.ConfirmPairingAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string>())
+            .Returns(_ =>
+            {
+                pairedState.OnNext(true);
+                return Task.CompletedTask;
+            });
+        httpApiService.UnpairAsync(Arg.Any<string>())
+            .Returns(_ =>
+            {
+                pairedState.OnNext(false);
+                return Task.CompletedTask;
+            });
+    }
 
     private PairingClientCoordinator CreateCoordinator() => new(
         secureStorage, httpApiService, serviceDiscovery, friendlyNameProvider, shell);
@@ -40,6 +59,7 @@ public class PairingClientCoordinatorTests
         secureStorage.GetStringAsync(DisplayNameKey).Returns(Task.FromResult(existingDisplayName));
         friendlyNameProvider.FriendlyName.Returns(friendlyName!);
         httpApiService.IsPairedAsync().Returns(Task.FromResult(isPaired));
+        pairedState.OnNext(isPaired);
     }
 
     /// <summary>
@@ -146,27 +166,38 @@ public class PairingClientCoordinatorTests
     }
 
     [Fact]
-    public async Task Constructor_MirrorsIsPairedFromHttpApiService_AndRaisesIsPairedChanged()
+    public async Task Constructor_MirrorsInitialPairedStateFromHttpApiService()
     {
-        // Same gating trick as Constructor_LoadsExistingDeviceId — park
-        // Init() on its first await so the subscription happens before
-        // IsPairedChanged fires.
         var deviceIdGate = new TaskCompletionSource<string?>();
         secureStorage.GetStringAsync(DeviceIdKey).Returns(deviceIdGate.Task);
         secureStorage.GetStringAsync(DisplayNameKey).Returns(Task.FromResult<string?>(null));
         friendlyNameProvider.FriendlyName.Returns((string)null!);
         httpApiService.IsPairedAsync().Returns(Task.FromResult(true));
+        pairedState.OnNext(true);
 
         var coordinator = CreateCoordinator();
-        var eventRaised = false;
-        coordinator.IsPairedChanged += (_, _) => eventRaised = true;
 
         deviceIdGate.SetResult("device-123");
         await DrainInitializationAsync(coordinator);
 
         Assert.True(coordinator.IsPaired);
-        Assert.True(eventRaised);
         await httpApiService.Received(1).IsPairedAsync();
+    }
+
+    [Fact]
+    public async Task PairedStateEmission_UpdatesIsPaired_AndRaisesIsPairedChanged()
+    {
+        SeedInitDefaults(isPaired: false);
+        var coordinator = CreateCoordinator();
+        await DrainInitializationAsync(coordinator);
+
+        var isPairedChanged = 0;
+        coordinator.IsPairedChanged += (_, _) => isPairedChanged++;
+
+        pairedState.OnNext(true);
+
+        Assert.True(coordinator.IsPaired);
+        Assert.Equal(1, isPairedChanged);
     }
 
     [Fact]
@@ -566,7 +597,11 @@ public class PairingClientCoordinatorTests
         var coordinator = CreateCoordinator();
         await DrainInitializationAsync(coordinator);
         httpApiService.UnpairAsync(Arg.Any<string>())
-            .ThrowsAsync(new HttpRequestException("network gone"));
+            .Returns(_ =>
+            {
+                pairedState.OnNext(false);
+                return Task.FromException(new HttpRequestException("network gone"));
+            });
 
         var result = await coordinator.UnpairAsync();
 
@@ -581,7 +616,11 @@ public class PairingClientCoordinatorTests
         var coordinator = CreateCoordinator();
         await DrainInitializationAsync(coordinator);
         httpApiService.UnpairAsync(Arg.Any<string>())
-            .ThrowsAsync(new InvalidOperationException("boom"));
+            .Returns(_ =>
+            {
+                pairedState.OnNext(false);
+                return Task.FromException(new InvalidOperationException("boom"));
+            });
 
         var result = await coordinator.UnpairAsync();
 

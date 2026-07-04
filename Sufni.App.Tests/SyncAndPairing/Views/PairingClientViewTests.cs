@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -160,6 +161,7 @@ public class PairingClientViewTests
         coordinator.DisplayName.Returns(displayName);
         coordinator.ServerUrl.Returns(serverUrl);
         coordinator.IsPaired.Returns(isPaired);
+        coordinator.PairedState.Returns(Observable.Return(isPaired));
         coordinator.RequestPairingAsync(Arg.Any<string?>()).Returns(new RequestPairingResult.Sent());
         coordinator.UnpairAsync().Returns(new UnpairResult.Unpaired());
         return coordinator;

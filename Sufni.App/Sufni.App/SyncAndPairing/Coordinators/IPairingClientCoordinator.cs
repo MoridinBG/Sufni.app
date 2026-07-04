@@ -40,6 +40,7 @@ public interface IPairingClientCoordinator
     /// yet but a token exists).
     /// </summary>
     bool IsPaired { get; }
+    IObservable<bool> PairedState { get; }
 
     event EventHandler? DeviceIdChanged;
     event EventHandler? DisplayNameChanged;
@@ -49,7 +50,7 @@ public interface IPairingClientCoordinator
     /// <summary>
     /// Fires after <see cref="ConfirmPairingAsync"/> successfully
     /// pairs with a server. Distinct from <see cref="IsPairedChanged"/>,
-    /// which also fires on the startup <c>IsPairedAsync</c> probe —
+    /// which fires whenever the mirrored credential state changes —
     /// this event only fires for a fresh, user-initiated pair.
     /// </summary>
     event EventHandler? PairingConfirmed;

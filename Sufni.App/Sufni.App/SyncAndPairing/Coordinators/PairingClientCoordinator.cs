@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
@@ -37,7 +38,6 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
     private string? deviceId;
     private string? displayName;
     private string? serverUrl;
-    private bool isPaired;
     private int browseReferenceCount;
     private bool isBrowseStarted;
     private TaskCompletionSource<string?>? pendingServerResolution;
@@ -47,7 +47,8 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
     public string? DeviceId => deviceId;
     public string? DisplayName => displayName;
     public string? ServerUrl => serverUrl;
-    public bool IsPaired => isPaired;
+    public bool IsPaired { get; private set; }
+    public IObservable<bool> PairedState => httpApiService.PairedState;
 
     public event EventHandler? DeviceIdChanged;
     public event EventHandler? DisplayNameChanged;
@@ -68,6 +69,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         this.friendlyNameProvider = friendlyNameProvider;
         this.shell = shell;
 
+        _ = httpApiService.PairedState.Subscribe(OnPairedStateChanged);
         serviceDiscovery.ServiceAdded += OnServiceAdded;
         serviceDiscovery.ServiceRemoved += OnServiceRemoved;
 
@@ -107,9 +109,8 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
             fallbackDisplayName is not null);
         DisplayNameChanged?.Invoke(this, EventArgs.Empty);
 
-        isPaired = await httpApiService.IsPairedAsync();
-        logger.Verbose("Pairing client startup probe reported paired state {IsPaired}", isPaired);
-        IsPairedChanged?.Invoke(this, EventArgs.Empty);
+        _ = await httpApiService.IsPairedAsync();
+        logger.Verbose("Pairing client startup probe reported paired state {IsPaired}", IsPaired);
     }
 
     private static string? BuildServerUrl(ServiceAnnouncement announcement)
@@ -234,7 +235,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
     {
         await Initialization;
 
-        if (!isPaired)
+        if (!IsPaired)
         {
             return null;
         }
@@ -331,8 +332,6 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
                 DisplayNameChanged?.Invoke(this, EventArgs.Empty);
             }
 
-            isPaired = true;
-            IsPairedChanged?.Invoke(this, EventArgs.Empty);
             _ = shell.GoBack();
             PairingConfirmed?.Invoke(this, EventArgs.Empty);
 
@@ -369,16 +368,22 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
             result = new UnpairResult.Failed(e.Message);
         }
 
-        // HttpApiService clears local credentials before the network
-        // call, so we are locally unpaired regardless of outcome.
-        isPaired = false;
-        IsPairedChanged?.Invoke(this, EventArgs.Empty);
-
         if (result is UnpairResult.Unpaired)
         {
             logger.Information("Client unpair completed");
         }
 
         return result;
+    }
+
+    private void OnPairedStateChanged(bool value)
+    {
+        if (IsPaired == value)
+        {
+            return;
+        }
+
+        IsPaired = value;
+        IsPairedChanged?.Invoke(this, EventArgs.Empty);
     }
 }

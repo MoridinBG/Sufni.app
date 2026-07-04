@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http;
+using System.Reactive.Linq;
 using System.Security.Authentication;
 using System.Text;
 using System.Text.Json;
@@ -122,13 +123,25 @@ public class HttpApiServiceTests
                     throw new InvalidOperationException($"Unexpected request path {request.RequestUri?.AbsolutePath}");
             }
         });
+        var pairedStates = new List<bool>();
+        var unpaired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var pairedStateSubscription = service.PairedState.Subscribe(value =>
+        {
+            pairedStates.Add(value);
+            if (!value)
+            {
+                unpaired.TrySetResult();
+            }
+        });
 
         var first = await Assert.ThrowsAsync<HttpRequestException>(() => service.GetIncompleteSessionIdsAsync());
+        await unpaired.Task.WaitAsync(TimeSpan.FromSeconds(5));
         var second = await Assert.ThrowsAsync<HttpRequestException>(() => service.GetIncompleteSessionIdsAsync());
 
         Assert.Equal(HttpStatusCode.Unauthorized, first.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, second.StatusCode);
         Assert.Equal(1, refreshRequestCount);
+        Assert.Equal([true, false], pairedStates);
         await secureStorage.Received(1).RemoveAsync("RefreshToken");
         await secureStorage.Received(1).RemoveAsync("ServerUrl");
     }
@@ -184,6 +197,18 @@ public class HttpApiServiceTests
     }
 
     [Fact]
+    public async Task PairedState_ReplaysTrue_WhenStoredRefreshTokenExists()
+    {
+        var secureStorage = CreateSecureStorage();
+        var service = CreateService(secureStorage, (_, _) =>
+            throw new InvalidOperationException("Pairing state should not use the stored endpoint."));
+
+        var isPaired = await ReadNextPairedStateAsync(service);
+
+        Assert.True(isPaired);
+    }
+
+    [Fact]
     public async Task IsPairedAsync_ReturnsFalse_WhenRefreshTokenIsMissing()
     {
         var secureStorage = CreateSecureStorage();
@@ -194,6 +219,49 @@ public class HttpApiServiceTests
         var isPaired = await service.IsPairedAsync();
 
         Assert.False(isPaired);
+    }
+
+    [Fact]
+    public async Task PairedState_ReplaysFalse_WhenRefreshTokenIsMissing()
+    {
+        var secureStorage = CreateSecureStorage();
+        secureStorage.GetStringAsync("RefreshToken").Returns((string?)null);
+        var service = CreateService(secureStorage, (_, _) =>
+            throw new InvalidOperationException("Pairing state should not use the stored endpoint."));
+
+        var isPaired = await ReadNextPairedStateAsync(service);
+
+        Assert.False(isPaired);
+    }
+
+    [Fact]
+    public async Task ConfirmPairingAsync_PublishesTrue_AfterCredentialsAreStored()
+    {
+        var secureStorage = CreateSecureStorage();
+        secureStorage.GetStringAsync("RefreshToken").Returns((string?)null);
+        var issuedAccessToken = CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var service = CreateService(secureStorage, (request, _) =>
+        {
+            Assert.Equal(SynchronizationProtocol.EndpointPairConfirm, request.RequestUri?.AbsolutePath);
+            return Task.FromResult<HttpResponseMessage>(
+                CreateJsonResponse(new TokenResponse(issuedAccessToken, "refresh-2")));
+        });
+        var pairedStates = new List<bool>();
+        var paired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var pairedStateSubscription = service.PairedState.Subscribe(value =>
+        {
+            pairedStates.Add(value);
+            if (value)
+            {
+                paired.TrySetResult();
+            }
+        });
+
+        await service.ConfirmPairingAsync("device-1", "phone", "123456");
+        await paired.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal([false, true], pairedStates);
+        await secureStorage.Received(1).SetStringAsync("RefreshToken", "refresh-2");
     }
 
     private static HttpApiService CreateService(
@@ -227,6 +295,13 @@ public class HttpApiServiceTests
     {
         var token = new JwtSecurityToken(expires: expiresAt.UtcDateTime);
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    private static async Task<bool> ReadNextPairedStateAsync(HttpApiService service)
+    {
+        var pairedState = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = service.PairedState.Subscribe(value => pairedState.TrySetResult(value));
+        return await pairedState.Task.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     private sealed class StubHttpMessageHandler(

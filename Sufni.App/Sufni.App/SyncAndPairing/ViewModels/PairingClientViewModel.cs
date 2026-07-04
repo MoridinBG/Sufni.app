@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -47,7 +48,7 @@ public partial class PairingClientViewModel : TabPageViewModelBase
 
         coordinator.DisplayNameChanged += OnDisplayNameChanged;
         coordinator.ServerUrlChanged += OnServerUrlChanged;
-        coordinator.IsPairedChanged += OnIsPairedChanged;
+        _ = coordinator.PairedState.Subscribe(OnPairedStateChanged);
     }
 
     #endregion
@@ -64,9 +65,9 @@ public partial class PairingClientViewModel : TabPageViewModelBase
         UiThreadDispatcher.InvokeAsync(() => ServerUrl = coordinator.ServerUrl);
     }
 
-    private void OnIsPairedChanged(object? sender, EventArgs e)
+    private void OnPairedStateChanged(bool isPaired)
     {
-        UiThreadDispatcher.InvokeAsync(() => IsPaired = coordinator.IsPaired);
+        UiThreadDispatcher.InvokeAsync(() => IsPaired = isPaired);
     }
 
     #endregion Private methods

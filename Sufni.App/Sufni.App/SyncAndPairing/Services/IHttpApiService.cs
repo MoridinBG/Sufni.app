@@ -11,6 +11,7 @@ namespace Sufni.App.SyncAndPairing.Services;
 public interface IHttpApiService
 {
     public string? ServerUrl { get; set; }
+    public IObservable<bool> PairedState { get; }
     public Task RequestPairingAsync(string url, string deviceId, string? displayName);
     public Task ConfirmPairingAsync(string deviceId, string? displayName, string pin);
     public Task UnpairAsync(string deviceId);

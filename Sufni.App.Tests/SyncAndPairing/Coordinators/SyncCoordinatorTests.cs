@@ -2,7 +2,9 @@ using Avalonia.Headless.XUnit;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Avalonia.Threading;
+using System.Reactive.Subjects;
 
+using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
@@ -16,9 +18,11 @@ public class SyncCoordinatorTests
     private readonly IAppStateRefreshOrchestrator appStateRefreshOrchestrator = Substitute.For<IAppStateRefreshOrchestrator>();
     private readonly ISynchronizationClientService syncClient = Substitute.For<ISynchronizationClientService>();
     private readonly IPairingClientCoordinator pairing = Substitute.For<IPairingClientCoordinator>();
+    private readonly Subject<bool> pairedState = new();
 
     public SyncCoordinatorTests()
     {
+        pairing.PairedState.Returns(pairedState);
         pairing.ResolveServerUrlAsync(Arg.Any<TimeSpan>())
             .Returns(Task.FromResult<string?>("https://sync.test"));
         syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>())
@@ -30,21 +34,29 @@ public class SyncCoordinatorTests
     private SyncCoordinator CreateCoordinator(
         ISynchronizationClientService? syncClientOverride = null,
         IPairingClientCoordinator? pairingOverride = null,
-        ISynchronizationServerService? serverOverride = null) =>
+        ISynchronizationServerService? serverOverride = null,
+        IUiThreadDispatcher? uiThreadDispatcherOverride = null) =>
         new(
             appStateRefreshOrchestrator,
             syncClientOverride ?? syncClient,
             pairingOverride ?? pairing,
             serverOverride,
-            new InlineBackgroundTaskRunner(),
-            TimeSpan.Zero);
+            backgroundTaskRunner: new InlineBackgroundTaskRunner(),
+            inboundActivityIdleGrace: TimeSpan.Zero,
+            uiThreadDispatcher: uiThreadDispatcherOverride);
+
+    private void SetPairingState(bool isPaired)
+    {
+        pairing.IsPaired.Returns(isPaired);
+        pairedState.OnNext(isPaired);
+    }
 
     // ----- CanSync -----
 
     [Fact]
     public void CanSync_IsFalse_WhenPairingReportsNotPaired()
     {
-        pairing.IsPaired.Returns(false);
+        SetPairingState(false);
 
         var coordinator = CreateCoordinator();
 
@@ -55,7 +67,7 @@ public class SyncCoordinatorTests
     [AvaloniaFact]
     public async Task CanSync_IsFalse_WhileSyncIsRunning()
     {
-        pairing.IsPaired.Returns(true);
+        SetPairingState(true);
         var gate = new TaskCompletionSource();
         syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>())
             .Returns(gate.Task.ContinueWith(_ => (SynchronizationRunResult)new SynchronizationRunResult.Completed()));
@@ -79,7 +91,7 @@ public class SyncCoordinatorTests
     [Fact]
     public async Task SyncAllAsync_IsNoOp_WhenCanSyncIsFalse()
     {
-        pairing.IsPaired.Returns(false);
+        SetPairingState(false);
         var coordinator = CreateCoordinator();
 
         await coordinator.SyncAllAsync();
@@ -91,7 +103,7 @@ public class SyncCoordinatorTests
     [Fact]
     public async Task SyncAllAsync_IsNoOp_WhenSynchronizationClientServiceIsNull()
     {
-        pairing.IsPaired.Returns(true);
+        SetPairingState(true);
         // Bypass the helper — it uses `??` to fall back to the class-level
         // substitute, so a null override there wouldn't actually inject null.
         var coordinator = new SyncCoordinator(
@@ -111,7 +123,7 @@ public class SyncCoordinatorTests
     [AvaloniaFact]
     public async Task SyncAllAsync_CallsSyncAll_AndRefreshesState()
     {
-        pairing.IsPaired.Returns(true);
+        SetPairingState(true);
         syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>()).Returns(CompletedSync());
 
         var coordinator = CreateCoordinator();
@@ -124,7 +136,7 @@ public class SyncCoordinatorTests
     [AvaloniaFact]
     public async Task SyncAllAsync_RaisesEvents_AndLeavesIsRunningFalse()
     {
-        pairing.IsPaired.Returns(true);
+        SetPairingState(true);
         syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>()).Returns(CompletedSync());
         var coordinator = CreateCoordinator();
 
@@ -143,7 +155,7 @@ public class SyncCoordinatorTests
     [AvaloniaFact]
     public async Task SyncAllAsync_RaisesSyncCompleted_OnSuccess()
     {
-        pairing.IsPaired.Returns(true);
+        SetPairingState(true);
         var coordinator = CreateCoordinator();
 
         SyncCompletedEventArgs? completed = null;
@@ -161,7 +173,7 @@ public class SyncCoordinatorTests
     [AvaloniaFact]
     public async Task SyncAllAsync_RaisesIncompleteSyncCompletedMessage_WhenLocalDataRemainsIncomplete()
     {
-        pairing.IsPaired.Returns(true);
+        SetPairingState(true);
         syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>())
             .Returns(IncompleteSync(missingProcessedSessionCount: 2, incompleteRecordedSourceCount: 1));
         var coordinator = CreateCoordinator();
@@ -182,7 +194,7 @@ public class SyncCoordinatorTests
     [AvaloniaFact]
     public async Task SyncAllAsync_ReportsOuterAndServiceProgress_AndClearsItAfterSuccess()
     {
-        pairing.IsPaired.Returns(true);
+        SetPairingState(true);
         syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>())
             .Returns(callInfo =>
             {
@@ -214,7 +226,7 @@ public class SyncCoordinatorTests
     [AvaloniaFact]
     public async Task SyncAllAsync_ClearsProgress_WhenNoServerEndpointIsDiscovered()
     {
-        pairing.IsPaired.Returns(true);
+        SetPairingState(true);
         pairing.ResolveServerUrlAsync(Arg.Any<TimeSpan>())
             .Returns(Task.FromResult<string?>(null));
         var coordinator = CreateCoordinator();
@@ -234,7 +246,7 @@ public class SyncCoordinatorTests
     [AvaloniaFact]
     public async Task SyncAllAsync_RaisesSyncFailed_AndResetsIsRunning_WhenSyncThrows()
     {
-        pairing.IsPaired.Returns(true);
+        SetPairingState(true);
         syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>()).ThrowsAsync(new InvalidOperationException("boom"));
         var coordinator = CreateCoordinator();
 
@@ -252,20 +264,20 @@ public class SyncCoordinatorTests
         await appStateRefreshOrchestrator.DidNotReceive().RefreshAllStateAsync(Arg.Any<CancellationToken>());
     }
 
-    // ----- Pairing event forwarding -----
+    // ----- Pairing state forwarding -----
 
     [Fact]
-    public void PairingIsPairedChanged_ReRaisesIsPairedChanged_AndCanSyncChanged()
+    public void PairingPairedState_ReRaisesIsPairedChanged_AndCanSyncChanged()
     {
-        pairing.IsPaired.Returns(false);
-        var coordinator = CreateCoordinator();
+        SetPairingState(false);
+        var coordinator = CreateCoordinator(uiThreadDispatcherOverride: new InlineUiThreadDispatcher());
 
         var isPairedChanged = 0;
         var canSyncChanged = 0;
         coordinator.IsPairedChanged += (_, _) => isPairedChanged++;
         coordinator.CanSyncChanged += (_, _) => canSyncChanged++;
 
-        pairing.IsPairedChanged += Raise.Event();
+        SetPairingState(true);
 
         Assert.Equal(1, isPairedChanged);
         Assert.Equal(1, canSyncChanged);
@@ -276,7 +288,7 @@ public class SyncCoordinatorTests
     {
         // Pre-seed IsPaired = true so the fire-and-forget SyncAllAsync's
         // CanSync check passes.
-        pairing.IsPaired.Returns(true);
+        SetPairingState(true);
         var coordinator = CreateCoordinator();
 
         var syncCompleted = new TaskCompletionSource();
@@ -295,7 +307,7 @@ public class SyncCoordinatorTests
     public void PairingConfirmed_DoesNotSync_WhenCanSyncIsFalse()
     {
         // IsPaired is false by default — the auto-sync silently no-ops.
-        pairing.IsPaired.Returns(false);
+        SetPairingState(false);
         var coordinator = CreateCoordinator();
 
         pairing.PairingConfirmed += Raise.Event();
@@ -306,7 +318,7 @@ public class SyncCoordinatorTests
     [AvaloniaFact]
     public async Task SyncAllAsync_RefreshesState_OnUiThread()
     {
-        pairing.IsPaired.Returns(true);
+        SetPairingState(true);
 
         var refreshedOnUiThread = false;
         appStateRefreshOrchestrator
@@ -325,7 +337,7 @@ public class SyncCoordinatorTests
     [AvaloniaFact]
     public async Task SyncAllAsync_ResolvesCurrentServerEndpoint_BeforeRunningSync()
     {
-        pairing.IsPaired.Returns(true);
+        SetPairingState(true);
         var coordinator = CreateCoordinator();
 
         await coordinator.SyncAllAsync();
@@ -337,7 +349,7 @@ public class SyncCoordinatorTests
     [AvaloniaFact]
     public async Task SyncAllAsync_RunsClientSyncThroughBackgroundRunner()
     {
-        pairing.IsPaired.Returns(true);
+        SetPairingState(true);
         syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>()).Returns(CompletedSync());
         var backgroundTaskRunner = new RecordingBackgroundTaskRunner();
         var coordinator = new SyncCoordinator(
@@ -367,7 +379,7 @@ public class SyncCoordinatorTests
     [AvaloniaFact]
     public async Task SyncAllAsync_RaisesSyncFailed_WhenNoServerEndpointIsDiscovered()
     {
-        pairing.IsPaired.Returns(true);
+        SetPairingState(true);
         pairing.ResolveServerUrlAsync(Arg.Any<TimeSpan>())
             .Returns(Task.FromResult<string?>(null));
         var coordinator = CreateCoordinator();
