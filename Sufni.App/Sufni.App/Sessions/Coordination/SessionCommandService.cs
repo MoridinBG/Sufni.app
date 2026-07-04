@@ -158,7 +158,7 @@ public sealed class SessionCommandService
         try
         {
             var origin = CalculateSourceAbsoluteOrigin(snapshot, sourceAbsoluteStartSeconds);
-            var session = ToMetadataEntity(snapshot);
+            var session = snapshot.ToMetadataEntity();
             session.Timestamp = origin.Timestamp;
             session.GpsOffsetSeconds = origin.GpsOffsetSeconds;
 
@@ -193,7 +193,7 @@ public sealed class SessionCommandService
 
         try
         {
-            var session = ToMetadataEntity(snapshot);
+            var session = snapshot.ToMetadataEntity();
             session.Name = name;
 
             var result = await sessionStore.CommitSessionMetadataAsync(
@@ -359,27 +359,6 @@ public sealed class SessionCommandService
     }
 
     private static double FractionalSeconds(double seconds) => seconds - Math.Floor(seconds);
-
-    private static Session ToMetadataEntity(SessionSnapshot snapshot) => new(
-        snapshot.Id,
-        snapshot.Name,
-        snapshot.Description,
-        snapshot.SetupId,
-        snapshot.Timestamp)
-    {
-        GpsOffsetSeconds = snapshot.GpsOffsetSeconds,
-        FrontSpringRate = snapshot.FrontSpringRate,
-        FrontHighSpeedCompression = snapshot.FrontHighSpeedCompression,
-        FrontLowSpeedCompression = snapshot.FrontLowSpeedCompression,
-        FrontLowSpeedRebound = snapshot.FrontLowSpeedRebound,
-        FrontHighSpeedRebound = snapshot.FrontHighSpeedRebound,
-        RearSpringRate = snapshot.RearSpringRate,
-        RearHighSpeedCompression = snapshot.RearHighSpeedCompression,
-        RearLowSpeedCompression = snapshot.RearLowSpeedCompression,
-        RearLowSpeedRebound = snapshot.RearLowSpeedRebound,
-        RearHighSpeedRebound = snapshot.RearHighSpeedRebound,
-        Updated = snapshot.Updated,
-    };
 
     public async Task<SessionDeleteResult> DeleteAsync(Guid sessionId)
     {

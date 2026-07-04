@@ -64,3 +64,39 @@ public sealed record SessionSnapshot(
         session.DescentMeters,
         session.GpsOffsetSeconds);
 }
+
+public static class SessionSnapshotExtensions
+{
+    public static Session ToMetadataEntity(this SessionSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        return new Session(
+            snapshot.Id,
+            snapshot.Name,
+            snapshot.Description,
+            snapshot.SetupId,
+            snapshot.Timestamp)
+        {
+            DurationSeconds = snapshot.DurationSeconds,
+            DistanceMeters = snapshot.DistanceMeters,
+            AscentMeters = snapshot.AscentMeters,
+            DescentMeters = snapshot.DescentMeters,
+            FullTrack = snapshot.FullTrackId,
+            HasProcessedData = snapshot.HasProcessedData,
+            ProcessingFingerprintJson = snapshot.ProcessingFingerprintJson,
+            GpsOffsetSeconds = snapshot.GpsOffsetSeconds,
+            FrontSpringRate = snapshot.FrontSpringRate,
+            FrontHighSpeedCompression = snapshot.FrontHighSpeedCompression,
+            FrontLowSpeedCompression = snapshot.FrontLowSpeedCompression,
+            FrontLowSpeedRebound = snapshot.FrontLowSpeedRebound,
+            FrontHighSpeedRebound = snapshot.FrontHighSpeedRebound,
+            RearSpringRate = snapshot.RearSpringRate,
+            RearHighSpeedCompression = snapshot.RearHighSpeedCompression,
+            RearLowSpeedCompression = snapshot.RearLowSpeedCompression,
+            RearLowSpeedRebound = snapshot.RearLowSpeedRebound,
+            RearHighSpeedRebound = snapshot.RearHighSpeedRebound,
+            Updated = snapshot.Updated,
+        };
+    }
+}

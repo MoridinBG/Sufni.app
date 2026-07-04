@@ -104,7 +104,7 @@ internal sealed class SessionStore(
 
         try
         {
-            var session = metadataUpdate(ToMetadataEntity(current));
+            var session = metadataUpdate(current.ToMetadataEntity());
             return await CommitSessionMetadataAsync(session, current.Updated, cancellationToken);
         }
         catch (Exception e)
@@ -226,24 +226,4 @@ internal sealed class SessionStore(
         return new StoreMutationResult<SessionSnapshot>.Saved(snapshot);
     }
 
-    private static Session ToMetadataEntity(SessionSnapshot snapshot) => new(
-        snapshot.Id,
-        snapshot.Name,
-        snapshot.Description,
-        snapshot.SetupId,
-        snapshot.Timestamp)
-    {
-        GpsOffsetSeconds = snapshot.GpsOffsetSeconds,
-        FrontSpringRate = snapshot.FrontSpringRate,
-        FrontHighSpeedCompression = snapshot.FrontHighSpeedCompression,
-        FrontLowSpeedCompression = snapshot.FrontLowSpeedCompression,
-        FrontLowSpeedRebound = snapshot.FrontLowSpeedRebound,
-        FrontHighSpeedRebound = snapshot.FrontHighSpeedRebound,
-        RearSpringRate = snapshot.RearSpringRate,
-        RearHighSpeedCompression = snapshot.RearHighSpeedCompression,
-        RearLowSpeedCompression = snapshot.RearLowSpeedCompression,
-        RearLowSpeedRebound = snapshot.RearLowSpeedRebound,
-        RearHighSpeedRebound = snapshot.RearHighSpeedRebound,
-        Updated = snapshot.Updated,
-    };
 }

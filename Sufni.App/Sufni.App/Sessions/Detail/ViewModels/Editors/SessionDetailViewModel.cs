@@ -705,7 +705,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private async Task ApplyPersistedSnapshotAsync(SessionSnapshot snapshot)
     {
-        session = SessionFromSnapshot(snapshot);
+        session = snapshot.ToMetadataEntity();
         SessionContext.SessionSnapshot = snapshot;
         BaselineUpdated = snapshot.Updated;
         metadataConflictPending = false;
@@ -1314,7 +1314,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             markGpsTelemetryEventCommand,
             cancelGpsTimelineAlignmentCommand);
         SessionContext.SignalPlotContextMenuActionsBySignalRowId = SignalPlotContextMenuActionsBySignalRowId;
-        session = SessionFromSnapshot(snapshot);
+        session = snapshot.ToMetadataEntity();
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
         SessionContext.SessionSnapshot = snapshot;
@@ -1420,28 +1420,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     #endregion
 
     #region Private methods
-
-    private static Session SessionFromSnapshot(SessionSnapshot snapshot)
-    {
-        var s = new Session(snapshot.Id, snapshot.Name, snapshot.Description, snapshot.SetupId, snapshot.Timestamp)
-        {
-            FullTrack = snapshot.FullTrackId,
-            FrontSpringRate = snapshot.FrontSpringRate,
-            FrontHighSpeedCompression = snapshot.FrontHighSpeedCompression,
-            FrontLowSpeedCompression = snapshot.FrontLowSpeedCompression,
-            FrontLowSpeedRebound = snapshot.FrontLowSpeedRebound,
-            FrontHighSpeedRebound = snapshot.FrontHighSpeedRebound,
-            RearSpringRate = snapshot.RearSpringRate,
-            RearHighSpeedCompression = snapshot.RearHighSpeedCompression,
-            RearLowSpeedCompression = snapshot.RearLowSpeedCompression,
-            RearLowSpeedRebound = snapshot.RearLowSpeedRebound,
-            RearHighSpeedRebound = snapshot.RearHighSpeedRebound,
-            HasProcessedData = snapshot.HasProcessedData,
-            GpsOffsetSeconds = snapshot.GpsOffsetSeconds,
-            Updated = snapshot.Updated,
-        };
-        return s;
-    }
 
     private void ClearAnalysisSelections()
     {
@@ -1728,7 +1706,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                     "This session has been updated from another source. Discard your changes and reload?");
                 if (reload)
                 {
-                    session = SessionFromSnapshot(conflict.CurrentSnapshot);
+                    session = conflict.CurrentSnapshot.ToMetadataEntity();
                     SessionContext.SessionSnapshot = conflict.CurrentSnapshot;
                     BaselineUpdated = conflict.CurrentSnapshot.Updated;
                     metadataConflictPending = false;
