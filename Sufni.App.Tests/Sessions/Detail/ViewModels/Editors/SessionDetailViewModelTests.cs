@@ -174,7 +174,7 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void Construction_ExposesContextBackedMobileWorkspace()
+    public void Construction_ExposesProjectedMobileWorkspace()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
 
@@ -201,23 +201,23 @@ public class SessionDetailViewModelTests
         Assert.Same(editor.AnalysisWorkspace, editor.Pages.OfType<VibrationPageViewModel>().Single().Workspace);
         Assert.Same(editor.AnalysisWorkspace, editor.Pages.OfType<SessionInsightsPageViewModel>().Single().Workspace);
         Assert.Equal(snapshot, editor.SessionContext.SessionSnapshot);
-        Assert.Equal(editor.SessionContext.ScreenState, editor.MobileWorkspace.ScreenState);
-        Assert.Equal(editor.SessionContext.SessionOperationState, editor.MobileWorkspace.SessionOperationState);
+        Assert.Equal(editor.ScreenState, editor.MobileWorkspace.ScreenState);
+        Assert.Equal(editor.SessionOperationState, editor.MobileWorkspace.SessionOperationState);
     }
 
     [AvaloniaFact]
-    public void MobileWorkspace_TracksContextPresentationState()
+    public void MobileWorkspace_TracksOwnerPresentationState()
     {
         var editor = CreateEditor(TestSnapshots.Session());
         var observed = new List<string?>();
         ((INotifyPropertyChanged)editor.MobileWorkspace).PropertyChanged += (_, args) =>
             observed.Add(args.PropertyName);
 
-        editor.SessionContext.ScreenState = SessionScreenPresentationState.Loading("loading");
-        editor.SessionContext.SessionOperationState = SessionOperationPresentationState.Progress("working", 25);
+        editor.SetScreenState(SessionScreenPresentationState.Loading("loading"));
+        editor.SetSessionOperationState(SessionOperationPresentationState.Progress("working", 25));
 
-        Assert.Equal(editor.SessionContext.ScreenState, editor.MobileWorkspace.ScreenState);
-        Assert.Equal(editor.SessionContext.SessionOperationState, editor.MobileWorkspace.SessionOperationState);
+        Assert.Equal(editor.ScreenState, editor.MobileWorkspace.ScreenState);
+        Assert.Equal(editor.SessionOperationState, editor.MobileWorkspace.SessionOperationState);
         Assert.Contains(nameof(ISessionShellMobileWorkspace.ScreenState), observed);
         Assert.Contains(nameof(ISessionShellMobileWorkspace.SessionOperationState), observed);
     }

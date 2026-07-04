@@ -1,8 +1,10 @@
 using System.Collections.Generic;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
+using Sufni.App.Sessions.Presentation;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
@@ -20,7 +22,9 @@ internal static class RecordedSessionEditorStateSnapshot
         IReadOnlyList<SignalRowAction>? elevationHeaderActions = null,
         RecordedSignalToggleState? signalToggles = null,
         RecordedAnalysisModeState? analysisModes = null,
-        AnalysisSelectionState? analysisSelection = null)
+        AnalysisSelectionState? analysisSelection = null,
+        SessionScreenPresentationState? screenState = null,
+        SessionOperationPresentationState? operationState = null)
     {
         var toggles = signalToggles ?? RecordedSignalToggleState.From(context);
         var modes = analysisModes ?? RecordedAnalysisModeState.From(context);
@@ -89,8 +93,8 @@ internal static class RecordedSessionEditorStateSnapshot
                 CanEditDampingSpeedCutoffs: context.CanEditDampingSpeedCutoffs,
                 SessionInsights: context.SessionInsights,
                 SignalPlotContextMenuActionsBySignalRowId: context.SignalPlotContextMenuActionsBySignalRowId,
-                ScreenState: context.ScreenState,
-                OperationState: context.SessionOperationState),
+                ScreenState: screenState ?? context.ScreenState,
+                OperationState: operationState ?? context.SessionOperationState),
             AnalysisSelection: analysisSelection ?? new AnalysisSelectionState(
                 ActiveFront: context.ActiveFrontAnalysisSelection,
                 ActiveRear: context.ActiveRearAnalysisSelection,

@@ -792,7 +792,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
         else
         {
-            SessionContext.ScreenState = SessionScreenPresentationState.Ready;
+            SetScreenState(SessionScreenPresentationState.Ready);
         }
 
         try
@@ -1023,12 +1023,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void ReportRecordedSessionExtensionOperation(string message, double percent)
     {
-        SessionContext.SessionOperationState = SessionOperationPresentationState.Progress(message, percent);
+        SetSessionOperationState(SessionOperationPresentationState.Progress(message, percent));
     }
 
     private void CompleteRecordedSessionExtensionOperation()
     {
-        SessionContext.SessionOperationState = SessionOperationPresentationState.Hidden;
+        SetSessionOperationState(SessionOperationPresentationState.Hidden);
     }
 
     private void SetRecordedSessionExtensionTimelineVisibleRange(
@@ -1622,7 +1622,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             new AnalysisSelectionState(
                 ActiveFrontAnalysisSelection,
                 ActiveRearAnalysisSelection,
-                analysisSelectionController.HighlightRanges));
+                analysisSelectionController.HighlightRanges),
+            screenState,
+            sessionOperationState);
         ApplyProjectedEditorState(state);
         editorStateInput.OnNext(state);
     }
@@ -1819,6 +1821,26 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         UpdateRecordedSessionExtensionHostState();
         PublishEditorState();
+    }
+
+    internal void SetScreenState(SessionScreenPresentationState state)
+    {
+        var changed = SetProperty(ref screenState, state, nameof(ScreenState));
+        SessionContext.ScreenState = state;
+        if (changed)
+        {
+            PublishEditorState();
+        }
+    }
+
+    internal void SetSessionOperationState(SessionOperationPresentationState state)
+    {
+        var changed = SetProperty(ref sessionOperationState, state, nameof(SessionOperationState));
+        SessionContext.SessionOperationState = state;
+        if (changed)
+        {
+            PublishEditorState();
+        }
     }
 
     private void ApplyProjectedEditorState(RecordedSessionEditorState state)

@@ -82,7 +82,7 @@ internal sealed class RecordedPresentationApplier
 
     public void ApplyRecordedLoadingStates(bool mapExpected)
     {
-        context.ScreenState = SessionScreenPresentationState.Ready;
+        owner.SetScreenState(SessionScreenPresentationState.Ready);
         ApplyRecordedPlotAvailability(null);
         SetRecordedSignalStates(
             SurfacePresentationState.Loading("Loading travel signal data."),
@@ -130,20 +130,20 @@ internal sealed class RecordedPresentationApplier
                 context.MapState = CreateMapState(
                     telemetryPresentation.TrackPoints,
                     telemetryPresentation.FullTrackId is not null);
-                context.ScreenState = SessionScreenPresentationState.Ready;
+                owner.SetScreenState(SessionScreenPresentationState.Ready);
                 owner.IsComplete = true;
                 break;
 
             case SessionDetailLoadResult.IncompleteLocalData incomplete:
                 ClearRecordedPresentation();
-                context.ScreenState = SessionScreenPresentationState.IncompleteLocalData(
-                    FormatIncompleteLocalDataMessage(incomplete.Missing));
+                owner.SetScreenState(SessionScreenPresentationState.IncompleteLocalData(
+                    FormatIncompleteLocalDataMessage(incomplete.Missing)));
                 owner.IsComplete = context.SessionSnapshot?.HasProcessedData ?? false;
                 break;
 
             case SessionDetailLoadResult.Failed failed:
                 ClearRecordedPresentation();
-                context.ScreenState = SessionScreenPresentationState.Error($"Could not load session data: {failed.ErrorMessage}");
+                owner.SetScreenState(SessionScreenPresentationState.Error($"Could not load session data: {failed.ErrorMessage}"));
                 break;
         }
     }
