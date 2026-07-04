@@ -144,6 +144,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly DampingCutoffWorkflow dampingCutoffWorkflow;
     private readonly bool deferDomainHandlingWhenInactive;
     private IDisposable? processedTelemetryRetention;
+    private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
+    private SessionOperationPresentationState sessionOperationState = SessionOperationPresentationState.Hidden;
 
     #endregion Private fields
 
@@ -236,6 +238,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SessionContext.SelectedBalanceDisplacementMode,
         SessionContext.SelectedBalanceSpeedMode);
     public ObservableCollection<PageViewModelBase> Pages => SessionContext.Pages;
+    public SessionScreenPresentationState ScreenState => screenState;
+    public SessionOperationPresentationState SessionOperationState => sessionOperationState;
 
     #endregion Observable properties
 
@@ -1600,9 +1604,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void PublishEditorState()
     {
-        editorStateInput.OnNext(RecordedSessionEditorStateSnapshot.From(
+        var state = RecordedSessionEditorStateSnapshot.From(
             SessionContext,
-            recordedPreferenceStore.Current));
+            recordedPreferenceStore.Current);
+        ApplyProjectedEditorState(state);
+        editorStateInput.OnNext(state);
+    }
+
+    private void ApplyProjectedEditorState(RecordedSessionEditorState state)
+    {
+        SetProperty(ref screenState, state.Presentation.ScreenState, nameof(ScreenState));
+        SetProperty(ref sessionOperationState, state.Presentation.OperationState, nameof(SessionOperationState));
     }
 
     private void EvaluateDirtinessFromPageChange()
