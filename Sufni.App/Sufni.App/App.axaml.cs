@@ -433,23 +433,9 @@ public partial class App : Application
                 {
                     var topLevel = TopLevel.GetTopLevel(singleViewPlatform.MainView);
                     Debug.Assert(topLevel is not null);
-                    topLevel.BackRequested += async (_, e) =>
+                    topLevel.BackRequested += (_, e) =>
                     {
-                        var handled = shellRootViewModel.TryCloseTransientShellSurface();
-                        if (handled)
-                        {
-                            e.Handled = true;
-                            return;
-                        }
-
-                        if (shellRootViewModel.Workspace.CurrentTab is null)
-                        {
-                            e.Handled = false;
-                            return;
-                        }
-
-                        e.Handled = true;
-                        await shellRootViewModel.Workspace.CloseCurrentAsync();
+                        e.Handled = shellRootViewModel.HandleBackRequest();
                     };
                     fileService.SetTarget(topLevel);
                 };

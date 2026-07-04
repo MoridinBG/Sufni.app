@@ -1,5 +1,6 @@
 using NSubstitute;
 using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Base;
 using Sufni.App.Shell.ViewModels;
 
 namespace Sufni.App.Tests.Shell.ViewModels;
@@ -82,6 +83,49 @@ public class ShellRootViewModelTests
         plotZoomState.Received(1).TryCollapse();
     }
 
+    [Fact]
+    public void HandleBackRequest_ClosesTransientSurfaceBeforeWorkspaceBack()
+    {
+        var plotZoomState = Substitute.For<IPlotZoomState>();
+        var root = CreateRoot(plotZoomState);
+        var tab = new TestTabPage();
+        root.Workspace.OpenOrFocus(tab);
+        root.Pages.IsDrawerOpen = true;
+
+        var handled = root.HandleBackRequest();
+
+        Assert.True(handled);
+        Assert.False(root.Pages.IsDrawerOpen);
+        Assert.Same(tab, root.Workspace.CurrentTab);
+    }
+
+    [Fact]
+    public void HandleBackRequest_DelegatesToWorkspaceGoBack()
+    {
+        var plotZoomState = Substitute.For<IPlotZoomState>();
+        var root = CreateRoot(plotZoomState);
+        var previous = new TestTabPage();
+        var current = new TestTabPage();
+        root.Workspace.OpenOrFocus(previous);
+        root.Workspace.OpenOrFocus(current);
+
+        var handled = root.HandleBackRequest();
+
+        Assert.True(handled);
+        Assert.Same(previous, root.Workspace.CurrentTab);
+    }
+
+    [Fact]
+    public void HandleBackRequest_ReturnsFalseWhenWorkspaceCannotGoBack()
+    {
+        var plotZoomState = Substitute.For<IPlotZoomState>();
+        var root = CreateRoot(plotZoomState);
+
+        var handled = root.HandleBackRequest();
+
+        Assert.False(handled);
+    }
+
     private static ShellRootViewModel CreateRoot(IPlotZoomState plotZoomState)
     {
         var environment = new AppEnvironment(
@@ -107,5 +151,13 @@ public class ShellRootViewModelTests
             environment,
             plotZoomState,
             TestDispatcher);
+    }
+
+    private sealed class TestTabPage : TabPageViewModelBase
+    {
+        public TestTabPage()
+            : base(TestDispatcher)
+        {
+        }
     }
 }

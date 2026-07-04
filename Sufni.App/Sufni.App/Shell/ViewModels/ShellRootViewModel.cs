@@ -28,6 +28,16 @@ public sealed class ShellRootViewModel : ViewModelBase
     public UiLayoutProfile LayoutProfile { get; }
     public AppCapabilities Capabilities { get; }
 
+    public bool HandleBackRequest()
+    {
+        if (TryCloseTransientShellSurface())
+        {
+            return true;
+        }
+
+        return Workspace.GoBack();
+    }
+
     public bool TryCloseTransientShellSurface()
     {
         if (plotZoomState.TryCollapse())
