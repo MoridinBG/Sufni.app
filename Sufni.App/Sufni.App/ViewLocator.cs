@@ -179,8 +179,7 @@ public class ViewLocator : IDataTemplate
     }
 
     private UiLayoutProfile ResolveLayoutProfile() =>
-        appEnvironment?.LayoutProfile ??
-        (App.Current?.IsDesktop == true ? UiLayoutProfile.Workspace : UiLayoutProfile.Compact);
+        appEnvironment?.LayoutProfile ?? UiLayoutProfile.Compact;
 
     private static bool TryBuildProfileView(
         Type viewModelType,
