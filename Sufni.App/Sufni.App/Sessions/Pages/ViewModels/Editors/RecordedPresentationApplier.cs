@@ -57,7 +57,7 @@ internal sealed class RecordedPresentationApplier
         owner.SetTelemetryData(null);
         owner.SetFullTrackPoints(null);
         owner.SetTrackPoints(null);
-        context.MediaColumnWidth = null;
+        owner.SetMediaColumnWidth(null);
         owner.ApplyDampingPercentages(SessionDampingPercentages.Empty);
         context.FrontAnalysisState = SurfacePresentationState.Hidden;
         context.RearAnalysisState = SurfacePresentationState.Hidden;
@@ -96,9 +96,9 @@ internal sealed class RecordedPresentationApplier
         context.CompressionBalanceState = SurfacePresentationState.Loading("Loading balance data.");
         context.ReboundBalanceState = SurfacePresentationState.Loading("Loading balance data.");
         HideVibrationStates();
-        context.MapState = mapExpected
+        owner.SetMapState(mapExpected
             ? SurfacePresentationState.Loading("Loading map data.")
-            : SurfacePresentationState.Hidden;
+            : SurfacePresentationState.Hidden);
         springPage.FrontDistributionState = SurfacePresentationState.Loading("Loading spring chart.");
         springPage.RearDistributionState = SurfacePresentationState.Loading("Loading spring chart.");
         dampingPage.FrontDistributionState = SurfacePresentationState.Loading("Loading damping chart.");
@@ -119,7 +119,7 @@ internal sealed class RecordedPresentationApplier
                 owner.SetSessionFullTrack(telemetryPresentation.FullTrackId);
                 owner.SetFullTrackPoints(telemetryPresentation.FullTrackPoints);
                 owner.SetTrackPoints(telemetryPresentation.TrackPoints);
-                context.MediaColumnWidth = telemetryPresentation.MediaColumnWidth;
+                owner.SetMediaColumnWidth(telemetryPresentation.MediaColumnWidth);
                 owner.ApplyModeAwareDampingPercentages(telemetryPresentation.DampingPercentages);
                 ApplyMobileExtendedAnalysisStates(
                     telemetryPresentation.TelemetryData,
@@ -127,9 +127,9 @@ internal sealed class RecordedPresentationApplier
                     HasRearCacheAnalysis(cachePresentation),
                     cachePresentation.BalanceAvailable);
                 ApplyRecordedReadySignalStates(telemetryPresentation.TelemetryData);
-                context.MapState = CreateMapState(
+                owner.SetMapState(CreateMapState(
                     telemetryPresentation.TrackPoints,
-                    telemetryPresentation.FullTrackId is not null);
+                    telemetryPresentation.FullTrackId is not null));
                 owner.SetScreenState(SessionScreenPresentationState.Ready);
                 owner.IsComplete = true;
                 break;

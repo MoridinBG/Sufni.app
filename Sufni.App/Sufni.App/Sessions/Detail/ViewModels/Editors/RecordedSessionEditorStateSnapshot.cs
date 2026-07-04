@@ -29,11 +29,13 @@ internal static class RecordedSessionEditorStateSnapshot
         SessionDampingPercentages? dampingPercentages = null,
         IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>? signalPlotContextMenuActionsBySignalRowId = null,
         SessionInsightsResult? sessionInsights = null,
-        RecordedSignalSurfaceState? signalSurfaces = null)
+        RecordedSignalSurfaceState? signalSurfaces = null,
+        RecordedMediaPresentationState? mediaPresentation = null)
     {
         var toggles = signalToggles ?? RecordedSignalToggleState.From(context);
         var modes = analysisModes ?? RecordedAnalysisModeState.From(context);
         var surfaces = signalSurfaces ?? RecordedSignalSurfaceState.From(context);
+        var media = mediaPresentation ?? RecordedMediaPresentationState.From(context);
 
         return new RecordedSessionEditorState(
             Domain: null,
@@ -56,10 +58,10 @@ internal static class RecordedSessionEditorStateSnapshot
                 SignalLayoutPreferences: preferences.SignalLayout,
                 LayoutPreferences: preferences.Layout),
             Presentation: new RecordedSessionEditorPresentationState(
-                MapState: context.MapState,
-                MediaPaneState: context.MediaPaneState,
-                MediaColumnWidth: context.MediaColumnWidth,
-                MediaUrl: context.MediaUrl,
+                MapState: media.MapState,
+                MediaPaneState: media.MediaPaneState,
+                MediaColumnWidth: media.MediaColumnWidth,
+                MediaUrl: media.MediaUrl,
                 Signals: new RecordedSignalPresentationState(
                     Travel: surfaces.Travel,
                     Velocity: surfaces.Velocity,
@@ -143,6 +145,22 @@ internal sealed record RecordedSignalSurfaceState(
             context.PitchRollSignalState,
             context.SpeedSignalState,
             context.ElevationSignalState);
+    }
+}
+
+internal sealed record RecordedMediaPresentationState(
+    SurfacePresentationState MapState,
+    SurfacePresentationState MediaPaneState,
+    double? MediaColumnWidth,
+    string? MediaUrl)
+{
+    public static RecordedMediaPresentationState From(RecordedSessionContext context)
+    {
+        return new RecordedMediaPresentationState(
+            context.MapState,
+            context.MediaPaneState,
+            context.MediaColumnWidth,
+            context.MediaUrl);
     }
 }
 

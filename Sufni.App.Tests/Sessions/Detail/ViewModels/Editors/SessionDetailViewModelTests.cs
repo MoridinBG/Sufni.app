@@ -237,19 +237,22 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void MediaWorkspace_TracksContextMediaState()
+    public void MediaWorkspace_TracksOwnerMediaState()
     {
         var editor = CreateEditor(TestSnapshots.Session());
+        var mapState = SurfacePresentationState.Ready;
+        const double mediaColumnWidth = 480;
+        const string mediaUrl = "session-media.mp4";
 
-        editor.SessionContext.MapState = SurfacePresentationState.Ready;
-        editor.SessionContext.MediaColumnWidth = 480;
-        editor.SessionContext.MediaUrl = "session-media.mp4";
+        editor.SetMapState(mapState);
+        editor.SetMediaColumnWidth(mediaColumnWidth);
+        editor.SetMediaUrl(mediaUrl);
 
         Assert.Same(editor.MapViewModel, editor.MediaWorkspace.MapViewModel);
-        Assert.Equal(editor.SessionContext.MapState, editor.MediaWorkspace.MapState);
-        Assert.Equal(editor.SessionContext.MediaPaneState, editor.MediaWorkspace.MediaPaneState);
-        Assert.Equal(editor.SessionContext.MediaColumnWidth, editor.MediaWorkspace.MediaColumnWidth);
-        Assert.Equal(editor.SessionContext.MediaUrl, editor.MediaWorkspace.MediaUrl);
+        Assert.Equal(mapState, editor.MediaWorkspace.MapState);
+        Assert.Equal(SurfacePresentationState.Ready, editor.MediaWorkspace.MediaPaneState);
+        Assert.Equal(mediaColumnWidth, editor.MediaWorkspace.MediaColumnWidth);
+        Assert.Equal(mediaUrl, editor.MediaWorkspace.MediaUrl);
         Assert.True(editor.MediaWorkspace.HasMediaContent);
     }
 

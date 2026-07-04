@@ -154,6 +154,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private SurfacePresentationState pitchRollSignalState = SurfacePresentationState.Hidden;
     private SurfacePresentationState speedSignalState = SurfacePresentationState.Hidden;
     private SurfacePresentationState elevationSignalState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState mapState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState mediaPaneState = SurfacePresentationState.Hidden;
+    private double? mediaColumnWidth;
+    private string? mediaUrl;
     private bool showAirtime = true;
     private bool showVelocityAirtime;
     private bool showImuAirtime;
@@ -1642,7 +1646,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             dampingPercentages,
             SignalPlotContextMenuActionsBySignalRowId,
             sessionInsights,
-            CreateSignalSurfaceState());
+            CreateSignalSurfaceState(),
+            CreateMediaPresentationState());
         ApplyProjectedEditorState(state);
         editorStateInput.OnNext(state);
     }
@@ -1683,6 +1688,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             pitchRollSignalState,
             speedSignalState,
             elevationSignalState);
+    }
+
+    private RecordedMediaPresentationState CreateMediaPresentationState()
+    {
+        return new RecordedMediaPresentationState(
+            mapState,
+            mediaPaneState,
+            mediaColumnWidth,
+            mediaUrl);
     }
 
     private void SetShowAirtime(bool value) => SetSignalToggle(ref showAirtime, value);
@@ -1930,6 +1944,46 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             pitchRollSignalState,
             speedState,
             elevationState);
+    }
+
+    internal void SetMapState(SurfacePresentationState state)
+    {
+        var changed = mapState != state;
+        mapState = state;
+        SessionContext.MapState = state;
+        if (changed)
+        {
+            PublishEditorState();
+        }
+    }
+
+    internal void SetMediaColumnWidth(double? width)
+    {
+        var changed = mediaColumnWidth != width;
+        mediaColumnWidth = width;
+        SessionContext.MediaColumnWidth = width;
+        if (changed)
+        {
+            PublishEditorState();
+        }
+    }
+
+    internal void SetMediaUrl(string? url)
+    {
+        var nextPaneState = string.IsNullOrWhiteSpace(url)
+            ? SurfacePresentationState.Hidden
+            : SurfacePresentationState.Ready;
+        var changed = mediaUrl != url || mediaPaneState != nextPaneState;
+
+        mediaUrl = url;
+        mediaPaneState = nextPaneState;
+        SessionContext.MediaUrl = url;
+        SessionContext.MediaPaneState = nextPaneState;
+
+        if (changed)
+        {
+            PublishEditorState();
+        }
     }
 
     private void ApplyProjectedEditorState(RecordedSessionEditorState state)
