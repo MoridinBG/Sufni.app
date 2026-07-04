@@ -164,13 +164,26 @@ public class ImportSessionsCoordinator(
                             reprocessResult.ProcessedTelemetry,
                             reprocessResult.GeneratedFullTrack,
                             source);
-                        await telemetryFile.OnImported();
 
                         var snapshot = SessionSnapshot.From(persisted);
                         await sessionStore.PublishSessionsChangedAsync([snapshot.Id]);
                         await sourceStore.PublishSourcesChangedAsync([source.SessionId]);
                         imported.Add(snapshot);
                         progress?.Report(new SessionImportEvent.Imported(snapshot));
+
+                        try
+                        {
+                            await telemetryFile.OnImported();
+                        }
+                        catch (Exception e)
+                        {
+                            logger.Warning(e, "Failed to finish post-import action for telemetry file {FileName}", telemetryFile.Name);
+                            failures.Add(new SessionImportFailure(
+                                telemetryFile.Name,
+                                e.Message,
+                                SessionImportFailureOperation.Import));
+                            progress?.Report(new SessionImportEvent.ImportFailed(telemetryFile.Name, e.Message));
+                        }
                     }
                     catch (Exception e)
                     {

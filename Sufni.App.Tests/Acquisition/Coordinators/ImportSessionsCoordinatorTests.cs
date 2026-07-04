@@ -402,7 +402,7 @@ public class ImportSessionsCoordinatorTests
     }
 
     [Fact]
-    public async Task ImportAsync_OnImportedThrows_CapturedInFailures()
+    public async Task ImportAsync_OnImportedThrows_PublishesCommittedSessionAndReportsFailure()
     {
         var (setup, _) = SeedSetupAndBike();
         var file = CreateTelemetryFile(name: "post-import-fail", shouldBeImported: true);
@@ -411,12 +411,15 @@ public class ImportSessionsCoordinatorTests
         var coordinator = CreateCoordinator();
         var result = await coordinator.ImportAsync([file], setup.Id);
 
-        Assert.Empty(result.Imported);
+        Assert.Single(result.Imported);
         var failure = Assert.Single(result.Failures);
         Assert.Equal("post-import-fail", failure.FileName);
         Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
-        await sessionStore.DidNotReceive().PublishSessionsChangedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
+        await sessionStore.Received(1).PublishSessionsChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(result.Imported[0].Id)),
+            Arg.Any<CancellationToken>());
+        await sourceStore.Received(1).PublishSourcesChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(result.Imported[0].Id)),
             Arg.Any<CancellationToken>());
     }
 
