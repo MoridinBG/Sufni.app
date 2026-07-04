@@ -1597,21 +1597,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
                 UpdateRecordedSessionExtensionHostState();
                 break;
-            case nameof(RecordedSessionContext.AnalysisRange):
-                OnPropertyChanged(nameof(SessionAnalysisRangeText));
-                ClearAnalysisSelections();
-                presentationApplier.RefreshAnalysisRangeStates();
-                if (suppressAnalysisRecompute)
-                {
-                    InvalidateAnalysisInputs();
-                }
-                else
-                {
-                    RequestCurrentAnalysisResults(!suppressInsightsRecompute, respectSuppression: true);
-                }
-
-                UpdateRecordedSessionExtensionHostState();
-                break;
         }
 
         PublishEditorState();
@@ -1805,6 +1790,30 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         SessionContext.PlotDampingSpeedCutoffs = cutoffs;
+        PublishEditorState();
+    }
+
+    private void ApplyAnalysisRange(TelemetryTimeRange? range)
+    {
+        if (SessionContext.AnalysisRange == range)
+        {
+            return;
+        }
+
+        SessionContext.AnalysisRange = range;
+        OnPropertyChanged(nameof(SessionAnalysisRangeText));
+        ClearAnalysisSelections();
+        presentationApplier.RefreshAnalysisRangeStates();
+        if (suppressAnalysisRecompute)
+        {
+            InvalidateAnalysisInputs();
+        }
+        else
+        {
+            RequestCurrentAnalysisResults(!suppressInsightsRecompute, respectSuppression: true);
+        }
+
+        UpdateRecordedSessionExtensionHostState();
         PublishEditorState();
     }
 
@@ -2120,7 +2129,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        SessionContext.AnalysisRange = range;
+        ApplyAnalysisRange(range);
     }
 
     public void ClearAnalysisRange()
@@ -2131,7 +2140,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        SessionContext.AnalysisRange = null;
+        ApplyAnalysisRange(null);
     }
 
     public void SetAnalysisRangeBoundary(double boundarySeconds)
