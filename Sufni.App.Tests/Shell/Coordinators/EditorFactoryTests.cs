@@ -327,6 +327,7 @@ public class EditorFactoryTests
                     HasKeyboard: true,
                     SupportsPinch: false,
                     SupportsLongPressContextMenu: false)),
+            new LayoutProfileTransitionState(),
             Array.Empty<IRecordedSessionExtensionFactory>(),
             Substitute.For<IExtensionDatabaseConnection>(),
             Substitute.For<IRecordedSessionDataReader>(),

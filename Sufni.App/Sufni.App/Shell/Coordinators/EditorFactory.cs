@@ -58,6 +58,7 @@ internal sealed class EditorFactory(
     IDialogService dialogService,
     IUiThreadDispatcher uiThreadDispatcher,
     IAppEnvironment appEnvironment,
+    ILayoutProfileTransitionState layoutProfileTransitionState,
     IEnumerable<IRecordedSessionExtensionFactory> recordedSessionExtensionFactories,
     IExtensionDatabaseConnection extensionDatabase,
     IRecordedSessionDataReader recordedSessionDataReader,
@@ -172,7 +173,8 @@ internal sealed class EditorFactory(
                 recordedSessionExtensionFactories.ToArray(),
                 extensionDatabase,
                 recordedSessionDataReader,
-                backgroundTaskRunner));
+                backgroundTaskRunner),
+            layoutProfileTransitionState);
 
     public void OpenLiveDaqDetail(LiveDaqSnapshot snapshot, ILiveDaqSharedStream sharedStream)
     {

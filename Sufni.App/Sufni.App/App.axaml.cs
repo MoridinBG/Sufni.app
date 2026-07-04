@@ -151,6 +151,7 @@ public partial class App : Application
             sp));
         ServiceCollection.AddSingleton<IBackgroundTaskRunner, BackgroundTaskRunner>();
         ServiceCollection.AddSingleton<IUiThreadDispatcher, AvaloniaUiThreadDispatcher>();
+        ServiceCollection.AddSingleton<ILayoutProfileTransitionState, LayoutProfileTransitionState>();
         ServiceCollection.AddSingleton<IKinematicSolutionCache, KinematicSolutionCache>();
         ServiceCollection.AddSingleton<IRearTravelCalibrationBuilder, RearTravelCalibrationBuilder>();
         ServiceCollection.AddSingleton<IBikeRearSuspensionValidator, BikeRearSuspensionValidator>();

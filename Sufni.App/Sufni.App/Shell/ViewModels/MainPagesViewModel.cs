@@ -37,6 +37,7 @@ public partial class MainPagesViewModel : ViewModelBase
     private readonly IShellCoordinator shell;
     private readonly IThemeService themeService;
     private readonly IAppEnvironment appEnvironment;
+    private readonly ILayoutProfileTransitionState layoutProfileTransitionState;
     private readonly IUiPreferences uiPreferences;
     private readonly ShellWorkspaceViewModel workspace;
     private readonly IReadOnlyList<IExtensionStateRefreshParticipant> extensionStateRefreshParticipants;
@@ -102,6 +103,7 @@ public partial class MainPagesViewModel : ViewModelBase
         ShellWorkspaceViewModel workspace,
         IThemeService themeService,
         IAppEnvironment appEnvironment,
+        ILayoutProfileTransitionState layoutProfileTransitionState,
         IUiPreferences uiPreferences,
         BikeListViewModel bikesPage,
         SessionListViewModel sessionsPage,
@@ -124,6 +126,7 @@ public partial class MainPagesViewModel : ViewModelBase
         this.workspace = workspace;
         this.themeService = themeService;
         this.appEnvironment = appEnvironment;
+        this.layoutProfileTransitionState = layoutProfileTransitionState;
         this.uiPreferences = uiPreferences;
         this.extensionStateRefreshParticipants = extensionStateRefreshParticipants?.ToArray() ?? [];
         BikesPage = bikesPage;
@@ -420,9 +423,21 @@ public partial class MainPagesViewModel : ViewModelBase
         }
 
         await uiPreferences.SetLayoutProfileAsync(profile);
-        appEnvironment.SetLayoutProfile(profile);
-        SelectedLayoutProfile = profile;
-        SyncLayoutProfileState();
+
+        var transition = layoutProfileTransitionState.BeginTransition();
+        try
+        {
+            appEnvironment.SetLayoutProfile(profile);
+            SelectedLayoutProfile = profile;
+            SyncLayoutProfileState();
+        }
+        catch
+        {
+            transition.Dispose();
+            throw;
+        }
+
+        UiThreadDispatcher.Post(transition.Dispose, UiDispatchPriority.Background);
     }
 
     [RelayCommand]

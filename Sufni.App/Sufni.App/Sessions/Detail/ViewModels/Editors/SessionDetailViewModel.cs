@@ -95,6 +95,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IDisposable analysisResultSubscription;
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
     private readonly Func<IEditorFactory> editorFactory;
+    private readonly ILayoutProfileTransitionState layoutProfileTransitionState;
     private bool observedInitialDomain;
     private RecordedSessionDomainSnapshot? deferredDomain;
     private readonly AnalysisSelectionController analysisSelectionController = new();
@@ -1131,7 +1132,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache,
         Func<IEditorFactory> editorFactory,
         IBikeCoordinator? bikeCoordinator = null,
-        ExtensionHostDependencies? extensionHost = null)
+        ExtensionHostDependencies? extensionHost = null,
+        ILayoutProfileTransitionState? layoutProfileTransitionState = null)
         : base(shell, dialogService, uiThreadDispatcher)
     {
         ArgumentNullException.ThrowIfNull(sessionPreferences);
@@ -1150,6 +1152,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         analysisResultSubscription = analysisResultState.Connect().Subscribe(OnAnalysisResultChanged);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
+        this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
         recordedPreferenceStore = new RecordedPreferenceStore(
             sessionPreferences,
             () => Id,
@@ -1797,12 +1800,19 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     [RelayCommand]
     private async Task Loaded(Rect? bounds = null)
     {
+        var wasLoaded = viewLoaded;
         viewLoaded = true;
         processedTelemetryRetention ??= processedTelemetryReader.Retain(Id);
         var dimensions = CreatePresentationDimensions(bounds);
         if (dimensions is not null)
         {
             lastPresentationDimensions = dimensions;
+        }
+
+        if (wasLoaded)
+        {
+            UpdateRecordedSessionExtensionHostState();
+            return;
         }
 
         // Subscribe before the awaited restore so a remote sync apply that
@@ -1862,6 +1872,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     [RelayCommand]
     private async Task Unloaded()
     {
+        if (layoutProfileTransitionState.IsTransitioning)
+        {
+            return;
+        }
+
         await StopLoadedSessionAsync();
     }
 
