@@ -14,7 +14,5 @@
     mc:Ignorable="d">
 
     <v:SessionShellMobileView
-        DataContext="{Binding MobileWorkspace}"
-        LoadedCommand="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).LoadedCommand}"
-        UnloadedCommand="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).UnloadedCommand}" />
+        x:Name="MobileShell" />
 </UserControl>

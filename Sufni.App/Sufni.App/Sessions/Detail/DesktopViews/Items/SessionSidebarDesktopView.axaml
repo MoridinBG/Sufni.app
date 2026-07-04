@@ -238,8 +238,7 @@ mc:Ignorable="d">
 
         <TabItem Name="PreferencesTab" Header="Preferences">
             <sessionPages:PreferencesPageView
-            Name="PreferencesContent"
-            DataContext="{Binding $parent[UserControl].((vm:ISessionSidebarWorkspace)DataContext).PreferencesPage}" />
+            Name="PreferencesContent" />
         </TabItem>
     </TabControl>
 </UserControl>
