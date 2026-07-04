@@ -10,6 +10,7 @@ using Avalonia.Media;
 using Avalonia.VisualTree;
 
 using Sufni.App.Shared.Base;
+using Sufni.App.Shared.Views.Input;
 using Sufni.App.Shell.ViewModels;
 using Sufni.App.Theming;
 
@@ -272,8 +273,7 @@ public partial class WorkspaceShellView : UserControl
 
     private bool IsPrimaryPointerPressed(PointerEventArgs args)
     {
-        var point = args.GetCurrentPoint(TabControl);
-        return point.Properties.IsLeftButtonPressed || args.Pointer.Type != PointerType.Mouse;
+        return PointerGesture.IsPrimaryPressed(args, TabControl);
     }
 
     private void ResetTabDragState()

@@ -11,6 +11,7 @@ using Sufni.App.LiveDaq.Plots;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Shared.Views.Plots;
+using Sufni.App.Shared.Views.Input;
 using Sufni.App.Theming;
 using Sufni.App.Shared.Common;
 using Sufni.App.Shared.Plots;
@@ -259,8 +260,7 @@ public abstract class LiveSignalPlotViewBase : SufniPlotView
 
     private bool IsPrimaryPointerPressed(PointerEventArgs args)
     {
-        var point = args.GetCurrentPoint(PlotControl);
-        return point.Properties.IsLeftButtonPressed || args.Pointer.Type != PointerType.Mouse;
+        return PointerGesture.IsPrimaryPressed(args, PlotControl);
     }
 
     protected abstract void ApplySignalBatch(LiveSignalBatch batch);

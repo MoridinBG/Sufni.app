@@ -18,6 +18,7 @@ using Sufni.App.Shared.Plots;
 using Sufni.App.Theming;
 using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Shared.Common;
+using Sufni.App.Shared.Views.Input;
 using Sufni.App.Shell.Behaviors;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Shared.Views.Plots;
@@ -638,13 +639,12 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private bool IsPrimaryPointerPressed(PointerEventArgs args)
     {
-        var point = args.GetCurrentPoint(PlotControl);
-        return point.Properties.IsLeftButtonPressed || args.Pointer.Type != PointerType.Mouse;
+        return PointerGesture.IsPrimaryPressed(args, PlotControl);
     }
 
     protected virtual IDisposable ScheduleMobileAnalysisRangeLongPress(Action callback)
     {
-        return PeriodicUiTimer.ScheduleOnce(TimeSpan.FromMilliseconds(500), callback);
+        return PeriodicUiTimer.ScheduleOnce(PointerGesture.AnalysisLongPressDelay, callback);
     }
 
     protected virtual IDisposable ScheduleDeferredPlotClickEffects(TimeSpan delay, Action callback)
@@ -721,7 +721,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private static bool UsesMobileAnalysisRangeGestures()
     {
-        return App.Current?.IsDesktop == false;
+        return PointerGesture.SupportsTouchLongPressContextMenu();
     }
 
     private void StartMobileAnalysisRangeLongPress(PointerEventArgs args, Point startPoint)
@@ -785,8 +785,8 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private bool TryShowMobileTelemetryPlotContextMenu(PointerEventArgs args)
     {
-        if (App.Current?.IsDesktop != false ||
-            !IsSecondaryPointerPressed(args))
+        if (!PointerGesture.SupportsTouchLongPressContextMenu() ||
+            !PointerGesture.IsSecondaryPressed(args, PlotControl))
         {
             return false;
         }
@@ -824,12 +824,6 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
         menu.ShowContextMenu(pixel);
         return true;
-    }
-
-    private bool IsSecondaryPointerPressed(PointerEventArgs args)
-    {
-        var point = args.GetCurrentPoint(PlotControl);
-        return point.Properties.IsRightButtonPressed;
     }
 
     private bool IsContextMenuPixelInDataArea(ScottPlotPixel pixel)

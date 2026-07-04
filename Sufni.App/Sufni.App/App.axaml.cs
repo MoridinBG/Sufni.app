@@ -86,6 +86,11 @@ public partial class App : Application
         IsDesktop = isDesktop;
     }
 
+    internal void SetServicesForTests(IServiceProvider? services)
+    {
+        Services = services;
+    }
+
     public override void Initialize()
     {
         // Read the persisted theme mode before XAML loads so the first frame
