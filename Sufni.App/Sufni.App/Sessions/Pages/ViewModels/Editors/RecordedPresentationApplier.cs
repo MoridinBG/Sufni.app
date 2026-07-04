@@ -27,12 +27,6 @@ internal sealed class RecordedPresentationApplier
     private readonly SessionInsightsPageViewModel analysisPage;
     private readonly NotesPageViewModel notesPage;
     private readonly PreferencesPageViewModel preferencesPage;
-    private SurfacePresentationState recordedTravelSignalBaseState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState recordedVelocitySignalBaseState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState recordedImuSignalBaseState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState recordedPitchRollSignalBaseState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState recordedSpeedSignalBaseState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState recordedElevationSignalBaseState = SurfacePresentationState.Hidden;
 
     public RecordedPresentationApplier(
         SessionDetailViewModel owner,
@@ -71,7 +65,7 @@ internal sealed class RecordedPresentationApplier
         context.ReboundBalanceState = SurfacePresentationState.Hidden;
         HideVibrationStates();
         ApplyRecordedPlotAvailability(null);
-        SetRecordedSignalBaseStates(
+        SetRecordedSignalStates(
             SurfacePresentationState.Hidden,
             SurfacePresentationState.Hidden,
             SurfacePresentationState.Hidden,
@@ -90,7 +84,7 @@ internal sealed class RecordedPresentationApplier
     {
         context.ScreenState = SessionScreenPresentationState.Ready;
         ApplyRecordedPlotAvailability(null);
-        SetRecordedSignalBaseStates(
+        SetRecordedSignalStates(
             SurfacePresentationState.Loading("Loading travel signal data."),
             SurfacePresentationState.Loading("Loading velocity signal data."),
             SurfacePresentationState.Loading("Loading IMU signal data."),
@@ -183,25 +177,12 @@ internal sealed class RecordedPresentationApplier
     public void ApplyRecordedTrackSignalStates()
     {
         ApplyRecordedPlotAvailability(context.TelemetryData);
-        recordedSpeedSignalBaseState = TrackPointSeries.HasSpeedSeries(context.TrackPoints)
+        context.SpeedSignalState = TrackPointSeries.HasSpeedSeries(context.TrackPoints)
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
-        recordedElevationSignalBaseState = TrackPointSeries.HasElevationSeries(context.TrackPoints)
+        context.ElevationSignalState = TrackPointSeries.HasElevationSeries(context.TrackPoints)
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
-        RefreshRecordedSignalStates();
-    }
-
-    public void RefreshRecordedSignalStates()
-    {
-        // Every available signal is shown; hiding is handled by collapsing rows
-        // in the signals view, so row state follows availability alone.
-        context.TravelSignalState = recordedTravelSignalBaseState;
-        context.VelocitySignalState = recordedVelocitySignalBaseState;
-        context.ImuSignalState = recordedImuSignalBaseState;
-        context.PitchRollSignalState = recordedPitchRollSignalBaseState;
-        context.SpeedSignalState = recordedSpeedSignalBaseState;
-        context.ElevationSignalState = recordedElevationSignalBaseState;
     }
 
     private void ApplyCachePresentation(SessionCachePresentationData data)
@@ -410,10 +391,10 @@ internal sealed class RecordedPresentationApplier
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
 
-        SetRecordedSignalBaseStates(travelState, travelState, imuState, pitchRollState, speedState, elevationState);
+        SetRecordedSignalStates(travelState, travelState, imuState, pitchRollState, speedState, elevationState);
     }
 
-    private void SetRecordedSignalBaseStates(
+    private void SetRecordedSignalStates(
         SurfacePresentationState travelState,
         SurfacePresentationState velocityState,
         SurfacePresentationState imuState,
@@ -421,13 +402,12 @@ internal sealed class RecordedPresentationApplier
         SurfacePresentationState speedState,
         SurfacePresentationState elevationState)
     {
-        recordedTravelSignalBaseState = travelState;
-        recordedVelocitySignalBaseState = velocityState;
-        recordedImuSignalBaseState = imuState;
-        recordedPitchRollSignalBaseState = pitchRollState;
-        recordedSpeedSignalBaseState = speedState;
-        recordedElevationSignalBaseState = elevationState;
-        RefreshRecordedSignalStates();
+        context.TravelSignalState = travelState;
+        context.VelocitySignalState = velocityState;
+        context.ImuSignalState = imuState;
+        context.PitchRollSignalState = pitchRollState;
+        context.SpeedSignalState = speedState;
+        context.ElevationSignalState = elevationState;
     }
 
     private void EnsureBalancePage(bool balanceAvailable)

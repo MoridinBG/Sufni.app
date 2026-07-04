@@ -1673,7 +1673,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         PreferencesPage.ApplySignalDisplayPreferences(preferences.SignalDisplay);
         PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
         ApplyRecordedAnalysisPreferences(preferences.Analysis);
-        presentationApplier.RefreshRecordedSignalStates();
     }
 
     private void ApplyRecordedAnalysisPreferences(AnalysisPreferences preferences)
@@ -1705,7 +1704,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         var signalDisplay = PreferencesPage.CreateSignalDisplayPreferences();
         SignalDisplayPreferences = signalDisplay;
         recordedPreferenceStore.UpdateCurrent(current => current with { SignalDisplay = signalDisplay });
-        presentationApplier.RefreshRecordedSignalStates();
         recordedPreferenceStore.PersistChangeIfEnabled(current => current with { SignalDisplay = signalDisplay });
     }
 
