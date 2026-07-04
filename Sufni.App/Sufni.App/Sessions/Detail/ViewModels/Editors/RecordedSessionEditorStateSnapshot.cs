@@ -28,10 +28,12 @@ internal static class RecordedSessionEditorStateSnapshot
         SessionOperationPresentationState? operationState = null,
         SessionDampingPercentages? dampingPercentages = null,
         IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>? signalPlotContextMenuActionsBySignalRowId = null,
-        SessionInsightsResult? sessionInsights = null)
+        SessionInsightsResult? sessionInsights = null,
+        RecordedSignalSurfaceState? signalSurfaces = null)
     {
         var toggles = signalToggles ?? RecordedSignalToggleState.From(context);
         var modes = analysisModes ?? RecordedAnalysisModeState.From(context);
+        var surfaces = signalSurfaces ?? RecordedSignalSurfaceState.From(context);
 
         return new RecordedSessionEditorState(
             Domain: null,
@@ -59,12 +61,12 @@ internal static class RecordedSessionEditorStateSnapshot
                 MediaColumnWidth: context.MediaColumnWidth,
                 MediaUrl: context.MediaUrl,
                 Signals: new RecordedSignalPresentationState(
-                    Travel: context.TravelSignalState,
-                    Velocity: context.VelocitySignalState,
-                    Imu: context.ImuSignalState,
-                    PitchRoll: context.PitchRollSignalState,
-                    Speed: context.SpeedSignalState,
-                    Elevation: context.ElevationSignalState,
+                    Travel: surfaces.Travel,
+                    Velocity: surfaces.Velocity,
+                    Imu: surfaces.Imu,
+                    PitchRoll: surfaces.PitchRoll,
+                    Speed: surfaces.Speed,
+                    Elevation: surfaces.Elevation,
                     ShowAirtime: toggles.ShowAirtime,
                     ShowVelocityAirtime: toggles.ShowVelocityAirtime,
                     ShowImuAirtime: toggles.ShowImuAirtime,
@@ -121,6 +123,26 @@ internal sealed record RecordedAnalysisModeState(
             context.SelectedBalanceSpeedMode,
             context.SelectedVelocityAverageMode,
             context.SelectedSessionInsightsTargetProfile);
+    }
+}
+
+internal sealed record RecordedSignalSurfaceState(
+    SurfacePresentationState Travel,
+    SurfacePresentationState Velocity,
+    SurfacePresentationState Imu,
+    SurfacePresentationState PitchRoll,
+    SurfacePresentationState Speed,
+    SurfacePresentationState Elevation)
+{
+    public static RecordedSignalSurfaceState From(RecordedSessionContext context)
+    {
+        return new RecordedSignalSurfaceState(
+            context.TravelSignalState,
+            context.VelocitySignalState,
+            context.ImuSignalState,
+            context.PitchRollSignalState,
+            context.SpeedSignalState,
+            context.ElevationSignalState);
     }
 }
 

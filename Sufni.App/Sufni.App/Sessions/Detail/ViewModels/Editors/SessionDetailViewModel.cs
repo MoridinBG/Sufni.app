@@ -148,6 +148,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private SessionOperationPresentationState sessionOperationState = SessionOperationPresentationState.Hidden;
     private SessionDampingPercentages dampingPercentages = SessionDampingPercentages.Empty;
     private SessionInsightsResult sessionInsights = SessionInsightsResult.Hidden;
+    private SurfacePresentationState travelSignalState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState velocitySignalState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState imuSignalState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState pitchRollSignalState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState speedSignalState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState elevationSignalState = SurfacePresentationState.Hidden;
     private bool showAirtime = true;
     private bool showVelocityAirtime;
     private bool showImuAirtime;
@@ -1635,7 +1641,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             sessionOperationState,
             dampingPercentages,
             SignalPlotContextMenuActionsBySignalRowId,
-            sessionInsights);
+            sessionInsights,
+            CreateSignalSurfaceState());
         ApplyProjectedEditorState(state);
         editorStateInput.OnNext(state);
     }
@@ -1665,6 +1672,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             selectedBalanceSpeedMode,
             selectedVelocityAverageMode,
             selectedSessionInsightsTargetProfile);
+    }
+
+    private RecordedSignalSurfaceState CreateSignalSurfaceState()
+    {
+        return new RecordedSignalSurfaceState(
+            travelSignalState,
+            velocitySignalState,
+            imuSignalState,
+            pitchRollSignalState,
+            speedSignalState,
+            elevationSignalState);
     }
 
     private void SetShowAirtime(bool value) => SetSignalToggle(ref showAirtime, value);
@@ -1863,6 +1881,55 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             PublishEditorState();
         }
+    }
+
+    internal void SetRecordedSignalStates(
+        SurfacePresentationState travelState,
+        SurfacePresentationState velocityState,
+        SurfacePresentationState imuState,
+        SurfacePresentationState pitchRollState,
+        SurfacePresentationState speedState,
+        SurfacePresentationState elevationState)
+    {
+        var changed =
+            travelSignalState != travelState ||
+            velocitySignalState != velocityState ||
+            imuSignalState != imuState ||
+            pitchRollSignalState != pitchRollState ||
+            speedSignalState != speedState ||
+            elevationSignalState != elevationState;
+
+        travelSignalState = travelState;
+        velocitySignalState = velocityState;
+        imuSignalState = imuState;
+        pitchRollSignalState = pitchRollState;
+        speedSignalState = speedState;
+        elevationSignalState = elevationState;
+
+        SessionContext.TravelSignalState = travelState;
+        SessionContext.VelocitySignalState = velocityState;
+        SessionContext.ImuSignalState = imuState;
+        SessionContext.PitchRollSignalState = pitchRollState;
+        SessionContext.SpeedSignalState = speedState;
+        SessionContext.ElevationSignalState = elevationState;
+
+        if (changed)
+        {
+            PublishEditorState();
+        }
+    }
+
+    internal void SetTrackDerivedSignalStates(
+        SurfacePresentationState speedState,
+        SurfacePresentationState elevationState)
+    {
+        SetRecordedSignalStates(
+            travelSignalState,
+            velocitySignalState,
+            imuSignalState,
+            pitchRollSignalState,
+            speedState,
+            elevationState);
     }
 
     private void ApplyProjectedEditorState(RecordedSessionEditorState state)

@@ -264,7 +264,13 @@ public class SessionDetailViewModelTests
         };
 
         editor.SetTelemetryData(telemetry);
-        editor.SessionContext.TravelSignalState = SurfacePresentationState.Ready;
+        editor.SetRecordedSignalStates(
+            SurfacePresentationState.Ready,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden);
         var velocityAirtimeAction = GetRowAction(editor.VelocityHeaderActions, "velocity_airtime");
         velocityAirtimeAction.Command!.Execute(null);
         var selection = CreateFrontDampingSelection(telemetry, editor.AnalysisWorkspace.SelectedVelocityAverageMode);

@@ -177,12 +177,13 @@ internal sealed class RecordedPresentationApplier
     public void ApplyRecordedTrackSignalStates()
     {
         ApplyRecordedPlotAvailability(context.TelemetryData);
-        context.SpeedSignalState = TrackPointSeries.HasSpeedSeries(context.TrackPoints)
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        context.ElevationSignalState = TrackPointSeries.HasElevationSeries(context.TrackPoints)
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
+        owner.SetTrackDerivedSignalStates(
+            TrackPointSeries.HasSpeedSeries(context.TrackPoints)
+                ? SurfacePresentationState.Ready
+                : SurfacePresentationState.Hidden,
+            TrackPointSeries.HasElevationSeries(context.TrackPoints)
+                ? SurfacePresentationState.Ready
+                : SurfacePresentationState.Hidden);
     }
 
     private void ApplyCachePresentation(SessionCachePresentationData data)
@@ -402,12 +403,13 @@ internal sealed class RecordedPresentationApplier
         SurfacePresentationState speedState,
         SurfacePresentationState elevationState)
     {
-        context.TravelSignalState = travelState;
-        context.VelocitySignalState = velocityState;
-        context.ImuSignalState = imuState;
-        context.PitchRollSignalState = pitchRollState;
-        context.SpeedSignalState = speedState;
-        context.ElevationSignalState = elevationState;
+        owner.SetRecordedSignalStates(
+            travelState,
+            velocityState,
+            imuState,
+            pitchRollState,
+            speedState,
+            elevationState);
     }
 
     private void EnsureBalancePage(bool balanceAvailable)
