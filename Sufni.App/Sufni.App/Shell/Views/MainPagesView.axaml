@@ -3,12 +3,15 @@ Name="Root"
 x:Class="Sufni.App.Shell.Views.MainPagesView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:itemlists="clr-namespace:Sufni.App.LiveDaq.ViewModels.ItemLists"
-    xmlns:itemlists2="clr-namespace:Sufni.App.Setups.ViewModels.ItemLists"
-    xmlns:itemlists3="clr-namespace:Sufni.App.Bikes.ViewModels.ItemLists"
+xmlns:converters="using:Avalonia.Data.Converters"
+xmlns:itemlists="clr-namespace:Sufni.App.LiveDaq.ViewModels.ItemLists"
+xmlns:itemlists2="clr-namespace:Sufni.App.Setups.ViewModels.ItemLists"
+xmlns:itemlists3="clr-namespace:Sufni.App.Bikes.ViewModels.ItemLists"
 xmlns:controls="clr-namespace:Sufni.App.Shared.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:overlays="clr-namespace:Sufni.App.Shared.Views.Overlays"
+xmlns:viewconverters="clr-namespace:Sufni.App.Shared.Views.Converters"
 xmlns:vm="clr-namespace:Sufni.App.Shell.ViewModels"
 xmlns:vml="clr-namespace:Sufni.App.Sessions.Lists.ViewModels.ItemLists"
 d:DesignHeight="720"
@@ -17,6 +20,11 @@ x:DataType="vm:MainPagesViewModel"
 Background="{DynamicResource SufniRegion}"
 MainPages="{Binding}"
 mc:Ignorable="d">
+    <UserControl.Resources>
+        <viewconverters:ProgressToArcConverter x:Key="ProgressToArcConverter" />
+    </UserControl.Resources>
+
+    <Panel>
     <DrawerPage
     Name="MainDrawerPage"
     DrawerLength="160"
@@ -94,4 +102,76 @@ mc:Ignorable="d">
             </TabbedPage>
         </DrawerPage.Content>
     </DrawerPage>
+
+        <Grid
+        Name="CompactPairedDevicesPanel"
+        Height="300"
+        Margin="12,0,12,84"
+        VerticalAlignment="Bottom"
+        Opacity="0.9">
+            <Grid.IsVisible>
+                <MultiBinding Converter="{x:Static converters:BoolConverters.And}">
+                    <Binding Path="CanHostSyncServer" />
+                    <Binding Path="IsPairedDevicesListOpen" />
+                </MultiBinding>
+            </Grid.IsVisible>
+            <ContentControl Content="{Binding PairedDevicesPage}" />
+            <overlays:BusyOverlay
+            Name="CompactSyncBusyOverlay"
+            BusyMessageFontWeight="Bold"
+            ConsumesInput="False"
+            IndicatorForeground="{DynamicResource SufniAccentColor}"
+            IsActive="{Binding SyncInProgress}"
+            IsProgressIndeterminate="{Binding SyncProgressIsIndeterminate}"
+            IsVisible="{Binding SyncInProgress}"
+            Message="{Binding SyncProgressText}"
+            MessageForeground="{DynamicResource SufniAccentColor}"
+            ProgressValue="{Binding SyncProgressValue}"
+            ShowProgress="{Binding SyncInProgress}"
+            ShowTint="True"
+            TintBackground="{DynamicResource SufniSelectionSurfaceSubtle}"
+            TintOpacity="0.85"
+            UseStackLayout="True" />
+        </Grid>
+
+        <Grid
+        Name="CompactPairingRequestPanel"
+        Margin="12,0,12,84"
+        VerticalAlignment="Bottom"
+        Background="{DynamicResource SufniSelectionSurfaceSubtle}"
+        ColumnDefinitions="* 35"
+        IsVisible="{Binding IsPairingRequestVisible}"
+        Opacity="0.9"
+        RowDefinitions="auto 24">
+
+            <TextBlock
+            Grid.Row="0"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Margin="10,10,10,10"
+            FontSize="{StaticResource SufniFontSizeHeading}">
+                <Run Text="Pairing request from " />
+                <LineBreak />
+                <Run FontWeight="Bold" Text="{Binding PairingServerViewModel.RequestingName}" />
+            </TextBlock>
+
+            <TextBlock
+            Grid.Row="1"
+            Grid.Column="0"
+            Margin="10,0,10,10"
+            VerticalAlignment="Center"
+            FontSize="24"
+            FontWeight="Bold"
+            LetterSpacing="10"
+            Text="{Binding PairingServerViewModel.PairingPin}" />
+
+            <Path
+            Grid.Row="1"
+            Grid.Column="1"
+            Data="{Binding PairingServerViewModel.Remaining, Converter={StaticResource ProgressToArcConverter}}"
+            Fill="{DynamicResource SufniAccentSpinner}"
+            Stroke="{DynamicResource SufniAccentSpinner}"
+            StrokeLineCap="Round" />
+        </Grid>
+    </Panel>
 </UserControl>

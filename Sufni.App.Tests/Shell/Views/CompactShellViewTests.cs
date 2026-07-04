@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
@@ -8,6 +9,9 @@ using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Shell.ViewModels;
 using Sufni.App.Shell.Views;
+using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.DesktopViews.ItemLists;
+using Sufni.App.SyncAndPairing.ViewModels;
 using Sufni.App.Tests.Shell.ViewModels;
 using Sufni.App.Tests.TestSupport.Harness;
 
@@ -125,9 +129,94 @@ public class CompactShellViewTests
         Assert.Same(root.Pages.SessionsPage, sessionsPage.Content);
     }
 
-    private static ShellRootViewModel CreateRoot()
+    [AvaloniaFact]
+    public async Task CompactShellView_ShowsPairedDevicesPanel_WhenDesktopHostCapabilityIsAvailable()
     {
-        var environment = new AppEnvironment(
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
+
+        var environment = CreateDesktopCompactEnvironment();
+        var pages = MainPagesViewModelTestFactory.Create(appEnvironment: environment);
+        var root = CreateRoot(pages, environment);
+        var view = new CompactShellView
+        {
+            DataContext = root,
+        };
+
+        await using var mounted = await MountAsync(view);
+
+        var menuPanel = mounted.View.FindControl<SidePanel>("MenuPanel")
+            ?? throw new InvalidOperationException("Side panel was not found.");
+        var menuItem = menuPanel.FindControl<MenuItem>("PairedDevicesMenuItem")
+            ?? throw new InvalidOperationException("Paired devices menu item was not found.");
+        var pairedDevicesPanel = mounted.View.FindControl<Grid>("CompactPairedDevicesPanel")
+            ?? throw new InvalidOperationException("Paired devices panel was not found.");
+
+        Assert.True(menuItem.IsVisible);
+        Assert.False(pairedDevicesPanel.IsVisible);
+
+        menuItem.Command!.Execute(null);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.True(pages.IsPairedDevicesListOpen);
+        Assert.True(pairedDevicesPanel.IsVisible);
+        Assert.IsType<PairedDeviceListDesktopView>(
+            new ViewLocator(environment).Build(pages.PairedDevicesPage));
+    }
+
+    [AvaloniaFact]
+    public async Task CompactShellView_ShowsPairingRequestPanel_WhenDesktopHostCapabilityHasRequest()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
+
+        var environment = CreateDesktopCompactEnvironment();
+        var pairingServerCoordinator = Substitute.For<IPairingServerCoordinator>();
+        pairingServerCoordinator.StartServerAsync().Returns(Task.CompletedTask);
+        var pairingServer = new PairingServerViewModel(
+            pairingServerCoordinator,
+            new InlineUiThreadDispatcher())
+        {
+            PairingPin = "123456",
+            RequestingId = "test-device",
+            Remaining = 0.5,
+        };
+        var pages = MainPagesViewModelTestFactory.Create(
+            appEnvironment: environment,
+            pairingServerViewModel: pairingServer);
+        var root = CreateRoot(pages, environment);
+        var view = new CompactShellView
+        {
+            DataContext = root,
+        };
+
+        await using var mounted = await MountAsync(view);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var pairingRequestPanel = mounted.View.FindControl<Grid>("CompactPairingRequestPanel")
+            ?? throw new InvalidOperationException("Pairing request panel was not found.");
+
+        Assert.True(pairingRequestPanel.IsVisible);
+        await pairingServerCoordinator.Received(1).StartServerAsync();
+    }
+
+    private static ShellRootViewModel CreateRoot(
+        MainPagesViewModel? pages = null,
+        IAppEnvironment? environment = null)
+    {
+        environment ??= CreateMobileCompactEnvironment();
+        pages ??= MainPagesViewModelTestFactory.Create(appEnvironment: environment);
+
+        return new ShellRootViewModel(
+            pages,
+            new ShellWorkspaceViewModel(new InlineUiThreadDispatcher()),
+            environment,
+            Substitute.For<IPlotZoomState>(),
+            new InlineUiThreadDispatcher());
+    }
+
+    private static IAppEnvironment CreateMobileCompactEnvironment() =>
+        new AppEnvironment(
             DefaultLayoutProfile: UiLayoutProfile.Compact,
             LayoutProfile: UiLayoutProfile.Compact,
             Capabilities: new AppCapabilities(
@@ -144,13 +233,8 @@ public class CompactShellViewTests
                 SupportsPinch: true,
                 SupportsLongPressContextMenu: true));
 
-        return new ShellRootViewModel(
-            MainPagesViewModelTestFactory.Create(),
-            new ShellWorkspaceViewModel(new InlineUiThreadDispatcher()),
-            environment,
-            Substitute.For<IPlotZoomState>(),
-            new InlineUiThreadDispatcher());
-    }
+    private static IAppEnvironment CreateDesktopCompactEnvironment() =>
+        MainPagesViewModelTestFactory.CreateAppEnvironment(UiLayoutProfile.Compact);
 
     private static async Task<MountedCompactShellView> MountAsync(CompactShellView view)
     {

@@ -65,6 +65,7 @@ public class ViewLocator : IDataTemplate
         [typeof(ImportSessionsViewModel)] = static () => new global::Sufni.App.Acquisition.Views.ImportSessionsView(),
         [typeof(BikeListViewModel)] = static () => new global::Sufni.App.Bikes.Views.ItemLists.BikeListView(),
         [typeof(LiveDaqListViewModel)] = static () => new global::Sufni.App.LiveDaq.Views.ItemLists.LiveDaqListView(),
+        [typeof(PairedDeviceListViewModel)] = static () => new global::Sufni.App.SyncAndPairing.DesktopViews.ItemLists.PairedDeviceListDesktopView(),
         [typeof(SessionListViewModel)] = static () => new global::Sufni.App.Sessions.Lists.Views.ItemLists.SessionListView(),
         [typeof(SetupListViewModel)] = static () => new global::Sufni.App.Setups.Views.ItemLists.SetupListView(),
         [typeof(BikeEditorViewModel)] = static () => new global::Sufni.App.Bikes.Views.Editors.BikeEditorView(),

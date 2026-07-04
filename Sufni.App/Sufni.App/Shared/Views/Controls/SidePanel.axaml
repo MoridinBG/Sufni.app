@@ -81,6 +81,15 @@ mc:Ignorable="d">
         </MenuItem>
         <Separator />
         <MenuItem
+        Name="PairedDevicesMenuItem"
+        Command="{Binding OpenClosePairedDevicesListCommand}"
+        Header="paired devices"
+        IsVisible="{Binding CanHostSyncServer}">
+            <MenuItem.Icon>
+                <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}" />
+            </MenuItem.Icon>
+        </MenuItem>
+        <MenuItem
         Name="ClientSyncMenuItem"
         Command="{Binding SyncCommand}"
         Header="synchronize">

@@ -37,6 +37,18 @@ public partial class MainPagesViewBase : UserControl
         };
     }
 
+    protected void RegisterPairingServerStartup()
+    {
+        AttachedToVisualTree += (_, _) =>
+        {
+            if (MainPages?.CanHostSyncServer == true &&
+                MainPages.PairingServerViewModel?.LoadedCommand.CanExecute(null) == true)
+            {
+                MainPages.PairingServerViewModel.LoadedCommand.Execute(null);
+            }
+        };
+    }
+
     protected void RegisterPrimaryPageSelection(TabbedPage tabbedPage)
     {
         MainPagesViewModel? selectedMainPages = null;

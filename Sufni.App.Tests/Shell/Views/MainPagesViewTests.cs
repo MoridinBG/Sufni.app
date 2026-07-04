@@ -154,6 +154,7 @@ public class MainPagesViewTests
 
         Assert.False(menuPanel.FindControl<MenuItem>("ImportSessionsMenuItem")!.IsVisible);
         Assert.False(menuPanel.FindControl<MenuItem>("ImportGpxMenuItem")!.IsVisible);
+        Assert.False(menuPanel.FindControl<MenuItem>("PairedDevicesMenuItem")!.IsVisible);
         Assert.False(menuPanel.FindControl<MenuItem>("ClientSyncMenuItem")!.IsVisible);
         Assert.False(menuPanel.FindControl<MenuItem>("PairMenuItem")!.IsVisible);
         Assert.False(menuPanel.FindControl<MenuItem>("UnpairMenuItem")!.IsVisible);
