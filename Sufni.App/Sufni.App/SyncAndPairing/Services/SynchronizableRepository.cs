@@ -68,19 +68,7 @@ internal sealed class SynchronizableRepository<
     public async Task<Guid> PutAsync(T item)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
-        var existing = await EntityExistsAsync<T>(connection, item.Id);
-        item.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        item.Deleted = null;
-        if (existing)
-        {
-            await UpdateEntityAsync(connection, item);
-        }
-        else
-        {
-            await InsertEntityAsync(connection, item);
-        }
-
-        return item.Id;
+        return await PutCoreAsync(connection, item);
     }
 
     public async Task DeleteAsync(Guid id)
@@ -98,26 +86,65 @@ internal sealed class SynchronizableRepository<
         var rulesApplied = false;
         await connectionContext.RunInTransactionAsync(connection =>
         {
-            var itemFromDatabase = connection.Find<T>(id);
-            if (itemFromDatabase is not null && itemFromDatabase.Deleted is null)
-            {
-                itemFromDatabase.Deleted = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                UpdateEntity(connection, itemFromDatabase);
-            }
-
-            if (extensionCascadeService is not null)
-            {
-                rulesApplied = extensionCascadeService.ApplyRulesForDeletedCoreEntityInTransaction(
-                    connection,
-                    GetCoreEntityKind(),
-                    id);
-            }
+            rulesApplied = DeleteInTransaction(connection, id, extensionCascadeService);
         });
 
         if (rulesApplied && extensionCascadeService is not null)
         {
             await extensionCascadeService.RefreshExtensionStateAsync();
         }
+    }
+
+    internal static Guid PutInTransaction(SQLiteConnection connection, T item)
+    {
+        var existing = EntityExists<T>(connection, item.Id);
+        item.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        item.Deleted = null;
+        if (existing)
+        {
+            UpdateEntity(connection, item);
+        }
+        else
+        {
+            InsertEntity(connection, item);
+        }
+
+        return item.Id;
+    }
+
+    internal static bool DeleteInTransaction(
+        SQLiteConnection connection,
+        Guid id,
+        IExtensionCascadeService? extensionCascadeService = null)
+    {
+        var itemFromDatabase = connection.Find<T>(id);
+        if (itemFromDatabase is not null && itemFromDatabase.Deleted is null)
+        {
+            itemFromDatabase.Deleted = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            UpdateEntity(connection, itemFromDatabase);
+        }
+
+        return extensionCascadeService?.ApplyRulesForDeletedCoreEntityInTransaction(
+            connection,
+            GetCoreEntityKind(),
+            id) ?? false;
+    }
+
+    private static async Task<Guid> PutCoreAsync(SQLiteAsyncConnection connection, T item)
+    {
+        var existing = await EntityExistsAsync<T>(connection, item.Id);
+        item.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        item.Deleted = null;
+        if (existing)
+        {
+            await UpdateEntityAsync(connection, item);
+        }
+        else
+        {
+            await InsertEntityAsync(connection, item);
+        }
+
+        return item.Id;
     }
 
     private static ExtensionCoreEntityKind GetCoreEntityKind()

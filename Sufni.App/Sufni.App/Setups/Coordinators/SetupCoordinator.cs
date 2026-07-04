@@ -29,7 +29,8 @@ public class SetupCoordinator(
     IBackgroundTaskRunner backgroundTaskRunner,
     IShellCoordinator shell,
     IAppEnvironment appEnvironment,
-    Func<IEditorFactory> editorFactory)
+    Func<IEditorFactory> editorFactory,
+    ISetupPersistenceTransactionRunner? setupPersistenceTransactions = null)
     : ISetupCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SetupCoordinator>();
@@ -79,8 +80,6 @@ public class SetupCoordinator(
 
         try
         {
-            await setupRepository.PutAsync(setup);
-
             if (current?.BoardId != boardId)
             {
                 logger.Verbose(
@@ -90,7 +89,15 @@ public class SetupCoordinator(
                     boardId);
             }
 
-            await ReassignBoardAsync(current?.BoardId, boardId, setup.Id);
+            if (setupPersistenceTransactions is null)
+            {
+                await setupRepository.PutAsync(setup);
+                await ReassignBoardAsync(current?.BoardId, boardId, setup.Id);
+            }
+            else
+            {
+                await setupPersistenceTransactions.SaveSetupAsync(setup, current?.BoardId, boardId);
+            }
 
             var saved = SetupSnapshot.From(setup, boardId);
             await setupStore.PublishSetupsChangedAsync([setup.Id]);
@@ -117,7 +124,14 @@ public class SetupCoordinator(
 
         try
         {
-            await setupRepository.DeleteAsync(setupId);
+            if (setupPersistenceTransactions is null)
+            {
+                await setupRepository.DeleteAsync(setupId);
+            }
+            else
+            {
+                await setupPersistenceTransactions.DeleteSetupAsync(setupId, snapshot?.BoardId);
+            }
         }
         catch (Exception e)
         {
@@ -125,9 +139,12 @@ public class SetupCoordinator(
             return new SetupDeleteResult(SetupDeleteOutcome.Failed, e.Message);
         }
 
-        // Best-effort: a dangling board row is harmless.
-        try { await ReassignBoardAsync(snapshot?.BoardId, null, setupId); }
-        catch (Exception ex) { logger.Warning(ex, "Best-effort board reassign failed after setup delete"); }
+        if (setupPersistenceTransactions is null)
+        {
+            // Best-effort: a dangling board row is harmless.
+            try { await ReassignBoardAsync(snapshot?.BoardId, null, setupId); }
+            catch (Exception ex) { logger.Warning(ex, "Best-effort board reassign failed after setup delete"); }
+        }
 
         await editorFactory().CloseSetupEditor(setupId);
         await setupStore.PublishSetupsRemovedAsync([setupId]);
@@ -176,15 +193,26 @@ public class SetupCoordinator(
 
         try
         {
-            await bikeRepository.PutAsync(payload.Bike);
-            var bikeSnapshot = BikeSnapshot.From(payload.Bike);
-            await bikeStore.PublishBikesChangedAsync([payload.Bike.Id], cancellationToken);
-
             var (resolvedBoardId, boardWarning) = ResolveImportedBoardId(payload.BoardId);
 
-            await setupRepository.PutAsync(payload.Setup);
-            await ReassignBoardAsync(originalBoardId: null, resolvedBoardId, payload.Setup.Id);
+            if (setupPersistenceTransactions is null)
+            {
+                await bikeRepository.PutAsync(payload.Bike);
+                await setupRepository.PutAsync(payload.Setup);
+                await ReassignBoardAsync(originalBoardId: null, resolvedBoardId, payload.Setup.Id);
+            }
+            else
+            {
+                await setupPersistenceTransactions.ImportSetupAsync(
+                    payload.Bike,
+                    payload.Setup,
+                    resolvedBoardId,
+                    cancellationToken);
+            }
+
+            var bikeSnapshot = BikeSnapshot.From(payload.Bike);
             var setupSnapshot = SetupSnapshot.From(payload.Setup, resolvedBoardId);
+            await bikeStore.PublishBikesChangedAsync([payload.Bike.Id], cancellationToken);
             await setupStore.PublishSetupsChangedAsync([payload.Setup.Id], cancellationToken);
 
             logger.Information(

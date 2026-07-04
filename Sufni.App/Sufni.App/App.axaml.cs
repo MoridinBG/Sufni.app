@@ -209,6 +209,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<SetupStore>();
         ServiceCollection.AddSingleton<ISetupStore>(sp => sp.GetRequiredService<SetupStore>());
         ServiceCollection.AddSingleton<ISetupStoreWriter>(sp => sp.GetRequiredService<SetupStore>());
+        ServiceCollection.AddSingleton<ISetupPersistenceTransactionRunner, SetupPersistenceTransactionRunner>();
         ServiceCollection.AddSingleton<SetupCoordinator>();
         ServiceCollection.AddSingleton<ISetupCoordinator>(sp => sp.GetRequiredService<SetupCoordinator>());
         ServiceCollection.AddSingleton<SessionStore>();
