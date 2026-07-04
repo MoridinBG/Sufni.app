@@ -319,7 +319,14 @@ public sealed class SessionCommandService
                 source);
 
             var snapshot = SessionSnapshot.From(fresh);
-            await sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences);
+            try
+            {
+                await sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences);
+            }
+            catch (Exception e)
+            {
+                logger.Warning(e, "Failed to update recorded-session preferences after saving session {SessionId}", session.Id);
+            }
 
             await sessionStore.PublishSessionsChangedAsync([snapshot.Id], cancellationToken);
             await sourceStore.PublishSourcesChangedAsync([sourceSnapshot.SessionId], cancellationToken);

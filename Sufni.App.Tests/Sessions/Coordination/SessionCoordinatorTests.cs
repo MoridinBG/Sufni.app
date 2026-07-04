@@ -387,6 +387,39 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
+    public async Task SaveLiveCaptureAsync_Publishes_WhenRecordedPreferenceWriteFails()
+    {
+        var capture = CreateLiveCapturePackage(withGps: false);
+        var session = new Session(Guid.NewGuid(), "live session", "desc", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
+        var fresh = new Session(session.Id, session.Name, session.Description, session.Setup)
+        {
+            Updated = 9,
+            HasProcessedData = true,
+        };
+        SeedLiveCaptureDependencies(capture);
+        sessionTelemetryWriter
+            .PutProcessedSessionAsync(
+                Arg.Any<Session>(),
+                Arg.Any<ProcessedTelemetryPayload>(),
+                Arg.Any<Track?>(),
+                Arg.Any<RecordedSessionSource?>())
+            .Returns(Task.FromResult(fresh));
+        sessionPreferences
+            .UpdateRecordedAsync(session.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>())
+            .ThrowsAsync(new InvalidOperationException("preferences locked"));
+
+        var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture, SessionPreferences.Default);
+
+        Assert.IsType<LiveSessionSaveResult.Saved>(result);
+        await sessionStore.Received(1).PublishSessionsChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(session.Id)),
+            Arg.Any<CancellationToken>());
+        await sourceStore.Received(1).PublishSourcesChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(session.Id)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task SaveLiveCaptureAsync_ReturnsFailed_WhenProcessedPersistenceThrows()
     {
         var capture = CreateLiveCapturePackage(withGps: false);
