@@ -61,6 +61,40 @@ public class SingleFlightLruCacheTests
     }
 
     [Fact]
+    public async Task GetOrAddAsync_JoinsConcurrentSameKeyMisses()
+    {
+        var factoryEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFactory = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        var cache = new SingleFlightLruCache<int, int>(capacity: 8);
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var tasks = Enumerable
+            .Range(0, 16)
+            .Select(_ => Task.Run(
+                async () =>
+                {
+                    await start.Task;
+                    return await cache.GetOrAddAsync(
+                        7,
+                        (key, _) =>
+                        {
+                            Interlocked.Increment(ref calls);
+                            factoryEntered.TrySetResult();
+                            return releaseFactory.Task;
+                        });
+                }))
+            .ToArray();
+
+        start.SetResult();
+        await factoryEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        releaseFactory.SetResult(70);
+        var values = await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.All(values, value => Assert.Equal(70, value));
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
     public void GetOrAdd_DoesNotRetainFailedFactoryResult()
     {
         var calls = 0;
@@ -82,6 +116,57 @@ public class SingleFlightLruCacheTests
 
         Assert.Equal(30, value);
         Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public async Task GetOrAddAsync_DoesNotRetainFaultedFactoryTask()
+    {
+        var calls = 0;
+        var cache = new SingleFlightLruCache<int, int>(capacity: 4);
+
+        Task<int> Factory(int key, CancellationToken _)
+        {
+            var attempt = Interlocked.Increment(ref calls);
+            return attempt == 1
+                ? Task.FromException<int>(new InvalidOperationException("boom"))
+                : Task.FromResult(key * 10);
+        }
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => cache.GetOrAddAsync(3, Factory));
+        var value = await cache.GetOrAddAsync(3, Factory);
+
+        Assert.Equal(30, value);
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public async Task GetOrAddAsync_CallerCancellationDoesNotEvictInFlightFactoryTask()
+    {
+        var factoryEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFactory = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        var cache = new SingleFlightLruCache<int, int>(capacity: 4);
+
+        Task<int> Factory(int key, CancellationToken _)
+        {
+            Interlocked.Increment(ref calls);
+            factoryEntered.TrySetResult();
+            return releaseFactory.Task;
+        }
+
+        using var cancellation = new CancellationTokenSource();
+        var canceledRead = cache.GetOrAddAsync(7, Factory, cancellation.Token);
+
+        await factoryEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => canceledRead);
+
+        var sharedRead = cache.GetOrAddAsync(7, Factory);
+        releaseFactory.SetResult(70);
+        var value = await sharedRead.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(70, value);
+        Assert.Equal(1, calls);
     }
 
     [Fact]

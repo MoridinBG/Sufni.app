@@ -23,7 +23,7 @@ internal sealed class SessionTrackReader : ISessionTrackReader, IDisposable
     private const int DefaultCapacity = 64;
 
     private readonly ISessionRepository sessionRepository;
-    private readonly SingleFlightLruCache<SessionTrackCacheKey, Task<IReadOnlyList<TrackPoint>?>> cache;
+    private readonly SingleFlightLruCache<SessionTrackCacheKey, IReadOnlyList<TrackPoint>?> cache;
     private readonly IDisposable sessionSubscription;
     private bool disposed;
 
@@ -38,7 +38,7 @@ internal sealed class SessionTrackReader : ISessionTrackReader, IDisposable
         int capacity)
     {
         this.sessionRepository = sessionRepository;
-        cache = new SingleFlightLruCache<SessionTrackCacheKey, Task<IReadOnlyList<TrackPoint>?>>(capacity);
+        cache = new SingleFlightLruCache<SessionTrackCacheKey, IReadOnlyList<TrackPoint>?>(capacity);
         sessionSubscription = sessionStore.Connect().Subscribe(ApplySessionChanges);
     }
 
@@ -55,10 +55,7 @@ internal sealed class SessionTrackReader : ISessionTrackReader, IDisposable
         cancellationToken.ThrowIfCancellationRequested();
 
         var key = new SessionTrackCacheKey(sessionId, sessionUpdated);
-        var task = cache.GetOrAdd(
-            key,
-            async key => await sessionRepository.GetSessionTrackAsync(key.SessionId).ConfigureAwait(false));
-        return RemoveFailedValueAsync(key, task);
+        return cache.GetOrAddAsync(key, LoadTrackPointsAsync, cancellationToken);
     }
 
     public void Dispose()
@@ -106,19 +103,12 @@ internal sealed class SessionTrackReader : ISessionTrackReader, IDisposable
                previous.GpsOffsetSeconds != current.GpsOffsetSeconds;
     }
 
-    private async Task<IReadOnlyList<TrackPoint>?> RemoveFailedValueAsync(
+    private async Task<IReadOnlyList<TrackPoint>?> LoadTrackPointsAsync(
         SessionTrackCacheKey key,
-        Task<IReadOnlyList<TrackPoint>?> task)
+        CancellationToken cancellationToken)
     {
-        try
-        {
-            return await task.ConfigureAwait(false);
-        }
-        catch
-        {
-            cache.Remove(key, task);
-            throw;
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        return await sessionRepository.GetSessionTrackAsync(key.SessionId).ConfigureAwait(false);
     }
 
     private readonly record struct SessionTrackCacheKey(Guid SessionId, long SessionUpdated);

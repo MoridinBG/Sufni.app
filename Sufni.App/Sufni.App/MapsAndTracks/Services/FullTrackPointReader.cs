@@ -19,7 +19,7 @@ internal sealed class FullTrackPointReader : IFullTrackPointReader
     private const int DefaultCapacity = 64;
 
     private readonly ITrackRepository trackRepository;
-    private readonly SingleFlightLruCache<FullTrackPointCacheKey, Task<IReadOnlyList<TrackPoint>?>> cache;
+    private readonly SingleFlightLruCache<FullTrackPointCacheKey, IReadOnlyList<TrackPoint>?> cache;
 
     public FullTrackPointReader(ITrackRepository trackRepository)
         : this(trackRepository, DefaultCapacity)
@@ -29,7 +29,7 @@ internal sealed class FullTrackPointReader : IFullTrackPointReader
     internal FullTrackPointReader(ITrackRepository trackRepository, int capacity)
     {
         this.trackRepository = trackRepository;
-        cache = new SingleFlightLruCache<FullTrackPointCacheKey, Task<IReadOnlyList<TrackPoint>?>>(capacity);
+        cache = new SingleFlightLruCache<FullTrackPointCacheKey, IReadOnlyList<TrackPoint>?>(capacity);
     }
 
     public async Task<IReadOnlyList<TrackPoint>?> GetTrackPointsAsync(
@@ -49,8 +49,7 @@ internal sealed class FullTrackPointReader : IFullTrackPointReader
             cancellationToken.ThrowIfCancellationRequested();
 
             var key = new FullTrackPointCacheKey(metadata.Id, metadata.Updated);
-            var task = cache.GetOrAdd(key, LoadTrackPointsAsync);
-            var points = await AwaitCachedValueAsync(key, task, cancellationToken);
+            var points = await cache.GetOrAddAsync(key, LoadTrackPointsAsync, cancellationToken);
             if (points is not null || attempt == 1)
             {
                 return points;
@@ -65,32 +64,12 @@ internal sealed class FullTrackPointReader : IFullTrackPointReader
     }
 
     private async Task<IReadOnlyList<TrackPoint>?> LoadTrackPointsAsync(
-        FullTrackPointCacheKey key)
-    {
-        var payload = await trackRepository.GetTrackPayloadAsync(key.TrackId, key.Updated);
-        return payload?.Points;
-    }
-
-    private async Task<IReadOnlyList<TrackPoint>?> AwaitCachedValueAsync(
         FullTrackPointCacheKey key,
-        Task<IReadOnlyList<TrackPoint>?> task,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            return cancellationToken.CanBeCanceled
-                ? await task.WaitAsync(cancellationToken).ConfigureAwait(false)
-                : await task.ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested && !task.IsCompleted)
-        {
-            throw;
-        }
-        catch
-        {
-            cache.Remove(key, task);
-            throw;
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        var payload = await trackRepository.GetTrackPayloadAsync(key.TrackId, key.Updated);
+        return payload?.Points;
     }
 
     private readonly record struct FullTrackPointCacheKey(Guid TrackId, long Updated);
