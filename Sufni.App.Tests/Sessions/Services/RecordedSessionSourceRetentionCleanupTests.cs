@@ -12,6 +12,7 @@ using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Store;
 using Sufni.App.Tests.TestSupport.Persistence;
 namespace Sufni.App.Tests.Sessions.Services;
 
@@ -23,6 +24,7 @@ public class RecordedSessionSourceRetentionCleanupTests
         using var tempDatabase = new TempDatabase("recorded-source-retention-cleanup.db");
         var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath, []);
         var repository = Substitute.For<IRecordedSessionSourceRepository>();
+        var store = Substitute.For<IRecordedSessionSourceStoreWriter>();
         var provider = Substitute.For<IRecordedSessionDerivationWindowProvider>();
         var retainedId = Guid.NewGuid();
         var retainedIds = new[] { retainedId };
@@ -33,6 +35,7 @@ public class RecordedSessionSourceRetentionCleanupTests
         var cleanup = new RecordedSessionSourceRetentionCleanup(
             context,
             repository,
+            store,
             provider,
             new InlineBackgroundTaskRunner());
 
@@ -41,6 +44,7 @@ public class RecordedSessionSourceRetentionCleanupTests
         await provider.Received(1).GetReferencedSourceSessionIdsAsync();
         await repository.Received(1).DeleteOrphanedRecordedSessionSourcesAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(retainedIds)));
+        await store.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -49,6 +53,7 @@ public class RecordedSessionSourceRetentionCleanupTests
         using var tempDatabase = new TempDatabase("recorded-source-retention-persisted-window.db");
         var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath, []);
         var repository = new RecordedSessionSourceRepository(context);
+        var store = Substitute.For<IRecordedSessionSourceStoreWriter>();
         var provider = Substitute.For<IRecordedSessionDerivationWindowProvider>();
         provider.GetReferencedSourceSessionIdsAsync().Returns(Task.FromResult<IReadOnlyCollection<Guid>>([]));
         var retainedSourceId = Guid.NewGuid();
@@ -73,6 +78,7 @@ public class RecordedSessionSourceRetentionCleanupTests
         var cleanup = new RecordedSessionSourceRetentionCleanup(
             context,
             repository,
+            store,
             provider,
             new InlineBackgroundTaskRunner());
 
@@ -80,5 +86,6 @@ public class RecordedSessionSourceRetentionCleanupTests
 
         Assert.NotNull(await repository.GetRecordedSessionSourceAsync(retainedSourceId));
         Assert.Null(await repository.GetRecordedSessionSourceAsync(orphanSourceId));
+        await store.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
     }
 }

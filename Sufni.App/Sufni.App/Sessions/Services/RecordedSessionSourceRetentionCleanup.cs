@@ -6,11 +6,13 @@ using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Store;
 namespace Sufni.App.Sessions.Services;
 
 internal sealed class RecordedSessionSourceRetentionCleanup(
     SqliteConnectionContext connectionContext,
     IRecordedSessionSourceRepository recordedSessionSourceRepository,
+    IRecordedSessionSourceStoreWriter recordedSessionSourceStore,
     IRecordedSessionDerivationWindowProvider windowProvider,
     IBackgroundTaskRunner backgroundTaskRunner)
 {
@@ -30,6 +32,7 @@ internal sealed class RecordedSessionSourceRetentionCleanup(
             if (deleted > 0)
             {
                 logger.Information("Recorded-source retention cleanup removed {Count} orphaned source row(s)", deleted);
+                await recordedSessionSourceStore.RefreshAsync();
             }
         }
         catch (Exception ex)
