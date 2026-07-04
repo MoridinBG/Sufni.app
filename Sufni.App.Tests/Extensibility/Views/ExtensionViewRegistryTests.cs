@@ -67,7 +67,7 @@ public class ExtensionViewRegistryTests
             static () => new TextBlock { Text = "recorded extension" },
             desktopFactory: null);
         var locator = new ViewLocator(registry);
-        var page = new RecordedSessionExtensionPageViewModel("Extension", () => new ExtensionViewModel());
+        var page = new RecordedSessionExtensionPageViewModel("Extension", () => new ExtensionViewModel(), ownsViewModel: true);
 
         var control = locator.Build(page);
 
@@ -85,7 +85,7 @@ public class ExtensionViewRegistryTests
             static () => new TextBlock(),
             desktopFactory: null);
         var locator = new ViewLocator(registry);
-        var page = new RecordedSessionExtensionPageViewModel("Extension", () => new ExtensionViewModel());
+        var page = new RecordedSessionExtensionPageViewModel("Extension", () => new ExtensionViewModel(), ownsViewModel: true);
 
         Assert.True(locator.Match(page));
     }
@@ -96,7 +96,7 @@ public class ExtensionViewRegistryTests
         TestApp.SetIsDesktop(false);
 
         var locator = new ViewLocator(new ExtensionViewRegistry());
-        var page = new RecordedSessionExtensionPageViewModel("Extension", () => new ExtensionViewModel());
+        var page = new RecordedSessionExtensionPageViewModel("Extension", () => new ExtensionViewModel(), ownsViewModel: true);
 
         Assert.False(locator.Match(page));
     }

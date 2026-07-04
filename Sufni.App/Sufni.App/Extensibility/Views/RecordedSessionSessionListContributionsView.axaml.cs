@@ -1,15 +1,18 @@
+using System;
 using System.Collections;
 using System.Collections.Specialized;
+using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
-using Sufni.App.ExtensionHost.Contracts.Capabilities;
 namespace Sufni.App.Extensibility.Views;
 
 public partial class RecordedSessionSessionListContributionsView : UserControl
 {
+    private readonly Dictionary<string, ExtensionViewModelLifetime.BorrowedControl> indicatorControls = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ExtensionViewModelLifetime.BorrowedControl> actionControls = new(StringComparer.Ordinal);
     private INotifyCollectionChanged? subscribedIndicators;
     private INotifyCollectionChanged? subscribedActions;
 
@@ -94,6 +97,8 @@ public partial class RecordedSessionSessionListContributionsView : UserControl
     {
         SubscribeToIndicators(null);
         SubscribeToActions(null);
+        ClearIndicatorControls();
+        ClearActionControls();
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -147,40 +152,123 @@ public partial class RecordedSessionSessionListContributionsView : UserControl
 
     private void RebuildIndicators()
     {
-        SessionListIndicatorsHost.Children.Clear();
         SessionListIndicatorsHost.IsVisible = ShowIndicators;
         if (!ShowIndicators || Indicators is null)
         {
+            ClearIndicatorControls();
             return;
         }
 
-        foreach (var contribution in Indicators
-                     .OfType<RecordedSessionListIndicatorContribution>()
-                     .OrderBy(static contribution => contribution.Order))
+        var contributions = Indicators
+            .OfType<RecordedSessionListIndicatorContribution>()
+            .OrderBy(static contribution => contribution.Order)
+            .ToArray();
+        RemoveStaleIndicatorControls(contributions);
+        SessionListIndicatorsHost.Children.Clear();
+        foreach (var contribution in contributions)
         {
-            SessionListIndicatorsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
+            var borrowed = GetOrCreateIndicatorControl(contribution);
+            SessionListIndicatorsHost.Children.Add(borrowed.Control);
         }
     }
 
     private void RebuildActions()
     {
-        SessionListActionsHost.Children.Clear();
         SessionListActionsHost.IsVisible = ShowActions;
         if (!ShowActions || Actions is null)
         {
+            ClearActionControls();
             return;
         }
 
-        foreach (var contribution in Actions
-                     .OfType<RecordedSessionListActionContribution>()
-                     .OrderBy(static contribution => contribution.Order))
+        var contributions = Actions
+            .OfType<RecordedSessionListActionContribution>()
+            .OrderBy(static contribution => contribution.Order)
+            .ToArray();
+        RemoveStaleActionControls(contributions);
+        SessionListActionsHost.Children.Clear();
+        foreach (var contribution in contributions)
         {
-            SessionListActionsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
+            var borrowed = GetOrCreateActionControl(contribution);
+            SessionListActionsHost.Children.Add(borrowed.Control);
         }
     }
 
-    private static Control CreateContributionControl(IExtensionViewModel viewModel)
+    private ExtensionViewModelLifetime.BorrowedControl GetOrCreateIndicatorControl(
+        RecordedSessionListIndicatorContribution contribution)
     {
-        return viewModel as Control ?? new ContentControl { Content = viewModel };
+        var key = GetContributionKey(contribution);
+        if (indicatorControls.TryGetValue(key, out var borrowed) &&
+            ReferenceEquals(borrowed.ViewModel, contribution.ViewModel))
+        {
+            return borrowed;
+        }
+
+        borrowed = ExtensionViewModelLifetime.CreateBorrowedControl(contribution.ViewModel);
+        indicatorControls[key] = borrowed;
+        return borrowed;
     }
+
+    private ExtensionViewModelLifetime.BorrowedControl GetOrCreateActionControl(
+        RecordedSessionListActionContribution contribution)
+    {
+        var key = GetContributionKey(contribution);
+        if (actionControls.TryGetValue(key, out var borrowed) &&
+            ReferenceEquals(borrowed.ViewModel, contribution.ViewModel))
+        {
+            return borrowed;
+        }
+
+        borrowed = ExtensionViewModelLifetime.CreateBorrowedControl(contribution.ViewModel);
+        actionControls[key] = borrowed;
+        return borrowed;
+    }
+
+    private void RemoveStaleIndicatorControls(IReadOnlyCollection<RecordedSessionListIndicatorContribution> contributions)
+    {
+        var active = contributions.ToDictionary(GetContributionKey, contribution => contribution.ViewModel, StringComparer.Ordinal);
+        foreach (var (key, borrowed) in indicatorControls.ToArray())
+        {
+            if (active.TryGetValue(key, out var viewModel) &&
+                ReferenceEquals(borrowed.ViewModel, viewModel))
+            {
+                continue;
+            }
+
+            indicatorControls.Remove(key);
+        }
+    }
+
+    private void RemoveStaleActionControls(IReadOnlyCollection<RecordedSessionListActionContribution> contributions)
+    {
+        var active = contributions.ToDictionary(GetContributionKey, contribution => contribution.ViewModel, StringComparer.Ordinal);
+        foreach (var (key, borrowed) in actionControls.ToArray())
+        {
+            if (active.TryGetValue(key, out var viewModel) &&
+                ReferenceEquals(borrowed.ViewModel, viewModel))
+            {
+                continue;
+            }
+
+            actionControls.Remove(key);
+        }
+    }
+
+    private void ClearIndicatorControls()
+    {
+        indicatorControls.Clear();
+        SessionListIndicatorsHost.Children.Clear();
+    }
+
+    private void ClearActionControls()
+    {
+        actionControls.Clear();
+        SessionListActionsHost.Children.Clear();
+    }
+
+    private static string GetContributionKey(RecordedSessionListIndicatorContribution contribution) =>
+        $"{contribution.ExtensionId}\u001f{contribution.ContributionId}";
+
+    private static string GetContributionKey(RecordedSessionListActionContribution contribution) =>
+        $"{contribution.ExtensionId}\u001f{contribution.ContributionId}";
 }

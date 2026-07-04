@@ -100,6 +100,8 @@ public sealed record RecordedSessionAnalysisTabContribution(
     int RequestedIndex,
     Func<IRecordedSessionAnalysisTabContributionViewModel> CreateViewModel) : IRecordedSessionContribution
 {
+    public bool OwnsCreatedViewModel { get; init; } = true;
+
     public RecordedSessionAnalysisTabContribution(
         string ExtensionId,
         string ContributionId,
@@ -115,6 +117,7 @@ public sealed record RecordedSessionAnalysisTabContribution(
             RequestedIndex,
             () => ViewModel)
     {
+        OwnsCreatedViewModel = false;
     }
 }
 

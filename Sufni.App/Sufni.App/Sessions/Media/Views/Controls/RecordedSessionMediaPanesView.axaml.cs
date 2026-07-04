@@ -1,15 +1,18 @@
+using System;
 using System.Collections.Specialized;
+using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Sufni.App.Extensibility.Views;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
-using Sufni.App.ExtensionHost.Contracts.Capabilities;
 namespace Sufni.App.Sessions.Media.Views.Controls;
 
 public partial class RecordedSessionMediaPanesView : UserControl
 {
+    private readonly Dictionary<string, ExtensionViewModelLifetime.BorrowedControl> mediaPaneControls = new(StringComparer.Ordinal);
     private RecordedSessionExtensionSlots? subscribedSlots;
 
     public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
@@ -45,6 +48,7 @@ public partial class RecordedSessionMediaPanesView : UserControl
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         SubscribeToSlots(null);
+        ClearMediaPaneControls();
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -74,28 +78,65 @@ public partial class RecordedSessionMediaPanesView : UserControl
 
     private void Rebuild()
     {
-        RecordedSessionMediaPanesHost.Children.Clear();
         RecordedSessionMediaPanesHost.RowDefinitions.Clear();
         if (ExtensionSlots is not { } slots)
         {
+            ClearMediaPaneControls();
             return;
         }
 
         var contributions = slots.MediaPanes
             .OrderBy(static contribution => contribution.Order)
             .ToArray();
+        RemoveStaleMediaPaneControls(contributions);
+        RecordedSessionMediaPanesHost.Children.Clear();
         for (var i = 0; i < contributions.Length; i++)
         {
             RecordedSessionMediaPanesHost.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
 
-            var control = CreateContributionControl(contributions[i].ViewModel);
+            var borrowed = GetOrCreateMediaPaneControl(contributions[i]);
+            var control = borrowed.Control;
             Grid.SetRow(control, i);
             RecordedSessionMediaPanesHost.Children.Add(control);
         }
     }
 
-    private static Control CreateContributionControl(IExtensionViewModel viewModel)
+    private ExtensionViewModelLifetime.BorrowedControl GetOrCreateMediaPaneControl(
+        RecordedSessionMediaPaneContribution contribution)
     {
-        return viewModel as Control ?? new ContentControl { Content = viewModel };
+        var key = GetContributionKey(contribution);
+        if (mediaPaneControls.TryGetValue(key, out var borrowed) &&
+            ReferenceEquals(borrowed.ViewModel, contribution.ViewModel))
+        {
+            return borrowed;
+        }
+
+        borrowed = ExtensionViewModelLifetime.CreateBorrowedControl(contribution.ViewModel);
+        mediaPaneControls[key] = borrowed;
+        return borrowed;
     }
+
+    private void RemoveStaleMediaPaneControls(IReadOnlyCollection<RecordedSessionMediaPaneContribution> contributions)
+    {
+        var active = contributions.ToDictionary(GetContributionKey, contribution => contribution.ViewModel, StringComparer.Ordinal);
+        foreach (var (key, borrowed) in mediaPaneControls.ToArray())
+        {
+            if (active.TryGetValue(key, out var viewModel) &&
+                ReferenceEquals(borrowed.ViewModel, viewModel))
+            {
+                continue;
+            }
+
+            mediaPaneControls.Remove(key);
+        }
+    }
+
+    private void ClearMediaPaneControls()
+    {
+        mediaPaneControls.Clear();
+        RecordedSessionMediaPanesHost.Children.Clear();
+    }
+
+    private static string GetContributionKey(RecordedSessionMediaPaneContribution contribution) =>
+        $"{contribution.ExtensionId}\u001f{contribution.ContributionId}";
 }

@@ -251,6 +251,34 @@ public class SessionAnalysisDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task SessionAnalysisDesktopView_RemovingMaterializedContributedAnalysisTab_DisposesViewModel()
+    {
+        var workspace = new SessionAnalysisWorkspaceStub(
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            hasFrontAnalysis: true,
+            hasRearAnalysis: true,
+            hasCompressionBalanceTelemetry: true,
+            hasReboundBalanceTelemetry: true);
+        var viewModel = new DisposableContributionViewModel();
+        workspace.ExtensionSlots.AnalysisTabs.Add(new RecordedSessionAnalysisTabContribution(
+            "extension",
+            "disposable-tab",
+            Order: 0,
+            "Disposable tab",
+            RequestedIndex: 3,
+            () => viewModel));
+
+        await using var mounted = await MountAsync(workspace);
+        await SelectTabAsync(mounted.View, "Disposable tab");
+        Assert.False(viewModel.IsDisposed);
+
+        workspace.ExtensionSlots.AnalysisTabs.Clear();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(1, viewModel.DisposeCount);
+    }
+
+    [AvaloniaFact]
     public async Task SessionAnalysisDesktopView_SelectingBuiltInTab_StillDisplaysBuiltInPane_WhenExtensionTabsExist()
     {
         var workspace = new SessionAnalysisWorkspaceStub(

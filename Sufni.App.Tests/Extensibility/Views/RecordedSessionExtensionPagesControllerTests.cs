@@ -186,6 +186,47 @@ public class RecordedSessionExtensionPagesControllerTests
     }
 
     [Fact]
+    public void SlotReset_DoesNotDisposeBorrowedStalePageContribution()
+    {
+        var manager = CreateManager();
+        var context = CreateBuiltInContext();
+        _ = new RecordedSessionExtensionPagesController(manager, context);
+        var viewModel = new DisposableContributionViewModel();
+
+        manager.ExtensionSlots.Pages.Add(CreatePageContribution("extension-page", requestedIndex: 1, viewModel: viewModel));
+        var page = Assert.IsType<RecordedSessionExtensionPageViewModel>(
+            context.Pages.Single(page => page.DisplayName == "Extension page"));
+        Assert.Same(viewModel, page.ViewModel);
+
+        manager.ExtensionSlots.Pages.Clear();
+
+        Assert.False(viewModel.IsDisposed);
+        Assert.Equal(0, viewModel.DisposeCount);
+    }
+
+    [Fact]
+    public void SlotReset_DisposesMaterializedStaleAnalysisTabContribution()
+    {
+        var manager = CreateManager();
+        var context = CreateBuiltInContext();
+        _ = new RecordedSessionExtensionPagesController(manager, context);
+        var viewModel = new DisposableContributionViewModel();
+
+        manager.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution(
+            "analysis-tab",
+            requestedIndex: 3,
+            createViewModel: () => viewModel));
+        var page = Assert.IsType<RecordedSessionExtensionPageViewModel>(
+            context.Pages.Single(page => page.DisplayName == "Analysis tab"));
+        Assert.Same(viewModel, page.ViewModel);
+
+        manager.ExtensionSlots.AnalysisTabs.Clear();
+
+        Assert.True(viewModel.IsDisposed);
+        Assert.Equal(1, viewModel.DisposeCount);
+    }
+
+    [Fact]
     public void AnalysisTabReorder_UpdatesPageOrderDeterministically()
     {
         var manager = CreateManager();
@@ -230,6 +271,39 @@ public class RecordedSessionExtensionPagesControllerTests
         Assert.Equal("Extension page", context.SelectedPageDisplayName);
     }
 
+    [Fact]
+    public void Dispose_DisposesOwnedAnalysisTabViewModels_AndLeavesBorrowedPageViewModels()
+    {
+        var manager = CreateManager();
+        var context = CreateBuiltInContext();
+        var controller = new RecordedSessionExtensionPagesController(manager, context);
+        var pageViewModel = new DisposableContributionViewModel();
+        var analysisTabViewModel = new DisposableContributionViewModel();
+        manager.ExtensionSlots.Pages.Add(CreatePageContribution(
+            "extension-page",
+            requestedIndex: 1,
+            viewModel: pageViewModel));
+        manager.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution(
+            "analysis-tab",
+            requestedIndex: 3,
+            createViewModel: () => analysisTabViewModel));
+
+        var page = Assert.IsType<RecordedSessionExtensionPageViewModel>(
+            context.Pages.Single(page => page.DisplayName == "Extension page"));
+        var analysisTab = Assert.IsType<RecordedSessionExtensionPageViewModel>(
+            context.Pages.Single(page => page.DisplayName == "Analysis tab"));
+        Assert.Same(pageViewModel, page.ViewModel);
+        Assert.Same(analysisTabViewModel, analysisTab.ViewModel);
+
+        controller.Dispose();
+        controller.Dispose();
+
+        Assert.Equal(0, pageViewModel.DisposeCount);
+        Assert.Equal(1, analysisTabViewModel.DisposeCount);
+        Assert.DoesNotContain(page, context.Pages);
+        Assert.DoesNotContain(analysisTab, context.Pages);
+    }
+
     private static RecordedSessionExtensionManager CreateManager()
     {
         var operationCoordinator = new RecordedSessionOperationCoordinator((_, _) => { }, () => { });
@@ -271,14 +345,15 @@ public class RecordedSessionExtensionPagesControllerTests
 
     private static RecordedSessionPageContribution CreatePageContribution(
         string contributionId,
-        int requestedIndex)
+        int requestedIndex,
+        IRecordedSessionPageContributionViewModel? viewModel = null)
     {
         return new RecordedSessionPageContribution(
             "extension",
             contributionId,
             Order: 0,
             "Extension page",
-            new TestContributionViewModel(),
+            viewModel ?? new TestContributionViewModel(),
             requestedIndex);
     }
 

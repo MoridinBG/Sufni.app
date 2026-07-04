@@ -83,6 +83,7 @@ public static class SignalRowExtensionHost
     {
         private readonly SignalRow row;
         private readonly Dictionary<string, SignalRow> hostedRows = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, IRecordedSessionHostedSignalRowContributionViewModel> hostedRowViewModels = new(StringComparer.Ordinal);
         private RecordedSessionExtensionSlots? slots;
         private IEnumerable<SignalRowAction>? baseHeaderActions;
         private bool isApplyingHeaderActions;
@@ -253,6 +254,7 @@ public static class SignalRowExtensionHost
                 var staleRow = hostedRows[staleKey];
                 row.ChildRows.Remove(staleRow);
                 DisposeState(staleRow);
+                RemoveHostedRowViewModel(staleKey);
                 hostedRows.Remove(staleKey);
             }
 
@@ -266,13 +268,13 @@ public static class SignalRowExtensionHost
                 var key = GetContributionKey(contribution);
                 if (!hostedRows.TryGetValue(key, out var hostedRow))
                 {
-                    hostedRow = CreateHostedRow(contribution);
+                    hostedRow = CreateHostedRow(key, contribution);
                     SetExtensionSlots(hostedRow, slots);
                     hostedRows.Add(key, hostedRow);
                 }
                 else
                 {
-                    UpdateHostedRow(hostedRow, contribution);
+                    UpdateHostedRow(key, hostedRow, contribution);
                 }
 
                 row.ChildRows.Insert(GetHostedRowInsertionIndex(row.ChildRows), hostedRow);
@@ -301,16 +303,23 @@ public static class SignalRowExtensionHost
             }
 
             hostedRows.Clear();
+            foreach (var key in hostedRowViewModels.Keys.ToArray())
+            {
+                RemoveHostedRowViewModel(key);
+            }
         }
 
-        private static SignalRow CreateHostedRow(RecordedSessionHostedSignalRowContribution contribution)
+        private SignalRow CreateHostedRow(
+            string key,
+            RecordedSessionHostedSignalRowContribution contribution)
         {
             var hostedRow = new SignalRow();
-            UpdateHostedRow(hostedRow, contribution);
+            UpdateHostedRow(key, hostedRow, contribution);
             return hostedRow;
         }
 
-        private static void UpdateHostedRow(
+        private void UpdateHostedRow(
+            string key,
             SignalRow hostedRow,
             RecordedSessionHostedSignalRowContribution contribution)
         {
@@ -319,15 +328,18 @@ public static class SignalRowExtensionHost
             hostedRow.Title = contribution.Title;
             hostedRow.TitleToolTip = contribution.TitleToolTip;
             hostedRow.PresentationState = contribution.PresentationState;
-            hostedRow.PlotContent = CreateOrUpdatePlotContent(hostedRow, contribution.ViewModel);
+            hostedRow.PlotContent = CreateOrUpdatePlotContent(key, hostedRow, contribution.ViewModel);
             hostedRow.PlaceholderContent = new SurfacePlaceholderCard { Title = contribution.Title };
             hostedRow.IsExpanded = contribution.IsInitiallyExpanded;
         }
 
-        private static Control CreateOrUpdatePlotContent(
+        private Control CreateOrUpdatePlotContent(
+            string key,
             SignalRow hostedRow,
             IRecordedSessionHostedSignalRowContributionViewModel viewModel)
         {
+            SetHostedRowViewModel(key, viewModel);
+
             if (viewModel is RecordedSessionSignalPlotViewModel data)
             {
                 if (hostedRow.PlotContent is ExtensionSignalPlotView existingView)
@@ -339,7 +351,26 @@ public static class SignalRowExtensionHost
                 return new ExtensionSignalPlotView { DataContext = data };
             }
 
-            return CreateContributionControl(viewModel);
+            return ExtensionViewModelLifetime.CreateControl(viewModel);
+        }
+
+        private void SetHostedRowViewModel(
+            string key,
+            IRecordedSessionHostedSignalRowContributionViewModel viewModel)
+        {
+            if (hostedRowViewModels.TryGetValue(key, out var existing) &&
+                ReferenceEquals(existing, viewModel))
+            {
+                return;
+            }
+
+            RemoveHostedRowViewModel(key);
+            hostedRowViewModels[key] = viewModel;
+        }
+
+        private void RemoveHostedRowViewModel(string key)
+        {
+            hostedRowViewModels.Remove(key);
         }
 
         private static string GetContributionKey(RecordedSessionHostedSignalRowContribution contribution)
@@ -379,11 +410,6 @@ public static class SignalRowExtensionHost
 
             plotView.AdditionalContextMenuActions = null;
             plotView.TimeRangeOverlays = null;
-        }
-
-        private static Control CreateContributionControl(IExtensionViewModel viewModel)
-        {
-            return viewModel as Control ?? new ContentControl { Content = viewModel };
         }
 
         private static string? GetRowTargetStableKey(string? rowId)

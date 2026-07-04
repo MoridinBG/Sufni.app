@@ -15,11 +15,12 @@ namespace Sufni.App.Extensibility.Views;
 /// extension manager's page contributions into the editor's page collection
 /// and serves extension-initiated page-selection requests.
 /// </summary>
-internal sealed class RecordedSessionExtensionPagesController
+internal sealed class RecordedSessionExtensionPagesController : IDisposable
 {
     private readonly RecordedSessionExtensionManager manager;
     private readonly RecordedSessionContext context;
-    private readonly Dictionary<string, PageViewModelBase> recordedSessionExtensionPages = [];
+    private readonly Dictionary<string, RecordedSessionExtensionPageViewModel> recordedSessionExtensionPages = [];
+    private bool disposed;
 
     public RecordedSessionExtensionPagesController(
         RecordedSessionExtensionManager manager,
@@ -33,6 +34,11 @@ internal sealed class RecordedSessionExtensionPagesController
 
     public void RequestRecordedSessionExtensionPageSelection(string contributionId)
     {
+        if (disposed)
+        {
+            return;
+        }
+
         var contribution = manager.ExtensionSlots.Pages
             .Where(contribution => StringComparer.Ordinal.Equals(contribution.ContributionId, contributionId))
             .OrderBy(contribution => contribution.Order)
@@ -51,6 +57,26 @@ internal sealed class RecordedSessionExtensionPagesController
         }
     }
 
+    public void Dispose()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        manager.ExtensionSlots.Pages.CollectionChanged -= OnRecordedSessionExtensionPagesChanged;
+        manager.ExtensionSlots.AnalysisTabs.CollectionChanged -= OnRecordedSessionExtensionPagesChanged;
+
+        foreach (var page in recordedSessionExtensionPages.Values)
+        {
+            context.Pages.Remove(page);
+            page.Dispose();
+        }
+
+        recordedSessionExtensionPages.Clear();
+    }
+
     private void OnRecordedSessionExtensionPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {
         ApplyRecordedSessionExtensionPages();
@@ -58,6 +84,11 @@ internal sealed class RecordedSessionExtensionPagesController
 
     private void ApplyRecordedSessionExtensionPages()
     {
+        if (disposed)
+        {
+            return;
+        }
+
         var pageEntries = manager.ExtensionSlots.Pages
             .OrderBy(contribution => contribution.RequestedIndex)
             .ThenBy(contribution => contribution.Order)
@@ -71,7 +102,8 @@ internal sealed class RecordedSessionExtensionPagesController
                 FamilyOrder: 0,
                 contribution.Order,
                 contribution.ExtensionId,
-                contribution.ContributionId));
+                contribution.ContributionId,
+                OwnsViewModel: false));
         var analysisTabEntries = manager.ExtensionSlots.AnalysisTabs
             .OrderBy(contribution => contribution.RequestedIndex)
             .ThenBy(contribution => contribution.Order)
@@ -85,7 +117,8 @@ internal sealed class RecordedSessionExtensionPagesController
                 FamilyOrder: 1,
                 contribution.Order,
                 contribution.ExtensionId,
-                contribution.ContributionId));
+                contribution.ContributionId,
+                contribution.OwnsCreatedViewModel));
         var entries = pageEntries
             .Concat(analysisTabEntries)
             .OrderBy(entry => entry.RequestedIndex)
@@ -104,6 +137,7 @@ internal sealed class RecordedSessionExtensionPagesController
             if (!desiredKeys.Contains(entry.Key))
             {
                 recordedSessionExtensionPages.Remove(entry.Key);
+                entry.Value.Dispose();
             }
         }
 
@@ -114,7 +148,8 @@ internal sealed class RecordedSessionExtensionPagesController
             {
                 page = new RecordedSessionExtensionPageViewModel(
                     entry.DisplayName,
-                    entry.CreateViewModel);
+                    entry.CreateViewModel,
+                    entry.OwnsViewModel);
                 recordedSessionExtensionPages.Add(entry.Key, page);
             }
 
@@ -142,5 +177,6 @@ internal sealed class RecordedSessionExtensionPagesController
         int FamilyOrder,
         int Order,
         string ExtensionId,
-        string ContributionId);
+        string ContributionId,
+        bool OwnsViewModel);
 }

@@ -135,6 +135,29 @@ public class SessionMediaDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task SessionMediaDesktopView_MediaPaneRebuild_DoesNotDisposeBorrowedContributionViewModel()
+    {
+        var workspace = CreateWorkspace([]);
+        var viewModel = new DisposableContributionViewModel();
+        workspace.ExtensionSlots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
+            "extension",
+            "media-pane",
+            Order: 0,
+            viewModel));
+
+        await using var mounted = await MountAsync(workspace);
+        var mediaPanes = Assert.Single(
+            mounted.View.GetVisualDescendants().OfType<RecordedSessionMediaPanesView>());
+        Assert.NotNull(mediaPanes);
+        Assert.False(viewModel.IsDisposed);
+
+        workspace.ExtensionSlots.MediaPanes.Clear();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(0, viewModel.DisposeCount);
+    }
+
+    [AvaloniaFact]
     public async Task SessionMediaDesktopView_SplitsMapAndMediaPanes_WhenBothArePresent()
     {
         var workspace = CreateWorkspace(

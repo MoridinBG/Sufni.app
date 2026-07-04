@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.VisualTree;
+using Sufni.App.Extensibility.Views;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
 using Sufni.App.Sessions.Analysis.Views.Controls;
@@ -255,9 +256,10 @@ public partial class SessionAnalysisDesktopView : UserControl
         }
 
         var nextViewModel = contribution.CreateViewModel();
-        var control = nextViewModel as Control ?? new ContentControl { Content = nextViewModel };
+        var owner = ExtensionViewModelLifetime.CreateOwnedControl(nextViewModel);
+        var control = owner.Control;
         control.IsVisible = false;
-        extensionContentControls[key] = new ExtensionTabContent(contribution, control);
+        extensionContentControls[key] = new ExtensionTabContent(contribution, owner);
         AnalysisContentHost.Items.Add(control);
         return control;
     }
@@ -278,6 +280,7 @@ public partial class SessionAnalysisDesktopView : UserControl
 
             AnalysisContentHost.Items.Remove(content.Control);
             extensionContentControls.Remove(key);
+            content.Dispose();
         }
     }
 
@@ -298,5 +301,13 @@ public partial class SessionAnalysisDesktopView : UserControl
 
     private sealed record ExtensionTabContent(
         RecordedSessionAnalysisTabContribution Contribution,
-        Control Control);
+        ExtensionViewModelLifetime.OwnedControl Owner) : IDisposable
+    {
+        public Control Control => Owner.Control;
+
+        public void Dispose()
+        {
+            Owner.Dispose();
+        }
+    }
 }

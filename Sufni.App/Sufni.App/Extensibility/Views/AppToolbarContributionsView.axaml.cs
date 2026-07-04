@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Specialized;
+using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -26,6 +27,7 @@ public partial class AppToolbarContributionsView : UserControl
     // Matches the fixed width of the built-in desktop nav rail buttons.
     private const double NavRailButtonWidth = 50;
 
+    private readonly Dictionary<string, ExtensionViewModelLifetime.BorrowedControl> viewControls = new(StringComparer.Ordinal);
     private INotifyCollectionChanged? subscribedCommandContributions;
     private INotifyCollectionChanged? subscribedViewContributions;
 
@@ -95,6 +97,7 @@ public partial class AppToolbarContributionsView : UserControl
     {
         SubscribeToCommandContributions(null);
         SubscribeToViewContributions(null);
+        ClearContributionControls();
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -143,6 +146,8 @@ public partial class AppToolbarContributionsView : UserControl
 
     private void Rebuild()
     {
+        var viewContributions = OrderedViewContributions().ToArray();
+        RemoveStaleViewControls(viewContributions);
         ContributionsHost.Children.Clear();
 
         foreach (var contribution in OrderedCommandContributions())
@@ -150,9 +155,9 @@ public partial class AppToolbarContributionsView : UserControl
             ContributionsHost.Children.Add(CreateCommandControl(contribution));
         }
 
-        foreach (var contribution in OrderedViewContributions())
+        foreach (var contribution in viewContributions)
         {
-            ContributionsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
+            AddContributionControl(contribution);
         }
     }
 
@@ -209,10 +214,49 @@ public partial class AppToolbarContributionsView : UserControl
         };
     }
 
-    private static Control CreateContributionControl(IExtensionViewModel viewModel)
+    private void AddContributionControl(AppToolbarViewContribution contribution)
     {
-        return viewModel as Control ?? new ContentControl { Content = viewModel };
+        var borrowed = GetOrCreateViewControl(contribution);
+        ContributionsHost.Children.Add(borrowed.Control);
     }
+
+    private ExtensionViewModelLifetime.BorrowedControl GetOrCreateViewControl(AppToolbarViewContribution contribution)
+    {
+        var key = GetContributionKey(contribution);
+        if (viewControls.TryGetValue(key, out var borrowed) &&
+            ReferenceEquals(borrowed.ViewModel, contribution.ViewModel))
+        {
+            return borrowed;
+        }
+
+        borrowed = ExtensionViewModelLifetime.CreateBorrowedControl(contribution.ViewModel);
+        viewControls[key] = borrowed;
+        return borrowed;
+    }
+
+    private void RemoveStaleViewControls(IReadOnlyCollection<AppToolbarViewContribution> contributions)
+    {
+        var active = contributions.ToDictionary(GetContributionKey, contribution => contribution.ViewModel, StringComparer.Ordinal);
+        foreach (var (key, borrowed) in viewControls.ToArray())
+        {
+            if (active.TryGetValue(key, out var viewModel) &&
+                ReferenceEquals(borrowed.ViewModel, viewModel))
+            {
+                continue;
+            }
+
+            viewControls.Remove(key);
+        }
+    }
+
+    private void ClearContributionControls()
+    {
+        viewControls.Clear();
+        ContributionsHost.Children.Clear();
+    }
+
+    private static string GetContributionKey(AppToolbarViewContribution contribution) =>
+        $"{contribution.ExtensionId}\u001f{contribution.ContributionId}";
 
     private static Image? CreateIcon(ToolbarIconDescriptor? descriptor)
     {

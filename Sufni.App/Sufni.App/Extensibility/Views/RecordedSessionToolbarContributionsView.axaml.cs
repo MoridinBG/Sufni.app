@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using System.Collections.Generic;
 using System.Linq;
 using System;
 using Avalonia;
@@ -15,6 +16,7 @@ public partial class RecordedSessionToolbarContributionsView : UserControl
     private static readonly Uri SvgAssetBaseUri =
         new($"avares://{typeof(global::Sufni.App.App).Assembly.GetName().Name}/");
 
+    private readonly Dictionary<string, ExtensionViewModelLifetime.BorrowedControl> toolbarViewControls = new(StringComparer.Ordinal);
     private RecordedSessionExtensionSlots? subscribedSlots;
 
     public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
@@ -50,6 +52,7 @@ public partial class RecordedSessionToolbarContributionsView : UserControl
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         SubscribeToSlots(null);
+        ClearToolbarViewControls();
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -83,12 +86,17 @@ public partial class RecordedSessionToolbarContributionsView : UserControl
     {
         LeadingSignalToolbarCommandBar.PrimaryCommands.Clear();
         TrailingSignalToolbarCommandBar.PrimaryCommands.Clear();
-        LeadingSignalToolbarViewsHost.Children.Clear();
-        TrailingSignalToolbarViewsHost.Children.Clear();
         if (ExtensionSlots is not { } slots)
         {
+            ClearToolbarViewControls();
             return;
         }
+
+        var leadingViews = OrderedToolbarViewContributions(slots, RecordedSessionToolbarZone.Leading).ToArray();
+        var trailingViews = OrderedToolbarViewContributions(slots, RecordedSessionToolbarZone.Trailing).ToArray();
+        RemoveStaleToolbarViewControls(leadingViews.Concat(trailingViews).ToArray());
+        LeadingSignalToolbarViewsHost.Children.Clear();
+        TrailingSignalToolbarViewsHost.Children.Clear();
 
         foreach (var contribution in OrderedToolbarCommandContributions(slots, RecordedSessionToolbarZone.Leading))
         {
@@ -100,14 +108,14 @@ public partial class RecordedSessionToolbarContributionsView : UserControl
             TrailingSignalToolbarCommandBar.PrimaryCommands.Add(CreateCommandBarButton(contribution));
         }
 
-        foreach (var contribution in OrderedToolbarViewContributions(slots, RecordedSessionToolbarZone.Leading))
+        foreach (var contribution in leadingViews)
         {
-            LeadingSignalToolbarViewsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
+            AddContributionControl(LeadingSignalToolbarViewsHost, contribution);
         }
 
-        foreach (var contribution in OrderedToolbarViewContributions(slots, RecordedSessionToolbarZone.Trailing))
+        foreach (var contribution in trailingViews)
         {
-            TrailingSignalToolbarViewsHost.Children.Add(CreateContributionControl(contribution.ViewModel));
+            AddContributionControl(TrailingSignalToolbarViewsHost, contribution);
         }
     }
 
@@ -144,10 +152,53 @@ public partial class RecordedSessionToolbarContributionsView : UserControl
         };
     }
 
-    private static Control CreateContributionControl(IExtensionViewModel viewModel)
+    private void AddContributionControl(
+        Panel host,
+        RecordedSessionToolbarViewContribution contribution)
     {
-        return viewModel as Control ?? new ContentControl { Content = viewModel };
+        var borrowed = GetOrCreateToolbarViewControl(contribution);
+        host.Children.Add(borrowed.Control);
     }
+
+    private ExtensionViewModelLifetime.BorrowedControl GetOrCreateToolbarViewControl(
+        RecordedSessionToolbarViewContribution contribution)
+    {
+        var key = GetContributionKey(contribution);
+        if (toolbarViewControls.TryGetValue(key, out var borrowed) &&
+            ReferenceEquals(borrowed.ViewModel, contribution.ViewModel))
+        {
+            return borrowed;
+        }
+
+        borrowed = ExtensionViewModelLifetime.CreateBorrowedControl(contribution.ViewModel);
+        toolbarViewControls[key] = borrowed;
+        return borrowed;
+    }
+
+    private void RemoveStaleToolbarViewControls(IReadOnlyCollection<RecordedSessionToolbarViewContribution> contributions)
+    {
+        var active = contributions.ToDictionary(GetContributionKey, contribution => contribution.ViewModel, StringComparer.Ordinal);
+        foreach (var (key, borrowed) in toolbarViewControls.ToArray())
+        {
+            if (active.TryGetValue(key, out var viewModel) &&
+                ReferenceEquals(borrowed.ViewModel, viewModel))
+            {
+                continue;
+            }
+
+            toolbarViewControls.Remove(key);
+        }
+    }
+
+    private void ClearToolbarViewControls()
+    {
+        toolbarViewControls.Clear();
+        LeadingSignalToolbarViewsHost.Children.Clear();
+        TrailingSignalToolbarViewsHost.Children.Clear();
+    }
+
+    private static string GetContributionKey(RecordedSessionToolbarViewContribution contribution) =>
+        $"{contribution.Zone}\u001f{contribution.ExtensionId}\u001f{contribution.ContributionId}";
 
     private static Image? CreateIcon(ToolbarIconDescriptor? descriptor)
     {
