@@ -305,7 +305,15 @@ public class SessionDetailViewModelTests
 
         editor.SessionContext.TelemetryData = telemetry;
         editor.SetAnalysisRange(0.02, 0.16);
-        editor.SessionContext.FrontAnalysisState = SurfacePresentationState.Ready;
+        editor.SetRecordedAnalysisStates(new RecordedAnalysisPresentationState(
+            SurfacePresentationState.Ready,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden));
         editor.AnalysisWorkspace.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
         var selection = CreateFrontDampingSelection(telemetry, editor.AnalysisWorkspace.SelectedVelocityAverageMode);
 

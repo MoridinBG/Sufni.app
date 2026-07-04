@@ -30,12 +30,22 @@ internal static class RecordedSessionEditorStateSnapshot
         IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>? signalPlotContextMenuActionsBySignalRowId = null,
         SessionInsightsResult? sessionInsights = null,
         RecordedSignalSurfaceState? signalSurfaces = null,
-        RecordedMediaPresentationState? mediaPresentation = null)
+        RecordedMediaPresentationState? mediaPresentation = null,
+        RecordedAnalysisPresentationState? analysisSurfaces = null)
     {
         var toggles = signalToggles ?? RecordedSignalToggleState.From(context);
         var modes = analysisModes ?? RecordedAnalysisModeState.From(context);
         var surfaces = signalSurfaces ?? RecordedSignalSurfaceState.From(context);
         var media = mediaPresentation ?? RecordedMediaPresentationState.From(context);
+        var analysis = analysisSurfaces ?? new RecordedAnalysisPresentationState(
+            context.FrontAnalysisState,
+            context.RearAnalysisState,
+            context.CompressionBalanceState,
+            context.ReboundBalanceState,
+            context.FrontForkVibrationState,
+            context.FrontFrameVibrationState,
+            context.RearForkVibrationState,
+            context.RearFrameVibrationState);
 
         return new RecordedSessionEditorState(
             Domain: null,
@@ -87,15 +97,7 @@ internal static class RecordedSessionEditorStateSnapshot
                     PitchRollHeaderActions: pitchRollHeaderActions ?? context.PitchRollHeaderActions,
                     SpeedHeaderActions: speedHeaderActions ?? context.SpeedHeaderActions,
                     ElevationHeaderActions: elevationHeaderActions ?? context.ElevationHeaderActions),
-                Analysis: new RecordedAnalysisPresentationState(
-                    FrontAnalysis: context.FrontAnalysisState,
-                    RearAnalysis: context.RearAnalysisState,
-                    CompressionBalance: context.CompressionBalanceState,
-                    ReboundBalance: context.ReboundBalanceState,
-                    FrontForkVibration: context.FrontForkVibrationState,
-                    FrontFrameVibration: context.FrontFrameVibrationState,
-                    RearForkVibration: context.RearForkVibrationState,
-                    RearFrameVibration: context.RearFrameVibrationState),
+                Analysis: analysis,
                 DampingPercentages: dampingPercentages ?? context.DampingPercentages,
                 PlotDampingSpeedCutoffs: context.PlotDampingSpeedCutoffs,
                 CanEditDampingSpeedCutoffs: context.CanEditDampingSpeedCutoffs,

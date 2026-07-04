@@ -158,6 +158,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private SurfacePresentationState mediaPaneState = SurfacePresentationState.Hidden;
     private double? mediaColumnWidth;
     private string? mediaUrl;
+    private SurfacePresentationState frontAnalysisState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState rearAnalysisState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState compressionBalanceState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState reboundBalanceState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState frontForkVibrationState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState frontFrameVibrationState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState rearForkVibrationState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState rearFrameVibrationState = SurfacePresentationState.Hidden;
     private bool showAirtime = true;
     private bool showVelocityAirtime;
     private bool showImuAirtime;
@@ -1647,7 +1655,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             SignalPlotContextMenuActionsBySignalRowId,
             sessionInsights,
             CreateSignalSurfaceState(),
-            CreateMediaPresentationState());
+            CreateMediaPresentationState(),
+            CreateAnalysisPresentationState());
         ApplyProjectedEditorState(state);
         editorStateInput.OnNext(state);
     }
@@ -1697,6 +1706,19 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             mediaPaneState,
             mediaColumnWidth,
             mediaUrl);
+    }
+
+    private RecordedAnalysisPresentationState CreateAnalysisPresentationState()
+    {
+        return new RecordedAnalysisPresentationState(
+            frontAnalysisState,
+            rearAnalysisState,
+            compressionBalanceState,
+            reboundBalanceState,
+            frontForkVibrationState,
+            frontFrameVibrationState,
+            rearForkVibrationState,
+            rearFrameVibrationState);
     }
 
     private void SetShowAirtime(bool value) => SetSignalToggle(ref showAirtime, value);
@@ -1979,6 +2001,42 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         mediaPaneState = nextPaneState;
         SessionContext.MediaUrl = url;
         SessionContext.MediaPaneState = nextPaneState;
+
+        if (changed)
+        {
+            PublishEditorState();
+        }
+    }
+
+    internal void SetRecordedAnalysisStates(RecordedAnalysisPresentationState state)
+    {
+        var changed =
+            frontAnalysisState != state.FrontAnalysis ||
+            rearAnalysisState != state.RearAnalysis ||
+            compressionBalanceState != state.CompressionBalance ||
+            reboundBalanceState != state.ReboundBalance ||
+            frontForkVibrationState != state.FrontForkVibration ||
+            frontFrameVibrationState != state.FrontFrameVibration ||
+            rearForkVibrationState != state.RearForkVibration ||
+            rearFrameVibrationState != state.RearFrameVibration;
+
+        frontAnalysisState = state.FrontAnalysis;
+        rearAnalysisState = state.RearAnalysis;
+        compressionBalanceState = state.CompressionBalance;
+        reboundBalanceState = state.ReboundBalance;
+        frontForkVibrationState = state.FrontForkVibration;
+        frontFrameVibrationState = state.FrontFrameVibration;
+        rearForkVibrationState = state.RearForkVibration;
+        rearFrameVibrationState = state.RearFrameVibration;
+
+        SessionContext.FrontAnalysisState = state.FrontAnalysis;
+        SessionContext.RearAnalysisState = state.RearAnalysis;
+        SessionContext.CompressionBalanceState = state.CompressionBalance;
+        SessionContext.ReboundBalanceState = state.ReboundBalance;
+        SessionContext.FrontForkVibrationState = state.FrontForkVibration;
+        SessionContext.FrontFrameVibrationState = state.FrontFrameVibration;
+        SessionContext.RearForkVibrationState = state.RearForkVibration;
+        SessionContext.RearFrameVibrationState = state.RearFrameVibration;
 
         if (changed)
         {
