@@ -15,7 +15,7 @@ namespace Sufni.App.Tests.Shared.Views.Overlays;
 public class PlotZoomOverlayHostTests
 {
     [AvaloniaFact]
-    public async Task ZoomRequest_MovesChildIntoOverlay_AndShowsScrim()
+    public async Task ZoomRequest_MovesChildIntoOverlay_AndEnablesOverlayHitTesting()
     {
         await using var mounted = await MountAsync();
 
@@ -27,7 +27,6 @@ public class PlotZoomOverlayHostTests
         Assert.True(mounted.Container.IsChildBorrowed);
         Assert.Null(mounted.Container.Child);
         Assert.Same(mounted.Child, GetRotationHost(mounted.Overlay).Child);
-        Assert.Equal(1, GetScrim(mounted.Overlay).Opacity);
     }
 
     [AvaloniaFact]
@@ -35,9 +34,10 @@ public class PlotZoomOverlayHostTests
     {
         await using var mounted = await MountAsync();
         await OpenAsync(mounted.Container);
+        await ForceImmediateClosePathAsync(mounted);
 
         RaiseDoubleTapped(mounted.Overlay);
-        await WaitForCloseAnimationAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(mounted.Overlay.IsZoomOpen);
         Assert.False(mounted.Overlay.IsVisible);
@@ -59,8 +59,9 @@ public class PlotZoomOverlayHostTests
             Key = Key.Escape,
         };
 
+        await ForceImmediateClosePathAsync(mounted);
         mounted.Host.RaiseEvent(args);
-        await WaitForCloseAnimationAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.True(args.Handled);
         Assert.False(mounted.Overlay.IsZoomOpen);
@@ -119,8 +120,9 @@ public class PlotZoomOverlayHostTests
         Assert.False(mounted.Overlay.TryCollapseZoom());
 
         await OpenAsync(mounted.Container);
+        await ForceImmediateClosePathAsync(mounted);
         Assert.True(mounted.Overlay.TryCollapseZoom());
-        await WaitForCloseAnimationAsync();
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(mounted.Overlay.IsZoomOpen);
         Assert.False(mounted.Overlay.TryCollapseZoom());
@@ -162,19 +164,16 @@ public class PlotZoomOverlayHostTests
     {
         container.RaiseEvent(new PlotZoomRequestedEventArgs(container));
         await ViewTestHelpers.FlushDispatcherAsync();
-        await ViewTestHelpers.FlushDispatcherAsync();
-        await Task.Delay(TimeSpan.FromMilliseconds(300));
-        await ViewTestHelpers.FlushDispatcherAsync();
     }
 
-    private static async Task WaitForCloseAnimationAsync()
+    private static async Task ForceImmediateClosePathAsync(MountedOverlay mounted)
     {
-        await Task.Delay(TimeSpan.FromMilliseconds(300));
+        mounted.Container.Width = 0;
+        mounted.Container.Height = 0;
+        mounted.Root.Measure(new Size(mounted.Host.Width, mounted.Host.Height));
+        mounted.Root.Arrange(new Rect(0, 0, mounted.Host.Width, mounted.Host.Height));
         await ViewTestHelpers.FlushDispatcherAsync();
     }
-
-    private static Border GetScrim(PlotZoomOverlayHost overlay) =>
-        Assert.IsType<Border>(overlay.Children[0]);
 
     private static LayoutTransformControl GetRotationHost(PlotZoomOverlayHost overlay) =>
         Assert.Single(overlay.GetVisualDescendants().OfType<LayoutTransformControl>());

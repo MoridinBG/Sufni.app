@@ -500,8 +500,6 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         {
             gate.Release();
         }
-
-        gate.Dispose();
     }
 
     private ILiveDaqSharedStreamLease AcquireLease(bool releaseConfigurationLock)

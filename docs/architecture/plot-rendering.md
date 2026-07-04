@@ -1,6 +1,6 @@
 # Plot Rendering
 
-> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the ScottPlot-backed plot model classes (shared bases in `Sufni.App/Sufni.App/Shared/Plots/`, concrete plots in each slice's `Plots/` folder), their Avalonia hosts in the slices' `Views/Plots/` folders (and `Sufni.App/Sufni.App/Shared/Views/Plots/`), and the display-time pipeline that prepares samples before they reach a plot. The data side that produces those samples lives in [signal processing](processing.md); the workspace view models that compose plots into pages live in [UI View Models](ui-view-models.md) and [live streaming](live-streaming.md).
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the ScottPlot-backed plot model classes (shared bases in `Sufni.App/Sufni.App/Shared/Plots/`, concrete plots in each slice's `Plots/` folder), their Avalonia hosts in `Shared/Views/Plots/` and in the owning slice folders (`Sessions/Plots/Views/Plots/`, `LiveDaq/Views/Plots/`, `MapsAndTracks/Views/Plots/`, `Bikes/Views/Plots/`, and extension hosts under `Extensibility/Views/`), and the display-time pipeline that prepares samples before they reach a plot. The data side that produces those samples lives in [signal processing](processing.md); the workspace view models that compose plots into pages live in [UI View Models](ui-view-models.md) and [live streaming](live-streaming.md).
 
 ## Table of Contents
 
@@ -14,13 +14,13 @@
 
 ## Layering
 
-Each concrete plot class is a thin adapter over a ScottPlot `Plot`: it owns drawing, axis rules, ticks, axis labels, legends, overlays, readouts, and the typed configuration knobs (`MaximumDisplayHz`, `SmoothingLevel`, `AnalysisRange`, plot-specific modes). It does not own the Avalonia control or the signal-row title. Avalonia plot views (under `Sufni.App/Sufni.App/Shared/Views/Plots/` and the per-slice `Views/Plots/` folders) host a `SufniAvaPlot` (a `ScottPlot.Avalonia.AvaPlot` subclass), construct the matching plot class against `PlotControl.Plot`, and forward bindings into it.
+Each concrete plot class is a thin adapter over a ScottPlot `Plot`: it owns drawing, axis rules, ticks, axis labels, legends, overlays, readouts, and the typed configuration knobs (`MaximumDisplayHz`, `SmoothingLevel`, `AnalysisRange`, plot-specific modes). It does not own the Avalonia control or the signal-row title. Avalonia plot views (shared bases under `Sufni.App/Sufni.App/Shared/Views/Plots/`, concrete hosts under the owning slice folders) host a `SufniAvaPlot` (a `ScottPlot.Avalonia.AvaPlot` subclass), construct the matching plot class against `PlotControl.Plot`, and forward bindings into it.
 
 For most recorded telemetry rows the host view passes a `TelemetryData` and calls `LoadTelemetryData(...)`. GPS speed/elevation rows are the carve-out: `TrackSignalPlotView` binds `TrackPoints` plus timeline context and calls `TrackSignalPlot.LoadTrackData(...)` for both recorded and live session surfaces. For live streaming, travel/velocity/IMU/pitch-roll plots own ScottPlot `DataStreamer` instances and are fed `LiveSignalBatch` deltas by `LiveSignalPlotViewBase`.
 
 ## Desktop vs Mobile Hosting
 
-Plot views are controls under `Sufni.App/Sufni.App/Shared/Views/Plots/` and the per-slice `Views/Plots/` folders. Desktop and mobile session pages host the same plot controls inside different surrounding layouts: desktop pages provide side-by-side panels and richer chrome, while mobile pages use stacked signal rows and touch-oriented controls. `App.IsDesktop` is read only inside those shared plot views for gesture decisions that cannot be expressed through DI, currently mobile long-press activation for velocity cutoff editing and recorded analysis/context-menu gestures. Plot model classes (under `Sufni.App/Sufni.App/Shared/Plots/` and each slice's `Plots/` folder) stay platform-neutral.
+Plot views are controls under `Sufni.App/Sufni.App/Shared/Views/Plots/` for shared bases and under the owning slices for concrete hosts. Desktop and mobile session pages host the same plot controls inside different surrounding layouts: desktop pages provide side-by-side panels and richer chrome, while mobile pages use stacked signal rows and touch-oriented controls. `App.IsDesktop` is read only inside those shared/concrete plot views for gesture decisions that cannot be expressed through DI, currently mobile long-press activation for velocity cutoff editing and recorded analysis/context-menu gestures. Plot model classes (under `Sufni.App/Sufni.App/Shared/Plots/` and each slice's `Plots/` folder) stay platform-neutral.
 
 ## Zoomed Plot Modal
 
@@ -39,7 +39,10 @@ the child pins its effective `DataContext` as a local value while it is outside
 the original slot, then restores the child's original local or inherited
 `DataContext` when it returns. This preserves axis limits, cursor/readout
 state, source-legend visibility, analysis range state, live streaming
-subscriptions, and extension-owned control state.
+subscriptions, and extension-owned control state when those inputs are stored on
+the control or flow through DataContext-relative bindings. The DataContext pin
+does not preserve inputs supplied by the original name scope, including `#Root`
+or other `ElementName` bindings, while the child is borrowed.
 
 The overlay lays the moved child out at the modal's final size immediately,
 then animates only transforms and scrim opacity for the 250 ms hero flight.

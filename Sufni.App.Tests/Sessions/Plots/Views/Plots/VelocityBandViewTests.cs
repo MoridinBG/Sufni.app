@@ -23,6 +23,7 @@ using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Analysis.Views.Controls;
 using Sufni.App.Shell.Behaviors;
+using Sufni.App.Tests.TestSupport.Async;
 using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.Sessions.Plots.Views.Plots;
 
@@ -124,6 +125,7 @@ public class VelocityBandViewTests
         {
             var workspace = CreateWorkspace();
             var view = CreateMountedView(workspace);
+            using var timers = ManualPeriodicUiTimerScheduler.Install();
             var hapticCount = 0;
             view.AddHandler(
                 HapticFeedbackBehavior.LongPressFeedbackRequestedEvent,
@@ -144,7 +146,7 @@ public class VelocityBandViewTests
 
             mounted.Host.MouseDown(start, MouseButton.Left, RawInputModifiers.None);
             mounted.Host.MouseMove(moved, RawInputModifiers.LeftMouseButton);
-            await Task.Delay(DampingCutoffInteraction.MobileLongPressDelay + TimeSpan.FromMilliseconds(50));
+            Assert.False(timers.HasScheduledTimers);
             await ViewTestHelpers.FlushDispatcherAsync();
             mounted.Host.MouseUp(moved, MouseButton.Left, RawInputModifiers.None);
             await ViewTestHelpers.FlushDispatcherAsync();
@@ -175,6 +177,7 @@ public class VelocityBandViewTests
         {
             var workspace = CreateWorkspace();
             var view = CreateMountedView(workspace);
+            using var timers = ManualPeriodicUiTimerScheduler.Install();
             var hapticCount = 0;
             view.AddHandler(
                 HapticFeedbackBehavior.LongPressFeedbackRequestedEvent,
@@ -186,7 +189,7 @@ public class VelocityBandViewTests
             var dragTarget = Translate(view, mounted.Host, new Point(view.Bounds.Width / 2.0, 120));
 
             mounted.Host.MouseDown(start, MouseButton.Left, RawInputModifiers.None);
-            await Task.Delay(DampingCutoffInteraction.MobileLongPressDelay + TimeSpan.FromMilliseconds(50));
+            timers.FireNext();
             await ViewTestHelpers.FlushDispatcherAsync();
             mounted.Host.MouseMove(dragTarget, RawInputModifiers.LeftMouseButton);
             mounted.Host.MouseUp(dragTarget, MouseButton.Left, RawInputModifiers.None);

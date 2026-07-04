@@ -29,6 +29,7 @@ public class SyncCoordinator : ISyncCoordinator
     private readonly IUiThreadDispatcher uiThreadDispatcher;
     private readonly TimeSpan inboundActivityIdleGrace;
     private readonly TimeSpan finalInboundActivityIdleGrace;
+    private readonly Func<TimeSpan, Task> inboundActivityDelayAsync;
 
     private bool isRunning;
     private bool outboundSyncRunning;
@@ -81,7 +82,8 @@ public class SyncCoordinator : ISyncCoordinator
         IBackgroundTaskRunner? backgroundTaskRunner = null,
         TimeSpan? inboundActivityIdleGrace = null,
         TimeSpan? finalInboundActivityIdleGrace = null,
-        IUiThreadDispatcher? uiThreadDispatcher = null)
+        IUiThreadDispatcher? uiThreadDispatcher = null,
+        Func<TimeSpan, Task>? inboundActivityDelayAsync = null)
     {
         this.bikeStore = bikeStore;
         this.setupStore = setupStore;
@@ -94,6 +96,7 @@ public class SyncCoordinator : ISyncCoordinator
         this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
         this.inboundActivityIdleGrace = inboundActivityIdleGrace ?? DefaultInboundActivityIdleGrace;
         this.finalInboundActivityIdleGrace = finalInboundActivityIdleGrace ?? FinalInboundActivityIdleGrace;
+        this.inboundActivityDelayAsync = inboundActivityDelayAsync ?? Task.Delay;
 
         if (pairingClientCoordinator is not null)
         {
@@ -260,7 +263,7 @@ public class SyncCoordinator : ISyncCoordinator
 
     private async Task ClearInboundActivityAfterDelayAsync(int generation, TimeSpan idleGrace)
     {
-        await Task.Delay(idleGrace);
+        await inboundActivityDelayAsync(idleGrace);
         await uiThreadDispatcher.InvokeAsync(() => ClearInboundActivityIfIdle(generation));
     }
 

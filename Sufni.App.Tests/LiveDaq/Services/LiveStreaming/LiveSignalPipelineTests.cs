@@ -13,10 +13,11 @@ namespace Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
 public class LiveSignalPipelineTests
 {
     private const int MaxVelocityContextMilliseconds = 127;
+    private const int DeadlockProneTestTimeoutMs = 5000;
     private static readonly TimeSpan FlushInterval = TimeSpan.FromMilliseconds(5);
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(2);
 
-    [Fact]
+    [Fact(Timeout = DeadlockProneTestTimeoutMs)]
     public async Task AppendTravelSamples_FlushesBatchAtIntervalWithVelocity()
     {
         await using var pipeline = CreatePipeline();
@@ -40,7 +41,7 @@ public class LiveSignalPipelineTests
         Assert.All(batch.RearVelocity, value => Assert.False(double.IsNaN(value)));
     }
 
-    [Fact]
+    [Fact(Timeout = DeadlockProneTestTimeoutMs)]
     public async Task AppendTravelSamples_BelowFiveSamples_VelocityIsNaN()
     {
         await using var pipeline = CreatePipeline();
@@ -61,7 +62,7 @@ public class LiveSignalPipelineTests
         Assert.All(batch.RearVelocity, value => Assert.True(double.IsNaN(value)));
     }
 
-    [Fact]
+    [Fact(Timeout = DeadlockProneTestTimeoutMs)]
     public async Task AppendTravelSamples_LargerThanVelocityWindow_PreservesTravelAndImuData()
     {
         await using var pipeline = CreatePipeline();
@@ -96,7 +97,7 @@ public class LiveSignalPipelineTests
         Assert.All(batch.RearVelocity.Skip(sampleCount - expectedVelocitySamples), value => Assert.False(double.IsNaN(value)));
     }
 
-    [Fact]
+    [Fact(Timeout = DeadlockProneTestTimeoutMs)]
     public async Task AppendImuSamples_OnlyImu_FlushesWithEmptyTravel()
     {
         await using var pipeline = CreatePipeline();
@@ -124,7 +125,7 @@ public class LiveSignalPipelineTests
         Assert.Equal(1.5, batch.ImuVibrationRms[LiveImuLocation.Frame][0]);
     }
 
-    [Fact]
+    [Fact(Timeout = DeadlockProneTestTimeoutMs)]
     public async Task AppendFramePitchRollSamples_OnlyPitchRoll_FlushesWithEmptyTravel()
     {
         await using var pipeline = CreatePipeline();
@@ -153,7 +154,7 @@ public class LiveSignalPipelineTests
         Assert.Equal(roll, batch.FrameRollDegrees);
     }
 
-    [Fact]
+    [Fact(Timeout = DeadlockProneTestTimeoutMs)]
     public async Task AppendTravelSamples_TwoCallsBeforeFlush_MergesIntoSingleBatch()
     {
         await using var pipeline = CreatePipelineWithInterval(TimeSpan.FromMilliseconds(200));
@@ -178,7 +179,7 @@ public class LiveSignalPipelineTests
         Assert.Equal(1L, batch.Revision);
     }
 
-    [Fact]
+    [Fact(Timeout = DeadlockProneTestTimeoutMs)]
     public async Task Reset_ClearsAccumulatorAndEmitsResetBatch()
     {
         await using var pipeline = CreatePipeline();
@@ -218,7 +219,7 @@ public class LiveSignalPipelineTests
         Assert.All(postResetBatch.FrontVelocity, value => Assert.True(double.IsNaN(value)));
     }
 
-    [Fact]
+    [Fact(Timeout = DeadlockProneTestTimeoutMs)]
     public async Task DisposeAsync_StopsLoopAndCompletesSubject()
     {
         var pipeline = CreatePipeline();

@@ -33,12 +33,14 @@ using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Extensions;
+using Sufni.App.Tests.TestSupport.Async;
 
 namespace Sufni.App.Tests.LiveDaq.ViewModels.Editors;
 
 [Collection("Ui")]
-public class LiveSessionDetailViewModelTests
+public class LiveSessionDetailViewModelTests : IDisposable
 {
+    private readonly ManualPeriodicUiTimerScheduler uiTimers;
     private readonly ILiveSessionService liveSessionService = Substitute.For<ILiveSessionService>();
     private readonly ISessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
@@ -54,6 +56,7 @@ public class LiveSessionDetailViewModelTests
 
     public LiveSessionDetailViewModelTests()
     {
+        uiTimers = ManualPeriodicUiTimerScheduler.Install();
         tileLayerService.AvailableLayers.Returns([]);
         tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
         capturePackage = CreateCapturePackage();
@@ -85,6 +88,13 @@ public class LiveSessionDetailViewModelTests
             Arg.Any<SessionPreferences>(),
             Arg.Any<CancellationToken>())
             .Returns(new LiveSessionSaveResult.Saved(Guid.NewGuid(), 5));
+    }
+
+    public void Dispose()
+    {
+        uiTimers.Dispose();
+        snapshots.Dispose();
+        signalBatches.Dispose();
     }
 
     [AvaloniaFact]
@@ -849,9 +859,20 @@ public class LiveSessionDetailViewModelTests
         var firstTelemetry = TestTelemetryData.CreateProcessed();
         currentSnapshot = CreateSnapshot(canSave: true, telemetryData: firstTelemetry);
         snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
 
         await firstBakeStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Equal(1, callCount);
+
+        var secondBakeApplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        editor.SpringPage.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(SpringPageViewModel.FrontTravelDistribution) &&
+                editor.SpringPage.FrontTravelDistribution == secondData.FrontTravelDistribution)
+            {
+                secondBakeApplied.TrySetResult();
+            }
+        };
 
         var secondTelemetry = TestTelemetryData.CreateProcessed();
         currentSnapshot = CreateSnapshot(canSave: true, telemetryData: secondTelemetry, captureRevision: 2);
@@ -862,6 +883,10 @@ public class LiveSessionDetailViewModelTests
         firstBakeGate.SetResult(firstData);
 
         await WaitForUiRefreshAsync();
+        if (editor.SpringPage.FrontTravelDistribution != secondData.FrontTravelDistribution)
+        {
+            await secondBakeApplied.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
 
         Assert.True(capturedFirstToken.IsCancellationRequested);
         Assert.Equal(secondData.FrontTravelDistribution, editor.SpringPage.FrontTravelDistribution);
@@ -1059,6 +1084,7 @@ public class LiveSessionDetailViewModelTests
 
         currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
         snapshots.OnNext(currentSnapshot);
+        await WaitForUiRefreshAsync();
 
         await bakeStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
@@ -1214,9 +1240,13 @@ public class LiveSessionDetailViewModelTests
                 Markers: []));
     }
 
-    private static async Task WaitForUiRefreshAsync()
+    private async Task WaitForUiRefreshAsync()
     {
-        await Task.Delay(150);
+        if (uiTimers.HasScheduledTimers)
+        {
+            uiTimers.FireAll();
+        }
+
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
 

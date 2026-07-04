@@ -37,6 +37,7 @@ using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Shared.Views.Plots;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Tests.TestSupport.Async;
 using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.Sessions.Signals.DesktopViews.Items;
 
@@ -242,6 +243,7 @@ public class RecordedSessionSignalsDesktopViewTests
     public async Task RecordedSessionSignalsDesktopView_VelocityPlotClick_ClearsAnalysisRange()
     {
         var workspace = new RecordedSessionSignalsWorkspaceStub(CreateMinimal());
+        using var timers = ManualPeriodicUiTimerScheduler.Install();
 
         await using var mounted = await MountAsync(workspace);
 
@@ -259,7 +261,7 @@ public class RecordedSessionSignalsDesktopViewTests
 
         mounted.Host.MouseDown(clickPoint.Value, MouseButton.Left, RawInputModifiers.None);
         mounted.Host.MouseUp(clickPoint.Value, MouseButton.Left, RawInputModifiers.None);
-        await Task.Delay(TimeSpan.FromMilliseconds(600));
+        timers.FireNext();
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(1, workspace.ClearAnalysisRangeCallCount);

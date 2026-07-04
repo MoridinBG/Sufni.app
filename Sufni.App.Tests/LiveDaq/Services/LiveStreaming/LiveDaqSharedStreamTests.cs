@@ -9,6 +9,9 @@ namespace Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
 
 public class LiveDaqSharedStreamTests
 {
+    private const int DeadlockProneTestTimeoutMs = 5000;
+    private const int SlowSubscriberTestTimeoutMs = 15000;
+
     private readonly BehaviorSubject<IReadOnlyList<LiveDaqCatalogEntry>> catalogEntries = new([]);
     private readonly ILiveDaqCatalogService catalogService = Substitute.For<ILiveDaqCatalogService>();
     private readonly IDisposable browseLease = Substitute.For<IDisposable>();
@@ -350,7 +353,7 @@ public class LiveDaqSharedStreamTests
         Assert.NotNull(stream.CurrentState.LastError);
     }
 
-    [Fact]
+    [Fact(Timeout = DeadlockProneTestTimeoutMs)]
     public async Task GetOrCreate_ReturnsReplacementStream_WhenExistingStreamIsPendingEviction()
     {
         using var registry = CreateRegistry();
@@ -378,7 +381,7 @@ public class LiveDaqSharedStreamTests
         Assert.Same(replacement, again);
     }
 
-    [Fact]
+    [Fact(Timeout = DeadlockProneTestTimeoutMs)]
     public async Task AcquireLease_RescuesPendingEviction_WhenCallerAlreadyHoldsStreamReference()
     {
         using var registry = CreateRegistry();
@@ -406,7 +409,7 @@ public class LiveDaqSharedStreamTests
         await rescuedLease.DisposeAsync();
     }
 
-    [Fact]
+    [Fact(Timeout = SlowSubscriberTestTimeoutMs)]
     public async Task Frames_SlowSubscriber_DoesNotBlockPublishing_AndDropsOldestBufferedFrames()
     {
         using var registry = CreateRegistry();
@@ -451,9 +454,30 @@ public class LiveDaqSharedStreamTests
         });
 
         await firstFrameEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await publishTask.WaitAsync(TimeSpan.FromSeconds(2));
+        var publishCompletedWhileSubscriberBlocked =
+            await Task.WhenAny(publishTask, Task.Delay(TimeSpan.FromSeconds(2))) == publishTask;
+        if (!publishCompletedWhileSubscriberBlocked)
+        {
+            releaseFirstFrame.TrySetResult();
+            await publishTask.WaitAsync(TimeSpan.FromSeconds(2));
+        }
 
-        releaseFirstFrame.TrySetResult();
+        Assert.True(
+            publishCompletedWhileSubscriberBlocked,
+            "Publishing blocked behind a slow frame subscriber.");
+
+        try
+        {
+            await AssertEventuallyAsync(
+                () => stream.CurrentState.ClientDropCounters.SubscriberFramesDropped > 0,
+                TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            releaseFirstFrame.TrySetResult();
+        }
+
+        await publishTask.WaitAsync(TimeSpan.FromSeconds(2));
 
         await AssertEventuallyAsync(() =>
         {
@@ -462,9 +486,6 @@ public class LiveDaqSharedStreamTests
                 return receivedOffsets.Count > 0 && receivedOffsets.Contains((ulong)publishedFrameCount);
             }
         });
-        await AssertEventuallyAsync(
-            () => stream.CurrentState.ClientDropCounters.SubscriberFramesDropped > 0,
-            TimeSpan.FromSeconds(5));
 
         lock (receivedOffsets)
         {

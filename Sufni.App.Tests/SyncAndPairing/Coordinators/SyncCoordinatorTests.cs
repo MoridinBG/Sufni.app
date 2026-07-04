@@ -423,6 +423,7 @@ public class SyncCoordinatorTests
     public async Task ServerSyncActivity_RemainsRunningDuringInboundIdleGrace()
     {
         var server = new TestSynchronizationServerService();
+        var idleDelay = new ManualDelay();
         var coordinator = new SyncCoordinator(
             bikeStore,
             setupStore,
@@ -431,7 +432,8 @@ public class SyncCoordinatorTests
             pairedDeviceStore,
             synchronizationServerService: server,
             backgroundTaskRunner: new InlineBackgroundTaskRunner(),
-            inboundActivityIdleGrace: TimeSpan.FromMilliseconds(100));
+            inboundActivityIdleGrace: TimeSpan.FromMilliseconds(100),
+            inboundActivityDelayAsync: idleDelay.DelayAsync);
         var firstProgress = new SynchronizationProgressSnapshot(
             SynchronizationPhase.ReceivingChanges,
             "Receiving remote changes",
@@ -451,6 +453,7 @@ public class SyncCoordinatorTests
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
         Assert.True(coordinator.IsRunning);
+        Assert.Equal(TimeSpan.FromMilliseconds(100), idleDelay.PeekNextDelay());
         var currentProgress = coordinator.Progress;
         Assert.NotNull(currentProgress);
         Assert.Equal(SynchronizationPhase.ReceivingChanges, currentProgress.Phase);
@@ -460,6 +463,7 @@ public class SyncCoordinatorTests
 
         server.RaiseSyncActivityStarted(secondProgress);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        await idleDelay.CompleteNextAsync();
 
         Assert.True(coordinator.IsRunning);
         currentProgress = coordinator.Progress;
@@ -471,11 +475,37 @@ public class SyncCoordinatorTests
         Assert.True(currentProgress.IsDeterminate);
 
         server.RaiseSyncActivityEnded(secondProgress);
-        await Task.Delay(150);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        Assert.True(coordinator.IsRunning);
+        Assert.Equal(TimeSpan.FromMilliseconds(100), idleDelay.PeekNextDelay());
+
+        await idleDelay.CompleteNextAsync();
 
         Assert.False(coordinator.IsRunning);
         Assert.Null(coordinator.Progress);
+    }
+
+    private sealed class ManualDelay
+    {
+        private readonly Queue<PendingDelay> pending = [];
+
+        public Task DelayAsync(TimeSpan delay)
+        {
+            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            pending.Enqueue(new PendingDelay(delay, completion));
+            return completion.Task;
+        }
+
+        public TimeSpan PeekNextDelay() => pending.Peek().Delay;
+
+        public async Task CompleteNextAsync()
+        {
+            pending.Dequeue().Completion.SetResult();
+            await Task.Yield();
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        }
+
+        private sealed record PendingDelay(TimeSpan Delay, TaskCompletionSource Completion);
     }
 
 }
