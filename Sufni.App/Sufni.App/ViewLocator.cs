@@ -21,6 +21,7 @@ using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Setups.ViewModels.Editors;
 using Sufni.App.Setups.ViewModels.ItemLists;
 using Sufni.App.Setups.ViewModels.SensorConfigurations;
+using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Base;
 using Sufni.App.Shell.ViewModels;
 using Sufni.App.SyncAndPairing.ViewModels;
@@ -111,6 +112,11 @@ public class ViewLocator : IDataTemplate
         if (data is RecordedSessionExtensionPageViewModel extensionPage)
         {
             return Build(extensionPage.ViewModel);
+        }
+
+        if (data is ShellRootViewModel { LayoutProfile: UiLayoutProfile.Compact })
+        {
+            return new global::Sufni.App.Shell.Views.CompactShellView();
         }
 
         if (extensionViewRegistry.TryBuild(data, isDesktop, serviceProvider, out var extensionView))

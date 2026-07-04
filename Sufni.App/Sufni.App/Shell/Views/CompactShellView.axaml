@@ -1,0 +1,14 @@
+<UserControl
+x:Class="Sufni.App.Shell.Views.CompactShellView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.Shell.ViewModels"
+d:DesignHeight="600"
+d:DesignWidth="500"
+x:DataType="vm:ShellRootViewModel"
+Background="{DynamicResource SufniRegion}"
+mc:Ignorable="d">
+    <ContentControl Content="{Binding Pages}" />
+</UserControl>

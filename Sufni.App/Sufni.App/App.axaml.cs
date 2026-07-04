@@ -418,11 +418,13 @@ public partial class App : Application
                 desktop.Exit += (_, _) => LoggingBootstrapper.FlushAndClose();
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
-                var mainViewModel = Services.GetRequiredService<MainViewModel>();
+                var shellRootViewModel = Services.GetRequiredService<ShellRootViewModel>();
+                var mobileNavigationShellHost = Services.GetRequiredService<IMobileNavigationShellHost>();
                 var mobileNavigationPageHost = Services.GetRequiredService<IMobileNavigationPageHost>();
+                mobileNavigationShellHost.SetRoot(shellRootViewModel);
                 var mainView = new MainView
                 {
-                    DataContext = mainViewModel
+                    DataContext = shellRootViewModel
                 };
                 mainView.SetNavigationPageHost(mobileNavigationPageHost);
                 Services.GetRequiredService<IPlotZoomState>()
@@ -439,7 +441,7 @@ public partial class App : Application
                     Debug.Assert(topLevel is not null);
                     topLevel.BackRequested += (_, e) =>
                     {
-                        var handled = mainViewModel.TryCloseTransientShellSurface();
+                        var handled = shellRootViewModel.TryCloseTransientShellSurface();
                         if (!handled)
                         {
                             handled = shellCoordinator.GoBack();
