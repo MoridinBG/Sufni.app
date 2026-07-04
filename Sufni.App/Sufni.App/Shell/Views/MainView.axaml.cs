@@ -1,6 +1,4 @@
 using Avalonia.Controls;
-using Sufni.App.Infrastructure;
-using Sufni.App.Shell.ViewModels;
 
 namespace Sufni.App.Shell.Views
 {
@@ -49,9 +47,7 @@ namespace Sufni.App.Shell.Views
             DetachNavigationPageIfNeeded();
         }
 
-        private bool UsesNativeNavigation() =>
-            DataContext is not ShellRootViewModel root ||
-            root.LayoutProfile == UiLayoutProfile.Compact;
+        private static bool UsesNativeNavigation() => false;
 
         private void AttachNavigationPageIfNeeded()
         {

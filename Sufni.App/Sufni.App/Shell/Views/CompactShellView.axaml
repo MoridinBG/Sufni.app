@@ -176,5 +176,13 @@ mc:Ignorable="d">
             Stroke="{DynamicResource SufniAccentSpinner}"
             StrokeLineCap="Round" />
         </Grid>
+
+        <Border
+        Name="CompactWorkspaceDetailHost"
+        Background="{DynamicResource SufniRegion}"
+        IsVisible="{Binding Workspace.CurrentTab, Converter={x:Static converters:ObjectConverters.IsNotNull}}"
+        ZIndex="10">
+            <ContentControl Content="{Binding Workspace.CurrentTab}" />
+        </Border>
     </Panel>
 </UserControl>
