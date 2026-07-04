@@ -60,17 +60,14 @@ Other desktop/mobile differences are carried by composition or view contracts
 rather than by reading `App.IsDesktop` from services or view models. For
 example, `App` configures `DialogService` through its `IDialogHost` interface
 with window or overlay presentation,
-desktop-only views expose desktop-only controls directly, and the session detail
-views select desktop versus mobile loading through the command parameter they
-pass on load.
+desktop-only views expose desktop-only controls directly, and session detail
+views use the same local-only load path in both profiles.
 
 Coordinators and services do **not** branch on `IsDesktop` for behavior they
 would otherwise own. Where workflow really differs the divergence is expressed
-as separate coordinator entry points (e.g.
-`SessionCoordinator.LoadDesktopDetailAsync` vs `LoadMobileDetailAsync`) or as a
-separate coordinator type (`IShellCoordinator` implementations). Tests use
-`TestApp.SetIsDesktop(...)` only when exercising `ViewLocator` or plot gesture
-branches — see [Testing](#testing).
+through platform service registration or explicit capabilities. Tests use
+`TestApp.SetIsDesktop(...)` only when exercising legacy `ViewLocator` or plot
+gesture branches — see [Testing](#testing).
 
 ## Navigation Shells
 
@@ -152,7 +149,7 @@ view command parameters used in production.
 
 The places where the same workflow takes a meaningfully different desktop vs mobile path are deliberately small:
 
-- **Session detail load**. `SessionDetailViewModel` calls `SessionCoordinator.LoadDesktopDetailAsync(...)` on desktop and `LoadMobileDetailAsync(...)` on mobile. The mobile path consults a `session_cache` row first, fetches missing telemetry from the paired desktop server transparently if the local blob is absent, and projects a smaller presentation; the desktop path always loads the full telemetry blob locally. See [UI Workflows § Coordinators](ui-workflows.md#coordinators) for the coordinator entry points and [Persistence § Schema](persistence.md#schema) for the `session_cache` row.
+- **Session detail load**. `SessionDetailViewModel` calls one local-only `SessionCoordinator.LoadDetailAsync(...)` path in both profiles. Missing processed telemetry or recorded-source payloads surface as an incomplete-local-data screen state; sync is responsible for downloading those payloads before the session is opened. See [UI Workflows § Coordinators](ui-workflows.md#coordinators) and [Sync](sync.md).
 - **Sync direction**. Desktop hosts the server, mobile drives the client. There is no peer-to-peer mode and no path that runs both on one device. See [Sync](sync.md).
 - **Editor presentation**. Desktop opens editors as additional `TabPageViewModelBase` tabs that can coexist with the list page; mobile pushes the editor onto the back stack and pops it on save / cancel. The same `IShellCoordinator` calls drive both.
 - **Dialogs**. `DialogService` shows tile-layer, live-DAQ-config, and generic extension dialogs as standalone Avalonia `Window`s on desktop and as in-tree overlays anchored on `MainView` on mobile. Close-confirmation dialogs use the desktop `Window` form on both shells when an owner window is set.

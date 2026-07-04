@@ -48,8 +48,7 @@ internal sealed class TestPersistenceHarness
         trackRepository = new TrackRepository(context);
         sessionRepository = new SessionRepository(context, fingerprintService);
         sessionTelemetryProcessor = new SessionTelemetryProcessor();
-        var sessionCacheStore = new SessionCacheStore(context);
-        sessionTelemetryWriter = new SessionTelemetryWriter(sessionRepository, trackRepository, sessionTelemetryProcessor, sessionCacheStore);
+        sessionTelemetryWriter = new SessionTelemetryWriter(sessionRepository, trackRepository, sessionTelemetryProcessor);
         recordedSessionSourceRepository = new RecordedSessionSourceRepository(context);
         syncDataStore = new SynchronizationMergeEngine(context, trackRepository, fingerprintService);
         extensionDatabaseConnection = new ExtensionDatabaseConnection(context);

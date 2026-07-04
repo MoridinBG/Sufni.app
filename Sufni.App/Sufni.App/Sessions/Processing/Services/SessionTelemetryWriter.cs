@@ -31,9 +31,7 @@ public interface ISessionTelemetryWriter
     /// session (summary metrics + cached session-window track) and delegates to
     /// <see cref="ISessionRepository.UpdateProcessedDerivedDataAsync"/>, which
     /// re-checks the DB-input fingerprint inside the write transaction and returns
-    /// null on a passive dependency change (the engine re-enqueues). On success the
-    /// session cache is invalidated so the next mobile load rebuilds from the fresh
-    /// derived data.
+    /// null on a passive dependency change (the engine re-enqueues).
     /// </summary>
     Task<Session?> UpdateProcessedDerivedDataAsync(
         Session session,
@@ -47,8 +45,7 @@ public interface ISessionTelemetryWriter
     /// processing fingerprint, otherwise the bytes are not the ones the row is
     /// awaiting and an <see cref="System.IO.InvalidDataException"/> is thrown
     /// (the sync server maps it to 400). On a match it writes the BLOB, its
-    /// fingerprint, and metrics recomputed from the new bytes (no `updated`
-    /// bump), then invalidates the session cache.
+    /// fingerprint, and metrics recomputed from the new bytes (no `updated` bump).
     /// </summary>
     Task PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint);
 
@@ -57,8 +54,7 @@ public interface ISessionTelemetryWriter
     /// its fingerprint against the swap/fill target. It overwrites the
     /// row's BLOB and fingerprint coherently — with no concurrency re-check, so a
     /// swap can replace a held BLOB whose fingerprint differs from the new one —
-    /// recomputes metrics from the new bytes (no `updated` bump), and invalidates
-    /// the session cache.
+    /// and recomputes metrics from the new bytes (no `updated` bump).
     /// </summary>
     Task SwapSessionPsstAsync(Guid id, byte[] data, string? fingerprint);
 
@@ -68,8 +64,7 @@ public interface ISessionTelemetryWriter
 internal sealed class SessionTelemetryWriter(
     ISessionRepository sessionRepository,
     ITrackRepository trackRepository,
-    ISessionTelemetryProcessor sessionTelemetryProcessor,
-    ISessionCacheStore sessionCacheStore) : ISessionTelemetryWriter
+    ISessionTelemetryProcessor sessionTelemetryProcessor) : ISessionTelemetryWriter
 {
     public async Task<Session> PutProcessedSessionAsync(
         Session session,
@@ -88,15 +83,7 @@ internal sealed class SessionTelemetryWriter(
         ProcessingFingerprint expectedInputFingerprint)
     {
         await PrepareProcessedSessionAsync(session, payload, newFullTrack);
-        var fresh = await sessionRepository.UpdateProcessedDerivedDataAsync(session, newFullTrack, expectedInputFingerprint);
-        if (fresh is not null)
-        {
-            // The derived write changed session.data and the cached track; drop the
-            // mobile session_cache so the next load rebuilds from the fresh data.
-            await sessionCacheStore.DeleteSessionCacheAsync(session.Id);
-        }
-
-        return fresh;
+        return await sessionRepository.UpdateProcessedDerivedDataAsync(session, newFullTrack, expectedInputFingerprint);
     }
 
     public async Task PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint)
@@ -143,10 +130,6 @@ internal sealed class SessionTelemetryWriter(
             hasTrackPoints ? metrics.DescentMeters : current.DescentMeters);
 
         await sessionRepository.UpdateSessionPsstAsync(id, data, fingerprint, finalMetrics);
-
-        // The cached presentation derives from the previous BLOB; drop it so the
-        // next mobile load rebuilds from the freshly written bytes.
-        await sessionCacheStore.DeleteSessionCacheAsync(id);
     }
 
     public async Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points, double? gpsOffsetSeconds = null)
@@ -158,11 +141,6 @@ internal sealed class SessionTelemetryWriter(
         var metrics = sessionTelemetryProcessor.ComputeSummaryMetrics(durationSeconds, points);
 
         await sessionRepository.UpdateSessionTrackAsync(id, points, metrics, gpsOffsetSeconds);
-
-        // The cached presentation derives from the session-window track and its
-        // metrics; a track/GPS-offset change makes it stale, so drop it (like the
-        // BLOB write paths) and let the next mobile load rebuild it.
-        await sessionCacheStore.DeleteSessionCacheAsync(id);
     }
 
     private async Task<double?> ResolvePatchDurationSecondsAsync(Session current)

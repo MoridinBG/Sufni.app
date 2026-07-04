@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-
-using Sufni.App.Sessions.Models;
 namespace Sufni.App.Sessions.Processing.SessionDetails;
 
 public sealed record DampingSpeedCutoffOwner(Guid BikeId, long BaselineUpdated);
@@ -79,37 +77,6 @@ public sealed record SessionCachePresentationData(
     {
     }
 
-    public static SessionCachePresentationData FromCache(SessionCache cache)
-    {
-        var balanceAvailable = cache.CompressionBalance is not null && cache.ReboundBalance is not null;
-
-        return new SessionCachePresentationData(
-            cache.FrontTravelDistribution,
-            cache.RearTravelDistribution,
-            cache.FrontVelocityDistribution,
-            cache.RearVelocityDistribution,
-            cache.CompressionBalance,
-            cache.ReboundBalance,
-            cache.DampingPercentages,
-            cache.DampingSpeedCutoffs,
-            balanceAvailable);
-    }
-
-    public SessionCache ToCache(Guid sessionId)
-    {
-        return new SessionCache
-        {
-            SessionId = sessionId,
-            FrontTravelDistribution = FrontTravelDistribution,
-            RearTravelDistribution = RearTravelDistribution,
-            FrontVelocityDistribution = FrontVelocityDistribution,
-            RearVelocityDistribution = RearVelocityDistribution,
-            CompressionBalance = BalanceAvailable ? CompressionBalance : null,
-            ReboundBalance = BalanceAvailable ? ReboundBalance : null,
-            DampingPercentages = this.DampingPercentages,
-            DampingSpeedCutoffs = this.DampingSpeedCutoffs,
-        };
-    }
 }
 
 public readonly record struct SessionPresentationDimensions(int Width, int Height)

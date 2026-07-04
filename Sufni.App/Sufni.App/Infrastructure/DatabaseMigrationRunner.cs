@@ -37,7 +37,7 @@ internal sealed class DatabaseMigrationRunner(
             await EnsureSessionGpsOffsetColumnAsync();
             await EnsureBikeDampingSpeedCutoffColumnsAsync();
             await EnsureBikeRearSuspensionColumnAsync();
-            await EnsureSessionCacheDampingSpeedCutoffColumnsAsync();
+            await DropSessionCacheTableAsync();
             await coreMigrations.EnsureTableAsync();
             await connection.ExecuteAsync(SessionBlobSwapRequestStore.CreateTableSql);
             await extensionMigratorRunner.RunAsync(connection);
@@ -46,8 +46,7 @@ internal sealed class DatabaseMigrationRunner(
             await extensionCascadeService.RepairOrphansAsync(refreshExtensionState: false);
             logger.Information("SQLite database initialized at {DatabasePath}", databasePath);
             logger.Verbose(
-                "SQLite startup cleanup removed {SessionCacheCount} session caches, {SessionCount} sessions, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
-                cleanupSummary.SessionCaches,
+                "SQLite startup cleanup removed {SessionCount} sessions, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
                 cleanupSummary.Sessions,
                 cleanupSummary.Tracks,
                 cleanupSummary.Boards,
@@ -71,7 +70,6 @@ internal sealed class DatabaseMigrationRunner(
             typeof(Bike),
             typeof(Session),
             typeof(RecordedSessionSource),
-            typeof(SessionCache),
             typeof(Synchronization),
             typeof(PairedDevice),
             typeof(Track)
@@ -134,23 +132,8 @@ internal sealed class DatabaseMigrationRunner(
         }
     }
 
-    private async Task EnsureSessionCacheDampingSpeedCutoffColumnsAsync()
-    {
-        var columns = await connection.QueryAsync<TableColumnInfo>("PRAGMA table_info(session_cache)");
-        var columnNames = columns.Select(column => column.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var columnName in DampingSpeedCutoffColumnNames)
-        {
-            if (!columnNames.Contains(columnName))
-            {
-                await connection.ExecuteAsync($"ALTER TABLE session_cache ADD COLUMN {columnName} REAL");
-            }
-
-            await connection.ExecuteAsync(
-                $"UPDATE session_cache SET {columnName} = ? WHERE {columnName} IS NULL",
-                DampingSpeedCutoffs.DefaultMmPerSecond);
-        }
-    }
+    private Task DropSessionCacheTableAsync() =>
+        connection.ExecuteAsync("DROP TABLE IF EXISTS session_cache");
 
     private async Task EnsureBikeRearSuspensionColumnAsync()
     {
@@ -296,16 +279,6 @@ internal sealed class DatabaseMigrationRunner(
     {
         var oneDayAgo = DateTimeOffset.Now.AddDays(-1).ToUnixTimeSeconds();
 
-        var cleanSessionCachesQuery = $"""
-                                       DELETE FROM session_cache
-                                       WHERE session_id IN (
-                                           SELECT id
-                                           FROM session
-                                           WHERE deleted IS NOT NULL AND deleted < {oneDayAgo}
-                                       )
-                                       """;
-        var deletedSessionCaches = await connection.ExecuteAsync(cleanSessionCachesQuery);
-
         var deletedSessions = await connection.Table<Session>().DeleteAsync(session => session.Deleted != null && session.Deleted < oneDayAgo);
         var duplicateTracks = await CleanupDuplicateTrackTimeRangesAsync();
         var deletedTracks = await connection.Table<Track>().DeleteAsync(track => track.Deleted != null && track.Deleted < oneDayAgo);
@@ -315,7 +288,6 @@ internal sealed class DatabaseMigrationRunner(
         var deletedPairedDevices = await connection.Table<PairedDevice>().DeleteAsync(device => device.Expires < DateTime.UtcNow);
 
         return new CleanupSummary(
-            deletedSessionCaches,
             deletedSessions,
             deletedTracks + duplicateTracks,
             deletedBoards,
@@ -455,7 +427,6 @@ internal sealed class DatabaseMigrationRunner(
     }
 
     private sealed record CleanupSummary(
-        int SessionCaches,
         int Sessions,
         int Tracks,
         int Boards,

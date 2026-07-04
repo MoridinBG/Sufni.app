@@ -180,10 +180,11 @@ There are five kinds of view model in the presentation layer:
   `ProcessingPreferenceWorkflow` owns the
   confirm-recompute-persist flow that runs when a processing
   preference change is committed. The editor constructs them and
-  delegates; it no longer owns those flows. Shell-shaped behavior (load pipeline,
-  inactive-tab deferral) is an injected `ISessionLayoutStrategy` selected
-  by `EditorFactory`; collaborators reach the editor through the
-  `ISessionOperationGateway` contract rather than delegate bundles.
+  delegates; it no longer owns those flows. Session detail loading uses one
+  local-only `SessionCoordinator.LoadDetailAsync` path; inactive-tab deferral is
+  supplied by `EditorFactory` as workspace/profile policy. Collaborators reach
+  the editor through the `ISessionOperationGateway` contract rather than
+  delegate bundles.
   The recorded editor subscribes to `IRecordedSessionProjection.WatchSession`
   in `Loaded` and disposes that subscription in `Unloaded`. Initial or
   runtime domain snapshots that are recomputable prompt the user to

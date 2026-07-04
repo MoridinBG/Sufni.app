@@ -47,7 +47,6 @@ public class SessionCoordinatorTests
     private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
     private readonly ISynchronizableRepository<Track> trackEntityRepository = Substitute.For<ISynchronizableRepository<Track>>();
     private readonly ISynchronizableRepository<Session> sessionEntityRepository = Substitute.For<ISynchronizableRepository<Session>>();
-    private readonly ISessionCacheStore sessionCacheStore = Substitute.For<ISessionCacheStore>();
     private readonly IHttpApiService http = Substitute.For<IHttpApiService>();
     private readonly ITrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
@@ -757,8 +756,6 @@ public class SessionCoordinatorTests
 
         var loaded = Assert.IsType<SessionDetailLoadResult.Loaded>(result);
         Assert.Equal("front-travel", loaded.Data.CachePresentation.FrontTravelDistribution);
-        await sessionCacheStore.DidNotReceive().GetSessionCacheAsync(Arg.Any<Guid>());
-        await sessionCacheStore.DidNotReceive().PutSessionCacheAsync(Arg.Any<SessionCache>());
     }
 
     [Fact]
@@ -784,7 +781,7 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
-    public async Task LoadDetailAsync_CancellationDuringPresentationBuild_DoesNotWriteSessionCache()
+    public async Task LoadDetailAsync_CancellationDuringPresentationBuild_DoesNotPersistPresentation()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
@@ -814,7 +811,6 @@ public class SessionCoordinatorTests
                 dimensions,
                 cancellationTokenSource.Token));
 
-        await sessionCacheStore.DidNotReceive().PutSessionCacheAsync(Arg.Any<SessionCache>());
     }
 
     // ----- Sync arrival handlers -----

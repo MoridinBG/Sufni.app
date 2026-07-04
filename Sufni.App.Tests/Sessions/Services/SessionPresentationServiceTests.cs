@@ -126,42 +126,6 @@ public class SessionPresentationServiceTests
         Assert.Equal(25, result.RearHsrPercentage);
     }
 
-    [Fact]
-    public void SessionCachePresentationData_RoundTripsThroughSessionCache()
-    {
-        var cache = new SessionCache
-        {
-            SessionId = Guid.NewGuid(),
-            FrontTravelDistribution = "front-travel",
-            RearTravelDistribution = "rear-travel",
-            FrontVelocityDistribution = "front-velocity",
-            RearVelocityDistribution = "rear-velocity",
-            CompressionBalance = "compression",
-            ReboundBalance = "rebound",
-            FrontHscPercentage = 1,
-            RearHscPercentage = 2,
-            FrontLscPercentage = 3,
-            RearLscPercentage = 4,
-            FrontLsrPercentage = 5,
-            RearLsrPercentage = 6,
-            FrontHsrPercentage = 7,
-            RearHsrPercentage = 8,
-        };
-
-        var presentation = SessionCachePresentationData.FromCache(cache);
-        var roundTripped = presentation.ToCache(cache.SessionId);
-
-        Assert.True(presentation.BalanceAvailable);
-        Assert.Equal(cache.FrontTravelDistribution, roundTripped.FrontTravelDistribution);
-        Assert.Equal(cache.RearTravelDistribution, roundTripped.RearTravelDistribution);
-        Assert.Equal(cache.FrontVelocityDistribution, roundTripped.FrontVelocityDistribution);
-        Assert.Equal(cache.RearVelocityDistribution, roundTripped.RearVelocityDistribution);
-        Assert.Equal(cache.CompressionBalance, roundTripped.CompressionBalance);
-        Assert.Equal(cache.ReboundBalance, roundTripped.ReboundBalance);
-        Assert.Equal(cache.FrontHscPercentage, roundTripped.FrontHscPercentage);
-        Assert.Equal(cache.RearHsrPercentage, roundTripped.RearHsrPercentage);
-    }
-
     private static Sufni.Telemetry.TelemetryData CreateTelemetryWithSingleBalanceSamplePerSide()
     {
         var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);

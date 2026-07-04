@@ -22,7 +22,6 @@ internal sealed class ExtensionDatabaseTableCatalog
             GetTableName(typeof(Bike)),
             GetTableName(typeof(Session)),
             GetTableName(typeof(RecordedSessionSource)),
-            GetTableName(typeof(SessionCache)),
             GetTableName(typeof(Synchronization)),
             GetTableName(typeof(PairedDevice)),
             GetTableName(typeof(Track)),
