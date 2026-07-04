@@ -441,7 +441,7 @@ public class LiveDaqSharedStreamTests
             }
         });
 
-        const int publishedFrameCount = 1100;
+        const int publishedFrameCount = 4096;
         var publishTask = Task.Run(() =>
         {
             for (var index = 1; index <= publishedFrameCount; index++)
@@ -450,10 +450,18 @@ public class LiveDaqSharedStreamTests
             }
         });
 
-        await firstFrameEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await publishTask.WaitAsync(TimeSpan.FromSeconds(2));
-
-        releaseFirstFrame.TrySetResult();
+        try
+        {
+            await firstFrameEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await publishTask.WaitAsync(TimeSpan.FromSeconds(2));
+            await AssertEventuallyAsync(
+                () => stream.CurrentState.ClientDropCounters.SubscriberFramesDropped > 0,
+                TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            releaseFirstFrame.TrySetResult();
+        }
 
         await AssertEventuallyAsync(() =>
         {
@@ -462,9 +470,6 @@ public class LiveDaqSharedStreamTests
                 return receivedOffsets.Count > 0 && receivedOffsets.Contains((ulong)publishedFrameCount);
             }
         });
-        await AssertEventuallyAsync(
-            () => stream.CurrentState.ClientDropCounters.SubscriberFramesDropped > 0,
-            TimeSpan.FromSeconds(5));
 
         lock (receivedOffsets)
         {
