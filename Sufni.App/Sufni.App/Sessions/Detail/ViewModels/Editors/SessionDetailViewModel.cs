@@ -612,7 +612,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         suppressInsightsRecompute = true;
         try
         {
-            SessionContext.TelemetryData = value;
+            SetTelemetryData(value);
             // Let the preferences page express the velocity filter window in samples.
             PreferencesPage.SampleRate = value?.Metadata.SampleRate ?? 0;
         }
@@ -621,6 +621,62 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             suppressInsightsRecompute = false;
             suppressAnalysisRecompute = false;
         }
+    }
+
+    internal void SetTelemetryData(TelemetryData? value)
+    {
+        if (SessionContext.TelemetryData == value)
+        {
+            return;
+        }
+
+        SessionContext.TelemetryData = value;
+        telemetryGeneration++;
+        IsComplete = value != null;
+        NotesPage.SetTemperatureAverages(value?.TemperatureAverages ?? []);
+        pendingAnalysisRangeBoundary = null;
+        ClearAnalysisSelections();
+        RefreshTrackTimelineContext();
+        NotifyTimelineAlignmentCommandsCanExecuteChanged();
+        if (value is null)
+        {
+            analysisRequestScheduler.OnTelemetryUnavailable();
+            UpdateRecordedSessionExtensionHostState();
+            PublishEditorState();
+            return;
+        }
+
+        var includeDeferredInsights =
+            analysisRequestScheduler.ConsumePendingTelemetryInsightsRequest() ||
+            IsSessionInsightsPageSelected;
+
+        if (SessionContext.AnalysisRange is not null)
+        {
+            ClearAnalysisRange();
+            if (suppressAnalysisRecompute && includeDeferredInsights)
+            {
+                RequestCurrentAnalysisResults(includeInsights: true);
+            }
+
+            PublishEditorState();
+            return;
+        }
+
+        if (suppressAnalysisRecompute)
+        {
+            InvalidateAnalysisInputs();
+            if (includeDeferredInsights)
+            {
+                RequestCurrentAnalysisResults(includeInsights: true);
+            }
+        }
+        else
+        {
+            RequestCurrentAnalysisResults(!suppressInsightsRecompute || includeDeferredInsights);
+        }
+
+        UpdateRecordedSessionExtensionHostState();
+        PublishEditorState();
     }
 
     private void RefreshTrackTimelineContext()
@@ -1548,59 +1604,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         PublishEditorState();
     }
 
-    private void OnSessionContextPropertyChanged(object? sender, PropertyChangedEventArgs args)
-    {
-        switch (args.PropertyName)
-        {
-            case nameof(RecordedSessionContext.TelemetryData):
-                telemetryGeneration++;
-                IsComplete = SessionContext.TelemetryData != null;
-                NotesPage.SetTemperatureAverages(SessionContext.TelemetryData?.TemperatureAverages ?? []);
-                pendingAnalysisRangeBoundary = null;
-                ClearAnalysisSelections();
-                RefreshTrackTimelineContext();
-                NotifyTimelineAlignmentCommandsCanExecuteChanged();
-                if (SessionContext.TelemetryData is null)
-                {
-                    analysisRequestScheduler.OnTelemetryUnavailable();
-                    UpdateRecordedSessionExtensionHostState();
-                    break;
-                }
-
-                var includeDeferredInsights =
-                    analysisRequestScheduler.ConsumePendingTelemetryInsightsRequest() ||
-                    IsSessionInsightsPageSelected;
-
-                if (SessionContext.AnalysisRange is not null)
-                {
-                    ClearAnalysisRange();
-                    if (suppressAnalysisRecompute && includeDeferredInsights)
-                    {
-                        RequestCurrentAnalysisResults(includeInsights: true);
-                    }
-
-                    break;
-                }
-
-                if (suppressAnalysisRecompute)
-                {
-                    InvalidateAnalysisInputs();
-                    if (includeDeferredInsights)
-                    {
-                        RequestCurrentAnalysisResults(includeInsights: true);
-                    }
-                }
-                else
-                {
-                    RequestCurrentAnalysisResults(!suppressInsightsRecompute || includeDeferredInsights);
-                }
-
-                UpdateRecordedSessionExtensionHostState();
-                break;
-        }
-
-        PublishEditorState();
-    }
+    private void OnSessionContextPropertyChanged(object? sender, PropertyChangedEventArgs args) => PublishEditorState();
 
     private void PublishEditorState()
     {

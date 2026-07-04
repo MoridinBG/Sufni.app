@@ -228,7 +228,7 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(TestSnapshots.Session());
         var telemetry = TestTelemetryData.CreateProcessed();
 
-        editor.SessionContext.TelemetryData = telemetry;
+        editor.SetTelemetryData(telemetry);
         editor.SetAnalysisRange(1, 2);
 
         Assert.Same(telemetry, editor.SessionContext.TelemetryData);
@@ -263,7 +263,7 @@ public class SessionDetailViewModelTests
             Rows = [new SignalLayoutRowPreferences(SignalRowIds.Velocity, true, [])],
         };
 
-        editor.SessionContext.TelemetryData = telemetry;
+        editor.SetTelemetryData(telemetry);
         editor.SessionContext.TravelSignalState = SurfacePresentationState.Ready;
         var velocityAirtimeAction = GetRowAction(editor.VelocityHeaderActions, "velocity_airtime");
         velocityAirtimeAction.Command!.Execute(null);
@@ -734,7 +734,7 @@ public class SessionDetailViewModelTests
             new TemperatureAverage(2, 24.76)
         ];
 
-        editor.SessionContext.TelemetryData = telemetry;
+        editor.SetTelemetryData(telemetry);
 
         Assert.True(editor.NotesPage.HasTemperatureAverages);
         Assert.Equal(2, editor.NotesPage.TemperatureAverages.Count);
@@ -743,7 +743,7 @@ public class SessionDetailViewModelTests
         Assert.Equal("Rear", editor.NotesPage.TemperatureAverages[1].SensorName);
         Assert.Equal($"{24.76.ToString("F1", CultureInfo.CurrentCulture)} C", editor.NotesPage.TemperatureAverages[1].TemperatureText);
 
-        editor.SessionContext.TelemetryData = null;
+        editor.SetTelemetryData(null);
 
         Assert.False(editor.NotesPage.HasTemperatureAverages);
         Assert.Empty(editor.NotesPage.TemperatureAverages);

@@ -54,7 +54,7 @@ internal sealed class RecordedPresentationApplier
 
     public void ClearRecordedPresentation()
     {
-        context.TelemetryData = null;
+        owner.SetTelemetryData(null);
         owner.SetFullTrackPoints(null);
         owner.SetTrackPoints(null);
         context.MediaColumnWidth = null;
