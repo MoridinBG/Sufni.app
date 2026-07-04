@@ -121,12 +121,14 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
 
     public bool GoBack()
     {
-        if (previousActiveTab is null || !Tabs.Contains(previousActiveTab))
+        if (CurrentTab is null)
         {
             return false;
         }
 
-        CurrentTab = previousActiveTab;
+        CurrentTab = previousActiveTab is not null && Tabs.Contains(previousActiveTab)
+            ? previousActiveTab
+            : null;
         return true;
     }
 

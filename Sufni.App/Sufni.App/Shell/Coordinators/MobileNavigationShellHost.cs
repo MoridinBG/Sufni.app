@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -8,17 +7,29 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Shared.Base;
+using Sufni.App.Shell.ViewModels;
 using Sufni.App.Shell.Views;
 namespace Sufni.App.Shell.Coordinators;
 
-public sealed class MobileNavigationShellHost(IUiThreadDispatcher uiThreadDispatcher)
-    : ObservableObject, IMobileNavigationShellHost, IMobileNavigationPageHost
+public sealed class MobileNavigationShellHost : ObservableObject, IMobileNavigationShellHost, IMobileNavigationPageHost
 {
-    private readonly List<MobileNavigationEntry> logicalStack = [];
+    private readonly ShellWorkspaceViewModel workspace;
+    private readonly IUiThreadDispatcher uiThreadDispatcher;
+    private readonly Dictionary<ViewModelBase, ContentPage> materializedPages = [];
     private readonly SemaphoreSlim navigationGate = new(1, 1);
     private readonly System.Threading.Lock syncRoot = new();
+    private MobileNavigationEntry? rootEntry;
     private NavigationPage? attachedNavigationPage;
     private Task queuedOperation = Task.CompletedTask;
+
+    public MobileNavigationShellHost(
+        ShellWorkspaceViewModel workspace,
+        IUiThreadDispatcher uiThreadDispatcher)
+    {
+        this.workspace = workspace;
+        this.uiThreadDispatcher = uiThreadDispatcher;
+        workspace.PropertyChanged += OnWorkspacePropertyChanged;
+    }
 
     public ViewModelBase CurrentView
     {
@@ -26,9 +37,13 @@ public sealed class MobileNavigationShellHost(IUiThreadDispatcher uiThreadDispat
         {
             lock (syncRoot)
             {
-                return logicalStack.Count > 0
-                    ? logicalStack[^1].ViewModel
-                    : throw new InvalidOperationException("The mobile navigation root has not been set.");
+                if (workspace.CurrentTab is { } currentTab)
+                {
+                    return currentTab;
+                }
+
+                return rootEntry?.ViewModel
+                    ?? throw new InvalidOperationException("The mobile navigation root has not been set.");
             }
         }
     }
@@ -37,10 +52,7 @@ public sealed class MobileNavigationShellHost(IUiThreadDispatcher uiThreadDispat
     {
         get
         {
-            lock (syncRoot)
-            {
-                return logicalStack.Count > 1;
-            }
+            return workspace.CurrentTab is not null;
         }
     }
 
@@ -50,7 +62,11 @@ public sealed class MobileNavigationShellHost(IUiThreadDispatcher uiThreadDispat
         {
             lock (syncRoot)
             {
-                return logicalStack.Select(static entry => entry.ViewModel).ToArray();
+                return rootEntry is null
+                    ? []
+                    : workspace.CurrentTab is { } currentTab
+                        ? [rootEntry.ViewModel, currentTab]
+                        : [rootEntry.ViewModel];
             }
         }
     }
@@ -61,17 +77,26 @@ public sealed class MobileNavigationShellHost(IUiThreadDispatcher uiThreadDispat
 
         NavigationPage? navigationPage;
         ContentPage[] pages;
+        var shouldNotifyAfterRootChange = workspace.CurrentTab is null;
         lock (syncRoot)
         {
-            logicalStack.Clear();
-            logicalStack.Add(CreateEntry(root));
-            navigationPage = attachedNavigationPage;
-            pages = logicalStack.Select(static entry => entry.Page).ToArray();
+            rootEntry = GetOrCreateEntry(root);
         }
 
-        NotifyStackPropertiesChanged();
+        workspace.CurrentTab = null;
 
-        if (navigationPage is not null)
+        lock (syncRoot)
+        {
+            navigationPage = attachedNavigationPage;
+            pages = BuildAttachedPages();
+        }
+
+        if (shouldNotifyAfterRootChange)
+        {
+            NotifyStackPropertiesChanged();
+        }
+
+        if (shouldNotifyAfterRootChange && navigationPage is not null)
         {
             QueueNavigationOperation(() => MaterializeAttachedStackAsync(navigationPage, pages));
         }
@@ -81,41 +106,19 @@ public sealed class MobileNavigationShellHost(IUiThreadDispatcher uiThreadDispat
     {
         ArgumentNullException.ThrowIfNull(viewModel);
 
-        var entry = CreateEntry(viewModel);
-        NavigationPage? navigationPage;
-        lock (syncRoot)
+        if (viewModel is not TabPageViewModelBase tab)
         {
-            logicalStack.Add(entry);
-            navigationPage = attachedNavigationPage;
+            throw new InvalidOperationException("Mobile navigation detail surfaces must be tab pages.");
         }
 
-        NotifyStackPropertiesChanged();
-
-        if (navigationPage is not null)
-        {
-            QueueNavigationOperation(() => PushAttachedPageAsync(navigationPage, entry.Page));
-        }
+        workspace.OpenOrFocus(tab);
     }
 
     public bool Pop()
     {
-        NavigationPage? navigationPage;
-        lock (syncRoot)
+        if (!workspace.GoBack())
         {
-            if (logicalStack.Count <= 1)
-            {
-                return false;
-            }
-
-            logicalStack.RemoveAt(logicalStack.Count - 1);
-            navigationPage = attachedNavigationPage;
-        }
-
-        NotifyStackPropertiesChanged();
-
-        if (navigationPage is not null)
-        {
-            QueueNavigationOperation(() => PopAttachedPageAsync(navigationPage));
+            return false;
         }
 
         return true;
@@ -125,15 +128,14 @@ public sealed class MobileNavigationShellHost(IUiThreadDispatcher uiThreadDispat
     {
         ArgumentNullException.ThrowIfNull(viewModel);
 
-        lock (syncRoot)
+        if (viewModel is not TabPageViewModelBase tab ||
+            !ReferenceEquals(workspace.CurrentTab, tab))
         {
-            if (logicalStack.Count == 0 || !ReferenceEquals(logicalStack[^1].ViewModel, viewModel))
-            {
-                return false;
-            }
+            return false;
         }
 
-        return Pop();
+        workspace.CloseTab(tab, rememberForRestore: false);
+        return true;
     }
 
     public void Attach(NavigationPage navigationPage)
@@ -144,7 +146,7 @@ public sealed class MobileNavigationShellHost(IUiThreadDispatcher uiThreadDispat
         lock (syncRoot)
         {
             attachedNavigationPage = navigationPage;
-            pages = logicalStack.Select(static entry => entry.Page).ToArray();
+            pages = BuildAttachedPages();
         }
 
         if (pages.Length > 0)
@@ -181,11 +183,58 @@ public sealed class MobileNavigationShellHost(IUiThreadDispatcher uiThreadDispat
         return new MobileNavigationEntry(viewModel, page);
     }
 
+    private MobileNavigationEntry GetOrCreateEntry(ViewModelBase viewModel)
+    {
+        if (!materializedPages.TryGetValue(viewModel, out var page))
+        {
+            var entry = CreateEntry(viewModel);
+            materializedPages[viewModel] = entry.Page;
+            return entry;
+        }
+
+        return new MobileNavigationEntry(viewModel, page);
+    }
+
+    private ContentPage[] BuildAttachedPages()
+    {
+        if (rootEntry is null)
+        {
+            return [];
+        }
+
+        return workspace.CurrentTab is { } currentTab
+            ? [rootEntry.Page, GetOrCreateEntry(currentTab).Page]
+            : [rootEntry.Page];
+    }
+
     private void NotifyStackPropertiesChanged()
     {
         OnPropertyChanged(nameof(CurrentView));
         OnPropertyChanged(nameof(CanGoBack));
         OnPropertyChanged(nameof(LogicalStack));
+    }
+
+    private void OnWorkspacePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName != nameof(ShellWorkspaceViewModel.CurrentTab))
+        {
+            return;
+        }
+
+        NavigationPage? navigationPage;
+        ContentPage[] pages;
+        lock (syncRoot)
+        {
+            navigationPage = attachedNavigationPage;
+            pages = BuildAttachedPages();
+        }
+
+        NotifyStackPropertiesChanged();
+
+        if (navigationPage is not null)
+        {
+            QueueNavigationOperation(() => MaterializeAttachedStackAsync(navigationPage, pages));
+        }
     }
 
     private void QueueNavigationOperation(Func<Task> operation)
@@ -236,26 +285,6 @@ public sealed class MobileNavigationShellHost(IUiThreadDispatcher uiThreadDispat
 
             await navigationPage.PushAsync(pages[index], null);
         }
-    }
-
-    private async Task PushAttachedPageAsync(NavigationPage navigationPage, ContentPage page)
-    {
-        if (!IsAttached(navigationPage))
-        {
-            return;
-        }
-
-        await navigationPage.PushAsync(page, null);
-    }
-
-    private async Task PopAttachedPageAsync(NavigationPage navigationPage)
-    {
-        if (!IsAttached(navigationPage))
-        {
-            return;
-        }
-
-        await navigationPage.PopAsync(null);
     }
 
     private bool IsAttached(NavigationPage navigationPage)
