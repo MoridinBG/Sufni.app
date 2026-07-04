@@ -118,6 +118,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private readonly CancellableOperation loadOperation = new();
     private SessionPresentationDimensions? lastPresentationDimensions;
+    private int selectedPageIndex;
     private double? pendingAnalysisRangeBoundary;
     private TelemetryTimeRange? analysisRange;
     private RecordedSessionTimelineAlignmentMark? pendingTimelineAlignmentMark;
@@ -605,7 +606,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         RequestCurrentSessionInsights();
     }
 
-    private bool IsSessionInsightsPageSelected => ReferenceEquals(SessionContext.SelectedPage, AnalysisPage);
+    private PageViewModelBase? SelectedPage => Pages.Count == 0
+        ? null
+        : Pages[ClampSelectedPageIndex(selectedPageIndex)];
+
+    private bool IsSessionInsightsPageSelected => ReferenceEquals(SelectedPage, AnalysisPage);
 
     internal Guid? CurrentSessionFullTrack => session.FullTrack;
 
@@ -1579,6 +1584,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         Pages.Add(AnalysisPage);
         Pages.Add(NotesPage);
         Pages.Add(PreferencesPage);
+        Pages.CollectionChanged += OnPagesChanged;
         SessionContext.MapViewModel = mapViewModelFactory.Create();
         _ = SessionContext.MapViewModel.InitializeAsync();
         if (snapshot.HasProcessedData)
@@ -1638,6 +1644,38 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void OnSessionContextPropertyChanged(object? sender, PropertyChangedEventArgs args) => PublishEditorState();
 
+    private void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
+    {
+        selectedPageIndex = ClampSelectedPageIndex(selectedPageIndex);
+        SessionContext.SelectedPageIndex = selectedPageIndex;
+        if (IsSessionInsightsPageSelected)
+        {
+            RequestCurrentSessionInsights(respectSuppression: true);
+        }
+
+        PublishEditorState();
+    }
+
+    private int ClampSelectedPageIndex(int pageIndex)
+    {
+        if (Pages.Count == 0)
+        {
+            return 0;
+        }
+
+        if (pageIndex < 0)
+        {
+            return 0;
+        }
+
+        if (pageIndex >= Pages.Count)
+        {
+            return Pages.Count - 1;
+        }
+
+        return pageIndex;
+    }
+
     private void PublishEditorState()
     {
         var state = RecordedSessionEditorStateSnapshot.From(
@@ -1666,7 +1704,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             dampingSpeedCutoffs,
             plotDampingSpeedCutoffs,
             canEditDampingSpeedCutoffs,
-            new RecordedAnalysisRangeState(analysisRange));
+            new RecordedAnalysisRangeState(analysisRange),
+            new RecordedPageSelectionState(selectedPageIndex));
         ApplyProjectedEditorState(state);
         editorStateInput.OnNext(state);
     }
@@ -2247,6 +2286,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     protected override async Task CloseImplementation()
     {
         await StopLoadedSessionAsync();
+        Pages.CollectionChanged -= OnPagesChanged;
         extensionPagesController?.Dispose();
         analysisResultSubscription.Dispose();
         analysisResultState.Dispose();
@@ -2348,7 +2388,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void SelectPageIndex(int pageIndex)
     {
-        SessionContext.SelectedPageIndex = pageIndex;
+        selectedPageIndex = ClampSelectedPageIndex(pageIndex);
+        SessionContext.SelectedPageIndex = selectedPageIndex;
         if (IsSessionInsightsPageSelected)
         {
             RequestCurrentSessionInsights(respectSuppression: true);
