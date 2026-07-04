@@ -277,7 +277,6 @@ public partial class App : Application
             sp.GetRequiredService<ISessionRepository>(),
             sp.GetRequiredService<IAppDataRefresher>(),
             sp.GetRequiredService<ISessionPreferences>(),
-            sp.GetRequiredService<IRecordedSessionProcessingOptionCache>(),
             sp.GetRequiredService<ISessionRecomputeEngine>(),
             sp.GetRequiredService<IBackgroundTaskRunner>()));
         ServiceCollection.AddSingleton<RecordedSessionSourceRetentionCleanup>(sp => new RecordedSessionSourceRetentionCleanup(

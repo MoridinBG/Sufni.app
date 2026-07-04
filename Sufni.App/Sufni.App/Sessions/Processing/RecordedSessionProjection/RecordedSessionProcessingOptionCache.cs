@@ -13,17 +13,17 @@ namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 /// velocity-filter processing option, backed by <see cref="ISessionPreferences"/>.
 /// The recorded-session projection and domain query read it while evaluating staleness
 /// so a preference-only option change is visible to the fingerprint comparison; a
-/// cache miss is the 25 ms default. It re-hydrates after every remote sync apply
-/// and publishes <see cref="OptionChanged"/> so the projection can re-evaluate the
-/// affected sessions (the preference-&gt;projection edge).
+/// cache miss is the 25 ms default. It follows recorded-session preference
+/// emissions and publishes <see cref="OptionChanged"/> so the projection can
+/// re-evaluate the affected sessions (the preference-&gt;projection edge).
 /// </summary>
 public interface IRecordedSessionProcessingOptionCache
 {
     TelemetryProcessingOptions Get(Guid sessionId);
 
-    // Emits a session id whenever its cached option changes — a local persist via
-    // Set, or a re-hydrate after remote sync. NOT emitted by the first hydration:
-    // the projection's first sweep is gated on HydrateAsync completing instead.
+    // Emits a session id whenever its cached option changes after the first
+    // preference snapshot has seeded the dictionary. The projection's first
+    // sweep is gated on HydrateAsync completing instead.
     IObservable<Guid> OptionChanged { get; }
 
     // Loads every recorded session's option from the in-memory preferences
@@ -31,10 +31,6 @@ public interface IRecordedSessionProcessingOptionCache
     // later calls emit OptionChanged for ids whose effective option changed
     // (including ids that dropped out and revert to the default).
     Task HydrateAsync();
-
-    // Immediately reflects a locally persisted option so synchronous reads see it
-    // without waiting for a re-hydrate; emits OptionChanged when it changed.
-    void Set(Guid sessionId, TelemetryProcessingOptions option);
 }
 
 internal sealed class RecordedSessionProcessingOptionCache : IRecordedSessionProcessingOptionCache, IDisposable
@@ -45,20 +41,15 @@ internal sealed class RecordedSessionProcessingOptionCache : IRecordedSessionPro
     private readonly Dictionary<Guid, int> clampedWindowsBySession = [];
     private readonly System.Threading.Lock gate = new();
     private readonly Subject<Guid> optionChanged = new();
-    private readonly IDisposable syncSubscription;
+    private readonly IDisposable preferenceSubscription;
     private bool hydrated;
 
     public RecordedSessionProcessingOptionCache(IAppPreferences appPreferences)
     {
         sessionPreferences = appPreferences.Session;
-
-        // Re-hydrate after each remote sync apply so a synced option change for any
-        // session (open or not) re-evaluates staleness through OptionChanged.
-        syncSubscription = appPreferences.SyncDataApplied
-            .Subscribe(_ => RehydrateAfterSync());
+        preferenceSubscription = sessionPreferences.ObserveAllRecordedChanges()
+            .Subscribe(change => ApplyAll(change.Value));
     }
-
-    private void RehydrateAfterSync() => _ = HydrateAsync();
 
     public IObservable<Guid> OptionChanged => optionChanged.AsObservable();
 
@@ -74,8 +65,11 @@ internal sealed class RecordedSessionProcessingOptionCache : IRecordedSessionPro
 
     public async Task HydrateAsync()
     {
-        var all = await sessionPreferences.GetAllRecordedAsync();
+        ApplyAll(await sessionPreferences.GetAllRecordedAsync());
+    }
 
+    private void ApplyAll(IReadOnlyDictionary<Guid, SessionPreferences> all)
+    {
         var changed = new List<Guid>();
         lock (gate)
         {
@@ -121,25 +115,5 @@ internal sealed class RecordedSessionProcessingOptionCache : IRecordedSessionPro
         }
     }
 
-    public void Set(Guid sessionId, TelemetryProcessingOptions option)
-    {
-        ArgumentNullException.ThrowIfNull(option);
-
-        var window = option.ClampedVelocityFilterWindowMilliseconds;
-        bool changed;
-        lock (gate)
-        {
-            changed = clampedWindowsBySession.TryGetValue(sessionId, out var previous)
-                ? previous != window
-                : window != DefaultWindow;
-            clampedWindowsBySession[sessionId] = window;
-        }
-
-        if (changed)
-        {
-            optionChanged.OnNext(sessionId);
-        }
-    }
-
-    public void Dispose() => syncSubscription.Dispose();
+    public void Dispose() => preferenceSubscription.Dispose();
 }

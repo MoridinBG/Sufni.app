@@ -2,12 +2,10 @@ using System.Collections.Generic;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.TestSupport;
-using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Tests.TestSupport.Persistence;
@@ -27,7 +25,6 @@ public class ProcessingOptionsResetMigrationTests
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
     private readonly IAppDataRefresher appDataRefresher = Substitute.For<IAppDataRefresher>();
     private readonly ISessionPreferences sessionPreferences = Substitute.For<ISessionPreferences>();
-    private readonly IRecordedSessionProcessingOptionCache optionCache = Substitute.For<IRecordedSessionProcessingOptionCache>();
     private readonly ISessionRecomputeEngine recomputeEngine = Substitute.For<ISessionRecomputeEngine>();
 
     private ProcessingOptionsResetMigration CreateMigration(SqliteConnectionContext context) => new(
@@ -36,7 +33,6 @@ public class ProcessingOptionsResetMigrationTests
         sessionRepository,
         appDataRefresher,
         sessionPreferences,
-        optionCache,
         recomputeEngine,
         new InlineBackgroundTaskRunner());
 
@@ -88,10 +84,8 @@ public class ProcessingOptionsResetMigrationTests
         await sessionPreferences.DidNotReceive().ResetRecordedProcessingToDefaultLocallyAsync(alreadyDefault);
         await sessionPreferences.DidNotReceive().ResetRecordedProcessingToDefaultLocallyAsync(sourceless);
 
-        // Both source-backed sessions are re-aligned to 25 ms in the option cache and recomputed.
-        optionCache.Received(1).Set(nonDefault, Arg.Is<TelemetryProcessingOptions>(o => o.VelocityFilterWindowMilliseconds == 25));
-        optionCache.Received(1).Set(alreadyDefault, Arg.Is<TelemetryProcessingOptions>(o => o.VelocityFilterWindowMilliseconds == 25));
-        optionCache.DidNotReceive().Set(sourceless, Arg.Any<TelemetryProcessingOptions>());
+        // Both source-backed sessions are recomputed; the option cache follows the
+        // no-clock preference reset emission instead of being manually mutated here.
         await recomputeEngine.Received(1).RequestRecomputeAsync(nonDefault, RecomputeReason.Migration);
         await recomputeEngine.Received(1).RequestRecomputeAsync(alreadyDefault, RecomputeReason.Migration);
         await recomputeEngine.DidNotReceive().RequestRecomputeAsync(sourceless, Arg.Any<RecomputeReason>());

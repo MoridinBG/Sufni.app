@@ -1349,7 +1349,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             recordedPreferenceStore,
             PreferencesPage,
             sessionCoordinator,
-            recordedSessionProcessingOptionCache,
             this);
         if (extensionHost is not null)
         {

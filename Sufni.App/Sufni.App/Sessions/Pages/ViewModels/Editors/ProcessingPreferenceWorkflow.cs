@@ -3,22 +3,19 @@ using System.Threading.Tasks;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
-using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 namespace Sufni.App.Sessions.Pages.ViewModels.Editors;
 
 /// <summary>
 /// Owns the velocity-filter recompute flow for a recorded session: persists the
-/// committed processing preference, publishes it into the processing-option cache
-/// so staleness re-evaluates against the new option, then requests a recompute
-/// through the engine. The committed slider value is authoritative; a recompute
-/// displaced by a newer request needs no rollback, and the engine's store upsert
-/// drives the editor refresh on success.
+/// committed processing preference, then requests a recompute through the engine.
+/// The committed slider value is authoritative; a recompute displaced by a newer
+/// request needs no rollback, and the engine's store upsert drives the editor
+/// refresh on success.
 /// </summary>
 internal sealed class ProcessingPreferenceWorkflow(
     RecordedPreferenceStore preferenceStore,
     PreferencesPageViewModel preferencesPage,
     ISessionCoordinator sessionCoordinator,
-    IRecordedSessionProcessingOptionCache processingOptionCache,
     ISessionOperationGateway gateway)
 {
     public async Task HandleProcessingPreferenceChangeCommittedAsync()
@@ -42,7 +39,6 @@ internal sealed class ProcessingPreferenceWorkflow(
         {
             preferenceStore.UpdateCurrent(current => current with { Processing = previousProcessing });
             await preferenceStore.PersistChangeAsync(current => current with { Processing = previousProcessing });
-            processingOptionCache.Set(gateway.SessionId, previousProcessing.ToTelemetryProcessingOptions());
             preferencesPage.ApplyProcessingPreferences(previousProcessing);
         }
 
@@ -53,11 +49,6 @@ internal sealed class ProcessingPreferenceWorkflow(
             preferencesPage.ApplyProcessingPreferences(preferenceStore.Current.Processing);
             return;
         }
-
-        // Publish the new option into the projection cache so staleness evaluates against
-        // it; otherwise the projection would compare the just-recomputed fingerprint
-        // (new option) against a stale cached option and report the session stale.
-        processingOptionCache.Set(gateway.SessionId, processing.ToTelemetryProcessingOptions());
 
         // The request flips the engine's IsActive(id) true synchronously, so the
         // staleness prompter suppresses the stale emission this same option change

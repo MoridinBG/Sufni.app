@@ -31,7 +31,6 @@ internal sealed class ProcessingOptionsResetMigration(
     ISessionRepository sessionRepository,
     IAppDataRefresher appDataRefresher,
     ISessionPreferences sessionPreferences,
-    IRecordedSessionProcessingOptionCache processingOptionCache,
     ISessionRecomputeEngine recomputeEngine,
     IBackgroundTaskRunner backgroundTaskRunner)
 {
@@ -96,10 +95,6 @@ internal sealed class ProcessingOptionsResetMigration(
                 {
                     await sessionPreferences.ResetRecordedProcessingToDefaultLocallyAsync(sessionId);
                 }
-
-                // Keep the synchronously-read option cache coherent with the reset so
-                // the projection compares the recomputed fingerprint against 25 ms.
-                processingOptionCache.Set(sessionId, TelemetryProcessingOptions.Default);
 
                 // Drive the recompute through the engine; it serializes per session,
                 // recomputes stale sessions, and no-ops anything already current.
