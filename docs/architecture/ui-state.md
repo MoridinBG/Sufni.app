@@ -20,7 +20,20 @@ each slice's store folder (e.g. `Bikes/Stores/`, `Sessions/Store/`).
 | `PairedDeviceStore`          | `IPairedDeviceStore`            | `IPairedDeviceStoreWriter`          | `PairedDeviceSnapshot`            | `string` |
 | `LiveDaqStore`               | `ILiveDaqStore`                 | `ILiveDaqStoreWriter`               | `LiveDaqSnapshot`                 | `string` |
 
-Persisted stores share the internal `SourceCacheStoreBase<TSnapshot, TKey>` for the repeated DynamicData mechanics. The base owns the cache lifetime, `Connect()`, `Get(key)`, writer `Upsert`/`Remove`, and load-and-replace refresh flow; concrete stores keep their public read/write interfaces and any domain-specific lookups. Startup refresh is coordinated by `IAppDataRefresher`, which resolves writer interfaces and refreshes stores in dependency order. `LiveDaqStore` remains separate because it is runtime-only and publishes `Clear()` / `ReplaceAll(...)` rather than database refresh.
+Persisted stores share the internal `SourceCacheStoreBase<TSnapshot, TKey>`
+for the repeated DynamicData mechanics. The base owns the cache lifetime,
+`Connect()`, `Get(key)`, watch helpers, and UI-thread-dispatched protected
+publication methods (`PublishSnapshotAsync`, `PublishSnapshotsAsync`,
+`PublishRemoveAsync`, `PublishRemovalsAsync`, and `ReplaceWithAsync`).
+Concrete stores keep their public read/write interfaces, persistence semantics,
+and any domain-specific lookups. Raw cache mutation stays inside the store;
+writer interfaces expose semantic commit methods for local writes and
+publish-only methods for already-persisted external changes.
+Startup and post-sync refresh are coordinated by
+`IAppStateRefreshOrchestrator`, with `IAppDataRefresher` retained only as a
+compatibility alias for core refresh callers. `LiveDaqStore` remains separate
+because it is runtime-only and publishes `Clear()` / `ReplaceAll(...)` rather
+than database refresh.
 
 Each persisted store read interface exposes:
 
@@ -28,15 +41,23 @@ Each persisted store read interface exposes:
 - `Get(key)` — synchronous lookup that returns the current snapshot or
   `null`.
 
-Each writer interface additionally exposes:
+Each persisted writer interface additionally exposes:
 
 - `RefreshAsync()` — load (or reload) all rows from the database via the
-  store's repository interface and replace the cache contents. Called at
-  startup through `IAppDataRefresher` from
-  `MainPagesViewModel.LoadDatabaseContent()`, and after successful sync from
-  `SyncCoordinator`.
-- `Upsert(snapshot)` / `Remove(key)` — cache updates invoked by coordinators
-  after a save / delete / sync arrival, after persistence has already changed.
+  store's repository interface and replace the cache contents. Core refresh
+  hydrates processing-option and derivation-window state first, then refreshes
+  bikes, setups, sessions, recorded-session sources, and paired devices;
+  all-state refresh then invokes extension state refresh participants.
+- Semantic commit methods for local writes that belong to that aggregate
+  family, for example `CommitBikeAsync`, `CommitSessionMetadataAsync`,
+  `CommitPsstPatchAsync`, `CommitTrackPatchAsync`, and
+  `CommitLocalUnpairAsync`. These methods persist one aggregate family,
+  re-read any database-computed snapshot fields, and publish the resulting
+  snapshot through the store.
+- Publish-only batch methods such as `PublishSessionsChangedAsync` and
+  `PublishSessionsRemovedAsync`. Sync appliers, server events, and
+  transaction runners call these after persistence has already changed; the
+  methods re-read or remove cache entries without writing repositories.
 
 Snapshots are immutable records, not view models. Snapshots for
 editor-backed persisted entities such as bikes, setups, and sessions
@@ -62,11 +83,12 @@ staleness state.
 `session_recording_source`: source kind, source name, schema version,
 and source hash. The full payload is not kept in the store; callers
 use `LoadAsync(sessionId)` to load a `RecordedSessionSource` from
-SQLite when recompute needs the bytes. The writer surface refreshes,
-upserts, or removes cache snapshots after coordinators and repositories
-have already changed persistence; it does not write source rows itself.
-Sync-server source arrivals are applied through `SessionCoordinator` so
-this store still has one application-layer writer.
+SQLite when recompute needs the bytes. The writer surface refreshes or
+publishes changed/removed source snapshots after coordinators,
+transaction runners, sync appliers, or repositories have already changed
+persistence; it does not write source rows itself. Sync-server source
+arrivals are applied through `SessionCoordinator` so this store still has
+one application-layer writer.
 
 `SetupStore` exposes `FindByBoardId(Guid)` so the import flow can
 look up the existing setup for the currently selected DAQ board

@@ -165,27 +165,30 @@ There are five kinds of view model in the presentation layer:
   workspace contracts for signals, media, analysis, sidebar, and mobile
   shell surfaces instead of putting every binding directly on the
   editor — see [Session Sub-Pages](#session-sub-pages) below.
-  For recorded sessions, `RecordedSessionContext` is the single owner of
-  presentation state: collaborators (`RecordedPresentationApplier`, the
-  damping cutoff workflow, extension plumbing) write the context, the
-  workspaces project it, and the editor reacts through one context
-  `PropertyChanged` dispatcher — the editor declares no duplicate
-  observable state of its own. Three further internal collaborators in
-  `ViewModels/Editors/` keep flows off the editor itself:
-  `SignalRowActionsController` builds the built-in signal-row header
-  actions (airtime and analysis-selection toggles) and keeps their
-  checked/enabled state in sync with the context;
-  `RecordedSessionExtensionPagesController` mirrors contributed
-  extension pages and contributed analysis tabs into the editor's
-  `Pages` collection and resolves contributed-page selection requests; and
-  `ProcessingPreferenceWorkflow` owns the
-  confirm-recompute-persist flow that runs when a processing
-  preference change is committed. The editor constructs them and
-  delegates; it no longer owns those flows. Session detail loading uses one
-  local-only `SessionCoordinator.LoadDetailAsync` path; inactive-tab deferral is
-  supplied by `EditorFactory` as workspace/profile policy. Collaborators reach
-  the editor through the `ISessionOperationGateway` contract rather than
-  delegate bundles.
+  For recorded sessions, `RecordedSessionEditorState` is the projected state
+  surface consumed by the signals, media, analysis, and mobile-shell
+  workspaces. User-originated workspace setters call
+  `RecordedSessionEditorActions` instead of mutating backing fields directly;
+  the editor applies validated intents, publishes a fresh state snapshot, and
+  drives named effects such as analysis invalidation, command refresh,
+  extension-host publication, map/media synchronization, and dirty/baseline
+  tracking. `RecordedSessionContext` is retained only as a compatibility
+  facade for stable runtime objects and mirrored presentation values; it is
+  not the state owner. Internal collaborators in `ViewModels/Editors/` keep
+  flows off the editor itself: `SignalRowActionsController` builds the
+  built-in signal-row header actions (airtime and analysis-selection toggles)
+  through owner-supplied state accessors and actions;
+  `RecordedSessionExtensionPagesController` mirrors contributed extension
+  pages and contributed analysis tabs into the editor's stable `Pages`
+  collection and resolves contributed-page selection through the action
+  gateway; and `ProcessingPreferenceWorkflow` owns the
+  confirm-recompute-persist flow that runs when a processing preference change
+  is committed. The editor constructs them and delegates; it no longer owns
+  those flows. Session detail loading uses one local-only
+  `SessionCoordinator.LoadDetailAsync` path; inactive-tab deferral is supplied
+  by `EditorFactory` as workspace/profile policy. Collaborators reach the
+  editor through the `ISessionOperationGateway` contract rather than delegate
+  bundles.
   The recorded editor subscribes to `IRecordedSessionProjection.WatchSession`
   in `Loaded` and disposes that subscription in `Unloaded`. Initial or
   runtime domain snapshots that are recomputable prompt the user to
@@ -203,8 +206,10 @@ session page surface. They share a tiny base, `PageViewModelBase`,
 which extends `ObservableObject` and exposes only the immutable
 `DisplayName` used as the page header. Page selection belongs to the
 owning session workspace, not to individual pages: recorded sessions
-store it in `RecordedSessionContext`; live sessions store it directly
-on `LiveSessionDetailViewModel`. Both surfaces expose
+project it from `RecordedSessionEditorState.Intent.SelectedPageIndex`
+through `SessionShellMobileWorkspaceViewModel` and write changes through
+`RecordedSessionEditorActions.SelectPageIndex`; live sessions store it
+directly on `LiveSessionDetailViewModel`. Both surfaces expose
 `SelectedPageIndex`, `SelectedPage`, `PageCount`, and
 `SelectedPageDisplayName` through `ISessionShellMobileWorkspace`.
 Pages do not own commands, notification bars, selected flags, or shell
@@ -236,8 +241,7 @@ parameterless pages. Recorded-session extension scopes can contribute
 additional analysis tabs; mobile projects those tabs into the same
 `Pages` collection at the matching analysis-page position.
 `RecordedSessionExtensionPagesController` satisfies contributed-page
-selection requests by setting `RecordedSessionContext.SelectedPageIndex`
-to the matching page. On
+selection requests by dispatching `SelectPageIndex` for the matching page. On
 desktop, the recorded-session analysis view composes built-in and
 contributed analysis tabs into one tab strip and places the selected
 analysis body plus extension banners inside one vertical scroll
@@ -276,8 +280,9 @@ Two pages diverge from that pattern:
   by `TravelSignalState` / `VelocitySignalState` / `ImuSignalState` /
   `PitchRollSignalState` / `SpeedSignalState` / `ElevationSignalState`
   on the workspace
-  (recorded: on `RecordedSessionContext`, projected onto the workspace;
-  live: directly on `LiveSessionSignalsWorkspaceViewModel`). Hosted row titles
+  (recorded: projected from
+  `RecordedSessionEditorState.Presentation.Signals`; live: directly on
+  `LiveSessionSignalsWorkspaceViewModel`). Hosted row titles
   are progressively inset by hierarchy depth. Expanded parent rows draw
   short connector branches in the child-row band, starting at each
   direct child row's top edge and stopping before that child row's
