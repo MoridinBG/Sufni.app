@@ -154,6 +154,20 @@ public class BikeEditorServiceTests
     }
 
     [Fact]
+    public async Task LoadAnalysisAsync_ReturnsUnavailable_WhenLinkageCannotBeSolved()
+    {
+        var linkage = new LinkageSpec(
+            [],
+            [],
+            new LinkSpec("shock-eye-a", "shock-eye-b"),
+            0.5);
+
+        var result = await CreateService().LoadAnalysisAsync(new RearSuspensionSpec.Linkage(linkage));
+
+        Assert.IsType<BikeEditorAnalysisResult.Unavailable>(result);
+    }
+
+    [Fact]
     public async Task LoadAnalysisAsync_ReturnsComputed_WhenLeverageRatioIsValid()
     {
         var leverageRatio = TestSnapshots.LeverageRatioCurve(
@@ -173,34 +187,6 @@ public class BikeEditorServiceTests
             ratio => Assert.Equal(2.5, ratio),
             ratio => Assert.Equal(2, ratio));
         Assert.Null(computed.Data.RearAxlePathData);
-    }
-
-    [Fact]
-    public async Task LoadAnalysisAndSaveValidation_ShareCachedLinkageSolution()
-    {
-        var solveCount = 0;
-        var kinematicSolutionCache = new KinematicSolutionCache((linkage, steps, iterations) =>
-        {
-            solveCount++;
-            return new KinematicSolver(linkage, steps, iterations).SolveSuspensionMotion();
-        });
-        var linkage = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
-        var validator = new BikeRearSuspensionValidator(kinematicSolutionCache);
-        var snapshot = TestSnapshots.Bike() with
-        {
-            ShockStroke = linkage.ShockStroke,
-            RearSuspension = new RearSuspensionSpec.Linkage(linkage),
-            Chainstay = 440,
-            PixelsToMillimeters = 1,
-            ImageBytes = TestImages.SmallPngBytes(),
-        };
-
-        var analysis = await CreateService(kinematicSolutionCache).LoadAnalysisAsync(new RearSuspensionSpec.Linkage(linkage));
-        var validation = validator.ValidateForSave(snapshot);
-
-        Assert.IsType<BikeEditorAnalysisResult.Computed>(analysis);
-        Assert.IsType<BikeRearSuspensionValidationResult.Valid>(validation);
-        Assert.Equal(1, solveCount);
     }
 
     private static LinkageSpec CreateSimpleLinkageSpec()

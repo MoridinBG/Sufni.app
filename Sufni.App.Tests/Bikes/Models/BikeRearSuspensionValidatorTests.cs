@@ -1,6 +1,6 @@
 using Sufni.App.Bikes.Models;
-using Sufni.App.Bikes.Services;
 using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.Kinematics;
 
 namespace Sufni.App.Tests.Bikes.Models;
 
@@ -64,6 +64,47 @@ public class BikeRearSuspensionValidatorTests
     }
 
     [Fact]
+    public void ValidateForSave_ReturnsValidLinkage_WhenPayloadIsStructurallyPresentWithoutSolving()
+    {
+        var linkage = new LinkageSpec(
+            [],
+            [],
+            new LinkSpec("shock-eye-a", "shock-eye-b"),
+            0.5);
+        var snapshot = TestSnapshots.Bike() with
+        {
+            ShockStroke = linkage.ShockStroke,
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage),
+            Chainstay = 440,
+            PixelsToMillimeters = 1,
+            ImageBytes = TestImages.SmallPngBytes(),
+        };
+
+        var result = CreateValidator().ValidateForSave(snapshot);
+
+        var valid = Assert.IsType<BikeRearSuspensionValidationResult.Valid>(result);
+        var validLinkage = Assert.IsType<RearSuspensionSpec.Linkage>(valid.RearSuspension);
+        Assert.Same(linkage, validLinkage.Spec);
+    }
+
+    [Fact]
+    public void ValidateForSave_ReturnsLinkageInvalidFailure_WhenLinkagePayloadIsNull()
+    {
+        var snapshot = TestSnapshots.Bike() with
+        {
+            ShockStroke = 0.5,
+            RearSuspension = new RearSuspensionSpec.Linkage(null!),
+            Chainstay = 440,
+            PixelsToMillimeters = 1,
+            ImageBytes = TestImages.SmallPngBytes(),
+        };
+
+        var result = CreateValidator().ValidateForSave(snapshot);
+
+        AssertFailure(BikeRearSuspensionValidationFailureCode.LinkageInvalidOrUnsolvable, result);
+    }
+
+    [Fact]
     public void ValidateForSave_ReturnsLinkageCalibrationFailure_WhenScaleInputsAreMissing()
     {
         var snapshot = TestSnapshots.Bike() with
@@ -112,5 +153,5 @@ public class BikeRearSuspensionValidatorTests
     }
 
     private static BikeRearSuspensionValidator CreateValidator() =>
-        new(new KinematicSolutionCache());
+        new();
 }

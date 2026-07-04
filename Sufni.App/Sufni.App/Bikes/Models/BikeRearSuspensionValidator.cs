@@ -1,6 +1,5 @@
 using System;
 using Sufni.App.Bikes.Stores;
-using Sufni.App.Bikes.Services;
 using Sufni.Kinematics;
 
 namespace Sufni.App.Bikes.Models;
@@ -10,7 +9,7 @@ internal interface IBikeRearSuspensionValidator
     BikeRearSuspensionValidationResult ValidateForSave(BikeSnapshot snapshot);
 }
 
-internal sealed class BikeRearSuspensionValidator(IKinematicSolutionCache kinematicSolutionCache) : IBikeRearSuspensionValidator
+internal sealed class BikeRearSuspensionValidator : IBikeRearSuspensionValidator
 {
     public BikeRearSuspensionValidationResult ValidateForSave(BikeSnapshot snapshot)
     {
@@ -53,18 +52,41 @@ internal sealed class BikeRearSuspensionValidator(IKinematicSolutionCache kinema
             return Invalid(BikeRearSuspensionValidationFailureCode.LinkageMissingCalibration);
         }
 
-        try
-        {
-            LinkageResolver.Resolve(linkage);
-            _ = kinematicSolutionCache.GetOrSolve(linkage);
-        }
-        catch (Exception exception) when (exception is LinkageValidationException or InvalidOperationException or ArgumentException)
+        if (!HasStructurallyCompletePayload(linkage))
         {
             return Invalid(BikeRearSuspensionValidationFailureCode.LinkageInvalidOrUnsolvable);
         }
 
         return new BikeRearSuspensionValidationResult.Valid(
             new RearSuspensionSpec.Linkage(linkage));
+    }
+
+    private static bool HasStructurallyCompletePayload(LinkageSpec? linkage)
+    {
+        if (linkage is not { Joints: not null, Links: not null, Shock: not null } ||
+            linkage.Shock.A is null ||
+            linkage.Shock.B is null)
+        {
+            return false;
+        }
+
+        foreach (var joint in linkage.Joints)
+        {
+            if (joint is null || joint.Name is null)
+            {
+                return false;
+            }
+        }
+
+        foreach (var link in linkage.Links)
+        {
+            if (link is null || link.A is null || link.B is null)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static BikeRearSuspensionValidationResult ValidateLeverageRatio(

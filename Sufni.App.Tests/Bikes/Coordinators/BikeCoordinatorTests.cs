@@ -25,7 +25,7 @@ public class BikeCoordinatorTests
     private readonly IBikeDependencyQuery dependencyQuery = Substitute.For<IBikeDependencyQuery>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IBikeEditorService bikeEditorService = Substitute.For<IBikeEditorService>();
-    private readonly IBikeRearSuspensionValidator rearSuspensionValidator = new BikeRearSuspensionValidator(new KinematicSolutionCache());
+    private readonly IBikeRearSuspensionValidator rearSuspensionValidator = new BikeRearSuspensionValidator();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
     private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
@@ -383,6 +383,53 @@ public class BikeCoordinatorTests
         await bikeRepository.DidNotReceive().PutAsync(Arg.Any<Bike>());
         bikeStore.DidNotReceive().Upsert(Arg.Any<BikeSnapshot>());
         shell.DidNotReceive().GoBack();
+    }
+
+    [Fact]
+    public async Task SaveAsync_WaitsForLinkageAnalysisBeforePersisting()
+    {
+        var existing = TestSnapshots.Bike(updated: 5);
+        bikeStore.Get(existing.Id).Returns(existing);
+        var analysisCompletion = new TaskCompletionSource<BikeEditorAnalysisResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
+            .Returns(_ => analysisCompletion.Task);
+        var coordinator = CreateCoordinator();
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
+        var bike = new Bike(existing.Id, "full sus")
+        {
+            HeadAngle = 65,
+            ForkStroke = 160,
+            ShockStroke = 50,
+            Chainstay = 440,
+            PixelsToMillimeters = 1,
+            ImageBytes = TestImages.SmallPngBytes(),
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage),
+        };
+
+        var saveTask = coordinator.SaveAsync(bike, baselineUpdated: 5);
+
+        _ = bikeEditorService.Received(1)
+            .LoadAnalysisAsync(
+                Arg.Is<RearSuspensionSpec.Linkage>(rearSuspension => rearSuspension.Spec == linkage),
+                Arg.Any<CancellationToken>());
+        Assert.False(saveTask.IsCompleted);
+        _ = bikeRepository.DidNotReceive().PutAsync(Arg.Any<Bike>());
+        bikeStore.DidNotReceive().Upsert(Arg.Any<BikeSnapshot>());
+        shell.DidNotReceive().GoBack();
+
+        var analysisResult = new BikeEditorAnalysisResult.Computed(
+            new BikeAnalysisPresentationData(
+                new CoordinateList([0], [0]),
+                null));
+        analysisCompletion.SetResult(analysisResult);
+        var result = await saveTask;
+
+        var saved = Assert.IsType<BikeSaveResult.Saved>(result);
+        Assert.Same(analysisResult, saved.AnalysisResult);
+        await bikeRepository.Received(1).PutAsync(bike);
+        bikeStore.Received(1).Upsert(Arg.Is<BikeSnapshot>(snapshot => snapshot.Id == existing.Id));
+        shell.Received(1).GoBack();
     }
 
     [Fact]
