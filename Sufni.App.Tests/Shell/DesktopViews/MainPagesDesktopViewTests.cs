@@ -5,7 +5,9 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Svg.Skia;
 using Avalonia.VisualTree;
 using NSubstitute;
+using Sufni.App.ExtensionHost.Contracts.Services;
 
+using Sufni.App.Shell.Coordinators;
 using Sufni.App.Shell.DesktopViews;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
@@ -74,10 +76,8 @@ public class MainPagesDesktopViewTests
             capabilities: new AppCapabilities(
                 CanHostSyncServer: false,
                 CanPairAsClient: false,
-                HasHaptics: false,
                 SupportsMassStorageImport: true,
-                SupportsStorageProviderImport: true,
-                SupportsNativeWindowing: true));
+                SupportsStorageProviderImport: true));
         var viewModel = MainPagesViewModelTestFactory.Create(
             appEnvironment: environment,
             pairingServerViewModel: pairingViewModel);
@@ -155,6 +155,73 @@ public class MainPagesDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task MainPagesDesktopView_ShowsClientPairAction_WhenClientIsUnpaired()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+
+        var pairingClientPage = CreatePairingClientPage(isPaired: false);
+        var viewModel = MainPagesViewModelTestFactory.Create(
+            appEnvironment: CreateClientEnvironment(),
+            pairingClientPage: pairingClientPage);
+        var view = new MainPagesDesktopView
+        {
+            DataContext = viewModel
+        };
+
+        await using var mounted = await MountAsync(view);
+
+        var pairButton = mounted.View.FindControl<Button>("ClientPairButton");
+        var syncButton = mounted.View.FindControl<Button>("ClientSyncButton");
+        var unpairButton = mounted.View.FindControl<Button>("ClientUnpairButton");
+
+        Assert.NotNull(pairButton);
+        Assert.NotNull(syncButton);
+        Assert.NotNull(unpairButton);
+        Assert.True(pairButton!.IsVisible);
+        Assert.False(syncButton!.IsVisible);
+        Assert.False(unpairButton!.IsVisible);
+        Assert.Same(viewModel.OpenPageCommand, pairButton.Command);
+        Assert.Same(pairingClientPage, pairButton.CommandParameter);
+    }
+
+    [AvaloniaFact]
+    public async Task MainPagesDesktopView_ShowsClientSyncAndUnpairActions_WhenClientIsPaired()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+
+        var syncCoordinator = TestCoordinatorSubstitutes.Sync();
+        syncCoordinator.IsPaired.Returns(true);
+        syncCoordinator.CanSync.Returns(true);
+        var pairingClientPage = CreatePairingClientPage(isPaired: true);
+        var viewModel = MainPagesViewModelTestFactory.Create(
+            appEnvironment: CreateClientEnvironment(),
+            syncCoordinator: syncCoordinator,
+            pairingClientPage: pairingClientPage);
+        var view = new MainPagesDesktopView
+        {
+            DataContext = viewModel
+        };
+
+        await using var mounted = await MountAsync(view);
+
+        var pairButton = mounted.View.FindControl<Button>("ClientPairButton");
+        var syncButton = mounted.View.FindControl<Button>("ClientSyncButton");
+        var unpairButton = mounted.View.FindControl<Button>("ClientUnpairButton");
+
+        Assert.NotNull(pairButton);
+        Assert.NotNull(syncButton);
+        Assert.NotNull(unpairButton);
+        Assert.False(pairButton!.IsVisible);
+        Assert.True(syncButton!.IsVisible);
+        Assert.True(unpairButton!.IsVisible);
+        Assert.Same(viewModel.SyncCommand, syncButton.Command);
+        Assert.Same(viewModel.OpenPageCommand, unpairButton.Command);
+        Assert.Same(pairingClientPage, unpairButton.CommandParameter);
+    }
+
+    [AvaloniaFact]
     public async Task MainPagesDesktopView_RendersExtensionToolbarActions()
     {
         ViewTestHelpers.EnsureViewTestResources();
@@ -213,6 +280,27 @@ public class MainPagesDesktopViewTests
     {
         var host = await ViewTestHelpers.ShowViewAsync(view);
         return new MountedMainPagesDesktopView(host, view);
+    }
+
+    private static IAppEnvironment CreateClientEnvironment() =>
+        MainPagesViewModelTestFactory.CreateAppEnvironment(
+            capabilities: new AppCapabilities(
+                CanHostSyncServer: false,
+                CanPairAsClient: true,
+                SupportsMassStorageImport: true,
+                SupportsStorageProviderImport: true));
+
+    private static PairingClientViewModel CreatePairingClientPage(bool isPaired)
+    {
+        var pairingClientCoordinator = Substitute.For<IPairingClientCoordinator>();
+        pairingClientCoordinator.DisplayName.Returns("Phone");
+        pairingClientCoordinator.IsPaired.Returns(isPaired);
+
+        return new PairingClientViewModel(
+            pairingClientCoordinator,
+            Substitute.For<IShellCoordinator>(),
+            Substitute.For<IDialogService>(),
+            new InlineUiThreadDispatcher());
     }
 
     private static SyncCoordinator CreateSyncCoordinator(ISynchronizationServerService server) =>

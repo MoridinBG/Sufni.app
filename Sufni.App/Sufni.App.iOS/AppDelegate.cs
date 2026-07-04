@@ -25,15 +25,12 @@ namespace Sufni.App.iOS
                 new AppCapabilities(
                     CanHostSyncServer: false,
                     CanPairAsClient: true,
-                    HasHaptics: true,
                     SupportsMassStorageImport: false,
-                    SupportsStorageProviderImport: true,
-                    SupportsNativeWindowing: false),
+                    SupportsStorageProviderImport: true),
                 new InputCapabilities(
                     HasPointer: false,
                     HasTouch: true,
                     HasKeyboard: false,
-                    SupportsPinch: true,
                     SupportsLongPressContextMenu: true));
             MobileAppBootstrapper.RegisterMobileSync(
                 App.ServiceCollection,

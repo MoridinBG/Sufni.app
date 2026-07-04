@@ -207,6 +207,57 @@ mc:Ignorable="d">
                 </Panel>
             </Button>
 
+            <!--  Client pairing / sync buttons  -->
+            <Button
+            Name="ClientPairButton"
+            Width="50"
+            Classes="embedded"
+            Command="{Binding OpenPageCommand}"
+            CommandParameter="{Binding PairingClientPage}"
+            ToolTip.Tip="Pair">
+                <Button.IsVisible>
+                    <MultiBinding Converter="{x:Static converters:BoolConverters.And}">
+                        <Binding Path="CanShowPairingClientActions" />
+                        <Binding Path="!IsPaired" />
+                    </MultiBinding>
+                </Button.IsVisible>
+                <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}" />
+            </Button>
+
+            <Button
+            Name="ClientSyncButton"
+            Width="50"
+            Classes="embedded"
+            Command="{Binding SyncCommand}"
+            ToolTip.Tip="Synchronize">
+                <Button.IsVisible>
+                    <MultiBinding Converter="{x:Static converters:BoolConverters.And}">
+                        <Binding Path="CanShowPairingClientActions" />
+                        <Binding Path="IsPaired" />
+                    </MultiBinding>
+                </Button.IsVisible>
+                <Image
+                Width="18"
+                Margin="0,3,0,0"
+                Source="{SvgImage /Assets/fa-sync-alt.svg}" />
+            </Button>
+
+            <Button
+            Name="ClientUnpairButton"
+            Width="50"
+            Classes="embedded"
+            Command="{Binding OpenPageCommand}"
+            CommandParameter="{Binding PairingClientPage}"
+            ToolTip.Tip="Unpair">
+                <Button.IsVisible>
+                    <MultiBinding Converter="{x:Static converters:BoolConverters.And}">
+                        <Binding Path="CanShowPairingClientActions" />
+                        <Binding Path="IsPaired" />
+                    </MultiBinding>
+                </Button.IsVisible>
+                <Image Width="18" Source="{SvgImage /Assets/fa-link-slash.svg}" />
+            </Button>
+
             <!--  Layout profile selector  -->
             <Button
             Name="LayoutProfileButton"

@@ -63,10 +63,8 @@ public class AppCapabilityEagerResolutionTests
         new(
             CanHostSyncServer: canHostSyncServer,
             CanPairAsClient: canPairAsClient,
-            HasHaptics: false,
             SupportsMassStorageImport: false,
-            SupportsStorageProviderImport: true,
-            SupportsNativeWindowing: false);
+            SupportsStorageProviderImport: true);
 
     private sealed class RecordingServiceProvider : IServiceProvider
     {

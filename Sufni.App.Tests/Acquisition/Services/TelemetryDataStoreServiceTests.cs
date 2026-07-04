@@ -251,15 +251,12 @@ public class TelemetryDataStoreServiceTests
             Capabilities: new AppCapabilities(
                 CanHostSyncServer: false,
                 CanPairAsClient: true,
-                HasHaptics: true,
                 SupportsMassStorageImport: supportsMassStorageImport,
-                SupportsStorageProviderImport: true,
-                SupportsNativeWindowing: false),
+                SupportsStorageProviderImport: true),
             Input: new InputCapabilities(
                 HasPointer: false,
                 HasTouch: true,
                 HasKeyboard: false,
-                SupportsPinch: true,
                 SupportsLongPressContextMenu: true));
 
     private static ITelemetryDataStore CreateDataStore(string name)

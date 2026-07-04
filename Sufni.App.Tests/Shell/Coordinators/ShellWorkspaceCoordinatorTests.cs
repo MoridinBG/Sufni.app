@@ -374,6 +374,45 @@ public class ShellWorkspaceCoordinatorTests
     }
 
     [Fact]
+    public void GoBack_WalksFocusHistory_ThenReturnsToPrimarySurface()
+    {
+        var workspace = CreateWorkspace();
+        var first = new TestTabPageViewModel(id: 1);
+        var second = new TestTabPageViewModel(id: 2);
+        workspace.OpenOrFocus(first);
+        workspace.OpenOrFocus(second);
+        var coordinator = CreateCoordinator(workspace);
+
+        var firstBackHandled = coordinator.GoBack();
+        var secondBackHandled = coordinator.GoBack();
+
+        Assert.True(firstBackHandled);
+        Assert.True(secondBackHandled);
+        Assert.Null(workspace.CurrentTab);
+        Assert.Equal([first, second], workspace.Tabs);
+    }
+
+    [Fact]
+    public void GoBack_SkipsClosedTabsInFocusHistory()
+    {
+        var workspace = CreateWorkspace();
+        var first = new TestTabPageViewModel(id: 1);
+        var second = new TestTabPageViewModel(id: 2);
+        var third = new TestTabPageViewModel(id: 3);
+        workspace.OpenOrFocus(first);
+        workspace.OpenOrFocus(second);
+        workspace.OpenOrFocus(third);
+        workspace.CloseTab(second);
+        var coordinator = CreateCoordinator(workspace);
+
+        var handled = coordinator.GoBack();
+
+        Assert.True(handled);
+        Assert.Same(first, workspace.CurrentTab);
+        Assert.Equal([first, third], workspace.Tabs);
+    }
+
+    [Fact]
     public void GoBack_ReturnsFalse_WhenNoTabIsSelected()
     {
         var workspace = CreateWorkspace();
@@ -400,15 +439,12 @@ public class ShellWorkspaceCoordinatorTests
             Capabilities: new AppCapabilities(
                 CanHostSyncServer: true,
                 CanPairAsClient: true,
-                HasHaptics: false,
                 SupportsMassStorageImport: true,
-                SupportsStorageProviderImport: true,
-                SupportsNativeWindowing: true),
+                SupportsStorageProviderImport: true),
             Input: new InputCapabilities(
                 HasPointer: true,
                 HasTouch: true,
                 HasKeyboard: true,
-                SupportsPinch: true,
                 SupportsLongPressContextMenu: true));
 
     private sealed class TestTabPageViewModel : TabPageViewModelBase

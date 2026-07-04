@@ -125,6 +125,36 @@ public partial class TabPageViewModelBase : ViewModelBase
 
     public Task PrepareCloseAsync() => CloseImplementation();
 
+    public async Task<bool> TryPrepareCloseAsync()
+    {
+        if (!IsDirty)
+        {
+            await PrepareCloseAsync();
+            return true;
+        }
+
+        var result = await dialogService.ShowCloseConfirmationAsync(CanSave());
+        switch (result)
+        {
+            case PromptResult.Yes:
+                await Save();
+                await PrepareCloseAsync();
+                return true;
+            case PromptResult.No:
+                await Reset();
+                await PrepareCloseAsync();
+                return true;
+            case PromptResult.Cancel:
+                return false;
+            case PromptResult.Ok:
+                await Reset();
+                await PrepareCloseAsync();
+                return true;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
+    }
+
     protected void NotifyDeleteCommandStateChanged()
     {
         DeleteCommand.NotifyCanExecuteChanged();
@@ -171,35 +201,9 @@ public partial class TabPageViewModelBase : ViewModelBase
     [RelayCommand]
     private async Task Close()
     {
-        if (!IsDirty)
+        if (await TryPrepareCloseAsync())
         {
-            await PrepareCloseAsync();
             shell.Close(this);
-            return;
-        }
-
-        var result = await dialogService.ShowCloseConfirmationAsync(CanSave());
-        switch (result)
-        {
-            case PromptResult.Yes:
-                await Save();
-                await PrepareCloseAsync();
-                shell.Close(this);
-                break;
-            case PromptResult.No:
-                await Reset();
-                await PrepareCloseAsync();
-                shell.Close(this);
-                break;
-            case PromptResult.Cancel:
-                break;
-            case PromptResult.Ok:
-                await Reset();
-                await PrepareCloseAsync();
-                shell.Close(this);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException();
         }
     }
 

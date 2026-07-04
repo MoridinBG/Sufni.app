@@ -52,7 +52,6 @@ public static class PointerGesture
                 HasPointer: true,
                 HasTouch: false,
                 HasKeyboard: true,
-                SupportsPinch: false,
                 SupportsLongPressContextMenu: false);
     }
 }

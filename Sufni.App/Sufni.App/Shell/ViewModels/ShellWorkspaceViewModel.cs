@@ -26,8 +26,9 @@ public interface IShellWorkspaceHost
 public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHost
 {
     private readonly Stack<TabPageViewModelBase> tabHistory = new();
-    private TabPageViewModelBase? previousActiveTab;
+    private readonly Stack<TabPageViewModelBase> focusHistory = new();
     private bool isClosing;
+    private bool isNavigatingHistory;
     private bool isReorderingTabs;
 
     [ObservableProperty] public partial TabPageViewModelBase? CurrentTab { get; set; }
@@ -54,7 +55,10 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
             return;
         }
 
-        previousActiveTab = oldValue;
+        if (!isNavigatingHistory && oldValue is not null)
+        {
+            focusHistory.Push(oldValue);
+        }
     }
 
     public void OpenOrFocus(TabPageViewModelBase page)
@@ -98,7 +102,7 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
         return true;
     }
 
-    public async Task CloseBackgroundTabsAsync()
+    public async Task<bool> CloseBackgroundTabsAsync()
     {
         var currentTab = CurrentTab;
         foreach (var tab in Tabs.ToArray())
@@ -108,14 +112,23 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
                 continue;
             }
 
-            await tab.PrepareCloseAsync();
-            CloseTab(tab, rememberForRestore: false);
+            if (!await tab.TryPrepareCloseAsync())
+            {
+                return false;
+            }
+
+            if (Tabs.Contains(tab))
+            {
+                CloseTab(tab, rememberForRestore: false);
+            }
         }
 
         if (currentTab is not null && Tabs.Contains(currentTab))
         {
             CurrentTab = currentTab;
         }
+
+        return true;
     }
 
     public void CloseTab(TabPageViewModelBase tab, bool rememberForRestore = true)
@@ -129,11 +142,7 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
             return;
         }
 
-        if (ReferenceEquals(previousActiveTab, tab) ||
-            previousActiveTab is not null && !Tabs.Contains(previousActiveTab))
-        {
-            previousActiveTab = null;
-        }
+        RemoveFocusHistory(tab);
 
         if (rememberForRestore)
         {
@@ -143,10 +152,10 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
             tabHistory.Push(tab);
         }
 
-        if (tab != previousActiveTab && tab == closingTab)
+        if (tab == closingTab)
         {
-            CurrentTab = previousActiveTab is not null && Tabs.Contains(previousActiveTab)
-                ? previousActiveTab
+            CurrentTab = TryPopPreviousOpenTab(out var previousTab)
+                ? previousTab
                 : Tabs.Count == 0 ? null : Tabs[0];
         }
 
@@ -160,9 +169,18 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
             return false;
         }
 
-        CurrentTab = previousActiveTab is not null && Tabs.Contains(previousActiveTab)
-            ? previousActiveTab
-            : null;
+        isNavigatingHistory = true;
+        try
+        {
+            CurrentTab = TryPopPreviousOpenTab(out var previousTab)
+                ? previousTab
+                : null;
+        }
+        finally
+        {
+            isNavigatingHistory = false;
+        }
+
         return true;
     }
 
@@ -280,6 +298,39 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
         for (var i = retained.Count - 1; i >= 0; i--)
         {
             tabHistory.Push(retained[i]);
+        }
+    }
+
+    private bool TryPopPreviousOpenTab(out TabPageViewModelBase? previousTab)
+    {
+        while (focusHistory.TryPop(out var candidate))
+        {
+            if (Tabs.Contains(candidate) && !ReferenceEquals(candidate, CurrentTab))
+            {
+                previousTab = candidate;
+                return true;
+            }
+        }
+
+        previousTab = null;
+        return false;
+    }
+
+    private void RemoveFocusHistory(TabPageViewModelBase tab)
+    {
+        if (focusHistory.Count == 0)
+        {
+            return;
+        }
+
+        var retained = focusHistory
+            .Where(historyTab => !ReferenceEquals(historyTab, tab) && Tabs.Contains(historyTab))
+            .Reverse()
+            .ToArray();
+        focusHistory.Clear();
+        foreach (var historyTab in retained)
+        {
+            focusHistory.Push(historyTab);
         }
     }
 }

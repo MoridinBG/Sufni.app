@@ -134,15 +134,6 @@ public partial class App : Application
         ServiceCollection.AddSingleton(extensionCapabilityRegistry);
         ServiceCollection.AddSingleton<IAppExtensionCapabilityRegistry>(extensionCapabilityRegistry);
 
-        if (ApplicationLifetime is ISingleViewApplicationLifetime)
-        {
-            ServiceCollection.AddSingleton<MobileNavigationShellHost>();
-            ServiceCollection.AddSingleton<IMobileNavigationShellHost>(sp =>
-                sp.GetRequiredService<MobileNavigationShellHost>());
-            ServiceCollection.AddSingleton<IMobileNavigationPageHost>(sp =>
-                sp.GetRequiredService<MobileNavigationShellHost>());
-        }
-
         ServiceCollection.AddSingleton<IShellCoordinator, ShellWorkspaceCoordinator>();
 
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
@@ -268,6 +259,7 @@ public partial class App : Application
             sp.GetRequiredService<IBackgroundTaskRunner>(),
             sp.GetRequiredService<ISessionPreferences>(),
             sp.GetRequiredService<IShellCoordinator>(),
+            sp.GetRequiredService<IAppEnvironment>(),
             sp.GetRequiredService<ISessionRecomputeEngine>(),
             sp.GetRequiredService<Func<IEditorFactory>>(),
             sp.GetRequiredService<IRecordedSessionDerivationWindowCache>(),
@@ -399,17 +391,10 @@ public partial class App : Application
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
                 var shellRootViewModel = Services.GetRequiredService<ShellRootViewModel>();
-                var mobileNavigationShellHost = Services.GetRequiredService<IMobileNavigationShellHost>();
-                var mobileNavigationPageHost = Services.GetRequiredService<IMobileNavigationPageHost>();
                 var mainView = new MainView
                 {
                     DataContext = shellRootViewModel
                 };
-                if (shellRootViewModel.LayoutProfile == UiLayoutProfile.Compact)
-                {
-                    mobileNavigationShellHost.SetRoot(shellRootViewModel);
-                    mainView.SetNavigationPageHost(mobileNavigationPageHost);
-                }
                 Services.GetRequiredService<IPlotZoomState>()
                     .SetSurface(mainView.FindControl<PlotZoomOverlayHost>("PlotZoomOverlay"));
                 singleViewPlatform.MainView = mainView;

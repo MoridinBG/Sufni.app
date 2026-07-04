@@ -419,7 +419,12 @@ public partial class MainPagesViewModel : ViewModelBase
 
         if (profile == UiLayoutProfile.Compact)
         {
-            await workspace.CloseBackgroundTabsAsync();
+            if (!await workspace.CloseBackgroundTabsAsync())
+            {
+                SelectedLayoutProfile = appEnvironment.LayoutProfile;
+                SyncLayoutProfileState();
+                return;
+            }
         }
 
         await uiPreferences.SetLayoutProfileAsync(profile);

@@ -12,8 +12,7 @@ x:DataType="vm:ShellRootViewModel"
 Background="{DynamicResource SufniBackgroundDisabled}"
 mc:Ignorable="d">
     <Panel TopLevel.AutoSafeAreaPadding="True" Background="{DynamicResource SufniRegion}">
-        <NavigationPage Name="RootNavigationPage" />
-        <ContentControl Name="WorkspaceRootHost" Content="{Binding Presentation}" IsVisible="False" />
+        <ContentControl Name="WorkspaceRootHost" Content="{Binding Presentation}" />
         <c:PlotZoomOverlayHost Name="PlotZoomOverlay" />
         <c:BusyOverlay
             Name="SyncBusyOverlay"

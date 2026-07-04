@@ -39,6 +39,7 @@ public partial class MapView : UserControl
     private readonly MapInteractionController interaction = new(
         action => Dispatcher.UIThread.Post(action, DispatcherPriority.Background));
     private readonly RenderedTrackGeometryCache renderedTrackGeometryCache = new();
+    private MapViewModel? subscribedViewModel;
     private RenderedTrackGeometry? appliedFullTrackGeometry;
     private RenderedTrackGeometry? appliedSessionTrackGeometry;
     private RenderedTrackGeometry? appliedMarkerTrackGeometry;
@@ -133,12 +134,15 @@ public partial class MapView : UserControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        SubscribeToViewModel(ViewModel);
+        ApplyViewModelState();
         SubscribeToSlots(ExtensionSlots);
         UpdateExtensionMapOverlays();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        SubscribeToViewModel(null);
         SubscribeToSlots(null);
         base.OnDetachedFromVisualTree(e);
     }
@@ -146,31 +150,72 @@ public partial class MapView : UserControl
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
-        if (ViewModel != null)
+        SubscribeToViewModel(ViewModel);
+        ApplyViewModelState();
+    }
+
+    private void SubscribeToViewModel(MapViewModel? viewModel)
+    {
+        if (ReferenceEquals(subscribedViewModel, viewModel))
         {
-            ViewModel.PropertyChanged += ViewModel_PropertyChanged;
-
-            // Initial sync
-            if (ViewModel.SelectedLayer != null)
-                UpdateTileLayer(ViewModel.SelectedLayer);
-
-            UpdateTracks();
+            return;
         }
+
+        if (subscribedViewModel is not null)
+        {
+            subscribedViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+        }
+
+        subscribedViewModel = viewModel;
+        if (subscribedViewModel is not null)
+        {
+            subscribedViewModel.PropertyChanged += ViewModel_PropertyChanged;
+        }
+    }
+
+    private void ApplyViewModelState()
+    {
+        if (subscribedViewModel is null)
+        {
+            return;
+        }
+
+        if (subscribedViewModel.SelectedLayer != null)
+            UpdateTileLayer(subscribedViewModel.SelectedLayer);
+
+        UpdateTracks();
     }
 
     private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (ViewModel == null) return;
-
-        if (e.PropertyName == nameof(MapViewModel.SelectedLayer) && ViewModel.SelectedLayer != null)
+        if (!ReferenceEquals(sender, subscribedViewModel) || subscribedViewModel is null)
         {
-            Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => UpdateTileLayer(ViewModel.SelectedLayer));
+            return;
+        }
+
+        var viewModel = subscribedViewModel;
+        if (e.PropertyName == nameof(MapViewModel.SelectedLayer) && viewModel.SelectedLayer != null)
+        {
+            var layer = viewModel.SelectedLayer;
+            Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (ReferenceEquals(subscribedViewModel, viewModel))
+                {
+                    UpdateTileLayer(layer);
+                }
+            });
         }
         else if (e.PropertyName == nameof(MapViewModel.FullTrackPoints)
                  || e.PropertyName == nameof(MapViewModel.SessionTrackPoints)
                  || e.PropertyName == nameof(MapViewModel.TimelineContext))
         {
-            Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(UpdateTracks);
+            Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (ReferenceEquals(subscribedViewModel, viewModel))
+                {
+                    UpdateTracks();
+                }
+            });
         }
     }
 

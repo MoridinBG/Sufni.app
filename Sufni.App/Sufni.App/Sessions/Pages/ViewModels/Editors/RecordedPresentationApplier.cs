@@ -113,33 +113,6 @@ internal sealed class RecordedPresentationApplier
         balancePage.ReboundBalanceState = SurfacePresentationState.Loading("Loading balance chart.");
     }
 
-    public void ApplyRecordedWaitingStates(bool mapExpected)
-    {
-        context.ScreenState = SessionScreenPresentationState.Ready;
-        ApplyRecordedPlotAvailability(null);
-        SetRecordedSignalBaseStates(
-            SurfacePresentationState.WaitingForData("Waiting for travel data."),
-            SurfacePresentationState.WaitingForData("Waiting for velocity data."),
-            SurfacePresentationState.WaitingForData("Waiting for IMU data."),
-            SurfacePresentationState.WaitingForData("Waiting for pitch/roll data."),
-            mapExpected ? SurfacePresentationState.WaitingForData("Waiting for speed data.") : SurfacePresentationState.Hidden,
-            mapExpected ? SurfacePresentationState.WaitingForData("Waiting for elevation data.") : SurfacePresentationState.Hidden);
-        context.FrontAnalysisState = SurfacePresentationState.WaitingForData("Waiting for analysis data.");
-        context.RearAnalysisState = SurfacePresentationState.WaitingForData("Waiting for analysis data.");
-        context.CompressionBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance data.");
-        context.ReboundBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance data.");
-        HideVibrationStates();
-        context.MapState = mapExpected
-            ? SurfacePresentationState.WaitingForData("Waiting for map data.")
-            : SurfacePresentationState.Hidden;
-        springPage.FrontDistributionState = SurfacePresentationState.WaitingForData("Waiting for spring chart.");
-        springPage.RearDistributionState = SurfacePresentationState.WaitingForData("Waiting for spring chart.");
-        dampingPage.FrontDistributionState = SurfacePresentationState.WaitingForData("Waiting for damping chart.");
-        dampingPage.RearDistributionState = SurfacePresentationState.WaitingForData("Waiting for damping chart.");
-        balancePage.CompressionBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance chart.");
-        balancePage.ReboundBalanceState = SurfacePresentationState.WaitingForData("Waiting for balance chart.");
-    }
-
     public void ApplyLoadResult(SessionDetailLoadResult result)
     {
         switch (result)
@@ -148,9 +121,6 @@ internal sealed class RecordedPresentationApplier
                 var telemetryPresentation = loaded.Data.TelemetryPresentation;
                 var cachePresentation = loaded.Data.CachePresentation;
                 ApplyCachePresentation(cachePresentation);
-                owner.ApplyDampingSpeedCutoffContext(
-                    telemetryPresentation.DampingSpeedCutoffs,
-                    telemetryPresentation.DampingSpeedCutoffOwner);
                 owner.ApplyTelemetryDataWithoutAnalysisRecompute(telemetryPresentation.TelemetryData);
                 owner.SetSessionFullTrack(telemetryPresentation.FullTrackId);
                 context.FullTrackPoints = telemetryPresentation.FullTrackPoints;
@@ -220,15 +190,6 @@ internal sealed class RecordedPresentationApplier
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
         RefreshRecordedSignalStates();
-    }
-
-    public void ApplyRecordedTrackPresentationData(SessionTrackPresentationData trackData)
-    {
-        owner.SetSessionFullTrack(trackData.FullTrackId);
-        context.FullTrackPoints = trackData.FullTrackPoints;
-        context.TrackPoints = trackData.TrackPoints;
-        context.MediaColumnWidth = trackData.MediaColumnWidth;
-        context.MapState = CreateMapState(trackData.TrackPoints, trackData.FullTrackId is not null);
     }
 
     public void RefreshRecordedSignalStates()
@@ -349,27 +310,6 @@ internal sealed class RecordedPresentationApplier
         return mapExpected
             ? SurfacePresentationState.WaitingForData("Waiting for map data.")
             : SurfacePresentationState.Hidden;
-    }
-
-    private void ApplyRecordedLoadedStates(SessionTelemetryPresentationData data)
-    {
-        context.ScreenState = SessionScreenPresentationState.Ready;
-        ApplyRecordedReadySignalStates(data.TelemetryData);
-
-        if (data.TelemetryData is { } telemetry)
-        {
-            ApplyAnalysisRangeStates(telemetry);
-        }
-        else
-        {
-            context.FrontAnalysisState = SurfacePresentationState.Hidden;
-            context.RearAnalysisState = SurfacePresentationState.Hidden;
-            context.CompressionBalanceState = SurfacePresentationState.Hidden;
-            context.ReboundBalanceState = SurfacePresentationState.Hidden;
-            HideVibrationStates();
-        }
-
-        context.MapState = CreateMapState(data.TrackPoints, data.FullTrackId is not null);
     }
 
     private static bool HasFrontCacheAnalysis(SessionCachePresentationData data)

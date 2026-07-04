@@ -4,6 +4,7 @@ using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.Database;
+using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Theming;
 
 using Sufni.App.ExtensionHost.Contracts.Capabilities;
@@ -17,6 +18,7 @@ using Sufni.App.LiveDaq.ViewModels.ItemLists;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
+using Sufni.App.Shared.Base;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Shell.ViewModels;
 using Sufni.App.SyncAndPairing.Stores;
@@ -80,10 +82,8 @@ public class MainPagesViewModelTests
             capabilities: new AppCapabilities(
                 CanHostSyncServer: false,
                 CanPairAsClient: false,
-                HasHaptics: false,
                 SupportsMassStorageImport: false,
-                SupportsStorageProviderImport: false,
-                SupportsNativeWindowing: false));
+                SupportsStorageProviderImport: false));
 
         var viewModel = MainPagesViewModelTestFactory.Create(appEnvironment: environment);
 
@@ -132,6 +132,65 @@ public class MainPagesViewModelTests
         Assert.Equal(UiLayoutProfile.Compact, viewModel.TargetLayoutProfile);
         Assert.Equal("compact", viewModel.LayoutProfileActionMenuText);
         await uiPreferences.Received(1).SetLayoutProfileAsync(UiLayoutProfile.Workspace);
+    }
+
+    [Fact]
+    public async Task ChooseLayoutProfileCommand_ToCompact_Cancels_WhenBackgroundDirtyTabCloseIsCancelled()
+    {
+        var uiPreferences = Substitute.For<IUiPreferences>();
+        uiPreferences.SetLayoutProfileAsync(Arg.Any<UiLayoutProfile?>()).Returns(Task.CompletedTask);
+        var appEnvironment = MainPagesViewModelTestFactory.CreateAppEnvironment(UiLayoutProfile.Workspace);
+        var workspace = new ShellWorkspaceViewModel(UiThreadDispatcher);
+        var shell = Substitute.For<IShellCoordinator>();
+        var dialogService = Substitute.For<IDialogService>();
+        dialogService.ShowCloseConfirmationAsync(Arg.Any<bool>()).Returns(PromptResult.Cancel);
+        var backgroundTab = new ConfirmableTabPageViewModel(shell, dialogService, dirty: true);
+        var currentTab = new ConfirmableTabPageViewModel(shell, dialogService, dirty: false);
+        workspace.OpenOrFocus(backgroundTab);
+        workspace.OpenOrFocus(currentTab);
+        var viewModel = MainPagesViewModelTestFactory.Create(
+            workspace: workspace,
+            appEnvironment: appEnvironment,
+            uiPreferences: uiPreferences);
+
+        await viewModel.ChooseLayoutProfileCommand.ExecuteAsync(UiLayoutProfile.Compact);
+
+        Assert.Equal(UiLayoutProfile.Workspace, viewModel.SelectedLayoutProfile);
+        Assert.Equal(UiLayoutProfile.Workspace, appEnvironment.LayoutProfile);
+        Assert.Same(currentTab, workspace.CurrentTab);
+        Assert.Equal([backgroundTab, currentTab], workspace.Tabs);
+        Assert.Equal(0, backgroundTab.CloseCount);
+        await uiPreferences.DidNotReceive().SetLayoutProfileAsync(UiLayoutProfile.Compact);
+    }
+
+    [Fact]
+    public async Task ChooseLayoutProfileCommand_ToCompact_ClosesConfirmedBackgroundTabs()
+    {
+        var uiPreferences = Substitute.For<IUiPreferences>();
+        uiPreferences.SetLayoutProfileAsync(Arg.Any<UiLayoutProfile?>()).Returns(Task.CompletedTask);
+        var appEnvironment = MainPagesViewModelTestFactory.CreateAppEnvironment(UiLayoutProfile.Workspace);
+        var workspace = new ShellWorkspaceViewModel(UiThreadDispatcher);
+        var shell = Substitute.For<IShellCoordinator>();
+        var dialogService = Substitute.For<IDialogService>();
+        dialogService.ShowCloseConfirmationAsync(Arg.Any<bool>()).Returns(PromptResult.No);
+        var backgroundTab = new ConfirmableTabPageViewModel(shell, dialogService, dirty: true);
+        var currentTab = new ConfirmableTabPageViewModel(shell, dialogService, dirty: false);
+        workspace.OpenOrFocus(backgroundTab);
+        workspace.OpenOrFocus(currentTab);
+        var viewModel = MainPagesViewModelTestFactory.Create(
+            workspace: workspace,
+            appEnvironment: appEnvironment,
+            uiPreferences: uiPreferences);
+
+        await viewModel.ChooseLayoutProfileCommand.ExecuteAsync(UiLayoutProfile.Compact);
+
+        Assert.Equal(UiLayoutProfile.Compact, viewModel.SelectedLayoutProfile);
+        Assert.Equal(UiLayoutProfile.Compact, appEnvironment.LayoutProfile);
+        Assert.Same(currentTab, workspace.CurrentTab);
+        Assert.Equal([currentTab], workspace.Tabs);
+        Assert.Equal(1, backgroundTab.ResetCount);
+        Assert.Equal(1, backgroundTab.CloseCount);
+        await uiPreferences.Received(1).SetLayoutProfileAsync(UiLayoutProfile.Compact);
     }
 
     [Fact]
@@ -448,6 +507,42 @@ public class MainPagesViewModelTests
         {
             RefreshCount++;
             Refreshed.TrySetResult();
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ConfirmableTabPageViewModel : TabPageViewModelBase
+    {
+        private bool underlyingDirty;
+
+        public ConfirmableTabPageViewModel(
+            IShellCoordinator shell,
+            IDialogService dialogService,
+            bool dirty)
+            : base(shell, dialogService, MainPagesViewModelTests.UiThreadDispatcher)
+        {
+            underlyingDirty = dirty;
+            IsDirty = dirty;
+        }
+
+        public int CloseCount { get; private set; }
+        public int ResetCount { get; private set; }
+
+        protected override void EvaluateDirtiness()
+        {
+            IsDirty = underlyingDirty;
+        }
+
+        protected override Task ResetImplementation()
+        {
+            ResetCount++;
+            underlyingDirty = false;
+            return Task.CompletedTask;
+        }
+
+        protected override Task CloseImplementation()
+        {
+            CloseCount++;
             return Task.CompletedTask;
         }
     }

@@ -59,7 +59,6 @@ public class ViewLocator : IDataTemplate
 
     private static readonly FrozenDictionary<Type, Func<Control>> CompactViewFactories = new Dictionary<Type, Func<Control>>
     {
-        [typeof(MainPagesViewModel)] = static () => new global::Sufni.App.Shell.Views.MainPagesView(),
         [typeof(ImportSessionsViewModel)] = static () => new global::Sufni.App.Acquisition.Views.ImportSessionsView(),
         [typeof(BikeListViewModel)] = static () => new global::Sufni.App.Bikes.Views.ItemLists.BikeListView(),
         [typeof(LiveDaqListViewModel)] = static () => new global::Sufni.App.LiveDaq.Views.ItemLists.LiveDaqListView(),

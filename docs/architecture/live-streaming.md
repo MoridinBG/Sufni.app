@@ -290,7 +290,7 @@ The live-session tab view model (`LiveSessionDetailViewModel`) is described in [
 
 Both desktop and mobile heads add the Live tab and bind to the same view models. Desktop-only live views live under `Sufni.App/Sufni.App/LiveDaq/DesktopViews/`; mobile/shared live views live under `Sufni.App/Sufni.App/LiveDaq/Views/`.
 
-- `MainPagesDesktopView.axaml` / `MainPagesView.axaml` — both add a "Live" tab to the primary page set, bound to `LiveDaqsPage`
+- `MainPagesDesktopView.axaml` / `CompactShellView.axaml` — both add a "Live" tab to the primary page set, bound to `LiveDaqsPage`
 - `LiveDaqListDesktopView.axaml` / `LiveDaqListView.axaml` — list of known and discovered DAQs with search, notifications, and error bars
 - `LiveDaqListItemButton.axaml` (desktop) — custom row control showing display name, setup/bike labels, endpoint, and an online/offline badge
 - `LiveDaqDetailDesktopView.axaml` / `LiveDaqDetailView.axaml` — diagnostics tab with connection controls, requested rate inputs, accepted session info, a disconnected-only Device Management card (Set Time, Edit CONFIG, Replace Config, Upload CONFIG), notifications/error bars, and travel/IMU/GPS sensor sections

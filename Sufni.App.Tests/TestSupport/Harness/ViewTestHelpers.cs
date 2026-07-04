@@ -151,14 +151,11 @@ public static class ViewTestHelpers
             Capabilities: new AppCapabilities(
                 CanHostSyncServer: true,
                 CanPairAsClient: true,
-                HasHaptics: false,
                 SupportsMassStorageImport: true,
-                SupportsStorageProviderImport: true,
-                SupportsNativeWindowing: true),
+                SupportsStorageProviderImport: true),
             Input: new InputCapabilities(
                 HasPointer: true,
                 HasTouch: true,
                 HasKeyboard: true,
-                SupportsPinch: true,
                 SupportsLongPressContextMenu: true));
 }

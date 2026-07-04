@@ -15,16 +15,13 @@ public enum UiLayoutProfile
 public sealed record AppCapabilities(
     bool CanHostSyncServer,
     bool CanPairAsClient,
-    bool HasHaptics,
     bool SupportsMassStorageImport,
-    bool SupportsStorageProviderImport,
-    bool SupportsNativeWindowing);
+    bool SupportsStorageProviderImport);
 
 public sealed record InputCapabilities(
     bool HasPointer,
     bool HasTouch,
     bool HasKeyboard,
-    bool SupportsPinch,
     bool SupportsLongPressContextMenu);
 
 public interface IAppEnvironment : INotifyPropertyChanged

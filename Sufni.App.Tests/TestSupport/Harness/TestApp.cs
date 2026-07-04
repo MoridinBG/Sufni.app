@@ -27,7 +27,6 @@ public sealed class TestApp : Sufni.App.App
             HasPointer: true,
             HasTouch: false,
             HasKeyboard: true,
-            SupportsPinch: false,
             SupportsLongPressContextMenu: false));
     }
 
@@ -37,7 +36,6 @@ public sealed class TestApp : Sufni.App.App
             HasPointer: false,
             HasTouch: true,
             HasKeyboard: false,
-            SupportsPinch: true,
             SupportsLongPressContextMenu: true));
     }
 
@@ -52,10 +50,8 @@ public sealed class TestApp : Sufni.App.App
             new AppCapabilities(
                 CanHostSyncServer: input.HasPointer,
                 CanPairAsClient: input.HasTouch,
-                HasHaptics: input.HasTouch,
                 SupportsMassStorageImport: input.HasPointer,
-                SupportsStorageProviderImport: input.HasTouch,
-                SupportsNativeWindowing: input.HasPointer),
+                SupportsStorageProviderImport: input.HasTouch),
             input);
         return UseAppEnvironment(environment);
     }

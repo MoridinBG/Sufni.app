@@ -125,13 +125,9 @@ public sealed class SessionLoader
             return false;
         }
 
-        if (domain.Source is null)
-        {
-            return true;
-        }
-
-        return domain.PersistedFingerprint is { } persisted &&
-               !StringComparer.Ordinal.Equals(domain.Source.SourceHash, persisted.SourceHash);
+        return RecordedSessionSourceCompleteness.IsSourceMissingOrHashMismatch(
+            domain.Source?.SourceHash,
+            domain.PersistedFingerprint);
     }
 
     private static (DampingSpeedCutoffs Cutoffs, DampingSpeedCutoffOwner? Owner) ResolveDampingSpeedCutoffContext(

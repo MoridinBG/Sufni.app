@@ -20,9 +20,10 @@ internal sealed class RecordedSessionSourceSyncQuery(
         var missingSessionSourceIds = await recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync();
         var windows = await windowProvider.GetWindowsAsync();
         var targetIds = missingSessionSourceIds
-            .Where(sessionId =>
-                !windows.TryGetValue(sessionId, out var window) ||
-                window.SourceSessionId == sessionId)
+            .Select(sessionId =>
+                windows.TryGetValue(sessionId, out var window)
+                    ? window.SourceSessionId
+                    : sessionId)
             .ToHashSet();
 
         var existingSourceIds = (await recordedSessionSourceRepository.GetSourceBackedSessionIdsAsync()).ToHashSet();

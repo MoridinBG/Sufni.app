@@ -51,6 +51,7 @@ internal static class MainPagesViewModelTestFactory
         ILayoutProfileTransitionState? layoutProfileTransitionState = null,
         IUiPreferences? uiPreferences = null,
         IEnumerable<IAppToolbarContributionProvider>? appToolbarContributionProviders = null,
+        PairingClientViewModel? pairingClientPage = null,
         PairingServerViewModel? pairingServerViewModel = null,
         IEnumerable<IExtensionStateRefreshParticipant>? extensionStateRefreshParticipants = null)
     {
@@ -95,6 +96,7 @@ internal static class MainPagesViewModelTestFactory
             CreatePairedDeviceListPage(),
             UiThreadDispatcher,
             appToolbarContributionProviders,
+            pairingClientPage: pairingClientPage,
             pairingServerViewModel: pairingServerViewModel,
             extensionStateRefreshParticipants: extensionStateRefreshParticipants);
     }
@@ -109,15 +111,12 @@ internal static class MainPagesViewModelTestFactory
             Capabilities: capabilities ?? new AppCapabilities(
                 CanHostSyncServer: true,
                 CanPairAsClient: false,
-                HasHaptics: false,
                 SupportsMassStorageImport: true,
-                SupportsStorageProviderImport: true,
-                SupportsNativeWindowing: true),
+                SupportsStorageProviderImport: true),
             Input: input ?? new InputCapabilities(
                 HasPointer: true,
                 HasTouch: false,
                 HasKeyboard: true,
-                SupportsPinch: false,
                 SupportsLongPressContextMenu: false));
 
     private static BikeListViewModel CreateBikeListPage() =>

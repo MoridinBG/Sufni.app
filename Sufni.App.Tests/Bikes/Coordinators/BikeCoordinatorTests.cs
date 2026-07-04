@@ -35,7 +35,7 @@ public class BikeCoordinatorTests
         editorFactory.CloseBikeEditor(Arg.Any<Guid>()).Returns(Task.CompletedTask);
     }
 
-    private BikeCoordinator CreateCoordinator()
+    private BikeCoordinator CreateCoordinator(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace)
     {
         BikeCoordinator? coordinator = null;
         coordinator = new(
@@ -43,6 +43,7 @@ public class BikeCoordinatorTests
             bikeRepository,
             dependencyQuery,
             shell,
+            CreateEnvironment(layoutProfile),
             bikeEditorService,
             rearSuspensionValidator,
             () => editorFactory);
@@ -215,10 +216,31 @@ public class BikeCoordinatorTests
             s.RearWheelDiameterMm == 750 &&
             s.ImageRotationDegrees == 13.5 &&
             s.Updated == 7));
-        shell.Received(1).GoBack();
+        shell.DidNotReceive().GoBack();
         var saved = Assert.IsType<BikeSaveResult.Saved>(result);
         Assert.Equal(7, saved.NewBaselineUpdated);
         Assert.IsType<BikeEditorAnalysisResult.Unavailable>(saved.AnalysisResult);
+    }
+
+    [Fact]
+    public async Task SaveAsync_OnCompact_NavigatesBackAfterSave()
+    {
+        var existing = TestSnapshots.Bike(updated: 5);
+        bikeStore.Get(existing.Id).Returns(existing);
+        var coordinator = CreateCoordinator(UiLayoutProfile.Compact);
+
+        var bike = new Bike(existing.Id, "renamed")
+        {
+            HeadAngle = 65,
+            ForkStroke = 160,
+            FrontWheelDiameterMm = 760,
+            RearWheelDiameterMm = 750,
+            Updated = 7,
+        };
+
+        await coordinator.SaveAsync(bike, baselineUpdated: 5);
+
+        shell.Received(1).GoBack();
     }
 
     [Fact]
@@ -458,4 +480,19 @@ public class BikeCoordinatorTests
         bikeStore.DidNotReceiveWithAnyArgs().Remove(default);
         await editorFactory.DidNotReceive().CloseBikeEditor(Arg.Any<Guid>());
     }
+
+    private static IAppEnvironment CreateEnvironment(UiLayoutProfile layoutProfile) =>
+        new AppEnvironment(
+            DefaultLayoutProfile: layoutProfile,
+            LayoutProfile: layoutProfile,
+            Capabilities: new AppCapabilities(
+                CanHostSyncServer: true,
+                CanPairAsClient: true,
+                SupportsMassStorageImport: true,
+                SupportsStorageProviderImport: true),
+            Input: new InputCapabilities(
+                HasPointer: true,
+                HasTouch: true,
+                HasKeyboard: true,
+                SupportsLongPressContextMenu: true));
 }

@@ -111,15 +111,12 @@ public class WorkspaceShellViewTests
             Capabilities: new AppCapabilities(
                 CanHostSyncServer: true,
                 CanPairAsClient: true,
-                HasHaptics: false,
                 SupportsMassStorageImport: true,
-                SupportsStorageProviderImport: true,
-                SupportsNativeWindowing: true),
+                SupportsStorageProviderImport: true),
             Input: new InputCapabilities(
                 HasPointer: true,
                 HasTouch: false,
                 HasKeyboard: true,
-                SupportsPinch: false,
                 SupportsLongPressContextMenu: false));
 
         return new ShellRootViewModel(

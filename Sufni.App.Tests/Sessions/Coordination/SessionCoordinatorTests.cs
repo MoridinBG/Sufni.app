@@ -114,7 +114,7 @@ public class SessionCoordinatorTests
             DampingSpeedCutoffs: cutoffs ?? DampingSpeedCutoffs.Default,
             BalanceAvailable: false);
 
-    private SessionCommandService CreateCommandService() =>
+    private SessionCommandService CreateCommandService(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
         new(
             sessionStore,
             sessionRepository,
@@ -129,16 +129,17 @@ public class SessionCoordinatorTests
             backgroundTaskRunner,
             sessionPreferences,
             shell,
+            CreateEnvironment(layoutProfile),
             recomputeEngine,
             () => editorFactory,
             derivationWindowCache,
             derivationWindowProvider);
 
-    private SessionCoordinator CreateCoordinator() =>
+    private SessionCoordinator CreateCoordinator(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
         new(
             sessionStore,
             CreateLoader(),
-            CreateCommandService(),
+            CreateCommandService(layoutProfile),
             () => editorFactory);
 
     private SessionSyncApplier CreateSyncApplier(ISynchronizationServerService? sync = null) =>
@@ -195,9 +196,28 @@ public class SessionCoordinatorTests
         await sessionRepository.Received(1).GetSessionAsync(existing.Id);
         sessionStore.Received(1).Upsert(Arg.Is<SessionSnapshot>(s =>
             s.Id == existing.Id && s.Name == "renamed" && s.Updated == 7 && s.HasProcessedData));
-        shell.Received(1).GoBack();
+        shell.DidNotReceive().GoBack();
         var saved = Assert.IsType<SessionSaveResult.Saved>(result);
         Assert.Equal(7, saved.NewBaselineUpdated);
+    }
+
+    [Fact]
+    public async Task SaveAsync_OnCompact_NavigatesBackAfterSave()
+    {
+        var existing = TestSnapshots.Session(updated: 5);
+        sessionStore.Get(existing.Id).Returns(existing);
+
+        var session = new Session(existing.Id, "renamed", "", null) { Updated = 7 };
+        var fresh = new Session(existing.Id, "renamed", "", null)
+        {
+            Updated = 7,
+            HasProcessedData = true,
+        };
+        sessionRepository.GetSessionAsync(existing.Id).Returns(fresh);
+
+        await CreateCoordinator(UiLayoutProfile.Compact).SaveAsync(session, baselineUpdated: 5);
+
+        shell.Received(1).GoBack();
     }
 
     [Fact]
@@ -1060,6 +1080,21 @@ public class SessionCoordinatorTests
             new SessionStaleness.DependencyHashChanged(),
             DerivedChangeKind.None);
     }
+
+    private static IAppEnvironment CreateEnvironment(UiLayoutProfile layoutProfile) =>
+        new AppEnvironment(
+            DefaultLayoutProfile: layoutProfile,
+            LayoutProfile: layoutProfile,
+            Capabilities: new AppCapabilities(
+                CanHostSyncServer: true,
+                CanPairAsClient: true,
+                SupportsMassStorageImport: true,
+                SupportsStorageProviderImport: true),
+            Input: new InputCapabilities(
+                HasPointer: true,
+                HasTouch: true,
+                HasKeyboard: true,
+                SupportsLongPressContextMenu: true));
 
     private static LiveSessionCapturePackage CreateLiveCapturePackage(bool withGps)
     {

@@ -20,15 +20,12 @@ public class ShellRootViewModelTests
             Capabilities: new AppCapabilities(
                 CanHostSyncServer: true,
                 CanPairAsClient: false,
-                HasHaptics: false,
                 SupportsMassStorageImport: true,
-                SupportsStorageProviderImport: true,
-                SupportsNativeWindowing: true),
+                SupportsStorageProviderImport: true),
             Input: new InputCapabilities(
                 HasPointer: true,
                 HasTouch: false,
                 HasKeyboard: true,
-                SupportsPinch: false,
                 SupportsLongPressContextMenu: false));
 
         var plotZoomState = Substitute.For<IPlotZoomState>();
@@ -134,15 +131,12 @@ public class ShellRootViewModelTests
             Capabilities: new AppCapabilities(
                 CanHostSyncServer: false,
                 CanPairAsClient: true,
-                HasHaptics: true,
                 SupportsMassStorageImport: false,
-                SupportsStorageProviderImport: true,
-                SupportsNativeWindowing: false),
+                SupportsStorageProviderImport: true),
             Input: new InputCapabilities(
                 HasPointer: false,
                 HasTouch: true,
                 HasKeyboard: false,
-                SupportsPinch: true,
                 SupportsLongPressContextMenu: true));
 
         return new ShellRootViewModel(

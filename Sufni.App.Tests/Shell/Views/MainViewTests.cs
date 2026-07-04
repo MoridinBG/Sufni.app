@@ -38,29 +38,17 @@ public class MainViewTests
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
 
-        var mainPages = MainPagesViewModelTestFactory.Create();
-        var pageHost = Substitute.For<IMobileNavigationPageHost>();
-        var root = CreateRoot(mainPages);
+        var root = CreateRoot(MainPagesViewModelTestFactory.Create());
         var view = new MainView
         {
             DataContext = root,
         };
-        view.SetNavigationPageHost(pageHost);
 
-        var mounted = await MountAsync(view);
-        var navigationPage = mounted.View.FindControl<NavigationPage>("RootNavigationPage");
-
-        Assert.NotNull(navigationPage);
+        await using var mounted = await MountAsync(view);
         var workspaceHost = mounted.View.FindControl<ContentControl>("WorkspaceRootHost");
 
         Assert.NotNull(workspaceHost);
-        Assert.False(navigationPage!.IsVisible);
         Assert.True(workspaceHost!.IsVisible);
-        pageHost.DidNotReceive().Attach(Arg.Any<NavigationPage>());
-
-        await mounted.DisposeAsync();
-
-        pageHost.DidNotReceive().Detach(Arg.Any<NavigationPage>());
     }
 
     [AvaloniaFact]
@@ -76,7 +64,6 @@ public class MainViewTests
         {
             DataContext = root,
         };
-        view.SetNavigationPageHost(Substitute.For<IMobileNavigationPageHost>());
 
         await using var mounted = await MountAsync(view);
 
@@ -122,15 +109,12 @@ public class MainViewTests
             Capabilities: new AppCapabilities(
                 CanHostSyncServer: false,
                 CanPairAsClient: true,
-                HasHaptics: true,
                 SupportsMassStorageImport: false,
-                SupportsStorageProviderImport: true,
-                SupportsNativeWindowing: false),
+                SupportsStorageProviderImport: true),
             Input: new InputCapabilities(
                 HasPointer: false,
                 HasTouch: true,
                 HasKeyboard: false,
-                SupportsPinch: true,
                 SupportsLongPressContextMenu: true));
 
         return new ShellRootViewModel(

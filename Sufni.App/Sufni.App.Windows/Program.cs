@@ -24,15 +24,12 @@ namespace Sufni.App.Windows
                 new AppCapabilities(
                     CanHostSyncServer: true,
                     CanPairAsClient: false,
-                    HasHaptics: false,
                     SupportsMassStorageImport: true,
-                    SupportsStorageProviderImport: true,
-                    SupportsNativeWindowing: true),
+                    SupportsStorageProviderImport: true),
                 new InputCapabilities(
                     HasPointer: true,
                     HasTouch: false,
                     HasKeyboard: true,
-                    SupportsPinch: false,
                     SupportsLongPressContextMenu: false));
             App.ServiceCollection.AddSingleton<ISecureStorage, WindowsSecureStorage>();
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, SocketServiceDiscovery>("daq");

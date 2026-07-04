@@ -28,15 +28,12 @@ public sealed class PlotZoomOverlayHost : Panel, IPlotZoomSurface
         Capabilities: new AppCapabilities(
             CanHostSyncServer: false,
             CanPairAsClient: false,
-            HasHaptics: false,
             SupportsMassStorageImport: false,
-            SupportsStorageProviderImport: false,
-            SupportsNativeWindowing: true),
+            SupportsStorageProviderImport: false),
         Input: new InputCapabilities(
             HasPointer: true,
             HasTouch: false,
             HasKeyboard: true,
-            SupportsPinch: false,
             SupportsLongPressContextMenu: false));
 
     private readonly Border scrim;

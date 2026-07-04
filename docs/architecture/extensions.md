@@ -37,8 +37,9 @@ Modules that expose one concrete singleton through one or more neutral service
 interfaces use `AddExtensionSingletonAlias<TService, TImplementation>()` so
 the concrete type and every alias resolve to the same instance. Modules use the
 generic `RegisterView<TViewModel, TSharedView>()` /
-`RegisterView<TViewModel, TSharedView, TDesktopView>()` overloads for normal
-parameterless extension view registrations.
+`RegisterView<TViewModel, TSharedView, TWorkspaceView>()` /
+`RegisterView<TViewModel, TSharedView, TCompactView, TWorkspaceView>()`
+overloads for normal parameterless extension view registrations.
 
 ## Build Imports
 
@@ -52,15 +53,16 @@ Desktop platform heads expose a neutral `Program.RegisterPlatformExtensions(ISer
 
 ## View Resolution
 
-`ExtensionViewRegistry` stores shared and desktop-specific factories keyed by view-model type. `ViewLocator` checks the extension registry before its built-in desktop/shared dictionaries:
+`ExtensionViewRegistry` stores shared, compact-specific, and workspace-specific factories keyed by view-model type. `ViewLocator` resolves against the active `UiLayoutProfile` and checks extension registrations before its built-in profile/common dictionaries:
 
-1. Desktop extension factory, when running on desktop and registered.
-2. Shared extension factory.
-3. Built-in desktop factory.
-4. Built-in shared factory.
-5. Fallback text block.
+1. Extension workspace factory, when the active profile is Workspace and one is registered.
+2. Extension compact factory, when the active profile is Compact and one is registered.
+3. Extension shared factory.
+4. Built-in workspace or compact factory for the active profile.
+5. Built-in common factory.
+6. Fallback text block.
 
-This keeps public `ViewLocator` dictionaries free of extension view-model types while still letting extension views render anywhere Avalonia data templates are used.
+This keeps public `ViewLocator` dictionaries free of extension view-model types while still letting extension views render anywhere Avalonia data templates are used. Extensions that use one control in both profiles register only the shared factory; a profile-specific factory is optional, not a migration requirement.
 
 Recorded-session page and analysis-tab contributions are projected into the
 session page collection behind an app-internal wrapper page view model.
