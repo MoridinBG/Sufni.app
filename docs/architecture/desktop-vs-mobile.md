@@ -85,7 +85,7 @@ Desktop heads register capabilities and services that mobile heads do not provid
 
 - **Sync server**: `ISynchronizationServerService` / `SynchronizationServerService` (ASP.NET Core / Kestrel, TLS, JWT, mDNS advertisement of `_sstsync._tcp`). See [Sync § Server](sync.md#server).
 - **Pairing server coordinator**: `IPairingServerCoordinator` re-exposes server pairing events as plain .NET events for the pairing UI and provides a `StartServerAsync()` passthrough.
-- **Inbound sync coordinator**: `IInboundSyncCoordinator` subscribes to `SynchronizationDataArrived` and writes incoming bikes / setups into their stores. Sessions and paired devices have their own dedicated coordinators so each store keeps exactly one writer.
+- **Inbound sync coordinator**: `IInboundSyncCoordinator` subscribes to `SynchronizationDataArrived` and publishes incoming bike/setup ids through store writer publish-only paths after the server merge has persisted them. Sessions and paired devices have their own dedicated coordinators so each store keeps exactly one writer.
 - **Mass-storage DAQ import**: drive-mounted DAQ devices (`BOARDID` marker scanning) are available only when `AppCapabilities.SupportsMassStorageImport` is true. Storage-provider import is separately gated by `SupportsStorageProviderImport`.
 - **Native windowing**: window ownership, dialog windows, and raw window shortcuts are available only when capabilities indicate native windowing support.
 
