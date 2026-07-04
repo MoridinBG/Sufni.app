@@ -28,6 +28,8 @@ public class LiveDaqKnownBoardsQueryTests
         var uiThreadDispatcher = new InlineUiThreadDispatcher();
         setupStore = new SetupStore(setupRepository, boardRepository, uiThreadDispatcher);
         bikeStore = new BikeStore(bikeRepository, uiThreadDispatcher);
+        bikeRepository.PutAsync(Arg.Any<Bike>()).Returns(callInfo =>
+            Task.FromResult(callInfo.Arg<Bike>().Id));
     }
 
     private LiveDaqKnownBoardsQuery CreateQuery() => new(
@@ -65,7 +67,7 @@ public class LiveDaqKnownBoardsQueryTests
         var bike = TestSnapshots.Bike(id: setup.BikeId, name: "enduro bike");
 
         setupStore.Upsert(setup);
-        bikeStore.Upsert(bike);
+        await SeedBikeAsync(bike);
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
@@ -83,7 +85,7 @@ public class LiveDaqKnownBoardsQueryTests
         var bike = TestSnapshots.Bike(id: setup.BikeId, name: "demo bike");
 
         setupStore.Upsert(setup);
-        bikeStore.Upsert(bike);
+        await SeedBikeAsync(bike);
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
@@ -129,14 +131,14 @@ public class LiveDaqKnownBoardsQueryTests
         var bike = TestSnapshots.Bike(id: setup.BikeId, name: "old bike name");
 
         setupStore.Upsert(setup);
-        bikeStore.Upsert(bike);
+        await SeedBikeAsync(bike);
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
         await WaitForRecordsAsync(query.Changes);
 
         var nextChange = WaitForRecordsAsync(query.Changes, ignoreReplay: true);
-        bikeStore.Upsert(bike with { Name = "new bike name" });
+        await SeedBikeAsync(bike with { Name = "new bike name" });
         var records = await nextChange;
 
         var record = Assert.Single(records);
@@ -151,7 +153,7 @@ public class LiveDaqKnownBoardsQueryTests
         var bike = TestSnapshots.Bike(id: setup.BikeId, name: "known bike");
 
         setupStore.Upsert(setup);
-        bikeStore.Upsert(bike);
+        await SeedBikeAsync(bike);
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
@@ -179,7 +181,7 @@ public class LiveDaqKnownBoardsQueryTests
         };
 
         setupStore.Upsert(setup);
-        bikeStore.Upsert(bike);
+        await SeedBikeAsync(bike);
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
@@ -211,7 +213,7 @@ public class LiveDaqKnownBoardsQueryTests
         };
 
         setupStore.Upsert(setup);
-        bikeStore.Upsert(bike);
+        await SeedBikeAsync(bike);
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
@@ -250,7 +252,7 @@ public class LiveDaqKnownBoardsQueryTests
         };
 
         setupStore.Upsert(setup);
-        bikeStore.Upsert(bike);
+        await SeedBikeAsync(bike);
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
@@ -298,7 +300,7 @@ public class LiveDaqKnownBoardsQueryTests
         };
 
         setupStore.Upsert(setup);
-        bikeStore.Upsert(bike);
+        await SeedBikeAsync(bike);
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
@@ -331,7 +333,7 @@ public class LiveDaqKnownBoardsQueryTests
         };
 
         setupStore.Upsert(setup);
-        bikeStore.Upsert(bike);
+        await SeedBikeAsync(bike);
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
 
         using var query = CreateQuery();
@@ -346,6 +348,9 @@ public class LiveDaqKnownBoardsQueryTests
         Assert.Equal(12, context.TravelCalibration.Rear!.MeasurementToTravel(3), 6);
         Assert.Equal(20, context.BikeData.RearMeasurementToTravel!((ushort)5), 6);
     }
+
+    private async Task SeedBikeAsync(BikeSnapshot bike) =>
+        await bikeStore.CommitBikeAsync(Bike.FromSnapshot(bike));
 
     private static async Task<IReadOnlyList<KnownLiveDaqRecord>> WaitForRecordsAsync(
         IObservable<IReadOnlyList<KnownLiveDaqRecord>> changes,

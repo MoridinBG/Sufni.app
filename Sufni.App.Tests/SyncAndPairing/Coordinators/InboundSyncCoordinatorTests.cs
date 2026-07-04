@@ -48,8 +48,9 @@ public class InboundSyncCoordinatorTests
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
         await DrainDispatcherAsync();
 
-        bikeStore.Received(1).Upsert(Arg.Is<BikeSnapshot>(s => s.Id == bikeId && s.Name == "fresh bike" && s.Updated == 7));
-        bikeStore.DidNotReceiveWithAnyArgs().Remove(default);
+        await bikeStore.Received(1).PublishBikesChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(bikeId)),
+            Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
@@ -66,8 +67,9 @@ public class InboundSyncCoordinatorTests
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
         await DrainDispatcherAsync();
 
-        bikeStore.Received(1).Remove(bikeId);
-        bikeStore.DidNotReceiveWithAnyArgs().Upsert(default!);
+        await bikeStore.Received(1).PublishBikesRemovedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(bikeId)),
+            Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
@@ -84,8 +86,9 @@ public class InboundSyncCoordinatorTests
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
         await DrainDispatcherAsync();
 
-        bikeStore.Received(1).Upsert(Arg.Is<BikeSnapshot>(s => s.Id == bikeId && s.Name == "kept bike"));
-        bikeStore.DidNotReceive().Remove(bikeId);
+        await bikeStore.Received(1).PublishBikesChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(bikeId)),
+            Arg.Any<CancellationToken>());
     }
 
     // ----- Setups with matching and non-matching boards -----
@@ -172,7 +175,9 @@ public class InboundSyncCoordinatorTests
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
         await DrainDispatcherAsync();
 
-        bikeStore.Received(1).Upsert(Arg.Is<BikeSnapshot>(s => s.Id == bikeId && s.Name == "authoritative bike"));
+        await bikeStore.Received(1).PublishBikesChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(bikeId)),
+            Arg.Any<CancellationToken>());
         setupStore.Received(1).Upsert(Arg.Is<SetupSnapshot>(s => s.Id == setupId && s.Name == "authoritative setup"));
     }
 }

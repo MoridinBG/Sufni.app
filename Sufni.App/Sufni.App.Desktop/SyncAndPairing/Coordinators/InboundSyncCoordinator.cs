@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using Serilog;
 using Sufni.App.ExtensionHost.Contracts.Services;
@@ -55,6 +57,8 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
             try
             {
                 var boards = await boardRepository.GetAllAsync();
+                var removedBikeIds = new List<Guid>();
+                var changedBikeIds = new List<Guid>();
                 var removedBikeCount = 0;
                 var upsertedBikeCount = 0;
                 foreach (var bike in e.Data.Bikes)
@@ -62,15 +66,18 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
                     var freshBike = await bikeRepository.GetAsync(bike.Id);
                     if (freshBike is null)
                     {
-                        bikeStoreWriter.Remove(bike.Id);
+                        removedBikeIds.Add(bike.Id);
                         removedBikeCount++;
                     }
                     else
                     {
-                        bikeStoreWriter.Upsert(BikeSnapshot.From(freshBike));
+                        changedBikeIds.Add(freshBike.Id);
                         upsertedBikeCount++;
                     }
                 }
+
+                await bikeStoreWriter.PublishBikesRemovedAsync(removedBikeIds);
+                await bikeStoreWriter.PublishBikesChangedAsync(changedBikeIds);
 
                 var removedSetupCount = 0;
                 var upsertedSetupCount = 0;

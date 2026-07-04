@@ -1,5 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Shared.Stores;
 
 namespace Sufni.App.Bikes.Stores;
 
@@ -7,11 +11,22 @@ namespace Sufni.App.Bikes.Stores;
 public interface IBikeStoreWriter : IBikeStore
 {
     /// Load all bikes from the database and replace the current contents.
-    Task RefreshAsync();
+    Task RefreshAsync(CancellationToken cancellationToken = default);
 
-    /// Insert or replace the snapshot for a bike.
-    void Upsert(BikeSnapshot snapshot);
+    Task<StoreMutationResult<BikeSnapshot>> CommitBikeAsync(
+        Bike bike,
+        long? baselineUpdated = null,
+        CancellationToken cancellationToken = default);
 
-    /// Remove a bike from the store by id. No-op if it is not present.
-    void Remove(Guid id);
+    Task<StoreDeleteResult<BikeSnapshot>> CommitBikeDeleteAsync(
+        Guid bikeId,
+        CancellationToken cancellationToken = default);
+
+    Task PublishBikesChangedAsync(
+        IReadOnlyCollection<Guid> bikeIds,
+        CancellationToken cancellationToken = default);
+
+    Task PublishBikesRemovedAsync(
+        IReadOnlyCollection<Guid> bikeIds,
+        CancellationToken cancellationToken = default);
 }

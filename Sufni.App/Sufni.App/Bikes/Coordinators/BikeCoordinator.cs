@@ -13,13 +13,12 @@ using Sufni.App.Bikes.Stores;
 using Sufni.App.Bikes.ViewModels.Editors;
 using Sufni.App.Infrastructure;
 using Sufni.App.Shell.Coordinators;
-using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Sessions.Processing.SessionDetails;
+using Sufni.App.Shared.Stores;
 namespace Sufni.App.Bikes.Coordinators;
 
 internal class BikeCoordinator(
     IBikeStoreWriter bikeStore,
-    ISynchronizableRepository<Bike> bikeRepository,
     IBikeDependencyQuery dependencyQuery,
     IShellCoordinator shell,
     IAppEnvironment appEnvironment,
@@ -181,16 +180,33 @@ internal class BikeCoordinator(
 
         try
         {
-            await bikeRepository.PutAsync(bike);
-            var saved = BikeSnapshot.From(bike);
-            bikeStore.Upsert(saved);
-            if (appEnvironment.LayoutProfile == UiLayoutProfile.Compact)
+            var mutationResult = await bikeStore.CommitBikeAsync(bike, baselineUpdated);
+            switch (mutationResult)
             {
-                _ = shell.GoBack();
-            }
+                case StoreMutationResult<BikeSnapshot>.Saved saved:
+                    if (appEnvironment.LayoutProfile == UiLayoutProfile.Compact)
+                    {
+                        _ = shell.GoBack();
+                    }
 
-            logger.Information("Bike save completed for {BikeId}", bike.Id);
-            return new BikeSaveResult.Saved(saved.Updated, analysisResult);
+                    logger.Information("Bike save completed for {BikeId}", bike.Id);
+                    return new BikeSaveResult.Saved(saved.Snapshot.Updated, analysisResult);
+
+                case StoreMutationResult<BikeSnapshot>.Conflict conflict:
+                    logger.Warning("Bike save conflict for {BikeId}", bike.Id);
+                    return new BikeSaveResult.Conflict(conflict.CurrentSnapshot);
+
+                case StoreMutationResult<BikeSnapshot>.Missing missing:
+                    logger.Error("Bike save failed because bike {BikeId} was missing: {ErrorMessage}", bike.Id, missing.ErrorMessage);
+                    return new BikeSaveResult.Failed(missing.ErrorMessage);
+
+                case StoreMutationResult<BikeSnapshot>.Failed failed:
+                    logger.Error("Bike save failed for {BikeId}: {ErrorMessage}", bike.Id, failed.ErrorMessage);
+                    return new BikeSaveResult.Failed(failed.ErrorMessage);
+
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(mutationResult));
+            }
         }
         catch (Exception e)
         {
@@ -238,12 +254,34 @@ internal class BikeCoordinator(
 
         try
         {
-            await bikeRepository.PutAsync(bike);
-            var saved = BikeSnapshot.From(bike);
-            bikeStore.Upsert(saved);
+            var mutationResult = await bikeStore.CommitBikeAsync(bike, baselineUpdated);
+            switch (mutationResult)
+            {
+                case StoreMutationResult<BikeSnapshot>.Saved saved:
+                    logger.Information("Bike damping speed cutoff update completed for {BikeId}", bikeId);
+                    return new BikeDampingSpeedCutoffUpdateResult.Saved(saved.Snapshot);
 
-            logger.Information("Bike damping speed cutoff update completed for {BikeId}", bikeId);
-            return new BikeDampingSpeedCutoffUpdateResult.Saved(saved);
+                case StoreMutationResult<BikeSnapshot>.Conflict conflict:
+                    logger.Warning("Bike damping speed cutoff update conflict for {BikeId}", bikeId);
+                    return new BikeDampingSpeedCutoffUpdateResult.Conflict(conflict.CurrentSnapshot);
+
+                case StoreMutationResult<BikeSnapshot>.Missing missing:
+                    logger.Error(
+                        "Bike damping speed cutoff update failed because bike {BikeId} was missing: {ErrorMessage}",
+                        bikeId,
+                        missing.ErrorMessage);
+                    return new BikeDampingSpeedCutoffUpdateResult.Failed(missing.ErrorMessage);
+
+                case StoreMutationResult<BikeSnapshot>.Failed failed:
+                    logger.Error(
+                        "Bike damping speed cutoff update failed for {BikeId}: {ErrorMessage}",
+                        bikeId,
+                        failed.ErrorMessage);
+                    return new BikeDampingSpeedCutoffUpdateResult.Failed(failed.ErrorMessage);
+
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(mutationResult));
+            }
         }
         catch (Exception e)
         {
@@ -262,20 +300,29 @@ internal class BikeCoordinator(
             return new BikeDeleteResult(BikeDeleteOutcome.InUse);
         }
 
-        try
+        var deleteResult = await bikeStore.CommitBikeDeleteAsync(bikeId);
+        switch (deleteResult)
         {
-            await bikeRepository.DeleteAsync(bikeId);
-        }
-        catch (Exception e)
-        {
-            logger.Error(e, "Bike delete failed for {BikeId}", bikeId);
-            return new BikeDeleteResult(BikeDeleteOutcome.Failed, e.Message);
-        }
+            case StoreDeleteResult<BikeSnapshot>.Deleted:
+                await editorFactory().CloseBikeEditor(bikeId);
+                logger.Information("Bike delete completed for {BikeId}", bikeId);
+                return new BikeDeleteResult(BikeDeleteOutcome.Deleted);
 
-        await editorFactory().CloseBikeEditor(bikeId);
-        bikeStore.Remove(bikeId);
-        logger.Information("Bike delete completed for {BikeId}", bikeId);
-        return new BikeDeleteResult(BikeDeleteOutcome.Deleted);
+            case StoreDeleteResult<BikeSnapshot>.Blocked blocked:
+                logger.Warning("Bike delete blocked for {BikeId}: {ErrorMessage}", bikeId, blocked.ErrorMessage);
+                return new BikeDeleteResult(BikeDeleteOutcome.Failed, blocked.ErrorMessage);
+
+            case StoreDeleteResult<BikeSnapshot>.Missing missing:
+                logger.Warning("Bike delete failed because bike {BikeId} was missing: {ErrorMessage}", bikeId, missing.ErrorMessage);
+                return new BikeDeleteResult(BikeDeleteOutcome.Failed, missing.ErrorMessage);
+
+            case StoreDeleteResult<BikeSnapshot>.Failed failed:
+                logger.Error("Bike delete failed for {BikeId}: {ErrorMessage}", bikeId, failed.ErrorMessage);
+                return new BikeDeleteResult(BikeDeleteOutcome.Failed, failed.ErrorMessage);
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(deleteResult));
+        }
     }
 
     private static Bike NormalizeImportedBike(Bike imported)

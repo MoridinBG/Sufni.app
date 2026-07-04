@@ -178,7 +178,7 @@ public class SetupCoordinator(
         {
             await bikeRepository.PutAsync(payload.Bike);
             var bikeSnapshot = BikeSnapshot.From(payload.Bike);
-            bikeStore.Upsert(bikeSnapshot);
+            await bikeStore.PublishBikesChangedAsync([payload.Bike.Id], cancellationToken);
 
             var (resolvedBoardId, boardWarning) = ResolveImportedBoardId(payload.BoardId);
 

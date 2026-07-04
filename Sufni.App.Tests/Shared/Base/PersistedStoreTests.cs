@@ -10,6 +10,7 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
+using Sufni.App.Shared.Stores;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Stores;
@@ -22,7 +23,7 @@ public class PersistedStoreTests
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
 
     [Fact]
-    public async Task BikeStore_RefreshLoadsSnapshots_AndWriterMutationsUpdateCache()
+    public async Task BikeStore_RefreshLoadsSnapshots_AndCommitMutationsUpdateCache()
     {
         var bikeId = Guid.NewGuid();
         var bike = new Bike
@@ -34,6 +35,9 @@ public class PersistedStoreTests
         };
         var bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
         bikeRepository.GetAllAsync().Returns([bike]);
+        bikeRepository.PutAsync(Arg.Any<Bike>()).Returns(callInfo =>
+            Task.FromResult(callInfo.Arg<Bike>().Id));
+        bikeRepository.DeleteAsync(bikeId).Returns(Task.CompletedTask);
         var store = new BikeStore(bikeRepository, UiThreadDispatcher);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
@@ -45,10 +49,12 @@ public class PersistedStoreTests
         Assert.Equal(snapshot, store.Get(bikeId));
 
         var updated = snapshot with { Name = "Enduro bike" };
-        store.Upsert(updated);
+        var updateResult = await store.CommitBikeAsync(Bike.FromSnapshot(updated));
+        Assert.IsType<StoreMutationResult<BikeSnapshot>.Saved>(updateResult);
         Assert.Equal(updated, store.Get(bikeId));
 
-        store.Remove(bikeId);
+        var deleteResult = await store.CommitBikeDeleteAsync(bikeId);
+        Assert.IsType<StoreDeleteResult<BikeSnapshot>.Deleted>(deleteResult);
         Assert.Empty(snapshots);
         Assert.Null(store.Get(bikeId));
     }
