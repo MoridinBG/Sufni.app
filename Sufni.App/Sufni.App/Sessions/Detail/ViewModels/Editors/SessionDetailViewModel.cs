@@ -1632,7 +1632,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 analysisSelectionController.HighlightRanges),
             screenState,
             sessionOperationState,
-            dampingPercentages);
+            dampingPercentages,
+            SignalPlotContextMenuActionsBySignalRowId);
         ApplyProjectedEditorState(state);
         editorStateInput.OnNext(state);
     }

@@ -26,7 +26,8 @@ internal static class RecordedSessionEditorStateSnapshot
         AnalysisSelectionState? analysisSelection = null,
         SessionScreenPresentationState? screenState = null,
         SessionOperationPresentationState? operationState = null,
-        SessionDampingPercentages? dampingPercentages = null)
+        SessionDampingPercentages? dampingPercentages = null,
+        IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>? signalPlotContextMenuActionsBySignalRowId = null)
     {
         var toggles = signalToggles ?? RecordedSignalToggleState.From(context);
         var modes = analysisModes ?? RecordedAnalysisModeState.From(context);
@@ -94,7 +95,7 @@ internal static class RecordedSessionEditorStateSnapshot
                 PlotDampingSpeedCutoffs: context.PlotDampingSpeedCutoffs,
                 CanEditDampingSpeedCutoffs: context.CanEditDampingSpeedCutoffs,
                 SessionInsights: context.SessionInsights,
-                SignalPlotContextMenuActionsBySignalRowId: context.SignalPlotContextMenuActionsBySignalRowId,
+                SignalPlotContextMenuActionsBySignalRowId: signalPlotContextMenuActionsBySignalRowId ?? context.SignalPlotContextMenuActionsBySignalRowId,
                 ScreenState: screenState ?? context.ScreenState,
                 OperationState: operationState ?? context.SessionOperationState),
             AnalysisSelection: analysisSelection ?? new AnalysisSelectionState(
