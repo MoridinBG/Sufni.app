@@ -31,8 +31,17 @@ public class SessionWorkspaceViewModelTests
         var context = new RecordedSessionContext();
         using var actions = new RecordedSessionEditorActions();
         var intents = Subscribe(actions);
-        var workspace = new RecordedSessionSignalsWorkspaceViewModel(context, actions);
+        using var state = new Subject<RecordedSessionEditorState>();
+        var workspace = new RecordedSessionSignalsWorkspaceViewModel(
+            state,
+            context.SourceVisibility,
+            context.Timeline,
+            () => context.ExtensionSlots,
+            actions);
         var changes = TrackPropertyChanges(workspace);
+        context.PropertyChanged += (_, _) =>
+            state.OnNext(RecordedSessionEditorStateSnapshot.From(context, SessionPreferences.Default));
+        state.OnNext(RecordedSessionEditorStateSnapshot.From(context, SessionPreferences.Default));
 
         workspace.SignalLayoutPreferences = context.SignalLayoutPreferences;
         workspace.SetAnalysisRange(1.25, 3.5);
@@ -302,10 +311,19 @@ public class SessionWorkspaceViewModelTests
     {
         var context = new RecordedSessionContext();
         using var actions = new RecordedSessionEditorActions();
-        var workspace = new RecordedSessionSignalsWorkspaceViewModel(context, actions);
+        using var state = new Subject<RecordedSessionEditorState>();
+        var workspace = new RecordedSessionSignalsWorkspaceViewModel(
+            state,
+            context.SourceVisibility,
+            context.Timeline,
+            () => context.ExtensionSlots,
+            actions);
         var changes = TrackPropertyChanges(workspace);
+        state.OnNext(RecordedSessionEditorStateSnapshot.From(context, SessionPreferences.Default));
+        changes.Clear();
 
         context.ScreenState = SessionScreenPresentationState.Loading("Loading session.");
+        state.OnNext(RecordedSessionEditorStateSnapshot.From(context, SessionPreferences.Default));
 
         Assert.Empty(changes);
     }

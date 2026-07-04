@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
@@ -16,95 +15,140 @@ namespace Sufni.App.Sessions.Signals.ViewModels.Editors;
 
 internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObject, IRecordedSessionSignalsWorkspace
 {
-    private readonly RecordedSessionContext context;
+    private readonly Func<RecordedSessionExtensionSlots> extensionSlots;
     private readonly RecordedSessionEditorActions actions;
+    private readonly IDisposable stateSubscription;
+    private TelemetryData? telemetryData;
+    private TelemetryTimeRange? analysisRange;
+    private IReadOnlyList<TrackPoint>? trackPoints;
+    private TrackTimeRange? trackTimelineContext;
+    private SurfacePresentationState travelSignalState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState velocitySignalState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState imuSignalState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState pitchRollSignalState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState speedSignalState = SurfacePresentationState.Hidden;
+    private SurfacePresentationState elevationSignalState = SurfacePresentationState.Hidden;
+    private SignalDisplayPreferences signalDisplayPreferences = SessionPreferences.Default.SignalDisplay;
+    private SignalLayoutPreferences signalLayoutPreferences = SessionPreferences.Default.SignalLayout;
+    private IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> signalPlotContextMenuActionsBySignalRowId =
+        new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
+    private bool showAirtime = true;
+    private bool showVelocityAirtime;
+    private bool showImuAirtime;
+    private bool showPitchRollAirtime;
+    private bool showSpeedAirtime;
+    private bool showElevationAirtime;
+    private IReadOnlyList<TelemetryHighlightRange> analysisSelectionHighlightRanges = [];
+    private bool showAnalysisSelection;
+    private bool showVelocityAnalysisSelection;
+    private bool showImuAnalysisSelection;
+    private bool showPitchRollAnalysisSelection;
+    private bool showSpeedAnalysisSelection;
+    private bool showElevationAnalysisSelection;
+    private IReadOnlyList<SignalRowAction> travelHeaderActions = [];
+    private IReadOnlyList<SignalRowAction> velocityHeaderActions = [];
+    private IReadOnlyList<SignalRowAction> imuHeaderActions = [];
+    private IReadOnlyList<SignalRowAction> pitchRollHeaderActions = [];
+    private IReadOnlyList<SignalRowAction> speedHeaderActions = [];
+    private IReadOnlyList<SignalRowAction> elevationHeaderActions = [];
 
     public RecordedSessionSignalsWorkspaceViewModel(
-        RecordedSessionContext context,
+        IObservable<RecordedSessionEditorState> state,
+        TelemetrySourceVisibilityStore sourceVisibility,
+        SessionTimelineLinkViewModel timeline,
+        Func<RecordedSessionExtensionSlots> extensionSlots,
         RecordedSessionEditorActions actions)
     {
-        this.context = context;
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(sourceVisibility);
+        ArgumentNullException.ThrowIfNull(timeline);
+        ArgumentNullException.ThrowIfNull(extensionSlots);
+        ArgumentNullException.ThrowIfNull(actions);
+
+        SourceVisibility = sourceVisibility;
+        Timeline = timeline;
+        this.extensionSlots = extensionSlots;
         this.actions = actions;
-        context.PropertyChanged += OnContextPropertyChanged;
+        stateSubscription = state.Subscribe(ApplyState);
     }
 
-    public TelemetryData? TelemetryData => context.TelemetryData;
+    public TelemetryData? TelemetryData => telemetryData;
 
-    public TelemetryTimeRange? AnalysisRange => context.AnalysisRange;
+    public TelemetryTimeRange? AnalysisRange => analysisRange;
 
-    public IReadOnlyList<TrackPoint>? TrackPoints => context.TrackPoints;
+    public IReadOnlyList<TrackPoint>? TrackPoints => trackPoints;
 
-    public TrackTimeRange? TrackTimelineContext => context.TrackTimelineContext;
+    public TrackTimeRange? TrackTimelineContext => trackTimelineContext;
 
-    public SurfacePresentationState TravelSignalState => context.TravelSignalState;
+    public SurfacePresentationState TravelSignalState => travelSignalState;
 
-    public SurfacePresentationState VelocitySignalState => context.VelocitySignalState;
+    public SurfacePresentationState VelocitySignalState => velocitySignalState;
 
-    public SurfacePresentationState ImuSignalState => context.ImuSignalState;
+    public SurfacePresentationState ImuSignalState => imuSignalState;
 
-    public SurfacePresentationState PitchRollSignalState => context.PitchRollSignalState;
+    public SurfacePresentationState PitchRollSignalState => pitchRollSignalState;
 
-    public SurfacePresentationState SpeedSignalState => context.SpeedSignalState;
+    public SurfacePresentationState SpeedSignalState => speedSignalState;
 
-    public SurfacePresentationState ElevationSignalState => context.ElevationSignalState;
+    public SurfacePresentationState ElevationSignalState => elevationSignalState;
 
-    public SignalDisplayPreferences SignalDisplayPreferences => context.SignalDisplayPreferences;
+    public SignalDisplayPreferences SignalDisplayPreferences => signalDisplayPreferences;
 
     public SignalLayoutPreferences SignalLayoutPreferences
     {
-        get => context.SignalLayoutPreferences;
+        get => signalLayoutPreferences;
         set => actions.SetSignalLayoutPreferences(value);
     }
 
-    public TelemetrySourceVisibilityStore SourceVisibility => context.SourceVisibility;
+    public TelemetrySourceVisibilityStore SourceVisibility { get; }
 
-    public SessionTimelineLinkViewModel Timeline => context.Timeline;
+    public SessionTimelineLinkViewModel Timeline { get; }
 
-    public RecordedSessionExtensionSlots ExtensionSlots => context.ExtensionSlots;
+    public RecordedSessionExtensionSlots ExtensionSlots => extensionSlots();
 
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId =>
-        context.SignalPlotContextMenuActionsBySignalRowId;
+        signalPlotContextMenuActionsBySignalRowId;
 
-    public bool ShowAirtime => context.ShowAirtime;
+    public bool ShowAirtime => showAirtime;
 
-    public bool ShowVelocityAirtime => context.ShowVelocityAirtime;
+    public bool ShowVelocityAirtime => showVelocityAirtime;
 
-    public bool ShowImuAirtime => context.ShowImuAirtime;
+    public bool ShowImuAirtime => showImuAirtime;
 
-    public bool ShowPitchRollAirtime => context.ShowPitchRollAirtime;
+    public bool ShowPitchRollAirtime => showPitchRollAirtime;
 
-    public bool ShowSpeedAirtime => context.ShowSpeedAirtime;
+    public bool ShowSpeedAirtime => showSpeedAirtime;
 
-    public bool ShowElevationAirtime => context.ShowElevationAirtime;
+    public bool ShowElevationAirtime => showElevationAirtime;
 
     public IReadOnlyList<TelemetryHighlightRange> AnalysisSelectionHighlightRanges =>
-        context.AnalysisSelectionHighlightRanges;
+        analysisSelectionHighlightRanges;
 
-    public bool HasAnalysisSelection => context.HasAnalysisSelection;
+    public bool HasAnalysisSelection => AnalysisSelectionHighlightRanges.Count > 0;
 
-    public bool ShowAnalysisSelection => context.ShowAnalysisSelection;
+    public bool ShowAnalysisSelection => showAnalysisSelection;
 
-    public bool ShowVelocityAnalysisSelection => context.ShowVelocityAnalysisSelection;
+    public bool ShowVelocityAnalysisSelection => showVelocityAnalysisSelection;
 
-    public bool ShowImuAnalysisSelection => context.ShowImuAnalysisSelection;
+    public bool ShowImuAnalysisSelection => showImuAnalysisSelection;
 
-    public bool ShowPitchRollAnalysisSelection => context.ShowPitchRollAnalysisSelection;
+    public bool ShowPitchRollAnalysisSelection => showPitchRollAnalysisSelection;
 
-    public bool ShowSpeedAnalysisSelection => context.ShowSpeedAnalysisSelection;
+    public bool ShowSpeedAnalysisSelection => showSpeedAnalysisSelection;
 
-    public bool ShowElevationAnalysisSelection => context.ShowElevationAnalysisSelection;
+    public bool ShowElevationAnalysisSelection => showElevationAnalysisSelection;
 
-    public IReadOnlyList<SignalRowAction> TravelHeaderActions => context.TravelHeaderActions;
+    public IReadOnlyList<SignalRowAction> TravelHeaderActions => travelHeaderActions;
 
-    public IReadOnlyList<SignalRowAction> VelocityHeaderActions => context.VelocityHeaderActions;
+    public IReadOnlyList<SignalRowAction> VelocityHeaderActions => velocityHeaderActions;
 
-    public IReadOnlyList<SignalRowAction> ImuHeaderActions => context.ImuHeaderActions;
+    public IReadOnlyList<SignalRowAction> ImuHeaderActions => imuHeaderActions;
 
-    public IReadOnlyList<SignalRowAction> PitchRollHeaderActions => context.PitchRollHeaderActions;
+    public IReadOnlyList<SignalRowAction> PitchRollHeaderActions => pitchRollHeaderActions;
 
-    public IReadOnlyList<SignalRowAction> SpeedHeaderActions => context.SpeedHeaderActions;
+    public IReadOnlyList<SignalRowAction> SpeedHeaderActions => speedHeaderActions;
 
-    public IReadOnlyList<SignalRowAction> ElevationHeaderActions => context.ElevationHeaderActions;
+    public IReadOnlyList<SignalRowAction> ElevationHeaderActions => elevationHeaderActions;
 
     public void SetAnalysisRange(double startSeconds, double endSeconds)
     {
@@ -164,11 +208,46 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         nameof(ElevationHeaderActions),
     ];
 
-    private void OnContextPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    private void ApplyState(RecordedSessionEditorState state)
     {
-        if (args.PropertyName is { } propertyName && ForwardedProperties.Contains(propertyName))
+        SetProperty(ref telemetryData, state.TelemetryData, nameof(TelemetryData));
+        SetProperty(ref analysisRange, state.Intent.AnalysisRange, nameof(AnalysisRange));
+        SetProperty(ref trackPoints, state.TrackPoints, nameof(TrackPoints));
+        SetProperty(ref trackTimelineContext, state.TrackTimelineContext, nameof(TrackTimelineContext));
+        SetProperty(ref travelSignalState, state.Presentation.Signals.Travel, nameof(TravelSignalState));
+        SetProperty(ref velocitySignalState, state.Presentation.Signals.Velocity, nameof(VelocitySignalState));
+        SetProperty(ref imuSignalState, state.Presentation.Signals.Imu, nameof(ImuSignalState));
+        SetProperty(ref pitchRollSignalState, state.Presentation.Signals.PitchRoll, nameof(PitchRollSignalState));
+        SetProperty(ref speedSignalState, state.Presentation.Signals.Speed, nameof(SpeedSignalState));
+        SetProperty(ref elevationSignalState, state.Presentation.Signals.Elevation, nameof(ElevationSignalState));
+        SetProperty(ref signalDisplayPreferences, state.Intent.SignalDisplayPreferences, nameof(SignalDisplayPreferences));
+        SetProperty(ref signalLayoutPreferences, state.Intent.SignalLayoutPreferences, nameof(SignalLayoutPreferences));
+        SetProperty(
+            ref signalPlotContextMenuActionsBySignalRowId,
+            state.Presentation.SignalPlotContextMenuActionsBySignalRowId,
+            nameof(SignalPlotContextMenuActionsBySignalRowId));
+        SetProperty(ref showAirtime, state.Presentation.Signals.ShowAirtime, nameof(ShowAirtime));
+        SetProperty(ref showVelocityAirtime, state.Presentation.Signals.ShowVelocityAirtime, nameof(ShowVelocityAirtime));
+        SetProperty(ref showImuAirtime, state.Presentation.Signals.ShowImuAirtime, nameof(ShowImuAirtime));
+        SetProperty(ref showPitchRollAirtime, state.Presentation.Signals.ShowPitchRollAirtime, nameof(ShowPitchRollAirtime));
+        SetProperty(ref showSpeedAirtime, state.Presentation.Signals.ShowSpeedAirtime, nameof(ShowSpeedAirtime));
+        SetProperty(ref showElevationAirtime, state.Presentation.Signals.ShowElevationAirtime, nameof(ShowElevationAirtime));
+        if (SetProperty(ref analysisSelectionHighlightRanges, state.AnalysisSelection.HighlightRanges, nameof(AnalysisSelectionHighlightRanges)))
         {
-            OnPropertyChanged(propertyName);
+            OnPropertyChanged(nameof(HasAnalysisSelection));
         }
+
+        SetProperty(ref showAnalysisSelection, state.Presentation.Signals.ShowAnalysisSelection, nameof(ShowAnalysisSelection));
+        SetProperty(ref showVelocityAnalysisSelection, state.Presentation.Signals.ShowVelocityAnalysisSelection, nameof(ShowVelocityAnalysisSelection));
+        SetProperty(ref showImuAnalysisSelection, state.Presentation.Signals.ShowImuAnalysisSelection, nameof(ShowImuAnalysisSelection));
+        SetProperty(ref showPitchRollAnalysisSelection, state.Presentation.Signals.ShowPitchRollAnalysisSelection, nameof(ShowPitchRollAnalysisSelection));
+        SetProperty(ref showSpeedAnalysisSelection, state.Presentation.Signals.ShowSpeedAnalysisSelection, nameof(ShowSpeedAnalysisSelection));
+        SetProperty(ref showElevationAnalysisSelection, state.Presentation.Signals.ShowElevationAnalysisSelection, nameof(ShowElevationAnalysisSelection));
+        SetProperty(ref travelHeaderActions, state.Presentation.Signals.TravelHeaderActions, nameof(TravelHeaderActions));
+        SetProperty(ref velocityHeaderActions, state.Presentation.Signals.VelocityHeaderActions, nameof(VelocityHeaderActions));
+        SetProperty(ref imuHeaderActions, state.Presentation.Signals.ImuHeaderActions, nameof(ImuHeaderActions));
+        SetProperty(ref pitchRollHeaderActions, state.Presentation.Signals.PitchRollHeaderActions, nameof(PitchRollHeaderActions));
+        SetProperty(ref speedHeaderActions, state.Presentation.Signals.SpeedHeaderActions, nameof(SpeedHeaderActions));
+        SetProperty(ref elevationHeaderActions, state.Presentation.Signals.ElevationHeaderActions, nameof(ElevationHeaderActions));
     }
 }
