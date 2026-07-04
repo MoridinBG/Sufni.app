@@ -50,6 +50,45 @@ public class AppPreferencesTests
     }
 
     [Fact]
+    public async Task Preferences_ReadsFromLoadedDocument_WhenFileChangesAfterConstruction()
+    {
+        using var tempDirectory = new TempDirectory("sufni-preferences-test");
+        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
+        var initialLayerId = Guid.NewGuid();
+        var externalLayerId = Guid.NewGuid();
+
+        await File.WriteAllTextAsync(
+            preferencesPath,
+            $$"""
+            {
+              "version": 1,
+              "maps": {
+                "selectedLayerId": "{{initialLayerId:D}}",
+                "customLayers": []
+              }
+            }
+            """);
+        var preferences = new AppPreferences(preferencesPath);
+
+        await File.WriteAllTextAsync(
+            preferencesPath,
+            $$"""
+            {
+              "version": 1,
+              "maps": {
+                "selectedLayerId": "{{externalLayerId:D}}",
+                "customLayers": []
+              }
+            }
+            """);
+
+        Assert.Equal(initialLayerId, await preferences.Map.GetSelectedLayerIdAsync());
+
+        var reloaded = new AppPreferences(preferencesPath);
+        Assert.Equal(externalLayerId, await reloaded.Map.GetSelectedLayerIdAsync());
+    }
+
+    [Fact]
     public async Task ThemePreferences_DefaultMode_IsDark_WhenFileIsMissing()
     {
         using var tempDirectory = new TempDirectory("sufni-preferences-test");

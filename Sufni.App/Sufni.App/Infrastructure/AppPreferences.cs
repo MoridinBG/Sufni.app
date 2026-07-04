@@ -29,6 +29,7 @@ public sealed class AppPreferences : IAppPreferences
     private readonly string filePath;
     private readonly int documentVersion;
     private readonly SemaphoreSlim gate = new(1, 1);
+    private AppPreferencesDocument document;
 
     // Hot stream of "remote sync just landed in the on-disk document". Fired
     // after the gate is released so subscribers can re-read without contending
@@ -59,6 +60,7 @@ public sealed class AppPreferences : IAppPreferences
     {
         this.filePath = filePath;
         this.documentVersion = documentVersion;
+        document = ReadDocumentCore();
         Map = new MapPreferences(this);
         Session = new RecordedSessionPreferences(this);
         Theme = new ThemePreferences(this);
@@ -70,7 +72,6 @@ public sealed class AppPreferences : IAppPreferences
         await gate.WaitAsync();
         try
         {
-            var document = await ReadDocumentCoreAsync();
             return read(document);
         }
         finally
@@ -84,11 +85,12 @@ public sealed class AppPreferences : IAppPreferences
         await gate.WaitAsync();
         try
         {
-            var document = await ReadDocumentCoreAsync();
             if (document.Updated <= 0 && document.HasUserPreferences())
             {
-                document.Updated = GetCurrentTimestamp();
-                await WriteDocumentCoreAsync(document);
+                var next = CloneDocument();
+                next.Updated = GetCurrentTimestamp();
+                await WriteDocumentCoreAsync(next);
+                document = next;
             }
 
             return document.Updated > since
@@ -115,15 +117,16 @@ public sealed class AppPreferences : IAppPreferences
         await gate.WaitAsync();
         try
         {
-            var document = await ReadDocumentCoreAsync();
             if (preferences.Updated < document.Updated)
             {
                 return;
             }
 
-            document.ApplySyncData(preferences, documentVersion);
-            await WriteDocumentCoreAsync(document);
-            var recordedPreferences = document.Session.ToModelDictionary();
+            var next = CloneDocument();
+            next.ApplySyncData(preferences, documentVersion);
+            await WriteDocumentCoreAsync(next);
+            document = next;
+            var recordedPreferences = next.Session.ToModelDictionary();
             var recordedChanges = GetObservedRecordedSessionIds()
                 .Select(sessionId => (
                     sessionId,
@@ -154,10 +157,11 @@ public sealed class AppPreferences : IAppPreferences
         await gate.WaitAsync();
         try
         {
-            var document = await ReadDocumentCoreAsync();
-            update(document);
-            document.Updated = GetCurrentTimestamp();
-            await WriteDocumentCoreAsync(document);
+            var next = CloneDocument();
+            update(next);
+            next.Updated = GetCurrentTimestamp();
+            await WriteDocumentCoreAsync(next);
+            document = next;
         }
         finally
         {
@@ -173,9 +177,10 @@ public sealed class AppPreferences : IAppPreferences
         await gate.WaitAsync();
         try
         {
-            var document = await ReadDocumentCoreAsync();
-            update(document);
-            await WriteDocumentCoreAsync(document);
+            var next = CloneDocument();
+            update(next);
+            await WriteDocumentCoreAsync(next);
+            document = next;
         }
         finally
         {
@@ -234,7 +239,14 @@ public sealed class AppPreferences : IAppPreferences
 
     private static long GetCurrentTimestamp() => DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-    private async Task<AppPreferencesDocument> ReadDocumentCoreAsync()
+    private AppPreferencesDocument CloneDocument()
+    {
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(document, JsonOptions);
+        return JsonSerializer.Deserialize<AppPreferencesDocument>(bytes, JsonOptions)?.Normalize(documentVersion)
+            ?? new AppPreferencesDocument().Normalize(documentVersion);
+    }
+
+    private AppPreferencesDocument ReadDocumentCore()
     {
         if (!File.Exists(filePath))
         {
@@ -243,14 +255,14 @@ public sealed class AppPreferences : IAppPreferences
 
         try
         {
-            await using var stream = File.OpenRead(filePath);
-            var document = await JsonSerializer.DeserializeAsync<AppPreferencesDocument>(stream, JsonOptions);
+            using var stream = File.OpenRead(filePath);
+            var document = JsonSerializer.Deserialize<AppPreferencesDocument>(stream, JsonOptions);
             return document?.Normalize(documentVersion) ?? new AppPreferencesDocument().Normalize(documentVersion);
         }
         catch (JsonException ex)
         {
             logger.Warning(ex, "Failed to read app preferences JSON at {PreferencesPath}; using defaults", filePath);
-            return new AppPreferencesDocument();
+            return new AppPreferencesDocument().Normalize(documentVersion);
         }
     }
 
@@ -344,14 +356,15 @@ public sealed class AppPreferences : IAppPreferences
             await owner.gate.WaitAsync();
             try
             {
-                var document = await owner.ReadDocumentCoreAsync();
-                var current = document.Session.GetRecorded(sessionId);
+                var next = owner.CloneDocument();
+                var current = next.Session.GetRecorded(sessionId);
                 var updated = update(current);
-                document.Session.Sessions[SessionKey(sessionId)] = SessionPreferencesDocument.FromModel(updated);
-                document.Updated = GetCurrentTimestamp();
-                await owner.WriteDocumentCoreAsync(document);
+                next.Session.Sessions[SessionKey(sessionId)] = SessionPreferencesDocument.FromModel(updated);
+                next.Updated = GetCurrentTimestamp();
+                await owner.WriteDocumentCoreAsync(next);
+                owner.document = next;
                 owner.PublishRecordedPreferenceChanges(
-                    document.Session.ToModelDictionary(),
+                    next.Session.ToModelDictionary(),
                     PreferenceChangeOrigin.LocalWrite,
                     advancesSyncClock: true,
                     (sessionId, updated));
@@ -367,12 +380,13 @@ public sealed class AppPreferences : IAppPreferences
             await owner.gate.WaitAsync();
             try
             {
-                var document = await owner.ReadDocumentCoreAsync();
-                document.Session.Sessions.Remove(SessionKey(sessionId));
-                document.Updated = GetCurrentTimestamp();
-                await owner.WriteDocumentCoreAsync(document);
+                var next = owner.CloneDocument();
+                next.Session.Sessions.Remove(SessionKey(sessionId));
+                next.Updated = GetCurrentTimestamp();
+                await owner.WriteDocumentCoreAsync(next);
+                owner.document = next;
                 owner.PublishRecordedPreferenceChanges(
-                    document.Session.ToModelDictionary(),
+                    next.Session.ToModelDictionary(),
                     PreferenceChangeOrigin.LocalWrite,
                     advancesSyncClock: true,
                     (sessionId, SessionPreferences.Default));
@@ -388,15 +402,16 @@ public sealed class AppPreferences : IAppPreferences
             await owner.gate.WaitAsync();
             try
             {
-                var document = await owner.ReadDocumentCoreAsync();
+                var next = owner.CloneDocument();
                 // Reset only Processing to the default; the session's other
                 // preferences (signal display, analysis, signal layout, layout) are preserved.
-                var current = document.Session.GetRecorded(sessionId);
+                var current = next.Session.GetRecorded(sessionId);
                 var reset = current with { Processing = new SessionProcessingPreferences() };
-                document.Session.Sessions[SessionKey(sessionId)] = SessionPreferencesDocument.FromModel(reset);
-                await owner.WriteDocumentCoreAsync(document);
+                next.Session.Sessions[SessionKey(sessionId)] = SessionPreferencesDocument.FromModel(reset);
+                await owner.WriteDocumentCoreAsync(next);
+                owner.document = next;
                 owner.PublishRecordedPreferenceChanges(
-                    document.Session.ToModelDictionary(),
+                    next.Session.ToModelDictionary(),
                     PreferenceChangeOrigin.LocalNoSyncClockWrite,
                     advancesSyncClock: false,
                     (sessionId, reset));
