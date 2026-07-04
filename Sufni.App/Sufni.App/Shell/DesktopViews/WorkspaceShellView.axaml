@@ -1,0 +1,134 @@
+<UserControl
+    x:Class="Sufni.App.Shell.DesktopViews.WorkspaceShellView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:baseVm="clr-namespace:Sufni.App.Shared.Base"
+    xmlns:avaloniaConverters="using:Avalonia.Data.Converters"
+    xmlns:converters="clr-namespace:Sufni.App.Shared.Views.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:shellVm="clr-namespace:Sufni.App.Shell.ViewModels"
+    d:DesignHeight="1200"
+    d:DesignWidth="1600"
+    x:DataType="shellVm:ShellRootViewModel"
+    Background="{DynamicResource SufniSurfacePage}"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <converters:BoolToFontStyleConverter x:Key="BoolToFontStyleConverter" />
+        <converters:BoolToColorConverter x:Key="BoolToColorConverter" />
+        <converters:IsEqualConverter x:Key="IsEqualConverter" />
+    </UserControl.Resources>
+
+    <SplitView
+        CompactPaneLength="{StaticResource SufniNavRailPaneCompactWidth}"
+        DisplayMode="CompactInline"
+        IsPaneOpen="True"
+        OpenPaneLength="450">
+
+        <SplitView.Pane>
+            <ContentControl
+                Name="PagesHost"
+                BorderBrush="{DynamicResource SufniNavRailBorderRight}"
+                BorderThickness="0,0,1,0"
+                Content="{Binding Pages}" />
+        </SplitView.Pane>
+
+        <Grid RowDefinitions="auto *">
+            <Grid Grid.Row="0" ClipToBounds="True">
+                <TabStrip
+                    Name="TabControl"
+                    Padding="0"
+                    ItemsSource="{Binding Workspace.Tabs}"
+                    SelectedItem="{Binding Workspace.CurrentTab}">
+
+                    <TabStrip.Styles>
+                        <Style Selector="TabStripItem:pointerover /template/ Border#PART_LayoutRoot">
+                            <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceHover}" />
+                        </Style>
+                        <Style Selector="TabStripItem:selected /template/ Border#PART_LayoutRoot">
+                            <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
+                        </Style>
+                        <Style Selector="TabStripItem:pointerover:selected /template/ Border#PART_LayoutRoot">
+                            <Setter Property="Background" Value="{DynamicResource SufniTabSurfaceSelected}" />
+                        </Style>
+                        <Style Selector="TabStripItem:selected /template/ Border#PART_SelectedPipe">
+                            <Setter Property="Background" Value="{DynamicResource SufniAccentIndicatorTabUnderline}" />
+                            <Setter Property="Height" Value="{StaticResource SufniSelectionIndicatorThickness}" />
+                            <Setter Property="Margin" Value="{StaticResource SufniTabIndicatorBleedMargin}" />
+                        </Style>
+                    </TabStrip.Styles>
+
+                    <TabStrip.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="10,0,0,0" ColumnDefinitions="* auto">
+                                <TextBlock
+                                    x:Name="TabHeaderText"
+                                    Grid.Column="0"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="{StaticResource SufniTabFontSizeWindow}"
+                                    FontStyle="{Binding IsDirty, Converter={StaticResource BoolToFontStyleConverter}}"
+                                    Text="{Binding Name}">
+                                    <TextBlock.Foreground>
+                                        <MultiBinding Converter="{StaticResource BoolToColorConverter}">
+                                            <Binding Path="IsDirty" />
+                                            <Binding ElementName="TabHeaderText" Path="ActualThemeVariant" />
+                                        </MultiBinding>
+                                    </TextBlock.Foreground>
+                                </TextBlock>
+                                <Button
+                                    Grid.Column="1"
+                                    Margin="5,3,0,0"
+                                    HorizontalAlignment="Right"
+                                    Classes="embedded"
+                                    Command="{Binding CloseCommand}">
+                                    <Image
+                                        Width="12"
+                                        Opacity="0.4"
+                                        Source="{SvgImage /Assets/fa-xmark.svg}" />
+                                </Button>
+                            </Grid>
+                        </DataTemplate>
+                    </TabStrip.ItemTemplate>
+                </TabStrip>
+            </Grid>
+
+            <Grid Grid.Row="1">
+                <ItemsControl ItemsSource="{Binding Workspace.Tabs}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Panel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="baseVm:TabPageViewModelBase">
+                            <ContentControl Margin="0,20,0,0" Content="{Binding}">
+                                <ContentControl.IsVisible>
+                                    <MultiBinding Converter="{StaticResource IsEqualConverter}">
+                                        <Binding />
+                                        <Binding Path="#TabControl.((shellVm:ShellRootViewModel)DataContext).Workspace.CurrentTab" />
+                                    </MultiBinding>
+                                </ContentControl.IsVisible>
+                            </ContentControl>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Border
+                    Name="EmptyWorkspaceState"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    Background="{DynamicResource SufniSurfacePage}"
+                    IsVisible="{Binding Workspace.CurrentTab, Converter={x:Static avaloniaConverters:ObjectConverters.IsNull}}">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontSize="{StaticResource SufniFontSizeBody}"
+                        Foreground="{DynamicResource SufniTextSecondary}"
+                        Text="No workspace item selected" />
+                </Border>
+            </Grid>
+        </Grid>
+    </SplitView>
+</UserControl>

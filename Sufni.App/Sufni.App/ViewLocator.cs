@@ -119,6 +119,11 @@ public class ViewLocator : IDataTemplate
             return new global::Sufni.App.Shell.Views.CompactShellView();
         }
 
+        if (data is ShellRootViewModel { LayoutProfile: UiLayoutProfile.Workspace })
+        {
+            return new global::Sufni.App.Shell.DesktopViews.WorkspaceShellView();
+        }
+
         if (extensionViewRegistry.TryBuild(data, isDesktop, serviceProvider, out var extensionView))
         {
             return extensionView;
