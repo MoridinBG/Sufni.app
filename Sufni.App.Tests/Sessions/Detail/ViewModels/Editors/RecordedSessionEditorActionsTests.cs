@@ -541,30 +541,6 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
-    public void StateController_DerivesAnalysisPresentationState_FromAnalysisInputs()
-    {
-        using var driver = new RecordedSessionEditorStateControllerTestDriver();
-        var observed = new List<RecordedAnalysisPresentationState>();
-        using var subscription = driver.Controller.State.Subscribe(state => observed.Add(state.Presentation.Analysis));
-        var analysis = new RecordedAnalysisPresentationState(
-            FrontAnalysis: SurfacePresentationState.Ready,
-            RearAnalysis: SurfacePresentationState.Loading("Rear"),
-            CompressionBalance: SurfacePresentationState.Ready,
-            ReboundBalance: SurfacePresentationState.Hidden,
-            FrontForkVibration: SurfacePresentationState.Ready,
-            FrontFrameVibration: SurfacePresentationState.Hidden,
-            RearForkVibration: SurfacePresentationState.Ready,
-            RearFrameVibration: SurfacePresentationState.Hidden);
-
-        driver.AnalysisPresentationStates.OnNext(analysis);
-
-        Assert.Equal(2, observed.Count);
-        Assert.True(observed[0].FrontAnalysis.IsHidden);
-        Assert.Equal(analysis, observed[1]);
-        Assert.Equal(analysis, observed[^1]);
-    }
-
-    [Fact]
     public void StateController_DerivesAnalysisPresentationDetails_FromInputs()
     {
         using var driver = new RecordedSessionEditorStateControllerTestDriver();

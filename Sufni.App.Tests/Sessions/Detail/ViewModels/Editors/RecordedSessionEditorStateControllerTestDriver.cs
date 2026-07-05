@@ -29,7 +29,6 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
                 OperationStates,
                 MediaPaneStates,
                 MediaUrls,
-                AnalysisPresentationStates,
                 DampingPercentages,
                 PlotDampingSpeedCutoffs,
                 CanEditDampingSpeedCutoffs,
@@ -47,7 +46,6 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
     public Subject<SessionOperationPresentationState> OperationStates { get; } = new();
     public Subject<SurfacePresentationState> MediaPaneStates { get; } = new();
     public Subject<string?> MediaUrls { get; } = new();
-    public Subject<RecordedAnalysisPresentationState> AnalysisPresentationStates { get; } = new();
     public Subject<SessionDampingPercentages> DampingPercentages { get; } = new();
     public Subject<DampingSpeedCutoffs> PlotDampingSpeedCutoffs { get; } = new();
     public Subject<bool> CanEditDampingSpeedCutoffs { get; } = new();
@@ -107,7 +105,6 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
         OperationStates.Dispose();
         MediaPaneStates.Dispose();
         MediaUrls.Dispose();
-        AnalysisPresentationStates.Dispose();
         DampingPercentages.Dispose();
         PlotDampingSpeedCutoffs.Dispose();
         CanEditDampingSpeedCutoffs.Dispose();

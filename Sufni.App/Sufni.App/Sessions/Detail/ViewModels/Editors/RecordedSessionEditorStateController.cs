@@ -24,7 +24,6 @@ internal sealed record RecordedSessionEditorStateInputs(
     IObservable<SessionOperationPresentationState> OperationStates,
     IObservable<SurfacePresentationState> MediaPaneStates,
     IObservable<string?> MediaUrls,
-    IObservable<RecordedAnalysisPresentationState> AnalysisPresentationStates,
     IObservable<SessionDampingPercentages> DampingPercentages,
     IObservable<DampingSpeedCutoffs> PlotDampingSpeedCutoffs,
     IObservable<bool> CanEditDampingSpeedCutoffs,
@@ -49,7 +48,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(inputs.OperationStates);
         ArgumentNullException.ThrowIfNull(inputs.MediaPaneStates);
         ArgumentNullException.ThrowIfNull(inputs.MediaUrls);
-        ArgumentNullException.ThrowIfNull(inputs.AnalysisPresentationStates);
         ArgumentNullException.ThrowIfNull(inputs.DampingPercentages);
         ArgumentNullException.ThrowIfNull(inputs.PlotDampingSpeedCutoffs);
         ArgumentNullException.ThrowIfNull(inputs.CanEditDampingSpeedCutoffs);
@@ -82,9 +80,9 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             (double?)null);
         var mediaUrl = CreateInputState(inputs.MediaUrls, (string?)null);
         var analysisPresentation = CreateInputState(
-            inputs.AnalysisPresentationStates.Merge(loadPresentationState.CombineLatest(
+            loadPresentationState.CombineLatest(
                 analysisRange,
-                static (load, analysis) => CreateAnalysisPresentationFromLoadPresentation(load, analysis.AnalysisRange))),
+                static (load, analysis) => CreateAnalysisPresentationFromLoadPresentation(load, analysis.AnalysisRange)),
             CreateHiddenAnalysisPresentationState());
         var dampingPercentageState = CreateInputState(
             inputs.DampingPercentages,

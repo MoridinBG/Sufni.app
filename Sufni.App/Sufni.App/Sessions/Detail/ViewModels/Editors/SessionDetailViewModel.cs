@@ -106,7 +106,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<SessionOperationPresentationState> sessionOperationStateInput = new();
     private readonly Subject<SurfacePresentationState> mediaPaneStateInput = new();
     private readonly Subject<string?> mediaUrlInput = new();
-    private readonly Subject<RecordedAnalysisPresentationState> analysisPresentationInput = new();
     private readonly Subject<SessionDampingPercentages> dampingPercentagesInput = new();
     private readonly Subject<DampingSpeedCutoffs> plotDampingSpeedCutoffsInput = new();
     private readonly Subject<bool> canEditDampingSpeedCutoffsInput = new();
@@ -1430,7 +1429,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 sessionOperationStateInput,
                 mediaPaneStateInput,
                 mediaUrlInput,
-                analysisPresentationInput,
                 dampingPercentagesInput,
                 plotDampingSpeedCutoffsInput,
                 canEditDampingSpeedCutoffsInput,
@@ -2031,14 +2029,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             mediaUrlInput.OnNext(url);
             mediaPaneStateInput.OnNext(nextPaneState);
-        }
-    }
-
-    internal void SetRecordedAnalysisStates(RecordedAnalysisPresentationState state)
-    {
-        if (currentEditorState.Presentation.Analysis != state)
-        {
-            analysisPresentationInput.OnNext(state);
         }
     }
 

@@ -223,15 +223,6 @@ public class SessionDetailViewModelTests
             SurfacePresentationState.Hidden,
             SurfacePresentationState.Hidden,
             SurfacePresentationState.Hidden);
-        editor.SetRecordedAnalysisStates(new RecordedAnalysisPresentationState(
-            SurfacePresentationState.Ready,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden));
         editor.SetSessionOperationState(SessionOperationPresentationState.Progress("working", 50));
 
         Assert.Same(pages, editor.Pages);
@@ -359,25 +350,19 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void AnalysisWorkspace_TracksContextAnalysisStateAndCommands()
+    public async Task AnalysisWorkspace_TracksContextAnalysisStateAndCommands()
     {
-        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(telemetry));
+        var editor = CreateEditor(snapshot);
         var observed = new List<string?>();
         ((INotifyPropertyChanged)editor.AnalysisWorkspace).PropertyChanged += (_, args) =>
             observed.Add(args.PropertyName);
 
-        editor.SetTelemetryData(telemetry);
+        await editor.LoadedCommand.ExecuteAsync(null);
         editor.SetAnalysisRange(0.02, 0.16);
-        editor.SetRecordedAnalysisStates(new RecordedAnalysisPresentationState(
-            SurfacePresentationState.Ready,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden));
         editor.AnalysisWorkspace.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
         var selection = CreateFrontDampingSelection(telemetry, editor.AnalysisWorkspace.SelectedVelocityAverageMode);
 
