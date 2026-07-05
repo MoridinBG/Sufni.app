@@ -174,6 +174,50 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Construction_WithoutTrack_DoesNotInitializeMap()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+
+        var editor = CreateEditor(snapshot);
+
+        Assert.NotNull(editor.MapViewModel);
+        await tileLayerService.DidNotReceive().InitializeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task Construction_WithTrackLoadingState_InitializesMap()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true) with
+        {
+            FullTrackId = Guid.NewGuid(),
+        };
+
+        _ = CreateEditor(snapshot);
+
+        await tileLayerService.Received(1).InitializeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task SetMapState_InitializesMapOnce_WhenStateReservesLayout()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: false));
+
+        await tileLayerService.DidNotReceive().InitializeAsync();
+
+        editor.SetMapState(SurfacePresentationState.Hidden);
+
+        await tileLayerService.DidNotReceive().InitializeAsync();
+
+        editor.SetMapState(SurfacePresentationState.Ready);
+
+        await tileLayerService.Received(1).InitializeAsync();
+
+        editor.SetMapState(SurfacePresentationState.Loading());
+
+        await tileLayerService.Received(1).InitializeAsync();
+    }
+
+    [AvaloniaFact]
     public void Construction_ExposesProjectedMobileWorkspace()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);

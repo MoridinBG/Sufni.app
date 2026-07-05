@@ -202,6 +202,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private List<TrackPoint>? trackPoints;
     private TrackTimeRange? trackTimelineContext;
     private MapViewModel? mapViewModel;
+    private bool mapInitializeRequested;
     private bool showAirtime = true;
     private bool showVelocityAirtime;
     private bool showImuAirtime;
@@ -1593,7 +1594,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         Pages.CollectionChanged += OnPagesChanged;
         pageCountInput.OnNext(Pages.Count);
         mapViewModel = mapViewModelFactory.Create();
-        _ = mapViewModel.InitializeAsync();
         if (snapshot.HasProcessedData)
         {
             presentationApplier.ApplyRecordedLoadingStates(snapshot.FullTrackId is not null);
@@ -1993,6 +1993,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         var changed = mapState != state;
         mapState = state;
+        if (state.ReservesLayout && !mapInitializeRequested)
+        {
+            mapInitializeRequested = true;
+            _ = mapViewModel?.InitializeAsync();
+        }
+
         if (changed)
         {
             mapStateInput.OnNext(state);
