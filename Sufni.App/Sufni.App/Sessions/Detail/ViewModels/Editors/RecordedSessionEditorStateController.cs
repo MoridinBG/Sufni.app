@@ -81,7 +81,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             loadPresentationState.CombineLatest(
                 analysisRange,
                 static (load, analysis) => CreateAnalysisPresentationFromLoadPresentation(load, analysis.AnalysisRange)),
-            CreateHiddenAnalysisPresentationState());
+            RecordedSessionPresentationDeriver.CreateHiddenAnalysisPresentationState());
         var dampingPercentageState = CreateInputState(
             inputs.DampingPercentages,
             SessionDampingPercentages.Empty);
@@ -96,7 +96,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             SessionInsightsResult.Hidden);
         var signalAvailabilityState = CreateInputState(
             loadPresentationState.Select(CreateSignalAvailabilityFromLoadPresentation),
-            CreateHiddenSignalAvailabilityState());
+            RecordedSessionPresentationDeriver.CreateHiddenSignalAvailabilityState());
         var analysisSelectionState = CreateAnalysisSelectionState(
             inputs.Intents,
             inputs.AnalysisSelections,
@@ -395,7 +395,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             ? RecordedSessionPresentationDeriver.CreateSignalAvailability(
                 loaded.Data.TelemetryPresentation.TelemetryData,
                 loaded.Data.TelemetryPresentation.TrackPoints)
-            : CreateHiddenSignalAvailabilityState();
+            : RecordedSessionPresentationDeriver.CreateHiddenSignalAvailabilityState();
     }
 
     private static RecordedSignalPresentationState CreateSignalPresentationFromLoadPresentation(
@@ -423,7 +423,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                 RecordedSessionPresentationDeriver.CreateSignalPresentation(
                     loaded.Data.TelemetryPresentation.TelemetryData,
                     loaded.Data.TelemetryPresentation.TrackPoints),
-            _ => CreateHiddenSignalPresentationState(),
+            _ => RecordedSessionPresentationDeriver.CreateHiddenSignalPresentationState(),
         };
     }
 
@@ -465,7 +465,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
 
         if (load is not RecordedSessionLoadPresentation.Loaded loaded)
         {
-            return CreateHiddenAnalysisPresentationState();
+            return RecordedSessionPresentationDeriver.CreateHiddenAnalysisPresentationState();
         }
 
         return RecordedSessionPresentationDeriver.CreateAnalysisPresentation(
@@ -527,66 +527,13 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                     var pageCount = update.PageCount ?? current.PageCount;
                     var selectedPageIndex = update.PageIndex ?? current.SelectedPageIndex;
                     return new PageSelectionState(
-                        ClampSelectedPageIndex(selectedPageIndex, pageCount),
+                        RecordedSessionPageSelection.ClampSelectedPageIndex(selectedPageIndex, pageCount),
                         pageCount);
                 })
             .Select(static state => state.SelectedPageIndex)
             .DistinctUntilChanged()
             .Replay(1)
             .RefCount();
-    }
-
-    private static RecordedAnalysisPresentationState CreateHiddenAnalysisPresentationState()
-    {
-        return new RecordedAnalysisPresentationState(
-            FrontAnalysis: SurfacePresentationState.Hidden,
-            RearAnalysis: SurfacePresentationState.Hidden,
-            CompressionBalance: SurfacePresentationState.Hidden,
-            ReboundBalance: SurfacePresentationState.Hidden,
-            FrontForkVibration: SurfacePresentationState.Hidden,
-            FrontFrameVibration: SurfacePresentationState.Hidden,
-            RearForkVibration: SurfacePresentationState.Hidden,
-            RearFrameVibration: SurfacePresentationState.Hidden);
-    }
-
-    private static RecordedSignalPresentationState CreateHiddenSignalPresentationState()
-    {
-        return new RecordedSignalPresentationState(
-            Travel: SurfacePresentationState.Hidden,
-            Velocity: SurfacePresentationState.Hidden,
-            Imu: SurfacePresentationState.Hidden,
-            PitchRoll: SurfacePresentationState.Hidden,
-            Speed: SurfacePresentationState.Hidden,
-            Elevation: SurfacePresentationState.Hidden,
-            ShowAirtime: false,
-            ShowVelocityAirtime: false,
-            ShowImuAirtime: false,
-            ShowPitchRollAirtime: false,
-            ShowSpeedAirtime: false,
-            ShowElevationAirtime: false,
-            ShowAnalysisSelection: false,
-            ShowVelocityAnalysisSelection: false,
-            ShowImuAnalysisSelection: false,
-            ShowPitchRollAnalysisSelection: false,
-            ShowSpeedAnalysisSelection: false,
-            ShowElevationAnalysisSelection: false,
-            TravelHeaderActions: [],
-            VelocityHeaderActions: [],
-            ImuHeaderActions: [],
-            PitchRollHeaderActions: [],
-            SpeedHeaderActions: [],
-            ElevationHeaderActions: []);
-    }
-
-    private static RecordedSignalAvailabilityState CreateHiddenSignalAvailabilityState()
-    {
-        return new RecordedSignalAvailabilityState(
-            Travel: false,
-            Velocity: false,
-            Imu: false,
-            PitchRoll: false,
-            Speed: false,
-            Elevation: false);
     }
 
     private static IObservable<T> CreateInputState<T>(IObservable<T> updates, T initialValue)
@@ -851,7 +798,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         return intentUpdates
             .Merge(analysisSelectionUpdates)
             .StartWith(new Func<RecordedSignalPresentationState, RecordedSignalPresentationState>(static current => current))
-            .Scan(CreateHiddenSignalPresentationState(), static (current, update) => update(current))
+            .Scan(RecordedSessionPresentationDeriver.CreateHiddenSignalPresentationState(), static (current, update) => update(current))
             .DistinctUntilChanged()
             .Replay(1)
             .RefCount();
@@ -933,23 +880,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             .DistinctUntilChanged()
             .Replay(1)
             .RefCount();
-    }
-
-    private static int ClampSelectedPageIndex(int pageIndex, int pageCount)
-    {
-        if (pageCount <= 0)
-        {
-            return 0;
-        }
-
-        if (pageIndex < 0)
-        {
-            return 0;
-        }
-
-        return pageIndex >= pageCount
-            ? pageCount - 1
-            : pageIndex;
     }
 
     private static TelemetryTimeRange? ClampAnalysisRange(TelemetryTimeRange? range, TelemetryData? telemetryData)

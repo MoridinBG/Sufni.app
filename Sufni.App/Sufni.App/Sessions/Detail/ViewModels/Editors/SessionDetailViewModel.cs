@@ -139,6 +139,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private SessionInsightsPageViewModel AnalysisPage { get; }
 
     private readonly CancellableOperation loadOperation = new();
+    private readonly CancellableOperation viewLoadOperation = new();
     private SessionPresentationDimensions? lastPresentationDimensions;
     private RecordedSessionTimelineAlignmentMark? pendingTimelineAlignmentMark;
     private RecordedSessionAnalysisInputs analysisInputs;
@@ -166,15 +167,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly DampingCutoffWorkflow dampingCutoffWorkflow;
     private readonly bool deferDomainHandlingWhenInactive;
     private IDisposable? processedTelemetryRetention;
-    private SessionScreenPresentationState screenState = SessionScreenPresentationState.Ready;
-    private SessionOperationPresentationState sessionOperationState = SessionOperationPresentationState.Hidden;
-    private SessionDampingPercentages dampingPercentages = SessionDampingPercentages.Empty;
-    private SessionInsightsResult sessionInsights = SessionInsightsResult.Hidden;
     private SessionSnapshot? sessionSnapshot;
     private TelemetryData? telemetryData;
     private List<TrackPoint>? fullTrackPoints;
     private List<TrackPoint>? trackPoints;
-    private TrackTimeRange? trackTimelineContext;
     private MapViewModel? mapViewModel;
 
     #endregion Private fields
@@ -240,8 +236,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         currentEditorState.Intent.SelectedBalanceDisplacementMode,
         currentEditorState.Intent.SelectedBalanceSpeedMode);
     public ObservableCollection<PageViewModelBase> Pages => pages;
-    public SessionScreenPresentationState ScreenState => screenState;
-    public SessionOperationPresentationState SessionOperationState => sessionOperationState;
+    public SessionScreenPresentationState ScreenState => currentEditorState.Presentation.ScreenState;
+    public SessionOperationPresentationState SessionOperationState => currentEditorState.Presentation.OperationState;
 
     #endregion Observable properties
 
@@ -259,8 +255,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     internal void ApplyDampingPercentages(SessionDampingPercentages percentages)
     {
-        var changed = dampingPercentages != percentages;
-        dampingPercentages = percentages;
+        var changed = currentEditorState.Presentation.DampingPercentages != percentages;
         DampingPage.ApplyDampingPercentages(percentages);
         if (changed)
         {
@@ -303,7 +298,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             currentEditorState.Intent.SelectedBalanceDisplacementMode,
             currentEditorState.Intent.SelectedBalanceSpeedMode,
             currentEditorState.Intent.DampingSpeedCutoffs,
-            dampingPercentages,
+            currentEditorState.Presentation.DampingPercentages,
             currentEditorState.Intent.SelectedSessionInsightsTargetProfile);
 
     private void InvalidateAnalysisInputs()
@@ -570,7 +565,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private PageViewModelBase? SelectedPage => Pages.Count == 0
         ? null
-        : Pages[ClampSelectedPageIndex(currentEditorState.Intent.SelectedPageIndex)];
+        : Pages[RecordedSessionPageSelection.ClampSelectedPageIndex(
+            currentEditorState.Intent.SelectedPageIndex,
+            Pages.Count)];
 
     private bool IsSessionInsightsPageSelected => ReferenceEquals(SelectedPage, AnalysisPage);
 
@@ -581,79 +578,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     internal IReadOnlyList<TrackPoint>? CurrentTrackPoints => currentEditorState.TrackPoints;
 
     internal TelemetryTimeRange? CurrentAnalysisRange => currentEditorState.Intent.AnalysisRange;
-
-    internal void SetFullTrackPoints(List<TrackPoint>? points)
-    {
-        fullTrackPoints = points;
-        PublishCurrentLoadPresentation();
-    }
-
-    internal void SetTrackPoints(List<TrackPoint>? points)
-    {
-        trackPoints = points;
-
-        RefreshTrackTimelineContext();
-        PublishCurrentLoadPresentation();
-    }
-
-    internal void ApplyTelemetryDataWithoutAnalysisRecompute(TelemetryData? value)
-    {
-        suppressAnalysisRecompute = true;
-        suppressInsightsRecompute = true;
-        try
-        {
-            SetTelemetryData(value);
-            // Let the preferences page express the velocity filter window in samples.
-            PreferencesPage.SampleRate = value?.Metadata.SampleRate ?? 0;
-        }
-        finally
-        {
-            suppressInsightsRecompute = false;
-            suppressAnalysisRecompute = false;
-        }
-    }
-
-    internal void SetTelemetryData(TelemetryData? value)
-    {
-        if (telemetryData == value)
-        {
-            return;
-        }
-
-        telemetryData = value;
-        telemetryGeneration++;
-        NotesPage.SetTemperatureAverages(value?.TemperatureAverages ?? []);
-        if (currentEditorState.Intent.PendingAnalysisRangeBoundary is not null)
-        {
-            editorActions.ClearAnalysisRange();
-        }
-
-        ClearAnalysisSelections();
-        RefreshTrackTimelineContext();
-        if (value is null)
-        {
-            PublishCurrentLoadPresentation();
-            return;
-        }
-
-        PublishCurrentLoadPresentation();
-    }
-
-    private void RefreshTrackTimelineContext()
-    {
-        SetTrackTimelineContext(telemetryData is { } telemetry
-            ? TrackPointSeries.BuildTimelineContext(
-                trackPoints,
-                telemetry.Metadata.Timestamp + NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
-                telemetry.Metadata.Duration)
-            : null);
-    }
-
-    private void SetTrackTimelineContext(TrackTimeRange? timelineContext)
-    {
-        trackTimelineContext = timelineContext;
-        PublishCurrentLoadPresentation();
-    }
 
     private static string FormatSeconds(double seconds)
     {
@@ -843,7 +767,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         session = snapshot.ToMetadataEntity();
         sessionSnapshot = snapshot;
-        PublishCurrentLoadPresentation();
         BaselineUpdated = snapshot.Updated;
         metadataConflictPending = false;
         await ResetImplementation();
@@ -972,7 +895,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         session.GpsOffsetSeconds = snapshot.GpsOffsetSeconds;
         session.Updated = snapshot.Updated;
         sessionSnapshot = snapshot;
-        PublishCurrentLoadPresentation();
     }
 
     private Task HandleDeferredDomainAsync()
@@ -1042,6 +964,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         await recordedSessionExtensions.DisposeScopesAsync();
+    }
+
+    private async ValueTask DisposeRecordedSessionExtensionsAsync()
+    {
+        if (recordedSessionExtensions is null)
+        {
+            return;
+        }
+
+        await recordedSessionExtensions.DisposeAsync();
     }
 
     private void DisposeProcessedTelemetryRetention()
@@ -1697,11 +1629,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             OnPropertyChanged(nameof(CurrentTrackPoints));
         }
 
-        if (previous.TrackTimelineContext != state.TrackTimelineContext)
-        {
-            trackTimelineContext = state.TrackTimelineContext;
-        }
-
         if (previous.Intent.SelectedPageIndex != state.Intent.SelectedPageIndex)
         {
             OnPropertyChanged(nameof(SelectedPage));
@@ -1732,12 +1659,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         if (previous.Presentation.ScreenState != state.Presentation.ScreenState)
         {
-            SetProperty(ref screenState, state.Presentation.ScreenState, nameof(ScreenState));
+            OnPropertyChanged(nameof(ScreenState));
         }
 
         if (previous.Presentation.OperationState != state.Presentation.OperationState)
         {
-            SetProperty(ref sessionOperationState, state.Presentation.OperationState, nameof(SessionOperationState));
+            OnPropertyChanged(nameof(SessionOperationState));
         }
 
         if (previous.Presentation.CanEditDampingSpeedCutoffs != state.Presentation.CanEditDampingSpeedCutoffs)
@@ -1786,7 +1713,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             RecordedSessionLoadPresentation.Loaded => true,
             RecordedSessionLoadPresentation.IncompleteLocalData incomplete => incomplete.HasProcessedData,
             RecordedSessionLoadPresentation.Loading loading => loading.Session?.HasProcessedData ?? false,
-            RecordedSessionLoadPresentation.Empty => false,
+            RecordedSessionLoadPresentation.Empty empty => empty.Session?.HasProcessedData ?? false,
             RecordedSessionLoadPresentation.Failed failed => failed.Session?.HasProcessedData ?? false,
             _ => false,
         };
@@ -1812,26 +1739,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         editorActions.RefreshSelectedPageAnalysis();
     }
 
-    private int ClampSelectedPageIndex(int pageIndex)
-    {
-        if (Pages.Count == 0)
-        {
-            return 0;
-        }
-
-        if (pageIndex < 0)
-        {
-            return 0;
-        }
-
-        if (pageIndex >= Pages.Count)
-        {
-            return Pages.Count - 1;
-        }
-
-        return pageIndex;
-    }
-
     private void PublishCurrentLoadPresentation()
     {
         PublishLoadPresentation(CreateCurrentLoadPresentation());
@@ -1839,30 +1746,48 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private RecordedSessionLoadPresentation CreateCurrentLoadPresentation()
     {
-        if (telemetryData is null)
+        var snapshot = sessionSnapshot;
+        return currentEditorState.Load switch
         {
-            return new RecordedSessionLoadPresentation.Empty(sessionSnapshot);
-        }
+            RecordedSessionLoadPresentation.Loaded loaded when telemetryData is not null =>
+                loaded with
+                {
+                    Data = loaded.Data with
+                    {
+                        TelemetryPresentation = CreateCurrentTelemetryPresentation(
+                            loaded.Data.TelemetryPresentation)
+                    },
+                    Session = snapshot,
+                },
+            RecordedSessionLoadPresentation.Loading loading => loading with
+            {
+                Session = snapshot,
+            },
+            RecordedSessionLoadPresentation.IncompleteLocalData incomplete => incomplete with
+            {
+                HasProcessedData = snapshot?.HasProcessedData ?? incomplete.HasProcessedData,
+                Session = snapshot,
+            },
+            RecordedSessionLoadPresentation.Failed failed => failed with
+            {
+                Session = snapshot,
+            },
+            _ => new RecordedSessionLoadPresentation.Empty(snapshot),
+        };
+    }
 
-        return new RecordedSessionLoadPresentation.Loaded(
-            new SessionDetailData(
-                new SessionTelemetryPresentationData(
-                    telemetryData,
-                    sessionSnapshot?.FullTrackId ?? session.FullTrack,
-                    fullTrackPoints,
-                    trackPoints,
-                    currentEditorState.Presentation.MediaColumnWidth,
-                    currentEditorState.Presentation.DampingPercentages),
-                new SessionCachePresentationData(
-                    FrontTravelDistribution: null,
-                    RearTravelDistribution: null,
-                    FrontVelocityDistribution: null,
-                    RearVelocityDistribution: null,
-                    CompressionBalance: null,
-                    ReboundBalance: null,
-                    DampingPercentages: currentEditorState.Presentation.DampingPercentages,
-                    BalanceAvailable: false)),
-            sessionSnapshot);
+    private SessionTelemetryPresentationData CreateCurrentTelemetryPresentation(
+        SessionTelemetryPresentationData current)
+    {
+        return current with
+        {
+            TelemetryData = telemetryData!,
+            FullTrackId = sessionSnapshot?.FullTrackId ?? session.FullTrack,
+            FullTrackPoints = fullTrackPoints,
+            TrackPoints = trackPoints,
+            MediaColumnWidth = currentEditorState.Presentation.MediaColumnWidth,
+            DampingPercentages = currentEditorState.Presentation.DampingPercentages,
+        };
     }
 
     private static AnalysisSelectionState CreateEmptyAnalysisSelectionState()
@@ -1975,8 +1900,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     internal void SetSessionOperationState(SessionOperationPresentationState state)
     {
-        var changed = SetProperty(ref sessionOperationState, state, nameof(SessionOperationState));
-        if (changed)
+        if (currentEditorState.Presentation.OperationState != state)
         {
             PublishEditorInput(sessionOperationStateInput, state);
         }
@@ -1984,9 +1908,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     internal void SetSessionInsights(SessionInsightsResult insights)
     {
-        var changed = sessionInsights != insights;
-        sessionInsights = insights;
-        if (changed)
+        if (currentEditorState.Presentation.SessionInsights != insights)
         {
             PublishEditorInput(sessionInsightsInput, insights);
         }
@@ -2020,9 +1942,19 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         EvaluateDirtinessFromPageChange();
     }
 
-    private async Task RestoreRecordedPreferencesAsync()
+    private async Task RestoreRecordedPreferencesAsync(CancellationToken cancellationToken = default)
     {
-        await recordedPreferenceStore.RestoreAsync(ApplyRecordedPreferences);
+        cancellationToken.ThrowIfCancellationRequested();
+        await recordedPreferenceStore.RestoreAsync(preferences =>
+        {
+            if (!viewLoaded || cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            ApplyRecordedPreferences(preferences);
+        });
+        cancellationToken.ThrowIfCancellationRequested();
     }
 
     private void ApplyRecordedPreferences(SessionPreferences preferences)
@@ -2319,7 +2251,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 {
                     session = conflict.CurrentSnapshot.ToMetadataEntity();
                     sessionSnapshot = conflict.CurrentSnapshot;
-                    PublishCurrentLoadPresentation();
                     BaselineUpdated = conflict.CurrentSnapshot.Updated;
                     metadataConflictPending = false;
                     await ResetImplementation();
@@ -2379,6 +2310,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         editorStateSubscription.Dispose();
         editorStateController.Dispose();
         editorActions.Dispose();
+        await DisposeRecordedSessionExtensionsAsync();
+        viewLoadOperation.Dispose();
+        loadOperation.Dispose();
         analysisResultSubscription.Dispose();
         analysisResultState.Dispose();
         MapViewModel?.Dispose();
@@ -2479,6 +2413,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         var wasLoaded = viewLoaded;
         viewLoaded = true;
+        var loadLifecycleToken = wasLoaded
+            ? CancellationToken.None
+            : viewLoadOperation.Start();
         processedTelemetryRetention ??= processedTelemetryReader.Retain(Id);
         var dimensions = CreatePresentationDimensions(bounds);
         if (dimensions is not null)
@@ -2491,6 +2428,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             PublishRecordedSessionHostRuntimeChange();
             return;
         }
+
+        PublishRecordedSessionHostRuntimeChange();
 
         // Subscribe before the awaited restore so a remote sync apply that
         // lands while restore is in flight is not missed.
@@ -2510,10 +2449,25 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             PublishEditorInput(stalenessReplayInput, Unit.Default);
         }
 
-        await InitializeRecordedSessionExtensionsAsync();
-        PublishRecordedSessionHostRuntimeChange();
-        await RestoreRecordedPreferencesAsync();
-        await RequestLoadAsync();
+        try
+        {
+            await InitializeRecordedSessionExtensionsAsync(loadLifecycleToken);
+            if (!viewLoaded || loadLifecycleToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            await RestoreRecordedPreferencesAsync(loadLifecycleToken);
+            if (!viewLoaded || loadLifecycleToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            await RequestLoadAsync();
+        }
+        catch (OperationCanceledException) when (loadLifecycleToken.IsCancellationRequested)
+        {
+        }
     }
 
     protected override void OnActivated()
@@ -2566,6 +2520,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private async Task StopLoadedSessionAsync()
     {
         viewLoaded = false;
+        viewLoadOperation.Cancel();
         loadOperation.Cancel();
         observedInitialDomain = false;
         replayStalenessOnNextLoad = true;

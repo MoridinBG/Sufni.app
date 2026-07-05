@@ -170,6 +170,17 @@ internal static class RecordedSessionPresentationDeriver
             SurfacePresentationState.Hidden);
     }
 
+    public static RecordedSignalAvailabilityState CreateHiddenSignalAvailabilityState()
+    {
+        return new RecordedSignalAvailabilityState(
+            Travel: false,
+            Velocity: false,
+            Imu: false,
+            PitchRoll: false,
+            Speed: false,
+            Elevation: false);
+    }
+
     public static RecordedAnalysisPresentationState CreateHiddenAnalysisPresentationState()
     {
         return new RecordedAnalysisPresentationState(

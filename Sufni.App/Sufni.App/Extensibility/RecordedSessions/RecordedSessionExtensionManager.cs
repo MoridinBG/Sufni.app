@@ -28,6 +28,8 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
     private readonly IRecordedSessionHostOperations operations;
     private readonly BehaviorSubject<RecordedSessionHostState> stateChanged;
     private readonly RecordedSessionExtensionSlotPublisher extensionSlotPublisher;
+    private readonly SemaphoreSlim lifecycleGate = new(1, 1);
+    private readonly object scopesGate = new();
     private readonly List<RecordedSessionExtensionScopeRegistration> scopes = [];
     private readonly List<IDisposable> slotSubscriptions = [];
     private bool disposed;
@@ -80,35 +82,76 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
         RecordedSessionHostState initialState,
         CancellationToken cancellationToken = default)
     {
-        ThrowIfDisposed();
-        UpdateHostState(initialState);
-        if (scopes.Count > 0)
+        await lifecycleGate.WaitAsync(cancellationToken);
+        try
         {
-            return;
-        }
+            ThrowIfDisposed();
+            UpdateHostStateCore(initialState);
+            lock (scopesGate)
+            {
+                if (scopes.Count > 0)
+                {
+                    return;
+                }
+            }
 
-        foreach (var factory in factories)
+            try
+            {
+                foreach (var factory in factories)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var context = CreateContext();
+                    var scope = factory.Create(context);
+                    ArgumentNullException.ThrowIfNull(scope);
+                    lock (scopesGate)
+                    {
+                        scopes.Add(new RecordedSessionExtensionScopeRegistration(factory.ExtensionId, scope));
+                        AttachScopeSlots(scope.Slots);
+                    }
+
+                    await scope.InitializeAsync(cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    RecordedSessionHostState currentState;
+                    lock (scopesGate)
+                    {
+                        currentState = CurrentState;
+                    }
+
+                    scope.UpdateHostState(currentState);
+                }
+
+                RebuildExtensionSlotsImmediately();
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                await DisposeScopesCoreAsync();
+                throw;
+            }
+        }
+        finally
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var context = CreateContext();
-            var scope = factory.Create(context);
-            ArgumentNullException.ThrowIfNull(scope);
-            scopes.Add(new RecordedSessionExtensionScopeRegistration(factory.ExtensionId, scope));
-            AttachScopeSlots(scope.Slots);
-            await scope.InitializeAsync(cancellationToken);
-            scope.UpdateHostState(CurrentState);
+            lifecycleGate.Release();
         }
-
-        RebuildExtensionSlotsImmediately();
     }
 
     public void UpdateHostState(RecordedSessionHostState state)
     {
         ThrowIfDisposed();
-        CurrentState = state;
+        UpdateHostStateCore(state);
+    }
+
+    private void UpdateHostStateCore(RecordedSessionHostState state)
+    {
+        RecordedSessionExtensionScopeRegistration[] scopeSnapshot;
+        lock (scopesGate)
+        {
+            CurrentState = state;
+            scopeSnapshot = scopes.ToArray();
+        }
+
         stateChanged.OnNext(state);
 
-        foreach (var scope in scopes)
+        foreach (var scope in scopeSnapshot)
         {
             scope.Scope.UpdateHostState(state);
         }
@@ -121,21 +164,46 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
             return;
         }
 
+        await lifecycleGate.WaitAsync();
+        try
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            await DisposeScopesCoreAsync();
+        }
+        finally
+        {
+            lifecycleGate.Release();
+        }
+    }
+
+    private async ValueTask DisposeScopesCoreAsync()
+    {
         operationCoordinator.CancelCurrent();
-        foreach (var subscription in slotSubscriptions)
+        IDisposable[] subscriptionSnapshot;
+        RecordedSessionExtensionScopeRegistration[] scopeSnapshot;
+        lock (scopesGate)
+        {
+            subscriptionSnapshot = slotSubscriptions.ToArray();
+            slotSubscriptions.Clear();
+            extensionSlotsRebuildQueued = false;
+            scopeSnapshot = scopes.ToArray();
+            scopes.Clear();
+        }
+
+        foreach (var subscription in subscriptionSnapshot)
         {
             subscription.Dispose();
         }
 
-        slotSubscriptions.Clear();
-        extensionSlotsRebuildQueued = false;
         ClearExtensionSlots();
-        for (var i = scopes.Count - 1; i >= 0; i--)
+        for (var i = scopeSnapshot.Length - 1; i >= 0; i--)
         {
-            await scopes[i].Scope.DisposeAsync();
+            await scopeSnapshot[i].Scope.DisposeAsync();
         }
-
-        scopes.Clear();
     }
 
     public async ValueTask DisposeAsync()
@@ -145,10 +213,27 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
             return;
         }
 
-        await DisposeScopesAsync();
-        await operationCoordinator.DisposeAsync();
-        stateChanged.Dispose();
-        disposed = true;
+        await lifecycleGate.WaitAsync();
+        try
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            lock (scopesGate)
+            {
+                disposed = true;
+            }
+
+            await DisposeScopesCoreAsync();
+            await operationCoordinator.DisposeAsync();
+            stateChanged.Dispose();
+        }
+        finally
+        {
+            lifecycleGate.Release();
+        }
     }
 
     private RecordedSessionHostContext CreateContext()
@@ -171,35 +256,53 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
 
     private void QueueExtensionSlotsRebuild()
     {
-        if (disposed || extensionSlotsRebuildQueued)
+        lock (scopesGate)
         {
-            return;
-        }
-
-        extensionSlotsRebuildQueued = true;
-        uiThreadDispatcher.Post(() =>
-        {
-            if (disposed || !extensionSlotsRebuildQueued)
+            if (disposed || extensionSlotsRebuildQueued)
             {
                 return;
             }
 
-            extensionSlotsRebuildQueued = false;
+            extensionSlotsRebuildQueued = true;
+        }
+
+        uiThreadDispatcher.Post(() =>
+        {
+            lock (scopesGate)
+            {
+                if (disposed || !extensionSlotsRebuildQueued)
+                {
+                    return;
+                }
+
+                extensionSlotsRebuildQueued = false;
+            }
+
             RebuildExtensionSlots();
         });
     }
 
     private void RebuildExtensionSlotsImmediately()
     {
-        extensionSlotsRebuildQueued = false;
+        lock (scopesGate)
+        {
+            extensionSlotsRebuildQueued = false;
+        }
+
         RebuildExtensionSlots();
     }
 
     private void RebuildExtensionSlots()
     {
+        RecordedSessionExtensionScopeRegistration[] scopeSnapshot;
+        lock (scopesGate)
+        {
+            scopeSnapshot = scopes.ToArray();
+        }
+
         extensionSlotPublisher.Publish(builder =>
         {
-            foreach (var scope in scopes)
+            foreach (var scope in scopeSnapshot)
             {
                 ExtensionContributionValidator.ValidateRecordedSessionSlots(
                     scope.Scope.Slots,

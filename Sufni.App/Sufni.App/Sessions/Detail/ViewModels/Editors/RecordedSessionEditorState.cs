@@ -58,9 +58,9 @@ internal sealed record RecordedSessionEditorState(
                 MediaPaneState: SurfacePresentationState.Hidden,
                 MediaColumnWidth: null,
                 MediaUrl: null,
-                SignalAvailability: CreateHiddenSignalAvailabilityState(),
-                Signals: CreateHiddenSignalPresentationState(),
-                Analysis: CreateHiddenAnalysisPresentationState(),
+                SignalAvailability: RecordedSessionPresentationDeriver.CreateHiddenSignalAvailabilityState(),
+                Signals: RecordedSessionPresentationDeriver.CreateHiddenSignalPresentationState(),
+                Analysis: RecordedSessionPresentationDeriver.CreateHiddenAnalysisPresentationState(),
                 DampingPercentages: SessionDampingPercentages.Empty,
                 PlotDampingSpeedCutoffs: DampingSpeedCutoffs.Default,
                 CanEditDampingSpeedCutoffs: false,
@@ -74,58 +74,6 @@ internal sealed record RecordedSessionEditorState(
                 HighlightRanges: []));
     }
 
-    private static RecordedAnalysisPresentationState CreateHiddenAnalysisPresentationState()
-    {
-        return new RecordedAnalysisPresentationState(
-            FrontAnalysis: SurfacePresentationState.Hidden,
-            RearAnalysis: SurfacePresentationState.Hidden,
-            CompressionBalance: SurfacePresentationState.Hidden,
-            ReboundBalance: SurfacePresentationState.Hidden,
-            FrontForkVibration: SurfacePresentationState.Hidden,
-            FrontFrameVibration: SurfacePresentationState.Hidden,
-            RearForkVibration: SurfacePresentationState.Hidden,
-            RearFrameVibration: SurfacePresentationState.Hidden);
-    }
-
-    private static RecordedSignalAvailabilityState CreateHiddenSignalAvailabilityState()
-    {
-        return new RecordedSignalAvailabilityState(
-            Travel: false,
-            Velocity: false,
-            Imu: false,
-            PitchRoll: false,
-            Speed: false,
-            Elevation: false);
-    }
-
-    private static RecordedSignalPresentationState CreateHiddenSignalPresentationState()
-    {
-        return new RecordedSignalPresentationState(
-            Travel: SurfacePresentationState.Hidden,
-            Velocity: SurfacePresentationState.Hidden,
-            Imu: SurfacePresentationState.Hidden,
-            PitchRoll: SurfacePresentationState.Hidden,
-            Speed: SurfacePresentationState.Hidden,
-            Elevation: SurfacePresentationState.Hidden,
-            ShowAirtime: false,
-            ShowVelocityAirtime: false,
-            ShowImuAirtime: false,
-            ShowPitchRollAirtime: false,
-            ShowSpeedAirtime: false,
-            ShowElevationAirtime: false,
-            ShowAnalysisSelection: false,
-            ShowVelocityAnalysisSelection: false,
-            ShowImuAnalysisSelection: false,
-            ShowPitchRollAnalysisSelection: false,
-            ShowSpeedAnalysisSelection: false,
-            ShowElevationAnalysisSelection: false,
-            TravelHeaderActions: [],
-            VelocityHeaderActions: [],
-            ImuHeaderActions: [],
-            PitchRollHeaderActions: [],
-            SpeedHeaderActions: [],
-            ElevationHeaderActions: []);
-    }
 }
 
 internal sealed record RecordedSessionLoadedData(

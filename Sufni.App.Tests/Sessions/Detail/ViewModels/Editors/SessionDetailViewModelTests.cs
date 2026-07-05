@@ -121,6 +121,12 @@ public class SessionDetailViewModelTests
                 new InlineBackgroundTaskRunner()));
     }
 
+    private void ConfigureLoadResult(SessionSnapshot snapshot, SessionDetailLoadResult result)
+    {
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(result);
+    }
+
     private void SetDesktop(bool isDesktop)
     {
         TestApp.SetIsDesktop(isDesktop);
@@ -204,16 +210,19 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void DerivedStateEmissions_DoNotReplaceStableRuntimeObjects()
+    public async Task DerivedStateEmissions_DoNotReplaceStableRuntimeObjects()
     {
-        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        ConfigureLoadResult(snapshot, LoadedDesktopResult(telemetry));
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(null);
         var pages = editor.Pages;
         var timeline = editor.Timeline;
         var sourceVisibility = editor.SourceVisibility;
         var extensionSlots = editor.ExtensionSlots;
         var mapViewModel = editor.MapViewModel;
 
-        editor.SetTelemetryData(TestTelemetryData.CreateProcessed());
         editor.SetAnalysisRange(0.02, 0.16);
         editor.SetMediaUrl("session-media.mp4");
         editor.SetSessionOperationState(SessionOperationPresentationState.Progress("working", 50));
@@ -254,12 +263,14 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void SharedSessionState_UpdatesOwnerAndWorkspaceState()
+    public async Task SharedSessionState_UpdatesOwnerAndWorkspaceState()
     {
-        var editor = CreateEditor(TestSnapshots.Session());
+        var snapshot = TestSnapshots.Session();
         var telemetry = TestTelemetryData.CreateProcessed();
+        ConfigureLoadResult(snapshot, LoadedDesktopResult(telemetry));
+        var editor = CreateEditor(snapshot);
 
-        editor.SetTelemetryData(telemetry);
+        await editor.LoadedCommand.ExecuteAsync(null);
         editor.SetAnalysisRange(0.02, 0.16);
 
         Assert.Same(telemetry, editor.CurrentTelemetryData);
@@ -307,16 +318,18 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void SignalsWorkspace_TracksContextSignalStateAndCommands()
+    public async Task SignalsWorkspace_TracksContextSignalStateAndCommands()
     {
-        var editor = CreateEditor(TestSnapshots.Session());
+        var snapshot = TestSnapshots.Session();
         var telemetry = TestTelemetryData.CreateProcessed();
+        ConfigureLoadResult(snapshot, LoadedDesktopResult(telemetry));
+        var editor = CreateEditor(snapshot);
         var signalLayoutPreferences = SignalLayoutPreferences.Default with
         {
             Rows = [new SignalLayoutRowPreferences(SignalRowIds.Velocity, true, [])],
         };
 
-        editor.SetTelemetryData(telemetry);
+        await editor.LoadedCommand.ExecuteAsync(null);
         var velocityAirtimeAction = GetRowAction(editor.VelocityHeaderActions, "velocity_airtime");
         velocityAirtimeAction.Command!.Execute(null);
         var selection = CreateFrontDampingSelection(telemetry, editor.AnalysisWorkspace.SelectedVelocityAverageMode);
@@ -433,11 +446,13 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void SelectAnalysisRangeCommand_SelectsDampingRangeAndTogglesOffWhenRepeated()
+    public async Task SelectAnalysisRangeCommand_SelectsDampingRangeAndTogglesOffWhenRepeated()
     {
-        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
-        editor.SetTelemetryData(telemetry);
+        ConfigureLoadResult(snapshot, LoadedDesktopResult(telemetry));
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(null);
         var selection = CreateFrontDampingSelection(telemetry, editor.AnalysisWorkspace.SelectedVelocityAverageMode);
 
         editor.SelectAnalysisRangeCommand.Execute(selection);
@@ -515,10 +530,12 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void AnalysisRangeContextMenuActions_SetStartEndAndClearRange()
+    public async Task AnalysisRangeContextMenuActions_SetStartEndAndClearRange()
     {
-        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-        editor.SetTelemetryData(TestTelemetryData.CreateMinimal(duration: 10));
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        ConfigureLoadResult(snapshot, LoadedDesktopResult(TestTelemetryData.CreateMinimal(duration: 10)));
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(null);
         var setStart = GetPlotContextAction(editor, "analysis-range-set-start");
         var setEnd = GetPlotContextAction(editor, "analysis-range-set-end");
         var clear = GetPlotContextAction(editor, "analysis-range-clear");
@@ -565,9 +582,11 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void AnalysisRangeContextMenuActions_CannotExecuteWithoutTelemetryOrValidContext()
+    public async Task AnalysisRangeContextMenuActions_CannotExecuteWithoutTelemetryOrValidContext()
     {
-        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        ConfigureLoadResult(snapshot, LoadedDesktopResult(TestTelemetryData.CreateMinimal(duration: 10)));
+        var editor = CreateEditor(snapshot);
         var setStart = GetPlotContextAction(editor, "analysis-range-set-start");
         var setEnd = GetPlotContextAction(editor, "analysis-range-set-end");
         var clear = GetPlotContextAction(editor, "analysis-range-clear");
@@ -577,17 +596,19 @@ public class SessionDetailViewModelTests
         Assert.False(setEnd.Command.CanExecute(context));
         Assert.False(clear.Command.CanExecute(context));
 
-        editor.SetTelemetryData(TestTelemetryData.CreateMinimal(duration: 10));
+        await editor.LoadedCommand.ExecuteAsync(null);
         Assert.False(setStart.Command.CanExecute(null));
         Assert.False(setEnd.Command.CanExecute(new TelemetryPlotContextMenuContext("unknown", 3, 10, null)));
         Assert.False(clear.Command.CanExecute(new TelemetryPlotContextMenuContext(SignalRowIds.Travel, double.NaN, 10, null)));
     }
 
     [AvaloniaFact]
-    public void AnalysisRangeContextMenuClear_ClearsPendingBoundary()
+    public async Task AnalysisRangeContextMenuClear_ClearsPendingBoundary()
     {
-        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-        editor.SetTelemetryData(TestTelemetryData.CreateMinimal(duration: 10));
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        ConfigureLoadResult(snapshot, LoadedDesktopResult(TestTelemetryData.CreateMinimal(duration: 10)));
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(null);
         var setStart = GetPlotContextAction(editor, "analysis-range-set-start");
         var setEnd = GetPlotContextAction(editor, "analysis-range-set-end");
         var clear = GetPlotContextAction(editor, "analysis-range-clear");
@@ -628,9 +649,26 @@ public class SessionDetailViewModelTests
                 4.0,
                 Arg.Any<CancellationToken>())
             .Returns(true);
+        ConfigureLoadResult(
+            snapshot,
+            LoadedResult(
+                new SessionCachePresentationData(
+                    FrontTravelDistribution: null,
+                    RearTravelDistribution: null,
+                    FrontVelocityDistribution: null,
+                    RearVelocityDistribution: null,
+                    CompressionBalance: null,
+                    ReboundBalance: null,
+                    DampingPercentages: SessionDampingPercentages.Empty,
+                    BalanceAvailable: false),
+                telemetry,
+                new SessionTrackPresentationData(
+                    FullTrackId: fullTrackId,
+                    FullTrackPoints: null,
+                    TrackPoints: initialTrackPoints,
+                    MediaColumnWidth: null)));
         var editor = CreateEditor(snapshot);
-        editor.SetTelemetryData(telemetry);
-        editor.SetTrackPoints(initialTrackPoints);
+        await editor.LoadedCommand.ExecuteAsync(null);
         var gpsEventContext = new TelemetryPlotContextMenuContext(
             SignalRowIds.Travel,
             ClickSeconds: 8.0,
@@ -761,14 +799,16 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void SessionInsightsContextText_UsesDisplayNamesAndInvariantRangeFormatting()
+    public async Task SessionInsightsContextText_UsesDisplayNamesAndInvariantRangeFormatting()
     {
         var previousCulture = CultureInfo.CurrentCulture;
         CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("de-DE");
         try
         {
-            var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-            editor.SetTelemetryData(TestTelemetryData.CreateProcessed());
+            var snapshot = TestSnapshots.Session(hasProcessedData: true);
+            ConfigureLoadResult(snapshot, LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
+            var editor = CreateEditor(snapshot);
+            await editor.LoadedCommand.ExecuteAsync(null);
             editor.AnalysisWorkspace.SelectedTravelDistributionMode = TravelDistributionMode.DynamicSag;
             editor.AnalysisWorkspace.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
             editor.AnalysisWorkspace.SelectedBalanceDisplacementMode = BalanceDisplacementMode.Travel;
@@ -785,17 +825,23 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void TelemetryDataChanged_UpdatesNotesTemperatureAverages()
+    public async Task TelemetryDataChanged_UpdatesNotesTemperatureAverages()
     {
-        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
         var telemetry = TestTelemetryData.CreateMinimal();
         telemetry.TemperatureAverages =
         [
             new TemperatureAverage(1, 21.26),
             new TemperatureAverage(2, 24.76)
         ];
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(LoadedDesktopResult(telemetry)),
+                Task.FromResult<SessionDetailLoadResult>(IncompleteResult(snapshot.Id)));
+        var editor = CreateEditor(snapshot, watch.AsObservable(), deferDomainHandlingWhenInactive: false);
 
-        editor.SetTelemetryData(telemetry);
+        await editor.LoadedCommand.ExecuteAsync(null);
 
         Assert.True(editor.NotesPage.HasTemperatureAverages);
         Assert.Equal(2, editor.NotesPage.TemperatureAverages.Count);
@@ -804,10 +850,13 @@ public class SessionDetailViewModelTests
         Assert.Equal("Rear", editor.NotesPage.TemperatureAverages[1].SensorName);
         Assert.Equal($"{24.76.ToString("F1", CultureInfo.CurrentCulture)} C", editor.NotesPage.TemperatureAverages[1].TemperatureText);
 
-        editor.SetTelemetryData(null);
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.ProcessedDataAvailabilityChanged));
+        await WaitForAsync(() => !editor.NotesPage.HasTemperatureAverages);
 
         Assert.False(editor.NotesPage.HasTemperatureAverages);
         Assert.Empty(editor.NotesPage.TemperatureAverages);
+        watch.Dispose();
     }
 
     // ----- Dirtiness -----
@@ -1945,15 +1994,16 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void SelectingInsightsPage_RequestsSessionInsights()
+    public async Task SelectingInsightsPage_RequestsSessionInsights()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
         var dampingPercentages = new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8);
         var analysis = CreateAnalysisResult();
         sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(analysis);
+        ConfigureLoadResult(snapshot, LoadedDesktopResult(telemetry));
         var editor = CreateEditor(snapshot);
-        editor.ApplyTelemetryDataWithoutAnalysisRecompute(telemetry);
+        await editor.LoadedCommand.ExecuteAsync(null);
         editor.ApplyDampingPercentages(dampingPercentages);
         sessionAnalysisService.ClearReceivedCalls();
 
@@ -1969,13 +2019,14 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void RequestSessionInsights_BeforeTelemetryArrives_RunsAfterSuppressedTelemetryLoad()
+    public async Task RequestSessionInsights_BeforeTelemetryArrives_RunsAfterSuppressedTelemetryLoad()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
         var dampingPercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(telemetry);
         var analysis = CreateAnalysisResult();
         sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(analysis);
+        ConfigureLoadResult(snapshot, LoadedDesktopResult(telemetry, dampingPercentages: dampingPercentages));
         var editor = CreateEditor(snapshot);
 
         editor.AnalysisWorkspace.RequestSessionInsights();
@@ -1983,7 +2034,7 @@ public class SessionDetailViewModelTests
         Assert.True(editor.AnalysisWorkspace.SessionInsights.State.IsHidden);
         sessionAnalysisService.DidNotReceive().Analyze(Arg.Any<SessionInsightsRequest>());
 
-        editor.ApplyTelemetryDataWithoutAnalysisRecompute(telemetry);
+        await editor.LoadedCommand.ExecuteAsync(null);
 
         Assert.Same(analysis, editor.AnalysisWorkspace.SessionInsights);
         sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(request =>
@@ -1992,17 +2043,25 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void RequestSessionInsights_BeforeTelemetryArrives_RunsAfterSuppressedTelemetryLoadWithExistingAnalysisRange()
+    public async Task RequestSessionInsights_BeforeTelemetryArrives_RunsAfterSuppressedTelemetryLoadWithExistingAnalysisRange()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
         var dampingPercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(telemetry);
         var analysis = CreateAnalysisResult();
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
         sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(analysis);
-        var editor = CreateEditor(snapshot);
-        editor.SetTelemetryData(telemetry);
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult(LoadedDesktopResult(telemetry)),
+                Task.FromResult<SessionDetailLoadResult>(IncompleteResult(snapshot.Id)),
+                Task.FromResult(LoadedDesktopResult(telemetry, dampingPercentages: dampingPercentages)));
+        var editor = CreateEditor(snapshot, watch.AsObservable(), deferDomainHandlingWhenInactive: false);
+        await editor.LoadedCommand.ExecuteAsync(null);
         editor.SetAnalysisRange(0.2, 0.4);
-        editor.SetTelemetryData(null);
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.ProcessedDataAvailabilityChanged));
+        await WaitForAsync(() => editor.CurrentTelemetryData is null);
         sessionAnalysisService.ClearReceivedCalls();
 
         editor.AnalysisWorkspace.RequestSessionInsights();
@@ -2010,22 +2069,25 @@ public class SessionDetailViewModelTests
         Assert.True(editor.AnalysisWorkspace.SessionInsights.State.IsHidden);
         sessionAnalysisService.DidNotReceive().Analyze(Arg.Any<SessionInsightsRequest>());
 
-        editor.ApplyTelemetryDataWithoutAnalysisRecompute(telemetry);
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.FingerprintChanged));
+        await WaitForAsync(() => ReferenceEquals(editor.CurrentTelemetryData, telemetry));
 
         Assert.Null(editor.CurrentAnalysisRange);
         Assert.Same(analysis, editor.AnalysisWorkspace.SessionInsights);
         sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(request =>
             ReferenceEquals(request.TelemetryData, telemetry) &&
             request.DampingPercentages == dampingPercentages));
+        watch.Dispose();
     }
 
     [AvaloniaFact]
-    public void RequestSessionInsights_BeforeTelemetryArrives_PreservesSinglePendingDemand()
+    public async Task RequestSessionInsights_BeforeTelemetryArrives_PreservesSinglePendingDemand()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
         var dampingPercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(telemetry);
         sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(CreateAnalysisResult());
+        ConfigureLoadResult(snapshot, LoadedDesktopResult(telemetry, dampingPercentages: dampingPercentages));
         var editor = CreateEditor(snapshot);
 
         editor.AnalysisWorkspace.RequestSessionInsights();
@@ -2033,7 +2095,7 @@ public class SessionDetailViewModelTests
 
         sessionAnalysisService.DidNotReceive().Analyze(Arg.Any<SessionInsightsRequest>());
 
-        editor.ApplyTelemetryDataWithoutAnalysisRecompute(telemetry);
+        await editor.LoadedCommand.ExecuteAsync(null);
 
         sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(request =>
             ReferenceEquals(request.TelemetryData, telemetry) &&
@@ -2041,13 +2103,14 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void SelectingInsightsPage_BeforeTelemetryArrives_RunsAfterSuppressedTelemetryLoad()
+    public async Task SelectingInsightsPage_BeforeTelemetryArrives_RunsAfterSuppressedTelemetryLoad()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
         var dampingPercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(telemetry);
         var analysis = CreateAnalysisResult();
         sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(analysis);
+        ConfigureLoadResult(snapshot, LoadedDesktopResult(telemetry, dampingPercentages: dampingPercentages));
         var editor = CreateEditor(snapshot);
 
         editor.MobileWorkspace.SelectedPageIndex = editor.Pages
@@ -2058,7 +2121,7 @@ public class SessionDetailViewModelTests
         Assert.True(editor.AnalysisWorkspace.SessionInsights.State.IsHidden);
         sessionAnalysisService.DidNotReceive().Analyze(Arg.Any<SessionInsightsRequest>());
 
-        editor.ApplyTelemetryDataWithoutAnalysisRecompute(telemetry);
+        await editor.LoadedCommand.ExecuteAsync(null);
 
         Assert.Same(analysis, editor.AnalysisWorkspace.SessionInsights);
         sessionAnalysisService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(request =>
@@ -2089,15 +2152,16 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void SetAnalysisRange_RecomputesDampingPercentagesWithoutMarkingDirty()
+    public async Task SetAnalysisRange_RecomputesDampingPercentagesWithoutMarkingDirty()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = CreateVibrationTelemetry();
         var range = new TelemetryTimeRange(0.02, 0.16);
         var rangePercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(telemetry, range);
 
+        ConfigureLoadResult(snapshot, LoadedDesktopResult(telemetry));
         var editor = CreateEditor(snapshot);
-        editor.SetTelemetryData(telemetry);
+        await editor.LoadedCommand.ExecuteAsync(null);
 
         editor.SetAnalysisRange(range.StartSeconds, range.EndSeconds);
 
@@ -2108,15 +2172,16 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void SetAnalysisRange_RecomputesAnalysisWithFreshDampingPercentagesOnce()
+    public async Task SetAnalysisRange_RecomputesAnalysisWithFreshDampingPercentagesOnce()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = CreateVibrationTelemetry();
         var range = new TelemetryTimeRange(0.02, 0.16);
         var rangePercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(telemetry, range);
 
+        ConfigureLoadResult(snapshot, LoadedDesktopResult(telemetry));
         var editor = CreateEditor(snapshot);
-        editor.SetTelemetryData(telemetry);
+        await editor.LoadedCommand.ExecuteAsync(null);
         sessionAnalysisService.ClearReceivedCalls();
 
         editor.SetAnalysisRange(range.StartSeconds, range.EndSeconds);
@@ -2127,14 +2192,15 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void ClearAnalysisRange_RecomputesDampingPercentagesForFullSession()
+    public async Task ClearAnalysisRange_RecomputesDampingPercentagesForFullSession()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = CreateVibrationTelemetry();
         var fullSessionPercentages = RecordedSessionAnalysisComputer.CalculateDampingPercentages(telemetry);
 
+        ConfigureLoadResult(snapshot, LoadedDesktopResult(telemetry));
         var editor = CreateEditor(snapshot);
-        editor.SetTelemetryData(telemetry);
+        await editor.LoadedCommand.ExecuteAsync(null);
         editor.SetAnalysisRange(0.02, 0.16);
         Assert.NotNull(editor.CurrentAnalysisRange);
 
@@ -2146,11 +2212,12 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void ClearAnalysisRange_ClearsPendingAnalysisRangeBoundary()
+    public async Task ClearAnalysisRange_ClearsPendingAnalysisRangeBoundary()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        ConfigureLoadResult(snapshot, LoadedDesktopResult(CreateVibrationTelemetry()));
         var editor = CreateEditor(snapshot);
-        editor.SetTelemetryData(CreateVibrationTelemetry());
+        await editor.LoadedCommand.ExecuteAsync(null);
 
         editor.SetAnalysisRangeBoundary(0.02);
         editor.ClearAnalysisRange();
@@ -2160,10 +2227,12 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void DampingPercentagesChange_DoesNotIndependentlyRecomputeAnalysis()
+    public async Task DampingPercentagesChange_DoesNotIndependentlyRecomputeAnalysis()
     {
-        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
-        editor.SetTelemetryData(TestTelemetryData.CreateProcessed());
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        ConfigureLoadResult(snapshot, LoadedDesktopResult(TestTelemetryData.CreateProcessed()));
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(null);
         sessionAnalysisService.ClearReceivedCalls();
 
         editor.ApplyDampingPercentages(new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8));
@@ -2172,11 +2241,12 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void SetAnalysisRangeBoundaryFromMarker_UsesFirstAndSecondMarkerAsRangeBoundaries()
+    public async Task SetAnalysisRangeBoundaryFromMarker_UsesFirstAndSecondMarkerAsRangeBoundaries()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        ConfigureLoadResult(snapshot, LoadedDesktopResult(CreateVibrationTelemetry()));
         var editor = CreateEditor(snapshot);
-        editor.SetTelemetryData(CreateVibrationTelemetry());
+        await editor.LoadedCommand.ExecuteAsync(null);
 
         editor.SetAnalysisRangeBoundaryFromMarker(0.02);
         Assert.Null(editor.CurrentAnalysisRange);
@@ -2188,11 +2258,12 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void SetAnalysisRangeBoundaryFromMarker_ReplacesNearestBoundaryForExistingRange()
+    public async Task SetAnalysisRangeBoundaryFromMarker_ReplacesNearestBoundaryForExistingRange()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        ConfigureLoadResult(snapshot, LoadedDesktopResult(CreateVibrationTelemetry()));
         var editor = CreateEditor(snapshot);
-        editor.SetTelemetryData(CreateVibrationTelemetry());
+        await editor.LoadedCommand.ExecuteAsync(null);
         editor.SetAnalysisRange(0.02, 0.18);
 
         editor.SetAnalysisRangeBoundaryFromMarker(0.05);
@@ -2571,6 +2642,33 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task SaveAfter_MetadataAbsorbWithIncompleteLocalData_PreservesHasProcessedData()
+    {
+        var snapshot = TestSnapshots.Session(updated: 5, hasProcessedData: true);
+        var updatedSnapshot = snapshot with { Updated = 8, Name = "remote" };
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
+        sessionCoordinator.SaveAsync(Arg.Any<Session>(), updatedSnapshot.Updated)
+            .Returns(new SessionSaveResult.Saved(11));
+        SetDesktop(false);
+
+        var editor = CreateEditor(snapshot, watch.AsObservable(), deferDomainHandlingWhenInactive: false);
+        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 400, 300));
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        watch.OnNext(DomainFromSnapshot(updatedSnapshot, DerivedChangeKind.SessionMetadataChanged));
+        await WaitForAsync(() => editor.BaselineUpdated == updatedSnapshot.Updated);
+        editor.Name = "renamed again";
+
+        await editor.SaveCommand.ExecuteAsync(null);
+
+        await sessionCoordinator.Received(1).SaveAsync(
+            Arg.Is<Session>(session => session.Id == snapshot.Id && session.HasProcessedData),
+            updatedSnapshot.Updated);
+        watch.Dispose();
+    }
+
+    [AvaloniaFact]
     public async Task Loaded_WhenAlreadyLoaded_DoesNotStartSecondLoad()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
@@ -2938,7 +3036,7 @@ public class SessionDetailViewModelTests
         var factory = new TestRecordedSessionExtensionFactory("lifecycle");
         var analysisRequestCount = 0;
         sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
-            .Returns(IncompleteResult(snapshot.Id));
+            .Returns(LoadedDesktopResult(TestTelemetryData.CreateMinimal(duration: 10)));
         sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>())
             .Returns(_ =>
             {
@@ -2952,7 +3050,6 @@ public class SessionDetailViewModelTests
             isDesktop: true,
             recordedSessionExtensionFactories: [factory]);
         await editor.LoadedCommand.ExecuteAsync(null);
-        editor.SetTelemetryData(TestTelemetryData.CreateMinimal(duration: 10));
         var scope = factory.Scope!;
         var workspacePropertyChangeCount = 0;
         TrackWorkspaceChanges((INotifyPropertyChanged)editor.MobileWorkspace);
@@ -3279,6 +3376,35 @@ public class SessionDetailViewModelTests
         await dialogService.Received(1).ShowConfirmationAsync(
             Arg.Any<string>(),
             Arg.Any<string>());
+    }
+
+    [AvaloniaFact]
+    public async Task CleanMetadataUpdate_PreservesLoadedAnalysisPresentation()
+    {
+        var snapshot = TestSnapshots.Session(name: "trail run", description: "persisted", hasProcessedData: true, updated: 5);
+        var updatedSnapshot = snapshot with { Updated = 8, Description = "remote" };
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        var telemetry = TestTelemetryData.CreateProcessed();
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(LoadedDesktopResult(telemetry));
+
+        var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        Assert.False(editor.AnalysisWorkspace.FrontAnalysisState.IsHidden);
+        Assert.False(editor.AnalysisWorkspace.RearAnalysisState.IsHidden);
+        Assert.False(editor.AnalysisWorkspace.CompressionBalanceState.IsHidden);
+        Assert.False(editor.AnalysisWorkspace.ReboundBalanceState.IsHidden);
+
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        watch.OnNext(DomainFromSnapshot(updatedSnapshot, DerivedChangeKind.SessionMetadataChanged));
+        await WaitForAsync(() => editor.BaselineUpdated == updatedSnapshot.Updated);
+
+        Assert.False(editor.AnalysisWorkspace.FrontAnalysisState.IsHidden);
+        Assert.False(editor.AnalysisWorkspace.RearAnalysisState.IsHidden);
+        Assert.False(editor.AnalysisWorkspace.CompressionBalanceState.IsHidden);
+        Assert.False(editor.AnalysisWorkspace.ReboundBalanceState.IsHidden);
+        await sessionCoordinator.Received(1).LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>());
+        watch.Dispose();
     }
 
     [AvaloniaFact]
