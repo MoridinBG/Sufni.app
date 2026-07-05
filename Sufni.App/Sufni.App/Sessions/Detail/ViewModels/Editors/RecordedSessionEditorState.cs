@@ -7,6 +7,7 @@ using Sufni.Telemetry;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
@@ -120,6 +121,21 @@ internal sealed record RecordedSessionLoadedData(
     IReadOnlyList<TrackPoint>? TrackPoints,
     TrackTimeRange? TrackTimelineContext);
 
+internal abstract record RecordedSessionLoadPresentation
+{
+    public sealed record Empty : RecordedSessionLoadPresentation;
+
+    public sealed record Loading(bool MapExpected) : RecordedSessionLoadPresentation;
+
+    public sealed record Loaded(SessionDetailData Data) : RecordedSessionLoadPresentation;
+
+    public sealed record IncompleteLocalData(
+        MissingSessionData Missing,
+        bool HasProcessedData) : RecordedSessionLoadPresentation;
+
+    public sealed record Failed(string ErrorMessage) : RecordedSessionLoadPresentation;
+}
+
 internal sealed record RecordedSessionEditorIntentState(
     int SelectedPageIndex,
     TelemetryTimeRange? AnalysisRange,
@@ -148,6 +164,14 @@ internal sealed record RecordedSessionEditorPresentationState(
     IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId,
     SessionScreenPresentationState ScreenState,
     SessionOperationPresentationState OperationState);
+
+internal sealed record RecordedSignalAvailabilityState(
+    bool Travel,
+    bool Velocity,
+    bool Imu,
+    bool PitchRoll,
+    bool Speed,
+    bool Elevation);
 
 internal sealed record RecordedSignalPresentationState(
     SurfacePresentationState Travel,
