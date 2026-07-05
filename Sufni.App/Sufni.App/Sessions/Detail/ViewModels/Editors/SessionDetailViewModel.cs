@@ -104,9 +104,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<SessionPreferences> preferenceReplayInput = new();
     private readonly Subject<RecordedSessionLoadPresentation> loadPresentationInput = new();
     private readonly Subject<SessionOperationPresentationState> sessionOperationStateInput = new();
-    private readonly Subject<SurfacePresentationState> mapStateInput = new();
     private readonly Subject<SurfacePresentationState> mediaPaneStateInput = new();
-    private readonly Subject<double?> mediaColumnWidthInput = new();
     private readonly Subject<string?> mediaUrlInput = new();
     private readonly Subject<RecordedAnalysisPresentationState> analysisPresentationInput = new();
     private readonly Subject<SessionDampingPercentages> dampingPercentagesInput = new();
@@ -1430,9 +1428,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 preferenceReplayInput,
                 loadPresentationInput,
                 sessionOperationStateInput,
-                mapStateInput,
                 mediaPaneStateInput,
-                mediaColumnWidthInput,
                 mediaUrlInput,
                 analysisPresentationInput,
                 dampingPercentagesInput,
@@ -2023,22 +2019,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             Speed = speedState,
             Elevation = elevationState,
         });
-    }
-
-    internal void SetMapState(SurfacePresentationState state)
-    {
-        if (currentEditorState.Presentation.MapState != state)
-        {
-            mapStateInput.OnNext(state);
-        }
-    }
-
-    internal void SetMediaColumnWidth(double? width)
-    {
-        if (currentEditorState.Presentation.MediaColumnWidth != width)
-        {
-            mediaColumnWidthInput.OnNext(width);
-        }
     }
 
     internal void SetMediaUrl(string? url)

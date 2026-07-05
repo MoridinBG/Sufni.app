@@ -215,7 +215,6 @@ public class SessionDetailViewModelTests
 
         editor.SetTelemetryData(TestTelemetryData.CreateProcessed());
         editor.SetAnalysisRange(0.02, 0.16);
-        editor.SetMapState(SurfacePresentationState.Ready);
         editor.SetMediaUrl("session-media.mp4");
         editor.SetRecordedSignalStates(
             SurfacePresentationState.Ready,
@@ -286,19 +285,37 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void MediaWorkspace_TracksOwnerMediaState()
+    public async Task MediaWorkspace_TracksOwnerMediaState()
     {
-        var editor = CreateEditor(TestSnapshots.Session());
-        var mapState = SurfacePresentationState.Ready;
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var trackPoints = new List<TrackPoint> { new(1, 2, 3, 4) };
         const double mediaColumnWidth = 480;
         const string mediaUrl = "session-media.mp4";
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(LoadedResult(
+                new SessionCachePresentationData(
+                    FrontTravelDistribution: null,
+                    RearTravelDistribution: null,
+                    FrontVelocityDistribution: null,
+                    RearVelocityDistribution: null,
+                    CompressionBalance: null,
+                    ReboundBalance: null,
+                    DampingPercentages: SessionDampingPercentages.Empty,
+                    BalanceAvailable: false),
+                telemetry,
+                new SessionTrackPresentationData(
+                    FullTrackId: null,
+                    FullTrackPoints: null,
+                    TrackPoints: trackPoints,
+                    MediaColumnWidth: mediaColumnWidth)));
 
-        editor.SetMapState(mapState);
-        editor.SetMediaColumnWidth(mediaColumnWidth);
+        var editor = CreateEditor(snapshot);
+        await editor.LoadedCommand.ExecuteAsync(null);
         editor.SetMediaUrl(mediaUrl);
 
         Assert.Same(editor.MapViewModel, editor.MediaWorkspace.MapViewModel);
-        Assert.Equal(mapState, editor.MediaWorkspace.MapState);
+        Assert.Equal(SurfacePresentationState.Ready, editor.MediaWorkspace.MapState);
         Assert.Equal(SurfacePresentationState.Ready, editor.MediaWorkspace.MediaPaneState);
         Assert.Equal(mediaColumnWidth, editor.MediaWorkspace.MediaColumnWidth);
         Assert.Equal(mediaUrl, editor.MediaWorkspace.MediaUrl);

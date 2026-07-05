@@ -22,9 +22,7 @@ internal sealed record RecordedSessionEditorStateInputs(
     IObservable<SessionPreferences> PreferenceReplays,
     IObservable<RecordedSessionLoadPresentation> LoadPresentations,
     IObservable<SessionOperationPresentationState> OperationStates,
-    IObservable<SurfacePresentationState> MapStates,
     IObservable<SurfacePresentationState> MediaPaneStates,
-    IObservable<double?> MediaColumnWidths,
     IObservable<string?> MediaUrls,
     IObservable<RecordedAnalysisPresentationState> AnalysisPresentationStates,
     IObservable<SessionDampingPercentages> DampingPercentages,
@@ -49,9 +47,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(inputs.PreferenceReplays);
         ArgumentNullException.ThrowIfNull(inputs.LoadPresentations);
         ArgumentNullException.ThrowIfNull(inputs.OperationStates);
-        ArgumentNullException.ThrowIfNull(inputs.MapStates);
         ArgumentNullException.ThrowIfNull(inputs.MediaPaneStates);
-        ArgumentNullException.ThrowIfNull(inputs.MediaColumnWidths);
         ArgumentNullException.ThrowIfNull(inputs.MediaUrls);
         ArgumentNullException.ThrowIfNull(inputs.AnalysisPresentationStates);
         ArgumentNullException.ThrowIfNull(inputs.DampingPercentages);
@@ -78,11 +74,11 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             SessionScreenPresentationState.Ready);
         var operationState = CreateInputState(inputs.OperationStates, SessionOperationPresentationState.Hidden);
         var mapState = CreateInputState(
-            inputs.MapStates.Merge(loadPresentationState.Select(CreateMapStateFromLoadPresentation)),
+            loadPresentationState.Select(CreateMapStateFromLoadPresentation),
             SurfacePresentationState.Hidden);
         var mediaPaneState = CreateInputState(inputs.MediaPaneStates, SurfacePresentationState.Hidden);
         var mediaColumnWidth = CreateInputState(
-            inputs.MediaColumnWidths.Merge(loadPresentationState.Select(CreateMediaColumnWidthFromLoadPresentation)),
+            loadPresentationState.Select(CreateMediaColumnWidthFromLoadPresentation),
             (double?)null);
         var mediaUrl = CreateInputState(inputs.MediaUrls, (string?)null);
         var analysisPresentation = CreateInputState(

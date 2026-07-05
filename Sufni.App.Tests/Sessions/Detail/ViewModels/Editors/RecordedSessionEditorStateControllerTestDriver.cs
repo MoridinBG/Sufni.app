@@ -27,9 +27,7 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
                 PreferenceReplays,
                 LoadPresentations,
                 OperationStates,
-                MapStates,
                 MediaPaneStates,
-                MediaColumnWidths,
                 MediaUrls,
                 AnalysisPresentationStates,
                 DampingPercentages,
@@ -47,9 +45,7 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
     public Subject<SessionPreferences> PreferenceReplays { get; } = new();
     public Subject<RecordedSessionLoadPresentation> LoadPresentations { get; } = new();
     public Subject<SessionOperationPresentationState> OperationStates { get; } = new();
-    public Subject<SurfacePresentationState> MapStates { get; } = new();
     public Subject<SurfacePresentationState> MediaPaneStates { get; } = new();
-    public Subject<double?> MediaColumnWidths { get; } = new();
     public Subject<string?> MediaUrls { get; } = new();
     public Subject<RecordedAnalysisPresentationState> AnalysisPresentationStates { get; } = new();
     public Subject<SessionDampingPercentages> DampingPercentages { get; } = new();
@@ -71,7 +67,8 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
         SessionSnapshot? session = null,
         TelemetryData? telemetryData = null,
         IReadOnlyList<TrackPoint>? fullTrackPoints = null,
-        IReadOnlyList<TrackPoint>? trackPoints = null)
+        IReadOnlyList<TrackPoint>? trackPoints = null,
+        double? mediaColumnWidth = null)
     {
         if (telemetryData is null)
         {
@@ -86,7 +83,7 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
                     session?.FullTrackId,
                     fullTrackPoints is List<TrackPoint> fullTrackList ? fullTrackList : fullTrackPoints?.ToList(),
                     trackPoints is List<TrackPoint> trackList ? trackList : trackPoints?.ToList(),
-                    MediaColumnWidth: null,
+                    mediaColumnWidth,
                     SessionDampingPercentages.Empty),
                 new SessionCachePresentationData(
                     FrontTravelDistribution: null,
@@ -108,9 +105,7 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
         PreferenceReplays.Dispose();
         LoadPresentations.Dispose();
         OperationStates.Dispose();
-        MapStates.Dispose();
         MediaPaneStates.Dispose();
-        MediaColumnWidths.Dispose();
         MediaUrls.Dispose();
         AnalysisPresentationStates.Dispose();
         DampingPercentages.Dispose();

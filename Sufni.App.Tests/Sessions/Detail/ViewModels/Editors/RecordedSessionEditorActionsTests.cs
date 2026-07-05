@@ -389,20 +389,23 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
-    public void StateController_DerivesMediaPresentationState_FromMediaInputs()
+    public void StateController_DerivesMediaPresentationState_FromLoadAndMediaInputs()
     {
         using var driver = new RecordedSessionEditorStateControllerTestDriver();
         var observed = new List<RecordedSessionEditorPresentationState>();
         using var subscription = driver.Controller.State.Subscribe(state => observed.Add(state.Presentation));
         const double mediaColumnWidth = 480;
         const string mediaUrl = "session-media.mp4";
+        var telemetry = TestTelemetryData.CreateProcessed();
+        List<TrackPoint> trackPoints = [new TrackPoint(1, 2, 3, 4)];
 
-        driver.MapStates.OnNext(SurfacePresentationState.Ready);
+        driver.PublishLoadedData(
+            telemetryData: telemetry,
+            trackPoints: trackPoints,
+            mediaColumnWidth: mediaColumnWidth);
         driver.MediaPaneStates.OnNext(SurfacePresentationState.Ready);
-        driver.MediaColumnWidths.OnNext(mediaColumnWidth);
         driver.MediaUrls.OnNext(mediaUrl);
 
-        Assert.Equal(5, observed.Count);
         Assert.Equal(SurfacePresentationState.Hidden, observed[0].MapState);
         Assert.Equal(SurfacePresentationState.Hidden, observed[0].MediaPaneState);
         Assert.Null(observed[0].MediaColumnWidth);
