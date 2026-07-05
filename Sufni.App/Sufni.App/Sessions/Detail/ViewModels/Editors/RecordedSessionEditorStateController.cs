@@ -1,8 +1,10 @@
 using System;
 using System.Reactive.Linq;
+using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Presentation;
 using Sufni.Telemetry;
 
@@ -111,6 +113,41 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         IObservable<double?> mediaColumnWidths,
         IObservable<string?> mediaUrls,
         IObservable<RecordedAnalysisPresentationState> analysisPresentationStates)
+        : this(
+            legacyState,
+            intents,
+            pageCounts,
+            preferenceReplays,
+            screenStates,
+            operationStates,
+            mapStates,
+            mediaPaneStates,
+            mediaColumnWidths,
+            mediaUrls,
+            analysisPresentationStates,
+            Observable.Empty<SessionDampingPercentages>(),
+            Observable.Empty<DampingSpeedCutoffs>(),
+            Observable.Empty<bool>(),
+            Observable.Empty<SessionInsightsResult>())
+    {
+    }
+
+    public RecordedSessionEditorStateController(
+        IObservable<RecordedSessionEditorState> legacyState,
+        IObservable<RecordedSessionEditorIntent> intents,
+        IObservable<int> pageCounts,
+        IObservable<SessionPreferences> preferenceReplays,
+        IObservable<SessionScreenPresentationState> screenStates,
+        IObservable<SessionOperationPresentationState> operationStates,
+        IObservable<SurfacePresentationState> mapStates,
+        IObservable<SurfacePresentationState> mediaPaneStates,
+        IObservable<double?> mediaColumnWidths,
+        IObservable<string?> mediaUrls,
+        IObservable<RecordedAnalysisPresentationState> analysisPresentationStates,
+        IObservable<SessionDampingPercentages> dampingPercentages,
+        IObservable<DampingSpeedCutoffs> plotDampingSpeedCutoffs,
+        IObservable<bool> canEditDampingSpeedCutoffs,
+        IObservable<SessionInsightsResult> sessionInsights)
     {
         ArgumentNullException.ThrowIfNull(legacyState);
         ArgumentNullException.ThrowIfNull(intents);
@@ -123,6 +160,10 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(mediaColumnWidths);
         ArgumentNullException.ThrowIfNull(mediaUrls);
         ArgumentNullException.ThrowIfNull(analysisPresentationStates);
+        ArgumentNullException.ThrowIfNull(dampingPercentages);
+        ArgumentNullException.ThrowIfNull(plotDampingSpeedCutoffs);
+        ArgumentNullException.ThrowIfNull(canEditDampingSpeedCutoffs);
+        ArgumentNullException.ThrowIfNull(sessionInsights);
 
         var selectedPageIndex = CreateSelectedPageIndexState(intents, pageCounts);
         var analysisRange = CreateAnalysisRangeState(intents);
@@ -137,6 +178,18 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var analysisPresentation = CreateInputState(
             analysisPresentationStates,
             CreateHiddenAnalysisPresentationState());
+        var dampingPercentageState = CreateInputState(
+            dampingPercentages,
+            SessionDampingPercentages.Empty);
+        var plotDampingSpeedCutoffState = CreateInputState(
+            plotDampingSpeedCutoffs,
+            DampingSpeedCutoffs.Default);
+        var canEditDampingSpeedCutoffState = CreateInputState(
+            canEditDampingSpeedCutoffs,
+            false);
+        var sessionInsightsState = CreateInputState(
+            sessionInsights,
+            SessionInsightsResult.Hidden);
         var derivedIntentState = selectedPageIndex
             .CombineLatest(
                 analysisRange,
@@ -181,7 +234,19 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                 static (current, media) => new { current.state, current.derived, current.presentation, media })
             .CombineLatest(
                 analysisPresentation,
-                static (current, analysis) => current.state with
+                static (current, analysis) => new { current.state, current.derived, current.presentation, current.media, analysis })
+            .CombineLatest(
+                dampingPercentageState,
+                static (current, percentages) => new { current.state, current.derived, current.presentation, current.media, current.analysis, percentages })
+            .CombineLatest(
+                plotDampingSpeedCutoffState,
+                static (current, plotCutoffs) => new { current.state, current.derived, current.presentation, current.media, current.analysis, current.percentages, plotCutoffs })
+            .CombineLatest(
+                canEditDampingSpeedCutoffState,
+                static (current, canEditCutoffs) => new { current.state, current.derived, current.presentation, current.media, current.analysis, current.percentages, current.plotCutoffs, canEditCutoffs })
+            .CombineLatest(
+                sessionInsightsState,
+                static (current, insights) => current.state with
                 {
                     Preferences = current.state.Preferences with
                     {
@@ -210,7 +275,11 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                         MediaPaneState = current.media.MediaPaneState,
                         MediaColumnWidth = current.media.MediaColumnWidth,
                         MediaUrl = current.media.MediaUrl,
-                        Analysis = analysis,
+                        Analysis = current.analysis,
+                        DampingPercentages = current.percentages,
+                        PlotDampingSpeedCutoffs = current.plotCutoffs,
+                        CanEditDampingSpeedCutoffs = current.canEditCutoffs,
+                        SessionInsights = insights,
                         ScreenState = current.presentation.ScreenState,
                         OperationState = current.presentation.OperationState,
                     },

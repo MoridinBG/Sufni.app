@@ -109,6 +109,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<double?> mediaColumnWidthInput = new();
     private readonly Subject<string?> mediaUrlInput = new();
     private readonly Subject<RecordedAnalysisPresentationState> analysisPresentationInput = new();
+    private readonly Subject<SessionDampingPercentages> dampingPercentagesInput = new();
+    private readonly Subject<DampingSpeedCutoffs> plotDampingSpeedCutoffsInput = new();
+    private readonly Subject<bool> canEditDampingSpeedCutoffsInput = new();
+    private readonly Subject<SessionInsightsResult> sessionInsightsInput = new();
     private readonly RecordedSessionEditorStateController editorStateController;
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
     private readonly Func<IEditorFactory> editorFactory;
@@ -300,7 +304,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         UpdateRecordedSessionExtensionHostState();
         if (changed)
         {
-            PublishEditorState();
+            dampingPercentagesInput.OnNext(percentages);
         }
     }
 
@@ -1445,7 +1449,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             mediaPaneStateInput,
             mediaColumnWidthInput,
             mediaUrlInput,
-            analysisPresentationInput);
+            analysisPresentationInput,
+            dampingPercentagesInput,
+            plotDampingSpeedCutoffsInput,
+            canEditDampingSpeedCutoffsInput,
+            sessionInsightsInput);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
@@ -1908,7 +1916,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         canEditDampingSpeedCutoffs = value;
         SessionContext.CanEditDampingSpeedCutoffs = value;
         OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
-        PublishEditorState();
+        canEditDampingSpeedCutoffsInput.OnNext(value);
     }
 
     private void SetDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs)
@@ -1933,7 +1941,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         plotDampingSpeedCutoffs = cutoffs;
         SessionContext.PlotDampingSpeedCutoffs = cutoffs;
-        PublishEditorState();
+        plotDampingSpeedCutoffsInput.OnNext(cutoffs);
     }
 
     private void ApplyAnalysisRange(TelemetryTimeRange? range)
@@ -2013,7 +2021,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SessionContext.SessionInsights = insights;
         if (changed)
         {
-            PublishEditorState();
+            sessionInsightsInput.OnNext(insights);
         }
     }
 

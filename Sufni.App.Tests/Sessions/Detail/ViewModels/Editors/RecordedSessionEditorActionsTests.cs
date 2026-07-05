@@ -507,6 +507,75 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void StateController_DerivesAnalysisPresentationDetails_FromInputs()
+    {
+        using var legacyState = new Subject<RecordedSessionEditorState>();
+        using var actions = new RecordedSessionEditorActions();
+        using var pageCounts = new Subject<int>();
+        using var preferenceReplays = new Subject<SessionPreferences>();
+        using var screenStates = new Subject<SessionScreenPresentationState>();
+        using var operationStates = new Subject<SessionOperationPresentationState>();
+        using var mapStates = new Subject<SurfacePresentationState>();
+        using var mediaPaneStates = new Subject<SurfacePresentationState>();
+        using var mediaColumnWidths = new Subject<double?>();
+        using var mediaUrls = new Subject<string?>();
+        using var analysisPresentationStates = new Subject<RecordedAnalysisPresentationState>();
+        using var dampingPercentages = new Subject<SessionDampingPercentages>();
+        using var plotDampingSpeedCutoffs = new Subject<DampingSpeedCutoffs>();
+        using var canEditDampingSpeedCutoffs = new Subject<bool>();
+        using var sessionInsights = new Subject<SessionInsightsResult>();
+        using var controller = new RecordedSessionEditorStateController(
+            legacyState,
+            actions.Intents,
+            pageCounts,
+            preferenceReplays,
+            screenStates,
+            operationStates,
+            mapStates,
+            mediaPaneStates,
+            mediaColumnWidths,
+            mediaUrls,
+            analysisPresentationStates,
+            dampingPercentages,
+            plotDampingSpeedCutoffs,
+            canEditDampingSpeedCutoffs,
+            sessionInsights);
+        var observed = new List<RecordedSessionEditorPresentationState>();
+        using var subscription = controller.State.Subscribe(state => observed.Add(state.Presentation));
+        var percentages = new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8);
+        var plotCutoffs = DampingSpeedCutoffs.FromValues(120, 240, 360, 480);
+        var insights = new SessionInsightsResult(SurfacePresentationState.Loading("Insights"), []);
+
+        legacyState.OnNext(CreateState(selectedPageIndex: 0));
+        dampingPercentages.OnNext(percentages);
+        plotDampingSpeedCutoffs.OnNext(plotCutoffs);
+        canEditDampingSpeedCutoffs.OnNext(true);
+        sessionInsights.OnNext(insights);
+        var staleLegacyBaseState = CreateState(selectedPageIndex: 0);
+        var staleLegacyState = staleLegacyBaseState with
+        {
+            Presentation = staleLegacyBaseState.Presentation with
+            {
+                DampingPercentages = SessionDampingPercentages.Empty,
+                PlotDampingSpeedCutoffs = DampingSpeedCutoffs.Default,
+                CanEditDampingSpeedCutoffs = false,
+                SessionInsights = SessionInsightsResult.Hidden,
+            },
+        };
+        legacyState.OnNext(staleLegacyState);
+
+        Assert.Equal(6, observed.Count);
+        Assert.Equal(SessionDampingPercentages.Empty, observed[0].DampingPercentages);
+        Assert.Equal(DampingSpeedCutoffs.Default, observed[0].PlotDampingSpeedCutoffs);
+        Assert.False(observed[0].CanEditDampingSpeedCutoffs);
+        Assert.Equal(SessionInsightsResult.Hidden, observed[0].SessionInsights);
+        Assert.Equal(percentages, observed[^1].DampingPercentages);
+        Assert.Equal(plotCutoffs, observed[^1].PlotDampingSpeedCutoffs);
+        Assert.True(observed[^1].CanEditDampingSpeedCutoffs);
+        Assert.Equal(insights, observed[^1].SessionInsights);
+    }
+
+    [Fact]
     public void StateController_DisposeStopsSourceSubscription()
     {
         using var source = new Subject<RecordedSessionEditorState>();
