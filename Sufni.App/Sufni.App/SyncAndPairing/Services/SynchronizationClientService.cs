@@ -241,7 +241,7 @@ public class SynchronizationClientService : ISynchronizationClientService
                     continue;
                 }
 
-                await httpApiService.PatchRecordedSessionSourceAsync(ToTransfer(source));
+                await httpApiService.PatchRecordedSessionSourceAsync(ToPayload(source));
                 uploadedCount++;
             }
         }
@@ -267,7 +267,7 @@ public class SynchronizationClientService : ISynchronizationClientService
                     continue;
                 }
 
-                await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(FromTransfer(source));
+                await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(FromPayload(source));
                 await sourceStore.PublishSourcesChangedAsync([source.SessionId]);
                 downloadedCount++;
             }
@@ -370,7 +370,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             IsDeterminate: true));
     }
 
-    private static RecordedSessionSourceTransfer ToTransfer(RecordedSessionSource source) => new(
+    private static RecordedSessionSourcePayload ToPayload(RecordedSessionSource source) => new(
         source.SessionId,
         source.SourceKind,
         source.SourceName,
@@ -378,7 +378,7 @@ public class SynchronizationClientService : ISynchronizationClientService
         source.SourceHash,
         source.Payload);
 
-    private static RecordedSessionSource FromTransfer(RecordedSessionSourceTransfer source) => new()
+    private static RecordedSessionSource FromPayload(RecordedSessionSourcePayload source) => new()
     {
         SessionId = source.SessionId,
         SourceKind = source.SourceKind,

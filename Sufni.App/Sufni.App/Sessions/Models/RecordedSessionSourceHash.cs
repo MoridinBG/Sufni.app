@@ -38,7 +38,7 @@ public static class RecordedSessionSourceHash
             source.SourceHash,
             Compute(source.SourceKind, source.SourceName, source.SchemaVersion, source.Payload));
 
-    public static bool Matches(RecordedSessionSourceTransfer source) =>
+    public static bool Matches(RecordedSessionSourcePayload source) =>
         !string.IsNullOrWhiteSpace(source.SourceName) &&
         !string.IsNullOrWhiteSpace(source.SourceHash) &&
         StringComparer.Ordinal.Equals(

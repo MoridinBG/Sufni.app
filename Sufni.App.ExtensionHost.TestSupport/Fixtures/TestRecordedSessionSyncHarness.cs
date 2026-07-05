@@ -124,17 +124,17 @@ public sealed class TestRecordedSessionSyncHarness : IAsyncDisposable
             result.GeneratedFullTrack,
             expectedInputFingerprint);
 
-    public Task PatchSessionPsstAsync(Guid sessionId, SessionDataTransfer transfer) =>
-        sessionTelemetryWriter.PatchSessionPsstAsync(sessionId, transfer.Data, transfer.Fingerprint);
+    public Task PatchSessionPsstAsync(Guid sessionId, SessionBlobPayload payload) =>
+        sessionTelemetryWriter.PatchSessionPsstAsync(sessionId, payload.Data, payload.Fingerprint);
 
     public Task<(byte[] Data, string? Fingerprint)?> GetSessionRawPsstWithFingerprintAsync(Guid sessionId) =>
         sessionRepository.GetSessionRawPsstWithFingerprintAsync(sessionId);
 
-    public async Task<SessionDataTransfer> GetSessionDataTransferAsync(Guid sessionId)
+    public async Task<SessionBlobPayload> GetSessionBlobPayloadAsync(Guid sessionId)
     {
         var raw = await sessionRepository.GetSessionRawPsstWithFingerprintAsync(sessionId)
                   ?? throw new InvalidOperationException($"Session '{sessionId}' does not have processed data.");
-        return new SessionDataTransfer(raw.Fingerprint, raw.Data);
+        return new SessionBlobPayload(raw.Fingerprint, raw.Data);
     }
 
     public Task PutRecordedSessionSourceAsync(RecordedSessionSource source) =>
@@ -143,11 +143,11 @@ public sealed class TestRecordedSessionSyncHarness : IAsyncDisposable
     public Task<RecordedSessionSource?> GetRecordedSessionSourceAsync(Guid sessionId) =>
         recordedSessionSourceRepository.GetRecordedSessionSourceAsync(sessionId);
 
-    public async Task<RecordedSessionSourceTransfer> GetRecordedSessionSourceTransferAsync(Guid sessionId)
+    public async Task<RecordedSessionSourcePayload> GetRecordedSessionSourcePayloadAsync(Guid sessionId)
     {
         var source = await recordedSessionSourceRepository.GetRecordedSessionSourceAsync(sessionId)
                      ?? throw new InvalidOperationException($"Recorded-session source '{sessionId}' was not found.");
-        return new RecordedSessionSourceTransfer(
+        return new RecordedSessionSourcePayload(
             source.SessionId,
             source.SourceKind,
             source.SourceName,
@@ -156,7 +156,7 @@ public sealed class TestRecordedSessionSyncHarness : IAsyncDisposable
             source.Payload);
     }
 
-    public Task ApplyRecordedSessionSourceTransferAsync(RecordedSessionSourceTransfer transfer) =>
+    public Task ApplyRecordedSessionSourcePayloadAsync(RecordedSessionSourcePayload transfer) =>
         recordedSessionSourceRepository.PutRecordedSessionSourceAsync(new RecordedSessionSource
         {
             SessionId = transfer.SessionId,
