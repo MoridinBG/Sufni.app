@@ -890,6 +890,34 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void PageSelectionAnalysisRequests_EmitsOnSelectedPageChanges()
+    {
+        using var states = new Subject<RecordedSessionEditorState>();
+        var effects = new List<RecordedSessionEditorEffect>();
+        using var subscription = RecordedSessionEditorEffects.PageSelectionAnalysisRequests(states)
+            .Subscribe(effects.Add);
+
+        states.OnNext(CreateState(selectedPageIndex: 0));
+        states.OnNext(CreateState(selectedPageIndex: 0));
+        states.OnNext(CreateState(selectedPageIndex: 1));
+        states.OnNext(CreateState(selectedPageIndex: 1));
+        states.OnNext(CreateState(selectedPageIndex: 2));
+
+        Assert.Collection(
+            effects,
+            effect =>
+            {
+                var request = Assert.IsType<RecordedSessionEditorEffect.RequestAnalysis>(effect);
+                Assert.IsType<RecordedSessionAnalysisEffectRequest.SelectedPageChanged>(request.Request);
+            },
+            effect =>
+            {
+                var request = Assert.IsType<RecordedSessionEditorEffect.RequestAnalysis>(effect);
+                Assert.IsType<RecordedSessionAnalysisEffectRequest.SelectedPageChanged>(request.Request);
+            });
+    }
+
+    [Fact]
     public void StateController_DisposeStopsSourceSubscription()
     {
         using var source = new Subject<RecordedSessionEditorState>();

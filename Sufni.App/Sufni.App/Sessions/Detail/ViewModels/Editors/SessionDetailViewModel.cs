@@ -1474,6 +1474,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             [
                 RecordedSessionEditorEffects.PreferencePersistence(editorActions.Intents),
                 RecordedSessionEditorEffects.AnalysisRequests(editorStateController.State),
+                RecordedSessionEditorEffects.PageSelectionAnalysisRequests(editorStateController.State),
             ],
             ApplyRecordedSessionEditorEffect);
         signalRowActions = new SignalRowActionsController(
@@ -2270,6 +2271,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
                 break;
 
+            case RecordedSessionAnalysisEffectRequest.SelectedPageChanged:
+                if (IsSessionInsightsPageSelected)
+                {
+                    RequestCurrentSessionInsights(respectSuppression: true);
+                }
+
+                break;
+
             case RecordedSessionAnalysisEffectRequest.Damping damping:
                 RequestCurrentAnalysisResults(damping.IncludeInsights, damping.RespectSuppression);
                 break;
@@ -2544,10 +2553,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private void SelectPageIndex(int pageIndex)
     {
         selectedPageIndex = ClampSelectedPageIndex(pageIndex);
-        if (IsSessionInsightsPageSelected)
-        {
-            RequestCurrentSessionInsights(respectSuppression: true);
-        }
     }
 
     public void SetAnalysisRange(double startSeconds, double endSeconds)

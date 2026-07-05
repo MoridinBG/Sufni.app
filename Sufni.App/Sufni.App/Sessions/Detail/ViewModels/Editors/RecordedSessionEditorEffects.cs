@@ -85,6 +85,23 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
             .Select(static effect => effect!);
     }
 
+    public static IObservable<RecordedSessionEditorEffect> PageSelectionAnalysisRequests(
+        IObservable<RecordedSessionEditorState> states)
+    {
+        ArgumentNullException.ThrowIfNull(states);
+
+        return states
+            .Select(static state => state.Intent.SelectedPageIndex)
+            .Scan(
+                (Previous: (int?)null, Current: (int?)null),
+                static (current, next) => (current.Current, next))
+            .Where(static pair => pair.Previous.HasValue &&
+                pair.Current.HasValue &&
+                pair.Previous.Value != pair.Current.Value)
+            .Select(static _ => new RecordedSessionEditorEffect.RequestAnalysis(
+                new RecordedSessionAnalysisEffectRequest.SelectedPageChanged()));
+    }
+
     public void Dispose()
     {
         if (disposed)
@@ -153,6 +170,8 @@ internal sealed record RecordedSessionAnalysisEffectState(
 internal abstract record RecordedSessionAnalysisEffectRequest
 {
     public sealed record RangeChanged : RecordedSessionAnalysisEffectRequest;
+
+    public sealed record SelectedPageChanged : RecordedSessionAnalysisEffectRequest;
 
     public sealed record Damping(bool IncludeInsights, bool RespectSuppression)
         : RecordedSessionAnalysisEffectRequest;
