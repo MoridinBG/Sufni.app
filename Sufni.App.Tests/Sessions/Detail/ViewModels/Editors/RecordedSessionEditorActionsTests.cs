@@ -448,6 +448,65 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void StateController_DerivesAnalysisPresentationState_FromAnalysisInputs()
+    {
+        using var legacyState = new Subject<RecordedSessionEditorState>();
+        using var actions = new RecordedSessionEditorActions();
+        using var pageCounts = new Subject<int>();
+        using var preferenceReplays = new Subject<SessionPreferences>();
+        using var screenStates = new Subject<SessionScreenPresentationState>();
+        using var operationStates = new Subject<SessionOperationPresentationState>();
+        using var mapStates = new Subject<SurfacePresentationState>();
+        using var mediaPaneStates = new Subject<SurfacePresentationState>();
+        using var mediaColumnWidths = new Subject<double?>();
+        using var mediaUrls = new Subject<string?>();
+        using var analysisPresentationStates = new Subject<RecordedAnalysisPresentationState>();
+        using var controller = new RecordedSessionEditorStateController(
+            legacyState,
+            actions.Intents,
+            pageCounts,
+            preferenceReplays,
+            screenStates,
+            operationStates,
+            mapStates,
+            mediaPaneStates,
+            mediaColumnWidths,
+            mediaUrls,
+            analysisPresentationStates);
+        var observed = new List<RecordedAnalysisPresentationState>();
+        using var subscription = controller.State.Subscribe(state => observed.Add(state.Presentation.Analysis));
+        var analysis = new RecordedAnalysisPresentationState(
+            FrontAnalysis: SurfacePresentationState.Ready,
+            RearAnalysis: SurfacePresentationState.Loading("Rear"),
+            CompressionBalance: SurfacePresentationState.Ready,
+            ReboundBalance: SurfacePresentationState.Hidden,
+            FrontForkVibration: SurfacePresentationState.Ready,
+            FrontFrameVibration: SurfacePresentationState.Hidden,
+            RearForkVibration: SurfacePresentationState.Ready,
+            RearFrameVibration: SurfacePresentationState.Hidden);
+
+        legacyState.OnNext(CreateState(selectedPageIndex: 0));
+        analysisPresentationStates.OnNext(analysis);
+        var staleLegacyBaseState = CreateState(selectedPageIndex: 0);
+        var staleLegacyState = staleLegacyBaseState with
+        {
+            Presentation = staleLegacyBaseState.Presentation with
+            {
+                Analysis = staleLegacyBaseState.Presentation.Analysis with
+                {
+                    FrontAnalysis = SurfacePresentationState.Error("Stale"),
+                },
+            },
+        };
+        legacyState.OnNext(staleLegacyState);
+
+        Assert.Equal(3, observed.Count);
+        Assert.True(observed[0].FrontAnalysis.IsHidden);
+        Assert.Equal(analysis, observed[1]);
+        Assert.Equal(analysis, observed[^1]);
+    }
+
+    [Fact]
     public void StateController_DisposeStopsSourceSubscription()
     {
         using var source = new Subject<RecordedSessionEditorState>();

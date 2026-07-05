@@ -84,6 +84,33 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         IObservable<SurfacePresentationState> mediaPaneStates,
         IObservable<double?> mediaColumnWidths,
         IObservable<string?> mediaUrls)
+        : this(
+            legacyState,
+            intents,
+            pageCounts,
+            preferenceReplays,
+            screenStates,
+            operationStates,
+            mapStates,
+            mediaPaneStates,
+            mediaColumnWidths,
+            mediaUrls,
+            Observable.Empty<RecordedAnalysisPresentationState>())
+    {
+    }
+
+    public RecordedSessionEditorStateController(
+        IObservable<RecordedSessionEditorState> legacyState,
+        IObservable<RecordedSessionEditorIntent> intents,
+        IObservable<int> pageCounts,
+        IObservable<SessionPreferences> preferenceReplays,
+        IObservable<SessionScreenPresentationState> screenStates,
+        IObservable<SessionOperationPresentationState> operationStates,
+        IObservable<SurfacePresentationState> mapStates,
+        IObservable<SurfacePresentationState> mediaPaneStates,
+        IObservable<double?> mediaColumnWidths,
+        IObservable<string?> mediaUrls,
+        IObservable<RecordedAnalysisPresentationState> analysisPresentationStates)
     {
         ArgumentNullException.ThrowIfNull(legacyState);
         ArgumentNullException.ThrowIfNull(intents);
@@ -95,6 +122,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(mediaPaneStates);
         ArgumentNullException.ThrowIfNull(mediaColumnWidths);
         ArgumentNullException.ThrowIfNull(mediaUrls);
+        ArgumentNullException.ThrowIfNull(analysisPresentationStates);
 
         var selectedPageIndex = CreateSelectedPageIndexState(intents, pageCounts);
         var analysisRange = CreateAnalysisRangeState(intents);
@@ -106,6 +134,9 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var mediaPaneState = CreateInputState(mediaPaneStates, SurfacePresentationState.Hidden);
         var mediaColumnWidth = CreateInputState(mediaColumnWidths, (double?)null);
         var mediaUrl = CreateInputState(mediaUrls, (string?)null);
+        var analysisPresentation = CreateInputState(
+            analysisPresentationStates,
+            CreateHiddenAnalysisPresentationState());
         var derivedIntentState = selectedPageIndex
             .CombineLatest(
                 analysisRange,
@@ -147,7 +178,10 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                 static (current, presentation) => new { current.state, current.derived, presentation })
             .CombineLatest(
                 derivedMediaState,
-                static (current, media) => current.state with
+                static (current, media) => new { current.state, current.derived, current.presentation, media })
+            .CombineLatest(
+                analysisPresentation,
+                static (current, analysis) => current.state with
                 {
                     Preferences = current.state.Preferences with
                     {
@@ -172,10 +206,11 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                     },
                     Presentation = current.state.Presentation with
                     {
-                        MapState = media.MapState,
-                        MediaPaneState = media.MediaPaneState,
-                        MediaColumnWidth = media.MediaColumnWidth,
-                        MediaUrl = media.MediaUrl,
+                        MapState = current.media.MapState,
+                        MediaPaneState = current.media.MediaPaneState,
+                        MediaColumnWidth = current.media.MediaColumnWidth,
+                        MediaUrl = current.media.MediaUrl,
+                        Analysis = analysis,
                         ScreenState = current.presentation.ScreenState,
                         OperationState = current.presentation.OperationState,
                     },
@@ -228,6 +263,19 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             .DistinctUntilChanged()
             .Replay(1)
             .RefCount();
+    }
+
+    private static RecordedAnalysisPresentationState CreateHiddenAnalysisPresentationState()
+    {
+        return new RecordedAnalysisPresentationState(
+            FrontAnalysis: SurfacePresentationState.Hidden,
+            RearAnalysis: SurfacePresentationState.Hidden,
+            CompressionBalance: SurfacePresentationState.Hidden,
+            ReboundBalance: SurfacePresentationState.Hidden,
+            FrontForkVibration: SurfacePresentationState.Hidden,
+            FrontFrameVibration: SurfacePresentationState.Hidden,
+            RearForkVibration: SurfacePresentationState.Hidden,
+            RearFrameVibration: SurfacePresentationState.Hidden);
     }
 
     private static IObservable<T> CreateInputState<T>(IObservable<T> updates, T initialValue)

@@ -108,6 +108,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<SurfacePresentationState> mediaPaneStateInput = new();
     private readonly Subject<double?> mediaColumnWidthInput = new();
     private readonly Subject<string?> mediaUrlInput = new();
+    private readonly Subject<RecordedAnalysisPresentationState> analysisPresentationInput = new();
     private readonly RecordedSessionEditorStateController editorStateController;
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
     private readonly Func<IEditorFactory> editorFactory;
@@ -1443,7 +1444,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             mapStateInput,
             mediaPaneStateInput,
             mediaColumnWidthInput,
-            mediaUrlInput);
+            mediaUrlInput,
+            analysisPresentationInput);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
@@ -2137,7 +2139,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         if (changed)
         {
-            PublishEditorState();
+            analysisPresentationInput.OnNext(state);
         }
     }
 
