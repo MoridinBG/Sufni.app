@@ -144,7 +144,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly CancellableOperation loadOperation = new();
     private SessionPresentationDimensions? lastPresentationDimensions;
     private double? pendingAnalysisRangeBoundary;
-    private TelemetryTimeRange? analysisRange;
     private RecordedSessionTimelineAlignmentMark? pendingTimelineAlignmentMark;
     private RecordedSessionAnalysisInputs analysisInputs;
     private readonly AnalysisRequestScheduler analysisRequestScheduler;
@@ -192,7 +191,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private SurfacePresentationState frontFrameVibrationState = SurfacePresentationState.Hidden;
     private SurfacePresentationState rearForkVibrationState = SurfacePresentationState.Hidden;
     private SurfacePresentationState rearFrameVibrationState = SurfacePresentationState.Hidden;
-    private DampingSpeedCutoffs dampingSpeedCutoffs = DampingSpeedCutoffs.Default;
     private DampingSpeedCutoffs plotDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
     private bool canEditDampingSpeedCutoffs;
     private SessionSnapshot? sessionSnapshot;
@@ -213,11 +211,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private bool showPitchRollAnalysisSelection;
     private bool showSpeedAnalysisSelection;
     private bool showElevationAnalysisSelection;
-    private TravelDistributionMode selectedTravelDistributionMode = TravelDistributionMode.ActiveSuspension;
-    private BalanceDisplacementMode selectedBalanceDisplacementMode = BalanceDisplacementMode.Zenith;
-    private BalanceSpeedMode selectedBalanceSpeedMode = BalanceSpeedMode.Both;
-    private VelocityAverageMode selectedVelocityAverageMode = VelocityAverageMode.SampleAveraged;
-    private SessionInsightsTargetProfile selectedSessionInsightsTargetProfile = SessionInsightsTargetProfile.Trail;
     private SignalDisplayPreferences signalDisplayPreferences = SessionPreferences.Default.SignalDisplay;
     private SignalLayoutPreferences signalLayoutPreferences = SessionPreferences.Default.SignalLayout;
     private SessionLayoutPreferences layoutPreferences = SessionPreferences.Default.Layout;
@@ -343,14 +336,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private RecordedSessionAnalysisInputs CreateCurrentAnalysisInputs() =>
         new(
             telemetryGeneration,
-            analysisRange,
-            selectedTravelDistributionMode,
-            selectedVelocityAverageMode,
-            selectedBalanceDisplacementMode,
-            selectedBalanceSpeedMode,
-            dampingSpeedCutoffs,
+            currentEditorState.Intent.AnalysisRange,
+            currentEditorState.Intent.SelectedTravelDistributionMode,
+            currentEditorState.Intent.SelectedVelocityAverageMode,
+            currentEditorState.Intent.SelectedBalanceDisplacementMode,
+            currentEditorState.Intent.SelectedBalanceSpeedMode,
+            currentEditorState.Intent.DampingSpeedCutoffs,
             dampingPercentages,
-            selectedSessionInsightsTargetProfile);
+            currentEditorState.Intent.SelectedSessionInsightsTargetProfile);
 
     private void InvalidateAnalysisInputs()
     {
@@ -599,7 +592,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        if (analysisRange is null && selectedVelocityAverageMode == VelocityAverageMode.SampleAveraged)
+        if (currentEditorState.Intent.AnalysisRange is null &&
+            currentEditorState.Intent.SelectedVelocityAverageMode == VelocityAverageMode.SampleAveraged)
         {
             ApplyDampingPercentages(sampleAveragedPercentages);
             return;
@@ -987,7 +981,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 snapshot?.DurationSeconds,
                 viewLoaded,
                 IsTabActive),
-            new RecordedSessionSelectionState(analysisRange),
+            new RecordedSessionSelectionState(currentEditorState.Intent.AnalysisRange),
             new RecordedSessionTimelineState(
                 trackTimelineContext,
                 timelineDurationSeconds,
@@ -995,9 +989,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 new RecordedSessionTimelineAlignmentState(pendingTimelineAlignmentMark)),
             new RecordedSessionAnalysisState(
                 dampingPercentages,
-                dampingSpeedCutoffs,
-                selectedVelocityAverageMode,
-                selectedTravelDistributionMode));
+                currentEditorState.Intent.DampingSpeedCutoffs,
+                currentEditorState.Intent.SelectedVelocityAverageMode,
+                currentEditorState.Intent.SelectedTravelDistributionMode));
     }
 
     private RecordedSessionHostRuntimeState CreateRecordedSessionHostRuntimeState()
@@ -1532,7 +1526,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             ResetCommand);
         IsComplete = snapshot.HasProcessedData;
         dampingCutoffWorkflow = new DampingCutoffWorkflow(
-            () => dampingSpeedCutoffs,
+            () => currentEditorState.Intent.DampingSpeedCutoffs,
             SetCanEditDampingSpeedCutoffs,
             editorActions.SetDampingSpeedCutoffs,
             SetPlotDampingSpeedCutoffs,
@@ -1660,7 +1654,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         if (previous.Intent.AnalysisRange != state.Intent.AnalysisRange)
         {
-            analysisRange = state.Intent.AnalysisRange;
             pendingAnalysisRangeBoundary = state.Intent.PendingAnalysisRangeBoundary;
             OnPropertyChanged(nameof(CurrentAnalysisRange));
             OnPropertyChanged(nameof(SessionAnalysisRangeText));
@@ -1706,11 +1699,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             OnPropertyChanged(nameof(MediaLayoutPreferences));
         }
 
-        if (previous.Intent.DampingSpeedCutoffs != state.Intent.DampingSpeedCutoffs)
-        {
-            dampingSpeedCutoffs = state.Intent.DampingSpeedCutoffs;
-        }
-
         if (previous.Presentation.PlotDampingSpeedCutoffs != state.Presentation.PlotDampingSpeedCutoffs)
         {
             plotDampingSpeedCutoffs = state.Presentation.PlotDampingSpeedCutoffs;
@@ -1724,33 +1712,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             previous.Intent.SelectedBalanceDisplacementMode != state.Intent.SelectedBalanceDisplacementMode;
         var balanceSpeedChanged =
             previous.Intent.SelectedBalanceSpeedMode != state.Intent.SelectedBalanceSpeedMode;
-        var sessionInsightsTargetChanged =
-            previous.Intent.SelectedSessionInsightsTargetProfile != state.Intent.SelectedSessionInsightsTargetProfile;
-
-        if (travelDistributionChanged)
-        {
-            selectedTravelDistributionMode = state.Intent.SelectedTravelDistributionMode;
-        }
 
         if (velocityAverageChanged)
         {
-            selectedVelocityAverageMode = state.Intent.SelectedVelocityAverageMode;
             ClearDampingRangeSelections();
-        }
-
-        if (balanceDisplacementChanged)
-        {
-            selectedBalanceDisplacementMode = state.Intent.SelectedBalanceDisplacementMode;
-        }
-
-        if (balanceSpeedChanged)
-        {
-            selectedBalanceSpeedMode = state.Intent.SelectedBalanceSpeedMode;
-        }
-
-        if (sessionInsightsTargetChanged)
-        {
-            selectedSessionInsightsTargetProfile = state.Intent.SelectedSessionInsightsTargetProfile;
         }
 
         if (travelDistributionChanged ||
@@ -1772,7 +1737,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private void ClearDampingRangeSelections()
     {
         var controller = CreateCurrentAnalysisSelectionController();
-        if (!controller.ClearDampingRangeSelections(telemetryData, analysisRange))
+        if (!controller.ClearDampingRangeSelections(telemetryData, currentEditorState.Intent.AnalysisRange))
         {
             return;
         }
@@ -1929,61 +1894,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         signalPresentationInput.OnNext(CreateSignalPresentationState());
     }
 
-    private void SetTravelDistributionMode(TravelDistributionMode mode)
-    {
-        if (selectedTravelDistributionMode == mode)
-        {
-            return;
-        }
-
-        selectedTravelDistributionMode = mode;
-        OnPropertyChanged(nameof(SessionAnalysisModesText));
-    }
-
-    private void SetBalanceDisplacementMode(BalanceDisplacementMode mode)
-    {
-        if (selectedBalanceDisplacementMode == mode)
-        {
-            return;
-        }
-
-        selectedBalanceDisplacementMode = mode;
-        OnPropertyChanged(nameof(SessionAnalysisModesText));
-    }
-
-    private void SetBalanceSpeedMode(BalanceSpeedMode mode)
-    {
-        if (selectedBalanceSpeedMode == mode)
-        {
-            return;
-        }
-
-        selectedBalanceSpeedMode = mode;
-        OnPropertyChanged(nameof(SessionAnalysisModesText));
-    }
-
-    private void SetVelocityAverageMode(VelocityAverageMode mode)
-    {
-        if (selectedVelocityAverageMode == mode)
-        {
-            return;
-        }
-
-        selectedVelocityAverageMode = mode;
-        ClearDampingRangeSelections();
-        OnPropertyChanged(nameof(SessionAnalysisModesText));
-    }
-
-    private void SetSessionInsightsTargetProfile(SessionInsightsTargetProfile profile)
-    {
-        if (selectedSessionInsightsTargetProfile == profile)
-        {
-            return;
-        }
-
-        selectedSessionInsightsTargetProfile = profile;
-    }
-
     private void SetCanEditDampingSpeedCutoffs(bool value)
     {
         if (canEditDampingSpeedCutoffs == value)
@@ -2005,45 +1915,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         plotDampingSpeedCutoffs = cutoffs;
         plotDampingSpeedCutoffsInput.OnNext(cutoffs);
-    }
-
-    private void ApplyAnalysisRange(TelemetryTimeRange? range)
-    {
-        if (analysisRange == range)
-        {
-            return;
-        }
-
-        analysisRange = range;
-        OnPropertyChanged(nameof(SessionAnalysisRangeText));
-        ClearAnalysisSelections();
-        presentationApplier.RefreshAnalysisRangeStates();
-    }
-
-    private void ApplyRequestedAnalysisRange(TelemetryTimeRange? requestedRange)
-    {
-        pendingAnalysisRangeBoundary = null;
-        if (!requestedRange.HasValue)
-        {
-            if (analysisRange is not null)
-            {
-                ApplyAnalysisRange(null);
-            }
-
-            return;
-        }
-
-        if (telemetryData is null ||
-            !TelemetryTimeRange.TryCreateClamped(
-                requestedRange.Value.StartSeconds,
-                requestedRange.Value.EndSeconds,
-                telemetryData.Metadata.Duration,
-                out var range))
-        {
-            return;
-        }
-
-        ApplyAnalysisRange(range);
     }
 
     internal void SetScreenState(SessionScreenPresentationState state)
@@ -2229,7 +2100,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             ApplyLayoutPreferences(preferences.Layout);
             ApplyPreferencesPageSignalDisplayPreferences(preferences.SignalDisplay);
             PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
-            ApplyRecordedAnalysisPreferences(preferences.Analysis);
             preferenceReplayInput.OnNext(preferences);
         }
         finally
@@ -2270,15 +2140,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         PreferencesPage.PitchRollSignal.PropertyChanged -= OnSignalPreferenceChanged;
         PreferencesPage.SpeedSignal.PropertyChanged -= OnSignalPreferenceChanged;
         PreferencesPage.ElevationSignal.PropertyChanged -= OnSignalPreferenceChanged;
-    }
-
-    private void ApplyRecordedAnalysisPreferences(AnalysisPreferences preferences)
-    {
-        SetTravelDistributionMode(preferences.TravelDistributionMode);
-        SetVelocityAverageMode(preferences.VelocityAverageMode);
-        SetBalanceDisplacementMode(preferences.BalanceDisplacementMode);
-        SetBalanceSpeedMode(preferences.BalanceSpeedMode);
-        SetSessionInsightsTargetProfile(preferences.SessionInsightsTargetProfile);
     }
 
     private void OnSignalPreferenceChanged(object? sender, PropertyChangedEventArgs args)
@@ -2424,7 +2285,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             analysisRequestScheduler.ConsumePendingTelemetryInsightsRequest() ||
             IsSessionInsightsPageSelected;
 
-        if (analysisRange is not null)
+        if (currentEditorState.Intent.AnalysisRange is not null)
         {
             ClearAnalysisRange();
             if (suppressAnalysisRecompute && includeDeferredInsights)
