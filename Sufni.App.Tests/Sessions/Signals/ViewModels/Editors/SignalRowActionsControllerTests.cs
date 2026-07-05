@@ -1,18 +1,17 @@
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.Telemetry;
 
-using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
 namespace Sufni.App.Tests.Sessions.Signals.ViewModels.Editors;
 
 public class SignalRowActionsControllerTests
 {
-    private readonly RecordedSessionContext context = new();
+    private readonly SignalRowActionState state = new();
     private readonly SignalRowActionsController controller;
 
     public SignalRowActionsControllerTests()
     {
-        controller = CreateController(context);
+        controller = CreateController(state);
     }
 
     [Fact]
@@ -47,19 +46,19 @@ public class SignalRowActionsControllerTests
 
         airtimeAction.Command!.Execute(null);
 
-        Assert.False(context.ShowAirtime);
+        Assert.False(state.ShowAirtime);
         Assert.False(airtimeAction.IsChecked);
 
         airtimeAction.Command.Execute(null);
 
-        Assert.True(context.ShowAirtime);
+        Assert.True(state.ShowAirtime);
         Assert.True(airtimeAction.IsChecked);
     }
 
     [Fact]
     public void ExternalShowFlagChange_DoesNotUpdateAirtimeActionCheckedState()
     {
-        context.ShowVelocityAirtime = true;
+        state.ShowVelocityAirtime = true;
 
         Assert.False(controller.VelocityHeaderActions[0].IsChecked);
     }
@@ -71,14 +70,14 @@ public class SignalRowActionsControllerTests
 
         selectionAction.Command!.Execute(null);
 
-        Assert.True(context.ShowAnalysisSelection);
+        Assert.True(state.ShowAnalysisSelection);
         Assert.True(selectionAction.IsChecked);
     }
 
     [Fact]
     public void RefreshAnalysisSelectionActionStates_EnablesActions_WhileSelectionExists()
     {
-        context.AnalysisSelectionHighlightRanges = [new TelemetryHighlightRange(1.0, 2.0)];
+        state.AnalysisSelectionHighlightRanges = [new TelemetryHighlightRange(1.0, 2.0)];
 
         controller.RefreshAnalysisSelectionActionStates();
 
@@ -86,7 +85,7 @@ public class SignalRowActionsControllerTests
             AllAnalysisSelectionActions(),
             action => Assert.True(action.IsEnabled));
 
-        context.AnalysisSelectionHighlightRanges = [];
+        state.AnalysisSelectionHighlightRanges = [];
         controller.RefreshAnalysisSelectionActionStates();
 
         Assert.All(
@@ -97,18 +96,18 @@ public class SignalRowActionsControllerTests
     [Fact]
     public void ClearAnalysisSelectionToggles_UnchecksEveryToggle_AndResetsContextFlags()
     {
-        context.ShowAnalysisSelection = true;
-        context.ShowVelocityAnalysisSelection = true;
-        context.ShowElevationAnalysisSelection = true;
+        state.ShowAnalysisSelection = true;
+        state.ShowVelocityAnalysisSelection = true;
+        state.ShowElevationAnalysisSelection = true;
 
         controller.ClearAnalysisSelectionToggles();
 
-        Assert.False(context.ShowAnalysisSelection);
-        Assert.False(context.ShowVelocityAnalysisSelection);
-        Assert.False(context.ShowImuAnalysisSelection);
-        Assert.False(context.ShowPitchRollAnalysisSelection);
-        Assert.False(context.ShowSpeedAnalysisSelection);
-        Assert.False(context.ShowElevationAnalysisSelection);
+        Assert.False(state.ShowAnalysisSelection);
+        Assert.False(state.ShowVelocityAnalysisSelection);
+        Assert.False(state.ShowImuAnalysisSelection);
+        Assert.False(state.ShowPitchRollAnalysisSelection);
+        Assert.False(state.ShowSpeedAnalysisSelection);
+        Assert.False(state.ShowElevationAnalysisSelection);
         Assert.All(
             AllAnalysisSelectionActions(),
             action => Assert.False(action.IsChecked));
@@ -127,33 +126,51 @@ public class SignalRowActionsControllerTests
         ];
     }
 
-    private static SignalRowActionsController CreateController(RecordedSessionContext context)
+    private static SignalRowActionsController CreateController(SignalRowActionState state)
     {
         return new SignalRowActionsController(
-            () => context.HasAnalysisSelection,
-            () => context.ShowAirtime,
-            value => context.ShowAirtime = value,
-            () => context.ShowVelocityAirtime,
-            value => context.ShowVelocityAirtime = value,
-            () => context.ShowImuAirtime,
-            value => context.ShowImuAirtime = value,
-            () => context.ShowPitchRollAirtime,
-            value => context.ShowPitchRollAirtime = value,
-            () => context.ShowSpeedAirtime,
-            value => context.ShowSpeedAirtime = value,
-            () => context.ShowElevationAirtime,
-            value => context.ShowElevationAirtime = value,
-            () => context.ShowAnalysisSelection,
-            value => context.ShowAnalysisSelection = value,
-            () => context.ShowVelocityAnalysisSelection,
-            value => context.ShowVelocityAnalysisSelection = value,
-            () => context.ShowImuAnalysisSelection,
-            value => context.ShowImuAnalysisSelection = value,
-            () => context.ShowPitchRollAnalysisSelection,
-            value => context.ShowPitchRollAnalysisSelection = value,
-            () => context.ShowSpeedAnalysisSelection,
-            value => context.ShowSpeedAnalysisSelection = value,
-            () => context.ShowElevationAnalysisSelection,
-            value => context.ShowElevationAnalysisSelection = value);
+            () => state.HasAnalysisSelection,
+            () => state.ShowAirtime,
+            value => state.ShowAirtime = value,
+            () => state.ShowVelocityAirtime,
+            value => state.ShowVelocityAirtime = value,
+            () => state.ShowImuAirtime,
+            value => state.ShowImuAirtime = value,
+            () => state.ShowPitchRollAirtime,
+            value => state.ShowPitchRollAirtime = value,
+            () => state.ShowSpeedAirtime,
+            value => state.ShowSpeedAirtime = value,
+            () => state.ShowElevationAirtime,
+            value => state.ShowElevationAirtime = value,
+            () => state.ShowAnalysisSelection,
+            value => state.ShowAnalysisSelection = value,
+            () => state.ShowVelocityAnalysisSelection,
+            value => state.ShowVelocityAnalysisSelection = value,
+            () => state.ShowImuAnalysisSelection,
+            value => state.ShowImuAnalysisSelection = value,
+            () => state.ShowPitchRollAnalysisSelection,
+            value => state.ShowPitchRollAnalysisSelection = value,
+            () => state.ShowSpeedAnalysisSelection,
+            value => state.ShowSpeedAnalysisSelection = value,
+            () => state.ShowElevationAnalysisSelection,
+            value => state.ShowElevationAnalysisSelection = value);
+    }
+
+    private sealed class SignalRowActionState
+    {
+        public IReadOnlyList<TelemetryHighlightRange> AnalysisSelectionHighlightRanges { get; set; } = [];
+        public bool HasAnalysisSelection => AnalysisSelectionHighlightRanges.Count > 0;
+        public bool ShowAirtime { get; set; } = true;
+        public bool ShowVelocityAirtime { get; set; }
+        public bool ShowImuAirtime { get; set; }
+        public bool ShowPitchRollAirtime { get; set; }
+        public bool ShowSpeedAirtime { get; set; }
+        public bool ShowElevationAirtime { get; set; }
+        public bool ShowAnalysisSelection { get; set; }
+        public bool ShowVelocityAnalysisSelection { get; set; }
+        public bool ShowImuAnalysisSelection { get; set; }
+        public bool ShowPitchRollAnalysisSelection { get; set; }
+        public bool ShowSpeedAnalysisSelection { get; set; }
+        public bool ShowElevationAnalysisSelection { get; set; }
     }
 }

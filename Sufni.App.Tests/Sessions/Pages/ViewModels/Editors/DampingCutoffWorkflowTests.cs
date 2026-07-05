@@ -3,7 +3,6 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Coordinators;
-using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Pages.ViewModels.Editors;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Tests.TestSupport.Fixtures;
@@ -12,17 +11,19 @@ namespace Sufni.App.Tests.Sessions.Pages.ViewModels.Editors;
 
 public class DampingCutoffWorkflowTests
 {
-    private readonly RecordedSessionContext context = new();
     private readonly IBikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();
     private readonly List<string> errors = [];
+    private bool canEditDampingSpeedCutoffs;
+    private DampingSpeedCutoffs dampingSpeedCutoffs = DampingSpeedCutoffs.Default;
+    private DampingSpeedCutoffs plotDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
 
     private DampingCutoffWorkflow CreateWorkflow()
     {
         return new DampingCutoffWorkflow(
-            () => context.DampingSpeedCutoffs,
-            value => context.CanEditDampingSpeedCutoffs = value,
-            value => context.DampingSpeedCutoffs = value,
-            value => context.PlotDampingSpeedCutoffs = value,
+            () => dampingSpeedCutoffs,
+            value => canEditDampingSpeedCutoffs = value,
+            value => dampingSpeedCutoffs = value,
+            value => plotDampingSpeedCutoffs = value,
             bikeCoordinator,
             errors.Add);
     }
@@ -38,9 +39,9 @@ public class DampingCutoffWorkflowTests
         workflow.ApplyContext(Cutoffs(), owner);
 
         Assert.True(workflow.CanEdit);
-        Assert.True(context.CanEditDampingSpeedCutoffs);
-        Assert.Equal(Cutoffs(), context.DampingSpeedCutoffs);
-        Assert.Equal(Cutoffs(), context.PlotDampingSpeedCutoffs);
+        Assert.True(canEditDampingSpeedCutoffs);
+        Assert.Equal(Cutoffs(), dampingSpeedCutoffs);
+        Assert.Equal(Cutoffs(), plotDampingSpeedCutoffs);
     }
 
     [Fact]
@@ -52,7 +53,7 @@ public class DampingCutoffWorkflowTests
         workflow.Preview(SuspensionType.Front, DampingSpeedCircuit.Compression, 257);
 
         Assert.False(workflow.CanEdit);
-        Assert.Equal(Cutoffs(), context.DampingSpeedCutoffs);
+        Assert.Equal(Cutoffs(), dampingSpeedCutoffs);
     }
 
     [Fact]
@@ -63,8 +64,8 @@ public class DampingCutoffWorkflowTests
 
         workflow.Preview(SuspensionType.Front, DampingSpeedCircuit.Compression, 257);
 
-        Assert.Equal(260, context.DampingSpeedCutoffs.Front.CompressionMmPerSecond);
-        Assert.Equal(Cutoffs(), context.PlotDampingSpeedCutoffs);
+        Assert.Equal(260, dampingSpeedCutoffs.Front.CompressionMmPerSecond);
+        Assert.Equal(Cutoffs(), plotDampingSpeedCutoffs);
     }
 
     [Fact]
@@ -77,7 +78,7 @@ public class DampingCutoffWorkflowTests
 
         workflow.CancelPreview();
 
-        Assert.Equal(Cutoffs(), context.DampingSpeedCutoffs);
+        Assert.Equal(Cutoffs(), dampingSpeedCutoffs);
     }
 
     [Fact]
@@ -100,8 +101,8 @@ public class DampingCutoffWorkflowTests
 
         await workflow.CommitAsync(SuspensionType.Front, DampingSpeedCircuit.Rebound, 266);
 
-        Assert.Equal(saved.DampingSpeedCutoffs, context.DampingSpeedCutoffs);
-        Assert.Equal(saved.DampingSpeedCutoffs, context.PlotDampingSpeedCutoffs);
+        Assert.Equal(saved.DampingSpeedCutoffs, dampingSpeedCutoffs);
+        Assert.Equal(saved.DampingSpeedCutoffs, plotDampingSpeedCutoffs);
         Assert.True(workflow.CanEdit);
         Assert.Empty(errors);
     }
@@ -126,7 +127,7 @@ public class DampingCutoffWorkflowTests
 
         await workflow.CommitAsync(SuspensionType.Rear, DampingSpeedCircuit.Compression, 500);
 
-        Assert.Equal(current.DampingSpeedCutoffs, context.DampingSpeedCutoffs);
+        Assert.Equal(current.DampingSpeedCutoffs, dampingSpeedCutoffs);
         Assert.True(workflow.CanEdit);
         Assert.Single(errors);
     }
@@ -145,8 +146,8 @@ public class DampingCutoffWorkflowTests
 
         await workflow.CommitAsync(SuspensionType.Rear, DampingSpeedCircuit.Compression, 500);
 
-        Assert.Equal(Cutoffs(), context.DampingSpeedCutoffs);
-        Assert.Equal(Cutoffs(), context.PlotDampingSpeedCutoffs);
+        Assert.Equal(Cutoffs(), dampingSpeedCutoffs);
+        Assert.Equal(Cutoffs(), plotDampingSpeedCutoffs);
         Assert.Single(errors);
     }
 }

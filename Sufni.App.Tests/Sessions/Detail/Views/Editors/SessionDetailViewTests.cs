@@ -30,7 +30,7 @@ public class SessionDetailViewTests
         Assert.NotNull(carousel);
         Assert.Same(mounted.Editor.Pages, carousel!.ItemsSource);
         Assert.NotNull(pager);
-        Assert.Equal(mounted.Editor.SessionContext.PageCount, pager!.NumberOfPages);
+        Assert.Equal(mounted.Editor.MobileWorkspace.PageCount, pager!.NumberOfPages);
         Assert.DoesNotContain(mounted.Editor.Pages, page => page is BalancePageViewModel);
     }
 

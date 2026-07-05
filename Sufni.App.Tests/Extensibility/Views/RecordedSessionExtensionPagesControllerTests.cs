@@ -1,4 +1,5 @@
 using NSubstitute;
+using System.Collections.ObjectModel;
 using System.Reactive.Linq;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
@@ -19,13 +20,13 @@ public class RecordedSessionExtensionPagesControllerTests
     public void PageContributions_InsertUsingExistingRequestedIndexBehavior()
     {
         var manager = CreateManager();
-        var context = CreateBuiltInContext();
-        _ = CreateController(manager, context);
+        var pages = CreateBuiltInPages();
+        _ = CreateController(manager, pages);
 
         manager.ExtensionSlots.Pages.Add(CreatePageContribution("extension-page", requestedIndex: 1));
 
         AssertPageOrder(
-            context.Pages,
+            pages,
             [
                 "Signals",
                 "Extension page",
@@ -42,13 +43,13 @@ public class RecordedSessionExtensionPagesControllerTests
     public void AnalysisTabContributions_InsertBeforeMatchingBuiltInAnalysisPage()
     {
         var manager = CreateManager();
-        var context = CreateBuiltInContext();
-        _ = CreateController(manager, context);
+        var pages = CreateBuiltInPages();
+        _ = CreateController(manager, pages);
 
         manager.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution("analysis-tab", requestedIndex: 3));
 
         AssertPageOrder(
-            context.Pages,
+            pages,
             [
                 "Signals",
                 "Spring",
@@ -65,13 +66,13 @@ public class RecordedSessionExtensionPagesControllerTests
     public void AnalysisTabContributions_InsertBeforeNextBuiltInAnalysisPage_WhenBalanceIsAbsent()
     {
         var manager = CreateManager();
-        var context = CreateBuiltInContext(includeBalance: false);
-        _ = CreateController(manager, context);
+        var pages = CreateBuiltInPages(includeBalance: false);
+        _ = CreateController(manager, pages);
 
         manager.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution("analysis-tab", requestedIndex: 3));
 
         AssertPageOrder(
-            context.Pages,
+            pages,
             [
                 "Signals",
                 "Spring",
@@ -87,8 +88,8 @@ public class RecordedSessionExtensionPagesControllerTests
     public void AnalysisTabContributions_DoNotCreateViewModelUntilPageViewModelIsResolved()
     {
         var manager = CreateManager();
-        var context = CreateBuiltInContext();
-        _ = CreateController(manager, context);
+        var pages = CreateBuiltInPages();
+        _ = CreateController(manager, pages);
         var createCount = 0;
         var viewModel = new TestContributionViewModel();
         manager.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution(
@@ -101,7 +102,7 @@ public class RecordedSessionExtensionPagesControllerTests
             }));
 
         AssertPageOrder(
-            context.Pages,
+            pages,
             [
                 "Signals",
                 "Spring",
@@ -115,7 +116,7 @@ public class RecordedSessionExtensionPagesControllerTests
         Assert.Equal(0, createCount);
 
         var page = Assert.IsType<RecordedSessionExtensionPageViewModel>(
-            context.Pages.Single(page => page.DisplayName == "Analysis tab"));
+            pages.Single(page => page.DisplayName == "Analysis tab"));
 
         Assert.Same(viewModel, page.ViewModel);
         Assert.Same(viewModel, page.ViewModel);
@@ -126,8 +127,8 @@ public class RecordedSessionExtensionPagesControllerTests
     public void AnalysisTabRebuild_ReusesMaterializedViewModelForSameKey()
     {
         var manager = CreateManager();
-        var context = CreateBuiltInContext();
-        _ = CreateController(manager, context);
+        var pages = CreateBuiltInPages();
+        _ = CreateController(manager, pages);
         var createCount = 0;
         var viewModel = new TestContributionViewModel();
         var contribution = CreateAnalysisTabContribution(
@@ -140,7 +141,7 @@ public class RecordedSessionExtensionPagesControllerTests
             });
         manager.ExtensionSlots.AnalysisTabs.Add(contribution);
         var page = Assert.IsType<RecordedSessionExtensionPageViewModel>(
-            context.Pages.Single(page => page.DisplayName == "Analysis tab"));
+            pages.Single(page => page.DisplayName == "Analysis tab"));
         _ = page.ViewModel;
 
         manager.ExtensionSlots.AnalysisTabs.ReplaceWith(
@@ -156,7 +157,7 @@ public class RecordedSessionExtensionPagesControllerTests
         ]);
 
         var rebuiltPage = Assert.IsType<RecordedSessionExtensionPageViewModel>(
-            context.Pages.Single(page => page.DisplayName == "Analysis tab"));
+            pages.Single(page => page.DisplayName == "Analysis tab"));
 
         Assert.Same(page, rebuiltPage);
         Assert.Same(viewModel, rebuiltPage.ViewModel);
@@ -167,14 +168,14 @@ public class RecordedSessionExtensionPagesControllerTests
     public void SlotReset_RemovesStaleAnalysisTabPages()
     {
         var manager = CreateManager();
-        var context = CreateBuiltInContext();
-        _ = CreateController(manager, context);
+        var pages = CreateBuiltInPages();
+        _ = CreateController(manager, pages);
 
         manager.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution("analysis-tab", requestedIndex: 3));
         manager.ExtensionSlots.AnalysisTabs.Clear();
 
         AssertPageOrder(
-            context.Pages,
+            pages,
             [
                 "Signals",
                 "Spring",
@@ -190,13 +191,13 @@ public class RecordedSessionExtensionPagesControllerTests
     public void SlotReset_DoesNotDisposeBorrowedStalePageContribution()
     {
         var manager = CreateManager();
-        var context = CreateBuiltInContext();
-        _ = CreateController(manager, context);
+        var pages = CreateBuiltInPages();
+        _ = CreateController(manager, pages);
         var viewModel = new DisposableContributionViewModel();
 
         manager.ExtensionSlots.Pages.Add(CreatePageContribution("extension-page", requestedIndex: 1, viewModel: viewModel));
         var page = Assert.IsType<RecordedSessionExtensionPageViewModel>(
-            context.Pages.Single(page => page.DisplayName == "Extension page"));
+            pages.Single(page => page.DisplayName == "Extension page"));
         Assert.Same(viewModel, page.ViewModel);
 
         manager.ExtensionSlots.Pages.Clear();
@@ -209,8 +210,8 @@ public class RecordedSessionExtensionPagesControllerTests
     public void SlotReset_DisposesMaterializedStaleAnalysisTabContribution()
     {
         var manager = CreateManager();
-        var context = CreateBuiltInContext();
-        _ = CreateController(manager, context);
+        var pages = CreateBuiltInPages();
+        _ = CreateController(manager, pages);
         var viewModel = new DisposableContributionViewModel();
 
         manager.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution(
@@ -218,7 +219,7 @@ public class RecordedSessionExtensionPagesControllerTests
             requestedIndex: 3,
             createViewModel: () => viewModel));
         var page = Assert.IsType<RecordedSessionExtensionPageViewModel>(
-            context.Pages.Single(page => page.DisplayName == "Analysis tab"));
+            pages.Single(page => page.DisplayName == "Analysis tab"));
         Assert.Same(viewModel, page.ViewModel);
 
         manager.ExtensionSlots.AnalysisTabs.Clear();
@@ -231,8 +232,8 @@ public class RecordedSessionExtensionPagesControllerTests
     public void AnalysisTabReorder_UpdatesPageOrderDeterministically()
     {
         var manager = CreateManager();
-        var context = CreateBuiltInContext();
-        _ = CreateController(manager, context);
+        var pages = CreateBuiltInPages();
+        _ = CreateController(manager, pages);
         var first = CreateAnalysisTabContribution("first", requestedIndex: 3, order: 2, displayName: "First");
         var second = CreateAnalysisTabContribution("second", requestedIndex: 3, order: 1, displayName: "Second");
 
@@ -241,7 +242,7 @@ public class RecordedSessionExtensionPagesControllerTests
         manager.ExtensionSlots.AnalysisTabs.ReplaceWith([first with { Order = 0 }, second]);
 
         AssertPageOrder(
-            context.Pages,
+            pages,
             [
                 "Signals",
                 "Spring",
@@ -259,28 +260,27 @@ public class RecordedSessionExtensionPagesControllerTests
     public void RequestPageSelection_EmitsSelectedPageIndexIntent()
     {
         var manager = CreateManager();
-        var context = CreateBuiltInContext();
+        var pages = CreateBuiltInPages();
         var actions = new RecordedSessionEditorActions();
         var intents = new List<RecordedSessionEditorIntent>();
         using var subscription = actions.Intents.Subscribe(intents.Add);
-        var controller = CreateController(manager, context, actions);
+        var controller = CreateController(manager, pages, actions);
 
         manager.ExtensionSlots.Pages.Add(CreatePageContribution("extension-page", requestedIndex: 1));
-        var contributedPage = Assert.Single(context.Pages, page => page.DisplayName == "Extension page");
+        var contributedPage = Assert.Single(pages, page => page.DisplayName == "Extension page");
 
         controller.RequestRecordedSessionExtensionPageSelection("extension-page");
 
         var intent = Assert.IsType<RecordedSessionEditorIntent.SelectPageIndex>(Assert.Single(intents));
-        Assert.Equal(context.Pages.IndexOf(contributedPage), intent.PageIndex);
-        Assert.Equal(0, context.SelectedPageIndex);
+        Assert.Equal(pages.IndexOf(contributedPage), intent.PageIndex);
     }
 
     [Fact]
     public void Dispose_DisposesOwnedAnalysisTabViewModels_AndLeavesBorrowedPageViewModels()
     {
         var manager = CreateManager();
-        var context = CreateBuiltInContext();
-        var controller = CreateController(manager, context);
+        var pages = CreateBuiltInPages();
+        var controller = CreateController(manager, pages);
         var pageViewModel = new DisposableContributionViewModel();
         var analysisTabViewModel = new DisposableContributionViewModel();
         manager.ExtensionSlots.Pages.Add(CreatePageContribution(
@@ -293,9 +293,9 @@ public class RecordedSessionExtensionPagesControllerTests
             createViewModel: () => analysisTabViewModel));
 
         var page = Assert.IsType<RecordedSessionExtensionPageViewModel>(
-            context.Pages.Single(page => page.DisplayName == "Extension page"));
+            pages.Single(page => page.DisplayName == "Extension page"));
         var analysisTab = Assert.IsType<RecordedSessionExtensionPageViewModel>(
-            context.Pages.Single(page => page.DisplayName == "Analysis tab"));
+            pages.Single(page => page.DisplayName == "Analysis tab"));
         Assert.Same(pageViewModel, page.ViewModel);
         Assert.Same(analysisTabViewModel, analysisTab.ViewModel);
 
@@ -304,18 +304,18 @@ public class RecordedSessionExtensionPagesControllerTests
 
         Assert.Equal(0, pageViewModel.DisposeCount);
         Assert.Equal(1, analysisTabViewModel.DisposeCount);
-        Assert.DoesNotContain(page, context.Pages);
-        Assert.DoesNotContain(analysisTab, context.Pages);
+        Assert.DoesNotContain(page, pages);
+        Assert.DoesNotContain(analysisTab, pages);
     }
 
     private static RecordedSessionExtensionPagesController CreateController(
         RecordedSessionExtensionManager manager,
-        RecordedSessionContext context,
+        ObservableCollection<PageViewModelBase> pages,
         RecordedSessionEditorActions? actions = null)
     {
         return new RecordedSessionExtensionPagesController(
             manager,
-            context.Pages,
+            pages,
             actions ?? new RecordedSessionEditorActions());
     }
 
@@ -340,22 +340,24 @@ public class RecordedSessionExtensionPagesControllerTests
                 requestPageSelection: null));
     }
 
-    private static RecordedSessionContext CreateBuiltInContext(bool includeBalance = true)
+    private static ObservableCollection<PageViewModelBase> CreateBuiltInPages(bool includeBalance = true)
     {
-        var context = new RecordedSessionContext();
-        context.Pages.Add(new PageViewModelBase("Signals"));
-        context.Pages.Add(new PageViewModelBase("Spring"));
-        context.Pages.Add(new PageViewModelBase("Strokes"));
-        context.Pages.Add(new PageViewModelBase("Damping"));
+        var pages = new ObservableCollection<PageViewModelBase>
+        {
+            new("Signals"),
+            new("Spring"),
+            new("Strokes"),
+            new("Damping"),
+        };
 
         if (includeBalance)
         {
-            context.Pages.Add(new PageViewModelBase("Balance"));
+            pages.Add(new PageViewModelBase("Balance"));
         }
 
-        context.Pages.Add(new PageViewModelBase("Vibration"));
-        context.Pages.Add(new PageViewModelBase("Insights"));
-        return context;
+        pages.Add(new PageViewModelBase("Vibration"));
+        pages.Add(new PageViewModelBase("Insights"));
+        return pages;
     }
 
     private static RecordedSessionPageContribution CreatePageContribution(
