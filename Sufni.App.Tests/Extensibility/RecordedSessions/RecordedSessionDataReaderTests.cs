@@ -110,6 +110,45 @@ public class RecordedSessionDataReaderTests
     }
 
     [Fact]
+    public async Task GetTrackAsync_RegeneratesSessionTrack_WhenGpsSamplesDoNotCoverExactTelemetryWindow()
+    {
+        var sessionId = Guid.NewGuid();
+        var fullTrackId = Guid.NewGuid();
+        sessionRepository.GetSessionAsync(sessionId).Returns(new Session(
+            sessionId,
+            "Session",
+            "",
+            setup: null,
+            timestamp: 1000)
+        {
+            FullTrack = fullTrackId,
+            DurationSeconds = 2.75,
+            GpsOffsetSeconds = 0.1,
+            HasProcessedData = true,
+            Updated = 12,
+        });
+        var fullTrackPoints = new List<TrackPoint>
+        {
+            new(1000.2, 1, 1, 100),
+            new(1001.5, 2, 2, 110),
+            new(1002.85, 3, 3, 120),
+        };
+        sessionTrackReader.GetSessionTrackAsync(sessionId, 12, Arg.Any<CancellationToken>())
+            .Returns((List<TrackPoint>?)null);
+        fullTrackPointReader.GetTrackPointsAsync(fullTrackId, Arg.Any<CancellationToken>()).Returns(fullTrackPoints);
+
+        var result = await CreateReader().GetTrackAsync(sessionId, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(result);
+        Assert.True(result.Count >= 2);
+        Assert.Equal(1000.1, result[0].Time, precision: 6);
+        Assert.Equal(1002.85, result[^1].Time, precision: 6);
+        await fullTrackPointReader.Received(1).GetTrackPointsAsync(fullTrackId, Arg.Any<CancellationToken>());
+        await sessionRepository.DidNotReceive().GetSessionTrackAsync(Arg.Any<Guid>());
+        await sessionRepository.DidNotReceive().GetSessionRawPsstAsync(Arg.Any<Guid>());
+    }
+
+    [Fact]
     public async Task GetTrackAsync_RegeneratesSessionTrack_WhenCachedTrackUsesOldOffset()
     {
         var sessionId = Guid.NewGuid();

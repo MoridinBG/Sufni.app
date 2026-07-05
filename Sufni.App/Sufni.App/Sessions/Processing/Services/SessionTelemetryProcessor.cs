@@ -82,11 +82,6 @@ internal sealed class SessionTelemetryProcessor : ISessionTelemetryProcessor
         var normalizedOffset = double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;
         var start = timestamp.Value + normalizedOffset;
         var end = start + (int)Math.Ceiling(duration);
-        if (fullTrack.Points[0].Time > start || fullTrack.Points[^1].Time < end)
-        {
-            return null;
-        }
-
         var points = fullTrack.GenerateSessionTrack(start, end);
         return points.Count == 0 ? null : points;
     }
