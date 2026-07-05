@@ -504,6 +504,27 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public void Construction_WithStateReplay_InitializesTimelineAlignmentCommands()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        var gpsAction = GetPlotContextAction(editor, "gps-mark-gps-event");
+        var telemetryAction = GetPlotContextAction(editor, "gps-mark-telemetry-event");
+        var cancelAction = GetPlotContextAction(editor, "gps-cancel-alignment");
+        var context = new TelemetryPlotContextMenuContext(
+            SignalRowIds.Travel,
+            ClickSeconds: 5,
+            DurationSeconds: 10,
+            AnalysisRange: null);
+
+        Assert.NotNull(gpsAction.Command);
+        Assert.NotNull(telemetryAction.Command);
+        Assert.NotNull(cancelAction.Command);
+        Assert.False(gpsAction.Command.CanExecute(context));
+        Assert.False(telemetryAction.Command.CanExecute(context));
+        Assert.False(cancelAction.Command.CanExecute(context));
+    }
+
+    [AvaloniaFact]
     public void AnalysisRangeContextMenuActions_SetStartEndAndClearRange()
     {
         var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
