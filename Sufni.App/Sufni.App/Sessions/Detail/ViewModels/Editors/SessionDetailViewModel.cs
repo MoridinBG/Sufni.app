@@ -72,7 +72,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     }
     public SuspensionSettings ForkSettings => NotesPage.ForkSettings;
     public SuspensionSettings ShockSettings => NotesPage.ShockSettings;
-    public RecordedSessionContext SessionContext { get; }
     public ISessionShellMobileWorkspace MobileWorkspace { get; }
     public IRecordedSessionSignalsWorkspace SignalsWorkspace { get; }
     public ISessionMediaWorkspace MediaWorkspace { get; }
@@ -307,7 +306,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         var changed = dampingPercentages != percentages;
         dampingPercentages = percentages;
-        SessionContext.DampingPercentages = percentages;
         DampingPage.ApplyDampingPercentages(percentages);
         if (changed)
         {
@@ -638,14 +636,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     internal void SetFullTrackPoints(List<TrackPoint>? points)
     {
         fullTrackPoints = points;
-        SessionContext.FullTrackPoints = points;
         PublishLoadedDataState();
     }
 
     internal void SetTrackPoints(List<TrackPoint>? points)
     {
         trackPoints = points;
-        SessionContext.TrackPoints = points;
 
         RefreshTrackTimelineContext();
         if (telemetryData is not null)
@@ -681,7 +677,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         telemetryData = value;
-        SessionContext.TelemetryData = value;
         telemetryGeneration++;
         IsComplete = value != null;
         NotesPage.SetTemperatureAverages(value?.TemperatureAverages ?? []);
@@ -710,7 +705,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private void SetTrackTimelineContext(TrackTimeRange? timelineContext)
     {
         trackTimelineContext = timelineContext;
-        SessionContext.TrackTimelineContext = timelineContext;
         PublishLoadedDataState();
     }
 
@@ -832,7 +826,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         session = snapshot.ToMetadataEntity();
         sessionSnapshot = snapshot;
-        SessionContext.SessionSnapshot = snapshot;
         PublishLoadedDataState();
         BaselineUpdated = snapshot.Updated;
         metadataConflictPending = false;
@@ -966,7 +959,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         session.Updated = snapshot.Updated;
         IsComplete = snapshot.HasProcessedData;
         sessionSnapshot = snapshot;
-        SessionContext.SessionSnapshot = snapshot;
         PublishLoadedDataState();
     }
 
@@ -1405,7 +1397,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         : base(shell, dialogService, uiThreadDispatcher)
     {
         ArgumentNullException.ThrowIfNull(sessionPreferences);
-        SessionContext = new RecordedSessionContext(pages, timeline, sourceVisibility);
         this.deferDomainHandlingWhenInactive = deferDomainHandlingWhenInactive;
 
         this.sessionCoordinator = sessionCoordinator;
@@ -1519,12 +1510,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             markGpsTelemetryEventCommand,
             cancelGpsTimelineAlignmentCommand);
         signalPlotContextMenuActionsInput.OnNext(SignalPlotContextMenuActionsBySignalRowId);
-        SessionContext.SignalPlotContextMenuActionsBySignalRowId = SignalPlotContextMenuActionsBySignalRowId;
         session = snapshot.ToMetadataEntity();
         sessionSnapshot = snapshot;
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
-        SessionContext.SessionSnapshot = snapshot;
         MobileWorkspace = new SessionShellMobileWorkspaceViewModel(
             this,
             Pages,
@@ -1589,7 +1578,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 this);
             extensionPagesController = new RecordedSessionExtensionPagesController(recordedSessionExtensions, Pages, editorActions);
         }
-        SessionContext.ExtensionSlots = ExtensionSlots;
 
         SignalsPage = new RecordedSignalsPageViewModel(SignalsWorkspace, MediaWorkspace);
         SpringPage = new SpringPageViewModel(AnalysisWorkspace);
@@ -1620,7 +1608,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         Pages.CollectionChanged += OnPagesChanged;
         pageCountInput.OnNext(Pages.Count);
         mapViewModel = mapViewModelFactory.Create();
-        SessionContext.MapViewModel = mapViewModel;
         _ = mapViewModel.InitializeAsync();
         if (snapshot.HasProcessedData)
         {
@@ -1863,7 +1850,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         canEditDampingSpeedCutoffs = value;
-        SessionContext.CanEditDampingSpeedCutoffs = value;
         OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
         canEditDampingSpeedCutoffsInput.OnNext(value);
     }
@@ -1876,7 +1862,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         dampingSpeedCutoffs = cutoffs;
-        SessionContext.DampingSpeedCutoffs = cutoffs;
     }
 
     private void SetPlotDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs)
@@ -1887,7 +1872,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         plotDampingSpeedCutoffs = cutoffs;
-        SessionContext.PlotDampingSpeedCutoffs = cutoffs;
         plotDampingSpeedCutoffsInput.OnNext(cutoffs);
     }
 
@@ -1899,7 +1883,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         analysisRange = range;
-        SessionContext.AnalysisRange = range;
         OnPropertyChanged(nameof(SessionAnalysisRangeText));
         ClearAnalysisSelections();
         presentationApplier.RefreshAnalysisRangeStates();
@@ -1934,7 +1917,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     internal void SetScreenState(SessionScreenPresentationState state)
     {
         var changed = SetProperty(ref screenState, state, nameof(ScreenState));
-        SessionContext.ScreenState = state;
         if (changed)
         {
             screenStateInput.OnNext(state);
@@ -1944,7 +1926,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     internal void SetSessionOperationState(SessionOperationPresentationState state)
     {
         var changed = SetProperty(ref sessionOperationState, state, nameof(SessionOperationState));
-        SessionContext.SessionOperationState = state;
         if (changed)
         {
             sessionOperationStateInput.OnNext(state);
@@ -1955,7 +1936,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         var changed = sessionInsights != insights;
         sessionInsights = insights;
-        SessionContext.SessionInsights = insights;
         if (changed)
         {
             sessionInsightsInput.OnNext(insights);
@@ -1985,12 +1965,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         speedSignalState = speedState;
         elevationSignalState = elevationState;
 
-        SessionContext.TravelSignalState = travelState;
-        SessionContext.VelocitySignalState = velocityState;
-        SessionContext.ImuSignalState = imuState;
-        SessionContext.PitchRollSignalState = pitchRollState;
-        SessionContext.SpeedSignalState = speedState;
-        SessionContext.ElevationSignalState = elevationState;
 
         if (changed)
         {
@@ -2015,7 +1989,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         var changed = mapState != state;
         mapState = state;
-        SessionContext.MapState = state;
         if (changed)
         {
             mapStateInput.OnNext(state);
@@ -2026,7 +1999,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         var changed = mediaColumnWidth != width;
         mediaColumnWidth = width;
-        SessionContext.MediaColumnWidth = width;
         if (changed)
         {
             mediaColumnWidthInput.OnNext(width);
@@ -2042,8 +2014,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         mediaUrl = url;
         mediaPaneState = nextPaneState;
-        SessionContext.MediaUrl = url;
-        SessionContext.MediaPaneState = nextPaneState;
 
         if (changed)
         {
@@ -2073,14 +2043,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         rearForkVibrationState = state.RearForkVibration;
         rearFrameVibrationState = state.RearFrameVibration;
 
-        SessionContext.FrontAnalysisState = state.FrontAnalysis;
-        SessionContext.RearAnalysisState = state.RearAnalysis;
-        SessionContext.CompressionBalanceState = state.CompressionBalance;
-        SessionContext.ReboundBalanceState = state.ReboundBalance;
-        SessionContext.FrontForkVibrationState = state.FrontForkVibration;
-        SessionContext.FrontFrameVibrationState = state.FrontFrameVibration;
-        SessionContext.RearForkVibrationState = state.RearForkVibration;
-        SessionContext.RearFrameVibrationState = state.RearFrameVibration;
 
         if (changed)
         {
@@ -2479,7 +2441,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 {
                     session = conflict.CurrentSnapshot.ToMetadataEntity();
                     sessionSnapshot = conflict.CurrentSnapshot;
-                    SessionContext.SessionSnapshot = conflict.CurrentSnapshot;
                     PublishLoadedDataState();
                     BaselineUpdated = conflict.CurrentSnapshot.Updated;
                     metadataConflictPending = false;
