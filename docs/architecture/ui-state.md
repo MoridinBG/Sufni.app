@@ -20,15 +20,19 @@ each slice's store folder (e.g. `Bikes/Stores/`, `Sessions/Store/`).
 | `PairedDeviceStore`          | `IPairedDeviceStore`            | `IPairedDeviceStoreWriter`          | `PairedDeviceSnapshot`            | `string` |
 | `LiveDaqStore`               | `ILiveDaqStore`                 | `ILiveDaqStoreWriter`               | `LiveDaqSnapshot`                 | `string` |
 
-Persisted stores share the internal `SourceCacheStoreBase<TSnapshot, TKey>`
-for the repeated DynamicData mechanics. The base owns the cache lifetime,
-`Connect()`, `Get(key)`, watch helpers, and UI-thread-dispatched protected
-publication methods (`PublishSnapshotAsync`, `PublishSnapshotsAsync`,
-`PublishRemoveAsync`, `PublishRemovalsAsync`, and `ReplaceWithAsync`).
-Concrete stores keep their public read/write interfaces, persistence semantics,
-and any domain-specific lookups. Raw cache mutation stays inside the store;
-writer interfaces expose semantic commit methods for local writes and
-publish-only methods for already-persisted external changes.
+Persisted stores share the SDK-visible
+`SourceCacheStoreBase<TSnapshot, TKey>` from
+`Sufni.App.ExtensionHost.Runtime.Stores`
+(`Sufni.App.ExtensionHost/Runtime/Stores/SourceCacheStoreBase.cs`) for the
+repeated DynamicData mechanics. The base owns the cache lifetime, `Connect()`,
+`Get(key)`, watch helpers, and UI-thread-dispatched protected publication
+methods (`PublishSnapshotAsync`, `PublishSnapshotsAsync`, `PublishRemoveAsync`,
+`PublishRemovalsAsync`, and `ReplaceWithAsync`). Public app stores and private
+extension stores inherit the same base while keeping their own public read/write
+interfaces, persistence semantics, and domain-specific lookups. Raw cache
+mutation stays inside the store; writer interfaces expose semantic commit
+methods for local writes and publish-only methods for already-persisted external
+changes.
 Startup and post-sync refresh are coordinated by
 `IAppStateRefreshOrchestrator`, with `IAppDataRefresher` retained only as a
 compatibility alias for core refresh callers. `LiveDaqStore` remains separate
