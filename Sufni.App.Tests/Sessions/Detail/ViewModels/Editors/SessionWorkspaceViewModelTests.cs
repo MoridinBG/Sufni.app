@@ -5,11 +5,14 @@ using System.Reactive.Subjects;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NSubstitute;
+using Sufni.App.Acquisition.Models;
+using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
@@ -26,33 +29,36 @@ namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 
 public class SessionWorkspaceViewModelTests
 {
+    private static readonly IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> EmptySignalPlotContextMenuActionsBySignalRowId =
+        new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
+
     [Fact]
     public void RecordedSessionSignalsWorkspace_ForwardsActionsAndContextChanges()
     {
-        var context = new RecordedSessionContext();
+        var sourceVisibility = new TelemetrySourceVisibilityStore();
+        var timeline = new SessionTimelineLinkViewModel();
+        var extensionSlots = new RecordedSessionExtensionSlots();
         using var actions = new RecordedSessionEditorActions();
         var intents = Subscribe(actions);
         using var state = new Subject<RecordedSessionEditorState>();
         var workspace = new RecordedSessionSignalsWorkspaceViewModel(
             state,
-            context.SourceVisibility,
-            context.Timeline,
-            () => context.ExtensionSlots,
+            sourceVisibility,
+            timeline,
+            () => extensionSlots,
             actions);
         var changes = TrackPropertyChanges(workspace);
-        context.PropertyChanged += (_, _) =>
-            state.OnNext(CreateState(context));
-        state.OnNext(CreateState(context));
+        state.OnNext(CreateState());
 
-        workspace.SignalLayoutPreferences = context.SignalLayoutPreferences;
+        workspace.SignalLayoutPreferences = SessionPreferences.Default.SignalLayout;
         workspace.SetAnalysisRange(1.25, 3.5);
         workspace.ClearAnalysisRange();
         workspace.SetAnalysisRangeBoundary(2.25);
-        context.TravelSignalState = SurfacePresentationState.Ready;
+        state.OnNext(CreateState(travelSignalState: SurfacePresentationState.Ready));
 
         Assert.Collection(
             intents,
-            intent => Assert.Equal(context.SignalLayoutPreferences, Assert.IsType<RecordedSessionEditorIntent.SetSignalLayoutPreferences>(intent).Preferences),
+            intent => Assert.Equal(SessionPreferences.Default.SignalLayout, Assert.IsType<RecordedSessionEditorIntent.SetSignalLayoutPreferences>(intent).Preferences),
             intent => Assert.Equal(new TelemetryTimeRange(1.25, 3.5), Assert.IsType<RecordedSessionEditorIntent.SetAnalysisRange>(intent).Range),
             intent => Assert.IsType<RecordedSessionEditorIntent.ClearAnalysisRange>(intent),
             intent => Assert.Equal(2.25, Assert.IsType<RecordedSessionEditorIntent.SetAnalysisRangeBoundary>(intent).Seconds));
@@ -98,11 +104,12 @@ public class SessionWorkspaceViewModelTests
     [Fact]
     public void SessionAnalysisWorkspace_AnalysisTexts_TrackContextChanges()
     {
-        var (context, _, _, workspace) = CreateAnalysisWorkspace();
+        var (state, _, _, workspace) = CreateAnalysisWorkspace();
         var changes = TrackPropertyChanges(workspace);
 
-        context.AnalysisRange = new TelemetryTimeRange(1, 3);
-        context.SelectedBalanceSpeedMode = BalanceSpeedMode.LowSpeed;
+        state.OnNext(CreateState(
+            analysisRange: new TelemetryTimeRange(1, 3),
+            selectedBalanceSpeedMode: BalanceSpeedMode.LowSpeed));
 
         Assert.Contains("1.0", workspace.SessionAnalysisRangeText, StringComparison.Ordinal);
         Assert.Contains("3.0", workspace.SessionAnalysisRangeText, StringComparison.Ordinal);
@@ -134,7 +141,7 @@ public class SessionWorkspaceViewModelTests
         pageCounts.OnNext(pages.Count);
         pages.Add(damping);
         pageCounts.OnNext(pages.Count);
-        legacyState.OnNext(CreateState(new RecordedSessionContext()));
+        legacyState.OnNext(CreateState());
 
         Assert.Equal(2, workspace.PageCount);
         Assert.Equal(0, workspace.SelectedPageIndex);
@@ -186,51 +193,48 @@ public class SessionWorkspaceViewModelTests
         Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.SelectedPageDisplayName), changes);
     }
 
-    private static (RecordedSessionContext Context, TestSessionOperationGateway Gateway, RecordedSessionEditorActions Actions, SessionAnalysisWorkspaceViewModel Workspace) CreateAnalysisWorkspace()
+    private static (Subject<RecordedSessionEditorState> State, TestSessionOperationGateway Gateway, RecordedSessionEditorActions Actions, SessionAnalysisWorkspaceViewModel Workspace) CreateAnalysisWorkspace()
     {
-        var context = new RecordedSessionContext();
+        var extensionSlots = new RecordedSessionExtensionSlots();
         var gateway = new TestSessionOperationGateway();
         var actions = new RecordedSessionEditorActions();
         var state = new Subject<RecordedSessionEditorState>();
         var workspace = new SessionAnalysisWorkspaceViewModel(
             state,
-            () => context.ExtensionSlots,
+            () => extensionSlots,
             gateway,
             actions,
             new RelayCommand<TelemetryRangeSelection?>(_ => { }),
             Substitute.For<IRecordedSessionAnalysisResultState>());
-        context.PropertyChanged += (_, _) =>
-            state.OnNext(CreateState(context));
-        state.OnNext(CreateState(context));
-        return (context, gateway, actions, workspace);
+        state.OnNext(CreateState());
+        return (state, gateway, actions, workspace);
     }
 
     [Fact]
     public void SessionMediaWorkspace_TracksSurfaceStateAndExtensionMediaPanes()
     {
-        var context = new RecordedSessionContext();
+        var timeline = new SessionTimelineLinkViewModel();
+        var extensionSlots = new RecordedSessionExtensionSlots();
         using var state = new Subject<RecordedSessionEditorState>();
         var workspace = new SessionMediaWorkspaceViewModel(
             state,
-            () => context.MapViewModel,
-            context.Timeline,
-            () => context.ExtensionSlots);
+            () => null,
+            timeline,
+            () => extensionSlots);
         var changes = TrackPropertyChanges(workspace);
-        context.PropertyChanged += (_, _) =>
-            state.OnNext(CreateState(context));
-        state.OnNext(CreateState(context));
+        state.OnNext(CreateState());
 
         Assert.False(workspace.HasMediaContent);
 
-        context.MapState = SurfacePresentationState.Ready;
+        state.OnNext(CreateState(mapState: SurfacePresentationState.Ready));
 
         Assert.True(workspace.HasMediaContent);
         Assert.Contains(nameof(SessionMediaWorkspaceViewModel.MapState), changes);
         Assert.Contains(nameof(SessionMediaWorkspaceViewModel.HasMediaContent), changes);
 
         changes.Clear();
-        context.MapState = SurfacePresentationState.Hidden;
-        context.ExtensionSlots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
+        state.OnNext(CreateState(mapState: SurfacePresentationState.Hidden));
+        extensionSlots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
             "extension",
             "media",
             Order: 0,
@@ -243,30 +247,32 @@ public class SessionWorkspaceViewModelTests
     [Fact]
     public void SessionShellMobileWorkspace_ForwardsPresentationStateChanges()
     {
-        var context = new RecordedSessionContext();
+        var pages = new ObservableCollection<PageViewModelBase>();
         using var actions = new RecordedSessionEditorActions();
         using var state = new Subject<RecordedSessionEditorState>();
         var intents = Subscribe(actions);
         var workspace = new SessionShellMobileWorkspaceViewModel(
             new TestTabPageViewModel(new InlineUiThreadDispatcher()),
-            context.Pages,
+            pages,
             state,
             actions);
         var changes = TrackPropertyChanges(workspace);
 
-        context.ScreenState = SessionScreenPresentationState.Loading("Loading session.");
-        context.SessionOperationState = SessionOperationPresentationState.Progress("Saving.", 25);
-        context.Pages.Add(new PageViewModelBase("Signals"));
-        context.Pages.Add(new PageViewModelBase("Damping"));
-        context.SelectedPageIndex = 1;
-        state.OnNext(CreateState(context));
+        var screenState = SessionScreenPresentationState.Loading("Loading session.");
+        var operationState = SessionOperationPresentationState.Progress("Saving.", 25);
+        pages.Add(new PageViewModelBase("Signals"));
+        pages.Add(new PageViewModelBase("Damping"));
+        state.OnNext(CreateState(
+            selectedPageIndex: 1,
+            screenState: screenState,
+            operationState: operationState));
 
-        Assert.Equal(context.ScreenState, workspace.ScreenState);
-        Assert.Equal(context.SessionOperationState, workspace.SessionOperationState);
-        Assert.Equal(context.SelectedPageIndex, workspace.SelectedPageIndex);
-        Assert.Same(context.SelectedPage, workspace.SelectedPage);
-        Assert.Equal(context.PageCount, workspace.PageCount);
-        Assert.Equal(context.SelectedPageDisplayName, workspace.SelectedPageDisplayName);
+        Assert.Equal(screenState, workspace.ScreenState);
+        Assert.Equal(operationState, workspace.SessionOperationState);
+        Assert.Equal(1, workspace.SelectedPageIndex);
+        Assert.Same(pages[1], workspace.SelectedPage);
+        Assert.Equal(2, workspace.PageCount);
+        Assert.Equal("Damping", workspace.SelectedPageDisplayName);
         Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.ScreenState), changes);
         Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.SessionOperationState), changes);
         Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.SelectedPageIndex), changes);
@@ -335,21 +341,22 @@ public class SessionWorkspaceViewModelTests
     [Fact]
     public void SignalsWorkspace_DoesNotRebroadcastUndeclaredContextProperties()
     {
-        var context = new RecordedSessionContext();
+        var sourceVisibility = new TelemetrySourceVisibilityStore();
+        var timeline = new SessionTimelineLinkViewModel();
+        var extensionSlots = new RecordedSessionExtensionSlots();
         using var actions = new RecordedSessionEditorActions();
         using var state = new Subject<RecordedSessionEditorState>();
         var workspace = new RecordedSessionSignalsWorkspaceViewModel(
             state,
-            context.SourceVisibility,
-            context.Timeline,
-            () => context.ExtensionSlots,
+            sourceVisibility,
+            timeline,
+            () => extensionSlots,
             actions);
         var changes = TrackPropertyChanges(workspace);
-        state.OnNext(CreateState(context));
+        state.OnNext(CreateState());
         changes.Clear();
 
-        context.ScreenState = SessionScreenPresentationState.Loading("Loading session.");
-        state.OnNext(CreateState(context));
+        state.OnNext(CreateState(screenState: SessionScreenPresentationState.Loading("Loading session.")));
 
         Assert.Empty(changes);
     }
@@ -379,79 +386,83 @@ public class SessionWorkspaceViewModelTests
         return changes;
     }
 
-    private static RecordedSessionEditorState CreateState(RecordedSessionContext context)
+    private static RecordedSessionEditorState CreateState(
+        int selectedPageIndex = 0,
+        TelemetryTimeRange? analysisRange = null,
+        BalanceSpeedMode selectedBalanceSpeedMode = BalanceSpeedMode.Both,
+        SurfacePresentationState? mapState = null,
+        SurfacePresentationState? travelSignalState = null,
+        SessionScreenPresentationState? screenState = null,
+        SessionOperationPresentationState? operationState = null)
     {
         var preferences = SessionPreferences.Default;
         return new RecordedSessionEditorState(
             Domain: null,
-            Session: context.SessionSnapshot,
-            TelemetryData: context.TelemetryData,
-            FullTrackPoints: context.FullTrackPoints,
-            TrackPoints: context.TrackPoints,
-            TrackTimelineContext: context.TrackTimelineContext,
+            Session: null,
+            TelemetryData: null,
+            FullTrackPoints: null,
+            TrackPoints: null,
+            TrackTimelineContext: null,
             Preferences: preferences,
             Intent: new RecordedSessionEditorIntentState(
-                SelectedPageIndex: context.SelectedPageIndex,
-                AnalysisRange: context.AnalysisRange,
-                SelectedTravelDistributionMode: context.SelectedTravelDistributionMode,
-                SelectedBalanceDisplacementMode: context.SelectedBalanceDisplacementMode,
-                SelectedBalanceSpeedMode: context.SelectedBalanceSpeedMode,
-                SelectedVelocityAverageMode: context.SelectedVelocityAverageMode,
-                SelectedSessionInsightsTargetProfile: context.SelectedSessionInsightsTargetProfile,
-                DampingSpeedCutoffs: context.DampingSpeedCutoffs,
+                SelectedPageIndex: selectedPageIndex,
+                AnalysisRange: analysisRange,
+                SelectedTravelDistributionMode: TravelDistributionMode.ActiveSuspension,
+                SelectedBalanceDisplacementMode: BalanceDisplacementMode.Zenith,
+                SelectedBalanceSpeedMode: selectedBalanceSpeedMode,
+                SelectedVelocityAverageMode: VelocityAverageMode.SampleAveraged,
+                SelectedSessionInsightsTargetProfile: SessionInsightsTargetProfile.Trail,
+                DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
                 SignalDisplayPreferences: preferences.SignalDisplay,
                 SignalLayoutPreferences: preferences.SignalLayout,
                 LayoutPreferences: preferences.Layout),
             Presentation: new RecordedSessionEditorPresentationState(
-                MapState: context.MapState,
-                MediaPaneState: context.MediaPaneState,
-                MediaColumnWidth: context.MediaColumnWidth,
-                MediaUrl: context.MediaUrl,
+                MapState: mapState ?? SurfacePresentationState.Hidden,
+                MediaPaneState: SurfacePresentationState.Hidden,
+                MediaColumnWidth: null,
+                MediaUrl: null,
                 Signals: new RecordedSignalPresentationState(
-                    Travel: context.TravelSignalState,
-                    Velocity: context.VelocitySignalState,
-                    Imu: context.ImuSignalState,
-                    PitchRoll: context.PitchRollSignalState,
-                    Speed: context.SpeedSignalState,
-                    Elevation: context.ElevationSignalState,
-                    ShowAirtime: context.ShowAirtime,
-                    ShowVelocityAirtime: context.ShowVelocityAirtime,
-                    ShowImuAirtime: context.ShowImuAirtime,
-                    ShowPitchRollAirtime: context.ShowPitchRollAirtime,
-                    ShowSpeedAirtime: context.ShowSpeedAirtime,
-                    ShowElevationAirtime: context.ShowElevationAirtime,
-                    ShowAnalysisSelection: context.ShowAnalysisSelection,
-                    ShowVelocityAnalysisSelection: context.ShowVelocityAnalysisSelection,
-                    ShowImuAnalysisSelection: context.ShowImuAnalysisSelection,
-                    ShowPitchRollAnalysisSelection: context.ShowPitchRollAnalysisSelection,
-                    ShowSpeedAnalysisSelection: context.ShowSpeedAnalysisSelection,
-                    ShowElevationAnalysisSelection: context.ShowElevationAnalysisSelection,
-                    TravelHeaderActions: context.TravelHeaderActions,
-                    VelocityHeaderActions: context.VelocityHeaderActions,
-                    ImuHeaderActions: context.ImuHeaderActions,
-                    PitchRollHeaderActions: context.PitchRollHeaderActions,
-                    SpeedHeaderActions: context.SpeedHeaderActions,
-                    ElevationHeaderActions: context.ElevationHeaderActions),
+                    Travel: travelSignalState ?? SurfacePresentationState.Hidden,
+                    Velocity: SurfacePresentationState.Hidden,
+                    Imu: SurfacePresentationState.Hidden,
+                    PitchRoll: SurfacePresentationState.Hidden,
+                    Speed: SurfacePresentationState.Hidden,
+                    Elevation: SurfacePresentationState.Hidden,
+                    ShowAirtime: true,
+                    ShowVelocityAirtime: false,
+                    ShowImuAirtime: false,
+                    ShowPitchRollAirtime: false,
+                    ShowSpeedAirtime: false,
+                    ShowElevationAirtime: false,
+                    ShowAnalysisSelection: false,
+                    ShowVelocityAnalysisSelection: false,
+                    ShowImuAnalysisSelection: false,
+                    ShowPitchRollAnalysisSelection: false,
+                    ShowSpeedAnalysisSelection: false,
+                    ShowElevationAnalysisSelection: false,
+                    TravelHeaderActions: [],
+                    VelocityHeaderActions: [],
+                    ImuHeaderActions: [],
+                    PitchRollHeaderActions: [],
+                    SpeedHeaderActions: [],
+                    ElevationHeaderActions: []),
                 Analysis: new RecordedAnalysisPresentationState(
-                    FrontAnalysis: context.FrontAnalysisState,
-                    RearAnalysis: context.RearAnalysisState,
-                    CompressionBalance: context.CompressionBalanceState,
-                    ReboundBalance: context.ReboundBalanceState,
-                    FrontForkVibration: context.FrontForkVibrationState,
-                    FrontFrameVibration: context.FrontFrameVibrationState,
-                    RearForkVibration: context.RearForkVibrationState,
-                    RearFrameVibration: context.RearFrameVibrationState),
-                DampingPercentages: context.DampingPercentages,
-                PlotDampingSpeedCutoffs: context.PlotDampingSpeedCutoffs,
-                CanEditDampingSpeedCutoffs: context.CanEditDampingSpeedCutoffs,
-                SessionInsights: context.SessionInsights,
-                SignalPlotContextMenuActionsBySignalRowId: context.SignalPlotContextMenuActionsBySignalRowId,
-                ScreenState: context.ScreenState,
-                OperationState: context.SessionOperationState),
-            AnalysisSelection: new AnalysisSelectionState(
-                context.ActiveFrontAnalysisSelection,
-                context.ActiveRearAnalysisSelection,
-                context.AnalysisSelectionHighlightRanges));
+                    FrontAnalysis: SurfacePresentationState.Hidden,
+                    RearAnalysis: SurfacePresentationState.Hidden,
+                    CompressionBalance: SurfacePresentationState.Hidden,
+                    ReboundBalance: SurfacePresentationState.Hidden,
+                    FrontForkVibration: SurfacePresentationState.Hidden,
+                    FrontFrameVibration: SurfacePresentationState.Hidden,
+                    RearForkVibration: SurfacePresentationState.Hidden,
+                    RearFrameVibration: SurfacePresentationState.Hidden),
+                DampingPercentages: SessionDampingPercentages.Empty,
+                PlotDampingSpeedCutoffs: DampingSpeedCutoffs.Default,
+                CanEditDampingSpeedCutoffs: false,
+                SessionInsights: SessionInsightsResult.Hidden,
+                SignalPlotContextMenuActionsBySignalRowId: EmptySignalPlotContextMenuActionsBySignalRowId,
+                ScreenState: screenState ?? SessionScreenPresentationState.Ready,
+                OperationState: operationState ?? SessionOperationPresentationState.Hidden),
+            AnalysisSelection: new AnalysisSelectionState(null, null, []));
     }
 
     private static List<RecordedSessionEditorIntent> Subscribe(RecordedSessionEditorActions actions)
