@@ -445,7 +445,7 @@ public class SynchronizationClientServiceTests
     }
 
     [Fact]
-    public async Task SyncAll_DoesNotPushRecordedSource_WhenHashDoesNotMatchPayload()
+    public async Task SyncAll_PushesRecordedSourceWithoutRehashingPayload()
     {
         var source = CreateRecordedSource();
         source.SourceHash = "invalid";
@@ -458,7 +458,10 @@ public class SynchronizationClientServiceTests
 
         await CreateService().SyncAll();
 
-        await httpApiService.DidNotReceive().PatchRecordedSessionSourceAsync(Arg.Any<RecordedSessionSourcePayload>());
+        await httpApiService.Received(1).PatchRecordedSessionSourceAsync(Arg.Is<RecordedSessionSourcePayload>(transfer =>
+            transfer.SessionId == source.SessionId &&
+            transfer.SourceHash == "invalid" &&
+            transfer.Payload.SequenceEqual(source.Payload)));
     }
 
     [Fact]
@@ -541,10 +544,15 @@ public class SynchronizationClientServiceTests
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
         recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([source.SessionId]);
         httpApiService.GetRecordedSessionSourceAsync(source.SessionId).Returns(transfer);
+        recordedSessionSourceRepository.PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>())
+            .Returns(Task.FromException(new InvalidOperationException("Recorded session source hash does not match its payload.")));
 
         await CreateService().SyncAll();
 
-        await recordedSessionSourceRepository.DidNotReceive().PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>());
+        await recordedSessionSourceRepository.Received(1).PutRecordedSessionSourceAsync(Arg.Is<RecordedSessionSource>(saved =>
+            saved.SessionId == source.SessionId &&
+            saved.SourceHash == "invalid" &&
+            saved.Payload.SequenceEqual(source.Payload)));
         await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
             Arg.Any<IReadOnlyCollection<Guid>>(),
             Arg.Any<CancellationToken>());

@@ -244,11 +244,6 @@ public class SynchronizationClientService : ISynchronizationClientService
             var source = await recordedSessionSourceRepository.GetRecordedSessionSourceAsync(id);
             if (source is not null)
             {
-                if (!RecordedSessionSourceHash.Matches(source))
-                {
-                    return;
-                }
-
                 await httpApiService.PatchRecordedSessionSourceAsync(ToPayload(source));
                 Interlocked.Increment(ref uploadedCount);
             }
@@ -271,12 +266,16 @@ public class SynchronizationClientService : ISynchronizationClientService
             var source = await httpApiService.GetRecordedSessionSourceAsync(id);
             if (source is not null)
             {
-                if (!RecordedSessionSourceHash.Matches(source))
+                try
                 {
+                    await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(FromPayload(source));
+                }
+                catch (InvalidOperationException ex)
+                {
+                    logger.Warning(ex, "Skipped recorded source {SessionId}: source hash does not match its payload", source.SessionId);
                     return;
                 }
 
-                await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(FromPayload(source));
                 committedSourceIds.Add(source.SessionId);
                 Interlocked.Increment(ref downloadedCount);
             }
