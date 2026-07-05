@@ -1133,7 +1133,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private bool CanClearAnalysisRangeFromPlotContext(TelemetryPlotContextMenuContext? context)
     {
-        return (analysisRange is not null || pendingAnalysisRangeBoundary is not null) &&
+        return (currentEditorState.Intent.AnalysisRange is not null ||
+                currentEditorState.Intent.PendingAnalysisRangeBoundary is not null) &&
                IsTelemetryPlotContext(context);
     }
 
@@ -1144,7 +1145,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        SetAnalysisRangeStartBoundary(context!.ClickSeconds);
+        editorActions.SetAnalysisRangeStartBoundary(context!.ClickSeconds);
     }
 
     private void SetAnalysisRangeEndFromPlotContext(TelemetryPlotContextMenuContext? context)
@@ -1154,7 +1155,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        SetAnalysisRangeEndBoundary(context!.ClickSeconds);
+        editorActions.SetAnalysisRangeEndBoundary(context!.ClickSeconds);
     }
 
     private void ClearAnalysisRangeFromPlotContext(TelemetryPlotContextMenuContext? context)
@@ -1658,8 +1659,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         if (previous.Intent.AnalysisRange != state.Intent.AnalysisRange)
         {
+            analysisRange = state.Intent.AnalysisRange;
+            pendingAnalysisRangeBoundary = state.Intent.PendingAnalysisRangeBoundary;
             OnPropertyChanged(nameof(CurrentAnalysisRange));
             OnPropertyChanged(nameof(SessionAnalysisRangeText));
+            ClearAnalysisSelections();
+            presentationApplier.RefreshAnalysisRangeStates();
+        }
+        else if (previous.Intent.PendingAnalysisRangeBoundary != state.Intent.PendingAnalysisRangeBoundary)
+        {
+            pendingAnalysisRangeBoundary = state.Intent.PendingAnalysisRangeBoundary;
         }
 
         if (previous.Presentation.CanEditDampingSpeedCutoffs != state.Presentation.CanEditDampingSpeedCutoffs)
@@ -2620,15 +2629,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             case RecordedSessionEditorIntent.SelectPageIndex select:
                 SelectPageIndex(select.PageIndex);
                 break;
-            case RecordedSessionEditorIntent.SetAnalysisRange set:
-                ApplyRequestedAnalysisRange(set.Range);
-                break;
-            case RecordedSessionEditorIntent.SetAnalysisRangeBoundary set:
-                SetAnalysisRangeBoundary(set.Seconds);
-                break;
-            case RecordedSessionEditorIntent.ClearAnalysisRange:
-                ApplyRequestedAnalysisRange(null);
-                break;
             case RecordedSessionEditorIntent.SelectAnalysisRange select:
                 SelectAnalysisRange(select.Selection);
                 break;
@@ -2672,13 +2672,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     public void SetAnalysisRange(double startSeconds, double endSeconds)
     {
-        pendingAnalysisRangeBoundary = null;
-        if (telemetryData is null ||
-            !TelemetryTimeRange.TryCreateClamped(
-                startSeconds,
-                endSeconds,
-                telemetryData.Metadata.Duration,
-                out var range))
+        if (!TelemetryTimeRange.TryCreate(startSeconds, endSeconds, out var range))
         {
             return;
         }
@@ -2688,8 +2682,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     public void ClearAnalysisRange()
     {
-        pendingAnalysisRangeBoundary = null;
-        if (analysisRange is null)
+        if (currentEditorState.Intent.AnalysisRange is null &&
+            currentEditorState.Intent.PendingAnalysisRangeBoundary is null)
         {
             return;
         }
@@ -2699,82 +2693,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     public void SetAnalysisRangeBoundary(double boundarySeconds)
     {
-        if (telemetryData is null ||
-            !TelemetryTimeRange.TryClampBoundary(boundarySeconds, telemetryData.Metadata.Duration, out var clampedBoundarySeconds))
-        {
-            pendingAnalysisRangeBoundary = null;
-            return;
-        }
-
-        if (analysisRange is { } range)
-        {
-            if (Math.Abs(clampedBoundarySeconds - range.StartSeconds) <= Math.Abs(clampedBoundarySeconds - range.EndSeconds))
-            {
-                SetAnalysisRange(clampedBoundarySeconds, range.EndSeconds);
-            }
-            else
-            {
-                SetAnalysisRange(range.StartSeconds, clampedBoundarySeconds);
-            }
-
-            return;
-        }
-
-        if (pendingAnalysisRangeBoundary is not { } pendingBoundary)
-        {
-            pendingAnalysisRangeBoundary = clampedBoundarySeconds;
-            return;
-        }
-
-        SetAnalysisRange(pendingBoundary, clampedBoundarySeconds);
+        editorActions.SetAnalysisRangeBoundary(boundarySeconds);
     }
 
     private void SetAnalysisRangeStartBoundary(double boundarySeconds)
     {
-        if (telemetryData is null ||
-            !TelemetryTimeRange.TryClampBoundary(boundarySeconds, telemetryData.Metadata.Duration, out var clampedBoundarySeconds))
-        {
-            pendingAnalysisRangeBoundary = null;
-            return;
-        }
-
-        if (analysisRange is { } range)
-        {
-            SetAnalysisRange(clampedBoundarySeconds, range.EndSeconds);
-            return;
-        }
-
-        if (pendingAnalysisRangeBoundary is not { } pendingBoundary)
-        {
-            pendingAnalysisRangeBoundary = clampedBoundarySeconds;
-            return;
-        }
-
-        SetAnalysisRange(clampedBoundarySeconds, pendingBoundary);
+        editorActions.SetAnalysisRangeStartBoundary(boundarySeconds);
     }
 
     private void SetAnalysisRangeEndBoundary(double boundarySeconds)
     {
-        if (telemetryData is null ||
-            !TelemetryTimeRange.TryClampBoundary(boundarySeconds, telemetryData.Metadata.Duration, out var clampedBoundarySeconds))
-        {
-            pendingAnalysisRangeBoundary = null;
-            return;
-        }
-
-        if (analysisRange is { } range)
-        {
-            SetAnalysisRange(range.StartSeconds, clampedBoundarySeconds);
-            return;
-        }
-
-        if (pendingAnalysisRangeBoundary is not { } pendingBoundary)
-        {
-            pendingAnalysisRangeBoundary = clampedBoundarySeconds;
-            return;
-        }
-
-        SetAnalysisRange(pendingBoundary, clampedBoundarySeconds);
+        editorActions.SetAnalysisRangeEndBoundary(boundarySeconds);
     }
 
     public void SetAnalysisRangeBoundaryFromMarker(double markerSeconds)

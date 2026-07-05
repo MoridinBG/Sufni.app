@@ -16,6 +16,10 @@ internal abstract record RecordedSessionEditorIntent
 
     public sealed record SetAnalysisRangeBoundary(double Seconds) : RecordedSessionEditorIntent;
 
+    public sealed record SetAnalysisRangeStartBoundary(double Seconds) : RecordedSessionEditorIntent;
+
+    public sealed record SetAnalysisRangeEndBoundary(double Seconds) : RecordedSessionEditorIntent;
+
     public sealed record ClearAnalysisRange : RecordedSessionEditorIntent;
 
     public sealed record SelectAnalysisRange(TelemetryRangeSelection Selection) : RecordedSessionEditorIntent;
@@ -66,6 +70,22 @@ internal sealed class RecordedSessionEditorActions : IDisposable
         if (double.IsFinite(seconds))
         {
             Emit(new RecordedSessionEditorIntent.SetAnalysisRangeBoundary(seconds));
+        }
+    }
+
+    public void SetAnalysisRangeStartBoundary(double seconds)
+    {
+        if (double.IsFinite(seconds))
+        {
+            Emit(new RecordedSessionEditorIntent.SetAnalysisRangeStartBoundary(seconds));
+        }
+    }
+
+    public void SetAnalysisRangeEndBoundary(double seconds)
+    {
+        if (double.IsFinite(seconds))
+        {
+            Emit(new RecordedSessionEditorIntent.SetAnalysisRangeEndBoundary(seconds));
         }
     }
 

@@ -75,6 +75,8 @@ public class RecordedSessionEditorActionsTests
         var layout = SessionLayoutPreferences.Default;
 
         actions.SetAnalysisRange(range);
+        actions.SetAnalysisRangeStartBoundary(2);
+        actions.SetAnalysisRangeEndBoundary(4);
         actions.ClearAnalysisRange();
         actions.SelectAnalysisRange(selection);
         actions.ClearAnalysisSelection();
@@ -93,6 +95,8 @@ public class RecordedSessionEditorActionsTests
         Assert.Collection(
             intents,
             intent => Assert.Equal(range, Assert.IsType<RecordedSessionEditorIntent.SetAnalysisRange>(intent).Range),
+            intent => Assert.Equal(2, Assert.IsType<RecordedSessionEditorIntent.SetAnalysisRangeStartBoundary>(intent).Seconds),
+            intent => Assert.Equal(4, Assert.IsType<RecordedSessionEditorIntent.SetAnalysisRangeEndBoundary>(intent).Seconds),
             intent => Assert.IsType<RecordedSessionEditorIntent.ClearAnalysisRange>(intent),
             intent => Assert.Equal(selection, Assert.IsType<RecordedSessionEditorIntent.SelectAnalysisRange>(intent).Selection),
             intent => Assert.IsType<RecordedSessionEditorIntent.ClearAnalysisSelection>(intent),
@@ -306,6 +310,90 @@ public class RecordedSessionEditorActionsTests
                 Assert.Equal(2.0, range?.EndSeconds);
             },
             range => Assert.Null(range));
+    }
+
+    [Fact]
+    public void StateController_DerivesAnalysisRange_FromStartAndEndBoundaryActions()
+    {
+        using var legacyState = new Subject<RecordedSessionEditorState>();
+        using var actions = new RecordedSessionEditorActions();
+        using var pageCounts = new Subject<int>();
+        using var controller = new RecordedSessionEditorStateController(
+            legacyState,
+            actions.Intents,
+            pageCounts);
+        var observed = new List<RecordedSessionEditorIntentState>();
+        using var subscription = controller.State.Subscribe(state => observed.Add(state.Intent));
+        var telemetry = TestTelemetryData.CreateMinimal(duration: 10.0);
+
+        legacyState.OnNext(CreateState(selectedPageIndex: 0, telemetry));
+        actions.SetAnalysisRangeStartBoundary(3.0);
+        actions.SetAnalysisRangeEndBoundary(7.0);
+
+        Assert.Collection(
+            observed.Select(state => (state.AnalysisRange, state.PendingAnalysisRangeBoundary)),
+            state =>
+            {
+                Assert.Null(state.AnalysisRange);
+                Assert.Null(state.PendingAnalysisRangeBoundary);
+            },
+            state =>
+            {
+                Assert.Null(state.AnalysisRange);
+                Assert.Equal(3.0, state.PendingAnalysisRangeBoundary);
+            },
+            state =>
+            {
+                Assert.Equal(new TelemetryTimeRange(3.0, 7.0), state.AnalysisRange);
+                Assert.Null(state.PendingAnalysisRangeBoundary);
+            });
+    }
+
+    [Fact]
+    public void StateController_ClearAnalysisRange_ClearsPendingBoundary()
+    {
+        using var legacyState = new Subject<RecordedSessionEditorState>();
+        using var actions = new RecordedSessionEditorActions();
+        using var pageCounts = new Subject<int>();
+        using var controller = new RecordedSessionEditorStateController(
+            legacyState,
+            actions.Intents,
+            pageCounts);
+        var observed = new List<RecordedSessionEditorIntentState>();
+        using var subscription = controller.State.Subscribe(state => observed.Add(state.Intent));
+        var telemetry = TestTelemetryData.CreateMinimal(duration: 10.0);
+
+        legacyState.OnNext(CreateState(selectedPageIndex: 0, telemetry));
+        actions.SetAnalysisRangeStartBoundary(3.0);
+        actions.ClearAnalysisRange();
+
+        var last = Assert.Single(observed.Where(state =>
+            state.AnalysisRange is null &&
+            state.PendingAnalysisRangeBoundary is null).Skip(1));
+        Assert.Null(last.AnalysisRange);
+        Assert.Null(last.PendingAnalysisRangeBoundary);
+    }
+
+    [Fact]
+    public void StateController_GenericAnalysisRangeBoundary_ReplacesNearestBoundary()
+    {
+        using var legacyState = new Subject<RecordedSessionEditorState>();
+        using var actions = new RecordedSessionEditorActions();
+        using var pageCounts = new Subject<int>();
+        using var controller = new RecordedSessionEditorStateController(
+            legacyState,
+            actions.Intents,
+            pageCounts);
+        var observed = new List<TelemetryTimeRange?>();
+        using var subscription = controller.State.Subscribe(state => observed.Add(state.Intent.AnalysisRange));
+        var telemetry = TestTelemetryData.CreateMinimal(duration: 10.0);
+
+        legacyState.OnNext(CreateState(selectedPageIndex: 0, telemetry));
+        actions.SetAnalysisRange(new TelemetryTimeRange(2.0, 8.0));
+        actions.SetAnalysisRangeBoundary(3.0);
+        actions.SetAnalysisRangeBoundary(7.0);
+
+        Assert.Equal(new TelemetryTimeRange(3.0, 7.0), observed.Last());
     }
 
     [Fact]
@@ -1221,6 +1309,7 @@ public class RecordedSessionEditorActionsTests
             Intent: new RecordedSessionEditorIntentState(
                 SelectedPageIndex: selectedPageIndex,
                 AnalysisRange: null,
+                PendingAnalysisRangeBoundary: null,
                 SelectedTravelDistributionMode: TravelDistributionMode.ActiveSuspension,
                 SelectedBalanceDisplacementMode: BalanceDisplacementMode.Zenith,
                 SelectedBalanceSpeedMode: BalanceSpeedMode.Both,

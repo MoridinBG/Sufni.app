@@ -407,6 +407,7 @@ public class SessionWorkspaceViewModelTests
             Intent: new RecordedSessionEditorIntentState(
                 SelectedPageIndex: selectedPageIndex,
                 AnalysisRange: analysisRange,
+                PendingAnalysisRangeBoundary: null,
                 SelectedTravelDistributionMode: TravelDistributionMode.ActiveSuspension,
                 SelectedBalanceDisplacementMode: BalanceDisplacementMode.Zenith,
                 SelectedBalanceSpeedMode: selectedBalanceSpeedMode,

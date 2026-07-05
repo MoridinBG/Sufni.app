@@ -40,6 +40,7 @@ internal sealed record RecordedSessionEditorState(
             Intent: new RecordedSessionEditorIntentState(
                 SelectedPageIndex: 0,
                 AnalysisRange: null,
+                PendingAnalysisRangeBoundary: null,
                 SelectedTravelDistributionMode: preferences.Analysis.TravelDistributionMode,
                 SelectedBalanceDisplacementMode: preferences.Analysis.BalanceDisplacementMode,
                 SelectedBalanceSpeedMode: preferences.Analysis.BalanceSpeedMode,
@@ -122,6 +123,7 @@ internal sealed record RecordedSessionLoadedData(
 internal sealed record RecordedSessionEditorIntentState(
     int SelectedPageIndex,
     TelemetryTimeRange? AnalysisRange,
+    double? PendingAnalysisRangeBoundary,
     TravelDistributionMode SelectedTravelDistributionMode,
     BalanceDisplacementMode SelectedBalanceDisplacementMode,
     BalanceSpeedMode SelectedBalanceSpeedMode,

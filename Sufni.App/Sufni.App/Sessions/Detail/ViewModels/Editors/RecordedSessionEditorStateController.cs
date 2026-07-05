@@ -378,7 +378,12 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         domainStates ??= Observable.Empty<RecordedSessionDomainSnapshot>();
 
         var selectedPageIndex = CreateSelectedPageIndexState(intents, pageCounts);
-        var analysisRange = CreateAnalysisRangeState(intents);
+        var loadedDataState = CreateOptionalInputState(
+            loadedDataStates.Merge(
+                legacyState
+                    .Select(CreateLoadedDataFromState)
+                    .Where(HasLoadedData)));
+        var analysisRange = CreateAnalysisRangeState(intents, loadedDataState);
         var dampingSpeedCutoffs = CreateDampingSpeedCutoffsState(intents);
         var preferenceIntent = CreatePreferenceIntentState(intents, preferenceReplays);
         var screenState = CreateInputState(screenStates, SessionScreenPresentationState.Ready);
@@ -408,7 +413,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var analysisSelectionState = CreateInputState(
             analysisSelectionStates,
             new AnalysisSelectionState(ActiveFront: null, ActiveRear: null, HighlightRanges: []));
-        var loadedDataState = CreateOptionalInputState(loadedDataStates);
         var signalPlotContextMenuActionState = CreateInputState(
             signalPlotContextMenuActions,
             CreateEmptySignalPlotContextMenuActions());
@@ -416,15 +420,15 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var derivedIntentState = selectedPageIndex
             .CombineLatest(
                 analysisRange,
-                static (pageIndex, range) => new { pageIndex, range })
+                static (pageIndex, analysis) => new { pageIndex, analysis })
             .CombineLatest(
                 dampingSpeedCutoffs,
-                static (current, cutoffs) => new { current.pageIndex, current.range, cutoffs })
+                static (current, cutoffs) => new { current.pageIndex, current.analysis, cutoffs })
             .CombineLatest(
                 preferenceIntent,
                 static (current, preferences) => new DerivedIntentState(
                     current.pageIndex,
-                    current.range,
+                    current.analysis,
                     current.cutoffs,
                     preferences));
         var derivedPresentationState = screenState
@@ -520,7 +524,8 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                         Intent = current.state.Intent with
                         {
                             SelectedPageIndex = current.derived.SelectedPageIndex,
-                            AnalysisRange = ClampAnalysisRange(current.derived.AnalysisRange, loaded.TelemetryData),
+                            AnalysisRange = ClampAnalysisRange(current.derived.Analysis.AnalysisRange, loaded.TelemetryData),
+                            PendingAnalysisRangeBoundary = current.derived.Analysis.PendingAnalysisRangeBoundary,
                             SelectedTravelDistributionMode = current.derived.Preferences.Analysis.TravelDistributionMode,
                             SelectedBalanceDisplacementMode = current.derived.Preferences.Analysis.BalanceDisplacementMode,
                             SelectedBalanceSpeedMode = current.derived.Preferences.Analysis.BalanceSpeedMode,
@@ -647,6 +652,25 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             ElevationHeaderActions: []);
     }
 
+    private static RecordedSessionLoadedData CreateLoadedDataFromState(RecordedSessionEditorState state)
+    {
+        return new RecordedSessionLoadedData(
+            state.Session,
+            state.TelemetryData,
+            state.FullTrackPoints,
+            state.TrackPoints,
+            state.TrackTimelineContext);
+    }
+
+    private static bool HasLoadedData(RecordedSessionLoadedData state)
+    {
+        return state.Session is not null ||
+               state.TelemetryData is not null ||
+               state.FullTrackPoints is not null ||
+               state.TrackPoints is not null ||
+               state.TrackTimelineContext is not null;
+    }
+
     private static IObservable<T> CreateInputState<T>(IObservable<T> updates, T initialValue)
     {
         return updates
@@ -667,27 +691,104 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             .RefCount();
     }
 
-    private static IObservable<TelemetryTimeRange?> CreateAnalysisRangeState(
-        IObservable<RecordedSessionEditorIntent> intents)
+    private static IObservable<AnalysisRangeIntentState> CreateAnalysisRangeState(
+        IObservable<RecordedSessionEditorIntent> intents,
+        IObservable<RecordedSessionLoadedData?> loadedDataStates)
     {
         var updates = intents
-            .Select(static intent => intent switch
-            {
-                RecordedSessionEditorIntent.SetAnalysisRange set =>
-                    new Func<TelemetryTimeRange?, TelemetryTimeRange?>(_ => set.Range),
-                RecordedSessionEditorIntent.ClearAnalysisRange =>
-                    new Func<TelemetryTimeRange?, TelemetryTimeRange?>(_ => null),
-                _ => null,
-            })
+            .WithLatestFrom(
+                loadedDataStates,
+                static (intent, loadedData) => CreateAnalysisRangeUpdate(intent, loadedData?.TelemetryData))
             .Where(static update => update is not null)
             .Select(static update => update!);
 
         return updates
-            .StartWith(new Func<TelemetryTimeRange?, TelemetryTimeRange?>(static current => current))
-            .Scan((TelemetryTimeRange?)null, static (current, update) => update(current))
+            .StartWith(new Func<AnalysisRangeIntentState, AnalysisRangeIntentState>(static current => current))
+            .Scan(AnalysisRangeIntentState.Empty, static (current, update) => update(current))
             .DistinctUntilChanged()
             .Replay(1)
             .RefCount();
+    }
+
+    private static Func<AnalysisRangeIntentState, AnalysisRangeIntentState>? CreateAnalysisRangeUpdate(
+        RecordedSessionEditorIntent intent,
+        TelemetryData? telemetryData)
+    {
+        return intent switch
+        {
+            RecordedSessionEditorIntent.SetAnalysisRange set =>
+                _ => new AnalysisRangeIntentState(set.Range, PendingAnalysisRangeBoundary: null),
+            RecordedSessionEditorIntent.ClearAnalysisRange =>
+                _ => AnalysisRangeIntentState.Empty,
+            RecordedSessionEditorIntent.SetAnalysisRangeBoundary set =>
+                current => ApplyAnalysisRangeBoundary(current, set.Seconds, telemetryData, AnalysisRangeBoundaryMode.Nearest),
+            RecordedSessionEditorIntent.SetAnalysisRangeStartBoundary set =>
+                current => ApplyAnalysisRangeBoundary(current, set.Seconds, telemetryData, AnalysisRangeBoundaryMode.Start),
+            RecordedSessionEditorIntent.SetAnalysisRangeEndBoundary set =>
+                current => ApplyAnalysisRangeBoundary(current, set.Seconds, telemetryData, AnalysisRangeBoundaryMode.End),
+            _ => null,
+        };
+    }
+
+    private static AnalysisRangeIntentState ApplyAnalysisRangeBoundary(
+        AnalysisRangeIntentState current,
+        double boundarySeconds,
+        TelemetryData? telemetryData,
+        AnalysisRangeBoundaryMode mode)
+    {
+        if (telemetryData is null ||
+            !TelemetryTimeRange.TryClampBoundary(
+                boundarySeconds,
+                telemetryData.Metadata.Duration,
+                out var clampedBoundarySeconds))
+        {
+            return current with { PendingAnalysisRangeBoundary = null };
+        }
+
+        var range = ClampAnalysisRange(current.AnalysisRange, telemetryData);
+        if (range is { } currentRange)
+        {
+            return mode switch
+            {
+                AnalysisRangeBoundaryMode.Start => CreateAnalysisRangeState(current, clampedBoundarySeconds, currentRange.EndSeconds, telemetryData),
+                AnalysisRangeBoundaryMode.End => CreateAnalysisRangeState(current, currentRange.StartSeconds, clampedBoundarySeconds, telemetryData),
+                _ when Math.Abs(clampedBoundarySeconds - currentRange.StartSeconds) <=
+                       Math.Abs(clampedBoundarySeconds - currentRange.EndSeconds) =>
+                    CreateAnalysisRangeState(current, clampedBoundarySeconds, currentRange.EndSeconds, telemetryData),
+                _ => CreateAnalysisRangeState(current, currentRange.StartSeconds, clampedBoundarySeconds, telemetryData),
+            };
+        }
+
+        if (current.PendingAnalysisRangeBoundary is not { } pendingBoundary)
+        {
+            return new AnalysisRangeIntentState(AnalysisRange: null, PendingAnalysisRangeBoundary: clampedBoundarySeconds);
+        }
+
+        return mode switch
+        {
+            AnalysisRangeBoundaryMode.Start => CreateAnalysisRangeState(current, clampedBoundarySeconds, pendingBoundary, telemetryData),
+            AnalysisRangeBoundaryMode.End => CreateAnalysisRangeState(current, pendingBoundary, clampedBoundarySeconds, telemetryData),
+            _ => CreateAnalysisRangeState(current, pendingBoundary, clampedBoundarySeconds, telemetryData),
+        };
+    }
+
+    private static AnalysisRangeIntentState CreateAnalysisRangeState(
+        AnalysisRangeIntentState current,
+        double startSeconds,
+        double endSeconds,
+        TelemetryData telemetryData)
+    {
+        return TelemetryTimeRange.TryCreateClamped(
+                startSeconds,
+                endSeconds,
+                telemetryData.Metadata.Duration,
+                out var range)
+            ? new AnalysisRangeIntentState(range, PendingAnalysisRangeBoundary: null)
+            : current with
+            {
+                AnalysisRange = ClampAnalysisRange(current.AnalysisRange, telemetryData),
+                PendingAnalysisRangeBoundary = null,
+            };
     }
 
     private static IObservable<DampingSpeedCutoffs> CreateDampingSpeedCutoffsState(
@@ -803,9 +904,25 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
 
     private sealed record PageSelectionState(int SelectedPageIndex, int PageCount);
 
+    private sealed record AnalysisRangeIntentState(
+        TelemetryTimeRange? AnalysisRange,
+        double? PendingAnalysisRangeBoundary)
+    {
+        public static AnalysisRangeIntentState Empty { get; } = new(
+            AnalysisRange: null,
+            PendingAnalysisRangeBoundary: null);
+    }
+
+    private enum AnalysisRangeBoundaryMode
+    {
+        Nearest,
+        Start,
+        End,
+    }
+
     private sealed record DerivedIntentState(
         int SelectedPageIndex,
-        TelemetryTimeRange? AnalysisRange,
+        AnalysisRangeIntentState Analysis,
         DampingSpeedCutoffs DampingSpeedCutoffs,
         SessionPreferences Preferences);
 
