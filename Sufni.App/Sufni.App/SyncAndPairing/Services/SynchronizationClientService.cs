@@ -266,16 +266,15 @@ public class SynchronizationClientService : ISynchronizationClientService
             var source = await httpApiService.GetRecordedSessionSourceAsync(id);
             if (source is not null)
             {
-                try
+                if (!RecordedSessionSourceHash.Matches(source))
                 {
-                    await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(FromPayload(source));
-                }
-                catch (InvalidOperationException ex)
-                {
-                    logger.Warning(ex, "Skipped recorded source {SessionId}: source hash does not match its payload", source.SessionId);
+                    logger.Warning(
+                        "Skipped recorded source {SessionId}: source hash does not match its payload",
+                        source.SessionId);
                     return;
                 }
 
+                await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(FromPayload(source));
                 committedSourceIds.Add(source.SessionId);
                 Interlocked.Increment(ref downloadedCount);
             }

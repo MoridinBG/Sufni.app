@@ -195,10 +195,15 @@ public class SynchronizationServerService : ISynchronizationServerService
         return true;
     }
 
+    // Content-Length is client-declared, so the preallocation is capped: a peer
+    // declaring the full body limit while sending a few bytes must not force a
+    // 256 MiB buffer per request. Genuine large bodies grow the stream as read.
+    private const int MaxPreallocatedRequestBodyBytes = 1024 * 1024;
+
     private static async Task<byte[]> ReadRequestBodyAsync(HttpRequest request)
     {
         var capacity = request.ContentLength is > 0 and <= int.MaxValue
-            ? (int)request.ContentLength.Value
+            ? (int)Math.Min(request.ContentLength.Value, MaxPreallocatedRequestBodyBytes)
             : 0;
         using var stream = capacity > 0 ? new MemoryStream(capacity) : new MemoryStream();
         await request.Body.CopyToAsync(stream);

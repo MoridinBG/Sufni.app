@@ -294,6 +294,49 @@ public class ImportSessionsCoordinatorTests
     }
 
     [Fact]
+    public async Task ImportAsync_AcknowledgesPersistedFiles_WhenStorePublishFails()
+    {
+        var (setup, _) = SeedSetupAndBike();
+        var file = CreateTelemetryFile(name: "committed", shouldBeImported: true);
+        sessionStore.PublishSessionsChangedAsync(
+                Arg.Any<IReadOnlyCollection<Guid>>(),
+                Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("publish"));
+
+        var progressEvents = new List<SessionImportEvent>();
+        var progress = new ProgressCapture(progressEvents);
+
+        var coordinator = CreateCoordinator();
+        var result = await coordinator.ImportAsync([file], setup.Id, progress);
+
+        Assert.Single(result.Imported);
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal("committed", failure.FileName);
+        Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
+        await file.Received(1).OnImported();
+        await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
+
+        Assert.Contains(progressEvents, e => e is SessionImportEvent.Imported);
+        Assert.Contains(progressEvents, e => e is SessionImportEvent.ImportFailed failed && failed.FileName == "committed");
+    }
+
+    [Fact]
+    public async Task ImportAsync_Continues_WhenProgressCallbackThrows()
+    {
+        var (setup, _) = SeedSetupAndBike();
+        var file = CreateTelemetryFile(name: "progress-throws", shouldBeImported: true);
+
+        var coordinator = CreateCoordinator();
+        var result = await coordinator.ImportAsync([file], setup.Id, new ThrowingProgress());
+
+        Assert.Single(result.Imported);
+        Assert.Empty(result.Failures);
+        await file.Received(1).OnImported();
+    }
+
+    [Fact]
     public async Task ImportAsync_OverlapsDownloadWithProcessing()
     {
         var (setup, _) = SeedSetupAndBike();
@@ -785,5 +828,10 @@ public class ImportSessionsCoordinatorTests
     private sealed class ProgressCapture(List<SessionImportEvent> events) : IProgress<SessionImportEvent>
     {
         public void Report(SessionImportEvent value) => events.Add(value);
+    }
+
+    private sealed class ThrowingProgress : IProgress<SessionImportEvent>
+    {
+        public void Report(SessionImportEvent value) => throw new InvalidOperationException("progress");
     }
 }

@@ -64,6 +64,43 @@ public class PersistedStoreTests
     }
 
     [Fact]
+    public async Task BikeStore_CommitMutationsPublishUpdateAndRemoveChangesets()
+    {
+        var bikeId = Guid.NewGuid();
+        var bike = new Bike
+        {
+            Id = bikeId,
+            Name = "Trail bike",
+            HeadAngle = 64,
+            Updated = 7
+        };
+        var bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
+        bikeRepository.GetAllAsync().Returns([bike]);
+        bikeRepository.PutAsync(Arg.Any<Bike>()).Returns(callInfo =>
+            Task.FromResult(callInfo.Arg<Bike>().Id));
+        bikeRepository.DeleteAsync(bikeId).Returns(Task.CompletedTask);
+        var store = new BikeStore(bikeRepository, UiThreadDispatcher);
+        var changeSets = new List<IChangeSet<BikeSnapshot, Guid>>();
+        using var subscription = store.Connect().Subscribe(changeSets.Add);
+
+        await store.RefreshAsync();
+        await store.CommitBikeAsync(new Bike
+        {
+            Id = bikeId,
+            Name = "Enduro bike",
+            HeadAngle = 64,
+            Updated = 8
+        });
+        await store.CommitBikeDeleteAsync(bikeId);
+
+        Assert.Collection(
+            changeSets,
+            changes => AssertChange(changes, ChangeReason.Add, bikeId),
+            changes => AssertChange(changes, ChangeReason.Update, bikeId),
+            changes => AssertChange(changes, ChangeReason.Remove, bikeId));
+    }
+
+    [Fact]
     public async Task RefreshAsync_DispatchesCacheReplacement_WhenOffUiThread()
     {
         var bike = new Bike
@@ -244,5 +281,15 @@ public class PersistedStoreTests
     {
         public Task PublishAsync(TestSourceCacheSnapshot snapshot) =>
             PublishSnapshotAsync(snapshot);
+    }
+
+    private static void AssertChange(
+        IChangeSet<BikeSnapshot, Guid> changes,
+        ChangeReason reason,
+        Guid key)
+    {
+        var change = Assert.Single(changes);
+        Assert.Equal(reason, change.Reason);
+        Assert.Equal(key, change.Key);
     }
 }
