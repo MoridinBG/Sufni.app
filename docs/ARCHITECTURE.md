@@ -37,7 +37,7 @@ This document is the catalog. Each subsystem is summarized here and the deep det
 | **Sufni.App.Windows**     | `Sufni.App/Sufni.App.Windows/` | Windows entry point (`Program.cs`)                                                                           |
 | **Sufni.App.macOS**       | `Sufni.App/Sufni.App.macOS/`   | macOS entry point (`Program.cs`)                                                                             |
 | **Sufni.App.Linux**       | `Sufni.App/Sufni.App.Linux/`   | Linux entry point (`Program.cs`)                                                                             |
-| **Sufni.App.Android**     | `Sufni.App/Sufni.App.Android/` | Android entry point (`MainActivity.cs`)                                                                      |
+| **Sufni.App.Android**     | `Sufni.App/Sufni.App.Android/` | Android entry point (`MainApplication.cs` / `MainActivity.cs`)                                                |
 | **Sufni.App.iOS**         | `Sufni.App/Sufni.App.iOS/`     | iOS entry point (`Main.cs`) and application delegate (`AppDelegate.cs`)                                      |
 
 Scenario-specific solutions live at the repository root:

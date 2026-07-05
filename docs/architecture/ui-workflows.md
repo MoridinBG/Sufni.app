@@ -54,7 +54,7 @@ before any sync, pairing, or telemetry arrival can happen.
 The DI container is a `ServiceCollection` exposed as a static field
 on `App` (`App.axaml.cs`). Each platform entry point
 (`Sufni.App.{Windows,macOS,Linux,Android,iOS}/Program.cs` or
-`AppDelegate.cs` / `MainActivity.cs`) adds its platform-specific
+`AppDelegate.cs` / `MainApplication.cs`) adds its platform-specific
 registrations to `App.ServiceCollection` before
 `OnFrameworkInitializationCompleted` runs the shared registrations
 and calls `BuildServiceProvider()`. There is no separate

@@ -101,7 +101,7 @@ Mobile heads register capabilities and services that desktop heads generally do 
 - **`IFriendlyNameProvider`**: queried by `PairingClientCoordinator` to seed a default display name for the pairing record.
 - **Touch input capabilities**: pinch zoom and long-press context menus are exposed through `InputCapabilities`, not through the layout profile.
 
-Mobile heads register these inline in `MainActivity.CustomizeAppBuilder` (Android) or `AppDelegate.CustomizeAppBuilder` (iOS) before calling `base.CustomizeAppBuilder(builder)`.
+Mobile heads register these inline in `MainApplication.CustomizeAppBuilder` (Android) or `AppDelegate.CustomizeAppBuilder` (iOS) before calling `base.CustomizeAppBuilder(builder)`.
 
 ## DI Composition
 

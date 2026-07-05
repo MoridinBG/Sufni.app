@@ -1,14 +1,15 @@
+using System;
 using Android.App;
 using Android.Views;
 using Sufni.App.Infrastructure;
 
 namespace Sufni.App.Android;
 
-public sealed class AndroidHapticFeedback(Window window) : IHapticFeedback
+public sealed class AndroidHapticFeedback(Func<Window?> getWindow) : IHapticFeedback
 {
     public void Click()
     {
-        var activity = window.Context as Activity;
+        var activity = getWindow()?.Context as Activity;
 #pragma warning disable CA1416
         activity?.Window?.DecorView?.PerformHapticFeedback(FeedbackConstants.ContextClick);
 #pragma warning restore CA1416
@@ -16,7 +17,7 @@ public sealed class AndroidHapticFeedback(Window window) : IHapticFeedback
 
     public void LongPress()
     {
-        var activity = window.Context as Activity;
+        var activity = getWindow()?.Context as Activity;
         activity?.Window?.DecorView?.PerformHapticFeedback(FeedbackConstants.LongPress);
     }
 }
