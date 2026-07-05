@@ -123,9 +123,9 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
         ArgumentNullException.ThrowIfNull(intents);
 
         return intents
-            .OfType<RecordedSessionEditorIntent.RequestSessionInsights>()
-            .Select(static _ => new RecordedSessionEditorEffect.RequestAnalysis(
-                new RecordedSessionAnalysisEffectRequest.Insights(RespectSuppression: false)));
+            .Select(CreateExplicitAnalysisRequest)
+            .Where(static effect => effect is not null)
+            .Select(static effect => effect!);
     }
 
     public void Dispose()
@@ -181,6 +181,26 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
         }
 
         return null;
+    }
+
+    private static RecordedSessionEditorEffect? CreateExplicitAnalysisRequest(
+        RecordedSessionEditorIntent intent)
+    {
+        return intent switch
+        {
+            RecordedSessionEditorIntent.RequestSessionInsights =>
+                new RecordedSessionEditorEffect.RequestAnalysis(
+                    new RecordedSessionAnalysisEffectRequest.Insights(RespectSuppression: false)),
+            RecordedSessionEditorIntent.RequestDampingPercentages =>
+                new RecordedSessionEditorEffect.RequestAnalysis(
+                    new RecordedSessionAnalysisEffectRequest.Damping(
+                        IncludeInsights: false,
+                        RespectSuppression: false)),
+            RecordedSessionEditorIntent.RefreshSelectedPageAnalysis =>
+                new RecordedSessionEditorEffect.RequestAnalysis(
+                    new RecordedSessionAnalysisEffectRequest.SelectedPageChanged()),
+            _ => null,
+        };
     }
 }
 

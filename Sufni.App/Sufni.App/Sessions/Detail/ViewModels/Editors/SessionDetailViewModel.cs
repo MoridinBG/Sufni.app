@@ -603,7 +603,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        RequestCurrentDampingPercentages();
+        editorActions.RequestDampingPercentages();
     }
 
     internal void RecomputeSessionInsights()
@@ -1661,10 +1661,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         selectedPageIndex = ClampSelectedPageIndex(selectedPageIndex);
         pageCountInput.OnNext(Pages.Count);
-        if (IsSessionInsightsPageSelected)
-        {
-            RequestCurrentSessionInsights(respectSuppression: true);
-        }
+        editorActions.RefreshSelectedPageAnalysis();
     }
 
     private int ClampSelectedPageIndex(int pageIndex)
