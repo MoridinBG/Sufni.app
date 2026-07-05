@@ -1471,7 +1471,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             () => Id,
             ErrorMessages.Add);
         editorEffects = new RecordedSessionEditorEffects(
-            RecordedSessionEditorEffects.PreferencePersistence(editorActions.Intents),
+            [
+                RecordedSessionEditorEffects.PreferencePersistence(editorActions.Intents),
+                RecordedSessionEditorEffects.AnalysisRequests(editorStateController.State),
+            ],
             ApplyRecordedSessionEditorEffect);
         signalRowActions = new SignalRowActionsController(
             () => analysisSelectionController.HasSelection,
@@ -1820,7 +1823,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         selectedTravelDistributionMode = mode;
         OnPropertyChanged(nameof(SessionAnalysisModesText));
-        RequestCurrentSessionInsights(respectSuppression: true);
         UpdateRecordedSessionExtensionHostState();
     }
 
@@ -1833,7 +1835,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         selectedBalanceDisplacementMode = mode;
         OnPropertyChanged(nameof(SessionAnalysisModesText));
-        RequestCurrentSessionInsights(respectSuppression: true);
     }
 
     private void SetBalanceSpeedMode(BalanceSpeedMode mode)
@@ -1845,7 +1846,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         selectedBalanceSpeedMode = mode;
         OnPropertyChanged(nameof(SessionAnalysisModesText));
-        RequestCurrentSessionInsights(respectSuppression: true);
     }
 
     private void SetVelocityAverageMode(VelocityAverageMode mode)
@@ -1858,7 +1858,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         selectedVelocityAverageMode = mode;
         ClearDampingRangeSelections();
         OnPropertyChanged(nameof(SessionAnalysisModesText));
-        RequestCurrentAnalysisResults(includeInsights: true, respectSuppression: true);
         UpdateRecordedSessionExtensionHostState();
     }
 
@@ -1870,7 +1869,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         selectedSessionInsightsTargetProfile = profile;
-        RequestCurrentSessionInsights(respectSuppression: true);
     }
 
     private void SetCanEditDampingSpeedCutoffs(bool value)
@@ -1895,7 +1893,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         dampingSpeedCutoffs = cutoffs;
         SessionContext.DampingSpeedCutoffs = cutoffs;
-        RequestCurrentAnalysisResults(!suppressInsightsRecompute, respectSuppression: true);
         UpdateRecordedSessionExtensionHostState();
     }
 
@@ -2180,13 +2177,23 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void ApplyRecordedPreferences(SessionPreferences preferences)
     {
-        preferenceReplayInput.OnNext(preferences);
-        ApplySignalDisplayPreferences(preferences.SignalDisplay);
-        ApplySignalLayoutPreferences(preferences.SignalLayout);
-        ApplyLayoutPreferences(preferences.Layout);
-        ApplyPreferencesPageSignalDisplayPreferences(preferences.SignalDisplay);
-        PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
-        ApplyRecordedAnalysisPreferences(preferences.Analysis);
+        analysisRequestScheduler.BeginBatch(suppressInsights: true);
+        suppressInsightsRecompute = true;
+        try
+        {
+            ApplySignalDisplayPreferences(preferences.SignalDisplay);
+            ApplySignalLayoutPreferences(preferences.SignalLayout);
+            ApplyLayoutPreferences(preferences.Layout);
+            ApplyPreferencesPageSignalDisplayPreferences(preferences.SignalDisplay);
+            PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
+            ApplyRecordedAnalysisPreferences(preferences.Analysis);
+            preferenceReplayInput.OnNext(preferences);
+        }
+        finally
+        {
+            suppressInsightsRecompute = false;
+            analysisRequestScheduler.EndBatch();
+        }
     }
 
     private void ApplyPreferencesPageSignalDisplayPreferences(SignalDisplayPreferences preferences)
@@ -2224,21 +2231,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void ApplyRecordedAnalysisPreferences(AnalysisPreferences preferences)
     {
-        analysisRequestScheduler.BeginBatch(suppressInsights: true);
-        suppressInsightsRecompute = true;
-        try
-        {
-            SetTravelDistributionMode(preferences.TravelDistributionMode);
-            SetVelocityAverageMode(preferences.VelocityAverageMode);
-            SetBalanceDisplacementMode(preferences.BalanceDisplacementMode);
-            SetBalanceSpeedMode(preferences.BalanceSpeedMode);
-            SetSessionInsightsTargetProfile(preferences.SessionInsightsTargetProfile);
-        }
-        finally
-        {
-            suppressInsightsRecompute = false;
-            analysisRequestScheduler.EndBatch();
-        }
+        SetTravelDistributionMode(preferences.TravelDistributionMode);
+        SetVelocityAverageMode(preferences.VelocityAverageMode);
+        SetBalanceDisplacementMode(preferences.BalanceDisplacementMode);
+        SetBalanceSpeedMode(preferences.BalanceSpeedMode);
+        SetSessionInsightsTargetProfile(preferences.SessionInsightsTargetProfile);
     }
 
     private void OnSignalPreferenceChanged(object? sender, PropertyChangedEventArgs args)
@@ -2257,6 +2254,26 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         if (effect is RecordedSessionEditorEffect.PersistPreferences persist)
         {
             PersistRecordedPreferenceIntent(persist.Intent);
+            return;
+        }
+
+        if (effect is RecordedSessionEditorEffect.RequestAnalysis request)
+        {
+            ApplyRecordedAnalysisRequest(request.Request);
+        }
+    }
+
+    private void ApplyRecordedAnalysisRequest(RecordedSessionAnalysisEffectRequest request)
+    {
+        switch (request)
+        {
+            case RecordedSessionAnalysisEffectRequest.Damping damping:
+                RequestCurrentAnalysisResults(damping.IncludeInsights, damping.RespectSuppression);
+                break;
+
+            case RecordedSessionAnalysisEffectRequest.Insights insights:
+                RequestCurrentSessionInsights(insights.RespectSuppression);
+                break;
         }
     }
 

@@ -816,6 +816,67 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void AnalysisRequests_EmitsOnlyAnalysisRequestIntents()
+    {
+        using var states = new Subject<RecordedSessionEditorState>();
+        var effects = new List<RecordedSessionEditorEffect>();
+        using var subscription = RecordedSessionEditorEffects.AnalysisRequests(states)
+            .Subscribe(effects.Add);
+        var initial = CreateState(selectedPageIndex: 0);
+        var travelChanged = initial with
+        {
+            Intent = initial.Intent with
+            {
+                SelectedTravelDistributionMode = TravelDistributionMode.DynamicSag,
+            },
+        };
+        var velocityChanged = travelChanged with
+        {
+            Intent = travelChanged.Intent with
+            {
+                SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged,
+            },
+        };
+        var cutoffsChanged = velocityChanged with
+        {
+            Intent = velocityChanged.Intent with
+            {
+                DampingSpeedCutoffs = DampingSpeedCutoffs.FromValues(110, 220, 330, 440),
+            },
+        };
+
+        states.OnNext(initial);
+        states.OnNext(initial with { Presentation = initial.Presentation });
+        states.OnNext(travelChanged);
+        states.OnNext(travelChanged);
+        states.OnNext(velocityChanged);
+        states.OnNext(cutoffsChanged);
+
+        Assert.Collection(
+            effects,
+            effect =>
+            {
+                var request = Assert.IsType<RecordedSessionEditorEffect.RequestAnalysis>(effect);
+                var insights = Assert.IsType<RecordedSessionAnalysisEffectRequest.Insights>(request.Request);
+                Assert.True(insights.RespectSuppression);
+            },
+            effect =>
+            {
+                var request = Assert.IsType<RecordedSessionEditorEffect.RequestAnalysis>(effect);
+                var damping = Assert.IsType<RecordedSessionAnalysisEffectRequest.Damping>(request.Request);
+                Assert.True(damping.IncludeInsights);
+                Assert.True(damping.RespectSuppression);
+            },
+            effect =>
+            {
+                var request = Assert.IsType<RecordedSessionEditorEffect.RequestAnalysis>(effect);
+                var damping = Assert.IsType<RecordedSessionAnalysisEffectRequest.Damping>(request.Request);
+                Assert.True(damping.IncludeInsights);
+                Assert.True(damping.RespectSuppression);
+            });
+    }
+
+    [Fact]
     public void StateController_DisposeStopsSourceSubscription()
     {
         using var source = new Subject<RecordedSessionEditorState>();
