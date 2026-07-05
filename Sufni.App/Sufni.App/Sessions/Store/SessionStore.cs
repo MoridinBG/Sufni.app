@@ -113,26 +113,6 @@ internal sealed class SessionStore(
         }
     }
 
-    public async Task<StoreMutationResult<SessionSnapshot>> CommitPsstPatchAsync(
-        Guid sessionId,
-        byte[] data,
-        string? fingerprint,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        try
-        {
-            await sessionTelemetryWriter.PatchSessionPsstAsync(sessionId, data, fingerprint);
-            cancellationToken.ThrowIfCancellationRequested();
-            return await PublishFreshSessionAsync(sessionId);
-        }
-        catch (Exception e)
-        {
-            return new StoreMutationResult<SessionSnapshot>.Failed(e.Message);
-        }
-    }
-
     public async Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapAsync(
         Guid sessionId,
         byte[] data,

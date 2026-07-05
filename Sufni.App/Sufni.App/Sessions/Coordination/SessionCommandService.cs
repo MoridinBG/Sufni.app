@@ -158,13 +158,15 @@ public sealed class SessionCommandService
         try
         {
             var origin = CalculateSourceAbsoluteOrigin(snapshot, sourceAbsoluteStartSeconds);
-            var session = snapshot.ToMetadataEntity();
-            session.Timestamp = origin.Timestamp;
-            session.GpsOffsetSeconds = origin.GpsOffsetSeconds;
 
-            var result = await sessionStore.CommitSessionMetadataAsync(
-                session,
-                snapshot.Updated,
+            var result = await sessionStore.CommitSessionMetadataFieldAsync(
+                sessionId,
+                session =>
+                {
+                    session.Timestamp = origin.Timestamp;
+                    session.GpsOffsetSeconds = origin.GpsOffsetSeconds;
+                    return session;
+                },
                 cancellationToken);
             return result is StoreMutationResult<SessionSnapshot>.Saved;
         }
@@ -193,12 +195,13 @@ public sealed class SessionCommandService
 
         try
         {
-            var session = snapshot.ToMetadataEntity();
-            session.Name = name;
-
-            var result = await sessionStore.CommitSessionMetadataAsync(
-                session,
-                snapshot.Updated,
+            var result = await sessionStore.CommitSessionMetadataFieldAsync(
+                sessionId,
+                session =>
+                {
+                    session.Name = name;
+                    return session;
+                },
                 cancellationToken);
             return result is StoreMutationResult<SessionSnapshot>.Saved;
         }

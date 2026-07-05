@@ -37,12 +37,6 @@ public interface ISessionStoreWriter : ISessionStore
         Func<Session, Session> metadataUpdate,
         CancellationToken cancellationToken = default);
 
-    Task<StoreMutationResult<SessionSnapshot>> CommitPsstPatchAsync(
-        Guid sessionId,
-        byte[] data,
-        string? fingerprint,
-        CancellationToken cancellationToken = default);
-
     Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapAsync(
         Guid sessionId,
         byte[] data,

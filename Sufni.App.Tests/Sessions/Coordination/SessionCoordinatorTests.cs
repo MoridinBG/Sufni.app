@@ -532,10 +532,14 @@ public class SessionCoordinatorTests
         derivationWindowCache.Get(sessionId).Returns(new RecordedSessionDerivationWindow(Guid.NewGuid(), 1.5, 10));
         sessionStore.Get(sessionId).Returns(snapshot);
         Session? saved = null;
-        sessionStore.CommitSessionMetadataAsync(Arg.Any<Session>(), snapshot.Updated, Arg.Any<CancellationToken>())
+        sessionStore.CommitSessionMetadataFieldAsync(
+                sessionId,
+                Arg.Any<Func<Session, Session>>(),
+                Arg.Any<CancellationToken>())
             .Returns(call =>
             {
-                saved = call.Arg<Session>();
+                var update = call.Arg<Func<Session, Session>>();
+                saved = update(snapshot.ToMetadataEntity());
                 return Task.FromResult<StoreMutationResult<SessionSnapshot>>(
                     new StoreMutationResult<SessionSnapshot>.Saved(SessionSnapshot.From(saved)));
             });
@@ -546,9 +550,13 @@ public class SessionCoordinatorTests
         Assert.NotNull(saved);
         Assert.Equal(102, saved!.Timestamp);
         Assert.Equal(0.5, saved.GpsOffsetSeconds, precision: 6);
-        await sessionStore.Received(1).CommitSessionMetadataAsync(
-            Arg.Is<Session>(value => value.Id == sessionId),
-            snapshot.Updated,
+        await sessionStore.Received(1).CommitSessionMetadataFieldAsync(
+            sessionId,
+            Arg.Any<Func<Session, Session>>(),
+            Arg.Any<CancellationToken>());
+        await sessionStore.DidNotReceive().CommitSessionMetadataAsync(
+            Arg.Any<Session>(),
+            Arg.Any<long?>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -559,10 +567,14 @@ public class SessionCoordinatorTests
         var snapshot = TestSnapshots.Session(id: sessionId, name: "before", setupId: Guid.NewGuid());
         sessionStore.Get(sessionId).Returns(snapshot);
         Session? saved = null;
-        sessionStore.CommitSessionMetadataAsync(Arg.Any<Session>(), snapshot.Updated, Arg.Any<CancellationToken>())
+        sessionStore.CommitSessionMetadataFieldAsync(
+                sessionId,
+                Arg.Any<Func<Session, Session>>(),
+                Arg.Any<CancellationToken>())
             .Returns(call =>
             {
-                saved = call.Arg<Session>();
+                var update = call.Arg<Func<Session, Session>>();
+                saved = update(snapshot.ToMetadataEntity());
                 return Task.FromResult<StoreMutationResult<SessionSnapshot>>(
                     new StoreMutationResult<SessionSnapshot>.Saved(SessionSnapshot.From(saved)));
             });
@@ -573,9 +585,13 @@ public class SessionCoordinatorTests
         Assert.NotNull(saved);
         Assert.Equal("after", saved!.Name);
         shell.DidNotReceive().GoBack();
-        await sessionStore.Received(1).CommitSessionMetadataAsync(
-            Arg.Is<Session>(value => value.Name == "after"),
-            snapshot.Updated,
+        await sessionStore.Received(1).CommitSessionMetadataFieldAsync(
+            sessionId,
+            Arg.Any<Func<Session, Session>>(),
+            Arg.Any<CancellationToken>());
+        await sessionStore.DidNotReceive().CommitSessionMetadataAsync(
+            Arg.Any<Session>(),
+            Arg.Any<long?>(),
             Arg.Any<CancellationToken>());
     }
 

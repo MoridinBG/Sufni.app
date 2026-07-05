@@ -50,7 +50,7 @@ Each persisted writer interface additionally exposes:
   all-state refresh then invokes extension state refresh participants.
 - Semantic commit methods for local writes that belong to that aggregate
   family, for example `CommitBikeAsync`, `CommitSessionMetadataAsync`,
-  `CommitPsstPatchAsync`, `CommitTrackPatchAsync`, and
+  `CommitSessionMetadataFieldAsync`, `CommitTrackPatchAsync`, and
   `CommitLocalUnpairAsync`. These methods persist one aggregate family,
   re-read any database-computed snapshot fields, and publish the resulting
   snapshot through the store.
