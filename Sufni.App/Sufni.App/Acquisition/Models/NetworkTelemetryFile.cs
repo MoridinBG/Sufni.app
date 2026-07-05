@@ -38,72 +38,30 @@ public class NetworkTelemetryFile : ITelemetryFile
 
     public async Task<TelemetryFileSource> ReadSourceAsync(CancellationToken cancellationToken = default)
     {
-        var tempDirectory = Path.GetTempPath();
-        DeleteStaleSourceTempFiles(tempDirectory);
+        using var destination = new MemoryStream();
+        var downloadedFile = activeSession is not null
+            ? await activeSession.GetFileAsync(
+                DaqFileClass.RootSst,
+                recordId,
+                destination,
+                cancellationToken)
+            : await daqManagementService.GetFileAsync(
+                ipEndPoint.Address.ToString(),
+                ipEndPoint.Port,
+                DaqFileClass.RootSst,
+                recordId,
+                destination,
+                cancellationToken);
 
-        var tempPath = Path.Combine(tempDirectory, $"sufni-source-{Guid.NewGuid():N}.SST");
-        try
+        var loadedFile = downloadedFile switch
         {
-            DaqGetFileResult downloadedFile;
-            await using (var destination = new FileStream(
-                tempPath,
-                FileMode.CreateNew,
-                FileAccess.Write,
-                FileShare.None,
-                bufferSize: 64 * 1024,
-                FileOptions.Asynchronous | FileOptions.SequentialScan))
-            {
-                downloadedFile = activeSession is not null
-                    ? await activeSession.GetFileAsync(
-                        DaqFileClass.RootSst,
-                        recordId,
-                        destination,
-                        cancellationToken)
-                    : await daqManagementService.GetFileAsync(
-                        ipEndPoint.Address.ToString(),
-                        ipEndPoint.Port,
-                        DaqFileClass.RootSst,
-                        recordId,
-                        destination,
-                        cancellationToken);
-            }
+            DaqGetFileResult.Downloaded loaded => loaded,
+            DaqGetFileResult.Error error => throw new DaqManagementException(error.ErrorCode, error.Message),
+            _ => throw new DaqManagementException("GET_FILE returned an unsupported result shape.")
+        };
 
-            var loadedFile = downloadedFile switch
-            {
-                DaqGetFileResult.Downloaded loaded => loaded,
-                DaqGetFileResult.Error error => throw new DaqManagementException(error.ErrorCode, error.Message),
-                _ => throw new DaqManagementException("GET_FILE returned an unsupported result shape.")
-            };
-
-            var rawData = await File.ReadAllBytesAsync(tempPath, cancellationToken);
-            var sourceName = string.IsNullOrWhiteSpace(loadedFile.Name) ? FileName : loadedFile.Name;
-            return new TelemetryFileSource(sourceName, rawData);
-        }
-        finally
-        {
-            if (File.Exists(tempPath))
-            {
-                File.Delete(tempPath);
-            }
-        }
-    }
-
-    private static void DeleteStaleSourceTempFiles(string tempDirectory)
-    {
-        var cutoff = DateTime.UtcNow.AddDays(-1);
-        foreach (var path in Directory.EnumerateFiles(tempDirectory, "sufni-source-*.SST"))
-        {
-            try
-            {
-                if (File.GetLastWriteTimeUtc(path) < cutoff)
-                {
-                    File.Delete(path);
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-            }
-        }
+        var sourceName = string.IsNullOrWhiteSpace(loadedFile.Name) ? FileName : loadedFile.Name;
+        return new TelemetryFileSource(sourceName, destination.ToArray());
     }
 
     public async Task OnImported()
