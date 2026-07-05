@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using SQLite;
 using Sufni.App.ExtensionHost.Contracts.Models;
@@ -27,6 +28,8 @@ public sealed record TrackPayload(Guid Id, long Updated, IReadOnlyList<TrackPoin
 
 internal sealed class TrackRepository(SqliteConnectionContext connectionContext) : ITrackRepository
 {
+    private const int TrackLookupChunkSize = 500;
+
     public async Task<Guid?> FindTrackByTimeRangeAsync(long startTime, long endTime)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
@@ -70,15 +73,14 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext)
         var connection = await connectionContext.GetInitializedConnectionAsync();
         var tracks = new List<Track>(trackIds.Count);
 
-        foreach (var trackId in trackIds)
+        foreach (var chunk in trackIds.Chunk(TrackLookupChunkSize))
         {
-            var track = await connection.Table<Track>()
-                .Where(candidate => candidate.Id == trackId && candidate.Deleted == null)
-                .FirstOrDefaultAsync();
-            if (track is not null)
-            {
-                tracks.Add(track);
-            }
+            var placeholders = string.Join(", ", chunk.Select(_ => "?"));
+            var args = chunk.Select(id => (object)id.ToString("D")).ToArray();
+            var chunkTracks = await connection.QueryAsync<Track>(
+                $"SELECT * FROM track WHERE deleted IS NULL AND id IN ({placeholders})",
+                args);
+            tracks.AddRange(chunkTracks);
         }
 
         return tracks;

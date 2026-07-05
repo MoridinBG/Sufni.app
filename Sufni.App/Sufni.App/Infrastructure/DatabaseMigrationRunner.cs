@@ -24,6 +24,7 @@ internal sealed class DatabaseMigrationRunner(
     ExtensionCascadeService extensionCascadeService)
 {
     private static readonly ILogger logger = Log.ForContext<DatabaseMigrationRunner>();
+    private static readonly string[] SyncIndexedTables = ["board", "bike", "setup", "session", "track"];
     private readonly CoreMigrationStore coreMigrations = new(connection);
 
     internal async Task RunAsync()
@@ -32,6 +33,7 @@ internal sealed class DatabaseMigrationRunner(
         {
             await connection.EnableWriteAheadLoggingAsync();
             await CreateTablesAsync();
+            await EnsureSyncIndexesAsync();
             await EnsureSessionProcessingFingerprintColumnAsync();
             await EnsureSessionSummaryMetricColumnsAsync();
             await EnsureSessionGpsOffsetColumnAsync();
@@ -74,6 +76,15 @@ internal sealed class DatabaseMigrationRunner(
             typeof(PairedDevice),
             typeof(Track)
         ]);
+    }
+
+    private async Task EnsureSyncIndexesAsync()
+    {
+        foreach (var table in SyncIndexedTables)
+        {
+            await connection.ExecuteAsync($"CREATE INDEX IF NOT EXISTS ix_{table}_updated ON {table}(updated)");
+            await connection.ExecuteAsync($"CREATE INDEX IF NOT EXISTS ix_{table}_deleted ON {table}(deleted)");
+        }
     }
 
     private async Task EnsureSessionProcessingFingerprintColumnAsync()
