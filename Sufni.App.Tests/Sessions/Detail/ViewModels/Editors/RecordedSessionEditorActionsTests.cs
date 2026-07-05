@@ -331,6 +331,65 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void StateController_DerivesScreenAndOperationState_FromLifecycleInputs()
+    {
+        using var legacyState = new Subject<RecordedSessionEditorState>();
+        using var actions = new RecordedSessionEditorActions();
+        using var pageCounts = new Subject<int>();
+        using var preferenceReplays = new Subject<SessionPreferences>();
+        using var screenStates = new Subject<SessionScreenPresentationState>();
+        using var operationStates = new Subject<SessionOperationPresentationState>();
+        using var controller = new RecordedSessionEditorStateController(
+            legacyState,
+            actions.Intents,
+            pageCounts,
+            preferenceReplays,
+            screenStates,
+            operationStates);
+        var observed = new List<RecordedSessionEditorPresentationState>();
+        using var subscription = controller.State.Subscribe(state => observed.Add(state.Presentation));
+        var loading = SessionScreenPresentationState.Loading("Loading");
+        var operation = SessionOperationPresentationState.Progress("Working", 25);
+
+        legacyState.OnNext(CreateState(selectedPageIndex: 0));
+        screenStates.OnNext(loading);
+        operationStates.OnNext(operation);
+        var staleLegacyBaseState = CreateState(selectedPageIndex: 0);
+        var staleLegacyState = staleLegacyBaseState with
+        {
+            Presentation = staleLegacyBaseState.Presentation with
+            {
+                ScreenState = SessionScreenPresentationState.Error("Stale error"),
+                OperationState = SessionOperationPresentationState.Hidden,
+            },
+        };
+        legacyState.OnNext(staleLegacyState);
+
+        Assert.Collection(
+            observed,
+            state =>
+            {
+                Assert.Equal(SessionScreenPresentationState.Ready, state.ScreenState);
+                Assert.Equal(SessionOperationPresentationState.Hidden, state.OperationState);
+            },
+            state =>
+            {
+                Assert.Equal(loading, state.ScreenState);
+                Assert.Equal(SessionOperationPresentationState.Hidden, state.OperationState);
+            },
+            state =>
+            {
+                Assert.Equal(loading, state.ScreenState);
+                Assert.Equal(operation, state.OperationState);
+            },
+            state =>
+            {
+                Assert.Equal(loading, state.ScreenState);
+                Assert.Equal(operation, state.OperationState);
+            });
+    }
+
+    [Fact]
     public void StateController_DisposeStopsSourceSubscription()
     {
         using var source = new Subject<RecordedSessionEditorState>();

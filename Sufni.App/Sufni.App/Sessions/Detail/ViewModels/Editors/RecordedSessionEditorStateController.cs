@@ -1,7 +1,9 @@
 using System;
 using System.Reactive.Linq;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Presentation;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
@@ -40,16 +42,37 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         IObservable<RecordedSessionEditorIntent> intents,
         IObservable<int> pageCounts,
         IObservable<SessionPreferences> preferenceReplays)
+        : this(
+            legacyState,
+            intents,
+            pageCounts,
+            preferenceReplays,
+            Observable.Empty<SessionScreenPresentationState>(),
+            Observable.Empty<SessionOperationPresentationState>())
+    {
+    }
+
+    public RecordedSessionEditorStateController(
+        IObservable<RecordedSessionEditorState> legacyState,
+        IObservable<RecordedSessionEditorIntent> intents,
+        IObservable<int> pageCounts,
+        IObservable<SessionPreferences> preferenceReplays,
+        IObservable<SessionScreenPresentationState> screenStates,
+        IObservable<SessionOperationPresentationState> operationStates)
     {
         ArgumentNullException.ThrowIfNull(legacyState);
         ArgumentNullException.ThrowIfNull(intents);
         ArgumentNullException.ThrowIfNull(pageCounts);
         ArgumentNullException.ThrowIfNull(preferenceReplays);
+        ArgumentNullException.ThrowIfNull(screenStates);
+        ArgumentNullException.ThrowIfNull(operationStates);
 
         var selectedPageIndex = CreateSelectedPageIndexState(intents, pageCounts);
         var analysisRange = CreateAnalysisRangeState(intents);
         var dampingSpeedCutoffs = CreateDampingSpeedCutoffsState(intents);
         var preferenceIntent = CreatePreferenceIntentState(intents, preferenceReplays);
+        var screenState = CreateInputState(screenStates, SessionScreenPresentationState.Ready);
+        var operationState = CreateInputState(operationStates, SessionOperationPresentationState.Hidden);
         var derivedIntentState = selectedPageIndex
             .CombineLatest(
                 analysisRange,
@@ -64,31 +87,43 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                     current.range,
                     current.cutoffs,
                     preferences));
+        var derivedPresentationState = screenState
+            .CombineLatest(
+                operationState,
+                static (screen, operation) => new DerivedPresentationState(screen, operation));
         var replayingState = legacyState
             .CombineLatest(
                 derivedIntentState,
-                static (state, derived) => state with
+                static (state, derived) => new { state, derived })
+            .CombineLatest(
+                derivedPresentationState,
+                static (current, presentation) => current.state with
                 {
-                    Preferences = state.Preferences with
+                    Preferences = current.state.Preferences with
                     {
-                        Analysis = derived.Preferences.Analysis,
-                        SignalDisplay = derived.Preferences.SignalDisplay,
-                        SignalLayout = derived.Preferences.SignalLayout,
-                        Layout = derived.Preferences.Layout,
+                        Analysis = current.derived.Preferences.Analysis,
+                        SignalDisplay = current.derived.Preferences.SignalDisplay,
+                        SignalLayout = current.derived.Preferences.SignalLayout,
+                        Layout = current.derived.Preferences.Layout,
                     },
-                    Intent = state.Intent with
+                    Intent = current.state.Intent with
                     {
-                        SelectedPageIndex = derived.SelectedPageIndex,
-                        AnalysisRange = ClampAnalysisRange(derived.AnalysisRange, state.TelemetryData),
-                        SelectedTravelDistributionMode = derived.Preferences.Analysis.TravelDistributionMode,
-                        SelectedBalanceDisplacementMode = derived.Preferences.Analysis.BalanceDisplacementMode,
-                        SelectedBalanceSpeedMode = derived.Preferences.Analysis.BalanceSpeedMode,
-                        SelectedVelocityAverageMode = derived.Preferences.Analysis.VelocityAverageMode,
-                        SelectedSessionInsightsTargetProfile = derived.Preferences.Analysis.SessionInsightsTargetProfile,
-                        DampingSpeedCutoffs = derived.DampingSpeedCutoffs,
-                        SignalDisplayPreferences = derived.Preferences.SignalDisplay,
-                        SignalLayoutPreferences = derived.Preferences.SignalLayout,
-                        LayoutPreferences = derived.Preferences.Layout,
+                        SelectedPageIndex = current.derived.SelectedPageIndex,
+                        AnalysisRange = ClampAnalysisRange(current.derived.AnalysisRange, current.state.TelemetryData),
+                        SelectedTravelDistributionMode = current.derived.Preferences.Analysis.TravelDistributionMode,
+                        SelectedBalanceDisplacementMode = current.derived.Preferences.Analysis.BalanceDisplacementMode,
+                        SelectedBalanceSpeedMode = current.derived.Preferences.Analysis.BalanceSpeedMode,
+                        SelectedVelocityAverageMode = current.derived.Preferences.Analysis.VelocityAverageMode,
+                        SelectedSessionInsightsTargetProfile = current.derived.Preferences.Analysis.SessionInsightsTargetProfile,
+                        DampingSpeedCutoffs = current.derived.DampingSpeedCutoffs,
+                        SignalDisplayPreferences = current.derived.Preferences.SignalDisplay,
+                        SignalLayoutPreferences = current.derived.Preferences.SignalLayout,
+                        LayoutPreferences = current.derived.Preferences.Layout,
+                    },
+                    Presentation = current.state.Presentation with
+                    {
+                        ScreenState = presentation.ScreenState,
+                        OperationState = presentation.OperationState,
                     },
                 })
             .DistinctUntilChanged()
@@ -136,6 +171,15 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                         pageCount);
                 })
             .Select(static state => state.SelectedPageIndex)
+            .DistinctUntilChanged()
+            .Replay(1)
+            .RefCount();
+    }
+
+    private static IObservable<T> CreateInputState<T>(IObservable<T> updates, T initialValue)
+    {
+        return updates
+            .StartWith(initialValue)
             .DistinctUntilChanged()
             .Replay(1)
             .RefCount();
@@ -282,4 +326,8 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         TelemetryTimeRange? AnalysisRange,
         DampingSpeedCutoffs DampingSpeedCutoffs,
         SessionPreferences Preferences);
+
+    private sealed record DerivedPresentationState(
+        SessionScreenPresentationState ScreenState,
+        SessionOperationPresentationState OperationState);
 }

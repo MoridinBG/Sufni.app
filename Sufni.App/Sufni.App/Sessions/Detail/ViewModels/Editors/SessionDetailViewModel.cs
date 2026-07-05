@@ -102,6 +102,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<RecordedSessionEditorState> editorStateInput = new();
     private readonly Subject<int> pageCountInput = new();
     private readonly Subject<SessionPreferences> preferenceReplayInput = new();
+    private readonly Subject<SessionScreenPresentationState> screenStateInput = new();
+    private readonly Subject<SessionOperationPresentationState> sessionOperationStateInput = new();
     private readonly RecordedSessionEditorStateController editorStateController;
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
     private readonly Func<IEditorFactory> editorFactory;
@@ -1431,7 +1433,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             editorStateInput,
             editorActions.Intents,
             pageCountInput,
-            preferenceReplayInput);
+            preferenceReplayInput,
+            screenStateInput,
+            sessionOperationStateInput);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
@@ -1978,7 +1982,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SessionContext.ScreenState = state;
         if (changed)
         {
-            PublishEditorState();
+            screenStateInput.OnNext(state);
         }
     }
 
@@ -1988,7 +1992,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SessionContext.SessionOperationState = state;
         if (changed)
         {
-            PublishEditorState();
+            sessionOperationStateInput.OnNext(state);
         }
     }
 
