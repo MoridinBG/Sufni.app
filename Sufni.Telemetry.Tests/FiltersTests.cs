@@ -157,6 +157,32 @@ public class FiltersTests
         Assert.Equal(firstResult, secondResult);
     }
 
+    [Theory]
+    [InlineData(5)]
+    [InlineData(51)]
+    public void Process_WithFixedDt_MatchesUniformTimeArray(int windowSize)
+    {
+        const double dt = 0.001;
+        var count = Math.Max(128, windowSize * 4);
+        var data = new double[count];
+        var time = new double[count];
+        for (var index = 0; index < count; index++)
+        {
+            time[index] = index * dt;
+            data[index] = 25.0 * Math.Sin(index / 9.0) + index * 0.25;
+        }
+
+        var filter = SavitzkyGolay.Create(windowSize, 1, 3);
+        var fromTime = filter.Process(data, time);
+        var fromDt = filter.Process(data, dt);
+        var interiorIndex = windowSize;
+        var borderIndex = 1;
+
+        AssertNearlyEqual(fromTime[borderIndex], fromDt[borderIndex]);
+        AssertNearlyEqual(fromTime[interiorIndex], fromDt[interiorIndex]);
+        AssertNearlyEqual(fromTime[^2], fromDt[^2]);
+    }
+
     [Fact]
     public void Process_NoisySignal_CalculatesVelocityAccurately()
     {
@@ -200,5 +226,13 @@ public class FiltersTests
 
         Assert.True(meanError < 15.0, $"Mean error {meanError:F2} units/s exceeds threshold");
         Assert.True(maxError < 40.0, $"Max error {maxError:F2} units/s exceeds threshold");
+    }
+
+    private static void AssertNearlyEqual(double expected, double actual)
+    {
+        var tolerance = Math.Max(1.0, Math.Abs(expected)) * 1e-12;
+        Assert.True(
+            Math.Abs(expected - actual) <= tolerance,
+            $"Expected {actual:R} to match {expected:R} within {tolerance:R}.");
     }
 }

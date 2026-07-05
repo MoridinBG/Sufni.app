@@ -90,6 +90,35 @@ public class TrackRepositoryTests
         Assert.Null(await database.FindTrackContainingTimestampAsync(null));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(17)]
+    public async Task GetTracksByIdsAsync_ReturnsActiveTracksForSmallInputCounts(int activeCount)
+    {
+        using var tempDatabase = new TempDatabase($"track-id-small-{activeCount}.db");
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var activeIds = Enumerable.Range(0, activeCount).Select(_ => Guid.NewGuid()).ToArray();
+
+        for (var i = 0; i < activeIds.Length; i++)
+        {
+            await database.PutAsync(new Track
+            {
+                Id = activeIds[i],
+                Points =
+                [
+                    new TrackPoint(100 + i, 1, 1, 10),
+                    new TrackPoint(101 + i, 2, 2, 11),
+                ],
+            });
+        }
+
+        var tracks = await database.GetTracksByIdsAsync(activeIds);
+
+        Assert.Equal(activeIds.Length, tracks.Count);
+        Assert.True(activeIds.ToHashSet().SetEquals(tracks.Select(track => track.Id)));
+    }
+
     [Fact]
     public async Task GetTracksByIdsAsync_ReturnsActiveTracksAcrossChunks()
     {
