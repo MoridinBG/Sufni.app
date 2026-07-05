@@ -9,6 +9,7 @@ using Sufni.App.Sessions.Analysis.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
+using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
@@ -17,6 +18,7 @@ internal sealed record RecordedSessionEditorStateInputs(
     IObservable<RecordedSessionEditorIntent> Intents,
     IObservable<int> PageCounts,
     IObservable<SessionPreferences> PreferenceReplays,
+    IObservable<RecordedSessionLoadPresentation> LoadPresentations,
     IObservable<SessionScreenPresentationState> ScreenStates,
     IObservable<SessionOperationPresentationState> OperationStates,
     IObservable<SurfacePresentationState> MapStates,
@@ -45,6 +47,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(inputs.Intents);
         ArgumentNullException.ThrowIfNull(inputs.PageCounts);
         ArgumentNullException.ThrowIfNull(inputs.PreferenceReplays);
+        ArgumentNullException.ThrowIfNull(inputs.LoadPresentations);
         ArgumentNullException.ThrowIfNull(inputs.ScreenStates);
         ArgumentNullException.ThrowIfNull(inputs.OperationStates);
         ArgumentNullException.ThrowIfNull(inputs.MapStates);
@@ -63,18 +66,30 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(inputs.DomainStates);
 
         var selectedPageIndex = CreateSelectedPageIndexState(inputs.Intents, inputs.PageCounts);
-        var loadedDataState = CreateOptionalInputState(inputs.LoadedDataStates);
+        var loadPresentationState = CreateInputState(
+            inputs.LoadPresentations,
+            new RecordedSessionLoadPresentation.Empty());
+        var loadedDataState = CreateOptionalInputState(inputs.LoadedDataStates.Merge(
+            loadPresentationState.Select(CreateLoadedDataFromLoadPresentation)));
         var analysisRange = CreateAnalysisRangeState(inputs.Intents, loadedDataState);
         var dampingSpeedCutoffs = CreateDampingSpeedCutoffsState(inputs.Intents);
         var preferenceIntent = CreatePreferenceIntentState(inputs.Intents, inputs.PreferenceReplays);
-        var screenState = CreateInputState(inputs.ScreenStates, SessionScreenPresentationState.Ready);
+        var screenState = CreateInputState(
+            inputs.ScreenStates.Merge(loadPresentationState.Select(CreateScreenStateFromLoadPresentation)),
+            SessionScreenPresentationState.Ready);
         var operationState = CreateInputState(inputs.OperationStates, SessionOperationPresentationState.Hidden);
-        var mapState = CreateInputState(inputs.MapStates, SurfacePresentationState.Hidden);
+        var mapState = CreateInputState(
+            inputs.MapStates.Merge(loadPresentationState.Select(CreateMapStateFromLoadPresentation)),
+            SurfacePresentationState.Hidden);
         var mediaPaneState = CreateInputState(inputs.MediaPaneStates, SurfacePresentationState.Hidden);
-        var mediaColumnWidth = CreateInputState(inputs.MediaColumnWidths, (double?)null);
+        var mediaColumnWidth = CreateInputState(
+            inputs.MediaColumnWidths.Merge(loadPresentationState.Select(CreateMediaColumnWidthFromLoadPresentation)),
+            (double?)null);
         var mediaUrl = CreateInputState(inputs.MediaUrls, (string?)null);
         var analysisPresentation = CreateInputState(
-            inputs.AnalysisPresentationStates,
+            inputs.AnalysisPresentationStates.Merge(loadPresentationState.CombineLatest(
+                analysisRange,
+                static (load, analysis) => CreateAnalysisPresentationFromLoadPresentation(load, analysis.AnalysisRange))),
             CreateHiddenAnalysisPresentationState());
         var dampingPercentageState = CreateInputState(
             inputs.DampingPercentages,
@@ -88,8 +103,11 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var sessionInsightsState = CreateInputState(
             inputs.SessionInsights,
             SessionInsightsResult.Hidden);
+        var signalAvailabilityState = CreateInputState(
+            loadPresentationState.Select(CreateSignalAvailabilityFromLoadPresentation),
+            CreateHiddenSignalAvailabilityState());
         var signalPresentationState = CreateInputState(
-            inputs.SignalPresentationStates,
+            inputs.SignalPresentationStates.Merge(loadPresentationState.Select(CreateSignalPresentationFromLoadPresentation)),
             CreateHiddenSignalPresentationState());
         var analysisSelectionState = CreateAnalysisSelectionState(
             inputs.Intents,
@@ -143,29 +161,35 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                 derivedMediaState,
                 static (current, media) => new { current.state, current.derived, current.presentation, media })
             .CombineLatest(
+                loadPresentationState,
+                static (current, load) => new { current.state, current.derived, current.presentation, current.media, load })
+            .CombineLatest(
                 analysisPresentation,
-                static (current, analysis) => new { current.state, current.derived, current.presentation, current.media, analysis })
+                static (current, analysis) => new { current.state, current.derived, current.presentation, current.media, current.load, analysis })
             .CombineLatest(
                 dampingPercentageState,
-                static (current, percentages) => new { current.state, current.derived, current.presentation, current.media, current.analysis, percentages })
+                static (current, percentages) => new { current.state, current.derived, current.presentation, current.media, current.load, current.analysis, percentages })
             .CombineLatest(
                 plotDampingSpeedCutoffState,
-                static (current, plotCutoffs) => new { current.state, current.derived, current.presentation, current.media, current.analysis, current.percentages, plotCutoffs })
+                static (current, plotCutoffs) => new { current.state, current.derived, current.presentation, current.media, current.load, current.analysis, current.percentages, plotCutoffs })
             .CombineLatest(
                 canEditDampingSpeedCutoffState,
-                static (current, canEditCutoffs) => new { current.state, current.derived, current.presentation, current.media, current.analysis, current.percentages, current.plotCutoffs, canEditCutoffs })
+                static (current, canEditCutoffs) => new { current.state, current.derived, current.presentation, current.media, current.load, current.analysis, current.percentages, current.plotCutoffs, canEditCutoffs })
             .CombineLatest(
                 sessionInsightsState,
-                static (current, insights) => new { current.state, current.derived, current.presentation, current.media, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, insights })
+                static (current, insights) => new { current.state, current.derived, current.presentation, current.media, current.load, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, insights })
+            .CombineLatest(
+                signalAvailabilityState,
+                static (current, signalAvailability) => new { current.state, current.derived, current.presentation, current.media, current.load, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, current.insights, signalAvailability })
             .CombineLatest(
                 signalPresentationState,
-                static (current, signals) => new { current.state, current.derived, current.presentation, current.media, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, current.insights, signals })
+                static (current, signals) => new { current.state, current.derived, current.presentation, current.media, current.load, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, current.insights, current.signalAvailability, signals })
             .CombineLatest(
                 analysisSelectionState,
-                static (current, analysisSelection) => new { current.state, current.derived, current.presentation, current.media, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, current.insights, current.signals, analysisSelection })
+                static (current, analysisSelection) => new { current.state, current.derived, current.presentation, current.media, current.load, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, current.insights, current.signalAvailability, current.signals, analysisSelection })
             .CombineLatest(
                 loadedDataState,
-                static (current, loadedData) => new { current.state, current.derived, current.presentation, current.media, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, current.insights, current.signals, current.analysisSelection, loadedData })
+                static (current, loadedData) => new { current.state, current.derived, current.presentation, current.media, current.load, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, current.insights, current.signalAvailability, current.signals, current.analysisSelection, loadedData })
             .CombineLatest(
                 signalPlotContextMenuActionState,
                 static (current, signalPlotContextMenuActions) => new
@@ -174,11 +198,13 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                     current.derived,
                     current.presentation,
                     current.media,
+                    current.load,
                     current.analysis,
                     current.percentages,
                     current.plotCutoffs,
                     current.canEditCutoffs,
                     current.insights,
+                    current.signalAvailability,
                     current.signals,
                     current.analysisSelection,
                     current.loadedData,
@@ -198,6 +224,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                     return current.state with
                     {
                         Domain = domain ?? current.state.Domain,
+                        Load = current.load,
                         Session = loaded.Session,
                         TelemetryData = loaded.TelemetryData,
                         FullTrackPoints = loaded.FullTrackPoints,
@@ -225,6 +252,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                             MediaPaneState = current.media.MediaPaneState,
                             MediaColumnWidth = current.media.MediaColumnWidth,
                             MediaUrl = current.media.MediaUrl,
+                            SignalAvailability = current.signalAvailability,
                             Signals = current.signals,
                             Analysis = current.analysis,
                             DampingPercentages = current.percentages,
@@ -261,6 +289,143 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
     private static IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> CreateEmptySignalPlotContextMenuActions()
     {
         return new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
+    }
+
+    private static RecordedSessionLoadedData CreateLoadedDataFromLoadPresentation(
+        RecordedSessionLoadPresentation load)
+    {
+        if (load is not RecordedSessionLoadPresentation.Loaded loaded)
+        {
+            return new RecordedSessionLoadedData(
+                Session: null,
+                TelemetryData: null,
+                FullTrackPoints: null,
+                TrackPoints: null,
+                TrackTimelineContext: null);
+        }
+
+        var telemetry = loaded.Data.TelemetryPresentation;
+        return new RecordedSessionLoadedData(
+            Session: null,
+            TelemetryData: telemetry.TelemetryData,
+            FullTrackPoints: telemetry.FullTrackPoints,
+            TrackPoints: telemetry.TrackPoints,
+            TrackTimelineContext: null);
+    }
+
+    private static SessionScreenPresentationState CreateScreenStateFromLoadPresentation(
+        RecordedSessionLoadPresentation load)
+    {
+        return load switch
+        {
+            RecordedSessionLoadPresentation.IncompleteLocalData incomplete =>
+                SessionScreenPresentationState.IncompleteLocalData(
+                    FormatIncompleteLocalDataMessage(incomplete.Missing)),
+            RecordedSessionLoadPresentation.Failed failed =>
+                SessionScreenPresentationState.Error($"Could not load session data: {failed.ErrorMessage}"),
+            _ => SessionScreenPresentationState.Ready,
+        };
+    }
+
+    private static SurfacePresentationState CreateMapStateFromLoadPresentation(
+        RecordedSessionLoadPresentation load)
+    {
+        return load switch
+        {
+            RecordedSessionLoadPresentation.Loading loading => loading.MapExpected
+                ? SurfacePresentationState.Loading("Loading map data.")
+                : SurfacePresentationState.Hidden,
+            RecordedSessionLoadPresentation.Loaded loaded =>
+                RecordedSessionPresentationDeriver.CreateMapState(
+                    loaded.Data.TelemetryPresentation.TrackPoints,
+                    loaded.Data.TelemetryPresentation.FullTrackId is not null),
+            _ => SurfacePresentationState.Hidden,
+        };
+    }
+
+    private static double? CreateMediaColumnWidthFromLoadPresentation(
+        RecordedSessionLoadPresentation load)
+    {
+        return load is RecordedSessionLoadPresentation.Loaded loaded
+            ? loaded.Data.TelemetryPresentation.MediaColumnWidth
+            : null;
+    }
+
+    private static RecordedSignalAvailabilityState CreateSignalAvailabilityFromLoadPresentation(
+        RecordedSessionLoadPresentation load)
+    {
+        return load is RecordedSessionLoadPresentation.Loaded loaded
+            ? RecordedSessionPresentationDeriver.CreateSignalAvailability(
+                loaded.Data.TelemetryPresentation.TelemetryData,
+                loaded.Data.TelemetryPresentation.TrackPoints)
+            : CreateHiddenSignalAvailabilityState();
+    }
+
+    private static RecordedSignalPresentationState CreateSignalPresentationFromLoadPresentation(
+        RecordedSessionLoadPresentation load)
+    {
+        return load switch
+        {
+            RecordedSessionLoadPresentation.Loading loading =>
+                RecordedSessionPresentationDeriver.CreateLoadingSignalPresentation(loading.MapExpected),
+            RecordedSessionLoadPresentation.Loaded loaded =>
+                RecordedSessionPresentationDeriver.CreateSignalPresentation(
+                    loaded.Data.TelemetryPresentation.TelemetryData,
+                    loaded.Data.TelemetryPresentation.TrackPoints),
+            _ => CreateHiddenSignalPresentationState(),
+        };
+    }
+
+    private static RecordedAnalysisPresentationState CreateAnalysisPresentationFromLoadPresentation(
+        RecordedSessionLoadPresentation load,
+        TelemetryTimeRange? analysisRange)
+    {
+        if (load is RecordedSessionLoadPresentation.Loading)
+        {
+            return RecordedSessionPresentationDeriver.CreateLoadingAnalysisPresentationState();
+        }
+
+        if (load is not RecordedSessionLoadPresentation.Loaded loaded)
+        {
+            return CreateHiddenAnalysisPresentationState();
+        }
+
+        return RecordedSessionPresentationDeriver.CreateAnalysisPresentation(
+            loaded.Data.TelemetryPresentation.TelemetryData,
+            analysisRange,
+            HasFrontCacheAnalysis(loaded.Data.CachePresentation),
+            HasRearCacheAnalysis(loaded.Data.CachePresentation),
+            loaded.Data.CachePresentation.BalanceAvailable);
+    }
+
+    private static bool HasFrontCacheAnalysis(SessionCachePresentationData data)
+    {
+        return !string.IsNullOrWhiteSpace(data.FrontTravelDistribution)
+               || !string.IsNullOrWhiteSpace(data.FrontVelocityDistribution);
+    }
+
+    private static bool HasRearCacheAnalysis(SessionCachePresentationData data)
+    {
+        return !string.IsNullOrWhiteSpace(data.RearTravelDistribution)
+               || !string.IsNullOrWhiteSpace(data.RearVelocityDistribution);
+    }
+
+    private static string FormatIncompleteLocalDataMessage(MissingSessionData missing)
+    {
+        var missingParts = new List<string>();
+        if (missing.ProcessedTelemetryBlob)
+        {
+            missingParts.Add("processed telemetry");
+        }
+
+        if (missing.RecordedSourceMissingOrHashMismatch)
+        {
+            missingParts.Add("recorded source");
+        }
+
+        return missingParts.Count == 0
+            ? "Local session data is incomplete. Run sync and try again."
+            : $"Local session data is incomplete: {string.Join(", ", missingParts)}. Run sync and try again.";
     }
 
     private static IObservable<int> CreateSelectedPageIndexState(
@@ -333,6 +498,17 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             PitchRollHeaderActions: [],
             SpeedHeaderActions: [],
             ElevationHeaderActions: []);
+    }
+
+    private static RecordedSignalAvailabilityState CreateHiddenSignalAvailabilityState()
+    {
+        return new RecordedSignalAvailabilityState(
+            Travel: false,
+            Velocity: false,
+            Imu: false,
+            PitchRoll: false,
+            Speed: false,
+            Elevation: false);
     }
 
     private static IObservable<T> CreateInputState<T>(IObservable<T> updates, T initialValue)

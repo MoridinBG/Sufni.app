@@ -24,6 +24,7 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
                 Actions.Intents,
                 PageCounts,
                 PreferenceReplays,
+                LoadPresentations,
                 ScreenStates,
                 OperationStates,
                 MapStates,
@@ -45,6 +46,7 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
     public RecordedSessionEditorActions Actions { get; } = new();
     public Subject<int> PageCounts { get; } = new();
     public Subject<SessionPreferences> PreferenceReplays { get; } = new();
+    public Subject<RecordedSessionLoadPresentation> LoadPresentations { get; } = new();
     public Subject<SessionScreenPresentationState> ScreenStates { get; } = new();
     public Subject<SessionOperationPresentationState> OperationStates { get; } = new();
     public Subject<SurfacePresentationState> MapStates { get; } = new();
@@ -89,6 +91,7 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
         Actions.Dispose();
         PageCounts.Dispose();
         PreferenceReplays.Dispose();
+        LoadPresentations.Dispose();
         ScreenStates.Dispose();
         OperationStates.Dispose();
         MapStates.Dispose();

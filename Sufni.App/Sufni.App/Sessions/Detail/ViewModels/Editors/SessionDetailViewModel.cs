@@ -102,6 +102,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly RecordedSessionEditorEffects editorEffects;
     private readonly Subject<int> pageCountInput = new();
     private readonly Subject<SessionPreferences> preferenceReplayInput = new();
+    private readonly Subject<RecordedSessionLoadPresentation> loadPresentationInput = new();
     private readonly Subject<SessionScreenPresentationState> screenStateInput = new();
     private readonly Subject<SessionOperationPresentationState> sessionOperationStateInput = new();
     private readonly Subject<SurfacePresentationState> mapStateInput = new();
@@ -1379,6 +1380,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 editorActions.Intents,
                 pageCountInput,
                 preferenceReplayInput,
+                loadPresentationInput,
                 screenStateInput,
                 sessionOperationStateInput,
                 mapStateInput,

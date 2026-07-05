@@ -17,6 +17,7 @@ namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
 internal sealed record RecordedSessionEditorState(
     RecordedSessionDomainSnapshot? Domain,
+    RecordedSessionLoadPresentation Load,
     SessionSnapshot? Session,
     TelemetryData? TelemetryData,
     IReadOnlyList<TrackPoint>? FullTrackPoints,
@@ -32,6 +33,7 @@ internal sealed record RecordedSessionEditorState(
         var preferences = SessionPreferences.Default;
         return new RecordedSessionEditorState(
             Domain: null,
+            Load: new RecordedSessionLoadPresentation.Empty(),
             Session: null,
             TelemetryData: null,
             FullTrackPoints: null,
@@ -56,6 +58,7 @@ internal sealed record RecordedSessionEditorState(
                 MediaPaneState: SurfacePresentationState.Hidden,
                 MediaColumnWidth: null,
                 MediaUrl: null,
+                SignalAvailability: CreateHiddenSignalAvailabilityState(),
                 Signals: CreateHiddenSignalPresentationState(),
                 Analysis: CreateHiddenAnalysisPresentationState(),
                 DampingPercentages: SessionDampingPercentages.Empty,
@@ -82,6 +85,17 @@ internal sealed record RecordedSessionEditorState(
             FrontFrameVibration: SurfacePresentationState.Hidden,
             RearForkVibration: SurfacePresentationState.Hidden,
             RearFrameVibration: SurfacePresentationState.Hidden);
+    }
+
+    private static RecordedSignalAvailabilityState CreateHiddenSignalAvailabilityState()
+    {
+        return new RecordedSignalAvailabilityState(
+            Travel: false,
+            Velocity: false,
+            Imu: false,
+            PitchRoll: false,
+            Speed: false,
+            Elevation: false);
     }
 
     private static RecordedSignalPresentationState CreateHiddenSignalPresentationState()
@@ -155,6 +169,7 @@ internal sealed record RecordedSessionEditorPresentationState(
     SurfacePresentationState MediaPaneState,
     double? MediaColumnWidth,
     string? MediaUrl,
+    RecordedSignalAvailabilityState SignalAvailability,
     RecordedSignalPresentationState Signals,
     RecordedAnalysisPresentationState Analysis,
     SessionDampingPercentages DampingPercentages,

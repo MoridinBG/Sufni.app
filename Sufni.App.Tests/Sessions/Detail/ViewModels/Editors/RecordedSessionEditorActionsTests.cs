@@ -10,6 +10,7 @@ using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
+using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
@@ -403,6 +404,130 @@ public class RecordedSessionEditorActionsTests
         Assert.Equal(SurfacePresentationState.Ready, observed[^1].MediaPaneState);
         Assert.Equal(mediaColumnWidth, observed[^1].MediaColumnWidth);
         Assert.Equal(mediaUrl, observed[^1].MediaUrl);
+    }
+
+    [Fact]
+    public void StateController_DerivesLoadingPresentation_FromLoadPresentation()
+    {
+        using var driver = new RecordedSessionEditorStateControllerTestDriver();
+        var observed = new List<RecordedSessionEditorState>();
+        using var subscription = driver.Controller.State.Subscribe(observed.Add);
+
+        driver.LoadPresentations.OnNext(new RecordedSessionLoadPresentation.Loading(MapExpected: true));
+
+        var state = observed[^1];
+        Assert.IsType<RecordedSessionLoadPresentation.Loading>(state.Load);
+        Assert.Equal(SurfaceStateKind.Loading, state.Presentation.MapState.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, state.Presentation.Signals.Travel.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, state.Presentation.Signals.Velocity.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, state.Presentation.Signals.Speed.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, state.Presentation.Signals.Elevation.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, state.Presentation.Analysis.FrontAnalysis.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, state.Presentation.Analysis.RearAnalysis.Kind);
+        Assert.False(state.Presentation.SignalAvailability.Travel);
+        Assert.False(state.Presentation.SignalAvailability.Speed);
+    }
+
+    [Fact]
+    public void StateController_DerivesLoadedSignalAvailability_FromTelemetry()
+    {
+        using var driver = new RecordedSessionEditorStateControllerTestDriver();
+        var observed = new List<RecordedSessionEditorState>();
+        using var subscription = driver.Controller.State.Subscribe(observed.Add);
+        var telemetry = TestTelemetryData.CreateWithImu();
+
+        driver.LoadPresentations.OnNext(CreateLoadedPresentation(telemetry));
+
+        var state = observed[^1];
+        Assert.IsType<RecordedSessionLoadPresentation.Loaded>(state.Load);
+        Assert.Same(telemetry, state.TelemetryData);
+        Assert.True(state.Presentation.SignalAvailability.Travel);
+        Assert.True(state.Presentation.SignalAvailability.Velocity);
+        Assert.True(state.Presentation.SignalAvailability.Imu);
+        Assert.True(state.Presentation.SignalAvailability.PitchRoll);
+        Assert.False(state.Presentation.SignalAvailability.Speed);
+        Assert.False(state.Presentation.SignalAvailability.Elevation);
+        Assert.Equal(SurfaceStateKind.Ready, state.Presentation.Signals.Travel.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, state.Presentation.Signals.Velocity.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, state.Presentation.Signals.Imu.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, state.Presentation.Signals.PitchRoll.Kind);
+        Assert.True(state.Presentation.Signals.Speed.IsHidden);
+        Assert.True(state.Presentation.Signals.Elevation.IsHidden);
+    }
+
+    [Fact]
+    public void StateController_DerivesLoadedTrackSignalAvailability_FromTrackPoints()
+    {
+        using var driver = new RecordedSessionEditorStateControllerTestDriver();
+        var observed = new List<RecordedSessionEditorState>();
+        using var subscription = driver.Controller.State.Subscribe(observed.Add);
+        List<TrackPoint> trackPoints =
+        [
+            new TrackPoint(0, 1, 2, 10, speed: 5),
+            new TrackPoint(1, 2, 3, 12, speed: 6),
+        ];
+
+        driver.LoadPresentations.OnNext(CreateLoadedPresentation(
+            TestTelemetryData.CreateMinimal(),
+            trackPoints: trackPoints,
+            fullTrackId: Guid.NewGuid()));
+
+        var state = observed[^1];
+        Assert.Same(trackPoints, state.TrackPoints);
+        Assert.True(state.Presentation.SignalAvailability.Speed);
+        Assert.True(state.Presentation.SignalAvailability.Elevation);
+        Assert.Equal(SurfaceStateKind.Ready, state.Presentation.Signals.Speed.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, state.Presentation.Signals.Elevation.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, state.Presentation.MapState.Kind);
+    }
+
+    [Fact]
+    public void StateController_RederivesAnalysisPresentation_WhenAnalysisRangeChanges()
+    {
+        using var driver = new RecordedSessionEditorStateControllerTestDriver();
+        var observed = new List<RecordedAnalysisPresentationState>();
+        using var subscription = driver.Controller.State.Subscribe(state => observed.Add(state.Presentation.Analysis));
+        var telemetry = TestTelemetryData.CreateMinimal(duration: 4.0);
+
+        driver.LoadPresentations.OnNext(CreateLoadedPresentation(telemetry));
+        driver.Actions.SetAnalysisRange(new TelemetryTimeRange(1.0, 2.0));
+
+        Assert.Contains(observed, state => state.FrontAnalysis.Message == "No analysis data.");
+        Assert.Equal("No analysis data for the selected range.", observed[^1].FrontAnalysis.Message);
+        Assert.Equal("No analysis data for the selected range.", observed[^1].RearAnalysis.Message);
+    }
+
+    [Fact]
+    public void StateController_DerivesIncompleteAndFailedPresentation_FromLoadPresentation()
+    {
+        using var driver = new RecordedSessionEditorStateControllerTestDriver();
+        var observed = new List<RecordedSessionEditorState>();
+        using var subscription = driver.Controller.State.Subscribe(observed.Add);
+
+        driver.LoadPresentations.OnNext(new RecordedSessionLoadPresentation.IncompleteLocalData(
+            new MissingSessionData(
+                ProcessedTelemetryBlob: true,
+                RecordedSourceMissingOrHashMismatch: true),
+            HasProcessedData: false));
+
+        var incomplete = observed[^1];
+        Assert.IsType<RecordedSessionLoadPresentation.IncompleteLocalData>(incomplete.Load);
+        Assert.Equal(SessionScreenStateKind.IncompleteLocalData, incomplete.Presentation.ScreenState.Kind);
+        Assert.Contains("processed telemetry", incomplete.Presentation.ScreenState.Message);
+        Assert.Contains("recorded source", incomplete.Presentation.ScreenState.Message);
+        Assert.True(incomplete.Presentation.MapState.IsHidden);
+        Assert.True(incomplete.Presentation.Analysis.FrontAnalysis.IsHidden);
+        Assert.False(incomplete.Presentation.SignalAvailability.Travel);
+
+        driver.LoadPresentations.OnNext(new RecordedSessionLoadPresentation.Failed("boom"));
+
+        var failed = observed[^1];
+        Assert.IsType<RecordedSessionLoadPresentation.Failed>(failed.Load);
+        Assert.Equal(SessionScreenStateKind.Error, failed.Presentation.ScreenState.Kind);
+        Assert.Contains("boom", failed.Presentation.ScreenState.Message);
+        Assert.True(failed.Presentation.MapState.IsHidden);
+        Assert.True(failed.Presentation.Analysis.FrontAnalysis.IsHidden);
+        Assert.False(failed.Presentation.SignalAvailability.Travel);
     }
 
     [Fact]
@@ -980,6 +1105,7 @@ public class RecordedSessionEditorActionsTests
 
         return new RecordedSessionEditorState(
             Domain: null,
+            Load: new RecordedSessionLoadPresentation.Empty(),
             Session: null,
             TelemetryData: telemetryData,
             FullTrackPoints: null,
@@ -1004,6 +1130,13 @@ public class RecordedSessionEditorActionsTests
                 MediaPaneState: SurfacePresentationState.Hidden,
                 MediaColumnWidth: null,
                 MediaUrl: null,
+                SignalAvailability: new RecordedSignalAvailabilityState(
+                    Travel: false,
+                    Velocity: false,
+                    Imu: false,
+                    PitchRoll: false,
+                    Speed: false,
+                    Elevation: false),
                 Signals: new RecordedSignalPresentationState(
                     Travel: SurfacePresentationState.Hidden,
                     Velocity: SurfacePresentationState.Hidden,
@@ -1049,6 +1182,33 @@ public class RecordedSessionEditorActionsTests
                 ActiveFront: null,
                 ActiveRear: null,
                 HighlightRanges: []));
+    }
+
+    private static RecordedSessionLoadPresentation.Loaded CreateLoadedPresentation(
+        TelemetryData telemetry,
+        List<TrackPoint>? fullTrackPoints = null,
+        List<TrackPoint>? trackPoints = null,
+        Guid? fullTrackId = null,
+        double? mediaColumnWidth = null,
+        SessionCachePresentationData? cache = null)
+    {
+        return new RecordedSessionLoadPresentation.Loaded(new SessionDetailData(
+            new SessionTelemetryPresentationData(
+                telemetry,
+                fullTrackId,
+                fullTrackPoints,
+                trackPoints,
+                mediaColumnWidth,
+                SessionDampingPercentages.Empty),
+            cache ?? new SessionCachePresentationData(
+                FrontTravelDistribution: "front-travel",
+                RearTravelDistribution: "rear-travel",
+                FrontVelocityDistribution: "front-velocity",
+                RearVelocityDistribution: "rear-velocity",
+                CompressionBalance: "compression",
+                ReboundBalance: "rebound",
+                DampingPercentages: SessionDampingPercentages.Empty,
+                BalanceAvailable: true)));
     }
 
     private static RecordedSessionDomainSnapshot CreateDomain(

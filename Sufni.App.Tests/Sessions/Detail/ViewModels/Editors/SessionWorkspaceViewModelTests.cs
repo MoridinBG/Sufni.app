@@ -391,6 +391,7 @@ public class SessionWorkspaceViewModelTests
         var preferences = SessionPreferences.Default;
         return new RecordedSessionEditorState(
             Domain: null,
+            Load: new RecordedSessionLoadPresentation.Empty(),
             Session: null,
             TelemetryData: null,
             FullTrackPoints: null,
@@ -415,6 +416,13 @@ public class SessionWorkspaceViewModelTests
                 MediaPaneState: SurfacePresentationState.Hidden,
                 MediaColumnWidth: null,
                 MediaUrl: null,
+                SignalAvailability: new RecordedSignalAvailabilityState(
+                    Travel: false,
+                    Velocity: false,
+                    Imu: false,
+                    PitchRoll: false,
+                    Speed: false,
+                    Elevation: false),
                 Signals: new RecordedSignalPresentationState(
                     Travel: travelSignalState ?? SurfacePresentationState.Hidden,
                     Velocity: SurfacePresentationState.Hidden,
