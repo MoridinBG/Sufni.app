@@ -120,9 +120,12 @@ public class SessionCoordinatorTests
             DampingSpeedCutoffs: cutoffs ?? DampingSpeedCutoffs.Default,
             BalanceAvailable: false);
 
+    private SessionCommandService CreateCommandService(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
+        CreateCommandService(sessionPersistenceTransactions, layoutProfile);
+
     private SessionCommandService CreateCommandService(
-        UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace,
-        ISessionPersistenceTransactionRunner? transactionRunner = null) =>
+        ISessionPersistenceTransactionRunner transactionRunner,
+        UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
         new(
             sessionStore,
             sessionRepository,
@@ -139,7 +142,7 @@ public class SessionCoordinatorTests
             () => editorFactory,
             derivationWindowCache,
             derivationWindowProvider,
-            transactionRunner ?? sessionPersistenceTransactions);
+            transactionRunner);
 
     private SessionCoordinator CreateCoordinator(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
         new(
@@ -625,7 +628,7 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
-    public async Task DeleteAsync_UsesTransactionRunner_WhenProvided()
+    public async Task DeleteAsync_UsesTransactionRunner()
     {
         var id = Guid.NewGuid();
         var trackId = Guid.NewGuid();
@@ -640,7 +643,7 @@ public class SessionCoordinatorTests
                 Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
 
-        var result = await CreateCommandService(transactionRunner: transactionRunner)
+        var result = await CreateCommandService(transactionRunner)
             .DeleteAsync(id);
 
         Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
