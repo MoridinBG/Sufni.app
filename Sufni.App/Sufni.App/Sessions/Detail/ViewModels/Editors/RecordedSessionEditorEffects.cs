@@ -18,7 +18,7 @@ internal abstract record RecordedSessionEditorEffect
 
     public sealed record SyncMapMedia(RecordedSessionLoadedData LoadedData) : RecordedSessionEditorEffect;
 
-    public sealed record RefreshCommands(RecordedSessionEditorState State) : RecordedSessionEditorEffect;
+    public sealed record RefreshCommands(RecordedSessionLoadedData LoadedData) : RecordedSessionEditorEffect;
 
     public sealed record EvaluateRecomputeStaleness(RecordedSessionEditorState State) : RecordedSessionEditorEffect;
 
@@ -131,6 +131,22 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
                 state.TrackTimelineContext))
             .DistinctUntilChanged()
             .Select(static loadedData => new RecordedSessionEditorEffect.SyncMapMedia(loadedData));
+    }
+
+    public static IObservable<RecordedSessionEditorEffect> CommandRefresh(
+        IObservable<RecordedSessionEditorState> states)
+    {
+        ArgumentNullException.ThrowIfNull(states);
+
+        return states
+            .Select(static state => new RecordedSessionLoadedData(
+                state.Session,
+                state.TelemetryData,
+                state.FullTrackPoints,
+                state.TrackPoints,
+                state.TrackTimelineContext))
+            .DistinctUntilChanged()
+            .Select(static loadedData => new RecordedSessionEditorEffect.RefreshCommands(loadedData));
     }
 
     public static IObservable<RecordedSessionEditorEffect> ExplicitAnalysisRequests(

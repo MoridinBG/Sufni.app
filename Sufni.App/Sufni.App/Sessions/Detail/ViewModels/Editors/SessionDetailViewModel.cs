@@ -645,7 +645,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SessionContext.TrackPoints = points;
 
         RefreshTrackTimelineContext();
-        NotifyTimelineAlignmentCommandsCanExecuteChanged();
         if (telemetryData is not null)
         {
             presentationApplier.ApplyRecordedTrackSignalStates();
@@ -686,7 +685,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         pendingAnalysisRangeBoundary = null;
         ClearAnalysisSelections();
         RefreshTrackTimelineContext();
-        NotifyTimelineAlignmentCommandsCanExecuteChanged();
         if (value is null)
         {
             UpdateRecordedSessionExtensionHostState();
@@ -1445,6 +1443,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 RecordedSessionEditorEffects.TelemetryAnalysisRequests(editorStateController.State),
                 RecordedSessionEditorEffects.ExplicitAnalysisRequests(editorActions.Intents),
                 RecordedSessionEditorEffects.MapMediaSync(editorStateController.State),
+                RecordedSessionEditorEffects.CommandRefresh(editorStateController.State),
             ],
             ApplyRecordedSessionEditorEffect);
         signalRowActions = new SignalRowActionsController(
@@ -2225,6 +2224,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         if (effect is RecordedSessionEditorEffect.SyncMapMedia sync)
         {
             ApplyMapMediaSync(sync.LoadedData);
+            return;
+        }
+
+        if (effect is RecordedSessionEditorEffect.RefreshCommands)
+        {
+            NotifyTimelineAlignmentCommandsCanExecuteChanged();
         }
     }
 

@@ -832,6 +832,31 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void CommandRefresh_EmitsLoadedDataChanges()
+    {
+        using var states = new Subject<RecordedSessionEditorState>();
+        var effects = new List<RecordedSessionEditorEffect>();
+        using var subscription = RecordedSessionEditorEffects.CommandRefresh(states)
+            .Subscribe(effects.Add);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var initial = CreateState(selectedPageIndex: 0);
+        var loaded = initial with { TelemetryData = telemetry };
+
+        states.OnNext(initial);
+        states.OnNext(initial);
+        states.OnNext(loaded);
+
+        Assert.Collection(
+            effects,
+            effect => Assert.Null(Assert.IsType<RecordedSessionEditorEffect.RefreshCommands>(effect).LoadedData.TelemetryData),
+            effect =>
+            {
+                var refresh = Assert.IsType<RecordedSessionEditorEffect.RefreshCommands>(effect);
+                Assert.Same(telemetry, refresh.LoadedData.TelemetryData);
+            });
+    }
+
+    [Fact]
     public void PreferencePersistence_EmitsOnlyPreferenceIntents()
     {
         using var actions = new RecordedSessionEditorActions();
@@ -1051,14 +1076,16 @@ public class RecordedSessionEditorActionsTests
         var applied = new List<RecordedSessionEditorEffect>();
         var preferenceEffect = new RecordedSessionEditorEffect.PersistPreferences(
             new RecordedSessionEditorIntent.SetVelocityAverageMode(VelocityAverageMode.SampleAveraged));
-        var commandEffect = new RecordedSessionEditorEffect.RefreshCommands(CreateState(selectedPageIndex: 1));
+        var commandEffect = new RecordedSessionEditorEffect.RefreshCommands(
+            new RecordedSessionLoadedData(null, null, null, null, null));
         var effects = new RecordedSessionEditorEffects(source, applied.Add);
 
         source.OnNext(preferenceEffect);
         source.OnNext(preferenceEffect);
         source.OnNext(commandEffect);
         effects.Dispose();
-        source.OnNext(new RecordedSessionEditorEffect.RefreshCommands(CreateState(selectedPageIndex: 2)));
+        source.OnNext(new RecordedSessionEditorEffect.RefreshCommands(
+            new RecordedSessionLoadedData(null, TestTelemetryData.CreateProcessed(), null, null, null)));
 
         Assert.Collection(
             applied,
