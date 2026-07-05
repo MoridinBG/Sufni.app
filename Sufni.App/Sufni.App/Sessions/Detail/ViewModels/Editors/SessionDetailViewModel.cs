@@ -776,11 +776,33 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 return;
             }
 
+            var loadPresentation = CreateLoadPresentation(result, sessionStore.Get(Id) ?? currentSnapshot);
+            PublishLoadResultPresentation(loadPresentation);
             presentationApplier.ApplyLoadResult(result);
-            PublishLoadPresentation(CreateLoadPresentation(result, sessionStore.Get(Id) ?? currentSnapshot));
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
+        }
+    }
+
+    private void PublishLoadResultPresentation(RecordedSessionLoadPresentation presentation)
+    {
+        if (presentation is not RecordedSessionLoadPresentation.Loaded)
+        {
+            PublishLoadPresentation(presentation);
+            return;
+        }
+
+        suppressAnalysisRecompute = true;
+        suppressInsightsRecompute = true;
+        try
+        {
+            PublishLoadPresentation(presentation);
+        }
+        finally
+        {
+            suppressInsightsRecompute = false;
+            suppressAnalysisRecompute = false;
         }
     }
 

@@ -43,9 +43,6 @@ internal sealed class RecordedPagePresentationApplier
 
     public void ClearRecordedPresentation()
     {
-        owner.SetTelemetryData(null);
-        owner.SetFullTrackPoints(null);
-        owner.SetTrackPoints(null);
         owner.ApplyDampingPercentages(SessionDampingPercentages.Empty);
         springPage.FrontDistributionState = SurfacePresentationState.Hidden;
         springPage.RearDistributionState = SurfacePresentationState.Hidden;
@@ -73,10 +70,7 @@ internal sealed class RecordedPagePresentationApplier
                 var telemetryPresentation = loaded.Data.TelemetryPresentation;
                 var cachePresentation = loaded.Data.CachePresentation;
                 ApplyCachePresentation(cachePresentation);
-                owner.ApplyTelemetryDataWithoutAnalysisRecompute(telemetryPresentation.TelemetryData);
                 owner.SetSessionFullTrack(telemetryPresentation.FullTrackId);
-                owner.SetFullTrackPoints(telemetryPresentation.FullTrackPoints);
-                owner.SetTrackPoints(telemetryPresentation.TrackPoints);
                 owner.ApplyModeAwareDampingPercentages(telemetryPresentation.DampingPercentages);
                 owner.IsComplete = true;
                 break;
