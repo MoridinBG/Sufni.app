@@ -50,6 +50,13 @@ or feature wording evolve:
 - A service or factory owns infrastructure-facing work such as datastore construction, file-picker lifetime, platform integration, and explicit background execution.
 - Screen-scoped caches belong to the screen that owns their lifecycle. Recorded-session analysis uses a per-open-session result state for cancellation and cached records, backed by a shared stateless analysis computer.
 
+Persisted stores backed by `SourceCacheStoreBase` refresh full snapshots with
+DynamicData `EditDiff`, using each snapshot's value equality to add/update/remove
+only changed keys instead of clearing and repopulating the cache. Snapshot
+equality is therefore a UI contract. `BikeSnapshot` implements handwritten
+equality so two snapshots with fresh-but-equal `ImageBytes` arrays do not emit a
+spurious update.
+
 ## Layered Architecture
 
 ```mermaid
@@ -112,6 +119,13 @@ Thread ownership is explicit:
 - Services may still use UI-thread primitives for cadence or collection ownership (for example `DispatcherTimer`), but only the UI-bound collection mutation belongs back on the UI thread.
 - Singleton page view models do not imply always-on work. Browse lifetimes and store subscriptions attach in `Loaded` and tear down in `Unloaded`.
 - Prefer generated async-command state such as `Command.IsRunning` as the busy-state source of truth instead of maintaining duplicate booleans.
+- Plot views coalesce `RefreshPlot()` calls through one render-priority
+  dispatcher post. Multiple property/theme/reload triggers in the same UI turn
+  collapse into one ScottPlot refresh.
+- Recorded-session maps initialize lazily. `SessionDetailViewModel.SetMapState`
+  calls `MapViewModel.InitializeAsync()` only the first time the map state
+  reserves layout (`SurfacePresentationState.ReservesLayout`); `Hidden` map
+  state does not initialize the map.
 
 ### Cancellation & Result Coherence
 
@@ -128,6 +142,9 @@ Result application must still enforce coherence after awaited work returns:
 - A canceled or superseded workflow must not apply UI state, overwrite newer data, or clear busy indicators that belong to newer work.
 - The component that owns the current workflow identity should only clear or dispose its current cancellation state when the completing workflow is still the active one.
 - If multiple refresh triggers arrive while only the latest result matters, coalesce them or drop stale completions rather than partially merging old and new state.
+- `SessionListViewModel` coalesces row-change batches before rebuilding
+  date groups, so a multi-change store update produces one
+  `SynchronizeDateGroups` pass and preserves expansion state by group key.
 
 ## Result Shapes
 

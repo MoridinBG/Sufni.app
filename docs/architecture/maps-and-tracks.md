@@ -15,10 +15,10 @@
 
 ## Overview
 
-A DAQ device with a GPS module configured and connected emits GPS samples in V4 SST files (as a dedicated TLV chunk) and over the live preview stream (`GpsBatch` frames). Each fix is a `GpsRecord` with timestamp, latitude/longitude, altitude, speed, fix mode and error estimates (see [V4 Data Structures](acquisition.md#v4-data-structures)). When GPS data is present the map subsystem turns those records into a polyline on a tile-map background, anchored to the session's time range; when it is not, the map surface stays hidden (recorded sessions skip track creation, live sessions only expose the map row when the accepted session header carries a non-zero GPS fix rate).
+A DAQ device with a GPS module configured and connected emits GPS samples in V4/V5 SST files and over the live preview stream (`GpsBatch` frames). Each fix is a `GpsRecord` with timestamp, latitude/longitude, altitude, speed, fix mode and error estimates (see [Parsed Telemetry Data Structures](acquisition.md#parsed-telemetry-data-structures)). When GPS data is present the map subsystem turns those records into a polyline on a tile-map background, anchored to the session's time range; when it is not, the map surface stays hidden (recorded sessions skip track creation, live sessions only expose the map row when the accepted session header carries a non-zero GPS fix rate).
 
 ```
-GpsRecord[]                     (V4 chunk in SST or live GpsBatch frame)
+GpsRecord[]                     (SST GPS records or live GpsBatch frame)
   -> GpsTrackPointProjection    (filter unfixed, project lon/lat -> spherical mercator)
     -> Track.FromGpsRecords     (create or null if empty)
       -> PutProcessedSessionAsync(session, track, source)
