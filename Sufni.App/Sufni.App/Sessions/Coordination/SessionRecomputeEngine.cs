@@ -69,6 +69,7 @@ public interface ISessionRecomputeEngine
 public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
 {
     private static readonly ILogger logger = Log.ForContext<SessionRecomputeEngine>();
+    private static readonly int RecomputeAllMaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 2, 1, 4);
 
     private readonly ISessionStoreWriter sessionStore;
     private readonly ISessionRepository sessionRepository;
@@ -200,11 +201,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
 
         progress?.Report(new SessionRecomputeAllProgress(0, ids.Count));
 
-        // Scale the fan-out to the available hardware. Each RequestRecomputeAsync
-        // offloads its heavy reprocessing to the background task runner, so
-        // bounding concurrency to the processor count keeps the cores busy
-        // without oversubscribing them or flooding the shared DB connection.
-        var options = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
+        var options = new ParallelOptions { MaxDegreeOfParallelism = RecomputeAllMaxDegreeOfParallelism };
         await Parallel.ForEachAsync(ids, options, async (id, _) =>
         {
             var result = await RequestRecomputeAsync(id, reason);
