@@ -30,7 +30,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             legacyState,
             intents,
             pageCounts,
-            Observable.Empty<AnalysisPreferences>())
+            Observable.Empty<SessionPreferences>())
     {
     }
 
@@ -38,40 +38,50 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         IObservable<RecordedSessionEditorState> legacyState,
         IObservable<RecordedSessionEditorIntent> intents,
         IObservable<int> pageCounts,
-        IObservable<AnalysisPreferences> analysisPreferenceReplays)
+        IObservable<SessionPreferences> preferenceReplays)
     {
         ArgumentNullException.ThrowIfNull(legacyState);
         ArgumentNullException.ThrowIfNull(intents);
         ArgumentNullException.ThrowIfNull(pageCounts);
-        ArgumentNullException.ThrowIfNull(analysisPreferenceReplays);
+        ArgumentNullException.ThrowIfNull(preferenceReplays);
 
         var selectedPageIndex = CreateSelectedPageIndexState(intents, pageCounts);
         var analysisRange = CreateAnalysisRangeState(intents);
-        var analysisModes = CreateAnalysisModeState(intents, analysisPreferenceReplays);
+        var preferenceIntent = CreatePreferenceIntentState(intents, preferenceReplays);
         var derivedIntentState = selectedPageIndex
             .CombineLatest(
                 analysisRange,
                 static (pageIndex, range) => new { pageIndex, range })
             .CombineLatest(
-                analysisModes,
-                static (current, modes) => new DerivedIntentState(
+                preferenceIntent,
+                static (current, preferences) => new DerivedIntentState(
                     current.pageIndex,
                     current.range,
-                    modes));
+                    preferences));
         var replayingState = legacyState
             .CombineLatest(
                 derivedIntentState,
                 static (state, derived) => state with
                 {
+                    Preferences = state.Preferences with
+                    {
+                        Analysis = derived.Preferences.Analysis,
+                        SignalDisplay = derived.Preferences.SignalDisplay,
+                        SignalLayout = derived.Preferences.SignalLayout,
+                        Layout = derived.Preferences.Layout,
+                    },
                     Intent = state.Intent with
                     {
                         SelectedPageIndex = derived.SelectedPageIndex,
                         AnalysisRange = ClampAnalysisRange(derived.AnalysisRange, state.TelemetryData),
-                        SelectedTravelDistributionMode = derived.AnalysisModes.TravelDistributionMode,
-                        SelectedBalanceDisplacementMode = derived.AnalysisModes.BalanceDisplacementMode,
-                        SelectedBalanceSpeedMode = derived.AnalysisModes.BalanceSpeedMode,
-                        SelectedVelocityAverageMode = derived.AnalysisModes.VelocityAverageMode,
-                        SelectedSessionInsightsTargetProfile = derived.AnalysisModes.SessionInsightsTargetProfile,
+                        SelectedTravelDistributionMode = derived.Preferences.Analysis.TravelDistributionMode,
+                        SelectedBalanceDisplacementMode = derived.Preferences.Analysis.BalanceDisplacementMode,
+                        SelectedBalanceSpeedMode = derived.Preferences.Analysis.BalanceSpeedMode,
+                        SelectedVelocityAverageMode = derived.Preferences.Analysis.VelocityAverageMode,
+                        SelectedSessionInsightsTargetProfile = derived.Preferences.Analysis.SessionInsightsTargetProfile,
+                        SignalDisplayPreferences = derived.Preferences.SignalDisplay,
+                        SignalLayoutPreferences = derived.Preferences.SignalLayout,
+                        LayoutPreferences = derived.Preferences.Layout,
                     },
                 })
             .DistinctUntilChanged()
@@ -147,40 +157,64 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             .RefCount();
     }
 
-    private static IObservable<AnalysisPreferences> CreateAnalysisModeState(
+    private static IObservable<SessionPreferences> CreatePreferenceIntentState(
         IObservable<RecordedSessionEditorIntent> intents,
-        IObservable<AnalysisPreferences> preferenceReplays)
+        IObservable<SessionPreferences> preferenceReplays)
     {
         var userUpdates = intents
             .Select(static intent => intent switch
             {
                 RecordedSessionEditorIntent.SetTravelDistributionMode set =>
-                    new Func<AnalysisPreferences, AnalysisPreferences>(
-                        current => current with { TravelDistributionMode = set.Mode }),
+                    new Func<SessionPreferences, SessionPreferences>(
+                        current => current with
+                        {
+                            Analysis = current.Analysis with { TravelDistributionMode = set.Mode },
+                        }),
                 RecordedSessionEditorIntent.SetBalanceDisplacementMode set =>
-                    new Func<AnalysisPreferences, AnalysisPreferences>(
-                        current => current with { BalanceDisplacementMode = set.Mode }),
+                    new Func<SessionPreferences, SessionPreferences>(
+                        current => current with
+                        {
+                            Analysis = current.Analysis with { BalanceDisplacementMode = set.Mode },
+                        }),
                 RecordedSessionEditorIntent.SetBalanceSpeedMode set =>
-                    new Func<AnalysisPreferences, AnalysisPreferences>(
-                        current => current with { BalanceSpeedMode = set.Mode }),
+                    new Func<SessionPreferences, SessionPreferences>(
+                        current => current with
+                        {
+                            Analysis = current.Analysis with { BalanceSpeedMode = set.Mode },
+                        }),
                 RecordedSessionEditorIntent.SetVelocityAverageMode set =>
-                    new Func<AnalysisPreferences, AnalysisPreferences>(
-                        current => current with { VelocityAverageMode = set.Mode }),
+                    new Func<SessionPreferences, SessionPreferences>(
+                        current => current with
+                        {
+                            Analysis = current.Analysis with { VelocityAverageMode = set.Mode },
+                        }),
                 RecordedSessionEditorIntent.SetSessionInsightsTargetProfile set =>
-                    new Func<AnalysisPreferences, AnalysisPreferences>(
-                        current => current with { SessionInsightsTargetProfile = set.Profile }),
+                    new Func<SessionPreferences, SessionPreferences>(
+                        current => current with
+                        {
+                            Analysis = current.Analysis with { SessionInsightsTargetProfile = set.Profile },
+                        }),
+                RecordedSessionEditorIntent.SetSignalDisplayPreferences set =>
+                    new Func<SessionPreferences, SessionPreferences>(
+                        current => current with { SignalDisplay = set.Preferences }),
+                RecordedSessionEditorIntent.SetSignalLayoutPreferences set =>
+                    new Func<SessionPreferences, SessionPreferences>(
+                        current => current with { SignalLayout = set.Preferences }),
+                RecordedSessionEditorIntent.SetLayoutPreferences set =>
+                    new Func<SessionPreferences, SessionPreferences>(
+                        current => current with { Layout = set.Preferences }),
                 _ => null,
             })
             .Where(static update => update is not null)
             .Select(static update => update!);
 
         var replayUpdates = preferenceReplays
-            .Select(static preferences => new Func<AnalysisPreferences, AnalysisPreferences>(_ => preferences));
+            .Select(static preferences => new Func<SessionPreferences, SessionPreferences>(_ => preferences));
 
         return userUpdates
             .Merge(replayUpdates)
-            .StartWith(new Func<AnalysisPreferences, AnalysisPreferences>(static current => current))
-            .Scan(SessionPreferences.Default.Analysis, static (current, update) => update(current))
+            .StartWith(new Func<SessionPreferences, SessionPreferences>(static current => current))
+            .Scan(SessionPreferences.Default, static (current, update) => update(current))
             .DistinctUntilChanged()
             .Replay(1)
             .RefCount();
@@ -226,5 +260,5 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
     private sealed record DerivedIntentState(
         int SelectedPageIndex,
         TelemetryTimeRange? AnalysisRange,
-        AnalysisPreferences AnalysisModes);
+        SessionPreferences Preferences);
 }

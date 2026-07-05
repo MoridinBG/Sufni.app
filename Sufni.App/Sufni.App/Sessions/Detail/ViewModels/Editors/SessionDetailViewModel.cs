@@ -101,7 +101,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IDisposable editorActionsSubscription;
     private readonly Subject<RecordedSessionEditorState> editorStateInput = new();
     private readonly Subject<int> pageCountInput = new();
-    private readonly Subject<AnalysisPreferences> analysisPreferenceInput = new();
+    private readonly Subject<SessionPreferences> preferenceReplayInput = new();
     private readonly RecordedSessionEditorStateController editorStateController;
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
     private readonly Func<IEditorFactory> editorFactory;
@@ -199,6 +199,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private BalanceSpeedMode selectedBalanceSpeedMode = BalanceSpeedMode.Both;
     private VelocityAverageMode selectedVelocityAverageMode = VelocityAverageMode.SampleAveraged;
     private SessionInsightsTargetProfile selectedSessionInsightsTargetProfile = SessionInsightsTargetProfile.Trail;
+    private SignalDisplayPreferences signalDisplayPreferences = SessionPreferences.Default.SignalDisplay;
+    private SignalLayoutPreferences signalLayoutPreferences = SessionPreferences.Default.SignalLayout;
+    private SessionLayoutPreferences layoutPreferences = SessionPreferences.Default.Layout;
 
     #endregion Private fields
 
@@ -208,45 +211,21 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public NotesPageViewModel NotesPage { get; } = new();
     public SignalDisplayPreferences SignalDisplayPreferences
     {
-        get => field;
-        private set
-        {
-            SetProperty(ref field, value);
-        }
-    } = SessionPreferences.Default.SignalDisplay;
+        get => signalDisplayPreferences;
+        private set => SetProperty(ref signalDisplayPreferences, value);
+    }
 
     public SignalLayoutPreferences SignalLayoutPreferences
     {
-        get => field;
-        set
-        {
-            if (!SetProperty(ref field, value))
-            {
-                return;
-            }
-
-            recordedPreferenceStore.UpdateCurrent(current => current with { SignalLayout = value });
-            PublishEditorState();
-            recordedPreferenceStore.PersistChangeIfEnabled(current => current with { SignalLayout = value });
-        }
-    } = SessionPreferences.Default.SignalLayout;
+        get => signalLayoutPreferences;
+        set => editorActions.SetSignalLayoutPreferences(value);
+    }
 
     public SessionLayoutPreferences LayoutPreferences
     {
-        get => field;
-        set
-        {
-            if (!SetProperty(ref field, value))
-            {
-                return;
-            }
-
-            recordedPreferenceStore.UpdateCurrent(current => current with { Layout = value });
-            OnPropertyChanged(nameof(MediaLayoutPreferences));
-            PublishEditorState();
-            recordedPreferenceStore.PersistChangeIfEnabled(current => current with { Layout = value });
-        }
-    } = SessionPreferences.Default.Layout;
+        get => layoutPreferences;
+        set => editorActions.SetLayoutPreferences(value);
+    }
 
     public SessionPaneGroupPreferences? MediaLayoutPreferences
     {
@@ -1452,7 +1431,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             editorStateInput,
             editorActions.Intents,
             pageCountInput,
-            analysisPreferenceInput);
+            preferenceReplayInput);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
@@ -2156,6 +2135,60 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SetProperty(ref sessionOperationState, state.Presentation.OperationState, nameof(SessionOperationState));
     }
 
+    private bool ApplySignalDisplayPreferences(SignalDisplayPreferences preferences)
+    {
+        return SetProperty(ref signalDisplayPreferences, preferences, nameof(SignalDisplayPreferences));
+    }
+
+    private bool ApplySignalLayoutPreferences(SignalLayoutPreferences preferences)
+    {
+        return SetProperty(ref signalLayoutPreferences, preferences, nameof(SignalLayoutPreferences));
+    }
+
+    private bool ApplyLayoutPreferences(SessionLayoutPreferences preferences)
+    {
+        if (!SetProperty(ref layoutPreferences, preferences, nameof(LayoutPreferences)))
+        {
+            return false;
+        }
+
+        OnPropertyChanged(nameof(MediaLayoutPreferences));
+        return true;
+    }
+
+    private void ApplyUserSignalDisplayPreferences(SignalDisplayPreferences preferences)
+    {
+        if (!ApplySignalDisplayPreferences(preferences))
+        {
+            return;
+        }
+
+        recordedPreferenceStore.UpdateCurrent(current => current with { SignalDisplay = preferences });
+        recordedPreferenceStore.PersistChangeIfEnabled(current => current with { SignalDisplay = preferences });
+    }
+
+    private void ApplyUserSignalLayoutPreferences(SignalLayoutPreferences preferences)
+    {
+        if (!ApplySignalLayoutPreferences(preferences))
+        {
+            return;
+        }
+
+        recordedPreferenceStore.UpdateCurrent(current => current with { SignalLayout = preferences });
+        recordedPreferenceStore.PersistChangeIfEnabled(current => current with { SignalLayout = preferences });
+    }
+
+    private void ApplyUserLayoutPreferences(SessionLayoutPreferences preferences)
+    {
+        if (!ApplyLayoutPreferences(preferences))
+        {
+            return;
+        }
+
+        recordedPreferenceStore.UpdateCurrent(current => current with { Layout = preferences });
+        recordedPreferenceStore.PersistChangeIfEnabled(current => current with { Layout = preferences });
+    }
+
     private void EvaluateDirtinessFromPageChange()
     {
         if (suppressDirtinessEvaluation)
@@ -2173,9 +2206,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void ApplyRecordedPreferences(SessionPreferences preferences)
     {
-        SignalDisplayPreferences = preferences.SignalDisplay;
-        SignalLayoutPreferences = preferences.SignalLayout;
-        LayoutPreferences = preferences.Layout;
+        preferenceReplayInput.OnNext(preferences);
+        ApplySignalDisplayPreferences(preferences.SignalDisplay);
+        ApplySignalLayoutPreferences(preferences.SignalLayout);
+        ApplyLayoutPreferences(preferences.Layout);
         PreferencesPage.ApplySignalDisplayPreferences(preferences.SignalDisplay);
         PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
         ApplyRecordedAnalysisPreferences(preferences.Analysis);
@@ -2184,7 +2218,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void ApplyRecordedAnalysisPreferences(AnalysisPreferences preferences)
     {
-        analysisPreferenceInput.OnNext(preferences);
         analysisRequestScheduler.BeginBatch(suppressInsights: true);
         suppressInsightsRecompute = true;
         try
@@ -2210,10 +2243,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         var signalDisplay = PreferencesPage.CreateSignalDisplayPreferences();
-        recordedPreferenceStore.UpdateCurrent(current => current with { SignalDisplay = signalDisplay });
-        SignalDisplayPreferences = signalDisplay;
-        PublishEditorState();
-        recordedPreferenceStore.PersistChangeIfEnabled(current => current with { SignalDisplay = signalDisplay });
+        editorActions.SetSignalDisplayPreferences(signalDisplay);
     }
 
     private AnalysisPreferences CreateAnalysisPreferences()
@@ -2422,13 +2452,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 SetDampingSpeedCutoffs(set.Cutoffs);
                 break;
             case RecordedSessionEditorIntent.SetSignalDisplayPreferences set:
-                SignalDisplayPreferences = set.Preferences;
+                ApplyUserSignalDisplayPreferences(set.Preferences);
                 break;
             case RecordedSessionEditorIntent.SetSignalLayoutPreferences set:
-                SignalLayoutPreferences = set.Preferences;
+                ApplyUserSignalLayoutPreferences(set.Preferences);
                 break;
             case RecordedSessionEditorIntent.SetLayoutPreferences set:
-                LayoutPreferences = set.Preferences;
+                ApplyUserLayoutPreferences(set.Preferences);
                 break;
         }
     }

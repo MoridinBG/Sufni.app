@@ -170,12 +170,12 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
-    public void StateController_DerivesAnalysisModes_FromActionsAndPreferenceReplay()
+    public void StateController_DerivesPreferenceIntentState_FromActionsAndPreferenceReplay()
     {
         using var legacyState = new Subject<RecordedSessionEditorState>();
         using var actions = new RecordedSessionEditorActions();
         using var pageCounts = new Subject<int>();
-        using var preferenceReplays = new Subject<AnalysisPreferences>();
+        using var preferenceReplays = new Subject<SessionPreferences>();
         using var controller = new RecordedSessionEditorStateController(
             legacyState,
             actions.Intents,
@@ -183,17 +183,51 @@ public class RecordedSessionEditorActionsTests
             preferenceReplays);
         var observed = new List<RecordedSessionEditorIntentState>();
         using var subscription = controller.State.Subscribe(state => observed.Add(state.Intent));
-        var replayedPreferences = new AnalysisPreferences(
+        var replayedAnalysis = new AnalysisPreferences(
             TravelDistributionMode.DynamicSag,
             VelocityAverageMode.StrokePeakAveraged,
             BalanceDisplacementMode.Travel,
             BalanceSpeedMode.HighSpeed,
             SessionInsightsTargetProfile.DH);
+        var replayedSignalDisplay = new SignalDisplayPreferences(
+            Travel: false,
+            VelocitySmoothing: PlotSmoothingLevel.Strong);
+        var replayedSignalLayout = new SignalLayoutPreferences(
+        [
+            new SignalLayoutRowPreferences(SignalRowIds.Imu, isExpanded: false),
+        ]);
+        var replayedLayout = new SessionLayoutPreferences(
+            desktopMediaRows: new SessionPaneGroupPreferences(
+            [
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Map, 0.65),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.ExtensionMedia, 0.35),
+            ]));
+        var replayedPreferences = SessionPreferences.Default with
+        {
+            Analysis = replayedAnalysis,
+            SignalDisplay = replayedSignalDisplay,
+            SignalLayout = replayedSignalLayout,
+            Layout = replayedLayout,
+        };
+        var userSignalDisplay = replayedSignalDisplay with { Speed = false };
+        var userSignalLayout = new SignalLayoutPreferences(
+        [
+            new SignalLayoutRowPreferences(SignalRowIds.Speed),
+        ]);
+        var userLayout = new SessionLayoutPreferences(
+            desktopAnalysisSidebarColumns: new SessionPaneGroupPreferences(
+            [
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Analysis, 0.7),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Sidebar, 0.3),
+            ]));
 
         legacyState.OnNext(CreateState(selectedPageIndex: 0));
         actions.SetTravelDistributionMode(TravelDistributionMode.DynamicSag);
         preferenceReplays.OnNext(replayedPreferences);
         actions.SetBalanceSpeedMode(BalanceSpeedMode.LowSpeed);
+        actions.SetSignalDisplayPreferences(userSignalDisplay);
+        actions.SetSignalLayoutPreferences(userSignalLayout);
+        actions.SetLayoutPreferences(userLayout);
         var legacyOverride = CreateState(selectedPageIndex: 0);
         legacyState.OnNext(legacyOverride with
         {
@@ -201,6 +235,9 @@ public class RecordedSessionEditorActionsTests
             {
                 SelectedTravelDistributionMode = TravelDistributionMode.ActiveSuspension,
                 SelectedBalanceSpeedMode = BalanceSpeedMode.Both,
+                SignalDisplayPreferences = SessionPreferences.Default.SignalDisplay,
+                SignalLayoutPreferences = SessionPreferences.Default.SignalLayout,
+                LayoutPreferences = SessionPreferences.Default.Layout,
             },
             Presentation = legacyOverride.Presentation with
             {
@@ -208,17 +245,26 @@ public class RecordedSessionEditorActionsTests
             },
         });
 
-        Assert.Equal(5, observed.Count);
+        Assert.Equal(8, observed.Count);
         Assert.Equal(TravelDistributionMode.ActiveSuspension, observed[0].SelectedTravelDistributionMode);
         Assert.Equal(TravelDistributionMode.DynamicSag, observed[1].SelectedTravelDistributionMode);
-        Assert.Equal(replayedPreferences.TravelDistributionMode, observed[2].SelectedTravelDistributionMode);
-        Assert.Equal(replayedPreferences.VelocityAverageMode, observed[2].SelectedVelocityAverageMode);
-        Assert.Equal(replayedPreferences.BalanceDisplacementMode, observed[2].SelectedBalanceDisplacementMode);
-        Assert.Equal(replayedPreferences.BalanceSpeedMode, observed[2].SelectedBalanceSpeedMode);
-        Assert.Equal(replayedPreferences.SessionInsightsTargetProfile, observed[2].SelectedSessionInsightsTargetProfile);
+        Assert.Equal(replayedAnalysis.TravelDistributionMode, observed[2].SelectedTravelDistributionMode);
+        Assert.Equal(replayedAnalysis.VelocityAverageMode, observed[2].SelectedVelocityAverageMode);
+        Assert.Equal(replayedAnalysis.BalanceDisplacementMode, observed[2].SelectedBalanceDisplacementMode);
+        Assert.Equal(replayedAnalysis.BalanceSpeedMode, observed[2].SelectedBalanceSpeedMode);
+        Assert.Equal(replayedAnalysis.SessionInsightsTargetProfile, observed[2].SelectedSessionInsightsTargetProfile);
+        Assert.Equal(replayedSignalDisplay, observed[2].SignalDisplayPreferences);
+        Assert.Equal(replayedSignalLayout, observed[2].SignalLayoutPreferences);
+        Assert.Equal(replayedLayout, observed[2].LayoutPreferences);
         Assert.Equal(BalanceSpeedMode.LowSpeed, observed[3].SelectedBalanceSpeedMode);
+        Assert.Equal(userSignalDisplay, observed[4].SignalDisplayPreferences);
+        Assert.Equal(userSignalLayout, observed[5].SignalLayoutPreferences);
+        Assert.Equal(userLayout, observed[6].LayoutPreferences);
         Assert.Equal(TravelDistributionMode.DynamicSag, observed[^1].SelectedTravelDistributionMode);
         Assert.Equal(BalanceSpeedMode.LowSpeed, observed[^1].SelectedBalanceSpeedMode);
+        Assert.Equal(userSignalDisplay, observed[^1].SignalDisplayPreferences);
+        Assert.Equal(userSignalLayout, observed[^1].SignalLayoutPreferences);
+        Assert.Equal(userLayout, observed[^1].LayoutPreferences);
     }
 
     [Fact]
