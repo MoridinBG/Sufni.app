@@ -10,7 +10,7 @@ using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
 namespace Sufni.App.Sessions.Media.ViewModels.Editors;
 
-internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessionMediaWorkspace
+internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessionMediaWorkspace, IDisposable
 {
     private readonly Func<MapViewModel?> mapViewModel;
     private readonly Func<RecordedSessionExtensionSlots> extensionSlots;
@@ -110,5 +110,15 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
     private void OnMediaPanesChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {
         OnPropertyChanged(nameof(HasMediaContent));
+    }
+
+    public void Dispose()
+    {
+        stateSubscription.Dispose();
+        if (mediaPanes is not null)
+        {
+            mediaPanes.CollectionChanged -= OnMediaPanesChanged;
+            mediaPanes = null;
+        }
     }
 }

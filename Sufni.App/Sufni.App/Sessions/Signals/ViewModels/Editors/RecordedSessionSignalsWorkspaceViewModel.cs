@@ -13,7 +13,7 @@ using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 namespace Sufni.App.Sessions.Signals.ViewModels.Editors;
 
-internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObject, IRecordedSessionSignalsWorkspace
+internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObject, IRecordedSessionSignalsWorkspace, IDisposable
 {
     private readonly Func<RecordedSessionExtensionSlots> extensionSlots;
     private readonly RecordedSessionEditorActions actions;
@@ -166,6 +166,11 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
     public void SetAnalysisRangeBoundary(double boundarySeconds)
     {
         actions.SetAnalysisRangeBoundary(boundarySeconds);
+    }
+
+    public void Dispose()
+    {
+        stateSubscription.Dispose();
     }
 
     internal static readonly HashSet<string> ForwardedProperties =

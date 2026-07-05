@@ -18,7 +18,7 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Insights.ViewModels.Editors;
 namespace Sufni.App.Sessions.Analysis.ViewModels.Editors;
 
-internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISessionAnalysisWorkspace
+internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISessionAnalysisWorkspace, IDisposable
 {
     private readonly ISessionOperationGateway gateway;
     private readonly RecordedSessionEditorActions actions;
@@ -184,6 +184,11 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
         double cutoffMmPerSecond)
     {
         return gateway.CommitDampingSpeedCutoffAsync(side, circuit, cutoffMmPerSecond);
+    }
+
+    public void Dispose()
+    {
+        stateSubscription.Dispose();
     }
 
     internal static readonly HashSet<string> ForwardedProperties =

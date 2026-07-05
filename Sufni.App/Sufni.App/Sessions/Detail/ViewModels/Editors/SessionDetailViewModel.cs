@@ -18,6 +18,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Reactive;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
@@ -116,6 +117,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<Unit> stalenessReplayInput = new();
     private readonly Subject<Unit> dirtyBaselineInput = new();
     private readonly Subject<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> signalPlotContextMenuActionsInput = new();
+    private readonly CompositeDisposable editorInputSubjects;
     private readonly RecordedSessionEditorStateController editorStateController;
     private RecordedSessionEditorState currentEditorState = RecordedSessionEditorState.CreateInitial();
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
@@ -152,6 +154,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private bool metadataConflictPending;
     private bool viewLoaded;
     private bool hasBeenActivated;
+    private bool editorInputSubjectsDisposed;
     private readonly SignalRowActionsController signalRowActions;
     private readonly SignalAutozoomController signalAutozoomController;
     private readonly IRelayCommand<TelemetryPlotContextMenuContext?> setAnalysisRangeStartCommand;
@@ -261,7 +264,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         DampingPage.ApplyDampingPercentages(percentages);
         if (changed)
         {
-            dampingPercentagesInput.OnNext(percentages);
+            PublishEditorInput(dampingPercentagesInput, percentages);
         }
     }
 
@@ -804,7 +807,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         if (currentEditorState.Load != presentation)
         {
-            loadPresentationInput.OnNext(presentation);
+            PublishEditorInput(loadPresentationInput, presentation);
         }
     }
 
@@ -989,7 +992,26 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void PublishRecordedSessionHostRuntimeChange()
     {
-        hostRuntimeInput.OnNext(CreateRecordedSessionHostRuntimeState());
+        PublishEditorInput(hostRuntimeInput, CreateRecordedSessionHostRuntimeState());
+    }
+
+    private void PublishEditorInput<T>(Subject<T> input, T value)
+    {
+        if (!editorInputSubjectsDisposed)
+        {
+            input.OnNext(value);
+        }
+    }
+
+    private void DisposeEditorInputSubjects()
+    {
+        if (editorInputSubjectsDisposed)
+        {
+            return;
+        }
+
+        editorInputSubjectsDisposed = true;
+        editorInputSubjects.Dispose();
     }
 
     private async ValueTask InitializeRecordedSessionExtensionsAsync(CancellationToken cancellationToken = default)
@@ -1387,6 +1409,23 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         analysisResultState.Invalidate(analysisInputs);
         analysisRequestScheduler = new AnalysisRequestScheduler(this, analysisInputs);
         analysisResultSubscription = analysisResultState.Connect().Subscribe(OnAnalysisResultChanged);
+        editorInputSubjects = new CompositeDisposable(
+            pageCountInput,
+            preferenceReplayInput,
+            loadPresentationInput,
+            sessionOperationStateInput,
+            mediaPaneStateInput,
+            mediaUrlInput,
+            dampingPercentagesInput,
+            plotDampingSpeedCutoffsInput,
+            canEditDampingSpeedCutoffsInput,
+            sessionInsightsInput,
+            analysisSelectionInput,
+            signalPlotContextMenuActionsInput,
+            domainInput,
+            hostRuntimeInput,
+            dirtyBaselineInput,
+            stalenessReplayInput);
         editorStateController = new RecordedSessionEditorStateController(
             new RecordedSessionEditorStateInputs(
                 editorActions.Intents,
@@ -1464,7 +1503,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             markGpsEventCommand,
             markGpsTelemetryEventCommand,
             cancelGpsTimelineAlignmentCommand);
-        signalPlotContextMenuActionsInput.OnNext(SignalPlotContextMenuActionsBySignalRowId);
+        PublishEditorInput(signalPlotContextMenuActionsInput, SignalPlotContextMenuActionsBySignalRowId);
         session = snapshot.ToMetadataEntity();
         sessionSnapshot = snapshot;
         Id = snapshot.Id;
@@ -1560,7 +1599,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         Pages.Add(NotesPage);
         Pages.Add(PreferencesPage);
         Pages.CollectionChanged += OnPagesChanged;
-        pageCountInput.OnNext(Pages.Count);
+        PublishEditorInput(pageCountInput, Pages.Count);
         mapViewModel = mapViewModelFactory.Create();
         _ = mapViewModel.InitializeAsync();
         if (snapshot.HasProcessedData)
@@ -1571,9 +1610,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 snapshot));
         }
 
-        NotesPage.ForkSettings.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();
-        NotesPage.ShockSettings.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();
-        NotesPage.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();
+        NotesPage.ForkSettings.PropertyChanged += OnNotesPageDirtinessPropertyChanged;
+        NotesPage.ShockSettings.PropertyChanged += OnNotesPageDirtinessPropertyChanged;
+        NotesPage.PropertyChanged += OnNotesPageDirtinessPropertyChanged;
         SubscribeSignalPreferenceChanges();
         PreferencesPage.ProcessingPreferenceChangeCommitted += OnProcessingPreferenceChangeCommitted;
 
@@ -1741,7 +1780,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void ClearAnalysisSelections()
     {
-        analysisSelectionInput.OnNext(CreateEmptyAnalysisSelectionState());
+        PublishEditorInput(analysisSelectionInput, CreateEmptyAnalysisSelectionState());
         signalRowActions.ClearAnalysisSelectionToggles();
         signalRowActions.RefreshAnalysisSelectionActionStates();
     }
@@ -1754,7 +1793,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        analysisSelectionInput.OnNext(CreateAnalysisSelectionState(controller));
+        PublishEditorInput(analysisSelectionInput, CreateAnalysisSelectionState(controller));
         if (!controller.HasSelection)
         {
             signalRowActions.ClearAnalysisSelectionToggles();
@@ -1774,7 +1813,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {
-        pageCountInput.OnNext(Pages.Count);
+        PublishEditorInput(pageCountInput, Pages.Count);
         editorActions.RefreshSelectedPageAnalysis();
     }
 
@@ -1934,7 +1973,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        canEditDampingSpeedCutoffsInput.OnNext(value);
+        PublishEditorInput(canEditDampingSpeedCutoffsInput, value);
     }
 
     private void SetPlotDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs)
@@ -1944,7 +1983,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        plotDampingSpeedCutoffsInput.OnNext(cutoffs);
+        PublishEditorInput(plotDampingSpeedCutoffsInput, cutoffs);
     }
 
     internal void SetSessionOperationState(SessionOperationPresentationState state)
@@ -1952,7 +1991,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         var changed = SetProperty(ref sessionOperationState, state, nameof(SessionOperationState));
         if (changed)
         {
-            sessionOperationStateInput.OnNext(state);
+            PublishEditorInput(sessionOperationStateInput, state);
         }
     }
 
@@ -1962,7 +2001,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         sessionInsights = insights;
         if (changed)
         {
-            sessionInsightsInput.OnNext(insights);
+            PublishEditorInput(sessionInsightsInput, insights);
         }
     }
 
@@ -1974,8 +2013,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         if (currentEditorState.Presentation.MediaUrl != url ||
             currentEditorState.Presentation.MediaPaneState != nextPaneState)
         {
-            mediaUrlInput.OnNext(url);
-            mediaPaneStateInput.OnNext(nextPaneState);
+            PublishEditorInput(mediaUrlInput, url);
+            PublishEditorInput(mediaPaneStateInput, nextPaneState);
         }
     }
 
@@ -1986,7 +2025,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        dirtyBaselineInput.OnNext(Unit.Default);
+        PublishEditorInput(dirtyBaselineInput, Unit.Default);
+    }
+
+    private void OnNotesPageDirtinessPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        EvaluateDirtinessFromPageChange();
     }
 
     private async Task RestoreRecordedPreferencesAsync()
@@ -2002,7 +2046,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             ApplyPreferencesPageSignalDisplayPreferences(preferences.SignalDisplay);
             PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
-            preferenceReplayInput.OnNext(preferences);
+            PublishEditorInput(preferenceReplayInput, preferences);
         }
         finally
         {
@@ -2339,13 +2383,38 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     protected override async Task CloseImplementation()
     {
         await StopLoadedSessionAsync();
-        Pages.CollectionChanged -= OnPagesChanged;
+        UnsubscribeVmEventHandlers();
+        DisposeWorkspace(MobileWorkspace);
+        DisposeWorkspace(SignalsWorkspace);
+        DisposeWorkspace(MediaWorkspace);
+        DisposeWorkspace(AnalysisWorkspace);
         extensionPagesController?.Dispose();
         editorEffects.Dispose();
         editorStateSubscription.Dispose();
+        editorStateController.Dispose();
+        editorActions.Dispose();
         analysisResultSubscription.Dispose();
         analysisResultState.Dispose();
         MapViewModel?.Dispose();
+        DisposeEditorInputSubjects();
+    }
+
+    private static void DisposeWorkspace(object workspace)
+    {
+        if (workspace is IDisposable disposable)
+        {
+            disposable.Dispose();
+        }
+    }
+
+    private void UnsubscribeVmEventHandlers()
+    {
+        Pages.CollectionChanged -= OnPagesChanged;
+        PreferencesPage.ProcessingPreferenceChangeCommitted -= OnProcessingPreferenceChangeCommitted;
+        UnsubscribeSignalPreferenceChanges();
+        NotesPage.ForkSettings.PropertyChanged -= OnNotesPageDirtinessPropertyChanged;
+        NotesPage.ShockSettings.PropertyChanged -= OnNotesPageDirtinessPropertyChanged;
+        NotesPage.PropertyChanged -= OnNotesPageDirtinessPropertyChanged;
     }
 
     protected override async Task DeleteImplementation(bool navigateBack)
@@ -2447,12 +2516,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         EnsureScopedSubscription(s =>
         {
             s.Add(recordedPreferenceStore.Observe().Subscribe(OnSyncedPreferencesArrived));
-            s.Add(watch.Subscribe(domainInput.OnNext));
+            s.Add(watch.Subscribe(snapshot => PublishEditorInput(domainInput, snapshot)));
         });
         if (replayStalenessOnNextLoad)
         {
             replayStalenessOnNextLoad = false;
-            stalenessReplayInput.OnNext(Unit.Default);
+            PublishEditorInput(stalenessReplayInput, Unit.Default);
         }
 
         await InitializeRecordedSessionExtensionsAsync();

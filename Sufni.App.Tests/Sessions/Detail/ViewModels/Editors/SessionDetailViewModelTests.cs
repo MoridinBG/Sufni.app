@@ -2930,6 +2930,61 @@ public class SessionDetailViewModelTests
         await sessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
     }
 
+    [AvaloniaFact]
+    public async Task CloseCommand_DisposesRecordedEditorSubscriptions()
+    {
+        var snapshot = TestSnapshots.Session(name: "trail run", hasProcessedData: true, updated: 5);
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        var factory = new TestRecordedSessionExtensionFactory("lifecycle");
+        var analysisRequestCount = 0;
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
+        sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>())
+            .Returns(_ =>
+            {
+                analysisRequestCount++;
+                return SessionInsightsResult.Hidden;
+            });
+
+        var editor = CreateEditor(
+            snapshot,
+            watch.AsObservable(),
+            isDesktop: true,
+            recordedSessionExtensionFactories: [factory]);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        editor.SetTelemetryData(TestTelemetryData.CreateMinimal(duration: 10));
+        var scope = factory.Scope!;
+        var workspacePropertyChangeCount = 0;
+        TrackWorkspaceChanges((INotifyPropertyChanged)editor.MobileWorkspace);
+        TrackWorkspaceChanges((INotifyPropertyChanged)editor.SignalsWorkspace);
+        TrackWorkspaceChanges((INotifyPropertyChanged)editor.MediaWorkspace);
+        TrackWorkspaceChanges((INotifyPropertyChanged)editor.AnalysisWorkspace);
+
+        await editor.CloseCommand.ExecuteAsync(null);
+        shell.Received(1).Close(editor);
+        var hostUpdatesAfterClose = scope.UpdatedStates.Count;
+        var workspacePropertyChangesAfterClose = workspacePropertyChangeCount;
+        var analysisRequestsAfterClose = analysisRequestCount;
+
+        editor.SetAnalysisRange(1, 2);
+        watch.OnNext(DomainFromSnapshot(
+            snapshot,
+            DerivedChangeKind.DependencyChanged,
+            new SessionStaleness.DependencyHashChanged()));
+        editor.SetTabActive(true);
+        editor.SetTabActive(false);
+        await Task.Yield();
+
+        Assert.Equal(hostUpdatesAfterClose, scope.UpdatedStates.Count);
+        Assert.Equal(workspacePropertyChangesAfterClose, workspacePropertyChangeCount);
+        Assert.Equal(analysisRequestsAfterClose, analysisRequestCount);
+
+        void TrackWorkspaceChanges(INotifyPropertyChanged workspace)
+        {
+            workspace.PropertyChanged += (_, _) => workspacePropertyChangeCount++;
+        }
+    }
+
     private static void AssertDefaultHiddenAirtimeAction(
         IReadOnlyList<SignalRowAction> actions,
         bool isVisible,
