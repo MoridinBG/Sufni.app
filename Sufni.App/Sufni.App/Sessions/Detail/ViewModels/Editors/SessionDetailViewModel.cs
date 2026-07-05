@@ -116,6 +116,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<RecordedSignalPresentationState> signalPresentationInput = new();
     private readonly Subject<AnalysisSelectionState> analysisSelectionInput = new();
     private readonly Subject<RecordedSessionLoadedData> loadedDataInput = new();
+    private readonly Subject<RecordedSessionHostRuntimeState> hostRuntimeInput = new();
     private readonly Subject<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> signalPlotContextMenuActionsInput = new();
     private readonly RecordedSessionEditorStateController editorStateController;
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
@@ -305,7 +306,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         dampingPercentages = percentages;
         SessionContext.DampingPercentages = percentages;
         DampingPage.ApplyDampingPercentages(percentages);
-        UpdateRecordedSessionExtensionHostState();
         if (changed)
         {
             dampingPercentagesInput.OnNext(percentages);
@@ -687,12 +687,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         RefreshTrackTimelineContext();
         if (value is null)
         {
-            UpdateRecordedSessionExtensionHostState();
             PublishLoadedDataState();
             return;
         }
 
-        UpdateRecordedSessionExtensionHostState();
         PublishLoadedDataState();
     }
 
@@ -710,7 +708,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         trackTimelineContext = timelineContext;
         SessionContext.TrackTimelineContext = timelineContext;
-        UpdateRecordedSessionExtensionHostState();
         PublishLoadedDataState();
     }
 
@@ -840,7 +837,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         await ResetImplementation();
         EvaluateDirtiness();
         NotifyEditorCommandStateChanged();
-        UpdateRecordedSessionExtensionHostState();
     }
 
     // Single entry point for projection emissions on the opened session. It treats the
@@ -969,7 +965,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         sessionSnapshot = snapshot;
         SessionContext.SessionSnapshot = snapshot;
         PublishLoadedDataState();
-        UpdateRecordedSessionExtensionHostState();
     }
 
     private Task HandleDeferredDomainAsync()
@@ -1007,6 +1002,20 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 dampingSpeedCutoffs,
                 selectedVelocityAverageMode,
                 selectedTravelDistributionMode));
+    }
+
+    private RecordedSessionHostRuntimeState CreateRecordedSessionHostRuntimeState()
+    {
+        return new RecordedSessionHostRuntimeState(
+            Id,
+            viewLoaded,
+            IsTabActive,
+            pendingTimelineAlignmentMark);
+    }
+
+    private void PublishRecordedSessionHostRuntimeState()
+    {
+        hostRuntimeInput.OnNext(CreateRecordedSessionHostRuntimeState());
     }
 
     private void UpdateRecordedSessionExtensionHostState()
@@ -1235,7 +1244,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         pendingTimelineAlignmentMark = new RecordedSessionTimelineAlignmentMark(target, subjectId, seconds);
-        UpdateRecordedSessionExtensionHostState();
+        PublishRecordedSessionHostRuntimeState();
         NotifyTimelineAlignmentCommandsCanExecuteChanged();
         return true;
     }
@@ -1261,7 +1270,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             seconds,
             pendingMark.Seconds - seconds);
         pendingTimelineAlignmentMark = null;
-        UpdateRecordedSessionExtensionHostState();
+        PublishRecordedSessionHostRuntimeState();
         NotifyTimelineAlignmentCommandsCanExecuteChanged();
         return true;
     }
@@ -1276,7 +1285,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         pendingTimelineAlignmentMark = null;
-        UpdateRecordedSessionExtensionHostState();
+        PublishRecordedSessionHostRuntimeState();
         NotifyTimelineAlignmentCommandsCanExecuteChanged();
         return true;
     }
@@ -1444,6 +1453,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 RecordedSessionEditorEffects.ExplicitAnalysisRequests(editorActions.Intents),
                 RecordedSessionEditorEffects.MapMediaSync(editorStateController.State),
                 RecordedSessionEditorEffects.CommandRefresh(editorStateController.State),
+                RecordedSessionEditorEffects.ExtensionHostPublication(
+                    editorStateController.State,
+                    hostRuntimeInput.StartWith(CreateRecordedSessionHostRuntimeState()),
+                    Timeline),
             ],
             ApplyRecordedSessionEditorEffect);
         signalRowActions = new SignalRowActionsController(
@@ -1790,7 +1803,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         selectedTravelDistributionMode = mode;
         OnPropertyChanged(nameof(SessionAnalysisModesText));
-        UpdateRecordedSessionExtensionHostState();
     }
 
     private void SetBalanceDisplacementMode(BalanceDisplacementMode mode)
@@ -1825,7 +1837,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         selectedVelocityAverageMode = mode;
         ClearDampingRangeSelections();
         OnPropertyChanged(nameof(SessionAnalysisModesText));
-        UpdateRecordedSessionExtensionHostState();
     }
 
     private void SetSessionInsightsTargetProfile(SessionInsightsTargetProfile profile)
@@ -1860,7 +1871,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         dampingSpeedCutoffs = cutoffs;
         SessionContext.DampingSpeedCutoffs = cutoffs;
-        UpdateRecordedSessionExtensionHostState();
     }
 
     private void SetPlotDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs)
@@ -1887,7 +1897,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         OnPropertyChanged(nameof(SessionAnalysisRangeText));
         ClearAnalysisSelections();
         presentationApplier.RefreshAnalysisRangeStates();
-        UpdateRecordedSessionExtensionHostState();
     }
 
     private void ApplyRequestedAnalysisRange(TelemetryTimeRange? requestedRange)
@@ -2230,6 +2239,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         if (effect is RecordedSessionEditorEffect.RefreshCommands)
         {
             NotifyTimelineAlignmentCommandsCanExecuteChanged();
+            return;
+        }
+
+        if (effect is RecordedSessionEditorEffect.PublishExtensionHostState publish)
+        {
+            recordedSessionExtensions?.UpdateHostState(publish.State);
         }
     }
 
@@ -2722,7 +2737,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         if (wasLoaded)
         {
-            UpdateRecordedSessionExtensionHostState();
+            PublishRecordedSessionHostRuntimeState();
             return;
         }
 
@@ -2740,6 +2755,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         });
 
         await InitializeRecordedSessionExtensionsAsync();
+        PublishRecordedSessionHostRuntimeState();
         await RestoreRecordedPreferencesAsync();
         await RequestLoadAsync();
     }
@@ -2747,7 +2763,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     protected override void OnActivated()
     {
         hasBeenActivated = true;
-        UpdateRecordedSessionExtensionHostState();
+        PublishRecordedSessionHostRuntimeState();
 
         if (!viewLoaded)
         {
@@ -2759,7 +2775,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     protected override void OnDeactivated()
     {
-        UpdateRecordedSessionExtensionHostState();
+        PublishRecordedSessionHostRuntimeState();
     }
 
     private bool ShouldDeferDomainHandling() =>
@@ -2798,7 +2814,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         observedInitialDomain = false;
         deferredDomain = null;
         stalenessReconciler.ResetForUnload();
-        UpdateRecordedSessionExtensionHostState();
+        PublishRecordedSessionHostRuntimeState();
         await DisposeRecordedSessionExtensionScopesAsync();
         DisposeProcessedTelemetryRetention();
         DisposeScopedSubscriptions();

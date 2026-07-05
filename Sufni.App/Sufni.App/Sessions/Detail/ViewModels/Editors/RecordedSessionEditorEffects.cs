@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Sessions.Models;
 using Sufni.Telemetry;
@@ -14,7 +16,7 @@ internal abstract record RecordedSessionEditorEffect
 
     public sealed record RequestAnalysis(RecordedSessionAnalysisEffectRequest Request) : RecordedSessionEditorEffect;
 
-    public sealed record PublishExtensionHostState(RecordedSessionEditorState State) : RecordedSessionEditorEffect;
+    public sealed record PublishExtensionHostState(RecordedSessionHostState State) : RecordedSessionEditorEffect;
 
     public sealed record SyncMapMedia(RecordedSessionLoadedData LoadedData) : RecordedSessionEditorEffect;
 
@@ -149,6 +151,24 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
             .Select(static loadedData => new RecordedSessionEditorEffect.RefreshCommands(loadedData));
     }
 
+    public static IObservable<RecordedSessionEditorEffect> ExtensionHostPublication(
+        IObservable<RecordedSessionEditorState> states,
+        IObservable<RecordedSessionHostRuntimeState> runtimeStates,
+        IRecordedSessionTimeline timeline)
+    {
+        ArgumentNullException.ThrowIfNull(states);
+        ArgumentNullException.ThrowIfNull(runtimeStates);
+        ArgumentNullException.ThrowIfNull(timeline);
+
+        return states
+            .Select(CreateHostProjection)
+            .CombineLatest(
+                runtimeStates.DistinctUntilChanged(),
+                (projection, runtime) => CreateHostState(projection, runtime, timeline))
+            .DistinctUntilChanged()
+            .Select(static state => new RecordedSessionEditorEffect.PublishExtensionHostState(state));
+    }
+
     public static IObservable<RecordedSessionEditorEffect> ExplicitAnalysisRequests(
         IObservable<RecordedSessionEditorIntent> intents)
     {
@@ -234,7 +254,67 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
             _ => null,
         };
     }
+
+    private static RecordedSessionHostProjection CreateHostProjection(RecordedSessionEditorState state)
+    {
+        var timelineDurationSeconds = state.TelemetryData?.Metadata.Duration ?? state.Session?.DurationSeconds;
+        return new RecordedSessionHostProjection(
+            Name: state.Session?.Name,
+            Timestamp: state.Session?.Timestamp,
+            DurationSeconds: state.Session?.DurationSeconds,
+            AnalysisRange: state.Intent.AnalysisRange,
+            TrackTimelineContext: state.TrackTimelineContext,
+            TimelineDurationSeconds: timelineDurationSeconds,
+            DampingPercentages: state.Presentation.DampingPercentages,
+            DampingSpeedCutoffs: state.Intent.DampingSpeedCutoffs,
+            VelocityAverageMode: state.Intent.SelectedVelocityAverageMode,
+            TravelDistributionMode: state.Intent.SelectedTravelDistributionMode);
+    }
+
+    private static RecordedSessionHostState CreateHostState(
+        RecordedSessionHostProjection projection,
+        RecordedSessionHostRuntimeState runtime,
+        IRecordedSessionTimeline timeline)
+    {
+        return new RecordedSessionHostState(
+            new RecordedSessionIdentityState(
+                runtime.SessionId,
+                projection.Name,
+                projection.Timestamp,
+                projection.DurationSeconds,
+                runtime.ViewLoaded,
+                runtime.IsActive),
+            new RecordedSessionSelectionState(projection.AnalysisRange),
+            new RecordedSessionTimelineState(
+                projection.TrackTimelineContext,
+                projection.TimelineDurationSeconds,
+                timeline,
+                new RecordedSessionTimelineAlignmentState(runtime.PendingTimelineAlignmentMark)),
+            new RecordedSessionAnalysisState(
+                projection.DampingPercentages,
+                projection.DampingSpeedCutoffs,
+                projection.VelocityAverageMode,
+                projection.TravelDistributionMode));
+    }
 }
+
+internal sealed record RecordedSessionHostRuntimeState(
+    Guid SessionId,
+    bool ViewLoaded,
+    bool IsActive,
+    RecordedSessionTimelineAlignmentMark? PendingTimelineAlignmentMark);
+
+internal sealed record RecordedSessionHostProjection(
+    string? Name,
+    long? Timestamp,
+    double? DurationSeconds,
+    TelemetryTimeRange? AnalysisRange,
+    TrackTimeRange? TrackTimelineContext,
+    double? TimelineDurationSeconds,
+    SessionDampingPercentages DampingPercentages,
+    DampingSpeedCutoffs DampingSpeedCutoffs,
+    VelocityAverageMode VelocityAverageMode,
+    TravelDistributionMode TravelDistributionMode);
 
 internal sealed record RecordedSessionAnalysisEffectState(
     TelemetryTimeRange? AnalysisRange,
