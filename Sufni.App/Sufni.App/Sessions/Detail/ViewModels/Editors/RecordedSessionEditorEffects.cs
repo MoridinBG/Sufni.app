@@ -16,7 +16,7 @@ internal abstract record RecordedSessionEditorEffect
 
     public sealed record PublishExtensionHostState(RecordedSessionEditorState State) : RecordedSessionEditorEffect;
 
-    public sealed record SyncMapMedia(RecordedSessionEditorState State) : RecordedSessionEditorEffect;
+    public sealed record SyncMapMedia(RecordedSessionLoadedData LoadedData) : RecordedSessionEditorEffect;
 
     public sealed record RefreshCommands(RecordedSessionEditorState State) : RecordedSessionEditorEffect;
 
@@ -115,6 +115,22 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
             .Where(static pair => pair.Previous != pair.Current)
             .Select(static _ => new RecordedSessionEditorEffect.RequestAnalysis(
                 new RecordedSessionAnalysisEffectRequest.TelemetryChanged()));
+    }
+
+    public static IObservable<RecordedSessionEditorEffect> MapMediaSync(
+        IObservable<RecordedSessionEditorState> states)
+    {
+        ArgumentNullException.ThrowIfNull(states);
+
+        return states
+            .Select(static state => new RecordedSessionLoadedData(
+                state.Session,
+                state.TelemetryData,
+                state.FullTrackPoints,
+                state.TrackPoints,
+                state.TrackTimelineContext))
+            .DistinctUntilChanged()
+            .Select(static loadedData => new RecordedSessionEditorEffect.SyncMapMedia(loadedData));
     }
 
     public static IObservable<RecordedSessionEditorEffect> ExplicitAnalysisRequests(

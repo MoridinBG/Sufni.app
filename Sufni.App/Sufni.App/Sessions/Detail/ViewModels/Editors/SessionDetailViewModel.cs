@@ -636,7 +636,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         fullTrackPoints = points;
         SessionContext.FullTrackPoints = points;
-        MapViewModel?.FullTrackPoints = points;
         PublishLoadedDataState();
     }
 
@@ -644,7 +643,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         trackPoints = points;
         SessionContext.TrackPoints = points;
-        MapViewModel?.SessionTrackPoints = points;
 
         RefreshTrackTimelineContext();
         NotifyTimelineAlignmentCommandsCanExecuteChanged();
@@ -714,7 +712,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         trackTimelineContext = timelineContext;
         SessionContext.TrackTimelineContext = timelineContext;
-        MapViewModel?.TimelineContext = timelineContext;
         UpdateRecordedSessionExtensionHostState();
         PublishLoadedDataState();
     }
@@ -1447,6 +1444,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 RecordedSessionEditorEffects.PageSelectionAnalysisRequests(editorStateController.State),
                 RecordedSessionEditorEffects.TelemetryAnalysisRequests(editorStateController.State),
                 RecordedSessionEditorEffects.ExplicitAnalysisRequests(editorActions.Intents),
+                RecordedSessionEditorEffects.MapMediaSync(editorStateController.State),
             ],
             ApplyRecordedSessionEditorEffect);
         signalRowActions = new SignalRowActionsController(
@@ -2221,7 +2219,35 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         if (effect is RecordedSessionEditorEffect.RequestAnalysis request)
         {
             ApplyRecordedAnalysisRequest(request.Request);
+            return;
         }
+
+        if (effect is RecordedSessionEditorEffect.SyncMapMedia sync)
+        {
+            ApplyMapMediaSync(sync.LoadedData);
+        }
+    }
+
+    private void ApplyMapMediaSync(RecordedSessionLoadedData loadedData)
+    {
+        if (MapViewModel is not { } map)
+        {
+            return;
+        }
+
+        map.FullTrackPoints = ToTrackPointList(loadedData.FullTrackPoints);
+        map.SessionTrackPoints = ToTrackPointList(loadedData.TrackPoints);
+        map.TimelineContext = loadedData.TrackTimelineContext;
+    }
+
+    private static List<TrackPoint>? ToTrackPointList(IReadOnlyList<TrackPoint>? points)
+    {
+        return points switch
+        {
+            null => null,
+            List<TrackPoint> list => list,
+            _ => [.. points],
+        };
     }
 
     private void ApplyRecordedAnalysisRequest(RecordedSessionAnalysisEffectRequest request)

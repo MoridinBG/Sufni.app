@@ -792,6 +792,46 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void MapMediaSync_EmitsLoadedDataChanges()
+    {
+        using var states = new Subject<RecordedSessionEditorState>();
+        var effects = new List<RecordedSessionEditorEffect>();
+        using var subscription = RecordedSessionEditorEffects.MapMediaSync(states)
+            .Subscribe(effects.Add);
+        var session = TestSnapshots.Session();
+        var telemetry = TestTelemetryData.CreateProcessed();
+        List<TrackPoint> fullTrackPoints = [new TrackPoint(1, 2, 3, 4)];
+        List<TrackPoint> trackPoints = [new TrackPoint(5, 6, 7, 8)];
+        var timelineContext = new TrackTimeRange(10, 20);
+        var initial = CreateState(selectedPageIndex: 0);
+        var loaded = initial with
+        {
+            Session = session,
+            TelemetryData = telemetry,
+            FullTrackPoints = fullTrackPoints,
+            TrackPoints = trackPoints,
+            TrackTimelineContext = timelineContext,
+        };
+
+        states.OnNext(initial);
+        states.OnNext(initial);
+        states.OnNext(loaded);
+
+        Assert.Collection(
+            effects,
+            effect => Assert.Null(Assert.IsType<RecordedSessionEditorEffect.SyncMapMedia>(effect).LoadedData.Session),
+            effect =>
+            {
+                var sync = Assert.IsType<RecordedSessionEditorEffect.SyncMapMedia>(effect);
+                Assert.Same(session, sync.LoadedData.Session);
+                Assert.Same(telemetry, sync.LoadedData.TelemetryData);
+                Assert.Same(fullTrackPoints, sync.LoadedData.FullTrackPoints);
+                Assert.Same(trackPoints, sync.LoadedData.TrackPoints);
+                Assert.Equal(timelineContext, sync.LoadedData.TrackTimelineContext);
+            });
+    }
+
+    [Fact]
     public void PreferencePersistence_EmitsOnlyPreferenceIntents()
     {
         using var actions = new RecordedSessionEditorActions();
