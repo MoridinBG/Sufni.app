@@ -823,9 +823,16 @@ public class RecordedSessionEditorActionsTests
         using var subscription = RecordedSessionEditorEffects.AnalysisRequests(states)
             .Subscribe(effects.Add);
         var initial = CreateState(selectedPageIndex: 0);
-        var travelChanged = initial with
+        var rangeChanged = initial with
         {
             Intent = initial.Intent with
+            {
+                AnalysisRange = new TelemetryTimeRange(0, 1),
+            },
+        };
+        var travelChanged = rangeChanged with
+        {
+            Intent = rangeChanged.Intent with
             {
                 SelectedTravelDistributionMode = TravelDistributionMode.DynamicSag,
             },
@@ -847,6 +854,7 @@ public class RecordedSessionEditorActionsTests
 
         states.OnNext(initial);
         states.OnNext(initial with { Presentation = initial.Presentation });
+        states.OnNext(rangeChanged);
         states.OnNext(travelChanged);
         states.OnNext(travelChanged);
         states.OnNext(velocityChanged);
@@ -854,6 +862,11 @@ public class RecordedSessionEditorActionsTests
 
         Assert.Collection(
             effects,
+            effect =>
+            {
+                var request = Assert.IsType<RecordedSessionEditorEffect.RequestAnalysis>(effect);
+                Assert.IsType<RecordedSessionAnalysisEffectRequest.RangeChanged>(request.Request);
+            },
             effect =>
             {
                 var request = Assert.IsType<RecordedSessionEditorEffect.RequestAnalysis>(effect);

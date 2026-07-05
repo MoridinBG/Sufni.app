@@ -1920,15 +1920,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         OnPropertyChanged(nameof(SessionAnalysisRangeText));
         ClearAnalysisSelections();
         presentationApplier.RefreshAnalysisRangeStates();
-        if (suppressAnalysisRecompute)
-        {
-            InvalidateAnalysisInputs();
-        }
-        else
-        {
-            RequestCurrentAnalysisResults(!suppressInsightsRecompute, respectSuppression: true);
-        }
-
         UpdateRecordedSessionExtensionHostState();
     }
 
@@ -2267,6 +2258,18 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         switch (request)
         {
+            case RecordedSessionAnalysisEffectRequest.RangeChanged:
+                if (suppressAnalysisRecompute)
+                {
+                    InvalidateAnalysisInputs();
+                }
+                else
+                {
+                    RequestCurrentAnalysisResults(!suppressInsightsRecompute, respectSuppression: true);
+                }
+
+                break;
+
             case RecordedSessionAnalysisEffectRequest.Damping damping:
                 RequestCurrentAnalysisResults(damping.IncludeInsights, damping.RespectSuppression);
                 break;

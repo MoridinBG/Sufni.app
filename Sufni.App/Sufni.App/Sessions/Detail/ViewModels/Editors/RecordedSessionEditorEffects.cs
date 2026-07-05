@@ -69,6 +69,7 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
 
         return states
             .Select(static state => new RecordedSessionAnalysisEffectState(
+                state.Intent.AnalysisRange,
                 state.Intent.SelectedTravelDistributionMode,
                 state.Intent.SelectedVelocityAverageMode,
                 state.Intent.SelectedBalanceDisplacementMode,
@@ -112,6 +113,12 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
         RecordedSessionAnalysisEffectState previous,
         RecordedSessionAnalysisEffectState current)
     {
+        if (previous.AnalysisRange != current.AnalysisRange)
+        {
+            return new RecordedSessionEditorEffect.RequestAnalysis(
+                new RecordedSessionAnalysisEffectRequest.RangeChanged());
+        }
+
         if (previous.VelocityAverageMode != current.VelocityAverageMode ||
             previous.DampingSpeedCutoffs != current.DampingSpeedCutoffs)
         {
@@ -135,6 +142,7 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
 }
 
 internal sealed record RecordedSessionAnalysisEffectState(
+    TelemetryTimeRange? AnalysisRange,
     TravelDistributionMode TravelDistributionMode,
     VelocityAverageMode VelocityAverageMode,
     BalanceDisplacementMode BalanceDisplacementMode,
@@ -144,6 +152,8 @@ internal sealed record RecordedSessionAnalysisEffectState(
 
 internal abstract record RecordedSessionAnalysisEffectRequest
 {
+    public sealed record RangeChanged : RecordedSessionAnalysisEffectRequest;
+
     public sealed record Damping(bool IncludeInsights, bool RespectSuppression)
         : RecordedSessionAnalysisEffectRequest;
 
