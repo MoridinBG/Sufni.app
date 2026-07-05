@@ -140,6 +140,35 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void StateController_DerivesSelectedPageIndex_FromActionsAndPageCount()
+    {
+        using var legacyState = new Subject<RecordedSessionEditorState>();
+        using var actions = new RecordedSessionEditorActions();
+        using var pageCounts = new Subject<int>();
+        using var controller = new RecordedSessionEditorStateController(
+            legacyState,
+            actions.Intents,
+            pageCounts);
+        var observed = new List<int>();
+        using var subscription = controller.State.Subscribe(state => observed.Add(state.Intent.SelectedPageIndex));
+
+        pageCounts.OnNext(3);
+        legacyState.OnNext(CreateState(selectedPageIndex: 7));
+        actions.SelectPageIndex(2);
+        actions.SelectPageIndex(99);
+        pageCounts.OnNext(2);
+        actions.SelectPageIndex(-3);
+        pageCounts.OnNext(0);
+
+        Assert.Collection(
+            observed,
+            selectedPageIndex => Assert.Equal(0, selectedPageIndex),
+            selectedPageIndex => Assert.Equal(2, selectedPageIndex),
+            selectedPageIndex => Assert.Equal(1, selectedPageIndex),
+            selectedPageIndex => Assert.Equal(0, selectedPageIndex));
+    }
+
+    [Fact]
     public void StateController_DisposeStopsSourceSubscription()
     {
         using var source = new Subject<RecordedSessionEditorState>();

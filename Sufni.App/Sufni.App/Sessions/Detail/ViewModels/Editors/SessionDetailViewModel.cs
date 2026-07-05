@@ -100,6 +100,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly RecordedSessionEditorActions editorActions = new();
     private readonly IDisposable editorActionsSubscription;
     private readonly Subject<RecordedSessionEditorState> editorStateInput = new();
+    private readonly Subject<int> pageCountInput = new();
     private readonly RecordedSessionEditorStateController editorStateController;
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
     private readonly Func<IEditorFactory> editorFactory;
@@ -1446,7 +1447,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         analysisRequestScheduler = new AnalysisRequestScheduler(this, analysisInputs);
         analysisResultSubscription = analysisResultState.Connect().Subscribe(OnAnalysisResultChanged);
         editorActionsSubscription = editorActions.Intents.Subscribe(ApplyRecordedSessionEditorIntent);
-        editorStateController = new RecordedSessionEditorStateController(editorStateInput);
+        editorStateController = new RecordedSessionEditorStateController(
+            editorStateInput,
+            editorActions.Intents,
+            pageCountInput);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
@@ -1607,6 +1611,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         Pages.Add(NotesPage);
         Pages.Add(PreferencesPage);
         Pages.CollectionChanged += OnPagesChanged;
+        pageCountInput.OnNext(Pages.Count);
         mapViewModel = mapViewModelFactory.Create();
         SessionContext.MapViewModel = mapViewModel;
         _ = mapViewModel.InitializeAsync();
@@ -1670,13 +1675,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {
         selectedPageIndex = ClampSelectedPageIndex(selectedPageIndex);
-        SessionContext.SelectedPageIndex = selectedPageIndex;
+        pageCountInput.OnNext(Pages.Count);
         if (IsSessionInsightsPageSelected)
         {
             RequestCurrentSessionInsights(respectSuppression: true);
         }
-
-        PublishEditorState();
     }
 
     private int ClampSelectedPageIndex(int pageIndex)
@@ -2418,13 +2421,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private void SelectPageIndex(int pageIndex)
     {
         selectedPageIndex = ClampSelectedPageIndex(pageIndex);
-        SessionContext.SelectedPageIndex = selectedPageIndex;
         if (IsSessionInsightsPageSelected)
         {
             RequestCurrentSessionInsights(respectSuppression: true);
         }
-
-        PublishEditorState();
     }
 
     public void SetAnalysisRange(double startSeconds, double endSeconds)

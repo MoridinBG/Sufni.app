@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Reflection;
 using System.Reactive.Subjects;
@@ -110,62 +111,79 @@ public class SessionWorkspaceViewModelTests
     }
 
     [Fact]
-    public void RecordedSessionContext_SelectedPageState_ClampsAndTracksCollectionChanges()
+    public void SessionShellMobileWorkspace_SelectedPageState_ComesFromEditorState()
     {
-        var context = new RecordedSessionContext();
+        var pages = new ObservableCollection<PageViewModelBase>();
+        using var actions = new RecordedSessionEditorActions();
+        using var legacyState = new Subject<RecordedSessionEditorState>();
+        using var pageCounts = new Subject<int>();
+        using var controller = new RecordedSessionEditorStateController(
+            legacyState,
+            actions.Intents,
+            pageCounts);
+        var workspace = new SessionShellMobileWorkspaceViewModel(
+            new TestTabPageViewModel(new InlineUiThreadDispatcher()),
+            pages,
+            controller.State,
+            actions);
         var signals = new PageViewModelBase("Signals");
         var damping = new PageViewModelBase("Damping");
-        var changes = TrackPropertyChanges(context);
+        var changes = TrackPropertyChanges(workspace);
 
-        context.Pages.Add(signals);
-        context.Pages.Add(damping);
+        pages.Add(signals);
+        pageCounts.OnNext(pages.Count);
+        pages.Add(damping);
+        pageCounts.OnNext(pages.Count);
+        legacyState.OnNext(CreateState(new RecordedSessionContext()));
 
-        Assert.Equal(2, context.PageCount);
-        Assert.Equal(0, context.SelectedPageIndex);
-        Assert.Same(signals, context.SelectedPage);
-        Assert.Equal("Signals", context.SelectedPageDisplayName);
-        Assert.Contains(nameof(RecordedSessionContext.PageCount), changes);
-        Assert.Contains(nameof(RecordedSessionContext.SelectedPage), changes);
-        Assert.Contains(nameof(RecordedSessionContext.SelectedPageDisplayName), changes);
-
-        changes.Clear();
-        context.SelectedPageIndex = 1;
-
-        Assert.Same(damping, context.SelectedPage);
-        Assert.Equal("Damping", context.SelectedPageDisplayName);
-        Assert.Contains(nameof(RecordedSessionContext.SelectedPageIndex), changes);
-        Assert.Contains(nameof(RecordedSessionContext.SelectedPage), changes);
-        Assert.Contains(nameof(RecordedSessionContext.PageCount), changes);
-        Assert.Contains(nameof(RecordedSessionContext.SelectedPageDisplayName), changes);
-
-        context.SelectedPageIndex = 99;
-        Assert.Equal(1, context.SelectedPageIndex);
-
-        context.SelectedPageIndex = -1;
-        Assert.Equal(0, context.SelectedPageIndex);
-
-        context.SelectedPageIndex = 1;
-        changes.Clear();
-
-        context.Pages.Remove(damping);
-
-        Assert.Equal(0, context.SelectedPageIndex);
-        Assert.Same(signals, context.SelectedPage);
-        Assert.Equal("Signals", context.SelectedPageDisplayName);
-        Assert.Contains(nameof(RecordedSessionContext.SelectedPageIndex), changes);
-        Assert.Contains(nameof(RecordedSessionContext.PageCount), changes);
+        Assert.Equal(2, workspace.PageCount);
+        Assert.Equal(0, workspace.SelectedPageIndex);
+        Assert.Same(signals, workspace.SelectedPage);
+        Assert.Equal("Signals", workspace.SelectedPageDisplayName);
+        Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.PageCount), changes);
+        Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.SelectedPage), changes);
+        Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.SelectedPageDisplayName), changes);
 
         changes.Clear();
+        workspace.SelectedPageIndex = 1;
 
-        context.Pages.Clear();
+        Assert.Equal(1, workspace.SelectedPageIndex);
+        Assert.Same(damping, workspace.SelectedPage);
+        Assert.Equal("Damping", workspace.SelectedPageDisplayName);
+        Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.SelectedPageIndex), changes);
+        Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.SelectedPage), changes);
+        Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.SelectedPageDisplayName), changes);
 
-        Assert.Equal(0, context.SelectedPageIndex);
-        Assert.Null(context.SelectedPage);
-        Assert.Equal(0, context.PageCount);
-        Assert.Equal(string.Empty, context.SelectedPageDisplayName);
-        Assert.Contains(nameof(RecordedSessionContext.SelectedPage), changes);
-        Assert.Contains(nameof(RecordedSessionContext.PageCount), changes);
-        Assert.Contains(nameof(RecordedSessionContext.SelectedPageDisplayName), changes);
+        workspace.SelectedPageIndex = 99;
+        Assert.Equal(1, workspace.SelectedPageIndex);
+
+        workspace.SelectedPageIndex = -1;
+        Assert.Equal(0, workspace.SelectedPageIndex);
+
+        workspace.SelectedPageIndex = 1;
+        changes.Clear();
+
+        pages.Remove(damping);
+        pageCounts.OnNext(pages.Count);
+
+        Assert.Equal(0, workspace.SelectedPageIndex);
+        Assert.Same(signals, workspace.SelectedPage);
+        Assert.Equal("Signals", workspace.SelectedPageDisplayName);
+        Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.SelectedPageIndex), changes);
+        Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.PageCount), changes);
+
+        changes.Clear();
+
+        pages.Clear();
+        pageCounts.OnNext(pages.Count);
+
+        Assert.Equal(0, workspace.SelectedPageIndex);
+        Assert.Null(workspace.SelectedPage);
+        Assert.Equal(0, workspace.PageCount);
+        Assert.Equal(string.Empty, workspace.SelectedPageDisplayName);
+        Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.SelectedPage), changes);
+        Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.PageCount), changes);
+        Assert.Contains(nameof(SessionShellMobileWorkspaceViewModel.SelectedPageDisplayName), changes);
     }
 
     private static (RecordedSessionContext Context, TestSessionOperationGateway Gateway, RecordedSessionEditorActions Actions, SessionAnalysisWorkspaceViewModel Workspace) CreateAnalysisWorkspace()
