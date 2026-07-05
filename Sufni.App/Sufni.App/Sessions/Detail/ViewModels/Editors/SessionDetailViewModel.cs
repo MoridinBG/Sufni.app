@@ -143,7 +143,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private readonly CancellableOperation loadOperation = new();
     private SessionPresentationDimensions? lastPresentationDimensions;
-    private double? pendingAnalysisRangeBoundary;
     private RecordedSessionTimelineAlignmentMark? pendingTimelineAlignmentMark;
     private RecordedSessionAnalysisInputs analysisInputs;
     private readonly AnalysisRequestScheduler analysisRequestScheduler;
@@ -173,44 +172,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private SessionOperationPresentationState sessionOperationState = SessionOperationPresentationState.Hidden;
     private SessionDampingPercentages dampingPercentages = SessionDampingPercentages.Empty;
     private SessionInsightsResult sessionInsights = SessionInsightsResult.Hidden;
-    private SurfacePresentationState travelSignalState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState velocitySignalState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState imuSignalState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState pitchRollSignalState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState speedSignalState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState elevationSignalState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState mapState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState mediaPaneState = SurfacePresentationState.Hidden;
-    private double? mediaColumnWidth;
-    private string? mediaUrl;
-    private SurfacePresentationState frontAnalysisState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState rearAnalysisState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState compressionBalanceState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState reboundBalanceState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState frontForkVibrationState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState frontFrameVibrationState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState rearForkVibrationState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState rearFrameVibrationState = SurfacePresentationState.Hidden;
-    private DampingSpeedCutoffs plotDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
-    private bool canEditDampingSpeedCutoffs;
     private SessionSnapshot? sessionSnapshot;
     private TelemetryData? telemetryData;
     private List<TrackPoint>? fullTrackPoints;
     private List<TrackPoint>? trackPoints;
     private TrackTimeRange? trackTimelineContext;
     private MapViewModel? mapViewModel;
-    private bool showAirtime = true;
-    private bool showVelocityAirtime;
-    private bool showImuAirtime;
-    private bool showPitchRollAirtime;
-    private bool showSpeedAirtime;
-    private bool showElevationAirtime;
-    private bool showAnalysisSelection;
-    private bool showVelocityAnalysisSelection;
-    private bool showImuAnalysisSelection;
-    private bool showPitchRollAnalysisSelection;
-    private bool showSpeedAnalysisSelection;
-    private bool showElevationAnalysisSelection;
 
     #endregion Private fields
 
@@ -671,7 +638,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         telemetryGeneration++;
         IsComplete = value != null;
         NotesPage.SetTemperatureAverages(value?.TemperatureAverages ?? []);
-        pendingAnalysisRangeBoundary = null;
+        if (currentEditorState.Intent.PendingAnalysisRangeBoundary is not null)
+        {
+            editorActions.ClearAnalysisRange();
+        }
+
         ClearAnalysisSelections();
         RefreshTrackTimelineContext();
         if (value is null)
@@ -1433,29 +1404,29 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             ErrorMessages.Add);
         signalRowActions = new SignalRowActionsController(
             () => currentEditorState.AnalysisSelection.HighlightRanges.Count > 0,
-            () => showAirtime,
+            () => currentEditorState.Presentation.Signals.ShowAirtime,
             SetShowAirtime,
-            () => showVelocityAirtime,
+            () => currentEditorState.Presentation.Signals.ShowVelocityAirtime,
             SetShowVelocityAirtime,
-            () => showImuAirtime,
+            () => currentEditorState.Presentation.Signals.ShowImuAirtime,
             SetShowImuAirtime,
-            () => showPitchRollAirtime,
+            () => currentEditorState.Presentation.Signals.ShowPitchRollAirtime,
             SetShowPitchRollAirtime,
-            () => showSpeedAirtime,
+            () => currentEditorState.Presentation.Signals.ShowSpeedAirtime,
             SetShowSpeedAirtime,
-            () => showElevationAirtime,
+            () => currentEditorState.Presentation.Signals.ShowElevationAirtime,
             SetShowElevationAirtime,
-            () => showAnalysisSelection,
+            () => currentEditorState.Presentation.Signals.ShowAnalysisSelection,
             SetShowAnalysisSelection,
-            () => showVelocityAnalysisSelection,
+            () => currentEditorState.Presentation.Signals.ShowVelocityAnalysisSelection,
             SetShowVelocityAnalysisSelection,
-            () => showImuAnalysisSelection,
+            () => currentEditorState.Presentation.Signals.ShowImuAnalysisSelection,
             SetShowImuAnalysisSelection,
-            () => showPitchRollAnalysisSelection,
+            () => currentEditorState.Presentation.Signals.ShowPitchRollAnalysisSelection,
             SetShowPitchRollAnalysisSelection,
-            () => showSpeedAnalysisSelection,
+            () => currentEditorState.Presentation.Signals.ShowSpeedAnalysisSelection,
             SetShowSpeedAnalysisSelection,
-            () => showElevationAnalysisSelection,
+            () => currentEditorState.Presentation.Signals.ShowElevationAnalysisSelection,
             SetShowElevationAnalysisSelection);
         signalAutozoomController = new SignalAutozoomController(Timeline);
         setAnalysisRangeStartCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
@@ -1650,17 +1621,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         if (previous.Intent.AnalysisRange != state.Intent.AnalysisRange)
         {
-            pendingAnalysisRangeBoundary = state.Intent.PendingAnalysisRangeBoundary;
             OnPropertyChanged(nameof(CurrentAnalysisRange));
             OnPropertyChanged(nameof(SessionAnalysisRangeText));
             ClearAnalysisSelections();
             presentationApplier.RefreshAnalysisRangeStates();
         }
-        else if (previous.Intent.PendingAnalysisRangeBoundary != state.Intent.PendingAnalysisRangeBoundary)
-        {
-            pendingAnalysisRangeBoundary = state.Intent.PendingAnalysisRangeBoundary;
-        }
-
         if (previous.AnalysisSelection != state.AnalysisSelection)
         {
             OnPropertyChanged(nameof(ActiveFrontAnalysisSelection));
@@ -1671,6 +1636,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 SetShowAnalysisSelection(true);
             }
 
+            signalRowActions.RefreshAnalysisSelectionActionStates();
+        }
+
+        if (previous.Presentation.Signals != state.Presentation.Signals)
+        {
+            signalRowActions.RefreshAirtimeActionStates();
             signalRowActions.RefreshAnalysisSelectionActionStates();
         }
 
@@ -1693,11 +1664,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             OnPropertyChanged(nameof(LayoutPreferences));
             OnPropertyChanged(nameof(MediaLayoutPreferences));
-        }
-
-        if (previous.Presentation.PlotDampingSpeedCutoffs != state.Presentation.PlotDampingSpeedCutoffs)
-        {
-            plotDampingSpeedCutoffs = state.Presentation.PlotDampingSpeedCutoffs;
         }
 
         var travelDistributionChanged =
@@ -1815,101 +1781,90 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private RecordedSignalPresentationState CreateSignalPresentationState()
     {
-        return new RecordedSignalPresentationState(
-            Travel: travelSignalState,
-            Velocity: velocitySignalState,
-            Imu: imuSignalState,
-            PitchRoll: pitchRollSignalState,
-            Speed: speedSignalState,
-            Elevation: elevationSignalState,
-            ShowAirtime: showAirtime,
-            ShowVelocityAirtime: showVelocityAirtime,
-            ShowImuAirtime: showImuAirtime,
-            ShowPitchRollAirtime: showPitchRollAirtime,
-            ShowSpeedAirtime: showSpeedAirtime,
-            ShowElevationAirtime: showElevationAirtime,
-            ShowAnalysisSelection: showAnalysisSelection,
-            ShowVelocityAnalysisSelection: showVelocityAnalysisSelection,
-            ShowImuAnalysisSelection: showImuAnalysisSelection,
-            ShowPitchRollAnalysisSelection: showPitchRollAnalysisSelection,
-            ShowSpeedAnalysisSelection: showSpeedAnalysisSelection,
-            ShowElevationAnalysisSelection: showElevationAnalysisSelection,
-            TravelHeaderActions: TravelHeaderActions,
-            VelocityHeaderActions: VelocityHeaderActions,
-            ImuHeaderActions: ImuHeaderActions,
-            PitchRollHeaderActions: PitchRollHeaderActions,
-            SpeedHeaderActions: SpeedHeaderActions,
-            ElevationHeaderActions: ElevationHeaderActions);
-    }
-
-    private RecordedAnalysisPresentationState CreateAnalysisPresentationState()
-    {
-        return new RecordedAnalysisPresentationState(
-            frontAnalysisState,
-            rearAnalysisState,
-            compressionBalanceState,
-            reboundBalanceState,
-            frontForkVibrationState,
-            frontFrameVibrationState,
-            rearForkVibrationState,
-            rearFrameVibrationState);
-    }
-
-    private void SetShowAirtime(bool value) => SetSignalToggle(ref showAirtime, value);
-
-    private void SetShowVelocityAirtime(bool value) => SetSignalToggle(ref showVelocityAirtime, value);
-
-    private void SetShowImuAirtime(bool value) => SetSignalToggle(ref showImuAirtime, value);
-
-    private void SetShowPitchRollAirtime(bool value) => SetSignalToggle(ref showPitchRollAirtime, value);
-
-    private void SetShowSpeedAirtime(bool value) => SetSignalToggle(ref showSpeedAirtime, value);
-
-    private void SetShowElevationAirtime(bool value) => SetSignalToggle(ref showElevationAirtime, value);
-
-    private void SetShowAnalysisSelection(bool value) => SetSignalToggle(ref showAnalysisSelection, value);
-
-    private void SetShowVelocityAnalysisSelection(bool value) => SetSignalToggle(ref showVelocityAnalysisSelection, value);
-
-    private void SetShowImuAnalysisSelection(bool value) => SetSignalToggle(ref showImuAnalysisSelection, value);
-
-    private void SetShowPitchRollAnalysisSelection(bool value) => SetSignalToggle(ref showPitchRollAnalysisSelection, value);
-
-    private void SetShowSpeedAnalysisSelection(bool value) => SetSignalToggle(ref showSpeedAnalysisSelection, value);
-
-    private void SetShowElevationAnalysisSelection(bool value) => SetSignalToggle(ref showElevationAnalysisSelection, value);
-
-    private void SetSignalToggle(ref bool field, bool value)
-    {
-        if (field == value)
+        var state = currentEditorState.Presentation.Signals;
+        return state with
         {
-            return;
-        }
+            ShowAirtime = HasSignalHeaderActions(state) ? state.ShowAirtime : true,
+            TravelHeaderActions = TravelHeaderActions,
+            VelocityHeaderActions = VelocityHeaderActions,
+            ImuHeaderActions = ImuHeaderActions,
+            PitchRollHeaderActions = PitchRollHeaderActions,
+            SpeedHeaderActions = SpeedHeaderActions,
+            ElevationHeaderActions = ElevationHeaderActions,
+        };
+    }
 
-        field = value;
-        signalPresentationInput.OnNext(CreateSignalPresentationState());
+    private static bool HasSignalHeaderActions(RecordedSignalPresentationState state)
+    {
+        return state.TravelHeaderActions.Count > 0 ||
+               state.VelocityHeaderActions.Count > 0 ||
+               state.ImuHeaderActions.Count > 0 ||
+               state.PitchRollHeaderActions.Count > 0 ||
+               state.SpeedHeaderActions.Count > 0 ||
+               state.ElevationHeaderActions.Count > 0;
+    }
+
+    private void SetShowAirtime(bool value) =>
+        SetSignalPresentationState(CreateSignalPresentationState() with { ShowAirtime = value });
+
+    private void SetShowVelocityAirtime(bool value) =>
+        SetSignalPresentationState(CreateSignalPresentationState() with { ShowVelocityAirtime = value });
+
+    private void SetShowImuAirtime(bool value) =>
+        SetSignalPresentationState(CreateSignalPresentationState() with { ShowImuAirtime = value });
+
+    private void SetShowPitchRollAirtime(bool value) =>
+        SetSignalPresentationState(CreateSignalPresentationState() with { ShowPitchRollAirtime = value });
+
+    private void SetShowSpeedAirtime(bool value) =>
+        SetSignalPresentationState(CreateSignalPresentationState() with { ShowSpeedAirtime = value });
+
+    private void SetShowElevationAirtime(bool value) =>
+        SetSignalPresentationState(CreateSignalPresentationState() with { ShowElevationAirtime = value });
+
+    private void SetShowAnalysisSelection(bool value) =>
+        SetSignalPresentationState(CreateSignalPresentationState() with { ShowAnalysisSelection = value });
+
+    private void SetShowVelocityAnalysisSelection(bool value) =>
+        SetSignalPresentationState(CreateSignalPresentationState() with { ShowVelocityAnalysisSelection = value });
+
+    private void SetShowImuAnalysisSelection(bool value) =>
+        SetSignalPresentationState(CreateSignalPresentationState() with { ShowImuAnalysisSelection = value });
+
+    private void SetShowPitchRollAnalysisSelection(bool value) =>
+        SetSignalPresentationState(CreateSignalPresentationState() with { ShowPitchRollAnalysisSelection = value });
+
+    private void SetShowSpeedAnalysisSelection(bool value) =>
+        SetSignalPresentationState(CreateSignalPresentationState() with { ShowSpeedAnalysisSelection = value });
+
+    private void SetShowElevationAnalysisSelection(bool value) =>
+        SetSignalPresentationState(CreateSignalPresentationState() with { ShowElevationAnalysisSelection = value });
+
+    private void SetSignalPresentationState(RecordedSignalPresentationState state)
+    {
+        if (currentEditorState.Presentation.Signals != state)
+        {
+            signalPresentationInput.OnNext(state);
+        }
     }
 
     private void SetCanEditDampingSpeedCutoffs(bool value)
     {
-        if (canEditDampingSpeedCutoffs == value)
+        if (currentEditorState.Presentation.CanEditDampingSpeedCutoffs == value)
         {
             return;
         }
 
-        canEditDampingSpeedCutoffs = value;
-        OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
         canEditDampingSpeedCutoffsInput.OnNext(value);
     }
 
     private void SetPlotDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs)
     {
-        if (plotDampingSpeedCutoffs == cutoffs)
+        if (currentEditorState.Presentation.PlotDampingSpeedCutoffs == cutoffs)
         {
             return;
         }
 
-        plotDampingSpeedCutoffs = cutoffs;
         plotDampingSpeedCutoffsInput.OnNext(cutoffs);
     }
 
@@ -1949,46 +1904,34 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SurfacePresentationState speedState,
         SurfacePresentationState elevationState)
     {
-        var changed =
-            travelSignalState != travelState ||
-            velocitySignalState != velocityState ||
-            imuSignalState != imuState ||
-            pitchRollSignalState != pitchRollState ||
-            speedSignalState != speedState ||
-            elevationSignalState != elevationState;
-
-        travelSignalState = travelState;
-        velocitySignalState = velocityState;
-        imuSignalState = imuState;
-        pitchRollSignalState = pitchRollState;
-        speedSignalState = speedState;
-        elevationSignalState = elevationState;
-
-
-        if (changed)
+        SetSignalPresentationState(CreateSignalPresentationState() with
         {
-            signalPresentationInput.OnNext(CreateSignalPresentationState());
-        }
+            Travel = travelState,
+            Velocity = velocityState,
+            Imu = imuState,
+            PitchRoll = pitchRollState,
+            Speed = speedState,
+            Elevation = elevationState,
+        });
     }
 
     internal void SetTrackDerivedSignalStates(
         SurfacePresentationState speedState,
         SurfacePresentationState elevationState)
     {
+        var signals = currentEditorState.Presentation.Signals;
         SetRecordedSignalStates(
-            travelSignalState,
-            velocitySignalState,
-            imuSignalState,
-            pitchRollSignalState,
+            signals.Travel,
+            signals.Velocity,
+            signals.Imu,
+            signals.PitchRoll,
             speedState,
             elevationState);
     }
 
     internal void SetMapState(SurfacePresentationState state)
     {
-        var changed = mapState != state;
-        mapState = state;
-        if (changed)
+        if (currentEditorState.Presentation.MapState != state)
         {
             mapStateInput.OnNext(state);
         }
@@ -1996,9 +1939,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     internal void SetMediaColumnWidth(double? width)
     {
-        var changed = mediaColumnWidth != width;
-        mediaColumnWidth = width;
-        if (changed)
+        if (currentEditorState.Presentation.MediaColumnWidth != width)
         {
             mediaColumnWidthInput.OnNext(width);
         }
@@ -2009,12 +1950,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         var nextPaneState = string.IsNullOrWhiteSpace(url)
             ? SurfacePresentationState.Hidden
             : SurfacePresentationState.Ready;
-        var changed = mediaUrl != url || mediaPaneState != nextPaneState;
-
-        mediaUrl = url;
-        mediaPaneState = nextPaneState;
-
-        if (changed)
+        if (currentEditorState.Presentation.MediaUrl != url ||
+            currentEditorState.Presentation.MediaPaneState != nextPaneState)
         {
             mediaUrlInput.OnNext(url);
             mediaPaneStateInput.OnNext(nextPaneState);
@@ -2023,27 +1960,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     internal void SetRecordedAnalysisStates(RecordedAnalysisPresentationState state)
     {
-        var changed =
-            frontAnalysisState != state.FrontAnalysis ||
-            rearAnalysisState != state.RearAnalysis ||
-            compressionBalanceState != state.CompressionBalance ||
-            reboundBalanceState != state.ReboundBalance ||
-            frontForkVibrationState != state.FrontForkVibration ||
-            frontFrameVibrationState != state.FrontFrameVibration ||
-            rearForkVibrationState != state.RearForkVibration ||
-            rearFrameVibrationState != state.RearFrameVibration;
-
-        frontAnalysisState = state.FrontAnalysis;
-        rearAnalysisState = state.RearAnalysis;
-        compressionBalanceState = state.CompressionBalance;
-        reboundBalanceState = state.ReboundBalance;
-        frontForkVibrationState = state.FrontForkVibration;
-        frontFrameVibrationState = state.FrontFrameVibration;
-        rearForkVibrationState = state.RearForkVibration;
-        rearFrameVibrationState = state.RearFrameVibration;
-
-
-        if (changed)
+        if (currentEditorState.Presentation.Analysis != state)
         {
             analysisPresentationInput.OnNext(state);
         }

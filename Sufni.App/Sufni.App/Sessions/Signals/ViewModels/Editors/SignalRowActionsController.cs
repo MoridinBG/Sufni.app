@@ -141,6 +141,16 @@ internal sealed class SignalRowActionsController
         UpdateAnalysisSelectionAction(showElevationAnalysisSelectionAction, showElevationAnalysisSelection(), hasSelection);
     }
 
+    public void RefreshAirtimeActionStates()
+    {
+        UpdateAirtimeAction(showAirtimeAction, showAirtime());
+        UpdateAirtimeAction(showVelocityAirtimeAction, showVelocityAirtime());
+        UpdateAirtimeAction(showImuAirtimeAction, showImuAirtime());
+        UpdateAirtimeAction(showPitchRollAirtimeAction, showPitchRollAirtime());
+        UpdateAirtimeAction(showSpeedAirtimeAction, showSpeedAirtime());
+        UpdateAirtimeAction(showElevationAirtimeAction, showElevationAirtime());
+    }
+
     public void ClearAnalysisSelectionToggles()
     {
         SetAnalysisSelection(showAnalysisSelectionAction, setShowAnalysisSelection, false);
