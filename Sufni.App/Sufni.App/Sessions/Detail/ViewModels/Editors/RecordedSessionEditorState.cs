@@ -137,9 +137,12 @@ internal sealed record RecordedSessionLoadedData(
 
 internal abstract record RecordedSessionLoadPresentation
 {
-    public sealed record Empty : RecordedSessionLoadPresentation;
+    public sealed record Empty(
+        SessionSnapshot? Session = null) : RecordedSessionLoadPresentation;
 
-    public sealed record Loading(bool MapExpected) : RecordedSessionLoadPresentation;
+    public sealed record Loading(
+        bool MapExpected,
+        SessionSnapshot? Session = null) : RecordedSessionLoadPresentation;
 
     public sealed record Loaded(
         SessionDetailData Data,
@@ -147,9 +150,12 @@ internal abstract record RecordedSessionLoadPresentation
 
     public sealed record IncompleteLocalData(
         MissingSessionData Missing,
-        bool HasProcessedData) : RecordedSessionLoadPresentation;
+        bool HasProcessedData,
+        SessionSnapshot? Session = null) : RecordedSessionLoadPresentation;
 
-    public sealed record Failed(string ErrorMessage) : RecordedSessionLoadPresentation;
+    public sealed record Failed(
+        string ErrorMessage,
+        SessionSnapshot? Session = null) : RecordedSessionLoadPresentation;
 }
 
 internal sealed record RecordedSessionEditorIntentState(

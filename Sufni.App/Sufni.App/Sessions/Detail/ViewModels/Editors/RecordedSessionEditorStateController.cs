@@ -5,11 +5,13 @@ using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Analysis.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Processing.SessionDetails;
+using Sufni.App.Sessions.Store;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
@@ -32,7 +34,6 @@ internal sealed record RecordedSessionEditorStateInputs(
     IObservable<SessionInsightsResult> SessionInsights,
     IObservable<RecordedSignalPresentationState> SignalPresentationStates,
     IObservable<AnalysisSelectionState> AnalysisSelections,
-    IObservable<RecordedSessionLoadedData> LoadedDataStates,
     IObservable<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> SignalPlotContextMenuActions,
     IObservable<RecordedSessionDomainSnapshot> DomainStates);
 
@@ -61,7 +62,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(inputs.SessionInsights);
         ArgumentNullException.ThrowIfNull(inputs.SignalPresentationStates);
         ArgumentNullException.ThrowIfNull(inputs.AnalysisSelections);
-        ArgumentNullException.ThrowIfNull(inputs.LoadedDataStates);
         ArgumentNullException.ThrowIfNull(inputs.SignalPlotContextMenuActions);
         ArgumentNullException.ThrowIfNull(inputs.DomainStates);
 
@@ -69,11 +69,9 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var loadPresentationState = CreateInputState(
             inputs.LoadPresentations,
             new RecordedSessionLoadPresentation.Empty());
-        var loadDerivedLoadedData = loadPresentationState
-            .Select(CreateLoadedDataFromLoadPresentation)
-            .Where(static loadedData => loadedData is not null)
-            .Select(static loadedData => loadedData!);
-        var loadedDataState = CreateOptionalInputState(inputs.LoadedDataStates.Merge(loadDerivedLoadedData));
+        var loadedDataState = CreateInputState(
+            loadPresentationState.Select(CreateLoadedDataFromLoadPresentation),
+            CreateEmptyLoadedData());
         var analysisRange = CreateAnalysisRangeState(inputs.Intents, loadedDataState);
         var dampingSpeedCutoffs = CreateDampingSpeedCutoffsState(inputs.Intents);
         var preferenceIntent = CreatePreferenceIntentState(inputs.Intents, inputs.PreferenceReplays);
@@ -224,18 +222,14 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                 domainState,
                 static (current, domain) =>
                 {
-                    var loaded = current.loadedData ?? new RecordedSessionLoadedData(
-                        current.state.Session,
-                        current.state.TelemetryData,
-                        current.state.FullTrackPoints,
-                        current.state.TrackPoints,
-                        current.state.TrackTimelineContext);
+                    var loaded = current.loadedData;
+                    var session = domain?.Session ?? loaded.Session ?? current.state.Session;
 
                     return current.state with
                     {
                         Domain = domain ?? current.state.Domain,
                         Load = current.load,
-                        Session = loaded.Session,
+                        Session = session,
                         TelemetryData = loaded.TelemetryData,
                         FullTrackPoints = loaded.FullTrackPoints,
                         TrackPoints = loaded.TrackPoints,
@@ -301,21 +295,66 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         return new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
     }
 
-    private static RecordedSessionLoadedData? CreateLoadedDataFromLoadPresentation(
+    private static RecordedSessionLoadedData CreateLoadedDataFromLoadPresentation(
         RecordedSessionLoadPresentation load)
     {
         if (load is not RecordedSessionLoadPresentation.Loaded loaded)
         {
-            return null;
+            return new RecordedSessionLoadedData(
+                GetSessionSnapshot(load),
+                TelemetryData: null,
+                FullTrackPoints: null,
+                TrackPoints: null,
+                TrackTimelineContext: null);
         }
 
         var telemetry = loaded.Data.TelemetryPresentation;
+        var session = loaded.Session;
         return new RecordedSessionLoadedData(
-            Session: loaded.Session,
+            Session: session,
             TelemetryData: telemetry.TelemetryData,
             FullTrackPoints: telemetry.FullTrackPoints,
             TrackPoints: telemetry.TrackPoints,
+            TrackTimelineContext: CreateTrackTimelineContext(
+                telemetry.TelemetryData,
+                telemetry.TrackPoints,
+                session));
+    }
+
+    private static RecordedSessionLoadedData CreateEmptyLoadedData()
+    {
+        return new RecordedSessionLoadedData(
+            Session: null,
+            TelemetryData: null,
+            FullTrackPoints: null,
+            TrackPoints: null,
             TrackTimelineContext: null);
+    }
+
+    private static SessionSnapshot? GetSessionSnapshot(RecordedSessionLoadPresentation load)
+    {
+        return load switch
+        {
+            RecordedSessionLoadPresentation.Empty empty => empty.Session,
+            RecordedSessionLoadPresentation.Loading loading => loading.Session,
+            RecordedSessionLoadPresentation.Loaded loaded => loaded.Session,
+            RecordedSessionLoadPresentation.IncompleteLocalData incomplete => incomplete.Session,
+            RecordedSessionLoadPresentation.Failed failed => failed.Session,
+            _ => null,
+        };
+    }
+
+    private static TrackTimeRange? CreateTrackTimelineContext(
+        TelemetryData? telemetry,
+        IReadOnlyList<TrackPoint>? trackPoints,
+        SessionSnapshot? session)
+    {
+        return telemetry is null
+            ? null
+            : TrackPointSeries.BuildTimelineContext(
+                trackPoints,
+                telemetry.Metadata.Timestamp + SessionTrackProjection.NormalizeGpsOffsetSeconds(session?.GpsOffsetSeconds ?? 0),
+                telemetry.Metadata.Duration);
     }
 
     private static SessionScreenPresentationState CreateScreenStateFromLoadPresentation(

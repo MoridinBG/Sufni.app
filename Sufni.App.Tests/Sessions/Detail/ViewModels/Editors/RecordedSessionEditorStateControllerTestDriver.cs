@@ -10,6 +10,7 @@ using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
+using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Store;
 using Sufni.Telemetry;
 
@@ -38,7 +39,6 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
                 SessionInsights,
                 SignalPresentationStates,
                 AnalysisSelections,
-                LoadedDataStates,
                 SignalPlotContextMenuActions,
                 DomainStates));
     }
@@ -60,7 +60,6 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
     public Subject<SessionInsightsResult> SessionInsights { get; } = new();
     public Subject<RecordedSignalPresentationState> SignalPresentationStates { get; } = new();
     public Subject<AnalysisSelectionState> AnalysisSelections { get; } = new();
-    public Subject<RecordedSessionLoadedData> LoadedDataStates { get; } = new();
     public Subject<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> SignalPlotContextMenuActions { get; } = new();
     public Subject<RecordedSessionDomainSnapshot> DomainStates { get; } = new();
     public RecordedSessionEditorStateController Controller { get; }
@@ -74,15 +73,33 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
         SessionSnapshot? session = null,
         TelemetryData? telemetryData = null,
         IReadOnlyList<TrackPoint>? fullTrackPoints = null,
-        IReadOnlyList<TrackPoint>? trackPoints = null,
-        TrackTimeRange? trackTimelineContext = null)
+        IReadOnlyList<TrackPoint>? trackPoints = null)
     {
-        LoadedDataStates.OnNext(new RecordedSessionLoadedData(
-            session,
-            telemetryData,
-            fullTrackPoints,
-            trackPoints,
-            trackTimelineContext));
+        if (telemetryData is null)
+        {
+            LoadPresentations.OnNext(new RecordedSessionLoadPresentation.Empty(session));
+            return;
+        }
+
+        LoadPresentations.OnNext(new RecordedSessionLoadPresentation.Loaded(
+            new SessionDetailData(
+                new SessionTelemetryPresentationData(
+                    telemetryData,
+                    session?.FullTrackId,
+                    fullTrackPoints is List<TrackPoint> fullTrackList ? fullTrackList : fullTrackPoints?.ToList(),
+                    trackPoints is List<TrackPoint> trackList ? trackList : trackPoints?.ToList(),
+                    MediaColumnWidth: null,
+                    SessionDampingPercentages.Empty),
+                new SessionCachePresentationData(
+                    FrontTravelDistribution: null,
+                    RearTravelDistribution: null,
+                    FrontVelocityDistribution: null,
+                    RearVelocityDistribution: null,
+                    CompressionBalance: null,
+                    ReboundBalance: null,
+                    DampingPercentages: SessionDampingPercentages.Empty,
+                    BalanceAvailable: false)),
+            session));
     }
 
     public void Dispose()
@@ -105,7 +122,6 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
         SessionInsights.Dispose();
         SignalPresentationStates.Dispose();
         AnalysisSelections.Dispose();
-        LoadedDataStates.Dispose();
         SignalPlotContextMenuActions.Dispose();
         DomainStates.Dispose();
     }

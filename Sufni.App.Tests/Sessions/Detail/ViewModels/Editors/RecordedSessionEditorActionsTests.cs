@@ -258,8 +258,10 @@ public class RecordedSessionEditorActionsTests
         driver.PublishTelemetry(telemetry);
         driver.Actions.ClearAnalysisRange();
 
+        var transitions = AdjacentDistinct(observed);
+
         Assert.Collection(
-            observed,
+            transitions,
             range => Assert.Null(range),
             range =>
             {
@@ -281,10 +283,9 @@ public class RecordedSessionEditorActionsTests
         driver.Actions.SetAnalysisRangeStartBoundary(3.0);
         driver.Actions.SetAnalysisRangeEndBoundary(7.0);
 
-        var transitions = observed
+        var transitions = AdjacentDistinct(observed
             .Where(state => state.AnalysisRange is not null || state.PendingAnalysisRangeBoundary is not null)
-            .Select(state => (state.AnalysisRange, state.PendingAnalysisRangeBoundary))
-            .ToList();
+            .Select(state => (state.AnalysisRange, state.PendingAnalysisRangeBoundary)));
 
         Assert.Collection(
             transitions,
@@ -697,7 +698,7 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
-    public void StateController_DerivesLoadedData_FromInputs()
+    public void StateController_DerivesLoadedData_FromLoadPresentation()
     {
         using var driver = new RecordedSessionEditorStateControllerTestDriver();
         var observed = new List<RecordedSessionEditorState>();
@@ -706,14 +707,15 @@ public class RecordedSessionEditorActionsTests
         var telemetry = TestTelemetryData.CreateProcessed();
         List<TrackPoint> fullTrackPoints = [new TrackPoint(1, 2, 3, 4)];
         List<TrackPoint> trackPoints = [new TrackPoint(5, 6, 7, 8)];
-        var timelineContext = new TrackTimeRange(10, 20);
         driver.PublishLoadedData(
             session,
             telemetry,
             fullTrackPoints,
-            trackPoints,
-            timelineContext);
+            trackPoints);
         driver.Actions.SetTravelDistributionMode(TravelDistributionMode.DynamicSag);
+        var expectedTimelineContext = new TrackTimeRange(
+            telemetry.Metadata.Timestamp + SessionTrackProjection.NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
+            telemetry.Metadata.Duration);
 
         Assert.Null(observed[0].Session);
         Assert.Null(observed[0].TelemetryData);
@@ -721,12 +723,12 @@ public class RecordedSessionEditorActionsTests
         Assert.Same(telemetry, observed[1].TelemetryData);
         Assert.Same(fullTrackPoints, observed[1].FullTrackPoints);
         Assert.Same(trackPoints, observed[1].TrackPoints);
-        Assert.Equal(timelineContext, observed[1].TrackTimelineContext);
+        Assert.Equal(expectedTimelineContext, observed[1].TrackTimelineContext);
         Assert.Same(session, observed[^1].Session);
         Assert.Same(telemetry, observed[^1].TelemetryData);
         Assert.Same(fullTrackPoints, observed[^1].FullTrackPoints);
         Assert.Same(trackPoints, observed[^1].TrackPoints);
-        Assert.Equal(timelineContext, observed[^1].TrackTimelineContext);
+        Assert.Equal(expectedTimelineContext, observed[^1].TrackTimelineContext);
     }
 
     [Fact]
@@ -1097,6 +1099,21 @@ public class RecordedSessionEditorActionsTests
         var intents = new List<RecordedSessionEditorIntent>();
         actions.Intents.Subscribe(intents.Add);
         return intents;
+    }
+
+    private static List<T> AdjacentDistinct<T>(IEnumerable<T> values)
+    {
+        var distinct = new List<T>();
+        foreach (var value in values)
+        {
+            if (distinct.Count == 0 ||
+                !EqualityComparer<T>.Default.Equals(distinct[^1], value))
+            {
+                distinct.Add(value);
+            }
+        }
+
+        return distinct;
     }
 
     private static RecordedSessionEditorState CreateState(int selectedPageIndex, TelemetryData? telemetryData = null)

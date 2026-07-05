@@ -116,7 +116,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<SessionInsightsResult> sessionInsightsInput = new();
     private readonly Subject<RecordedSignalPresentationState> signalPresentationInput = new();
     private readonly Subject<AnalysisSelectionState> analysisSelectionInput = new();
-    private readonly Subject<RecordedSessionLoadedData> loadedDataInput = new();
     private readonly Subject<RecordedSessionHostRuntimeState> hostRuntimeInput = new();
     private readonly Subject<RecordedSessionDomainSnapshot> domainInput = new();
     private readonly Subject<Unit> stalenessReplayInput = new();
@@ -595,7 +594,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     internal void SetFullTrackPoints(List<TrackPoint>? points)
     {
         fullTrackPoints = points;
-        PublishLoadedDataState();
+        PublishCurrentLoadPresentation();
     }
 
     internal void SetTrackPoints(List<TrackPoint>? points)
@@ -603,7 +602,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         trackPoints = points;
 
         RefreshTrackTimelineContext();
-        PublishLoadedDataState();
+        PublishCurrentLoadPresentation();
     }
 
     internal void ApplyTelemetryDataWithoutAnalysisRecompute(TelemetryData? value)
@@ -643,11 +642,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         RefreshTrackTimelineContext();
         if (value is null)
         {
-            PublishLoadedDataState();
+            PublishCurrentLoadPresentation();
             return;
         }
 
-        PublishLoadedDataState();
+        PublishCurrentLoadPresentation();
     }
 
     private void RefreshTrackTimelineContext()
@@ -663,7 +662,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private void SetTrackTimelineContext(TrackTimeRange? timelineContext)
     {
         trackTimelineContext = timelineContext;
-        PublishLoadedDataState();
+        PublishCurrentLoadPresentation();
     }
 
     private static string FormatSeconds(double seconds)
@@ -758,11 +757,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             presentationApplier.ClearRecordedPresentation();
             presentationApplier.ApplyRecordedLoadingStates(currentSnapshot.FullTrackId is not null);
-            PublishLoadPresentation(new RecordedSessionLoadPresentation.Loading(currentSnapshot.FullTrackId is not null));
+            PublishLoadPresentation(new RecordedSessionLoadPresentation.Loading(
+                currentSnapshot.FullTrackId is not null,
+                currentSnapshot));
         }
         else
         {
-            PublishLoadPresentation(new RecordedSessionLoadPresentation.Empty());
+            PublishLoadPresentation(new RecordedSessionLoadPresentation.Empty(currentSnapshot));
             SetScreenState(SessionScreenPresentationState.Ready);
         }
 
@@ -803,9 +804,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             SessionDetailLoadResult.IncompleteLocalData incomplete =>
                 new RecordedSessionLoadPresentation.IncompleteLocalData(
                     incomplete.Missing,
-                    snapshot?.HasProcessedData ?? false),
-            SessionDetailLoadResult.Failed failed => new RecordedSessionLoadPresentation.Failed(failed.ErrorMessage),
-            _ => new RecordedSessionLoadPresentation.Empty(),
+                    snapshot?.HasProcessedData ?? false,
+                    snapshot),
+            SessionDetailLoadResult.Failed failed => new RecordedSessionLoadPresentation.Failed(
+                failed.ErrorMessage,
+                snapshot),
+            _ => new RecordedSessionLoadPresentation.Empty(snapshot),
         };
     }
 
@@ -813,7 +817,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         session = snapshot.ToMetadataEntity();
         sessionSnapshot = snapshot;
-        PublishLoadedDataState();
+        PublishCurrentLoadPresentation();
         BaselineUpdated = snapshot.Updated;
         metadataConflictPending = false;
         IsComplete = snapshot.HasProcessedData;
@@ -946,7 +950,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         session.Updated = snapshot.Updated;
         IsComplete = snapshot.HasProcessedData;
         sessionSnapshot = snapshot;
-        PublishLoadedDataState();
+        PublishCurrentLoadPresentation();
     }
 
     private Task HandleDeferredDomainAsync()
@@ -1418,7 +1422,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 sessionInsightsInput,
                 signalPresentationInput,
                 analysisSelectionInput,
-                loadedDataInput,
                 signalPlotContextMenuActionsInput,
                 domainInput));
         editorStateSubscription = editorStateController.State.Subscribe(ApplyEditorState);
@@ -1584,7 +1587,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         if (snapshot.HasProcessedData)
         {
             presentationApplier.ApplyRecordedLoadingStates(snapshot.FullTrackId is not null);
-            PublishLoadPresentation(new RecordedSessionLoadPresentation.Loading(snapshot.FullTrackId is not null));
+            PublishLoadPresentation(new RecordedSessionLoadPresentation.Loading(
+                snapshot.FullTrackId is not null,
+                snapshot));
         }
 
         NotesPage.ForkSettings.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();
@@ -1595,7 +1600,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         ResetImplementation();
         signalPresentationInput.OnNext(CreateSignalPresentationState());
-        PublishLoadedDataState();
+        if (!snapshot.HasProcessedData)
+        {
+            PublishCurrentLoadPresentation();
+        }
+
         editorEffects = new RecordedSessionEditorEffects(
             [
                 RecordedSessionEditorEffects.PreferencePersistence(editorActions.Intents),
@@ -1810,19 +1819,37 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         return pageIndex;
     }
 
-    private void PublishLoadedDataState()
+    private void PublishCurrentLoadPresentation()
     {
-        loadedDataInput.OnNext(CreateLoadedDataState());
+        PublishLoadPresentation(CreateCurrentLoadPresentation());
     }
 
-    private RecordedSessionLoadedData CreateLoadedDataState()
+    private RecordedSessionLoadPresentation CreateCurrentLoadPresentation()
     {
-        return new RecordedSessionLoadedData(
-            sessionSnapshot,
-            telemetryData,
-            fullTrackPoints,
-            trackPoints,
-            trackTimelineContext);
+        if (telemetryData is null)
+        {
+            return new RecordedSessionLoadPresentation.Empty(sessionSnapshot);
+        }
+
+        return new RecordedSessionLoadPresentation.Loaded(
+            new SessionDetailData(
+                new SessionTelemetryPresentationData(
+                    telemetryData,
+                    sessionSnapshot?.FullTrackId ?? session.FullTrack,
+                    fullTrackPoints,
+                    trackPoints,
+                    currentEditorState.Presentation.MediaColumnWidth,
+                    currentEditorState.Presentation.DampingPercentages),
+                new SessionCachePresentationData(
+                    FrontTravelDistribution: null,
+                    RearTravelDistribution: null,
+                    FrontVelocityDistribution: null,
+                    RearVelocityDistribution: null,
+                    CompressionBalance: null,
+                    ReboundBalance: null,
+                    DampingPercentages: currentEditorState.Presentation.DampingPercentages,
+                    BalanceAvailable: false)),
+            sessionSnapshot);
     }
 
     private static AnalysisSelectionState CreateAnalysisSelectionState(AnalysisSelectionController controller)
@@ -2334,7 +2361,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 {
                     session = conflict.CurrentSnapshot.ToMetadataEntity();
                     sessionSnapshot = conflict.CurrentSnapshot;
-                    PublishLoadedDataState();
+                    PublishCurrentLoadPresentation();
                     BaselineUpdated = conflict.CurrentSnapshot.Updated;
                     metadataConflictPending = false;
                     IsComplete = conflict.CurrentSnapshot.HasProcessedData;
