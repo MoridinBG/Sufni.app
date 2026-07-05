@@ -691,39 +691,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         NotifyTimelineAlignmentCommandsCanExecuteChanged();
         if (value is null)
         {
-            analysisRequestScheduler.OnTelemetryUnavailable();
             UpdateRecordedSessionExtensionHostState();
             PublishLoadedDataState();
             return;
-        }
-
-        var includeDeferredInsights =
-            analysisRequestScheduler.ConsumePendingTelemetryInsightsRequest() ||
-            IsSessionInsightsPageSelected;
-
-        if (analysisRange is not null)
-        {
-            ClearAnalysisRange();
-            if (suppressAnalysisRecompute && includeDeferredInsights)
-            {
-                RequestCurrentAnalysisResults(includeInsights: true);
-            }
-
-            PublishLoadedDataState();
-            return;
-        }
-
-        if (suppressAnalysisRecompute)
-        {
-            InvalidateAnalysisInputs();
-            if (includeDeferredInsights)
-            {
-                RequestCurrentAnalysisResults(includeInsights: true);
-            }
-        }
-        else
-        {
-            RequestCurrentAnalysisResults(!suppressInsightsRecompute || includeDeferredInsights);
         }
 
         UpdateRecordedSessionExtensionHostState();
@@ -1475,6 +1445,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 RecordedSessionEditorEffects.PreferencePersistence(editorActions.Intents),
                 RecordedSessionEditorEffects.AnalysisRequests(editorStateController.State),
                 RecordedSessionEditorEffects.PageSelectionAnalysisRequests(editorStateController.State),
+                RecordedSessionEditorEffects.TelemetryAnalysisRequests(editorStateController.State),
                 RecordedSessionEditorEffects.ExplicitAnalysisRequests(editorActions.Intents),
             ],
             ApplyRecordedSessionEditorEffect);
@@ -2280,6 +2251,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
                 break;
 
+            case RecordedSessionAnalysisEffectRequest.TelemetryChanged:
+                ApplyTelemetryAnalysisChange();
+                break;
+
             case RecordedSessionAnalysisEffectRequest.Damping damping:
                 RequestCurrentAnalysisResults(damping.IncludeInsights, damping.RespectSuppression);
                 break;
@@ -2287,6 +2262,43 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             case RecordedSessionAnalysisEffectRequest.Insights insights:
                 RequestCurrentSessionInsights(insights.RespectSuppression);
                 break;
+        }
+    }
+
+    private void ApplyTelemetryAnalysisChange()
+    {
+        if (telemetryData is null)
+        {
+            analysisRequestScheduler.OnTelemetryUnavailable();
+            return;
+        }
+
+        var includeDeferredInsights =
+            analysisRequestScheduler.ConsumePendingTelemetryInsightsRequest() ||
+            IsSessionInsightsPageSelected;
+
+        if (analysisRange is not null)
+        {
+            ClearAnalysisRange();
+            if (suppressAnalysisRecompute && includeDeferredInsights)
+            {
+                RequestCurrentAnalysisResults(includeInsights: true);
+            }
+
+            return;
+        }
+
+        if (suppressAnalysisRecompute)
+        {
+            InvalidateAnalysisInputs();
+            if (includeDeferredInsights)
+            {
+                RequestCurrentAnalysisResults(includeInsights: true);
+            }
+        }
+        else
+        {
+            RequestCurrentAnalysisResults(!suppressInsightsRecompute || includeDeferredInsights);
         }
     }
 

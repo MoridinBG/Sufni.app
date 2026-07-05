@@ -102,6 +102,21 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
                 new RecordedSessionAnalysisEffectRequest.SelectedPageChanged()));
     }
 
+    public static IObservable<RecordedSessionEditorEffect> TelemetryAnalysisRequests(
+        IObservable<RecordedSessionEditorState> states)
+    {
+        ArgumentNullException.ThrowIfNull(states);
+
+        return states
+            .Select(static state => state.TelemetryData)
+            .Scan(
+                (Previous: (TelemetryData?)null, Current: (TelemetryData?)null),
+                static (current, next) => (current.Current, next))
+            .Where(static pair => pair.Previous != pair.Current)
+            .Select(static _ => new RecordedSessionEditorEffect.RequestAnalysis(
+                new RecordedSessionAnalysisEffectRequest.TelemetryChanged()));
+    }
+
     public static IObservable<RecordedSessionEditorEffect> ExplicitAnalysisRequests(
         IObservable<RecordedSessionEditorIntent> intents)
     {
@@ -183,6 +198,8 @@ internal abstract record RecordedSessionAnalysisEffectRequest
     public sealed record RangeChanged : RecordedSessionAnalysisEffectRequest;
 
     public sealed record SelectedPageChanged : RecordedSessionAnalysisEffectRequest;
+
+    public sealed record TelemetryChanged : RecordedSessionAnalysisEffectRequest;
 
     public sealed record Damping(bool IncludeInsights, bool RespectSuppression)
         : RecordedSessionAnalysisEffectRequest;

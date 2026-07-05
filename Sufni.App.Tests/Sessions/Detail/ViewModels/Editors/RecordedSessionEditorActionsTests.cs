@@ -920,6 +920,35 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void TelemetryAnalysisRequests_EmitsOnTelemetryChanges()
+    {
+        using var states = new Subject<RecordedSessionEditorState>();
+        var effects = new List<RecordedSessionEditorEffect>();
+        using var subscription = RecordedSessionEditorEffects.TelemetryAnalysisRequests(states)
+            .Subscribe(effects.Add);
+        var telemetry = TestTelemetryData.CreateProcessed();
+
+        states.OnNext(CreateState(selectedPageIndex: 0));
+        states.OnNext(CreateState(selectedPageIndex: 0));
+        states.OnNext(CreateState(selectedPageIndex: 0, telemetry));
+        states.OnNext(CreateState(selectedPageIndex: 1, telemetry));
+        states.OnNext(CreateState(selectedPageIndex: 1));
+
+        Assert.Collection(
+            effects,
+            effect =>
+            {
+                var request = Assert.IsType<RecordedSessionEditorEffect.RequestAnalysis>(effect);
+                Assert.IsType<RecordedSessionAnalysisEffectRequest.TelemetryChanged>(request.Request);
+            },
+            effect =>
+            {
+                var request = Assert.IsType<RecordedSessionEditorEffect.RequestAnalysis>(effect);
+                Assert.IsType<RecordedSessionAnalysisEffectRequest.TelemetryChanged>(request.Request);
+            });
+    }
+
+    [Fact]
     public void ExplicitAnalysisRequests_EmitsUnsuppressedInsightsRequest()
     {
         using var actions = new RecordedSessionEditorActions();
