@@ -255,12 +255,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     internal void ApplyDampingPercentages(SessionDampingPercentages percentages)
     {
-        var changed = currentEditorState.Presentation.DampingPercentages != percentages;
         DampingPage.ApplyDampingPercentages(percentages);
-        if (changed)
-        {
-            PublishEditorInput(dampingPercentagesInput, percentages);
-        }
+        PublishEditorInput(dampingPercentagesInput, percentages);
     }
 
     internal void ApplyDampingSpeedCutoffContext(
@@ -1872,46 +1868,27 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void SetSignalPresentationState(RecordedSignalPresentationState state)
     {
-        if (currentEditorState.Presentation.Signals != state)
-        {
-            editorActions.SetSignalPresentation(state);
-        }
+        editorActions.SetSignalPresentation(state);
     }
 
     private void SetCanEditDampingSpeedCutoffs(bool value)
     {
-        if (currentEditorState.Presentation.CanEditDampingSpeedCutoffs == value)
-        {
-            return;
-        }
-
         PublishEditorInput(canEditDampingSpeedCutoffsInput, value);
     }
 
     private void SetPlotDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs)
     {
-        if (currentEditorState.Presentation.PlotDampingSpeedCutoffs == cutoffs)
-        {
-            return;
-        }
-
         PublishEditorInput(plotDampingSpeedCutoffsInput, cutoffs);
     }
 
     internal void SetSessionOperationState(SessionOperationPresentationState state)
     {
-        if (currentEditorState.Presentation.OperationState != state)
-        {
-            PublishEditorInput(sessionOperationStateInput, state);
-        }
+        PublishEditorInput(sessionOperationStateInput, state);
     }
 
     internal void SetSessionInsights(SessionInsightsResult insights)
     {
-        if (currentEditorState.Presentation.SessionInsights != insights)
-        {
-            PublishEditorInput(sessionInsightsInput, insights);
-        }
+        PublishEditorInput(sessionInsightsInput, insights);
     }
 
     internal void SetMediaUrl(string? url)
@@ -1919,12 +1896,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         var nextPaneState = string.IsNullOrWhiteSpace(url)
             ? SurfacePresentationState.Hidden
             : SurfacePresentationState.Ready;
-        if (currentEditorState.Presentation.MediaUrl != url ||
-            currentEditorState.Presentation.MediaPaneState != nextPaneState)
-        {
-            PublishEditorInput(mediaUrlInput, url);
-            PublishEditorInput(mediaPaneStateInput, nextPaneState);
-        }
+        PublishEditorInput(mediaUrlInput, url);
+        PublishEditorInput(mediaPaneStateInput, nextPaneState);
     }
 
     private void EvaluateDirtinessFromPageChange()
