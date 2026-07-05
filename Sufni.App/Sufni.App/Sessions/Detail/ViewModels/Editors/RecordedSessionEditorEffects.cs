@@ -102,6 +102,17 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
                 new RecordedSessionAnalysisEffectRequest.SelectedPageChanged()));
     }
 
+    public static IObservable<RecordedSessionEditorEffect> ExplicitAnalysisRequests(
+        IObservable<RecordedSessionEditorIntent> intents)
+    {
+        ArgumentNullException.ThrowIfNull(intents);
+
+        return intents
+            .OfType<RecordedSessionEditorIntent.RequestSessionInsights>()
+            .Select(static _ => new RecordedSessionEditorEffect.RequestAnalysis(
+                new RecordedSessionAnalysisEffectRequest.Insights(RespectSuppression: false)));
+    }
+
     public void Dispose()
     {
         if (disposed)

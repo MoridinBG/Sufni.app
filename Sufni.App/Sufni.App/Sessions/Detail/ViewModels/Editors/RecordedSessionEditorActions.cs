@@ -22,6 +22,8 @@ internal abstract record RecordedSessionEditorIntent
 
     public sealed record ClearAnalysisSelection : RecordedSessionEditorIntent;
 
+    public sealed record RequestSessionInsights : RecordedSessionEditorIntent;
+
     public sealed record SetTravelDistributionMode(TravelDistributionMode Mode) : RecordedSessionEditorIntent;
 
     public sealed record SetBalanceDisplacementMode(BalanceDisplacementMode Mode) : RecordedSessionEditorIntent;
@@ -74,6 +76,9 @@ internal sealed class RecordedSessionEditorActions : IDisposable
 
     public void ClearAnalysisSelection() =>
         Emit(new RecordedSessionEditorIntent.ClearAnalysisSelection());
+
+    public void RequestSessionInsights() =>
+        Emit(new RecordedSessionEditorIntent.RequestSessionInsights());
 
     public void SetTravelDistributionMode(TravelDistributionMode mode) =>
         Emit(new RecordedSessionEditorIntent.SetTravelDistributionMode(mode));

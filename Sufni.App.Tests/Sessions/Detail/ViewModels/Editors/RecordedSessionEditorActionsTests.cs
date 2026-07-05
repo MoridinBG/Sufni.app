@@ -74,6 +74,7 @@ public class RecordedSessionEditorActionsTests
         actions.ClearAnalysisRange();
         actions.SelectAnalysisRange(selection);
         actions.ClearAnalysisSelection();
+        actions.RequestSessionInsights();
         actions.SetTravelDistributionMode(TravelDistributionMode.ActiveSuspension);
         actions.SetBalanceDisplacementMode(BalanceDisplacementMode.Zenith);
         actions.SetBalanceSpeedMode(BalanceSpeedMode.Both);
@@ -89,6 +90,7 @@ public class RecordedSessionEditorActionsTests
             intent => Assert.IsType<RecordedSessionEditorIntent.ClearAnalysisRange>(intent),
             intent => Assert.Equal(selection, Assert.IsType<RecordedSessionEditorIntent.SelectAnalysisRange>(intent).Selection),
             intent => Assert.IsType<RecordedSessionEditorIntent.ClearAnalysisSelection>(intent),
+            intent => Assert.IsType<RecordedSessionEditorIntent.RequestSessionInsights>(intent),
             intent => Assert.Equal(TravelDistributionMode.ActiveSuspension, Assert.IsType<RecordedSessionEditorIntent.SetTravelDistributionMode>(intent).Mode),
             intent => Assert.Equal(BalanceDisplacementMode.Zenith, Assert.IsType<RecordedSessionEditorIntent.SetBalanceDisplacementMode>(intent).Mode),
             intent => Assert.Equal(BalanceSpeedMode.Both, Assert.IsType<RecordedSessionEditorIntent.SetBalanceSpeedMode>(intent).Mode),
@@ -915,6 +917,22 @@ public class RecordedSessionEditorActionsTests
                 var request = Assert.IsType<RecordedSessionEditorEffect.RequestAnalysis>(effect);
                 Assert.IsType<RecordedSessionAnalysisEffectRequest.SelectedPageChanged>(request.Request);
             });
+    }
+
+    [Fact]
+    public void ExplicitAnalysisRequests_EmitsUnsuppressedInsightsRequest()
+    {
+        using var actions = new RecordedSessionEditorActions();
+        var effects = new List<RecordedSessionEditorEffect>();
+        using var subscription = RecordedSessionEditorEffects.ExplicitAnalysisRequests(actions.Intents)
+            .Subscribe(effects.Add);
+
+        actions.SetTravelDistributionMode(TravelDistributionMode.DynamicSag);
+        actions.RequestSessionInsights();
+
+        var effect = Assert.IsType<RecordedSessionEditorEffect.RequestAnalysis>(Assert.Single(effects));
+        var request = Assert.IsType<RecordedSessionAnalysisEffectRequest.Insights>(effect.Request);
+        Assert.False(request.RespectSuppression);
     }
 
     [Fact]

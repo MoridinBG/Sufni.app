@@ -608,7 +608,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     internal void RecomputeSessionInsights()
     {
-        RequestCurrentSessionInsights();
+        editorActions.RequestSessionInsights();
     }
 
     private PageViewModelBase? SelectedPage => Pages.Count == 0
@@ -1475,6 +1475,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 RecordedSessionEditorEffects.PreferencePersistence(editorActions.Intents),
                 RecordedSessionEditorEffects.AnalysisRequests(editorStateController.State),
                 RecordedSessionEditorEffects.PageSelectionAnalysisRequests(editorStateController.State),
+                RecordedSessionEditorEffects.ExplicitAnalysisRequests(editorActions.Intents),
             ],
             ApplyRecordedSessionEditorEffect);
         signalRowActions = new SignalRowActionsController(
