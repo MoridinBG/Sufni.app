@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
 using NSubstitute;
 
 using Sufni.App.Infrastructure;
@@ -233,6 +234,11 @@ public class CompactShellViewTests
             ?? throw new InvalidOperationException("Pairing request panel was not found.");
 
         Assert.True(pairingRequestPanel.IsVisible);
+
+        var pinText = mounted.View.GetVisualDescendants()
+            .OfType<TextBlock>()
+            .Single(control => control.Name == "CompactPairingPinText");
+        Assert.True(pinText.Bounds.Height > 24);
         await pairingServerCoordinator.Received(1).StartServerAsync();
     }
 

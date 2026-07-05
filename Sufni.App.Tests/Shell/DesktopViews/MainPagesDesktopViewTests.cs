@@ -57,6 +57,11 @@ public class MainPagesDesktopViewTests
 
         Assert.NotNull(pairingPanel);
         Assert.True(pairingPanel!.IsVisible);
+
+        var pinText = mounted.View.GetVisualDescendants()
+            .OfType<TextBlock>()
+            .Single(control => control.Name == "DesktopPairingPinText");
+        Assert.True(pinText.Bounds.Height > 24);
     }
 
     [AvaloniaFact]

@@ -357,7 +357,7 @@ mc:Ignorable="d">
                     <Grid
                     Background="{DynamicResource SufniSelectionSurfaceSubtle}"
                     ColumnDefinitions="* 35"
-                    RowDefinitions="auto 24">
+                    RowDefinitions="Auto Auto">
 
                         <TextBlock
                         Grid.Row="0"
@@ -372,6 +372,7 @@ mc:Ignorable="d">
 
                         <!--  PIN Display  -->
                         <TextBlock
+                        Name="DesktopPairingPinText"
                         Grid.Row="1"
                         Grid.Column="0"
                         Margin="10,0,10,10"
