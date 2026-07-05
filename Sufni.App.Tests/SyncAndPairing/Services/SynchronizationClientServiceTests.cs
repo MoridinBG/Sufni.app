@@ -494,6 +494,37 @@ public class SynchronizationClientServiceTests
     }
 
     [Fact]
+    public async Task SyncAll_PublishesPulledRecordedSourcesInOneBatch()
+    {
+        var first = CreateRecordedSource();
+        var second = CreateRecordedSource();
+        var firstTransfer = ToPayload(first);
+        var secondTransfer = ToPayload(second);
+
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([first.SessionId, second.SessionId]);
+        httpApiService.GetRecordedSessionSourceAsync(first.SessionId).Returns(firstTransfer);
+        httpApiService.GetRecordedSessionSourceAsync(second.SessionId).Returns(secondTransfer);
+
+        await CreateService().SyncAll();
+
+        await recordedSessionSourceRepository.Received(1).PutRecordedSessionSourceAsync(Arg.Is<RecordedSessionSource>(saved =>
+            saved.SessionId == first.SessionId &&
+            saved.Payload.SequenceEqual(first.Payload)));
+        await recordedSessionSourceRepository.Received(1).PutRecordedSessionSourceAsync(Arg.Is<RecordedSessionSource>(saved =>
+            saved.SessionId == second.SessionId &&
+            saved.Payload.SequenceEqual(second.Payload)));
+        await sourceStore.Received(1).PublishSourcesChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids =>
+                ids.Count == 2 &&
+                ids.Contains(first.SessionId) &&
+                ids.Contains(second.SessionId)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task SyncAll_DoesNotPersistPulledRecordedSource_WhenHashDoesNotMatchPayload()
     {
         var source = CreateRecordedSource();
@@ -536,6 +567,14 @@ public class SynchronizationClientServiceTests
             Payload = payload
         };
     }
+
+    private static RecordedSessionSourcePayload ToPayload(RecordedSessionSource source) => new(
+        source.SessionId,
+        source.SourceKind,
+        source.SourceName,
+        source.SchemaVersion,
+        source.SourceHash,
+        source.Payload);
 
     private static ExtensionSyncEnvelope CreateExtensionEnvelope(string extensionId) => new(
         extensionId,

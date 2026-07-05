@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.ExtensionHost.Contracts.Sync;
 using Serilog;
@@ -17,6 +19,11 @@ public class SynchronizationClientService : ISynchronizationClientService
 {
     private static readonly ILogger logger = Log.ForContext<SynchronizationClientService>();
     public const string SyncStateKey = "paired-server";
+    private const int SyncTransferDop = 3;
+    private static readonly ParallelOptions SyncTransferParallelOptions = new()
+    {
+        MaxDegreeOfParallelism = SyncTransferDop
+    };
 
     private readonly ISyncDataStore syncDataStore;
     private readonly ISessionRepository sessionRepository;
@@ -91,7 +98,7 @@ public class SynchronizationClientService : ISynchronizationClientService
         var incompleteSessions = await httpApiService.GetIncompleteSessionIdsAsync();
         var uploadedCount = 0;
 
-        foreach (var id in incompleteSessions)
+        await Parallel.ForEachAsync(incompleteSessions, SyncTransferParallelOptions, async (id, _) =>
         {
             var blob = await sessionRepository.GetSessionRawPsstWithFingerprintAsync(id);
             if (blob is not null)
@@ -99,9 +106,9 @@ public class SynchronizationClientService : ISynchronizationClientService
                 // Upload the bytes with their fingerprint so the hub rejects a
                 // mismatch instead of storing bytes that contradict its metadata.
                 await httpApiService.PatchSessionPsstAsync(id, blob.Value.Data, blob.Value.Fingerprint);
-                uploadedCount++;
+                Interlocked.Increment(ref uploadedCount);
             }
-        }
+        });
 
         logger.Verbose(
             "Pushed {UploadedCount} incomplete sessions out of {IncompleteSessionCount} requested by the server",
@@ -159,13 +166,14 @@ public class SynchronizationClientService : ISynchronizationClientService
         var fills = await sessionRepository.GetIncompleteSessionIdsWithFingerprintAsync();
         var downloadedCount = 0;
 
-        foreach (var (id, fingerprint) in fills)
+        await Parallel.ForEachAsync(fills, SyncTransferParallelOptions, async (fill, _) =>
         {
+            var (id, fingerprint) = fill;
             if (await TryDownloadAndCommitAsync(id, fingerprint))
             {
-                downloadedCount++;
+                Interlocked.Increment(ref downloadedCount);
             }
-        }
+        });
 
         // Count swaps that did not commit this run. Fills are re-derived every run from
         // `data IS NULL`, so an unresolved fill is naturally retried; a swap is derived
@@ -173,17 +181,17 @@ public class SynchronizationClientService : ISynchronizationClientService
         // `updated`, so once the watermark advances past it the swap is never re-derived.
         // The caller therefore holds the watermark back while any swap is unresolved.
         var unresolvedSwaps = 0;
-        foreach (var swap in swaps)
+        await Parallel.ForEachAsync(swaps, SyncTransferParallelOptions, async (swap, _) =>
         {
             if (await TryDownloadAndCommitAsync(swap.SessionId, swap.TargetFingerprint))
             {
-                downloadedCount++;
+                Interlocked.Increment(ref downloadedCount);
             }
             else
             {
-                unresolvedSwaps++;
+                Interlocked.Increment(ref unresolvedSwaps);
             }
-        }
+        });
 
         logger.Verbose(
             "Pulled {DownloadedCount} session blobs ({FillCount} fills, {SwapCount} swaps requested, {UnresolvedSwapCount} swaps unresolved)",
@@ -231,20 +239,20 @@ public class SynchronizationClientService : ISynchronizationClientService
         var incompleteSourceIds = await httpApiService.GetIncompleteSessionSourceIdsAsync();
         var uploadedCount = 0;
 
-        foreach (var id in incompleteSourceIds)
+        await Parallel.ForEachAsync(incompleteSourceIds, SyncTransferParallelOptions, async (id, _) =>
         {
             var source = await recordedSessionSourceRepository.GetRecordedSessionSourceAsync(id);
             if (source is not null)
             {
                 if (!RecordedSessionSourceHash.Matches(source))
                 {
-                    continue;
+                    return;
                 }
 
                 await httpApiService.PatchRecordedSessionSourceAsync(ToPayload(source));
-                uploadedCount++;
+                Interlocked.Increment(ref uploadedCount);
             }
-        }
+        });
 
         logger.Verbose(
             "Pushed {UploadedCount} incomplete recorded sources out of {IncompleteSourceCount} requested by the server",
@@ -256,21 +264,27 @@ public class SynchronizationClientService : ISynchronizationClientService
     {
         var incompleteSourceIds = await recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync();
         var downloadedCount = 0;
+        var committedSourceIds = new ConcurrentBag<Guid>();
 
-        foreach (var id in incompleteSourceIds)
+        await Parallel.ForEachAsync(incompleteSourceIds, SyncTransferParallelOptions, async (id, _) =>
         {
             var source = await httpApiService.GetRecordedSessionSourceAsync(id);
             if (source is not null)
             {
                 if (!RecordedSessionSourceHash.Matches(source))
                 {
-                    continue;
+                    return;
                 }
 
                 await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(FromPayload(source));
-                await sourceStore.PublishSourcesChangedAsync([source.SessionId]);
-                downloadedCount++;
+                committedSourceIds.Add(source.SessionId);
+                Interlocked.Increment(ref downloadedCount);
             }
+        });
+
+        if (!committedSourceIds.IsEmpty)
+        {
+            await sourceStore.PublishSourcesChangedAsync(committedSourceIds.ToArray());
         }
 
         logger.Verbose(
