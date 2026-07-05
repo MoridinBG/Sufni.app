@@ -1,3 +1,4 @@
+using System.Reactive;
 using System.Reactive.Subjects;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
@@ -941,6 +942,23 @@ public class RecordedSessionEditorActionsTests
             effects,
             effect => Assert.Same(domain, Assert.IsType<RecordedSessionEditorEffect.EvaluateRecomputeStaleness>(effect).Domain),
             effect => Assert.Same(nextDomain, Assert.IsType<RecordedSessionEditorEffect.EvaluateRecomputeStaleness>(effect).Domain));
+    }
+
+    [Fact]
+    public void DirtyBaselineTracking_EmitsForEveryChange()
+    {
+        using var changes = new Subject<Unit>();
+        var effects = new List<RecordedSessionEditorEffect>();
+        using var subscription = RecordedSessionEditorEffects.DirtyBaselineTracking(changes)
+            .Subscribe(effects.Add);
+
+        changes.OnNext(Unit.Default);
+        changes.OnNext(Unit.Default);
+
+        Assert.Collection(
+            effects,
+            effect => Assert.IsType<RecordedSessionEditorEffect.UpdateDirtyBaseline>(effect),
+            effect => Assert.IsType<RecordedSessionEditorEffect.UpdateDirtyBaseline>(effect));
     }
 
     [Fact]

@@ -17,6 +17,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Reactive;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
@@ -118,6 +119,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<RecordedSessionLoadedData> loadedDataInput = new();
     private readonly Subject<RecordedSessionHostRuntimeState> hostRuntimeInput = new();
     private readonly Subject<RecordedSessionDomainSnapshot> domainInput = new();
+    private readonly Subject<Unit> dirtyBaselineInput = new();
     private readonly Subject<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> signalPlotContextMenuActionsInput = new();
     private readonly RecordedSessionEditorStateController editorStateController;
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
@@ -1456,6 +1458,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 RecordedSessionEditorEffects.MapMediaSync(editorStateController.State),
                 RecordedSessionEditorEffects.CommandRefresh(editorStateController.State),
                 RecordedSessionEditorEffects.RecomputeStaleness(editorStateController.State),
+                RecordedSessionEditorEffects.DirtyBaselineTracking(dirtyBaselineInput),
                 RecordedSessionEditorEffects.ExtensionHostPublication(
                     editorStateController.State,
                     hostRuntimeInput.StartWith(CreateRecordedSessionHostRuntimeState()),
@@ -2137,7 +2140,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        EvaluateDirtiness();
+        dirtyBaselineInput.OnNext(Unit.Default);
     }
 
     private async Task RestoreRecordedPreferencesAsync()
@@ -2248,6 +2251,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         if (effect is RecordedSessionEditorEffect.EvaluateRecomputeStaleness staleness)
         {
             _ = OnDomainChangedAsync(staleness.Domain);
+            return;
+        }
+
+        if (effect is RecordedSessionEditorEffect.UpdateDirtyBaseline)
+        {
+            EvaluateDirtiness();
             return;
         }
 

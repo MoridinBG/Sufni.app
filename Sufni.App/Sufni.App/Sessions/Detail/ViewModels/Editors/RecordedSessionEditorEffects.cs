@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using Sufni.App.ExtensionHost.Contracts.Models;
@@ -25,7 +26,7 @@ internal abstract record RecordedSessionEditorEffect
 
     public sealed record EvaluateRecomputeStaleness(RecordedSessionDomainSnapshot Domain) : RecordedSessionEditorEffect;
 
-    public sealed record UpdateDirtyBaseline(RecordedSessionEditorState State) : RecordedSessionEditorEffect;
+    public sealed record UpdateDirtyBaseline : RecordedSessionEditorEffect;
 }
 
 internal sealed class RecordedSessionEditorEffects : IDisposable
@@ -162,6 +163,14 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
             .Where(static domain => domain is not null)
             .DistinctUntilChanged()
             .Select(static domain => new RecordedSessionEditorEffect.EvaluateRecomputeStaleness(domain!));
+    }
+
+    public static IObservable<RecordedSessionEditorEffect> DirtyBaselineTracking(
+        IObservable<Unit> changes)
+    {
+        ArgumentNullException.ThrowIfNull(changes);
+
+        return changes.Select(static _ => new RecordedSessionEditorEffect.UpdateDirtyBaseline());
     }
 
     public static IObservable<RecordedSessionEditorEffect> ExtensionHostPublication(
