@@ -51,6 +51,7 @@ internal class HttpApiService : IHttpApiService
     private string? lastObservedCertificateThumbprint;
     private string? refreshToken;
     private DateTimeOffset? tokenExpiry;
+    private volatile AuthenticationHeaderValue? authorizationHeader;
     private bool pairedState;
     private bool pairedStateInitialized;
 
@@ -107,6 +108,29 @@ internal class HttpApiService : IHttpApiService
         client.DefaultRequestHeaders.Add(
             SynchronizationProtocol.SyncProtocolHeader,
             SynchronizationProtocol.SyncProtocolVersion.ToString(CultureInfo.InvariantCulture));
+    }
+
+    // The Authorization value is attached per request instead of through
+    // client.DefaultRequestHeaders: bounded-parallel transfers can be mid-send
+    // while a token refresh completes, and the default-header collection is not
+    // safe to mutate concurrently with sends. Swapping the field is an atomic
+    // reference update, and a request racing the swap still carries the previous,
+    // still-valid token (refresh runs 30 s before expiry).
+    private async Task<HttpResponseMessage> SendRequestAsync(
+        HttpMethod method,
+        string url,
+        HttpContent? content = null,
+        Action<HttpRequestMessage>? configureRequest = null)
+    {
+        using var request = new HttpRequestMessage(method, url) { Content = content };
+        var authorization = authorizationHeader;
+        if (authorization is not null)
+        {
+            request.Headers.Authorization = authorization;
+        }
+
+        configureRequest?.Invoke(request);
+        return await client.SendAsync(request);
     }
 
     private static ByteArrayContent CreateOctetStreamContent(byte[] data)
@@ -250,7 +274,7 @@ internal class HttpApiService : IHttpApiService
 
     private async Task ClearPairingCredentialsAsync()
     {
-        client.DefaultRequestHeaders.Authorization = null;
+        authorizationHeader = null;
         ServerUrl = null;
         refreshToken = null;
         tokenExpiry = null;
@@ -324,10 +348,10 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Post,
             route,
-            () => client.PostAsJsonAsync(
+            () => SendRequestAsync(
+                HttpMethod.Post,
                 route,
-            new RefreshRequest(currentRefreshToken),
-                AppJson.Context.RefreshRequest));
+                JsonContent.Create(new RefreshRequest(currentRefreshToken), AppJson.Context.RefreshRequest)));
 
         // Clear out pairing information if we received a 401 - Unauthorized response before throwing an
         // exception for the not OK response.
@@ -343,7 +367,7 @@ internal class HttpApiService : IHttpApiService
         Debug.Assert(tokens.AccessToken != null);
         Debug.Assert(tokens.RefreshToken != null);
 
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
+        authorizationHeader = new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
         tokenExpiry = GetTokenExpiry(tokens.AccessToken);
         refreshToken = tokens.RefreshToken;
 
@@ -387,10 +411,10 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Post,
             route,
-            () => client.PostAsJsonAsync(
+            () => SendRequestAsync(
+                HttpMethod.Post,
                 route,
-                new PairingRequest(deviceId, displayName),
-                AppJson.Context.PairingRequest));
+                JsonContent.Create(new PairingRequest(deviceId, displayName), AppJson.Context.PairingRequest)));
         response.EnsureSuccessStatusCode();
 
         ServerUrl = url;
@@ -406,10 +430,10 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Post,
             route,
-            () => client.PostAsJsonAsync(
+            () => SendRequestAsync(
+                HttpMethod.Post,
                 route,
-                new PairingConfirm(deviceId, displayName, pin),
-                AppJson.Context.PairingConfirm));
+                JsonContent.Create(new PairingConfirm(deviceId, displayName, pin), AppJson.Context.PairingConfirm)));
         response.EnsureSuccessStatusCode();
 
         var tokens = await response.Content.ReadFromJsonAsync(AppJson.Context.TokenResponse);
@@ -417,7 +441,7 @@ internal class HttpApiService : IHttpApiService
         Debug.Assert(tokens.AccessToken != null);
         Debug.Assert(tokens.RefreshToken != null);
 
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
+        authorizationHeader = new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
         tokenExpiry = GetTokenExpiry(tokens.AccessToken);
         refreshToken = tokens.RefreshToken;
 
@@ -444,10 +468,10 @@ internal class HttpApiService : IHttpApiService
         var response = await SendWithLoggingAsync(
             HttpMethod.Post,
             route,
-            () => client.PostAsJsonAsync(
+            () => SendRequestAsync(
+                HttpMethod.Post,
                 route,
-                new UnpairRequest(deviceId, currentRefreshToken),
-                AppJson.Context.UnpairRequest));
+                JsonContent.Create(new UnpairRequest(deviceId, currentRefreshToken), AppJson.Context.UnpairRequest)));
         response.EnsureSuccessStatusCode();
     }
 
@@ -515,7 +539,7 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Get,
             route,
-            () => client.GetAsync(route));
+            () => SendRequestAsync(HttpMethod.Get, route));
         response.EnsureSuccessStatusCode();
         var entities = await response.Content.ReadFromJsonAsync(AppJson.Context.SynchronizationData);
         Debug.Assert(entities != null);
@@ -547,10 +571,10 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Put,
             route,
-            () => client.PutAsJsonAsync(
+            () => SendRequestAsync(
+                HttpMethod.Put,
                 route,
-                syncData,
-                AppJson.Context.SynchronizationData));
+                JsonContent.Create(syncData, AppJson.Context.SynchronizationData)));
         response.EnsureSuccessStatusCode();
     }
 
@@ -562,7 +586,7 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Get,
             route,
-            () => client.GetAsync(route));
+            () => SendRequestAsync(HttpMethod.Get, route));
         response.EnsureSuccessStatusCode();
         var incompleteSessions = await response.Content.ReadFromJsonAsync(AppJson.Context.ListGuid);
 
@@ -581,7 +605,7 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Get,
             route,
-            () => client.GetAsync(route));
+            () => SendRequestAsync(HttpMethod.Get, route));
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             logger.Verbose("Session data was not found on the server for {SessionId}", id);
@@ -608,20 +632,17 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Patch,
             route,
-            async () =>
-            {
-                using var request = new HttpRequestMessage(HttpMethod.Patch, route)
+            () => SendRequestAsync(
+                HttpMethod.Patch,
+                route,
+                CreateOctetStreamContent(data),
+                request =>
                 {
-                    Content = CreateOctetStreamContent(data)
-                };
-
-                if (fingerprint is not null)
-                {
-                    request.Headers.TryAddWithoutValidation(SynchronizationProtocol.FingerprintHeader, fingerprint);
-                }
-
-                return await client.SendAsync(request);
-            });
+                    if (fingerprint is not null)
+                    {
+                        request.Headers.TryAddWithoutValidation(SynchronizationProtocol.FingerprintHeader, fingerprint);
+                    }
+                }));
         response.EnsureSuccessStatusCode();
     }
 
@@ -633,7 +654,7 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Get,
             route,
-            () => client.GetAsync(route));
+            () => SendRequestAsync(HttpMethod.Get, route));
         response.EnsureSuccessStatusCode();
         var incompleteSources = await response.Content.ReadFromJsonAsync(AppJson.Context.ListGuid);
 
@@ -652,7 +673,7 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Get,
             route,
-            () => client.GetAsync(route));
+            () => SendRequestAsync(HttpMethod.Get, route));
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             logger.Verbose("Recorded source was not found on the server for {SessionId}", id);
@@ -706,20 +727,17 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Patch,
             route,
-            async () =>
-            {
-                using var request = new HttpRequestMessage(HttpMethod.Patch, route)
+            () => SendRequestAsync(
+                HttpMethod.Patch,
+                route,
+                CreateOctetStreamContent(source.Payload),
+                request =>
                 {
-                    Content = CreateOctetStreamContent(source.Payload)
-                };
-
-                request.Headers.TryAddWithoutValidation(SynchronizationProtocol.SourceKindHeader, source.SourceKind.StorageValue);
-                request.Headers.TryAddWithoutValidation(SynchronizationProtocol.SourceNameHeader, Uri.EscapeDataString(source.SourceName));
-                request.Headers.TryAddWithoutValidation(SynchronizationProtocol.SchemaVersionHeader, source.SchemaVersion.ToString(CultureInfo.InvariantCulture));
-                request.Headers.TryAddWithoutValidation(SynchronizationProtocol.SourceHashHeader, source.SourceHash);
-
-                return await client.SendAsync(request);
-            });
+                    request.Headers.TryAddWithoutValidation(SynchronizationProtocol.SourceKindHeader, source.SourceKind.StorageValue);
+                    request.Headers.TryAddWithoutValidation(SynchronizationProtocol.SourceNameHeader, Uri.EscapeDataString(source.SourceName));
+                    request.Headers.TryAddWithoutValidation(SynchronizationProtocol.SchemaVersionHeader, source.SchemaVersion.ToString(CultureInfo.InvariantCulture));
+                    request.Headers.TryAddWithoutValidation(SynchronizationProtocol.SourceHashHeader, source.SourceHash);
+                }));
         response.EnsureSuccessStatusCode();
     }
 

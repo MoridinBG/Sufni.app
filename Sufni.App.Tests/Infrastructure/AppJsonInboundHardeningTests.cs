@@ -11,6 +11,16 @@ namespace Sufni.App.Tests.Infrastructure;
 // desktop Kestrel pipeline and are not exercised here (no live server is booted).
 public class AppJsonInboundHardeningTests
 {
+    [Theory]
+    [InlineData("""{"device_id":"device-a","device_id":"device-b","display_name":null,"pin":"123456"}""")]
+    [InlineData("""{"Device_Id":"device-a","display_name":null,"pin":"123456"}""")]
+    [InlineData("""{"device_id":"device-a","display_name":null,"pin":"123456","unexpected":true}""")]
+    public void InboundContext_RejectsPairingConfirm_WithMalformedJsonContract(string json)
+    {
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize(json, AppJson.InboundContext.PairingConfirm));
+    }
+
     [Fact]
     public void InboundContext_RejectsPairingConfirm_MissingPin()
     {

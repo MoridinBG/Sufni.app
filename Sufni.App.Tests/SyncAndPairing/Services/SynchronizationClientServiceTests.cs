@@ -310,6 +310,46 @@ public class SynchronizationClientServiceTests
     }
 
     [Fact]
+    public async Task SyncAll_CompletesFillDownloads_BeforeAnySwapDownloadStarts()
+    {
+        var fillId = Guid.NewGuid();
+        var swapId = Guid.NewGuid();
+        const string fillFingerprint = """{"fill":true}""";
+        const string swapTarget = """{"target":true}""";
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        syncDataStore.ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>())
+            .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(swapId, swapTarget)]);
+        sessionRepository.GetIncompleteSessionIdsWithFingerprintAsync()
+            .Returns([(fillId, fillFingerprint)]);
+
+        var fillRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var fillDownload = new TaskCompletionSource<SessionBlobPayload?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        httpApiService.GetSessionPsstAsync(fillId).Returns(_ =>
+        {
+            fillRequested.TrySetResult();
+            return fillDownload.Task;
+        });
+        httpApiService.GetSessionPsstAsync(swapId).Returns(new SessionBlobPayload(swapTarget, [1, 2, 3]));
+        sessionStore
+            .CommitPsstSwapAsync(Arg.Any<Guid>(), Arg.Any<byte[]>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.FromResult<StoreMutationResult<SessionSnapshot>>(
+                new StoreMutationResult<SessionSnapshot>.Saved(TestSnapshots.Session(id: callInfo.Arg<Guid>()))));
+
+        var syncTask = CreateService().SyncAll();
+
+        // The swap pass must not start while a fill download is still pending.
+        await fillRequested.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await httpApiService.DidNotReceive().GetSessionPsstAsync(swapId);
+
+        fillDownload.SetResult(new SessionBlobPayload(fillFingerprint, [4, 5, 6]));
+        await syncTask.WaitAsync(TimeSpan.FromSeconds(2));
+
+        await httpApiService.Received(1).GetSessionPsstAsync(swapId);
+    }
+
+    [Fact]
     public async Task SyncAll_ReturnsCompleted_WhenCompletenessVerificationPasses()
     {
         syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
@@ -544,18 +584,37 @@ public class SynchronizationClientServiceTests
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
         recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([source.SessionId]);
         httpApiService.GetRecordedSessionSourceAsync(source.SessionId).Returns(transfer);
-        recordedSessionSourceRepository.PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>())
-            .Returns(Task.FromException(new InvalidOperationException("Recorded session source hash does not match its payload.")));
 
         await CreateService().SyncAll();
 
-        await recordedSessionSourceRepository.Received(1).PutRecordedSessionSourceAsync(Arg.Is<RecordedSessionSource>(saved =>
-            saved.SessionId == source.SessionId &&
-            saved.SourceHash == "invalid" &&
-            saved.Payload.SequenceEqual(source.Payload)));
+        await recordedSessionSourceRepository.DidNotReceive().PutRecordedSessionSourceAsync(
+            Arg.Any<RecordedSessionSource>());
         await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
             Arg.Any<IReadOnlyCollection<Guid>>(),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SyncAll_PropagatesRecordedSourceRepositoryFailures()
+    {
+        var source = CreateRecordedSource();
+        var transfer = ToPayload(source);
+
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([source.SessionId]);
+        httpApiService.GetRecordedSessionSourceAsync(source.SessionId).Returns(transfer);
+        recordedSessionSourceRepository.PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>())
+            .Returns(Task.FromException(new InvalidOperationException("database busy")));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().SyncAll());
+
+        await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
+        await syncDataStore.DidNotReceive().UpdateLastSyncTimeAsync(
+            SynchronizationClientService.SyncStateKey);
     }
 
     private static RecordedSessionSource CreateRecordedSource()

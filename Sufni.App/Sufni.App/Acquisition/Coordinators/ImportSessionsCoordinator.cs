@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -140,14 +141,37 @@ public class ImportSessionsCoordinator(
 
                 lock (progressGate)
                 {
-                    progress.Report(importEvent);
+                    try
+                    {
+                        progress.Report(importEvent);
+                    }
+                    catch (Exception e)
+                    {
+                        logger.Warning(e, "Session import progress callback failed");
+                    }
                 }
             }
 
-            void ReportProgress() =>
-                Report(new SessionImportEvent.Progress(
-                    Interlocked.Increment(ref processedCount),
-                    totalToProcess));
+            void ReportProgress()
+            {
+                lock (progressGate)
+                {
+                    processedCount++;
+                    if (progress is null)
+                    {
+                        return;
+                    }
+
+                    try
+                    {
+                        progress.Report(new SessionImportEvent.Progress(processedCount, totalToProcess));
+                    }
+                    catch (Exception e)
+                    {
+                        logger.Warning(e, "Session import progress callback failed");
+                    }
+                }
+            }
 
             void AddFailure(ITelemetryFile telemetryFile, Exception e, SessionImportFailureOperation operation)
             {
@@ -266,6 +290,7 @@ public class ImportSessionsCoordinator(
                 .Select(_ => RunConsumerAsync())
                 .ToArray();
             var producerTasks = lanes.Select(RunProducerAsync).ToArray();
+            Exception? producerException = null;
             try
             {
                 await Task.WhenAll(producerTasks);
@@ -273,11 +298,23 @@ public class ImportSessionsCoordinator(
             }
             catch (Exception e)
             {
-                channel.Writer.Complete(e);
-                throw;
+                producerException = e;
+                channel.Writer.TryComplete(e);
             }
 
-            await Task.WhenAll(consumerTasks);
+            try
+            {
+                await Task.WhenAll(consumerTasks);
+            }
+            catch when (producerException is not null)
+            {
+                // Consumers observe the producer fault through the completed channel.
+            }
+
+            if (producerException is not null)
+            {
+                ExceptionDispatchInfo.Capture(producerException).Throw();
+            }
 
             imported.AddRange(importedSnapshots);
             failures.AddRange(failuresQueue);
@@ -285,8 +322,23 @@ public class ImportSessionsCoordinator(
             var importedSessionIds = imported.Select(snapshot => snapshot.Id).ToArray();
             if (importedSessionIds.Length > 0)
             {
-                await sessionStore.PublishSessionsChangedAsync(importedSessionIds);
-                await sourceStore.PublishSourcesChangedAsync(importedSessionIds);
+                try
+                {
+                    await sessionStore.PublishSessionsChangedAsync(importedSessionIds);
+                    await sourceStore.PublishSourcesChangedAsync(importedSessionIds);
+                }
+                catch (Exception e)
+                {
+                    logger.Warning(e, "Failed to publish imported session store updates");
+                    foreach (var telemetryFile in acknowledgements)
+                    {
+                        failures.Add(new SessionImportFailure(
+                            telemetryFile.Name,
+                            e.Message,
+                            SessionImportFailureOperation.Import));
+                        Report(new SessionImportEvent.ImportFailed(telemetryFile.Name, e.Message));
+                    }
+                }
             }
 
             while (acknowledgements.TryDequeue(out var telemetryFile))

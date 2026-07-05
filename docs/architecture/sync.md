@@ -88,10 +88,11 @@ sessions, the query does not ask for a source under the derived session id; it
 uses the fingerprint/window source id (`DerivationWindow.SourceSessionId`) and
 also asks for any referenced source ids that are absent locally. Push uses the
 stored source hash on the local row; it does not rehash the local payload before
-upload. Hash validation happens when source rows are created/persisted and on
-the receiver's patch path before repository acceptance. Pull treats a source
-validation failure as an item-level skip and leaves that source pending for a
-future run.
+upload — the receiving server's patch gate (and the repository's put-time
+validation) still verifies it. Pull rehashes each downloaded payload against its
+advertised source hash before persisting: a mismatch is an item-level skip that
+leaves the source pending for a future run, while a failure from the repository
+put itself propagates and fails the run, so the watermark does not advance.
 
 Local write flows use semantic store commit methods when the app itself owns
 the write intent. Sync apply is different: `SynchronizationMergeEngine`, the
