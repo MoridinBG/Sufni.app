@@ -1702,6 +1702,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             ApplySignalAvailability(state.Presentation.SignalAvailability);
         }
 
+        if (previous.Presentation.ScreenState != state.Presentation.ScreenState)
+        {
+            SetProperty(ref screenState, state.Presentation.ScreenState, nameof(ScreenState));
+        }
+
+        if (previous.Presentation.OperationState != state.Presentation.OperationState)
+        {
+            SetProperty(ref sessionOperationState, state.Presentation.OperationState, nameof(SessionOperationState));
+        }
+
         if (previous.Presentation.CanEditDampingSpeedCutoffs != state.Presentation.CanEditDampingSpeedCutoffs)
         {
             OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));

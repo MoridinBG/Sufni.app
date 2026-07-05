@@ -51,7 +51,6 @@ internal sealed class RecordedPagePresentationApplier
         owner.SetTelemetryData(null);
         owner.SetFullTrackPoints(null);
         owner.SetTrackPoints(null);
-        owner.SetMediaColumnWidth(null);
         owner.ApplyDampingPercentages(SessionDampingPercentages.Empty);
         ApplyRecordedSignalPresentation(
             RecordedSessionPresentationDeriver.CreateHiddenSignalPresentationState());
@@ -65,12 +64,8 @@ internal sealed class RecordedPagePresentationApplier
 
     public void ApplyRecordedLoadingStates(bool mapExpected)
     {
-        owner.SetScreenState(SessionScreenPresentationState.Ready);
         ApplyRecordedSignalPresentation(
             RecordedSessionPresentationDeriver.CreateLoadingSignalPresentation(mapExpected));
-        owner.SetMapState(mapExpected
-            ? SurfacePresentationState.Loading("Loading map data.")
-            : SurfacePresentationState.Hidden);
         springPage.FrontDistributionState = SurfacePresentationState.Loading("Loading spring chart.");
         springPage.RearDistributionState = SurfacePresentationState.Loading("Loading spring chart.");
         dampingPage.FrontDistributionState = SurfacePresentationState.Loading("Loading damping chart.");
@@ -91,46 +86,20 @@ internal sealed class RecordedPagePresentationApplier
                 owner.SetSessionFullTrack(telemetryPresentation.FullTrackId);
                 owner.SetFullTrackPoints(telemetryPresentation.FullTrackPoints);
                 owner.SetTrackPoints(telemetryPresentation.TrackPoints);
-                owner.SetMediaColumnWidth(telemetryPresentation.MediaColumnWidth);
                 owner.ApplyModeAwareDampingPercentages(telemetryPresentation.DampingPercentages);
                 ApplyRecordedReadySignalStates(telemetryPresentation.TelemetryData);
-                owner.SetMapState(RecordedSessionPresentationDeriver.CreateMapState(
-                    telemetryPresentation.TrackPoints,
-                    telemetryPresentation.FullTrackId is not null));
-                owner.SetScreenState(SessionScreenPresentationState.Ready);
                 owner.IsComplete = true;
                 break;
 
-            case SessionDetailLoadResult.IncompleteLocalData incomplete:
+            case SessionDetailLoadResult.IncompleteLocalData:
                 ClearRecordedPresentation();
-                owner.SetScreenState(SessionScreenPresentationState.IncompleteLocalData(
-                    FormatIncompleteLocalDataMessage(incomplete.Missing)));
                 owner.IsComplete = owner.CurrentSessionSnapshot?.HasProcessedData ?? false;
                 break;
 
-            case SessionDetailLoadResult.Failed failed:
+            case SessionDetailLoadResult.Failed:
                 ClearRecordedPresentation();
-                owner.SetScreenState(SessionScreenPresentationState.Error($"Could not load session data: {failed.ErrorMessage}"));
                 break;
         }
-    }
-
-    private static string FormatIncompleteLocalDataMessage(MissingSessionData missing)
-    {
-        var missingParts = new List<string>();
-        if (missing.ProcessedTelemetryBlob)
-        {
-            missingParts.Add("processed telemetry");
-        }
-
-        if (missing.RecordedSourceMissingOrHashMismatch)
-        {
-            missingParts.Add("recorded source");
-        }
-
-        return missingParts.Count == 0
-            ? "Local session data is incomplete. Run sync and try again."
-            : $"Local session data is incomplete: {string.Join(", ", missingParts)}. Run sync and try again.";
     }
 
     public void ApplyRecordedTrackSignalStates()
