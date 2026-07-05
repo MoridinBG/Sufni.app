@@ -1966,7 +1966,32 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         UpdateRecordedSessionExtensionHostState();
-        PublishEditorState();
+    }
+
+    private void ApplyRequestedAnalysisRange(TelemetryTimeRange? requestedRange)
+    {
+        pendingAnalysisRangeBoundary = null;
+        if (!requestedRange.HasValue)
+        {
+            if (analysisRange is not null)
+            {
+                ApplyAnalysisRange(null);
+            }
+
+            return;
+        }
+
+        if (telemetryData is null ||
+            !TelemetryTimeRange.TryCreateClamped(
+                requestedRange.Value.StartSeconds,
+                requestedRange.Value.EndSeconds,
+                telemetryData.Metadata.Duration,
+                out var range))
+        {
+            return;
+        }
+
+        ApplyAnalysisRange(range);
     }
 
     internal void SetScreenState(SessionScreenPresentationState state)
@@ -2364,21 +2389,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 SelectPageIndex(select.PageIndex);
                 break;
             case RecordedSessionEditorIntent.SetAnalysisRange set:
-                if (set.Range is { } range)
-                {
-                    SetAnalysisRange(range.StartSeconds, range.EndSeconds);
-                }
-                else
-                {
-                    ClearAnalysisRange();
-                }
-
+                ApplyRequestedAnalysisRange(set.Range);
                 break;
             case RecordedSessionEditorIntent.SetAnalysisRangeBoundary set:
                 SetAnalysisRangeBoundary(set.Seconds);
                 break;
             case RecordedSessionEditorIntent.ClearAnalysisRange:
-                ClearAnalysisRange();
+                ApplyRequestedAnalysisRange(null);
                 break;
             case RecordedSessionEditorIntent.SelectAnalysisRange select:
                 SelectAnalysisRange(select.Selection);
@@ -2438,7 +2455,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        ApplyAnalysisRange(range);
+        editorActions.SetAnalysisRange(range);
     }
 
     public void ClearAnalysisRange()
@@ -2449,7 +2466,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        ApplyAnalysisRange(null);
+        editorActions.ClearAnalysisRange();
     }
 
     public void SetAnalysisRangeBoundary(double boundarySeconds)

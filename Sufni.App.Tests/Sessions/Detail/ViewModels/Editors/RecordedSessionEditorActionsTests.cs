@@ -6,6 +6,7 @@ using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Presentation;
+using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
@@ -221,6 +222,36 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void StateController_DerivesAnalysisRange_FromActionsAndCurrentTelemetry()
+    {
+        using var legacyState = new Subject<RecordedSessionEditorState>();
+        using var actions = new RecordedSessionEditorActions();
+        using var pageCounts = new Subject<int>();
+        using var controller = new RecordedSessionEditorStateController(
+            legacyState,
+            actions.Intents,
+            pageCounts);
+        var observed = new List<TelemetryTimeRange?>();
+        using var subscription = controller.State.Subscribe(state => observed.Add(state.Intent.AnalysisRange));
+        var telemetry = TestTelemetryData.CreateMinimal(duration: 2.0);
+
+        legacyState.OnNext(CreateState(selectedPageIndex: 0));
+        actions.SetAnalysisRange(new TelemetryTimeRange(1.0, 3.0));
+        legacyState.OnNext(CreateState(selectedPageIndex: 0, telemetry));
+        actions.ClearAnalysisRange();
+
+        Assert.Collection(
+            observed,
+            range => Assert.Null(range),
+            range =>
+            {
+                Assert.Equal(1.0, range?.StartSeconds);
+                Assert.Equal(2.0, range?.EndSeconds);
+            },
+            range => Assert.Null(range));
+    }
+
+    [Fact]
     public void StateController_DisposeStopsSourceSubscription()
     {
         using var source = new Subject<RecordedSessionEditorState>();
@@ -266,14 +297,14 @@ public class RecordedSessionEditorActionsTests
         return intents;
     }
 
-    private static RecordedSessionEditorState CreateState(int selectedPageIndex)
+    private static RecordedSessionEditorState CreateState(int selectedPageIndex, TelemetryData? telemetryData = null)
     {
         var preferences = SessionPreferences.Default;
 
         return new RecordedSessionEditorState(
             Domain: null,
             Session: null,
-            TelemetryData: null,
+            TelemetryData: telemetryData,
             FullTrackPoints: null,
             TrackPoints: null,
             TrackTimelineContext: null,
