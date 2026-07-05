@@ -25,7 +25,6 @@ internal sealed class RecordedPagePresentationApplier
     private readonly VibrationPageViewModel vibrationPage;
     private readonly SessionInsightsPageViewModel analysisPage;
     private readonly NotesPageViewModel notesPage;
-    private readonly PreferencesPageViewModel preferencesPage;
 
     public RecordedPagePresentationApplier(
         SessionDetailViewModel owner,
@@ -35,8 +34,7 @@ internal sealed class RecordedPagePresentationApplier
         BalancePageViewModel balancePage,
         VibrationPageViewModel vibrationPage,
         SessionInsightsPageViewModel analysisPage,
-        NotesPageViewModel notesPage,
-        PreferencesPageViewModel preferencesPage)
+        NotesPageViewModel notesPage)
     {
         this.owner = owner;
         this.pages = pages;
@@ -46,7 +44,6 @@ internal sealed class RecordedPagePresentationApplier
         this.vibrationPage = vibrationPage;
         this.analysisPage = analysisPage;
         this.notesPage = notesPage;
-        this.preferencesPage = preferencesPage;
     }
 
     public void ClearRecordedPresentation()
@@ -57,7 +54,6 @@ internal sealed class RecordedPagePresentationApplier
         owner.SetMediaColumnWidth(null);
         owner.ApplyDampingPercentages(SessionDampingPercentages.Empty);
         owner.SetRecordedAnalysisStates(RecordedSessionPresentationDeriver.CreateHiddenAnalysisPresentationState());
-        ApplyRecordedPlotAvailability(null);
         ApplyRecordedSignalPresentation(
             RecordedSessionPresentationDeriver.CreateHiddenSignalPresentationState());
         springPage.FrontDistributionState = SurfacePresentationState.Hidden;
@@ -71,7 +67,6 @@ internal sealed class RecordedPagePresentationApplier
     public void ApplyRecordedLoadingStates(bool mapExpected)
     {
         owner.SetScreenState(SessionScreenPresentationState.Ready);
-        ApplyRecordedPlotAvailability(null);
         ApplyRecordedSignalPresentation(
             RecordedSessionPresentationDeriver.CreateLoadingSignalPresentation(mapExpected));
         owner.SetRecordedAnalysisStates(RecordedSessionPresentationDeriver.CreateLoadingAnalysisPresentationState());
@@ -155,7 +150,6 @@ internal sealed class RecordedPagePresentationApplier
 
     public void ApplyRecordedTrackSignalStates()
     {
-        ApplyRecordedPlotAvailability(owner.CurrentTelemetryData);
         owner.SetTrackDerivedSignalStates(
             TrackPointSeries.HasSpeedSeries(owner.CurrentTrackPoints)
                 ? SurfacePresentationState.Ready
@@ -261,32 +255,11 @@ internal sealed class RecordedPagePresentationApplier
             balanceAvailable));
     }
 
-    private void ApplyRecordedPlotAvailability(TelemetryData? telemetry)
-    {
-        ApplySignalAvailability(
-            RecordedSessionPresentationDeriver.CreateSignalAvailability(telemetry, owner.CurrentTrackPoints));
-    }
-
     private void ApplyRecordedReadySignalStates(TelemetryData? telemetry)
     {
-        var availability = RecordedSessionPresentationDeriver.CreateSignalAvailability(
-            telemetry,
-            owner.CurrentTrackPoints);
-        ApplySignalAvailability(availability);
         ApplyRecordedSignalPresentation(RecordedSessionPresentationDeriver.CreateSignalPresentation(
             telemetry,
             owner.CurrentTrackPoints));
-    }
-
-    private void ApplySignalAvailability(RecordedSignalAvailabilityState availability)
-    {
-        preferencesPage.ApplySignalAvailability(
-            availability.Travel,
-            availability.Velocity,
-            availability.Imu,
-            availability.PitchRoll,
-            availability.Speed,
-            availability.Elevation);
     }
 
     private void ApplyRecordedSignalPresentation(RecordedSignalPresentationState state)

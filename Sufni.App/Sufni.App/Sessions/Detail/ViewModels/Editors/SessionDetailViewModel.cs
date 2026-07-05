@@ -1572,8 +1572,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             BalancePage,
             VibrationPage,
             AnalysisPage,
-            NotesPage,
-            PreferencesPage);
+            NotesPage);
         Pages.Add(SignalsPage);
         Pages.Add(SpringPage);
         Pages.Add(StrokesPage);
@@ -1697,6 +1696,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             signalRowActions.RefreshAirtimeActionStates();
             signalRowActions.RefreshAnalysisSelectionActionStates();
+        }
+
+        if (previous.Presentation.SignalAvailability != state.Presentation.SignalAvailability)
+        {
+            ApplySignalAvailability(state.Presentation.SignalAvailability);
         }
 
         if (previous.Presentation.CanEditDampingSpeedCutoffs != state.Presentation.CanEditDampingSpeedCutoffs)
@@ -1893,6 +1897,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void SetShowElevationAnalysisSelection(bool value) =>
         SetSignalPresentationState(CreateSignalPresentationState() with { ShowElevationAnalysisSelection = value });
+
+    private void ApplySignalAvailability(RecordedSignalAvailabilityState availability)
+    {
+        PreferencesPage.ApplySignalAvailability(
+            availability.Travel,
+            availability.Velocity,
+            availability.Imu,
+            availability.PitchRoll,
+            availability.Speed,
+            availability.Elevation);
+    }
 
     private void SetSignalPresentationState(RecordedSignalPresentationState state)
     {
