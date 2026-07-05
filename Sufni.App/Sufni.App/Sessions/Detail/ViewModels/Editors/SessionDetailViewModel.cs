@@ -603,11 +603,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         trackPoints = points;
 
         RefreshTrackTimelineContext();
-        if (telemetryData is not null)
-        {
-            presentationApplier.ApplyRecordedTrackSignalStates();
-        }
-
         PublishLoadedDataState();
     }
 
@@ -1991,20 +1986,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             Speed = speedState,
             Elevation = elevationState,
         });
-    }
-
-    internal void SetTrackDerivedSignalStates(
-        SurfacePresentationState speedState,
-        SurfacePresentationState elevationState)
-    {
-        var signals = currentEditorState.Presentation.Signals;
-        SetRecordedSignalStates(
-            signals.Travel,
-            signals.Velocity,
-            signals.Imu,
-            signals.PitchRoll,
-            speedState,
-            elevationState);
     }
 
     internal void SetMapState(SurfacePresentationState state)

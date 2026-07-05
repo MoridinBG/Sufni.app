@@ -1,18 +1,13 @@
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Linq;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.Telemetry;
-
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Insights.ViewModels.SessionPages;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Processing.SessionDetails;
-using Sufni.App.MapsAndTracks.Models;
-using Sufni.App.Sessions.Presentation;
+
 namespace Sufni.App.Sessions.Pages.ViewModels.Editors;
 
 internal sealed class RecordedPagePresentationApplier
@@ -52,8 +47,6 @@ internal sealed class RecordedPagePresentationApplier
         owner.SetFullTrackPoints(null);
         owner.SetTrackPoints(null);
         owner.ApplyDampingPercentages(SessionDampingPercentages.Empty);
-        ApplyRecordedSignalPresentation(
-            RecordedSessionPresentationDeriver.CreateHiddenSignalPresentationState());
         springPage.FrontDistributionState = SurfacePresentationState.Hidden;
         springPage.RearDistributionState = SurfacePresentationState.Hidden;
         dampingPage.FrontDistributionState = SurfacePresentationState.Hidden;
@@ -64,8 +57,6 @@ internal sealed class RecordedPagePresentationApplier
 
     public void ApplyRecordedLoadingStates(bool mapExpected)
     {
-        ApplyRecordedSignalPresentation(
-            RecordedSessionPresentationDeriver.CreateLoadingSignalPresentation(mapExpected));
         springPage.FrontDistributionState = SurfacePresentationState.Loading("Loading spring chart.");
         springPage.RearDistributionState = SurfacePresentationState.Loading("Loading spring chart.");
         dampingPage.FrontDistributionState = SurfacePresentationState.Loading("Loading damping chart.");
@@ -87,7 +78,6 @@ internal sealed class RecordedPagePresentationApplier
                 owner.SetFullTrackPoints(telemetryPresentation.FullTrackPoints);
                 owner.SetTrackPoints(telemetryPresentation.TrackPoints);
                 owner.ApplyModeAwareDampingPercentages(telemetryPresentation.DampingPercentages);
-                ApplyRecordedReadySignalStates(telemetryPresentation.TelemetryData);
                 owner.IsComplete = true;
                 break;
 
@@ -100,17 +90,6 @@ internal sealed class RecordedPagePresentationApplier
                 ClearRecordedPresentation();
                 break;
         }
-    }
-
-    public void ApplyRecordedTrackSignalStates()
-    {
-        owner.SetTrackDerivedSignalStates(
-            TrackPointSeries.HasSpeedSeries(owner.CurrentTrackPoints)
-                ? SurfacePresentationState.Ready
-                : SurfacePresentationState.Hidden,
-            TrackPointSeries.HasElevationSeries(owner.CurrentTrackPoints)
-                ? SurfacePresentationState.Ready
-                : SurfacePresentationState.Hidden);
     }
 
     private void ApplyCachePresentation(SessionCachePresentationData data)
@@ -152,24 +131,6 @@ internal sealed class RecordedPagePresentationApplier
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
         EnsureBalancePage(data.BalanceAvailable);
-    }
-
-    private void ApplyRecordedReadySignalStates(TelemetryData? telemetry)
-    {
-        ApplyRecordedSignalPresentation(RecordedSessionPresentationDeriver.CreateSignalPresentation(
-            telemetry,
-            owner.CurrentTrackPoints));
-    }
-
-    private void ApplyRecordedSignalPresentation(RecordedSignalPresentationState state)
-    {
-        owner.SetRecordedSignalStates(
-            state.Travel,
-            state.Velocity,
-            state.Imu,
-            state.PitchRoll,
-            state.Speed,
-            state.Elevation);
     }
 
     private void EnsureBalancePage(bool balanceAvailable)
