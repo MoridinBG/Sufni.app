@@ -45,9 +45,18 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
         {
             ArgumentNullException.ThrowIfNull(effectStream);
             subscriptions.Add(effectStream
-                .DistinctUntilChanged()
                 .Subscribe(apply));
         }
+    }
+
+    public static IObservable<RecordedSessionEditorEffect> PreferencePersistence(
+        IObservable<RecordedSessionEditorIntent> intents)
+    {
+        ArgumentNullException.ThrowIfNull(intents);
+
+        return intents
+            .Where(IsPreferencePersistenceIntent)
+            .Select(static intent => new RecordedSessionEditorEffect.PersistPreferences(intent));
     }
 
     public void Dispose()
@@ -59,5 +68,18 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
 
         disposed = true;
         subscriptions.Dispose();
+    }
+
+    private static bool IsPreferencePersistenceIntent(RecordedSessionEditorIntent intent)
+    {
+        return intent is
+            RecordedSessionEditorIntent.SetTravelDistributionMode or
+            RecordedSessionEditorIntent.SetBalanceDisplacementMode or
+            RecordedSessionEditorIntent.SetBalanceSpeedMode or
+            RecordedSessionEditorIntent.SetVelocityAverageMode or
+            RecordedSessionEditorIntent.SetSessionInsightsTargetProfile or
+            RecordedSessionEditorIntent.SetSignalDisplayPreferences or
+            RecordedSessionEditorIntent.SetSignalLayoutPreferences or
+            RecordedSessionEditorIntent.SetLayoutPreferences;
     }
 }

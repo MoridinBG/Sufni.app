@@ -786,6 +786,36 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void PreferencePersistence_EmitsOnlyPreferenceIntents()
+    {
+        using var actions = new RecordedSessionEditorActions();
+        var effects = new List<RecordedSessionEditorEffect>();
+        using var subscription = RecordedSessionEditorEffects.PreferencePersistence(actions.Intents)
+            .Subscribe(effects.Add);
+        var signalDisplay = new SignalDisplayPreferences(Travel: false);
+
+        actions.SetAnalysisRange(new TelemetryTimeRange(0, 1));
+        actions.SetTravelDistributionMode(TravelDistributionMode.DynamicSag);
+        actions.SetDampingSpeedCutoffs(DampingSpeedCutoffs.FromValues(110, 220, 330, 440));
+        actions.SetSignalDisplayPreferences(signalDisplay);
+
+        Assert.Collection(
+            effects,
+            effect =>
+            {
+                var persist = Assert.IsType<RecordedSessionEditorEffect.PersistPreferences>(effect);
+                var intent = Assert.IsType<RecordedSessionEditorIntent.SetTravelDistributionMode>(persist.Intent);
+                Assert.Equal(TravelDistributionMode.DynamicSag, intent.Mode);
+            },
+            effect =>
+            {
+                var persist = Assert.IsType<RecordedSessionEditorEffect.PersistPreferences>(effect);
+                var intent = Assert.IsType<RecordedSessionEditorIntent.SetSignalDisplayPreferences>(persist.Intent);
+                Assert.Equal(signalDisplay, intent.Preferences);
+            });
+    }
+
+    [Fact]
     public void StateController_DisposeStopsSourceSubscription()
     {
         using var source = new Subject<RecordedSessionEditorState>();
@@ -803,7 +833,7 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
-    public void Effects_AppliesDistinctEffects_AndDisposesSubscriptions()
+    public void Effects_AppliesEffects_AndDisposesSubscriptions()
     {
         using var source = new Subject<RecordedSessionEditorEffect>();
         var applied = new List<RecordedSessionEditorEffect>();
@@ -820,6 +850,7 @@ public class RecordedSessionEditorActionsTests
 
         Assert.Collection(
             applied,
+            effect => Assert.Equal(preferenceEffect, effect),
             effect => Assert.Equal(preferenceEffect, effect),
             effect => Assert.Equal(commandEffect, effect));
     }

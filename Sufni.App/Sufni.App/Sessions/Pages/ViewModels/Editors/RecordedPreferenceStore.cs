@@ -66,16 +66,6 @@ internal sealed class RecordedPreferenceStore
         Current = update(Current);
     }
 
-    public void PersistChangeIfEnabled(Func<SessionPreferences, SessionPreferences> update)
-    {
-        if (!persistenceEnabled)
-        {
-            return;
-        }
-
-        _ = PersistChangeAsync(update);
-    }
-
     public async Task<bool> PersistChangeAsync(Func<SessionPreferences, SessionPreferences> update)
     {
         try

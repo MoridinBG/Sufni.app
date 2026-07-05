@@ -99,6 +99,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IDisposable analysisResultSubscription;
     private readonly RecordedSessionEditorActions editorActions = new();
     private readonly IDisposable editorActionsSubscription;
+    private readonly RecordedSessionEditorEffects editorEffects;
     private readonly Subject<int> pageCountInput = new();
     private readonly Subject<SessionPreferences> preferenceReplayInput = new();
     private readonly Subject<SessionScreenPresentationState> screenStateInput = new();
@@ -1469,6 +1470,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             sessionPreferences,
             () => Id,
             ErrorMessages.Add);
+        editorEffects = new RecordedSessionEditorEffects(
+            RecordedSessionEditorEffects.PreferencePersistence(editorActions.Intents),
+            ApplyRecordedSessionEditorEffect);
         signalRowActions = new SignalRowActionsController(
             () => analysisSelectionController.HasSelection,
             () => showAirtime,
@@ -1634,12 +1638,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         NotesPage.ForkSettings.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();
         NotesPage.ShockSettings.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();
         NotesPage.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();
-        PreferencesPage.TravelSignal.PropertyChanged += OnSignalPreferenceChanged;
-        PreferencesPage.VelocitySignal.PropertyChanged += OnSignalPreferenceChanged;
-        PreferencesPage.ImuSignal.PropertyChanged += OnSignalPreferenceChanged;
-        PreferencesPage.PitchRollSignal.PropertyChanged += OnSignalPreferenceChanged;
-        PreferencesPage.SpeedSignal.PropertyChanged += OnSignalPreferenceChanged;
-        PreferencesPage.ElevationSignal.PropertyChanged += OnSignalPreferenceChanged;
+        SubscribeSignalPreferenceChanges();
         PreferencesPage.ProcessingPreferenceChangeCommitted += OnProcessingPreferenceChangeCommitted;
 
         ResetImplementation();
@@ -1822,7 +1821,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         selectedTravelDistributionMode = mode;
         OnPropertyChanged(nameof(SessionAnalysisModesText));
         RequestCurrentSessionInsights(respectSuppression: true);
-        PersistRecordedAnalysisPreferencesIfEnabled();
         UpdateRecordedSessionExtensionHostState();
     }
 
@@ -1836,7 +1834,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         selectedBalanceDisplacementMode = mode;
         OnPropertyChanged(nameof(SessionAnalysisModesText));
         RequestCurrentSessionInsights(respectSuppression: true);
-        PersistRecordedAnalysisPreferencesIfEnabled();
     }
 
     private void SetBalanceSpeedMode(BalanceSpeedMode mode)
@@ -1849,7 +1846,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         selectedBalanceSpeedMode = mode;
         OnPropertyChanged(nameof(SessionAnalysisModesText));
         RequestCurrentSessionInsights(respectSuppression: true);
-        PersistRecordedAnalysisPreferencesIfEnabled();
     }
 
     private void SetVelocityAverageMode(VelocityAverageMode mode)
@@ -1863,7 +1859,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         ClearDampingRangeSelections();
         OnPropertyChanged(nameof(SessionAnalysisModesText));
         RequestCurrentAnalysisResults(includeInsights: true, respectSuppression: true);
-        PersistRecordedAnalysisPreferencesIfEnabled();
         UpdateRecordedSessionExtensionHostState();
     }
 
@@ -1876,7 +1871,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         selectedSessionInsightsTargetProfile = profile;
         RequestCurrentSessionInsights(respectSuppression: true);
-        PersistRecordedAnalysisPreferencesIfEnabled();
     }
 
     private void SetCanEditDampingSpeedCutoffs(bool value)
@@ -2151,9 +2145,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             return;
         }
-
-        recordedPreferenceStore.UpdateCurrent(current => current with { SignalDisplay = preferences });
-        recordedPreferenceStore.PersistChangeIfEnabled(current => current with { SignalDisplay = preferences });
     }
 
     private void ApplyUserSignalLayoutPreferences(SignalLayoutPreferences preferences)
@@ -2162,9 +2153,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             return;
         }
-
-        recordedPreferenceStore.UpdateCurrent(current => current with { SignalLayout = preferences });
-        recordedPreferenceStore.PersistChangeIfEnabled(current => current with { SignalLayout = preferences });
     }
 
     private void ApplyUserLayoutPreferences(SessionLayoutPreferences preferences)
@@ -2173,9 +2161,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             return;
         }
-
-        recordedPreferenceStore.UpdateCurrent(current => current with { Layout = preferences });
-        recordedPreferenceStore.PersistChangeIfEnabled(current => current with { Layout = preferences });
     }
 
     private void EvaluateDirtinessFromPageChange()
@@ -2199,9 +2184,42 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         ApplySignalDisplayPreferences(preferences.SignalDisplay);
         ApplySignalLayoutPreferences(preferences.SignalLayout);
         ApplyLayoutPreferences(preferences.Layout);
-        PreferencesPage.ApplySignalDisplayPreferences(preferences.SignalDisplay);
+        ApplyPreferencesPageSignalDisplayPreferences(preferences.SignalDisplay);
         PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
         ApplyRecordedAnalysisPreferences(preferences.Analysis);
+    }
+
+    private void ApplyPreferencesPageSignalDisplayPreferences(SignalDisplayPreferences preferences)
+    {
+        UnsubscribeSignalPreferenceChanges();
+        try
+        {
+            PreferencesPage.ApplySignalDisplayPreferences(preferences);
+        }
+        finally
+        {
+            SubscribeSignalPreferenceChanges();
+        }
+    }
+
+    private void SubscribeSignalPreferenceChanges()
+    {
+        PreferencesPage.TravelSignal.PropertyChanged += OnSignalPreferenceChanged;
+        PreferencesPage.VelocitySignal.PropertyChanged += OnSignalPreferenceChanged;
+        PreferencesPage.ImuSignal.PropertyChanged += OnSignalPreferenceChanged;
+        PreferencesPage.PitchRollSignal.PropertyChanged += OnSignalPreferenceChanged;
+        PreferencesPage.SpeedSignal.PropertyChanged += OnSignalPreferenceChanged;
+        PreferencesPage.ElevationSignal.PropertyChanged += OnSignalPreferenceChanged;
+    }
+
+    private void UnsubscribeSignalPreferenceChanges()
+    {
+        PreferencesPage.TravelSignal.PropertyChanged -= OnSignalPreferenceChanged;
+        PreferencesPage.VelocitySignal.PropertyChanged -= OnSignalPreferenceChanged;
+        PreferencesPage.ImuSignal.PropertyChanged -= OnSignalPreferenceChanged;
+        PreferencesPage.PitchRollSignal.PropertyChanged -= OnSignalPreferenceChanged;
+        PreferencesPage.SpeedSignal.PropertyChanged -= OnSignalPreferenceChanged;
+        PreferencesPage.ElevationSignal.PropertyChanged -= OnSignalPreferenceChanged;
     }
 
     private void ApplyRecordedAnalysisPreferences(AnalysisPreferences preferences)
@@ -2234,21 +2252,71 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         editorActions.SetSignalDisplayPreferences(signalDisplay);
     }
 
-    private AnalysisPreferences CreateAnalysisPreferences()
+    private void ApplyRecordedSessionEditorEffect(RecordedSessionEditorEffect effect)
     {
-        return new AnalysisPreferences(
-            selectedTravelDistributionMode,
-            selectedVelocityAverageMode,
-            selectedBalanceDisplacementMode,
-            selectedBalanceSpeedMode,
-            selectedSessionInsightsTargetProfile);
+        if (effect is RecordedSessionEditorEffect.PersistPreferences persist)
+        {
+            PersistRecordedPreferenceIntent(persist.Intent);
+        }
     }
 
-    private void PersistRecordedAnalysisPreferencesIfEnabled()
+    private void PersistRecordedPreferenceIntent(RecordedSessionEditorIntent intent)
     {
-        var analysis = CreateAnalysisPreferences();
-        recordedPreferenceStore.UpdateCurrent(current => current with { Analysis = analysis });
-        recordedPreferenceStore.PersistChangeIfEnabled(current => current with { Analysis = analysis });
+        var update = CreatePreferenceUpdate(intent);
+        if (update is null)
+        {
+            return;
+        }
+
+        var current = recordedPreferenceStore.Current;
+        var next = update(current);
+        if (next == current)
+        {
+            return;
+        }
+
+        recordedPreferenceStore.UpdateCurrent(_ => next);
+        _ = recordedPreferenceStore.PersistChangeAsync(update);
+    }
+
+    private static Func<SessionPreferences, SessionPreferences>? CreatePreferenceUpdate(
+        RecordedSessionEditorIntent intent)
+    {
+        return intent switch
+        {
+            RecordedSessionEditorIntent.SetTravelDistributionMode set =>
+                current => current with
+                {
+                    Analysis = current.Analysis with { TravelDistributionMode = set.Mode },
+                },
+            RecordedSessionEditorIntent.SetBalanceDisplacementMode set =>
+                current => current with
+                {
+                    Analysis = current.Analysis with { BalanceDisplacementMode = set.Mode },
+                },
+            RecordedSessionEditorIntent.SetBalanceSpeedMode set =>
+                current => current with
+                {
+                    Analysis = current.Analysis with { BalanceSpeedMode = set.Mode },
+                },
+            RecordedSessionEditorIntent.SetVelocityAverageMode set =>
+                current => current with
+                {
+                    Analysis = current.Analysis with { VelocityAverageMode = set.Mode },
+                },
+            RecordedSessionEditorIntent.SetSessionInsightsTargetProfile set =>
+                current => current with
+                {
+                    Analysis = current.Analysis with { SessionInsightsTargetProfile = set.Profile },
+                },
+            RecordedSessionEditorIntent.SetSignalDisplayPreferences set =>
+                current => current with { SignalDisplay = set.Preferences },
+            RecordedSessionEditorIntent.SetSignalLayoutPreferences set =>
+                current => current with { SignalLayout = set.Preferences },
+            RecordedSessionEditorIntent.SetLayoutPreferences set =>
+                current => current with { Layout = set.Preferences },
+            _ => null,
+        };
     }
 
     private void OnProcessingPreferenceChangeCommitted(object? sender, EventArgs args) =>
@@ -2362,6 +2430,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         await StopLoadedSessionAsync();
         Pages.CollectionChanged -= OnPagesChanged;
         extensionPagesController?.Dispose();
+        editorEffects.Dispose();
         analysisResultSubscription.Dispose();
         analysisResultState.Dispose();
         MapViewModel?.Dispose();

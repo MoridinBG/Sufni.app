@@ -47,21 +47,6 @@ public class RecordedPreferenceStoreTests
     }
 
     [Fact]
-    public async Task PersistChangeIfEnabled_BeforeRestore_DoesNotWritePreferences()
-    {
-        var sessionId = Guid.NewGuid();
-        var service = Substitute.For<ISessionPreferences>();
-        var sut = new RecordedPreferenceStore(service, () => sessionId, _ => { });
-
-        sut.PersistChangeIfEnabled(current => current with
-        {
-            SignalDisplay = current.SignalDisplay with { Velocity = false },
-        });
-
-        await service.DidNotReceive().UpdateRecordedAsync(sessionId, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
-    }
-
-    [Fact]
     public async Task PersistChangeAsync_WhenWriteFails_ReturnsFalseAndReportsError()
     {
         var sessionId = Guid.NewGuid();
