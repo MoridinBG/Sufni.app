@@ -533,20 +533,21 @@ public class TelemetryData
                 throw new Exception("Front and rear record arrays are empty!");
             }
 
-            ProcessSegmentAwareSuspensionSide(
-                td.Front,
-                rawData.FrontSegments,
-                bikeData.FrontMeasurementWraps,
-                bikeData.FrontMeasurementToTravel,
-                td.Metadata.SampleRate,
-                processingOptions);
-            ProcessSegmentAwareSuspensionSide(
-                td.Rear,
-                rawData.RearSegments,
-                bikeData.RearMeasurementWraps,
-                bikeData.RearMeasurementToTravel,
-                td.Metadata.SampleRate,
-                processingOptions);
+            Parallel.Invoke(
+                () => ProcessSegmentAwareSuspensionSide(
+                    td.Front,
+                    rawData.FrontSegments,
+                    bikeData.FrontMeasurementWraps,
+                    bikeData.FrontMeasurementToTravel,
+                    td.Metadata.SampleRate,
+                    processingOptions),
+                () => ProcessSegmentAwareSuspensionSide(
+                    td.Rear,
+                    rawData.RearSegments,
+                    bikeData.RearMeasurementWraps,
+                    bikeData.RearMeasurementToTravel,
+                    td.Metadata.SampleRate,
+                    processingOptions));
 
             td.Front.HasGaps = td.Front.HasGaps || HasTravelGapForSide(rawData.StreamGaps, SstV5Constants.SensorForkTravel);
             td.Rear.HasGaps = td.Rear.HasGaps || HasTravelGapForSide(rawData.StreamGaps, SstV5Constants.SensorShockTravel);
@@ -608,20 +609,21 @@ public class TelemetryData
         // shorter than a full SST import during early-session save or stats recompute.
         var filter = CreateVelocityFilter(recordCount, td.Metadata.SampleRate, processingOptions);
 
-        ProcessSuspensionSide(
-            td.Front,
-            rawData.Front,
-            bikeData.FrontMeasurementWraps,
-            bikeData.FrontMeasurementToTravel,
-            td.Metadata.SampleRate,
-            filter);
-        ProcessSuspensionSide(
-            td.Rear,
-            rawData.Rear,
-            bikeData.RearMeasurementWraps,
-            bikeData.RearMeasurementToTravel,
-            td.Metadata.SampleRate,
-            filter);
+        Parallel.Invoke(
+            () => ProcessSuspensionSide(
+                td.Front,
+                rawData.Front,
+                bikeData.FrontMeasurementWraps,
+                bikeData.FrontMeasurementToTravel,
+                td.Metadata.SampleRate,
+                filter),
+            () => ProcessSuspensionSide(
+                td.Rear,
+                rawData.Rear,
+                bikeData.RearMeasurementWraps,
+                bikeData.RearMeasurementToTravel,
+                td.Metadata.SampleRate,
+                filter));
 
         td.CalculateAirTimes();
 
