@@ -1375,25 +1375,26 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         analysisRequestScheduler = new AnalysisRequestScheduler(this, analysisInputs);
         analysisResultSubscription = analysisResultState.Connect().Subscribe(OnAnalysisResultChanged);
         editorStateController = new RecordedSessionEditorStateController(
-            editorActions.Intents,
-            pageCountInput,
-            preferenceReplayInput,
-            screenStateInput,
-            sessionOperationStateInput,
-            mapStateInput,
-            mediaPaneStateInput,
-            mediaColumnWidthInput,
-            mediaUrlInput,
-            analysisPresentationInput,
-            dampingPercentagesInput,
-            plotDampingSpeedCutoffsInput,
-            canEditDampingSpeedCutoffsInput,
-            sessionInsightsInput,
-            signalPresentationInput,
-            analysisSelectionInput,
-            loadedDataInput,
-            signalPlotContextMenuActionsInput,
-            domainInput);
+            new RecordedSessionEditorStateInputs(
+                editorActions.Intents,
+                pageCountInput,
+                preferenceReplayInput,
+                screenStateInput,
+                sessionOperationStateInput,
+                mapStateInput,
+                mediaPaneStateInput,
+                mediaColumnWidthInput,
+                mediaUrlInput,
+                analysisPresentationInput,
+                dampingPercentagesInput,
+                plotDampingSpeedCutoffsInput,
+                canEditDampingSpeedCutoffsInput,
+                sessionInsightsInput,
+                signalPresentationInput,
+                analysisSelectionInput,
+                loadedDataInput,
+                signalPlotContextMenuActionsInput,
+                domainInput));
         editorStateSubscription = editorStateController.State.Subscribe(ApplyEditorState);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;

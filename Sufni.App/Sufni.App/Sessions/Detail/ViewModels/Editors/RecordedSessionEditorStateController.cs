@@ -13,6 +13,27 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
+internal sealed record RecordedSessionEditorStateInputs(
+    IObservable<RecordedSessionEditorIntent> Intents,
+    IObservable<int> PageCounts,
+    IObservable<SessionPreferences> PreferenceReplays,
+    IObservable<SessionScreenPresentationState> ScreenStates,
+    IObservable<SessionOperationPresentationState> OperationStates,
+    IObservable<SurfacePresentationState> MapStates,
+    IObservable<SurfacePresentationState> MediaPaneStates,
+    IObservable<double?> MediaColumnWidths,
+    IObservable<string?> MediaUrls,
+    IObservable<RecordedAnalysisPresentationState> AnalysisPresentationStates,
+    IObservable<SessionDampingPercentages> DampingPercentages,
+    IObservable<DampingSpeedCutoffs> PlotDampingSpeedCutoffs,
+    IObservable<bool> CanEditDampingSpeedCutoffs,
+    IObservable<SessionInsightsResult> SessionInsights,
+    IObservable<RecordedSignalPresentationState> SignalPresentationStates,
+    IObservable<AnalysisSelectionState> AnalysisSelections,
+    IObservable<RecordedSessionLoadedData> LoadedDataStates,
+    IObservable<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> SignalPlotContextMenuActions,
+    IObservable<RecordedSessionDomainSnapshot> DomainStates);
+
 internal sealed class RecordedSessionEditorStateController : IDisposable
 {
     private readonly IDisposable connection;
@@ -28,6 +49,31 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
 
         State = replayingState.AsObservable();
         connection = replayingState.Connect();
+    }
+
+    public RecordedSessionEditorStateController(RecordedSessionEditorStateInputs inputs)
+        : this(
+            Observable.Return(RecordedSessionEditorState.CreateInitial()),
+            inputs.Intents,
+            inputs.PageCounts,
+            inputs.PreferenceReplays,
+            inputs.ScreenStates,
+            inputs.OperationStates,
+            inputs.MapStates,
+            inputs.MediaPaneStates,
+            inputs.MediaColumnWidths,
+            inputs.MediaUrls,
+            inputs.AnalysisPresentationStates,
+            inputs.DampingPercentages,
+            inputs.PlotDampingSpeedCutoffs,
+            inputs.CanEditDampingSpeedCutoffs,
+            inputs.SessionInsights,
+            inputs.SignalPresentationStates,
+            inputs.AnalysisSelections,
+            inputs.LoadedDataStates,
+            inputs.SignalPlotContextMenuActions,
+            inputs.DomainStates)
+    {
     }
 
     public RecordedSessionEditorStateController(
