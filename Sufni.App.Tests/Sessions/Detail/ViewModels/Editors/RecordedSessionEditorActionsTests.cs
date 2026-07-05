@@ -429,6 +429,8 @@ public class RecordedSessionEditorActionsTests
 
         var state = observed[^1];
         Assert.IsType<RecordedSessionLoadPresentation.Loading>(state.Load);
+        Assert.Equal(SessionScreenStateKind.Loading, state.Presentation.ScreenState.Kind);
+        Assert.Contains("Loading", state.Presentation.ScreenState.Message);
         Assert.Equal(SurfaceStateKind.Loading, state.Presentation.MapState.Kind);
         Assert.Equal(SurfaceStateKind.Loading, state.Presentation.Signals.Travel.Kind);
         Assert.Equal(SurfaceStateKind.Loading, state.Presentation.Signals.Velocity.Kind);
@@ -630,10 +632,8 @@ public class RecordedSessionEditorActionsTests
 
         driver.AnalysisSelections.OnNext(analysisSelection);
 
-        Assert.Equal(2, observed.Count);
         Assert.Null(observed[0].ActiveFront);
         Assert.Empty(observed[0].HighlightRanges);
-        Assert.Equal(analysisSelection, observed[1]);
         Assert.Equal(analysisSelection, observed[^1]);
         Assert.Same(highlightRanges, observed[^1].HighlightRanges);
     }
@@ -682,6 +682,49 @@ public class RecordedSessionEditorActionsTests
         Assert.Null(observed[^1].ActiveFront);
         Assert.Null(observed[^1].ActiveRear);
         Assert.Empty(observed[^1].HighlightRanges);
+    }
+
+    [Fact]
+    public void StateController_DerivesAnalysisSelectionOverlayDefaults_FromAnalysisSelection()
+    {
+        using var driver = new RecordedSessionEditorStateControllerTestDriver();
+        var observed = new List<RecordedSignalPresentationState>();
+        using var subscription = driver.Controller.State.Subscribe(state => observed.Add(state.Presentation.Signals));
+        var selection = new DeepTravelRangeSelection(
+            SuspensionType.Front,
+            new TelemetryRangeSelection.BinRange(0, 0, 10, IsFirst: true, IsLast: false));
+        var analysisSelection = new AnalysisSelectionState(
+            ActiveFront: selection,
+            ActiveRear: null,
+            HighlightRanges: [new TelemetryHighlightRange(1, 2, SuspensionType.Front)]);
+
+        driver.AnalysisSelections.OnNext(analysisSelection);
+
+        Assert.True(observed[^1].ShowAnalysisSelection);
+        Assert.False(observed[^1].ShowVelocityAnalysisSelection);
+        Assert.False(observed[^1].ShowImuAnalysisSelection);
+        Assert.False(observed[^1].ShowPitchRollAnalysisSelection);
+        Assert.False(observed[^1].ShowSpeedAnalysisSelection);
+        Assert.False(observed[^1].ShowElevationAnalysisSelection);
+
+        var userOverride = observed[^1] with
+        {
+            ShowAnalysisSelection = false,
+            ShowVelocityAnalysisSelection = true,
+        };
+        driver.Actions.SetSignalPresentation(userOverride);
+
+        Assert.False(observed[^1].ShowAnalysisSelection);
+        Assert.True(observed[^1].ShowVelocityAnalysisSelection);
+
+        driver.Actions.ClearAnalysisSelection();
+
+        Assert.False(observed[^1].ShowAnalysisSelection);
+        Assert.False(observed[^1].ShowVelocityAnalysisSelection);
+        Assert.False(observed[^1].ShowImuAnalysisSelection);
+        Assert.False(observed[^1].ShowPitchRollAnalysisSelection);
+        Assert.False(observed[^1].ShowSpeedAnalysisSelection);
+        Assert.False(observed[^1].ShowElevationAnalysisSelection);
     }
 
     [Fact]

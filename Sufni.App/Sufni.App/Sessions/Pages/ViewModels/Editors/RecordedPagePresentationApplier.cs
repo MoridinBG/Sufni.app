@@ -1,10 +1,8 @@
 using System.Collections.ObjectModel;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.Infrastructure;
-using Sufni.App.Sessions.Insights.ViewModels.SessionPages;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Insights.ViewModels.SessionPages;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Processing.SessionDetails;
 
@@ -12,7 +10,6 @@ namespace Sufni.App.Sessions.Pages.ViewModels.Editors;
 
 internal sealed class RecordedPagePresentationApplier
 {
-    private readonly SessionDetailViewModel owner;
     private readonly ObservableCollection<PageViewModelBase> pages;
     private readonly SpringPageViewModel springPage;
     private readonly DampingPageViewModel dampingPage;
@@ -22,7 +19,6 @@ internal sealed class RecordedPagePresentationApplier
     private readonly NotesPageViewModel notesPage;
 
     public RecordedPagePresentationApplier(
-        SessionDetailViewModel owner,
         ObservableCollection<PageViewModelBase> pages,
         SpringPageViewModel springPage,
         DampingPageViewModel dampingPage,
@@ -31,7 +27,6 @@ internal sealed class RecordedPagePresentationApplier
         SessionInsightsPageViewModel analysisPage,
         NotesPageViewModel notesPage)
     {
-        this.owner = owner;
         this.pages = pages;
         this.springPage = springPage;
         this.dampingPage = dampingPage;
@@ -43,7 +38,7 @@ internal sealed class RecordedPagePresentationApplier
 
     public void ClearRecordedPresentation()
     {
-        owner.ApplyDampingPercentages(SessionDampingPercentages.Empty);
+        dampingPage.ApplyDampingPercentages(SessionDampingPercentages.Empty);
         springPage.FrontDistributionState = SurfacePresentationState.Hidden;
         springPage.RearDistributionState = SurfacePresentationState.Hidden;
         dampingPage.FrontDistributionState = SurfacePresentationState.Hidden;
@@ -67,17 +62,11 @@ internal sealed class RecordedPagePresentationApplier
         switch (result)
         {
             case SessionDetailLoadResult.Loaded loaded:
-                var telemetryPresentation = loaded.Data.TelemetryPresentation;
-                var cachePresentation = loaded.Data.CachePresentation;
-                ApplyCachePresentation(cachePresentation);
-                owner.SetSessionFullTrack(telemetryPresentation.FullTrackId);
-                owner.ApplyModeAwareDampingPercentages(telemetryPresentation.DampingPercentages);
-                owner.IsComplete = true;
+                ApplyCachePresentation(loaded.Data.CachePresentation);
                 break;
 
             case SessionDetailLoadResult.IncompleteLocalData:
                 ClearRecordedPresentation();
-                owner.IsComplete = owner.CurrentSessionSnapshot?.HasProcessedData ?? false;
                 break;
 
             case SessionDetailLoadResult.Failed:
@@ -88,8 +77,6 @@ internal sealed class RecordedPagePresentationApplier
 
     private void ApplyCachePresentation(SessionCachePresentationData data)
     {
-        owner.ApplyDampingSpeedCutoffContext(data.DampingSpeedCutoffs, data.DampingSpeedCutoffOwner);
-
         var hasFrontTravelDistribution = !string.IsNullOrWhiteSpace(data.FrontTravelDistribution);
         var hasRearTravelDistribution = !string.IsNullOrWhiteSpace(data.RearTravelDistribution);
         var hasFrontVelocityDistribution = !string.IsNullOrWhiteSpace(data.FrontVelocityDistribution);
@@ -115,7 +102,7 @@ internal sealed class RecordedPagePresentationApplier
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
 
-        owner.ApplyDampingPercentages(data.DampingPercentages);
+        dampingPage.ApplyDampingPercentages(data.DampingPercentages);
         balancePage.CompressionBalance = data.CompressionBalance;
         balancePage.ReboundBalance = data.ReboundBalance;
         balancePage.CompressionBalanceState = hasCompressionBalance

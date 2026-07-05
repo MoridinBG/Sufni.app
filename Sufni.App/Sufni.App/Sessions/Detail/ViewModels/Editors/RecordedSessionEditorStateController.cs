@@ -97,11 +97,14 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var signalAvailabilityState = CreateInputState(
             loadPresentationState.Select(CreateSignalAvailabilityFromLoadPresentation),
             CreateHiddenSignalAvailabilityState());
-        var explicitSignalPresentationState = CreateInputState(
-            inputs.Intents
-                .OfType<RecordedSessionEditorIntent.SetSignalPresentation>()
-                .Select(static intent => intent.State),
-            CreateHiddenSignalPresentationState());
+        var analysisSelectionState = CreateAnalysisSelectionState(
+            inputs.Intents,
+            inputs.AnalysisSelections,
+            loadedDataState,
+            analysisRange);
+        var explicitSignalPresentationState = CreateSignalPresentationOverlayState(
+            inputs.Intents,
+            analysisSelectionState);
         var signalPresentationState = loadPresentationState
             .CombineLatest(
                 explicitSignalPresentationState,
@@ -109,11 +112,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             .DistinctUntilChanged()
             .Replay(1)
             .RefCount();
-        var analysisSelectionState = CreateAnalysisSelectionState(
-            inputs.Intents,
-            inputs.AnalysisSelections,
-            loadedDataState,
-            analysisRange);
         var signalPlotContextMenuActionState = CreateInputState(
             inputs.SignalPlotContextMenuActions,
             CreateEmptySignalPlotContextMenuActions());
@@ -354,6 +352,8 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
     {
         return load switch
         {
+            RecordedSessionLoadPresentation.Loading =>
+                SessionScreenPresentationState.Loading("Loading session data."),
             RecordedSessionLoadPresentation.IncompleteLocalData incomplete =>
                 SessionScreenPresentationState.IncompleteLocalData(
                     FormatIncompleteLocalDataMessage(incomplete.Missing)),
@@ -734,8 +734,18 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var inputUpdates = analysisSelectionStates
             .Select(static state => new Func<AnalysisSelectionState, AnalysisSelectionState>(_ => state));
 
+        var analysisContextUpdates = context
+            .DistinctUntilChanged()
+            .Skip(1)
+            .Select(static selectionContext => new Func<AnalysisSelectionState, AnalysisSelectionState>(
+                current => RefreshAnalysisSelectionHighlights(
+                    current,
+                    selectionContext.TelemetryData,
+                    selectionContext.AnalysisRange)));
+
         return inputUpdates
             .Merge(intentUpdates)
+            .Merge(analysisContextUpdates)
             .StartWith(new Func<AnalysisSelectionState, AnalysisSelectionState>(static current => current))
             .Scan(CreateEmptyAnalysisSelectionState(), static (current, update) => update(current))
             .DistinctUntilChanged()
@@ -772,6 +782,77 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         return controller.Select(selection, telemetryData, analysisRange)
             ? CreateAnalysisSelectionState(controller)
             : current;
+    }
+
+    private static AnalysisSelectionState RefreshAnalysisSelectionHighlights(
+        AnalysisSelectionState current,
+        TelemetryData? telemetryData,
+        TelemetryTimeRange? analysisRange)
+    {
+        if (current.ActiveFront is null &&
+            current.ActiveRear is null &&
+            current.HighlightRanges.Count == 0)
+        {
+            return current;
+        }
+
+        var controller = new AnalysisSelectionController(
+            current.ActiveFront,
+            current.ActiveRear,
+            current.HighlightRanges);
+        controller.RefreshHighlightRanges(telemetryData, analysisRange);
+        return CreateAnalysisSelectionState(controller);
+    }
+
+    private static IObservable<RecordedSignalPresentationState> CreateSignalPresentationOverlayState(
+        IObservable<RecordedSessionEditorIntent> intents,
+        IObservable<AnalysisSelectionState> analysisSelectionStates)
+    {
+        var intentUpdates = intents
+            .OfType<RecordedSessionEditorIntent.SetSignalPresentation>()
+            .Select(static intent => new Func<RecordedSignalPresentationState, RecordedSignalPresentationState>(
+                _ => intent.State));
+
+        var analysisSelectionUpdates = analysisSelectionStates
+            .DistinctUntilChanged()
+            .Select(static selection => new Func<RecordedSignalPresentationState, RecordedSignalPresentationState>(
+                current => ApplyAnalysisSelectionOverlayDefaults(current, selection)));
+
+        return intentUpdates
+            .Merge(analysisSelectionUpdates)
+            .StartWith(new Func<RecordedSignalPresentationState, RecordedSignalPresentationState>(static current => current))
+            .Scan(CreateHiddenSignalPresentationState(), static (current, update) => update(current))
+            .DistinctUntilChanged()
+            .Replay(1)
+            .RefCount();
+    }
+
+    private static RecordedSignalPresentationState ApplyAnalysisSelectionOverlayDefaults(
+        RecordedSignalPresentationState current,
+        AnalysisSelectionState selection)
+    {
+        if (selection.HighlightRanges.Count == 0)
+        {
+            return current with
+            {
+                ShowAnalysisSelection = false,
+                ShowVelocityAnalysisSelection = false,
+                ShowImuAnalysisSelection = false,
+                ShowPitchRollAnalysisSelection = false,
+                ShowSpeedAnalysisSelection = false,
+                ShowElevationAnalysisSelection = false,
+            };
+        }
+
+        return current with
+        {
+            ShowAnalysisSelection = true,
+            ShowVelocityAnalysisSelection = false,
+            ShowImuAnalysisSelection = false,
+            ShowPitchRollAnalysisSelection = false,
+            ShowSpeedAnalysisSelection = false,
+            ShowElevationAnalysisSelection = false,
+        };
     }
 
     private static AnalysisSelectionState CreateAnalysisSelectionState(AnalysisSelectionController controller)

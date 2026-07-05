@@ -574,8 +574,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private bool IsSessionInsightsPageSelected => ReferenceEquals(SelectedPage, AnalysisPage);
 
-    internal Guid? CurrentSessionFullTrack => session.FullTrack;
-
     internal SessionSnapshot? CurrentSessionSnapshot => currentEditorState.Session;
 
     internal TelemetryData? CurrentTelemetryData => currentEditorState.TelemetryData;
@@ -583,11 +581,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     internal IReadOnlyList<TrackPoint>? CurrentTrackPoints => currentEditorState.TrackPoints;
 
     internal TelemetryTimeRange? CurrentAnalysisRange => currentEditorState.Intent.AnalysisRange;
-
-    internal void SetSessionFullTrack(Guid? fullTrackId)
-    {
-        session.FullTrack = fullTrackId;
-    }
 
     internal void SetFullTrackPoints(List<TrackPoint>? points)
     {
@@ -629,7 +622,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         telemetryData = value;
         telemetryGeneration++;
-        IsComplete = value != null;
         NotesPage.SetTemperatureAverages(value?.TemperatureAverages ?? []);
         if (currentEditorState.Intent.PendingAnalysisRangeBoundary is not null)
         {
@@ -775,6 +767,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
             var loadPresentation = CreateLoadPresentation(result, sessionStore.Get(Id) ?? currentSnapshot);
             PublishLoadResultPresentation(loadPresentation);
+            ApplyLoadedStateInputs(result);
             presentationApplier.ApplyLoadResult(result);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -832,6 +825,20 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         };
     }
 
+    private void ApplyLoadedStateInputs(SessionDetailLoadResult result)
+    {
+        if (result is not SessionDetailLoadResult.Loaded loaded)
+        {
+            return;
+        }
+
+        var telemetryPresentation = loaded.Data.TelemetryPresentation;
+        ApplyDampingSpeedCutoffContext(
+            telemetryPresentation.DampingSpeedCutoffs,
+            telemetryPresentation.DampingSpeedCutoffOwner);
+        ApplyModeAwareDampingPercentages(telemetryPresentation.DampingPercentages);
+    }
+
     private async Task ApplyPersistedSnapshotAsync(SessionSnapshot snapshot)
     {
         session = snapshot.ToMetadataEntity();
@@ -839,7 +846,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         PublishCurrentLoadPresentation();
         BaselineUpdated = snapshot.Updated;
         metadataConflictPending = false;
-        IsComplete = snapshot.HasProcessedData;
         await ResetImplementation();
         EvaluateDirtiness();
         NotifyEditorCommandStateChanged();
@@ -965,7 +971,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         session.FullTrack = snapshot.FullTrackId;
         session.GpsOffsetSeconds = snapshot.GpsOffsetSeconds;
         session.Updated = snapshot.Updated;
-        IsComplete = snapshot.HasProcessedData;
         sessionSnapshot = snapshot;
         PublishCurrentLoadPresentation();
     }
@@ -1539,7 +1544,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             PreferencesPage,
             SaveCommand,
             ResetCommand);
-        IsComplete = snapshot.HasProcessedData;
         dampingCutoffWorkflow = new DampingCutoffWorkflow(
             () => currentEditorState.Intent.DampingSpeedCutoffs,
             SetCanEditDampingSpeedCutoffs,
@@ -1581,7 +1585,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         VibrationPage = new VibrationPageViewModel(AnalysisWorkspace);
         AnalysisPage = new SessionInsightsPageViewModel(AnalysisWorkspace);
         presentationApplier = new RecordedPagePresentationApplier(
-            this,
             Pages,
             SpringPage,
             DampingPage,
@@ -1653,9 +1656,20 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         var previous = currentEditorState;
         currentEditorState = state;
 
+        var isComplete = IsCompleteFromLoadPresentation(state.Load);
+        if (IsComplete != isComplete)
+        {
+            IsComplete = isComplete;
+        }
+
         if (previous.Session != state.Session)
         {
             sessionSnapshot = state.Session;
+            if (state.Session is { } snapshot)
+            {
+                ApplyRuntimeSessionState(snapshot);
+            }
+
             OnPropertyChanged(nameof(CurrentSessionSnapshot));
         }
 
@@ -1667,7 +1681,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 telemetryGeneration++;
             }
 
-            IsComplete = state.TelemetryData is not null;
             PreferencesPage.SampleRate = state.TelemetryData?.Metadata.SampleRate ?? 0;
             NotesPage.SetTemperatureAverages(state.TelemetryData?.TemperatureAverages ?? []);
             OnPropertyChanged(nameof(CurrentTelemetryData));
@@ -1698,18 +1711,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             OnPropertyChanged(nameof(CurrentAnalysisRange));
             OnPropertyChanged(nameof(SessionAnalysisRangeText));
-            ClearAnalysisSelections();
         }
         if (previous.AnalysisSelection != state.AnalysisSelection)
         {
             OnPropertyChanged(nameof(ActiveFrontAnalysisSelection));
             OnPropertyChanged(nameof(ActiveRearAnalysisSelection));
-            signalRowActions.ClearAnalysisSelectionToggles();
-            if (state.AnalysisSelection.HighlightRanges.Count > 0)
-            {
-                SetShowAnalysisSelection(true);
-            }
-
             signalRowActions.RefreshAnalysisSelectionActionStates();
         }
 
@@ -1776,6 +1782,26 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             OnPropertyChanged(nameof(SessionAnalysisModesText));
         }
+    }
+
+    private static bool IsCompleteFromLoadPresentation(RecordedSessionLoadPresentation load)
+    {
+        return load switch
+        {
+            RecordedSessionLoadPresentation.Loaded => true,
+            RecordedSessionLoadPresentation.IncompleteLocalData incomplete => incomplete.HasProcessedData,
+            RecordedSessionLoadPresentation.Loading loading => loading.Session?.HasProcessedData ?? false,
+            RecordedSessionLoadPresentation.Empty => false,
+            RecordedSessionLoadPresentation.Failed failed => failed.Session?.HasProcessedData ?? false,
+            _ => false,
+        };
+    }
+
+    private void ApplyRuntimeSessionState(SessionSnapshot snapshot)
+    {
+        session.FullTrack = snapshot.FullTrackId;
+        session.GpsOffsetSeconds = snapshot.GpsOffsetSeconds;
+        session.Updated = snapshot.Updated;
     }
 
     private void ClearAnalysisSelections()
@@ -2335,7 +2361,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                     PublishCurrentLoadPresentation();
                     BaselineUpdated = conflict.CurrentSnapshot.Updated;
                     metadataConflictPending = false;
-                    IsComplete = conflict.CurrentSnapshot.HasProcessedData;
                     await ResetImplementation();
                     EvaluateDirtiness();
                 }

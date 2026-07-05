@@ -59,6 +59,11 @@ internal sealed class AnalysisSelectionController
         return true;
     }
 
+    public void RefreshHighlightRanges(TelemetryData? telemetryData, TelemetryTimeRange? analysisRange)
+    {
+        RecomputeHighlightRanges(telemetryData, analysisRange);
+    }
+
     public bool Select(
         TelemetryRangeSelection? selection,
         TelemetryData? telemetryData,

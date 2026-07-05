@@ -170,7 +170,7 @@ public class SessionDetailViewModelTests
         Assert.True(editor.AnalysisWorkspace.RearForkVibrationState.IsHidden);
         Assert.True(editor.AnalysisWorkspace.RearFrameVibrationState.IsHidden);
         Assert.Equal(SurfaceStateKind.Loading, editor.MediaWorkspace.MapState.Kind);
-        Assert.True(editor.ScreenState.IsReady);
+        Assert.Equal(SessionScreenStateKind.Loading, editor.ScreenState.Kind);
     }
 
     [AvaloniaFact]
