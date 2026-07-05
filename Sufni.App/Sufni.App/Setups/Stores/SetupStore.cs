@@ -5,9 +5,9 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.ExtensionHost.Runtime.Stores;
 using Sufni.App.Setups.Models;
 using Sufni.App.SyncAndPairing.Models;
-using Sufni.App.Shared.Base;
 using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Setups.Stores;
 

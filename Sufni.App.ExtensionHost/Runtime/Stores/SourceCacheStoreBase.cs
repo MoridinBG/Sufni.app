@@ -5,11 +5,9 @@ using System.Threading.Tasks;
 using DynamicData;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
-namespace Sufni.App.Shared.Base;
+namespace Sufni.App.ExtensionHost.Runtime.Stores;
 
-// Shared DynamicData backing for entity stores. Concrete stores layer typed
-// lookup/watch APIs on top while store writers own cache publication.
-internal abstract class SourceCacheStoreBase<TSnapshot, TKey>(
+public abstract class SourceCacheStoreBase<TSnapshot, TKey>(
     Func<TSnapshot, TKey> keySelector,
     IUiThreadDispatcher uiThreadDispatcher)
     where TSnapshot : class
