@@ -72,16 +72,14 @@ public sealed class SessionLoader
 
             var fullTrackId = sessionStore.Get(sessionId)?.FullTrackId;
             logger.Verbose("Resolving track data for session {SessionId}", sessionId);
-            var trackData = await trackCoordinator.LoadSessionTrackAsync(
+            var trackTask = trackCoordinator.LoadSessionTrackAsync(
                 sessionId,
                 fullTrackId,
                 telemetryData,
                 cancellationToken);
 
-            cancellationToken.ThrowIfCancellationRequested();
-
             logger.Verbose("Building session presentation data for {SessionId}", sessionId);
-            var cachePresentation = await backgroundTaskRunner.RunAsync(
+            var presentationTask = backgroundTaskRunner.RunAsync(
                 () => sessionPresentationService.BuildCachePresentation(
                     telemetryData,
                     dimensions,
@@ -89,9 +87,9 @@ public sealed class SessionLoader
                     dampingSpeedCutoffContext.Cutoffs),
                 cancellationToken);
 
-            cachePresentation = cachePresentation with { DampingSpeedCutoffOwner = dampingSpeedCutoffContext.Owner };
-
-            cancellationToken.ThrowIfCancellationRequested();
+            await Task.WhenAll(trackTask, presentationTask);
+            var trackData = trackTask.Result;
+            var cachePresentation = presentationTask.Result with { DampingSpeedCutoffOwner = dampingSpeedCutoffContext.Owner };
 
             logger.Information("Session detail load completed for {SessionId}", sessionId);
             return new SessionDetailLoadResult.Loaded(
