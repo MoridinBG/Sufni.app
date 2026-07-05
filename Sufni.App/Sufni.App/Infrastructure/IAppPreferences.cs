@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reactive;
 using System.Threading.Tasks;
 
 using Sufni.App.MapsAndTracks.Models;
@@ -31,11 +30,6 @@ public interface IAppPreferences
     IUiPreferences Ui { get; }
     Task<AppPreferencesSyncData?> GetSyncDataAsync(long since);
     Task ApplySyncDataAsync(AppPreferencesSyncData? preferences);
-
-    // Fires once per successful remote sync apply. Hot observable: subscribers
-    // only see emissions that happen after they subscribe. Local writes do not
-    // emit through this — view models drive those directly.
-    IObservable<Unit> SyncDataApplied { get; }
 }
 
 public interface IUiPreferences

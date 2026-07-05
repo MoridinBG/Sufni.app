@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reactive;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Text.Json;
@@ -31,11 +30,6 @@ public sealed class AppPreferences : IAppPreferences
     private readonly SemaphoreSlim gate = new(1, 1);
     private AppPreferencesDocument document;
 
-    // Hot stream of "remote sync just landed in the on-disk document". Fired
-    // after the gate is released so subscribers can re-read without contending
-    // for it. Initial-value-less: subscribers care about future emissions, not
-    // a snapshot of "has sync ever happened".
-    private readonly Subject<Unit> syncDataAppliedSubject = new();
     private readonly Subject<PreferenceValueChange<MapPreferencesValue>> mapPreferencesSubject = new();
     private readonly Subject<PreferenceValueChange<SufniThemeMode>> themePreferencesSubject = new();
     private readonly Subject<PreferenceValueChange<UiPreferences>> uiPreferencesSubject = new();
@@ -47,7 +41,6 @@ public sealed class AppPreferences : IAppPreferences
     public ISessionPreferences Session { get; }
     public IThemePreferences Theme { get; }
     public IUiPreferences Ui { get; }
-    public IObservable<Unit> SyncDataApplied => syncDataAppliedSubject.AsObservable();
 
     public AppPreferences()
         : this(Path.Combine(Path.GetDirectoryName(AppPaths.DatabasePath)!, "app-preferences.json"))
@@ -113,10 +106,9 @@ public sealed class AppPreferences : IAppPreferences
             return;
         }
 
-        // Apply under the gate, signal outside it. The signal is what
-        // downstream services (TileLayerService, SessionDetailViewModel) use
-        // to know the JSON file has new content and they should re-read.
-        var applied = false;
+        // Apply under the gate and publish typed preference streams for the
+        // affected consumers: map preference changes, theme preference changes,
+        // and recorded-session preference changes.
         await gate.WaitAsync();
         try
         {
@@ -150,48 +142,6 @@ public sealed class AppPreferences : IAppPreferences
                 PreferenceChangeOrigin.SyncApply,
                 advancesSyncClock: false,
                 recordedChanges);
-            applied = true;
-        }
-        finally
-        {
-            gate.Release();
-        }
-
-        if (applied)
-        {
-            syncDataAppliedSubject.OnNext(Unit.Default);
-        }
-    }
-
-    private async Task UpdateAsync(Action<AppPreferencesDocument> update)
-    {
-        await gate.WaitAsync();
-        try
-        {
-            var next = CloneDocument();
-            update(next);
-            next.Updated = GetCurrentTimestamp();
-            await WriteDocumentCoreAsync(next);
-            document = next;
-        }
-        finally
-        {
-            gate.Release();
-        }
-    }
-
-    // Persists a local/no-bump change WITHOUT advancing the document's sync clock.
-    // This keeps preferences that are intentionally excluded from sync, or
-    // per-device normalizations, from overwriting peers' synced preferences.
-    private async Task UpdateLocalAsync(Action<AppPreferencesDocument> update)
-    {
-        await gate.WaitAsync();
-        try
-        {
-            var next = CloneDocument();
-            update(next);
-            await WriteDocumentCoreAsync(next);
-            document = next;
         }
         finally
         {

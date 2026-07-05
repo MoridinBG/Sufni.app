@@ -1201,55 +1201,6 @@ public class AppPreferencesTests
     }
 
     [Fact]
-    public async Task SyncDataApplied_EmitsOncePerSuccessfulApply()
-    {
-        using var tempDirectory = new TempDirectory("sufni-preferences-test");
-        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
-        var preferences = new AppPreferences(preferencesPath);
-        var emissions = 0;
-        using var subscription = preferences.SyncDataApplied.Subscribe(_ => Interlocked.Increment(ref emissions));
-
-        // null payload: short-circuits before any I/O — must not emit.
-        await preferences.ApplySyncDataAsync(null);
-        Assert.Equal(0, emissions);
-
-        // Newer payload applies → one emission.
-        await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
-        {
-            Updated = 100,
-            Maps = new MapPreferencesSyncData { SelectedLayerId = Guid.NewGuid() },
-        });
-        Assert.Equal(1, emissions);
-
-        // Older payload skips (Updated < document.Updated) → no emission.
-        await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
-        {
-            Updated = 50,
-            Maps = new MapPreferencesSyncData { SelectedLayerId = Guid.NewGuid() },
-        });
-        Assert.Equal(1, emissions);
-    }
-
-    [Fact]
-    public async Task SyncDataApplied_DoesNotReplayHistory_OnLateSubscribe()
-    {
-        using var tempDirectory = new TempDirectory("sufni-preferences-test");
-        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
-        var preferences = new AppPreferences(preferencesPath);
-
-        // Apply before subscribing — late subscribers should not see this.
-        await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
-        {
-            Updated = 100,
-            Maps = new MapPreferencesSyncData { SelectedLayerId = Guid.NewGuid() },
-        });
-
-        var emissions = 0;
-        using var subscription = preferences.SyncDataApplied.Subscribe(_ => Interlocked.Increment(ref emissions));
-        Assert.Equal(0, emissions);
-    }
-
-    [Fact]
     public async Task ObserveRecorded_EmitsOnSyncApply()
     {
         using var tempDirectory = new TempDirectory("sufni-preferences-test");

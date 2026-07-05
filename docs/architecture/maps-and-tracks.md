@@ -118,7 +118,7 @@ The facet exposes only the operations the tile-layer service uses:
 
 DI registers `IMapPreferences` as a singleton via a factory that resolves `IAppPreferences.Map` so both interfaces point at the same backing document. `ISessionPreferences` is the sibling facet that carries per-session plot and analysis preferences; the two never share state and have no overlap.
 
-Map preferences also participate in app-preference sync. `IAppPreferences.GetSyncDataAsync` packages the map facet as `AppPreferencesSyncData.Maps`, and `TileLayerService` refreshes its built-in/custom layer catalog and selected layer after `SyncDataApplied` so remote map-preference changes are reflected in open map views.
+Map preferences also participate in app-preference sync. `IAppPreferences.GetSyncDataAsync` packages the map facet as `AppPreferencesSyncData.Maps`, and `TileLayerService` subscribes to `IMapPreferences.ObserveChanges()` so remote sync-applied map-preference changes refresh the built-in/custom layer catalog and selected layer in open map views.
 
 ## Where Maps Are Displayed
 
