@@ -144,7 +144,7 @@ public class RecordedSessionSourceRepositoryTests
 
         var deleted = await database.DeleteOrphanedRecordedSessionSourcesAsync(retainedSessionIds);
 
-        Assert.Equal(1, deleted);
+        Assert.Equal([unretainedOrphanSessionId], deleted);
         Assert.NotNull(await database.GetRecordedSessionSourceAsync(liveSessionId));
         Assert.NotNull(await database.GetRecordedSessionSourceAsync(retainedSessionIds[0]));
         Assert.NotNull(await database.GetRecordedSessionSourceAsync(retainedSessionIds[^1]));

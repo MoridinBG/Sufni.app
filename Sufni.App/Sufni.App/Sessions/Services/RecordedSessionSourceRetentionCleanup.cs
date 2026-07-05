@@ -27,12 +27,14 @@ internal sealed class RecordedSessionSourceRetentionCleanup(
             _ = await connectionContext.GetInitializedConnectionAsync();
             var retainedSourceIds = (await windowProvider.GetReferencedSourceSessionIdsAsync()).ToHashSet();
             retainedSourceIds.UnionWith(await recordedSessionSourceRepository.GetPersistedDerivationSourceSessionIdsAsync());
-            var deleted = await recordedSessionSourceRepository.DeleteOrphanedRecordedSessionSourcesAsync(retainedSourceIds);
+            var deletedIds = await recordedSessionSourceRepository.DeleteOrphanedRecordedSessionSourcesAsync(retainedSourceIds);
 
-            if (deleted > 0)
+            if (deletedIds.Count > 0)
             {
-                logger.Information("Recorded-source retention cleanup removed {Count} orphaned source row(s)", deleted);
-                await recordedSessionSourceStore.RefreshAsync();
+                logger.Information(
+                    "Recorded-source retention cleanup removed {Count} orphaned source row(s)",
+                    deletedIds.Count);
+                await recordedSessionSourceStore.PublishSourcesRemovedAsync(deletedIds);
             }
         }
         catch (Exception ex)

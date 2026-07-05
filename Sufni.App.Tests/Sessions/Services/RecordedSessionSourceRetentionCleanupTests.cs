@@ -30,8 +30,9 @@ public class RecordedSessionSourceRetentionCleanupTests
         var retainedIds = new[] { retainedId };
         provider.GetReferencedSourceSessionIdsAsync().Returns(Task.FromResult<IReadOnlyCollection<Guid>>(retainedIds));
         repository.GetPersistedDerivationSourceSessionIdsAsync().Returns(Task.FromResult(new List<Guid>()));
+        var deletedId = Guid.NewGuid();
         repository.DeleteOrphanedRecordedSessionSourcesAsync(Arg.Any<IReadOnlyCollection<Guid>>())
-            .Returns(Task.FromResult(1));
+            .Returns(Task.FromResult<IReadOnlyList<Guid>>([deletedId]));
         var cleanup = new RecordedSessionSourceRetentionCleanup(
             context,
             repository,
@@ -44,7 +45,10 @@ public class RecordedSessionSourceRetentionCleanupTests
         await provider.Received(1).GetReferencedSourceSessionIdsAsync();
         await repository.Received(1).DeleteOrphanedRecordedSessionSourcesAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(retainedIds)));
-        await store.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
+        await store.Received(1).PublishSourcesRemovedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { deletedId })),
+            Arg.Any<CancellationToken>());
+        await store.DidNotReceive().RefreshAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -86,6 +90,9 @@ public class RecordedSessionSourceRetentionCleanupTests
 
         Assert.NotNull(await repository.GetRecordedSessionSourceAsync(retainedSourceId));
         Assert.Null(await repository.GetRecordedSessionSourceAsync(orphanSourceId));
-        await store.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
+        await store.Received(1).PublishSourcesRemovedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { orphanSourceId })),
+            Arg.Any<CancellationToken>());
+        await store.DidNotReceive().RefreshAsync(Arg.Any<CancellationToken>());
     }
 }

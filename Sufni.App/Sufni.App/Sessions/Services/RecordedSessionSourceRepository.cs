@@ -34,7 +34,8 @@ public interface IRecordedSessionSourceRepository
 
     Task DeleteRecordedSessionSourceAsync(Guid sessionId);
 
-    Task<int> DeleteOrphanedRecordedSessionSourcesAsync(IReadOnlyCollection<Guid> retainedSourceSessionIds);
+    Task<IReadOnlyList<Guid>> DeleteOrphanedRecordedSessionSourcesAsync(
+        IReadOnlyCollection<Guid> retainedSourceSessionIds);
 }
 
 internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext connectionContext)
@@ -171,13 +172,22 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
         await DeleteRecordedSessionSourceAsync(connection, sessionId);
     }
 
-    public async Task<int> DeleteOrphanedRecordedSessionSourcesAsync(IReadOnlyCollection<Guid> retainedSourceSessionIds)
+    public async Task<IReadOnlyList<Guid>> DeleteOrphanedRecordedSessionSourcesAsync(
+        IReadOnlyCollection<Guid> retainedSourceSessionIds)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
         if (retainedSourceSessionIds.Count == 0)
         {
-            return await connection.ExecuteAsync(
-                "DELETE FROM session_recording_source WHERE session_id NOT IN (SELECT id FROM session)");
+            var rows = await connection.QueryAsync<SourceSessionIdRow>(
+                "SELECT session_id FROM session_recording_source WHERE session_id NOT IN (SELECT id FROM session)");
+            var deletedIds = rows.Select(row => row.SessionId).ToArray();
+            if (deletedIds.Length > 0)
+            {
+                await connection.ExecuteAsync(
+                    "DELETE FROM session_recording_source WHERE session_id NOT IN (SELECT id FROM session)");
+            }
+
+            return deletedIds;
         }
 
         return await connectionContext.RunInTransactionAsync(connection =>
@@ -187,9 +197,10 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
             try
             {
                 InsertRetainedSourceIds(connection, retainedSourceSessionIds);
-                return connection.Execute(
+                var rows = connection.Query<SourceSessionIdRow>(
                     $"""
-                     DELETE FROM session_recording_source
+                     SELECT session_id
+                     FROM session_recording_source
                      WHERE session_id NOT IN (SELECT id FROM session)
                        AND NOT EXISTS (
                            SELECT 1
@@ -197,6 +208,22 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
                            WHERE retained.id = session_recording_source.session_id
                        )
                      """);
+                var deletedIds = rows.Select(row => row.SessionId).ToArray();
+                if (deletedIds.Length > 0)
+                {
+                    connection.Execute(
+                        $"""
+                         DELETE FROM session_recording_source
+                         WHERE session_id NOT IN (SELECT id FROM session)
+                           AND NOT EXISTS (
+                               SELECT 1
+                               FROM {RetainedSourceTempTable} retained
+                               WHERE retained.id = session_recording_source.session_id
+                           )
+                         """);
+                }
+
+                return deletedIds;
             }
             finally
             {
