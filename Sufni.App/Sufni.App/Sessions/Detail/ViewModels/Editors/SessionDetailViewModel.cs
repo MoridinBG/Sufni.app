@@ -98,7 +98,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IRecordedSessionAnalysisResultState analysisResultState;
     private readonly IDisposable analysisResultSubscription;
     private readonly RecordedSessionEditorActions editorActions = new();
-    private readonly IDisposable editorActionsSubscription;
     private readonly IDisposable editorStateSubscription;
     private readonly RecordedSessionEditorEffects editorEffects;
     private readonly Subject<int> pageCountInput = new();
@@ -144,7 +143,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private readonly CancellableOperation loadOperation = new();
     private SessionPresentationDimensions? lastPresentationDimensions;
-    private int selectedPageIndex;
     private double? pendingAnalysisRangeBoundary;
     private TelemetryTimeRange? analysisRange;
     private RecordedSessionTimelineAlignmentMark? pendingTimelineAlignmentMark;
@@ -1415,7 +1413,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         analysisResultState.Invalidate(analysisInputs);
         analysisRequestScheduler = new AnalysisRequestScheduler(this, analysisInputs);
         analysisResultSubscription = analysisResultState.Connect().Subscribe(OnAnalysisResultChanged);
-        editorActionsSubscription = editorActions.Intents.Subscribe(ApplyRecordedSessionEditorIntent);
         editorStateController = new RecordedSessionEditorStateController(
             editorActions.Intents,
             pageCountInput,
@@ -1656,6 +1653,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             OnPropertyChanged(nameof(CurrentTrackPoints));
         }
 
+        if (previous.Intent.SelectedPageIndex != state.Intent.SelectedPageIndex)
+        {
+            OnPropertyChanged(nameof(SelectedPage));
+        }
+
         if (previous.Intent.AnalysisRange != state.Intent.AnalysisRange)
         {
             analysisRange = state.Intent.AnalysisRange;
@@ -1704,10 +1706,57 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             OnPropertyChanged(nameof(MediaLayoutPreferences));
         }
 
-        if (previous.Intent.SelectedTravelDistributionMode != state.Intent.SelectedTravelDistributionMode ||
-            previous.Intent.SelectedVelocityAverageMode != state.Intent.SelectedVelocityAverageMode ||
-            previous.Intent.SelectedBalanceDisplacementMode != state.Intent.SelectedBalanceDisplacementMode ||
-            previous.Intent.SelectedBalanceSpeedMode != state.Intent.SelectedBalanceSpeedMode)
+        if (previous.Intent.DampingSpeedCutoffs != state.Intent.DampingSpeedCutoffs)
+        {
+            dampingSpeedCutoffs = state.Intent.DampingSpeedCutoffs;
+        }
+
+        if (previous.Presentation.PlotDampingSpeedCutoffs != state.Presentation.PlotDampingSpeedCutoffs)
+        {
+            plotDampingSpeedCutoffs = state.Presentation.PlotDampingSpeedCutoffs;
+        }
+
+        var travelDistributionChanged =
+            previous.Intent.SelectedTravelDistributionMode != state.Intent.SelectedTravelDistributionMode;
+        var velocityAverageChanged =
+            previous.Intent.SelectedVelocityAverageMode != state.Intent.SelectedVelocityAverageMode;
+        var balanceDisplacementChanged =
+            previous.Intent.SelectedBalanceDisplacementMode != state.Intent.SelectedBalanceDisplacementMode;
+        var balanceSpeedChanged =
+            previous.Intent.SelectedBalanceSpeedMode != state.Intent.SelectedBalanceSpeedMode;
+        var sessionInsightsTargetChanged =
+            previous.Intent.SelectedSessionInsightsTargetProfile != state.Intent.SelectedSessionInsightsTargetProfile;
+
+        if (travelDistributionChanged)
+        {
+            selectedTravelDistributionMode = state.Intent.SelectedTravelDistributionMode;
+        }
+
+        if (velocityAverageChanged)
+        {
+            selectedVelocityAverageMode = state.Intent.SelectedVelocityAverageMode;
+            ClearDampingRangeSelections();
+        }
+
+        if (balanceDisplacementChanged)
+        {
+            selectedBalanceDisplacementMode = state.Intent.SelectedBalanceDisplacementMode;
+        }
+
+        if (balanceSpeedChanged)
+        {
+            selectedBalanceSpeedMode = state.Intent.SelectedBalanceSpeedMode;
+        }
+
+        if (sessionInsightsTargetChanged)
+        {
+            selectedSessionInsightsTargetProfile = state.Intent.SelectedSessionInsightsTargetProfile;
+        }
+
+        if (travelDistributionChanged ||
+            velocityAverageChanged ||
+            balanceDisplacementChanged ||
+            balanceSpeedChanged)
         {
             OnPropertyChanged(nameof(SessionAnalysisModesText));
         }
@@ -1748,7 +1797,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {
-        selectedPageIndex = ClampSelectedPageIndex(selectedPageIndex);
         pageCountInput.OnNext(Pages.Count);
         editorActions.RefreshSelectedPageAnalysis();
     }
@@ -1946,16 +1994,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         canEditDampingSpeedCutoffs = value;
         OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
         canEditDampingSpeedCutoffsInput.OnNext(value);
-    }
-
-    private void SetDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs)
-    {
-        if (dampingSpeedCutoffs == cutoffs)
-        {
-            return;
-        }
-
-        dampingSpeedCutoffs = cutoffs;
     }
 
     private void SetPlotDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs)
@@ -2163,30 +2201,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         OnPropertyChanged(nameof(MediaLayoutPreferences));
         return true;
-    }
-
-    private void ApplyUserSignalDisplayPreferences(SignalDisplayPreferences preferences)
-    {
-        if (!ApplySignalDisplayPreferences(preferences))
-        {
-            return;
-        }
-    }
-
-    private void ApplyUserSignalLayoutPreferences(SignalLayoutPreferences preferences)
-    {
-        if (!ApplySignalLayoutPreferences(preferences))
-        {
-            return;
-        }
-    }
-
-    private void ApplyUserLayoutPreferences(SessionLayoutPreferences preferences)
-    {
-        if (!ApplyLayoutPreferences(preferences))
-        {
-            return;
-        }
     }
 
     private void EvaluateDirtinessFromPageChange()
@@ -2639,48 +2653,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         editorActions.SelectAnalysisRange(selection);
-    }
-
-    private void ApplyRecordedSessionEditorIntent(RecordedSessionEditorIntent intent)
-    {
-        switch (intent)
-        {
-            case RecordedSessionEditorIntent.SelectPageIndex select:
-                SelectPageIndex(select.PageIndex);
-                break;
-            case RecordedSessionEditorIntent.SetTravelDistributionMode set:
-                SetTravelDistributionMode(set.Mode);
-                break;
-            case RecordedSessionEditorIntent.SetBalanceDisplacementMode set:
-                SetBalanceDisplacementMode(set.Mode);
-                break;
-            case RecordedSessionEditorIntent.SetBalanceSpeedMode set:
-                SetBalanceSpeedMode(set.Mode);
-                break;
-            case RecordedSessionEditorIntent.SetVelocityAverageMode set:
-                SetVelocityAverageMode(set.Mode);
-                break;
-            case RecordedSessionEditorIntent.SetSessionInsightsTargetProfile set:
-                SetSessionInsightsTargetProfile(set.Profile);
-                break;
-            case RecordedSessionEditorIntent.SetDampingSpeedCutoffs set:
-                SetDampingSpeedCutoffs(set.Cutoffs);
-                break;
-            case RecordedSessionEditorIntent.SetSignalDisplayPreferences set:
-                ApplyUserSignalDisplayPreferences(set.Preferences);
-                break;
-            case RecordedSessionEditorIntent.SetSignalLayoutPreferences set:
-                ApplyUserSignalLayoutPreferences(set.Preferences);
-                break;
-            case RecordedSessionEditorIntent.SetLayoutPreferences set:
-                ApplyUserLayoutPreferences(set.Preferences);
-                break;
-        }
-    }
-
-    private void SelectPageIndex(int pageIndex)
-    {
-        selectedPageIndex = ClampSelectedPageIndex(pageIndex);
     }
 
     public void SetAnalysisRange(double startSeconds, double endSeconds)
