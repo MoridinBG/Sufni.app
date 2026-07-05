@@ -6,6 +6,20 @@ namespace Sufni.App.Sessions.Analysis.ViewModels.Editors;
 
 internal sealed class AnalysisSelectionController
 {
+    public AnalysisSelectionController()
+    {
+    }
+
+    public AnalysisSelectionController(
+        TelemetryRangeSelection? activeFrontAnalysisSelection,
+        TelemetryRangeSelection? activeRearAnalysisSelection,
+        IReadOnlyList<TelemetryHighlightRange> highlightRanges)
+    {
+        ActiveFrontAnalysisSelection = activeFrontAnalysisSelection;
+        ActiveRearAnalysisSelection = activeRearAnalysisSelection;
+        HighlightRanges = highlightRanges;
+    }
+
     public TelemetryRangeSelection? ActiveFrontAnalysisSelection { get; private set; }
 
     public TelemetryRangeSelection? ActiveRearAnalysisSelection { get; private set; }

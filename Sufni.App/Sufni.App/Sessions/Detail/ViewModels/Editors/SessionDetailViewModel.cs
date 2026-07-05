@@ -130,7 +130,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private bool observedInitialDomain;
     private bool replayStalenessOnNextLoad;
     private RecordedSessionDomainSnapshot? deferredDomain;
-    private readonly AnalysisSelectionController analysisSelectionController = new();
     private readonly RecordedPresentationApplier presentationApplier;
     private readonly RecordedPreferenceStore recordedPreferenceStore;
     private readonly RecordedSessionExtensionPagesController? extensionPagesController;
@@ -264,8 +263,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public IReadOnlyList<SignalRowAction> PitchRollHeaderActions => signalRowActions.PitchRollHeaderActions;
     public IReadOnlyList<SignalRowAction> SpeedHeaderActions => signalRowActions.SpeedHeaderActions;
     public IReadOnlyList<SignalRowAction> ElevationHeaderActions => signalRowActions.ElevationHeaderActions;
-    public TelemetryRangeSelection? ActiveFrontAnalysisSelection => analysisSelectionController.ActiveFrontAnalysisSelection;
-    public TelemetryRangeSelection? ActiveRearAnalysisSelection => analysisSelectionController.ActiveRearAnalysisSelection;
+    public TelemetryRangeSelection? ActiveFrontAnalysisSelection => currentEditorState.AnalysisSelection.ActiveFront;
+    public TelemetryRangeSelection? ActiveRearAnalysisSelection => currentEditorState.AnalysisSelection.ActiveRear;
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; }
     public bool CanEditDampingSpeedCutoffs => currentEditorState.Presentation.CanEditDampingSpeedCutoffs;
     public RecordedSessionExtensionSlots ExtensionSlots => recordedSessionExtensions?.ExtensionSlots ?? emptyExtensionSlots;
@@ -1446,7 +1445,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             () => Id,
             ErrorMessages.Add);
         signalRowActions = new SignalRowActionsController(
-            () => analysisSelectionController.HasSelection,
+            () => currentEditorState.AnalysisSelection.HighlightRanges.Count > 0,
             () => showAirtime,
             SetShowAirtime,
             () => showVelocityAirtime,
@@ -1671,6 +1670,19 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             pendingAnalysisRangeBoundary = state.Intent.PendingAnalysisRangeBoundary;
         }
 
+        if (previous.AnalysisSelection != state.AnalysisSelection)
+        {
+            OnPropertyChanged(nameof(ActiveFrontAnalysisSelection));
+            OnPropertyChanged(nameof(ActiveRearAnalysisSelection));
+            signalRowActions.ClearAnalysisSelectionToggles();
+            if (state.AnalysisSelection.HighlightRanges.Count > 0)
+            {
+                SetShowAnalysisSelection(true);
+            }
+
+            signalRowActions.RefreshAnalysisSelectionActionStates();
+        }
+
         if (previous.Presentation.CanEditDampingSpeedCutoffs != state.Presentation.CanEditDampingSpeedCutoffs)
         {
             OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
@@ -1703,21 +1715,21 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void ClearAnalysisSelections()
     {
-        analysisSelectionController.Clear();
-        PublishAnalysisSelectionState();
+        analysisSelectionInput.OnNext(CreateEmptyAnalysisSelectionState());
         signalRowActions.ClearAnalysisSelectionToggles();
         signalRowActions.RefreshAnalysisSelectionActionStates();
     }
 
     private void ClearDampingRangeSelections()
     {
-        if (!analysisSelectionController.ClearDampingRangeSelections(telemetryData, analysisRange))
+        var controller = CreateCurrentAnalysisSelectionController();
+        if (!controller.ClearDampingRangeSelections(telemetryData, analysisRange))
         {
             return;
         }
 
-        PublishAnalysisSelectionState();
-        if (!analysisSelectionController.HasSelection)
+        analysisSelectionInput.OnNext(CreateAnalysisSelectionState(controller));
+        if (!controller.HasSelection)
         {
             signalRowActions.ClearAnalysisSelectionToggles();
         }
@@ -1725,11 +1737,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         signalRowActions.RefreshAnalysisSelectionActionStates();
     }
 
-    private void PublishAnalysisSelectionState()
+    private AnalysisSelectionController CreateCurrentAnalysisSelectionController()
     {
-        OnPropertyChanged(nameof(ActiveFrontAnalysisSelection));
-        OnPropertyChanged(nameof(ActiveRearAnalysisSelection));
-        analysisSelectionInput.OnNext(CreateAnalysisSelectionState());
+        var selection = currentEditorState.AnalysisSelection;
+        return new AnalysisSelectionController(
+            selection.ActiveFront,
+            selection.ActiveRear,
+            selection.HighlightRanges);
     }
 
     private void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
@@ -1774,12 +1788,20 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             trackTimelineContext);
     }
 
-    private AnalysisSelectionState CreateAnalysisSelectionState()
+    private static AnalysisSelectionState CreateAnalysisSelectionState(AnalysisSelectionController controller)
     {
         return new AnalysisSelectionState(
-            ActiveFrontAnalysisSelection,
-            ActiveRearAnalysisSelection,
-            analysisSelectionController.HighlightRanges);
+            controller.ActiveFrontAnalysisSelection,
+            controller.ActiveRearAnalysisSelection,
+            controller.HighlightRanges);
+    }
+
+    private static AnalysisSelectionState CreateEmptyAnalysisSelectionState()
+    {
+        return new AnalysisSelectionState(
+            ActiveFront: null,
+            ActiveRear: null,
+            HighlightRanges: []);
     }
 
     private RecordedSignalPresentationState CreateSignalPresentationState()
@@ -2610,16 +2632,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     [RelayCommand]
     private void SelectAnalysisRange(TelemetryRangeSelection? selection)
     {
-        if (!analysisSelectionController.Select(selection, telemetryData, analysisRange)) return;
-
-        PublishAnalysisSelectionState();
-        signalRowActions.ClearAnalysisSelectionToggles();
-        if (analysisSelectionController.HasSelection)
+        if (selection is null)
         {
-            SetShowAnalysisSelection(true);
+            editorActions.ClearAnalysisSelection();
+            return;
         }
 
-        signalRowActions.RefreshAnalysisSelectionActionStates();
+        editorActions.SelectAnalysisRange(selection);
     }
 
     private void ApplyRecordedSessionEditorIntent(RecordedSessionEditorIntent intent)
@@ -2628,12 +2647,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             case RecordedSessionEditorIntent.SelectPageIndex select:
                 SelectPageIndex(select.PageIndex);
-                break;
-            case RecordedSessionEditorIntent.SelectAnalysisRange select:
-                SelectAnalysisRange(select.Selection);
-                break;
-            case RecordedSessionEditorIntent.ClearAnalysisSelection:
-                SelectAnalysisRange(null);
                 break;
             case RecordedSessionEditorIntent.SetTravelDistributionMode set:
                 SetTravelDistributionMode(set.Mode);

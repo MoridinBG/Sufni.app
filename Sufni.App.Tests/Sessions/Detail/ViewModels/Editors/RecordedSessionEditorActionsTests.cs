@@ -811,6 +811,64 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void StateController_DerivesAnalysisSelection_FromSelectionIntents()
+    {
+        using var legacyState = new Subject<RecordedSessionEditorState>();
+        using var actions = new RecordedSessionEditorActions();
+        using var pageCounts = new Subject<int>();
+        using var controller = new RecordedSessionEditorStateController(
+            legacyState,
+            actions.Intents,
+            pageCounts);
+        var observed = new List<AnalysisSelectionState>();
+        using var subscription = controller.State.Subscribe(state => observed.Add(state.AnalysisSelection));
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var selection = new DeepTravelRangeSelection(
+            SuspensionType.Front,
+            new TelemetryRangeSelection.BinRange(0, 0, 10, IsFirst: true, IsLast: false));
+
+        legacyState.OnNext(CreateState(selectedPageIndex: 0, telemetry));
+        actions.SelectAnalysisRange(selection);
+
+        var selected = observed[^1];
+        Assert.Equal(selection, selected.ActiveFront);
+        Assert.Null(selected.ActiveRear);
+    }
+
+    [Fact]
+    public void StateController_DerivesAnalysisSelectionToggleAndClear_FromSelectionIntents()
+    {
+        using var legacyState = new Subject<RecordedSessionEditorState>();
+        using var actions = new RecordedSessionEditorActions();
+        using var pageCounts = new Subject<int>();
+        using var controller = new RecordedSessionEditorStateController(
+            legacyState,
+            actions.Intents,
+            pageCounts);
+        var observed = new List<AnalysisSelectionState>();
+        using var subscription = controller.State.Subscribe(state => observed.Add(state.AnalysisSelection));
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var selection = new DeepTravelRangeSelection(
+            SuspensionType.Front,
+            new TelemetryRangeSelection.BinRange(0, 0, 10, IsFirst: true, IsLast: false));
+
+        legacyState.OnNext(CreateState(selectedPageIndex: 0, telemetry));
+        actions.SelectAnalysisRange(selection);
+        actions.SelectAnalysisRange(selection);
+
+        Assert.Null(observed[^1].ActiveFront);
+        Assert.Null(observed[^1].ActiveRear);
+        Assert.Empty(observed[^1].HighlightRanges);
+
+        actions.SelectAnalysisRange(selection);
+        actions.ClearAnalysisSelection();
+
+        Assert.Null(observed[^1].ActiveFront);
+        Assert.Null(observed[^1].ActiveRear);
+        Assert.Empty(observed[^1].HighlightRanges);
+    }
+
+    [Fact]
     public void StateController_DerivesLoadedData_FromInputs()
     {
         using var legacyState = new Subject<RecordedSessionEditorState>();

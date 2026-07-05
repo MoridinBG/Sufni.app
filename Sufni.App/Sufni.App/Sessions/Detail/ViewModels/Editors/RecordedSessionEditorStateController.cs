@@ -5,6 +5,7 @@ using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Analysis.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -410,9 +411,11 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var signalPresentationState = CreateInputState(
             signalPresentationStates,
             CreateHiddenSignalPresentationState());
-        var analysisSelectionState = CreateInputState(
+        var analysisSelectionState = CreateAnalysisSelectionState(
+            intents,
             analysisSelectionStates,
-            new AnalysisSelectionState(ActiveFront: null, ActiveRear: null, HighlightRanges: []));
+            loadedDataState,
+            analysisRange);
         var signalPlotContextMenuActionState = CreateInputState(
             signalPlotContextMenuActions,
             CreateEmptySignalPlotContextMenuActions());
@@ -791,6 +794,88 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             };
     }
 
+    private static IObservable<AnalysisSelectionState> CreateAnalysisSelectionState(
+        IObservable<RecordedSessionEditorIntent> intents,
+        IObservable<AnalysisSelectionState> analysisSelectionStates,
+        IObservable<RecordedSessionLoadedData?> loadedDataStates,
+        IObservable<AnalysisRangeIntentState> analysisRangeStates)
+    {
+        var context = loadedDataStates
+            .CombineLatest(
+                analysisRangeStates,
+                static (loadedData, analysisRange) => new AnalysisSelectionContext(
+                    loadedData?.TelemetryData,
+                    ClampAnalysisRange(analysisRange.AnalysisRange, loadedData?.TelemetryData)));
+
+        var intentUpdates = intents
+            .WithLatestFrom(
+                context,
+                static (intent, selectionContext) => CreateAnalysisSelectionUpdate(
+                    intent,
+                    selectionContext.TelemetryData,
+                    selectionContext.AnalysisRange))
+            .Where(static update => update is not null)
+            .Select(static update => update!);
+
+        var inputUpdates = analysisSelectionStates
+            .Select(static state => new Func<AnalysisSelectionState, AnalysisSelectionState>(_ => state));
+
+        return inputUpdates
+            .Merge(intentUpdates)
+            .StartWith(new Func<AnalysisSelectionState, AnalysisSelectionState>(static current => current))
+            .Scan(CreateEmptyAnalysisSelectionState(), static (current, update) => update(current))
+            .DistinctUntilChanged()
+            .Replay(1)
+            .RefCount();
+    }
+
+    private static Func<AnalysisSelectionState, AnalysisSelectionState>? CreateAnalysisSelectionUpdate(
+        RecordedSessionEditorIntent intent,
+        TelemetryData? telemetryData,
+        TelemetryTimeRange? analysisRange)
+    {
+        return intent switch
+        {
+            RecordedSessionEditorIntent.SelectAnalysisRange select =>
+                current => SelectAnalysisRange(current, select.Selection, telemetryData, analysisRange),
+            RecordedSessionEditorIntent.ClearAnalysisSelection =>
+                _ => CreateEmptyAnalysisSelectionState(),
+            _ => null,
+        };
+    }
+
+    private static AnalysisSelectionState SelectAnalysisRange(
+        AnalysisSelectionState current,
+        TelemetryRangeSelection selection,
+        TelemetryData? telemetryData,
+        TelemetryTimeRange? analysisRange)
+    {
+        var controller = new AnalysisSelectionController(
+            current.ActiveFront,
+            current.ActiveRear,
+            current.HighlightRanges);
+
+        return controller.Select(selection, telemetryData, analysisRange)
+            ? CreateAnalysisSelectionState(controller)
+            : current;
+    }
+
+    private static AnalysisSelectionState CreateAnalysisSelectionState(AnalysisSelectionController controller)
+    {
+        return new AnalysisSelectionState(
+            controller.ActiveFrontAnalysisSelection,
+            controller.ActiveRearAnalysisSelection,
+            controller.HighlightRanges);
+    }
+
+    private static AnalysisSelectionState CreateEmptyAnalysisSelectionState()
+    {
+        return new AnalysisSelectionState(
+            ActiveFront: null,
+            ActiveRear: null,
+            HighlightRanges: []);
+    }
+
     private static IObservable<DampingSpeedCutoffs> CreateDampingSpeedCutoffsState(
         IObservable<RecordedSessionEditorIntent> intents)
     {
@@ -919,6 +1004,10 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         Start,
         End,
     }
+
+    private sealed record AnalysisSelectionContext(
+        TelemetryData? TelemetryData,
+        TelemetryTimeRange? AnalysisRange);
 
     private sealed record DerivedIntentState(
         int SelectedPageIndex,
