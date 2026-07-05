@@ -1770,11 +1770,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         var balanceSpeedChanged =
             previous.Intent.SelectedBalanceSpeedMode != state.Intent.SelectedBalanceSpeedMode;
 
-        if (velocityAverageChanged)
-        {
-            ClearDampingRangeSelections();
-        }
-
         if (travelDistributionChanged ||
             velocityAverageChanged ||
             balanceDisplacementChanged ||
@@ -1809,32 +1804,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         PublishEditorInput(analysisSelectionInput, CreateEmptyAnalysisSelectionState());
         signalRowActions.ClearAnalysisSelectionToggles();
         signalRowActions.RefreshAnalysisSelectionActionStates();
-    }
-
-    private void ClearDampingRangeSelections()
-    {
-        var controller = CreateCurrentAnalysisSelectionController();
-        if (!controller.ClearDampingRangeSelections(telemetryData, currentEditorState.Intent.AnalysisRange))
-        {
-            return;
-        }
-
-        PublishEditorInput(analysisSelectionInput, CreateAnalysisSelectionState(controller));
-        if (!controller.HasSelection)
-        {
-            signalRowActions.ClearAnalysisSelectionToggles();
-        }
-
-        signalRowActions.RefreshAnalysisSelectionActionStates();
-    }
-
-    private AnalysisSelectionController CreateCurrentAnalysisSelectionController()
-    {
-        var selection = currentEditorState.AnalysisSelection;
-        return new AnalysisSelectionController(
-            selection.ActiveFront,
-            selection.ActiveRear,
-            selection.HighlightRanges);
     }
 
     private void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
@@ -1894,14 +1863,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                     DampingPercentages: currentEditorState.Presentation.DampingPercentages,
                     BalanceAvailable: false)),
             sessionSnapshot);
-    }
-
-    private static AnalysisSelectionState CreateAnalysisSelectionState(AnalysisSelectionController controller)
-    {
-        return new AnalysisSelectionState(
-            controller.ActiveFrontAnalysisSelection,
-            controller.ActiveRearAnalysisSelection,
-            controller.HighlightRanges);
     }
 
     private static AnalysisSelectionState CreateEmptyAnalysisSelectionState()

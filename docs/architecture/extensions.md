@@ -9,7 +9,7 @@
 The SDK is split into two top-level namespaces inside the one assembly:
 
 - `Sufni.App.ExtensionHost.Contracts.*` — interfaces, records, and enums: the compatibility surface. Modules and the app code against these.
-- `Sufni.App.ExtensionHost.Runtime.*` — behavioral machinery that ships with the SDK (`RecordedSessionExtensionSlots`, the slot publisher and its batching collection, the mutable `SignalRowAction`, and runtime presentation controls such as `PlotZoomContainer`). **Behavioral changes under `Runtime` are API changes** — extensions observe this machinery's semantics, not just its signatures.
+- `Sufni.App.ExtensionHost.Runtime.*` — behavioral machinery that ships with the SDK (`RecordedSessionExtensionSlots`, the slot publisher and its batching collection, the mutable `SignalRowAction`, runtime presentation controls such as `PlotZoomContainer`, and the `Stores.SourceCacheStoreBase` used by public and private persisted stores). **Behavioral changes under `Runtime` are API changes** — extensions observe this machinery's semantics, not just its signatures.
 
 One deliberate cross-reference exists: the `Contracts` scope interface exposes `RecordedSessionExtensionSlots` (a `Runtime` type) — slots *are* part of the scope contract, and the single-assembly split keeps that legal.
 

@@ -126,7 +126,8 @@ The layer roles are consistent across slices:
   `IXxxStoreWriter` (read+write) interface reserved for coordinators
   and the composition root. Snapshots are immutable records carrying
   an `Updated` field for optimistic conflict detection. The shared
-  `SourceCacheStoreBase` lives in `Shared/Base/`.
+  `SourceCacheStoreBase` lives in
+  `Sufni.App.ExtensionHost/Runtime/Stores/`.
 - `<Slice>/Queries/` — cross-entity reads (`IBikeDependencyQuery` in `Bikes/`,
   `ILiveDaqKnownBoardsQuery` in `LiveDaq/`). Backed by services and read-only
   stores, never by view models.

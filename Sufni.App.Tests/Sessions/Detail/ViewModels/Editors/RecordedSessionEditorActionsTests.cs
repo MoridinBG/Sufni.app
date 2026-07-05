@@ -685,6 +685,31 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void StateController_ClearsDampingSelection_WhenVelocityAverageModeChanges()
+    {
+        using var driver = new RecordedSessionEditorStateControllerTestDriver();
+        var observed = new List<AnalysisSelectionState>();
+        using var subscription = driver.Controller.State.Subscribe(state => observed.Add(state.AnalysisSelection));
+        var selection = new DampingRangeSelection(
+            SuspensionType.Front,
+            VelocityAverageMode.SampleAveraged,
+            VelocityBinIndex: 0,
+            TravelBinStartIndex: 0,
+            TravelBinEndIndex: 0);
+        var analysisSelection = new AnalysisSelectionState(
+            ActiveFront: selection,
+            ActiveRear: null,
+            HighlightRanges: [new TelemetryHighlightRange(1, 2, SuspensionType.Front)]);
+
+        driver.AnalysisSelections.OnNext(analysisSelection);
+        driver.Actions.SetVelocityAverageMode(VelocityAverageMode.StrokePeakAveraged);
+
+        Assert.Null(observed[^1].ActiveFront);
+        Assert.Null(observed[^1].ActiveRear);
+        Assert.Empty(observed[^1].HighlightRanges);
+    }
+
+    [Fact]
     public void StateController_DerivesAnalysisSelectionOverlayDefaults_FromAnalysisSelection()
     {
         using var driver = new RecordedSessionEditorStateControllerTestDriver();

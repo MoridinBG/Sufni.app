@@ -100,6 +100,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var analysisSelectionState = CreateAnalysisSelectionState(
             inputs.Intents,
             inputs.AnalysisSelections,
+            preferenceIntent,
             loadedDataState,
             analysisRange);
         var explicitSignalPresentationState = CreateSignalPresentationOverlayState(
@@ -711,6 +712,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
     private static IObservable<AnalysisSelectionState> CreateAnalysisSelectionState(
         IObservable<RecordedSessionEditorIntent> intents,
         IObservable<AnalysisSelectionState> analysisSelectionStates,
+        IObservable<SessionPreferences> preferenceIntentStates,
         IObservable<RecordedSessionLoadedData?> loadedDataStates,
         IObservable<AnalysisRangeIntentState> analysisRangeStates)
     {
@@ -734,6 +736,18 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var inputUpdates = analysisSelectionStates
             .Select(static state => new Func<AnalysisSelectionState, AnalysisSelectionState>(_ => state));
 
+        var velocityAverageModeUpdates = preferenceIntentStates
+            .Select(static preferences => preferences.Analysis.VelocityAverageMode)
+            .DistinctUntilChanged()
+            .Skip(1)
+            .WithLatestFrom(
+                context,
+                static (_, selectionContext) => new Func<AnalysisSelectionState, AnalysisSelectionState>(
+                    current => ClearDampingRangeSelections(
+                        current,
+                        selectionContext.TelemetryData,
+                        selectionContext.AnalysisRange)));
+
         var analysisContextUpdates = context
             .DistinctUntilChanged()
             .Skip(1)
@@ -745,6 +759,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
 
         return inputUpdates
             .Merge(intentUpdates)
+            .Merge(velocityAverageModeUpdates)
             .Merge(analysisContextUpdates)
             .StartWith(new Func<AnalysisSelectionState, AnalysisSelectionState>(static current => current))
             .Scan(CreateEmptyAnalysisSelectionState(), static (current, update) => update(current))
@@ -780,6 +795,21 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             current.HighlightRanges);
 
         return controller.Select(selection, telemetryData, analysisRange)
+            ? CreateAnalysisSelectionState(controller)
+            : current;
+    }
+
+    private static AnalysisSelectionState ClearDampingRangeSelections(
+        AnalysisSelectionState current,
+        TelemetryData? telemetryData,
+        TelemetryTimeRange? analysisRange)
+    {
+        var controller = new AnalysisSelectionController(
+            current.ActiveFront,
+            current.ActiveRear,
+            current.HighlightRanges);
+
+        return controller.ClearDampingRangeSelections(telemetryData, analysisRange)
             ? CreateAnalysisSelectionState(controller)
             : current;
     }
