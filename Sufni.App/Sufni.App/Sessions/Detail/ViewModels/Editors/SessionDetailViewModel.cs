@@ -1439,23 +1439,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             sessionPreferences,
             () => Id,
             ErrorMessages.Add);
-        editorEffects = new RecordedSessionEditorEffects(
-            [
-                RecordedSessionEditorEffects.PreferencePersistence(editorActions.Intents),
-                RecordedSessionEditorEffects.AnalysisRequests(editorStateController.State),
-                RecordedSessionEditorEffects.PageSelectionAnalysisRequests(editorStateController.State),
-                RecordedSessionEditorEffects.TelemetryAnalysisRequests(editorStateController.State),
-                RecordedSessionEditorEffects.ExplicitAnalysisRequests(editorActions.Intents),
-                RecordedSessionEditorEffects.MapMediaSync(editorStateController.State),
-                RecordedSessionEditorEffects.CommandRefresh(editorStateController.State),
-                RecordedSessionEditorEffects.RecomputeStaleness(editorStateController.State),
-                RecordedSessionEditorEffects.DirtyBaselineTracking(dirtyBaselineInput),
-                RecordedSessionEditorEffects.ExtensionHostPublication(
-                    editorStateController.State,
-                    hostRuntimeInput.StartWith(CreateRecordedSessionHostRuntimeState()),
-                    Timeline),
-            ],
-            ApplyRecordedSessionEditorEffect);
         signalRowActions = new SignalRowActionsController(
             () => analysisSelectionController.HasSelection,
             () => showAirtime,
@@ -1623,6 +1606,23 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         ResetImplementation();
         signalPresentationInput.OnNext(CreateSignalPresentationState());
         PublishLoadedDataState();
+        editorEffects = new RecordedSessionEditorEffects(
+            [
+                RecordedSessionEditorEffects.PreferencePersistence(editorActions.Intents),
+                RecordedSessionEditorEffects.AnalysisRequests(editorStateController.State),
+                RecordedSessionEditorEffects.PageSelectionAnalysisRequests(editorStateController.State),
+                RecordedSessionEditorEffects.TelemetryAnalysisRequests(editorStateController.State),
+                RecordedSessionEditorEffects.ExplicitAnalysisRequests(editorActions.Intents),
+                RecordedSessionEditorEffects.MapMediaSync(editorStateController.State),
+                RecordedSessionEditorEffects.CommandRefresh(editorStateController.State),
+                RecordedSessionEditorEffects.RecomputeStaleness(editorStateController.State),
+                RecordedSessionEditorEffects.DirtyBaselineTracking(dirtyBaselineInput),
+                RecordedSessionEditorEffects.ExtensionHostPublication(
+                    editorStateController.State,
+                    hostRuntimeInput.StartWith(CreateRecordedSessionHostRuntimeState()),
+                    Timeline),
+            ],
+            ApplyRecordedSessionEditorEffect);
     }
 
     #endregion
