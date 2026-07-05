@@ -1,12 +1,15 @@
 using System.Reactive.Subjects;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Presentation;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
+using Sufni.App.Sessions.Store;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
 
@@ -792,6 +795,64 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void StateController_DerivesDomain_FromInputs()
+    {
+        using var legacyState = new Subject<RecordedSessionEditorState>();
+        using var actions = new RecordedSessionEditorActions();
+        using var pageCounts = new Subject<int>();
+        using var preferenceReplays = new Subject<SessionPreferences>();
+        using var screenStates = new Subject<SessionScreenPresentationState>();
+        using var operationStates = new Subject<SessionOperationPresentationState>();
+        using var mapStates = new Subject<SurfacePresentationState>();
+        using var mediaPaneStates = new Subject<SurfacePresentationState>();
+        using var mediaColumnWidths = new Subject<double?>();
+        using var mediaUrls = new Subject<string?>();
+        using var analysisPresentationStates = new Subject<RecordedAnalysisPresentationState>();
+        using var dampingPercentages = new Subject<SessionDampingPercentages>();
+        using var plotDampingSpeedCutoffs = new Subject<DampingSpeedCutoffs>();
+        using var canEditDampingSpeedCutoffs = new Subject<bool>();
+        using var sessionInsights = new Subject<SessionInsightsResult>();
+        using var signalPresentationStates = new Subject<RecordedSignalPresentationState>();
+        using var analysisSelectionStates = new Subject<AnalysisSelectionState>();
+        using var loadedDataStates = new Subject<RecordedSessionLoadedData>();
+        using var signalPlotContextMenuActions =
+            new Subject<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>>();
+        using var domainStates = new Subject<RecordedSessionDomainSnapshot>();
+        using var controller = new RecordedSessionEditorStateController(
+            legacyState,
+            actions.Intents,
+            pageCounts,
+            preferenceReplays,
+            screenStates,
+            operationStates,
+            mapStates,
+            mediaPaneStates,
+            mediaColumnWidths,
+            mediaUrls,
+            analysisPresentationStates,
+            dampingPercentages,
+            plotDampingSpeedCutoffs,
+            canEditDampingSpeedCutoffs,
+            sessionInsights,
+            signalPresentationStates,
+            analysisSelectionStates,
+            loadedDataStates,
+            signalPlotContextMenuActions,
+            domainStates);
+        var observed = new List<RecordedSessionDomainSnapshot?>();
+        using var subscription = controller.State.Subscribe(state => observed.Add(state.Domain));
+        var domain = CreateDomain(TestSnapshots.Session(updated: 11), DerivedChangeKind.Initial);
+
+        legacyState.OnNext(CreateState(selectedPageIndex: 0));
+        domainStates.OnNext(domain);
+        legacyState.OnNext(CreateState(selectedPageIndex: 0));
+
+        Assert.Null(observed[0]);
+        Assert.Same(domain, observed[1]);
+        Assert.Same(domain, observed[^1]);
+    }
+
+    [Fact]
     public void MapMediaSync_EmitsLoadedDataChanges()
     {
         using var states = new Subject<RecordedSessionEditorState>();
@@ -854,6 +915,32 @@ public class RecordedSessionEditorActionsTests
                 var refresh = Assert.IsType<RecordedSessionEditorEffect.RefreshCommands>(effect);
                 Assert.Same(telemetry, refresh.LoadedData.TelemetryData);
             });
+    }
+
+    [Fact]
+    public void RecomputeStaleness_EmitsDistinctDomainChanges()
+    {
+        using var states = new Subject<RecordedSessionEditorState>();
+        var effects = new List<RecordedSessionEditorEffect>();
+        using var subscription = RecordedSessionEditorEffects.RecomputeStaleness(states)
+            .Subscribe(effects.Add);
+        var initial = CreateState(selectedPageIndex: 0);
+        var domain = CreateDomain(TestSnapshots.Session(updated: 11), DerivedChangeKind.Initial);
+        var nextDomain = CreateDomain(TestSnapshots.Session(updated: 12), DerivedChangeKind.FingerprintChanged);
+
+        states.OnNext(initial);
+        states.OnNext(initial with { Domain = domain });
+        states.OnNext(initial with { Domain = domain });
+        states.OnNext((initial with { Domain = domain }) with
+        {
+            Intent = initial.Intent with { SelectedPageIndex = 2 },
+        });
+        states.OnNext(initial with { Domain = nextDomain });
+
+        Assert.Collection(
+            effects,
+            effect => Assert.Same(domain, Assert.IsType<RecordedSessionEditorEffect.EvaluateRecomputeStaleness>(effect).Domain),
+            effect => Assert.Same(nextDomain, Assert.IsType<RecordedSessionEditorEffect.EvaluateRecomputeStaleness>(effect).Domain));
     }
 
     [Fact]
@@ -1176,4 +1263,17 @@ public class RecordedSessionEditorActionsTests
                 ActiveRear: null,
                 HighlightRanges: []));
     }
+
+    private static RecordedSessionDomainSnapshot CreateDomain(
+        SessionSnapshot snapshot,
+        DerivedChangeKind changeKind = DerivedChangeKind.None) => new(
+        snapshot,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        new SessionStaleness.Current(),
+        changeKind);
 }

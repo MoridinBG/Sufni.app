@@ -117,6 +117,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<AnalysisSelectionState> analysisSelectionInput = new();
     private readonly Subject<RecordedSessionLoadedData> loadedDataInput = new();
     private readonly Subject<RecordedSessionHostRuntimeState> hostRuntimeInput = new();
+    private readonly Subject<RecordedSessionDomainSnapshot> domainInput = new();
     private readonly Subject<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> signalPlotContextMenuActionsInput = new();
     private readonly RecordedSessionEditorStateController editorStateController;
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
@@ -845,7 +846,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     // independently so unsaved edits are never silently discarded.
     private async Task OnDomainChangedAsync(RecordedSessionDomainSnapshot domain)
     {
-        // The watch subscription is fire-and-forget; an unguarded throw would
+        // The domain-change effect is fire-and-forget; an unguarded throw would
         // surface only as an unobserved task exception.
         try
         {
@@ -1436,7 +1437,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             signalPresentationInput,
             analysisSelectionInput,
             loadedDataInput,
-            signalPlotContextMenuActionsInput);
+            signalPlotContextMenuActionsInput,
+            domainInput);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
@@ -1453,6 +1455,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 RecordedSessionEditorEffects.ExplicitAnalysisRequests(editorActions.Intents),
                 RecordedSessionEditorEffects.MapMediaSync(editorStateController.State),
                 RecordedSessionEditorEffects.CommandRefresh(editorStateController.State),
+                RecordedSessionEditorEffects.RecomputeStaleness(editorStateController.State),
                 RecordedSessionEditorEffects.ExtensionHostPublication(
                     editorStateController.State,
                     hostRuntimeInput.StartWith(CreateRecordedSessionHostRuntimeState()),
@@ -2242,6 +2245,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
+        if (effect is RecordedSessionEditorEffect.EvaluateRecomputeStaleness staleness)
+        {
+            _ = OnDomainChangedAsync(staleness.Domain);
+            return;
+        }
+
         if (effect is RecordedSessionEditorEffect.PublishExtensionHostState publish)
         {
             recordedSessionExtensions?.UpdateHostState(publish.State);
@@ -2751,7 +2760,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         EnsureScopedSubscription(s =>
         {
             s.Add(recordedPreferenceStore.Observe().Subscribe(OnSyncedPreferencesArrived));
-            s.Add(watch.Subscribe(domain => _ = OnDomainChangedAsync(domain)));
+            s.Add(watch.Subscribe(domainInput.OnNext));
         });
 
         await InitializeRecordedSessionExtensionsAsync();

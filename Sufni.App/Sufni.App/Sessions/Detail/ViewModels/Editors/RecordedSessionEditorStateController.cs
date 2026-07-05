@@ -7,6 +7,7 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Presentation;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
@@ -265,7 +266,8 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         IObservable<RecordedSignalPresentationState> signalPresentationStates,
         IObservable<AnalysisSelectionState> analysisSelectionStates,
         IObservable<RecordedSessionLoadedData> loadedDataStates,
-        IObservable<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> signalPlotContextMenuActions)
+        IObservable<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> signalPlotContextMenuActions,
+        IObservable<RecordedSessionDomainSnapshot>? domainStates = null)
         : this(
             Observable.Return(CreateInitialState()),
             intents,
@@ -285,7 +287,8 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             signalPresentationStates,
             analysisSelectionStates,
             loadedDataStates,
-            signalPlotContextMenuActions)
+            signalPlotContextMenuActions,
+            domainStates)
     {
     }
 
@@ -350,7 +353,8 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         IObservable<RecordedSignalPresentationState> signalPresentationStates,
         IObservable<AnalysisSelectionState> analysisSelectionStates,
         IObservable<RecordedSessionLoadedData> loadedDataStates,
-        IObservable<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> signalPlotContextMenuActions)
+        IObservable<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> signalPlotContextMenuActions,
+        IObservable<RecordedSessionDomainSnapshot>? domainStates = null)
     {
         ArgumentNullException.ThrowIfNull(legacyState);
         ArgumentNullException.ThrowIfNull(intents);
@@ -371,6 +375,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(analysisSelectionStates);
         ArgumentNullException.ThrowIfNull(loadedDataStates);
         ArgumentNullException.ThrowIfNull(signalPlotContextMenuActions);
+        domainStates ??= Observable.Empty<RecordedSessionDomainSnapshot>();
 
         var selectedPageIndex = CreateSelectedPageIndexState(intents, pageCounts);
         var analysisRange = CreateAnalysisRangeState(intents);
@@ -407,6 +412,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var signalPlotContextMenuActionState = CreateInputState(
             signalPlotContextMenuActions,
             CreateEmptySignalPlotContextMenuActions());
+        var domainState = CreateOptionalInputState(domainStates);
         var derivedIntentState = selectedPageIndex
             .CombineLatest(
                 analysisRange,
@@ -475,7 +481,25 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                 static (current, loadedData) => new { current.state, current.derived, current.presentation, current.media, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, current.insights, current.signals, current.analysisSelection, loadedData })
             .CombineLatest(
                 signalPlotContextMenuActionState,
-                static (current, signalPlotContextMenuActions) =>
+                static (current, signalPlotContextMenuActions) => new
+                {
+                    current.state,
+                    current.derived,
+                    current.presentation,
+                    current.media,
+                    current.analysis,
+                    current.percentages,
+                    current.plotCutoffs,
+                    current.canEditCutoffs,
+                    current.insights,
+                    current.signals,
+                    current.analysisSelection,
+                    current.loadedData,
+                    signalPlotContextMenuActions,
+                })
+            .CombineLatest(
+                domainState,
+                static (current, domain) =>
                 {
                     var loaded = current.loadedData ?? new RecordedSessionLoadedData(
                         current.state.Session,
@@ -486,6 +510,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
 
                     return current.state with
                     {
+                        Domain = domain ?? current.state.Domain,
                         Session = loaded.Session,
                         TelemetryData = loaded.TelemetryData,
                         FullTrackPoints = loaded.FullTrackPoints,
@@ -518,7 +543,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                             PlotDampingSpeedCutoffs = current.plotCutoffs,
                             CanEditDampingSpeedCutoffs = current.canEditCutoffs,
                             SessionInsights = current.insights,
-                            SignalPlotContextMenuActionsBySignalRowId = signalPlotContextMenuActions,
+                            SignalPlotContextMenuActionsBySignalRowId = current.signalPlotContextMenuActions,
                             ScreenState = current.presentation.ScreenState,
                             OperationState = current.presentation.OperationState,
                         },

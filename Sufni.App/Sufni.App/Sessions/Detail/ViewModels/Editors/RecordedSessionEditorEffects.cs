@@ -6,6 +6,7 @@ using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
@@ -22,7 +23,7 @@ internal abstract record RecordedSessionEditorEffect
 
     public sealed record RefreshCommands(RecordedSessionLoadedData LoadedData) : RecordedSessionEditorEffect;
 
-    public sealed record EvaluateRecomputeStaleness(RecordedSessionEditorState State) : RecordedSessionEditorEffect;
+    public sealed record EvaluateRecomputeStaleness(RecordedSessionDomainSnapshot Domain) : RecordedSessionEditorEffect;
 
     public sealed record UpdateDirtyBaseline(RecordedSessionEditorState State) : RecordedSessionEditorEffect;
 }
@@ -149,6 +150,18 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
                 state.TrackTimelineContext))
             .DistinctUntilChanged()
             .Select(static loadedData => new RecordedSessionEditorEffect.RefreshCommands(loadedData));
+    }
+
+    public static IObservable<RecordedSessionEditorEffect> RecomputeStaleness(
+        IObservable<RecordedSessionEditorState> states)
+    {
+        ArgumentNullException.ThrowIfNull(states);
+
+        return states
+            .Select(static state => state.Domain)
+            .Where(static domain => domain is not null)
+            .DistinctUntilChanged()
+            .Select(static domain => new RecordedSessionEditorEffect.EvaluateRecomputeStaleness(domain!));
     }
 
     public static IObservable<RecordedSessionEditorEffect> ExtensionHostPublication(
