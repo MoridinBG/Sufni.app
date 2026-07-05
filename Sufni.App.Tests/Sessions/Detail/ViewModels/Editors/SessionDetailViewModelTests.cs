@@ -204,6 +204,54 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public void DerivedStateEmissions_DoNotReplaceStableRuntimeObjects()
+    {
+        var editor = CreateEditor(TestSnapshots.Session(hasProcessedData: true));
+        var pages = editor.Pages;
+        var timeline = editor.Timeline;
+        var sourceVisibility = editor.SourceVisibility;
+        var extensionSlots = editor.ExtensionSlots;
+        var mapViewModel = editor.MapViewModel;
+
+        editor.SetTelemetryData(TestTelemetryData.CreateProcessed());
+        editor.SetAnalysisRange(0.02, 0.16);
+        editor.SetMapState(SurfacePresentationState.Ready);
+        editor.SetMediaUrl("session-media.mp4");
+        editor.SetRecordedSignalStates(
+            SurfacePresentationState.Ready,
+            SurfacePresentationState.Ready,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden);
+        editor.SetRecordedAnalysisStates(new RecordedAnalysisPresentationState(
+            SurfacePresentationState.Ready,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden,
+            SurfacePresentationState.Hidden));
+        editor.SetScreenState(SessionScreenPresentationState.Loading("loading"));
+        editor.SetSessionOperationState(SessionOperationPresentationState.Progress("working", 50));
+
+        Assert.Same(pages, editor.Pages);
+        Assert.Same(pages, editor.MobileWorkspace.Pages);
+        Assert.Same(timeline, editor.Timeline);
+        Assert.Same(timeline, editor.SignalsWorkspace.Timeline);
+        Assert.Same(timeline, editor.MediaWorkspace.Timeline);
+        Assert.Same(sourceVisibility, editor.SourceVisibility);
+        Assert.Same(sourceVisibility, editor.SignalsWorkspace.SourceVisibility);
+        Assert.Same(extensionSlots, editor.ExtensionSlots);
+        Assert.Same(extensionSlots, editor.SignalsWorkspace.ExtensionSlots);
+        Assert.Same(extensionSlots, editor.MediaWorkspace.ExtensionSlots);
+        Assert.Same(extensionSlots, editor.AnalysisWorkspace.ExtensionSlots);
+        Assert.Same(mapViewModel, editor.MapViewModel);
+        Assert.Same(mapViewModel, editor.MediaWorkspace.MapViewModel);
+    }
+
+    [AvaloniaFact]
     public void MobileWorkspace_TracksOwnerPresentationState()
     {
         var editor = CreateEditor(TestSnapshots.Session());

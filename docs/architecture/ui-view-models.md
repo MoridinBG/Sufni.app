@@ -169,12 +169,14 @@ There are five kinds of view model in the presentation layer:
   surface consumed by the signals, media, analysis, and mobile-shell
   workspaces. User-originated workspace setters call
   `RecordedSessionEditorActions` instead of mutating backing fields directly;
-  the editor applies validated intents, publishes a fresh state snapshot, and
-  drives named effects such as analysis invalidation, command refresh,
+  the editor applies validated intents, derives fresh state from typed input
+  streams, and drives named effects such as analysis invalidation, command refresh,
   extension-host publication, map/media synchronization, and dirty/baseline
-  tracking. `RecordedSessionContext` is retained only as a compatibility
-  facade for stable runtime objects and mirrored presentation values; it is
-  not the state owner. Internal collaborators in `ViewModels/Editors/` keep
+  tracking. Stable runtime objects such as the page collection, timeline link,
+  source-visibility store, map view model, and recorded-session extension slots
+  are owned directly by the editor or extension manager and passed to workspaces
+  by reference; state emissions update projected presentation without replacing
+  those objects. Internal collaborators in `ViewModels/Editors/` keep
   flows off the editor itself: `SignalRowActionsController` builds the
   built-in signal-row header actions (airtime and analysis-selection toggles)
   through owner-supplied state accessors and actions;
