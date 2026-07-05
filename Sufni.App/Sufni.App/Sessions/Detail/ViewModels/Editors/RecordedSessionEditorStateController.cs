@@ -59,6 +59,31 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         IObservable<SessionPreferences> preferenceReplays,
         IObservable<SessionScreenPresentationState> screenStates,
         IObservable<SessionOperationPresentationState> operationStates)
+        : this(
+            legacyState,
+            intents,
+            pageCounts,
+            preferenceReplays,
+            screenStates,
+            operationStates,
+            Observable.Empty<SurfacePresentationState>(),
+            Observable.Empty<SurfacePresentationState>(),
+            Observable.Empty<double?>(),
+            Observable.Empty<string?>())
+    {
+    }
+
+    public RecordedSessionEditorStateController(
+        IObservable<RecordedSessionEditorState> legacyState,
+        IObservable<RecordedSessionEditorIntent> intents,
+        IObservable<int> pageCounts,
+        IObservable<SessionPreferences> preferenceReplays,
+        IObservable<SessionScreenPresentationState> screenStates,
+        IObservable<SessionOperationPresentationState> operationStates,
+        IObservable<SurfacePresentationState> mapStates,
+        IObservable<SurfacePresentationState> mediaPaneStates,
+        IObservable<double?> mediaColumnWidths,
+        IObservable<string?> mediaUrls)
     {
         ArgumentNullException.ThrowIfNull(legacyState);
         ArgumentNullException.ThrowIfNull(intents);
@@ -66,6 +91,10 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(preferenceReplays);
         ArgumentNullException.ThrowIfNull(screenStates);
         ArgumentNullException.ThrowIfNull(operationStates);
+        ArgumentNullException.ThrowIfNull(mapStates);
+        ArgumentNullException.ThrowIfNull(mediaPaneStates);
+        ArgumentNullException.ThrowIfNull(mediaColumnWidths);
+        ArgumentNullException.ThrowIfNull(mediaUrls);
 
         var selectedPageIndex = CreateSelectedPageIndexState(intents, pageCounts);
         var analysisRange = CreateAnalysisRangeState(intents);
@@ -73,6 +102,10 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var preferenceIntent = CreatePreferenceIntentState(intents, preferenceReplays);
         var screenState = CreateInputState(screenStates, SessionScreenPresentationState.Ready);
         var operationState = CreateInputState(operationStates, SessionOperationPresentationState.Hidden);
+        var mapState = CreateInputState(mapStates, SurfacePresentationState.Hidden);
+        var mediaPaneState = CreateInputState(mediaPaneStates, SurfacePresentationState.Hidden);
+        var mediaColumnWidth = CreateInputState(mediaColumnWidths, (double?)null);
+        var mediaUrl = CreateInputState(mediaUrls, (string?)null);
         var derivedIntentState = selectedPageIndex
             .CombineLatest(
                 analysisRange,
@@ -91,13 +124,30 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             .CombineLatest(
                 operationState,
                 static (screen, operation) => new DerivedPresentationState(screen, operation));
+        var derivedMediaState = mapState
+            .CombineLatest(
+                mediaPaneState,
+                static (map, pane) => new { map, pane })
+            .CombineLatest(
+                mediaColumnWidth,
+                static (current, width) => new { current.map, current.pane, width })
+            .CombineLatest(
+                mediaUrl,
+                static (current, url) => new DerivedMediaPresentationState(
+                    current.map,
+                    current.pane,
+                    current.width,
+                    url));
         var replayingState = legacyState
             .CombineLatest(
                 derivedIntentState,
                 static (state, derived) => new { state, derived })
             .CombineLatest(
                 derivedPresentationState,
-                static (current, presentation) => current.state with
+                static (current, presentation) => new { current.state, current.derived, presentation })
+            .CombineLatest(
+                derivedMediaState,
+                static (current, media) => current.state with
                 {
                     Preferences = current.state.Preferences with
                     {
@@ -122,8 +172,12 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                     },
                     Presentation = current.state.Presentation with
                     {
-                        ScreenState = presentation.ScreenState,
-                        OperationState = presentation.OperationState,
+                        MapState = media.MapState,
+                        MediaPaneState = media.MediaPaneState,
+                        MediaColumnWidth = media.MediaColumnWidth,
+                        MediaUrl = media.MediaUrl,
+                        ScreenState = current.presentation.ScreenState,
+                        OperationState = current.presentation.OperationState,
                     },
                 })
             .DistinctUntilChanged()
@@ -330,4 +384,10 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
     private sealed record DerivedPresentationState(
         SessionScreenPresentationState ScreenState,
         SessionOperationPresentationState OperationState);
+
+    private sealed record DerivedMediaPresentationState(
+        SurfacePresentationState MapState,
+        SurfacePresentationState MediaPaneState,
+        double? MediaColumnWidth,
+        string? MediaUrl);
 }

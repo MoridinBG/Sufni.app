@@ -390,6 +390,64 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void StateController_DerivesMediaPresentationState_FromMediaInputs()
+    {
+        using var legacyState = new Subject<RecordedSessionEditorState>();
+        using var actions = new RecordedSessionEditorActions();
+        using var pageCounts = new Subject<int>();
+        using var preferenceReplays = new Subject<SessionPreferences>();
+        using var screenStates = new Subject<SessionScreenPresentationState>();
+        using var operationStates = new Subject<SessionOperationPresentationState>();
+        using var mapStates = new Subject<SurfacePresentationState>();
+        using var mediaPaneStates = new Subject<SurfacePresentationState>();
+        using var mediaColumnWidths = new Subject<double?>();
+        using var mediaUrls = new Subject<string?>();
+        using var controller = new RecordedSessionEditorStateController(
+            legacyState,
+            actions.Intents,
+            pageCounts,
+            preferenceReplays,
+            screenStates,
+            operationStates,
+            mapStates,
+            mediaPaneStates,
+            mediaColumnWidths,
+            mediaUrls);
+        var observed = new List<RecordedSessionEditorPresentationState>();
+        using var subscription = controller.State.Subscribe(state => observed.Add(state.Presentation));
+        const double mediaColumnWidth = 480;
+        const string mediaUrl = "session-media.mp4";
+
+        legacyState.OnNext(CreateState(selectedPageIndex: 0));
+        mapStates.OnNext(SurfacePresentationState.Ready);
+        mediaPaneStates.OnNext(SurfacePresentationState.Ready);
+        mediaColumnWidths.OnNext(mediaColumnWidth);
+        mediaUrls.OnNext(mediaUrl);
+        var staleLegacyBaseState = CreateState(selectedPageIndex: 0);
+        var staleLegacyState = staleLegacyBaseState with
+        {
+            Presentation = staleLegacyBaseState.Presentation with
+            {
+                MapState = SurfacePresentationState.Hidden,
+                MediaPaneState = SurfacePresentationState.Hidden,
+                MediaColumnWidth = 123,
+                MediaUrl = "stale.mp4",
+            },
+        };
+        legacyState.OnNext(staleLegacyState);
+
+        Assert.Equal(6, observed.Count);
+        Assert.Equal(SurfacePresentationState.Hidden, observed[0].MapState);
+        Assert.Equal(SurfacePresentationState.Hidden, observed[0].MediaPaneState);
+        Assert.Null(observed[0].MediaColumnWidth);
+        Assert.Null(observed[0].MediaUrl);
+        Assert.Equal(SurfacePresentationState.Ready, observed[^1].MapState);
+        Assert.Equal(SurfacePresentationState.Ready, observed[^1].MediaPaneState);
+        Assert.Equal(mediaColumnWidth, observed[^1].MediaColumnWidth);
+        Assert.Equal(mediaUrl, observed[^1].MediaUrl);
+    }
+
+    [Fact]
     public void StateController_DisposeStopsSourceSubscription()
     {
         using var source = new Subject<RecordedSessionEditorState>();

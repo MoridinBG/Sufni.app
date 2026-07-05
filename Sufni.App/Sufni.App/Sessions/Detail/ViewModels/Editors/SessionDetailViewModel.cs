@@ -104,6 +104,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<SessionPreferences> preferenceReplayInput = new();
     private readonly Subject<SessionScreenPresentationState> screenStateInput = new();
     private readonly Subject<SessionOperationPresentationState> sessionOperationStateInput = new();
+    private readonly Subject<SurfacePresentationState> mapStateInput = new();
+    private readonly Subject<SurfacePresentationState> mediaPaneStateInput = new();
+    private readonly Subject<double?> mediaColumnWidthInput = new();
+    private readonly Subject<string?> mediaUrlInput = new();
     private readonly RecordedSessionEditorStateController editorStateController;
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
     private readonly Func<IEditorFactory> editorFactory;
@@ -1435,7 +1439,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             pageCountInput,
             preferenceReplayInput,
             screenStateInput,
-            sessionOperationStateInput);
+            sessionOperationStateInput,
+            mapStateInput,
+            mediaPaneStateInput,
+            mediaColumnWidthInput,
+            mediaUrlInput);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
@@ -2063,7 +2071,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SessionContext.MapState = state;
         if (changed)
         {
-            PublishEditorState();
+            mapStateInput.OnNext(state);
         }
     }
 
@@ -2074,7 +2082,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SessionContext.MediaColumnWidth = width;
         if (changed)
         {
-            PublishEditorState();
+            mediaColumnWidthInput.OnNext(width);
         }
     }
 
@@ -2092,7 +2100,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         if (changed)
         {
-            PublishEditorState();
+            mediaUrlInput.OnNext(url);
+            mediaPaneStateInput.OnNext(nextPaneState);
         }
     }
 
