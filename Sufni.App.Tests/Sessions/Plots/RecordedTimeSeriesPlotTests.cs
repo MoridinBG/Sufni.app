@@ -116,6 +116,43 @@ public class RecordedTimeSeriesPlotTests
     }
 
     [Fact]
+    public void LoadTimeSeries_DownsamplesExplicitValuesForDisplayAndCursor()
+    {
+        var plot = new Plot();
+        var sut = new TestRecordedTimeSeriesPlot(plot)
+        {
+            MaximumDisplayHz = 30,
+        };
+
+        sut.LoadForTest(new RecordedTimeSeriesData(
+            "Speed (km/h)",
+            "No speed data",
+            DurationSeconds: 0.1,
+            Series:
+            [
+                new RecordedTimeSeries(
+                    "Speed",
+                    "km/h",
+                    Color.FromHex("#ffffbf"),
+                    new ExplicitValues(
+                        Enumerable.Range(0, 11).Select(static value => value / 100.0).ToArray(),
+                        Enumerable.Range(0, 11).Select(static value => (double)value).ToArray()),
+                    "0.#")
+            ]));
+
+        sut.SetCursorPositionWithReadout(0.05);
+
+        var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
+        Assert.True(tooltip.IsVisible);
+        Assert.Contains("Speed: 4 km/h", tooltip.LabelText);
+
+        sut.SetCursorPositionWithReadout(0.1);
+
+        Assert.True(tooltip.IsVisible);
+        Assert.Contains("Speed: 10 km/h", tooltip.LabelText);
+    }
+
+    [Fact]
     public void LoadTimeSeries_RendersSegmentedValuesAsScattersAndCursorIgnoresGaps()
     {
         var plot = new Plot();
@@ -154,6 +191,53 @@ public class RecordedTimeSeriesPlotTests
         sut.SetCursorPositionWithReadout(0.6);
 
         Assert.False(tooltip.IsVisible);
+    }
+
+    [Fact]
+    public void LoadTimeSeries_DownsamplesSegmentedValuesAndCursorIgnoresDecimatedGaps()
+    {
+        var plot = new Plot();
+        var sut = new TestRecordedTimeSeriesPlot(plot)
+        {
+            MaximumDisplayHz = 30,
+        };
+
+        sut.LoadForTest(new RecordedTimeSeriesData(
+            "Speed (km/h)",
+            "No speed data",
+            DurationSeconds: 1.1,
+            Series:
+            [
+                new RecordedTimeSeries(
+                    "Speed",
+                    "km/h",
+                    Color.FromHex("#ffffbf"),
+                    new SegmentedValues(
+                    [
+                        new ExplicitValues(
+                            Enumerable.Range(0, 11).Select(static value => value / 100.0).ToArray(),
+                            Enumerable.Range(0, 11).Select(static value => (double)value).ToArray()),
+                        new ExplicitValues(
+                            Enumerable.Range(0, 11).Select(static value => 1.0 + value / 100.0).ToArray(),
+                            Enumerable.Range(100, 11).Select(static value => (double)value).ToArray())
+                    ]),
+                    "0.#")
+            ]));
+
+        sut.SetCursorPositionWithReadout(0.05);
+
+        var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
+        Assert.True(tooltip.IsVisible);
+        Assert.Contains("Speed: 4 km/h", tooltip.LabelText);
+
+        sut.SetCursorPositionWithReadout(0.6);
+
+        Assert.False(tooltip.IsVisible);
+
+        sut.SetCursorPositionWithReadout(1.05);
+
+        Assert.True(tooltip.IsVisible);
+        Assert.Contains("Speed: 104 km/h", tooltip.LabelText);
     }
 
     [Fact]

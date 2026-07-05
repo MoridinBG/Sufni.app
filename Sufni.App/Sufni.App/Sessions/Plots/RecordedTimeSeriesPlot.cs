@@ -455,6 +455,7 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
 
         var xValues = values.XValues.Length == count ? values.XValues : values.XValues.Take(count).ToArray();
         var sourceYValues = values.YValues.Length == count ? values.YValues : values.YValues.Take(count).ToArray();
+        (xValues, sourceYValues) = TelemetryDisplayDownsampling.PrepareIrregular(xValues, sourceYValues, MaximumDisplayHz);
         var yValues = TelemetryDisplaySmoothing.ApplyIrregular(xValues, sourceYValues, SmoothingLevel);
         var cursorReadoutSeries = CursorReadoutSeries.FromScatterSamples(
             series.Label,
@@ -485,6 +486,7 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
 
             var xValues = segment.XValues.Length == count ? segment.XValues : segment.XValues.Take(count).ToArray();
             var sourceYValues = segment.YValues.Length == count ? segment.YValues : segment.YValues.Take(count).ToArray();
+            (xValues, sourceYValues) = TelemetryDisplayDownsampling.PrepareIrregular(xValues, sourceYValues, MaximumDisplayHz);
             var yValues = TelemetryDisplaySmoothing.ApplyIrregular(xValues, sourceYValues, SmoothingLevel);
 
             plotSegments.Add(PreparedSeriesSegment.FromExplicitValues(
@@ -492,7 +494,7 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
                 yValues,
                 showLegend: plotSegments.Count == 0));
 
-            cursorSegmentRanges.Add(new CursorReadoutSegmentIndexRange(cursorXValues.Count, count));
+            cursorSegmentRanges.Add(new CursorReadoutSegmentIndexRange(cursorXValues.Count, xValues.Length));
             cursorXValues.AddRange(xValues);
             cursorYValues.AddRange(yValues);
         }
