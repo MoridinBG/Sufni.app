@@ -273,7 +273,6 @@ public class TelemetryData
         bool measurementWraps,
         Func<ushort, double>? measurementToTravel,
         int sampleRate,
-        double[] time,
         SavitzkyGolay? filter)
     {
         if (!suspension.Present)
@@ -296,7 +295,6 @@ public class TelemetryData
             suspension.MaxTravel!.Value,
             measurementToTravel,
             sampleRate,
-            time,
             filter);
 
         ApplySuspensionTrace(suspension, trace);
@@ -367,14 +365,12 @@ public class TelemetryData
             }
             else
             {
-                var segmentTime = CreateTimeArray(preprocessed.Samples.Length, sampleRate);
                 var segmentFilter = CreateVelocityFilter(preprocessed.Samples.Length, sampleRate, processingOptions);
                 var trace = SuspensionTraceProcessor.Process(
                     preprocessed.Samples,
                     suspension.MaxTravel!.Value,
                     measurementToTravel,
                     sampleRate,
-                    segmentTime,
                     segmentFilter);
                 segmentTravel = trace.Travel;
                 segmentVelocity = trace.Velocity;
@@ -424,17 +420,6 @@ public class TelemetryData
         }
 
         return travel;
-    }
-
-    private static double[] CreateTimeArray(int length, int sampleRate)
-    {
-        var time = new double[length];
-        for (var index = 0; index < time.Length; index++)
-        {
-            time[index] = index / (double)sampleRate;
-        }
-
-        return time;
     }
 
     private static void OffsetStrokeTimes(Strokes strokes, int denseOffset, double segmentStartSeconds, int sampleRate)
@@ -609,13 +594,7 @@ public class TelemetryData
             throw new Exception("Front and rear record counts are not equal!");
         }
 
-        // Create time array
         var recordCount = Math.Max(fc, rc);
-        var time = new double[recordCount];
-        for (var i = 0; i < time.Length; i++)
-        {
-            time[i] = 1.0 / td.Metadata.SampleRate * i;
-        }
 
         if (recordCount < 5)
         {
@@ -635,7 +614,6 @@ public class TelemetryData
             bikeData.FrontMeasurementWraps,
             bikeData.FrontMeasurementToTravel,
             td.Metadata.SampleRate,
-            time,
             filter);
         ProcessSuspensionSide(
             td.Rear,
@@ -643,7 +621,6 @@ public class TelemetryData
             bikeData.RearMeasurementWraps,
             bikeData.RearMeasurementToTravel,
             td.Metadata.SampleRate,
-            time,
             filter);
 
         td.CalculateAirTimes();

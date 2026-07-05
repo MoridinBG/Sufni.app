@@ -16,16 +16,16 @@ public static class SuspensionTraceProcessor
         double maxTravel,
         Func<ushort, double> measurementToTravel,
         int sampleRate,
-        double[] time,
         SavitzkyGolay? velocityFilter)
     {
         var travel = CalculateTravel(measurements, maxTravel, measurementToTravel);
         var travelBins = HistogramBuilder.Linspace(0, maxTravel, Parameters.TravelHistBins + 1);
         var digitizedTravel = HistogramBuilder.Digitize(travel, travelBins);
+        var dt = 1.0 / sampleRate;
 
         var velocity = velocityFilter is null
-            ? CalculateUnfilteredVelocity(travel, time)
-            : velocityFilter.Process(travel, time);
+            ? CalculateUnfilteredVelocity(travel, dt)
+            : velocityFilter.Process(travel, dt);
         var velocityBins = HistogramBuilder.DigitizeVelocity(velocity, Parameters.VelocityHistStep);
         var fineVelocityBins = HistogramBuilder.DigitizeVelocity(velocity, Parameters.VelocityHistStepFine);
 
@@ -62,7 +62,7 @@ public static class SuspensionTraceProcessor
         return travel;
     }
 
-    private static double[] CalculateUnfilteredVelocity(double[] travel, double[] time)
+    private static double[] CalculateUnfilteredVelocity(double[] travel, double dt)
     {
         var velocity = new double[travel.Length];
         if (travel.Length < 2)
@@ -70,24 +70,22 @@ public static class SuspensionTraceProcessor
             return velocity;
         }
 
-        velocity[0] = CalculateSlope(travel[0], travel[1], time[0], time[1]);
+        velocity[0] = CalculateSlope(travel[0], travel[1], dt);
         for (var index = 1; index < travel.Length - 1; index++)
         {
             velocity[index] = CalculateSlope(
                 travel[index - 1],
                 travel[index + 1],
-                time[index - 1],
-                time[index + 1]);
+                2 * dt);
         }
 
         var last = travel.Length - 1;
-        velocity[last] = CalculateSlope(travel[last - 1], travel[last], time[last - 1], time[last]);
+        velocity[last] = CalculateSlope(travel[last - 1], travel[last], dt);
         return velocity;
     }
 
-    private static double CalculateSlope(double startValue, double endValue, double startTime, double endTime)
+    private static double CalculateSlope(double startValue, double endValue, double deltaTime)
     {
-        var deltaTime = endTime - startTime;
         return double.IsNaN(deltaTime) || double.IsInfinity(deltaTime) || deltaTime <= 0
             ? 0
             : (endValue - startValue) / deltaTime;
