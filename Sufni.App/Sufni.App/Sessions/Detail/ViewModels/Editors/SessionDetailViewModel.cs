@@ -99,7 +99,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IDisposable analysisResultSubscription;
     private readonly RecordedSessionEditorActions editorActions = new();
     private readonly IDisposable editorActionsSubscription;
-    private readonly Subject<RecordedSessionEditorState> editorStateInput = new();
     private readonly Subject<int> pageCountInput = new();
     private readonly Subject<SessionPreferences> preferenceReplayInput = new();
     private readonly Subject<SessionScreenPresentationState> screenStateInput = new();
@@ -115,7 +114,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<SessionInsightsResult> sessionInsightsInput = new();
     private readonly Subject<RecordedSignalPresentationState> signalPresentationInput = new();
     private readonly Subject<AnalysisSelectionState> analysisSelectionInput = new();
-    private readonly Subject<RecordedSessionLoadedDataState> loadedDataInput = new();
+    private readonly Subject<RecordedSessionLoadedData> loadedDataInput = new();
+    private readonly Subject<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> signalPlotContextMenuActionsInput = new();
     private readonly RecordedSessionEditorStateController editorStateController;
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
     private readonly Func<IEditorFactory> editorFactory;
@@ -1444,7 +1444,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         analysisResultSubscription = analysisResultState.Connect().Subscribe(OnAnalysisResultChanged);
         editorActionsSubscription = editorActions.Intents.Subscribe(ApplyRecordedSessionEditorIntent);
         editorStateController = new RecordedSessionEditorStateController(
-            editorStateInput,
             editorActions.Intents,
             pageCountInput,
             preferenceReplayInput,
@@ -1461,7 +1460,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             sessionInsightsInput,
             signalPresentationInput,
             analysisSelectionInput,
-            loadedDataInput);
+            loadedDataInput,
+            signalPlotContextMenuActionsInput);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
@@ -1522,6 +1522,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             markGpsEventCommand,
             markGpsTelemetryEventCommand,
             cancelGpsTimelineAlignmentCommand);
+        signalPlotContextMenuActionsInput.OnNext(SignalPlotContextMenuActionsBySignalRowId);
         SessionContext.SignalPlotContextMenuActionsBySignalRowId = SignalPlotContextMenuActionsBySignalRowId;
         session = snapshot.ToMetadataEntity();
         sessionSnapshot = snapshot;
@@ -1593,7 +1594,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             extensionPagesController = new RecordedSessionExtensionPagesController(recordedSessionExtensions, Pages, editorActions);
         }
         SessionContext.ExtensionSlots = ExtensionSlots;
-        SessionContext.PropertyChanged += OnSessionContextPropertyChanged;
 
         SignalsPage = new RecordedSignalsPageViewModel(SignalsWorkspace, MediaWorkspace);
         SpringPage = new SpringPageViewModel(AnalysisWorkspace);
@@ -1645,7 +1645,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         ResetImplementation();
         signalPresentationInput.OnNext(CreateSignalPresentationState());
         PublishLoadedDataState();
-        PublishEditorState();
     }
 
     #endregion
@@ -1683,8 +1682,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         analysisSelectionInput.OnNext(CreateAnalysisSelectionState());
     }
 
-    private void OnSessionContextPropertyChanged(object? sender, PropertyChangedEventArgs args) => PublishEditorState();
-
     private void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {
         selectedPageIndex = ClampSelectedPageIndex(selectedPageIndex);
@@ -1715,72 +1712,19 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         return pageIndex;
     }
 
-    private void PublishEditorState()
-    {
-        var state = RecordedSessionEditorStateSnapshot.From(
-            recordedPreferenceStore.Current,
-            TravelHeaderActions,
-            VelocityHeaderActions,
-            ImuHeaderActions,
-            PitchRollHeaderActions,
-            SpeedHeaderActions,
-            ElevationHeaderActions,
-            CreateSignalToggleState(),
-            CreateAnalysisModeState(),
-            CreateAnalysisSelectionState(),
-            screenState,
-            sessionOperationState,
-            dampingPercentages,
-            SignalPlotContextMenuActionsBySignalRowId,
-            sessionInsights,
-            CreateSignalSurfaceState(),
-            CreateMediaPresentationState(),
-            CreateAnalysisPresentationState(),
-            dampingSpeedCutoffs,
-            plotDampingSpeedCutoffs,
-            canEditDampingSpeedCutoffs,
-            new RecordedAnalysisRangeState(analysisRange),
-            new RecordedPageSelectionState(selectedPageIndex),
-            new RecordedSessionLoadedDataState(
-                sessionSnapshot,
-                telemetryData,
-                fullTrackPoints,
-                trackPoints,
-                trackTimelineContext));
-        ApplyProjectedEditorState(state);
-        editorStateInput.OnNext(state);
-    }
-
     private void PublishLoadedDataState()
     {
         loadedDataInput.OnNext(CreateLoadedDataState());
     }
 
-    private RecordedSessionLoadedDataState CreateLoadedDataState()
+    private RecordedSessionLoadedData CreateLoadedDataState()
     {
-        return new RecordedSessionLoadedDataState(
+        return new RecordedSessionLoadedData(
             sessionSnapshot,
             telemetryData,
             fullTrackPoints,
             trackPoints,
             trackTimelineContext);
-    }
-
-    private RecordedSignalToggleState CreateSignalToggleState()
-    {
-        return new RecordedSignalToggleState(
-            showAirtime,
-            showVelocityAirtime,
-            showImuAirtime,
-            showPitchRollAirtime,
-            showSpeedAirtime,
-            showElevationAirtime,
-            showAnalysisSelection,
-            showVelocityAnalysisSelection,
-            showImuAnalysisSelection,
-            showPitchRollAnalysisSelection,
-            showSpeedAnalysisSelection,
-            showElevationAnalysisSelection);
     }
 
     private AnalysisSelectionState CreateAnalysisSelectionState()
@@ -1818,36 +1762,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             PitchRollHeaderActions: PitchRollHeaderActions,
             SpeedHeaderActions: SpeedHeaderActions,
             ElevationHeaderActions: ElevationHeaderActions);
-    }
-
-    private RecordedAnalysisModeState CreateAnalysisModeState()
-    {
-        return new RecordedAnalysisModeState(
-            selectedTravelDistributionMode,
-            selectedBalanceDisplacementMode,
-            selectedBalanceSpeedMode,
-            selectedVelocityAverageMode,
-            selectedSessionInsightsTargetProfile);
-    }
-
-    private RecordedSignalSurfaceState CreateSignalSurfaceState()
-    {
-        return new RecordedSignalSurfaceState(
-            travelSignalState,
-            velocitySignalState,
-            imuSignalState,
-            pitchRollSignalState,
-            speedSignalState,
-            elevationSignalState);
-    }
-
-    private RecordedMediaPresentationState CreateMediaPresentationState()
-    {
-        return new RecordedMediaPresentationState(
-            mapState,
-            mediaPaneState,
-            mediaColumnWidth,
-            mediaUrl);
     }
 
     private RecordedAnalysisPresentationState CreateAnalysisPresentationState()
@@ -2210,12 +2124,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
     }
 
-    private void ApplyProjectedEditorState(RecordedSessionEditorState state)
-    {
-        SetProperty(ref screenState, state.Presentation.ScreenState, nameof(ScreenState));
-        SetProperty(ref sessionOperationState, state.Presentation.OperationState, nameof(SessionOperationState));
-    }
-
     private bool ApplySignalDisplayPreferences(SignalDisplayPreferences preferences)
     {
         return SetProperty(ref signalDisplayPreferences, preferences, nameof(SignalDisplayPreferences));
@@ -2294,7 +2202,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         PreferencesPage.ApplySignalDisplayPreferences(preferences.SignalDisplay);
         PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
         ApplyRecordedAnalysisPreferences(preferences.Analysis);
-        PublishEditorState();
     }
 
     private void ApplyRecordedAnalysisPreferences(AnalysisPreferences preferences)

@@ -26,6 +26,13 @@ internal sealed record RecordedSessionEditorState(
     RecordedSessionEditorPresentationState Presentation,
     AnalysisSelectionState AnalysisSelection);
 
+internal sealed record RecordedSessionLoadedData(
+    SessionSnapshot? Session,
+    TelemetryData? TelemetryData,
+    IReadOnlyList<TrackPoint>? FullTrackPoints,
+    IReadOnlyList<TrackPoint>? TrackPoints,
+    TrackTimeRange? TrackTimelineContext);
+
 internal sealed record RecordedSessionEditorIntentState(
     int SelectedPageIndex,
     TelemetryTimeRange? AnalysisRange,

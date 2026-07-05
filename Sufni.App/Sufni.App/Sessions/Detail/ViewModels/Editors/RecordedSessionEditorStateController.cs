@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reactive.Linq;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
@@ -242,7 +243,49 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             sessionInsights,
             signalPresentationStates,
             analysisSelectionStates,
-            Observable.Empty<RecordedSessionLoadedDataState>())
+            Observable.Empty<RecordedSessionLoadedData>())
+    {
+    }
+
+    public RecordedSessionEditorStateController(
+        IObservable<RecordedSessionEditorIntent> intents,
+        IObservable<int> pageCounts,
+        IObservable<SessionPreferences> preferenceReplays,
+        IObservable<SessionScreenPresentationState> screenStates,
+        IObservable<SessionOperationPresentationState> operationStates,
+        IObservable<SurfacePresentationState> mapStates,
+        IObservable<SurfacePresentationState> mediaPaneStates,
+        IObservable<double?> mediaColumnWidths,
+        IObservable<string?> mediaUrls,
+        IObservable<RecordedAnalysisPresentationState> analysisPresentationStates,
+        IObservable<SessionDampingPercentages> dampingPercentages,
+        IObservable<DampingSpeedCutoffs> plotDampingSpeedCutoffs,
+        IObservable<bool> canEditDampingSpeedCutoffs,
+        IObservable<SessionInsightsResult> sessionInsights,
+        IObservable<RecordedSignalPresentationState> signalPresentationStates,
+        IObservable<AnalysisSelectionState> analysisSelectionStates,
+        IObservable<RecordedSessionLoadedData> loadedDataStates,
+        IObservable<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> signalPlotContextMenuActions)
+        : this(
+            Observable.Return(CreateInitialState()),
+            intents,
+            pageCounts,
+            preferenceReplays,
+            screenStates,
+            operationStates,
+            mapStates,
+            mediaPaneStates,
+            mediaColumnWidths,
+            mediaUrls,
+            analysisPresentationStates,
+            dampingPercentages,
+            plotDampingSpeedCutoffs,
+            canEditDampingSpeedCutoffs,
+            sessionInsights,
+            signalPresentationStates,
+            analysisSelectionStates,
+            loadedDataStates,
+            signalPlotContextMenuActions)
     {
     }
 
@@ -264,7 +307,50 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         IObservable<SessionInsightsResult> sessionInsights,
         IObservable<RecordedSignalPresentationState> signalPresentationStates,
         IObservable<AnalysisSelectionState> analysisSelectionStates,
-        IObservable<RecordedSessionLoadedDataState> loadedDataStates)
+        IObservable<RecordedSessionLoadedData> loadedDataStates)
+        : this(
+            legacyState,
+            intents,
+            pageCounts,
+            preferenceReplays,
+            screenStates,
+            operationStates,
+            mapStates,
+            mediaPaneStates,
+            mediaColumnWidths,
+            mediaUrls,
+            analysisPresentationStates,
+            dampingPercentages,
+            plotDampingSpeedCutoffs,
+            canEditDampingSpeedCutoffs,
+            sessionInsights,
+            signalPresentationStates,
+            analysisSelectionStates,
+            loadedDataStates,
+            Observable.Empty<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>>())
+    {
+    }
+
+    public RecordedSessionEditorStateController(
+        IObservable<RecordedSessionEditorState> legacyState,
+        IObservable<RecordedSessionEditorIntent> intents,
+        IObservable<int> pageCounts,
+        IObservable<SessionPreferences> preferenceReplays,
+        IObservable<SessionScreenPresentationState> screenStates,
+        IObservable<SessionOperationPresentationState> operationStates,
+        IObservable<SurfacePresentationState> mapStates,
+        IObservable<SurfacePresentationState> mediaPaneStates,
+        IObservable<double?> mediaColumnWidths,
+        IObservable<string?> mediaUrls,
+        IObservable<RecordedAnalysisPresentationState> analysisPresentationStates,
+        IObservable<SessionDampingPercentages> dampingPercentages,
+        IObservable<DampingSpeedCutoffs> plotDampingSpeedCutoffs,
+        IObservable<bool> canEditDampingSpeedCutoffs,
+        IObservable<SessionInsightsResult> sessionInsights,
+        IObservable<RecordedSignalPresentationState> signalPresentationStates,
+        IObservable<AnalysisSelectionState> analysisSelectionStates,
+        IObservable<RecordedSessionLoadedData> loadedDataStates,
+        IObservable<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> signalPlotContextMenuActions)
     {
         ArgumentNullException.ThrowIfNull(legacyState);
         ArgumentNullException.ThrowIfNull(intents);
@@ -284,6 +370,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(signalPresentationStates);
         ArgumentNullException.ThrowIfNull(analysisSelectionStates);
         ArgumentNullException.ThrowIfNull(loadedDataStates);
+        ArgumentNullException.ThrowIfNull(signalPlotContextMenuActions);
 
         var selectedPageIndex = CreateSelectedPageIndexState(intents, pageCounts);
         var analysisRange = CreateAnalysisRangeState(intents);
@@ -317,6 +404,9 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             analysisSelectionStates,
             new AnalysisSelectionState(ActiveFront: null, ActiveRear: null, HighlightRanges: []));
         var loadedDataState = CreateOptionalInputState(loadedDataStates);
+        var signalPlotContextMenuActionState = CreateInputState(
+            signalPlotContextMenuActions,
+            CreateEmptySignalPlotContextMenuActions());
         var derivedIntentState = selectedPageIndex
             .CombineLatest(
                 analysisRange,
@@ -382,9 +472,12 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                 static (current, analysisSelection) => new { current.state, current.derived, current.presentation, current.media, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, current.insights, current.signals, analysisSelection })
             .CombineLatest(
                 loadedDataState,
-                static (current, loadedData) =>
+                static (current, loadedData) => new { current.state, current.derived, current.presentation, current.media, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, current.insights, current.signals, current.analysisSelection, loadedData })
+            .CombineLatest(
+                signalPlotContextMenuActionState,
+                static (current, signalPlotContextMenuActions) =>
                 {
-                    var loaded = loadedData ?? new RecordedSessionLoadedDataState(
+                    var loaded = current.loadedData ?? new RecordedSessionLoadedData(
                         current.state.Session,
                         current.state.TelemetryData,
                         current.state.FullTrackPoints,
@@ -398,13 +491,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                         FullTrackPoints = loaded.FullTrackPoints,
                         TrackPoints = loaded.TrackPoints,
                         TrackTimelineContext = loaded.TrackTimelineContext,
-                        Preferences = current.state.Preferences with
-                        {
-                            Analysis = current.derived.Preferences.Analysis,
-                            SignalDisplay = current.derived.Preferences.SignalDisplay,
-                            SignalLayout = current.derived.Preferences.SignalLayout,
-                            Layout = current.derived.Preferences.Layout,
-                        },
+                        Preferences = current.derived.Preferences,
                         Intent = current.state.Intent with
                         {
                             SelectedPageIndex = current.derived.SelectedPageIndex,
@@ -431,6 +518,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                             PlotDampingSpeedCutoffs = current.plotCutoffs,
                             CanEditDampingSpeedCutoffs = current.canEditCutoffs,
                             SessionInsights = current.insights,
+                            SignalPlotContextMenuActionsBySignalRowId = signalPlotContextMenuActions,
                             ScreenState = current.presentation.ScreenState,
                             OperationState = current.presentation.OperationState,
                         },
@@ -455,6 +543,54 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
 
         disposed = true;
         connection.Dispose();
+    }
+
+    private static RecordedSessionEditorState CreateInitialState()
+    {
+        var preferences = SessionPreferences.Default;
+        return new RecordedSessionEditorState(
+            Domain: null,
+            Session: null,
+            TelemetryData: null,
+            FullTrackPoints: null,
+            TrackPoints: null,
+            TrackTimelineContext: null,
+            Preferences: preferences,
+            Intent: new RecordedSessionEditorIntentState(
+                SelectedPageIndex: 0,
+                AnalysisRange: null,
+                SelectedTravelDistributionMode: preferences.Analysis.TravelDistributionMode,
+                SelectedBalanceDisplacementMode: preferences.Analysis.BalanceDisplacementMode,
+                SelectedBalanceSpeedMode: preferences.Analysis.BalanceSpeedMode,
+                SelectedVelocityAverageMode: preferences.Analysis.VelocityAverageMode,
+                SelectedSessionInsightsTargetProfile: preferences.Analysis.SessionInsightsTargetProfile,
+                DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
+                SignalDisplayPreferences: preferences.SignalDisplay,
+                SignalLayoutPreferences: preferences.SignalLayout,
+                LayoutPreferences: preferences.Layout),
+            Presentation: new RecordedSessionEditorPresentationState(
+                MapState: SurfacePresentationState.Hidden,
+                MediaPaneState: SurfacePresentationState.Hidden,
+                MediaColumnWidth: null,
+                MediaUrl: null,
+                Signals: CreateHiddenSignalPresentationState(),
+                Analysis: CreateHiddenAnalysisPresentationState(),
+                DampingPercentages: SessionDampingPercentages.Empty,
+                PlotDampingSpeedCutoffs: DampingSpeedCutoffs.Default,
+                CanEditDampingSpeedCutoffs: false,
+                SessionInsights: SessionInsightsResult.Hidden,
+                SignalPlotContextMenuActionsBySignalRowId: CreateEmptySignalPlotContextMenuActions(),
+                ScreenState: SessionScreenPresentationState.Ready,
+                OperationState: SessionOperationPresentationState.Hidden),
+            AnalysisSelection: new AnalysisSelectionState(
+                ActiveFront: null,
+                ActiveRear: null,
+                HighlightRanges: []));
+    }
+
+    private static IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> CreateEmptySignalPlotContextMenuActions()
+    {
+        return new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
     }
 
     private static IObservable<int> CreateSelectedPageIndexState(

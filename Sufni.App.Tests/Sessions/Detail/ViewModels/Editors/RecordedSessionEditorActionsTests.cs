@@ -246,7 +246,7 @@ public class RecordedSessionEditorActionsTests
             },
         });
 
-        Assert.Equal(8, observed.Count);
+        Assert.Equal(7, observed.Count);
         Assert.Equal(TravelDistributionMode.ActiveSuspension, observed[0].SelectedTravelDistributionMode);
         Assert.Equal(TravelDistributionMode.DynamicSag, observed[1].SelectedTravelDistributionMode);
         Assert.Equal(replayedAnalysis.TravelDistributionMode, observed[2].SelectedTravelDistributionMode);
@@ -327,7 +327,6 @@ public class RecordedSessionEditorActionsTests
         Assert.Collection(
             observed,
             value => Assert.Equal(DampingSpeedCutoffs.Default, value),
-            value => Assert.Equal(cutoffs, value),
             value => Assert.Equal(cutoffs, value));
     }
 
@@ -377,11 +376,6 @@ public class RecordedSessionEditorActionsTests
             {
                 Assert.Equal(loading, state.ScreenState);
                 Assert.Equal(SessionOperationPresentationState.Hidden, state.OperationState);
-            },
-            state =>
-            {
-                Assert.Equal(loading, state.ScreenState);
-                Assert.Equal(operation, state.OperationState);
             },
             state =>
             {
@@ -437,7 +431,7 @@ public class RecordedSessionEditorActionsTests
         };
         legacyState.OnNext(staleLegacyState);
 
-        Assert.Equal(6, observed.Count);
+        Assert.Equal(5, observed.Count);
         Assert.Equal(SurfacePresentationState.Hidden, observed[0].MapState);
         Assert.Equal(SurfacePresentationState.Hidden, observed[0].MediaPaneState);
         Assert.Null(observed[0].MediaColumnWidth);
@@ -501,7 +495,7 @@ public class RecordedSessionEditorActionsTests
         };
         legacyState.OnNext(staleLegacyState);
 
-        Assert.Equal(3, observed.Count);
+        Assert.Equal(2, observed.Count);
         Assert.True(observed[0].FrontAnalysis.IsHidden);
         Assert.Equal(analysis, observed[1]);
         Assert.Equal(analysis, observed[^1]);
@@ -565,7 +559,7 @@ public class RecordedSessionEditorActionsTests
         };
         legacyState.OnNext(staleLegacyState);
 
-        Assert.Equal(6, observed.Count);
+        Assert.Equal(5, observed.Count);
         Assert.Equal(SessionDampingPercentages.Empty, observed[0].DampingPercentages);
         Assert.Equal(DampingSpeedCutoffs.Default, observed[0].PlotDampingSpeedCutoffs);
         Assert.False(observed[0].CanEditDampingSpeedCutoffs);
@@ -738,7 +732,7 @@ public class RecordedSessionEditorActionsTests
         using var sessionInsights = new Subject<SessionInsightsResult>();
         using var signalPresentationStates = new Subject<RecordedSignalPresentationState>();
         using var analysisSelectionStates = new Subject<AnalysisSelectionState>();
-        using var loadedDataStates = new Subject<RecordedSessionLoadedDataState>();
+        using var loadedDataStates = new Subject<RecordedSessionLoadedData>();
         using var controller = new RecordedSessionEditorStateController(
             legacyState,
             actions.Intents,
@@ -765,7 +759,7 @@ public class RecordedSessionEditorActionsTests
         List<TrackPoint> fullTrackPoints = [new TrackPoint(1, 2, 3, 4)];
         List<TrackPoint> trackPoints = [new TrackPoint(5, 6, 7, 8)];
         var timelineContext = new TrackTimeRange(10, 20);
-        var loadedData = new RecordedSessionLoadedDataState(
+        var loadedData = new RecordedSessionLoadedData(
             session,
             telemetry,
             fullTrackPoints,
