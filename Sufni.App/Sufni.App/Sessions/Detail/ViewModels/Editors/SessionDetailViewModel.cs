@@ -101,6 +101,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IDisposable editorActionsSubscription;
     private readonly Subject<RecordedSessionEditorState> editorStateInput = new();
     private readonly Subject<int> pageCountInput = new();
+    private readonly Subject<AnalysisPreferences> analysisPreferenceInput = new();
     private readonly RecordedSessionEditorStateController editorStateController;
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
     private readonly Func<IEditorFactory> editorFactory;
@@ -1450,7 +1451,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         editorStateController = new RecordedSessionEditorStateController(
             editorStateInput,
             editorActions.Intents,
-            pageCountInput);
+            pageCountInput,
+            analysisPreferenceInput);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
@@ -1848,7 +1850,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         RequestCurrentSessionInsights(respectSuppression: true);
         PersistRecordedAnalysisPreferencesIfEnabled();
         UpdateRecordedSessionExtensionHostState();
-        PublishEditorState();
     }
 
     private void SetBalanceDisplacementMode(BalanceDisplacementMode mode)
@@ -1862,7 +1863,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         OnPropertyChanged(nameof(SessionAnalysisModesText));
         RequestCurrentSessionInsights(respectSuppression: true);
         PersistRecordedAnalysisPreferencesIfEnabled();
-        PublishEditorState();
     }
 
     private void SetBalanceSpeedMode(BalanceSpeedMode mode)
@@ -1876,7 +1876,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         OnPropertyChanged(nameof(SessionAnalysisModesText));
         RequestCurrentSessionInsights(respectSuppression: true);
         PersistRecordedAnalysisPreferencesIfEnabled();
-        PublishEditorState();
     }
 
     private void SetVelocityAverageMode(VelocityAverageMode mode)
@@ -1892,7 +1891,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         RequestCurrentAnalysisResults(includeInsights: true, respectSuppression: true);
         PersistRecordedAnalysisPreferencesIfEnabled();
         UpdateRecordedSessionExtensionHostState();
-        PublishEditorState();
     }
 
     private void SetSessionInsightsTargetProfile(SessionInsightsTargetProfile profile)
@@ -1905,7 +1903,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         selectedSessionInsightsTargetProfile = profile;
         RequestCurrentSessionInsights(respectSuppression: true);
         PersistRecordedAnalysisPreferencesIfEnabled();
-        PublishEditorState();
     }
 
     private void SetCanEditDampingSpeedCutoffs(bool value)
@@ -2162,6 +2159,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void ApplyRecordedAnalysisPreferences(AnalysisPreferences preferences)
     {
+        analysisPreferenceInput.OnNext(preferences);
         analysisRequestScheduler.BeginBatch(suppressInsights: true);
         suppressInsightsRecompute = true;
         try

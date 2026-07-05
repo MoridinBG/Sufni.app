@@ -169,6 +169,58 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void StateController_DerivesAnalysisModes_FromActionsAndPreferenceReplay()
+    {
+        using var legacyState = new Subject<RecordedSessionEditorState>();
+        using var actions = new RecordedSessionEditorActions();
+        using var pageCounts = new Subject<int>();
+        using var preferenceReplays = new Subject<AnalysisPreferences>();
+        using var controller = new RecordedSessionEditorStateController(
+            legacyState,
+            actions.Intents,
+            pageCounts,
+            preferenceReplays);
+        var observed = new List<RecordedSessionEditorIntentState>();
+        using var subscription = controller.State.Subscribe(state => observed.Add(state.Intent));
+        var replayedPreferences = new AnalysisPreferences(
+            TravelDistributionMode.DynamicSag,
+            VelocityAverageMode.StrokePeakAveraged,
+            BalanceDisplacementMode.Travel,
+            BalanceSpeedMode.HighSpeed,
+            SessionInsightsTargetProfile.DH);
+
+        legacyState.OnNext(CreateState(selectedPageIndex: 0));
+        actions.SetTravelDistributionMode(TravelDistributionMode.DynamicSag);
+        preferenceReplays.OnNext(replayedPreferences);
+        actions.SetBalanceSpeedMode(BalanceSpeedMode.LowSpeed);
+        var legacyOverride = CreateState(selectedPageIndex: 0);
+        legacyState.OnNext(legacyOverride with
+        {
+            Intent = legacyOverride.Intent with
+            {
+                SelectedTravelDistributionMode = TravelDistributionMode.ActiveSuspension,
+                SelectedBalanceSpeedMode = BalanceSpeedMode.Both,
+            },
+            Presentation = legacyOverride.Presentation with
+            {
+                ScreenState = SessionScreenPresentationState.Loading("Reloading"),
+            },
+        });
+
+        Assert.Equal(5, observed.Count);
+        Assert.Equal(TravelDistributionMode.ActiveSuspension, observed[0].SelectedTravelDistributionMode);
+        Assert.Equal(TravelDistributionMode.DynamicSag, observed[1].SelectedTravelDistributionMode);
+        Assert.Equal(replayedPreferences.TravelDistributionMode, observed[2].SelectedTravelDistributionMode);
+        Assert.Equal(replayedPreferences.VelocityAverageMode, observed[2].SelectedVelocityAverageMode);
+        Assert.Equal(replayedPreferences.BalanceDisplacementMode, observed[2].SelectedBalanceDisplacementMode);
+        Assert.Equal(replayedPreferences.BalanceSpeedMode, observed[2].SelectedBalanceSpeedMode);
+        Assert.Equal(replayedPreferences.SessionInsightsTargetProfile, observed[2].SelectedSessionInsightsTargetProfile);
+        Assert.Equal(BalanceSpeedMode.LowSpeed, observed[3].SelectedBalanceSpeedMode);
+        Assert.Equal(TravelDistributionMode.DynamicSag, observed[^1].SelectedTravelDistributionMode);
+        Assert.Equal(BalanceSpeedMode.LowSpeed, observed[^1].SelectedBalanceSpeedMode);
+    }
+
+    [Fact]
     public void StateController_DisposeStopsSourceSubscription()
     {
         using var source = new Subject<RecordedSessionEditorState>();
