@@ -1,5 +1,6 @@
 using System;
 using System.Reactive.Linq;
+using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Infrastructure;
 using Sufni.Telemetry;
 
@@ -47,16 +48,21 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
 
         var selectedPageIndex = CreateSelectedPageIndexState(intents, pageCounts);
         var analysisRange = CreateAnalysisRangeState(intents);
+        var dampingSpeedCutoffs = CreateDampingSpeedCutoffsState(intents);
         var preferenceIntent = CreatePreferenceIntentState(intents, preferenceReplays);
         var derivedIntentState = selectedPageIndex
             .CombineLatest(
                 analysisRange,
                 static (pageIndex, range) => new { pageIndex, range })
             .CombineLatest(
+                dampingSpeedCutoffs,
+                static (current, cutoffs) => new { current.pageIndex, current.range, cutoffs })
+            .CombineLatest(
                 preferenceIntent,
                 static (current, preferences) => new DerivedIntentState(
                     current.pageIndex,
                     current.range,
+                    current.cutoffs,
                     preferences));
         var replayingState = legacyState
             .CombineLatest(
@@ -79,6 +85,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                         SelectedBalanceSpeedMode = derived.Preferences.Analysis.BalanceSpeedMode,
                         SelectedVelocityAverageMode = derived.Preferences.Analysis.VelocityAverageMode,
                         SelectedSessionInsightsTargetProfile = derived.Preferences.Analysis.SessionInsightsTargetProfile,
+                        DampingSpeedCutoffs = derived.DampingSpeedCutoffs,
                         SignalDisplayPreferences = derived.Preferences.SignalDisplay,
                         SignalLayoutPreferences = derived.Preferences.SignalLayout,
                         LayoutPreferences = derived.Preferences.Layout,
@@ -152,6 +159,19 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         return updates
             .StartWith(new Func<TelemetryTimeRange?, TelemetryTimeRange?>(static current => current))
             .Scan((TelemetryTimeRange?)null, static (current, update) => update(current))
+            .DistinctUntilChanged()
+            .Replay(1)
+            .RefCount();
+    }
+
+    private static IObservable<DampingSpeedCutoffs> CreateDampingSpeedCutoffsState(
+        IObservable<RecordedSessionEditorIntent> intents)
+    {
+        return intents
+            .OfType<RecordedSessionEditorIntent.SetDampingSpeedCutoffs>()
+            .Select(static intent => new Func<DampingSpeedCutoffs, DampingSpeedCutoffs>(_ => intent.Cutoffs))
+            .StartWith(new Func<DampingSpeedCutoffs, DampingSpeedCutoffs>(static current => current))
+            .Scan(DampingSpeedCutoffs.Default, static (current, update) => update(current))
             .DistinctUntilChanged()
             .Replay(1)
             .RefCount();
@@ -260,5 +280,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
     private sealed record DerivedIntentState(
         int SelectedPageIndex,
         TelemetryTimeRange? AnalysisRange,
+        DampingSpeedCutoffs DampingSpeedCutoffs,
         SessionPreferences Preferences);
 }

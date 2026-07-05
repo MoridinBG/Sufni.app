@@ -298,6 +298,39 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void StateController_DerivesDampingSpeedCutoffs_FromActions()
+    {
+        using var legacyState = new Subject<RecordedSessionEditorState>();
+        using var actions = new RecordedSessionEditorActions();
+        using var pageCounts = new Subject<int>();
+        using var controller = new RecordedSessionEditorStateController(
+            legacyState,
+            actions.Intents,
+            pageCounts);
+        var observed = new List<DampingSpeedCutoffs>();
+        using var subscription = controller.State.Subscribe(state => observed.Add(state.Intent.DampingSpeedCutoffs));
+        var cutoffs = DampingSpeedCutoffs.FromValues(110, 220, 330, 440);
+
+        legacyState.OnNext(CreateState(selectedPageIndex: 0));
+        actions.SetDampingSpeedCutoffs(cutoffs);
+        var staleLegacyState = CreateState(selectedPageIndex: 0);
+        var legacyOverride = staleLegacyState with
+        {
+            Presentation = staleLegacyState.Presentation with
+            {
+                ScreenState = SessionScreenPresentationState.Loading("Reloading"),
+            },
+        };
+        legacyState.OnNext(legacyOverride);
+
+        Assert.Collection(
+            observed,
+            value => Assert.Equal(DampingSpeedCutoffs.Default, value),
+            value => Assert.Equal(cutoffs, value),
+            value => Assert.Equal(cutoffs, value));
+    }
+
+    [Fact]
     public void StateController_DisposeStopsSourceSubscription()
     {
         using var source = new Subject<RecordedSessionEditorState>();

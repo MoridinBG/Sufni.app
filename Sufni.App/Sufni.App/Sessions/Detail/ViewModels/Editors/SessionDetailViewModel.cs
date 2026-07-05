@@ -1533,7 +1533,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         dampingCutoffWorkflow = new DampingCutoffWorkflow(
             () => dampingSpeedCutoffs,
             SetCanEditDampingSpeedCutoffs,
-            SetDampingSpeedCutoffs,
+            editorActions.SetDampingSpeedCutoffs,
             SetPlotDampingSpeedCutoffs,
             bikeCoordinator,
             ErrorMessages.Add);
@@ -1908,7 +1908,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SessionContext.DampingSpeedCutoffs = cutoffs;
         RequestCurrentAnalysisResults(!suppressInsightsRecompute, respectSuppression: true);
         UpdateRecordedSessionExtensionHostState();
-        PublishEditorState();
     }
 
     private void SetPlotDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs)
