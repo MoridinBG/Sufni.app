@@ -1075,6 +1075,7 @@ public class SessionDetailViewModelTests
             watch,
             recordedSessionExtensionFactories: [factory]);
         await editor.LoadedCommand.ExecuteAsync(null);
+        var initialState = factory.Scope!.UpdatedStates.First();
         var initialLoadedState = factory.Scope!.UpdatedStates.Last();
 
         editor.SetAnalysisRange(selectedRange.StartSeconds, selectedRange.EndSeconds);
@@ -1083,6 +1084,12 @@ public class SessionDetailViewModelTests
         watch.OnNext(domain);
         await Task.Yield();
 
+        Assert.Equal(snapshot.Id, initialState.Identity.SessionId);
+        Assert.Equal(snapshot.Name, initialState.Identity.Name);
+        Assert.True(initialState.Identity.IsLoaded);
+        Assert.Same(editor.Timeline, initialState.Timeline.Timeline);
+        Assert.Equal(initialState.Identity.SessionId, initialLoadedState.Identity.SessionId);
+        Assert.Same(initialState.Timeline.Timeline, initialLoadedState.Timeline.Timeline);
         Assert.Equal(snapshot.Id, initialLoadedState.Identity.SessionId);
         Assert.Equal(snapshot.Name, initialLoadedState.Identity.Name);
         Assert.Equal(telemetry.Metadata.Duration, initialLoadedState.Timeline.TelemetryDurationSeconds);

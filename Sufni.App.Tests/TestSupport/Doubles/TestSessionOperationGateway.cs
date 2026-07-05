@@ -20,7 +20,6 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
     public List<string> Errors { get; } = [];
     public List<string> Notifications { get; } = [];
     public int LoadRequestCount { get; private set; }
-    public int HostUpdateCount { get; private set; }
     public int SessionInsightsRequestCount { get; private set; }
     public RecordedSessionTimelineAlignmentMark? PendingTimelineAlignmentMark { get; private set; }
     public List<(SuspensionType Side, DampingSpeedCircuit Circuit, double Cutoff)> CutoffPreviews { get; } = [];
@@ -40,8 +39,6 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
         LoadRequestCount++;
         return Task.CompletedTask;
     }
-
-    public void UpdateExtensionHostState() => HostUpdateCount++;
 
     public void PreviewDampingSpeedCutoff(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond) =>
         CutoffPreviews.Add((side, circuit, cutoffMmPerSecond));

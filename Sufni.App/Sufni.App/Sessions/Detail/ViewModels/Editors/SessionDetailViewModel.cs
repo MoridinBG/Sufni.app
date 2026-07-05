@@ -867,8 +867,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        UpdateRecordedSessionExtensionHostState();
-
         if (ShouldDeferDomainHandling())
         {
             deferredDomain = domain;
@@ -980,32 +978,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         return OnDomainChangedAsync(domain);
     }
 
-    private RecordedSessionHostState CreateRecordedSessionExtensionHostState()
-    {
-        var snapshot = sessionStore.Get(Id);
-        var timelineDurationSeconds = telemetryData?.Metadata.Duration ?? snapshot?.DurationSeconds;
-
-        return new RecordedSessionHostState(
-            new RecordedSessionIdentityState(
-                Id,
-                snapshot?.Name,
-                snapshot?.Timestamp,
-                snapshot?.DurationSeconds,
-                viewLoaded,
-                IsTabActive),
-            new RecordedSessionSelectionState(currentEditorState.Intent.AnalysisRange),
-            new RecordedSessionTimelineState(
-                trackTimelineContext,
-                timelineDurationSeconds,
-                Timeline,
-                new RecordedSessionTimelineAlignmentState(pendingTimelineAlignmentMark)),
-            new RecordedSessionAnalysisState(
-                dampingPercentages,
-                currentEditorState.Intent.DampingSpeedCutoffs,
-                currentEditorState.Intent.SelectedVelocityAverageMode,
-                currentEditorState.Intent.SelectedTravelDistributionMode));
-    }
-
     private RecordedSessionHostRuntimeState CreateRecordedSessionHostRuntimeState()
     {
         return new RecordedSessionHostRuntimeState(
@@ -1015,14 +987,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             pendingTimelineAlignmentMark);
     }
 
-    private void PublishRecordedSessionHostRuntimeState()
+    private void PublishRecordedSessionHostRuntimeChange()
     {
         hostRuntimeInput.OnNext(CreateRecordedSessionHostRuntimeState());
-    }
-
-    private void UpdateRecordedSessionExtensionHostState()
-    {
-        recordedSessionExtensions?.UpdateHostState(CreateRecordedSessionExtensionHostState());
     }
 
     private async ValueTask InitializeRecordedSessionExtensionsAsync(CancellationToken cancellationToken = default)
@@ -1033,7 +1000,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         await recordedSessionExtensions.InitializeAsync(
-            CreateRecordedSessionExtensionHostState(),
+            RecordedSessionHostStateProjection.Create(
+                currentEditorState,
+                CreateRecordedSessionHostRuntimeState(),
+                Timeline),
             cancellationToken);
     }
 
@@ -1247,7 +1217,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         pendingTimelineAlignmentMark = new RecordedSessionTimelineAlignmentMark(target, subjectId, seconds);
-        PublishRecordedSessionHostRuntimeState();
+        PublishRecordedSessionHostRuntimeChange();
         NotifyTimelineAlignmentCommandsCanExecuteChanged();
         return true;
     }
@@ -1273,7 +1243,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             seconds,
             pendingMark.Seconds - seconds);
         pendingTimelineAlignmentMark = null;
-        PublishRecordedSessionHostRuntimeState();
+        PublishRecordedSessionHostRuntimeChange();
         NotifyTimelineAlignmentCommandsCanExecuteChanged();
         return true;
     }
@@ -1288,7 +1258,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         pendingTimelineAlignmentMark = null;
-        PublishRecordedSessionHostRuntimeState();
+        PublishRecordedSessionHostRuntimeChange();
         NotifyTimelineAlignmentCommandsCanExecuteChanged();
         return true;
     }
@@ -1370,8 +1340,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     bool ISessionOperationGateway.IsViewLoaded => viewLoaded;
 
     bool ISessionOperationGateway.ShouldDeferDomainHandling() => ShouldDeferDomainHandling();
-
-    void ISessionOperationGateway.UpdateExtensionHostState() => UpdateRecordedSessionExtensionHostState();
 
     void ISessionOperationGateway.SetSignalLayoutPreferences(SignalLayoutPreferences preferences) =>
         SignalLayoutPreferences = preferences;
@@ -2465,7 +2433,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         if (wasLoaded)
         {
-            PublishRecordedSessionHostRuntimeState();
+            PublishRecordedSessionHostRuntimeChange();
             return;
         }
 
@@ -2488,7 +2456,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         await InitializeRecordedSessionExtensionsAsync();
-        PublishRecordedSessionHostRuntimeState();
+        PublishRecordedSessionHostRuntimeChange();
         await RestoreRecordedPreferencesAsync();
         await RequestLoadAsync();
     }
@@ -2496,7 +2464,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     protected override void OnActivated()
     {
         hasBeenActivated = true;
-        PublishRecordedSessionHostRuntimeState();
+        PublishRecordedSessionHostRuntimeChange();
 
         if (!viewLoaded)
         {
@@ -2508,7 +2476,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     protected override void OnDeactivated()
     {
-        PublishRecordedSessionHostRuntimeState();
+        PublishRecordedSessionHostRuntimeChange();
     }
 
     private bool ShouldDeferDomainHandling() =>
@@ -2548,7 +2516,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         replayStalenessOnNextLoad = true;
         deferredDomain = null;
         stalenessReconciler.ResetForUnload();
-        PublishRecordedSessionHostRuntimeState();
+        PublishRecordedSessionHostRuntimeChange();
         await DisposeRecordedSessionExtensionScopesAsync();
         DisposeProcessedTelemetryRetention();
         DisposeScopedSubscriptions();

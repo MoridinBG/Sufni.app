@@ -18,7 +18,6 @@ internal interface ISessionOperationGateway : IRecordedSessionHostOperations
     bool IsDirty { get; }
     bool IsViewLoaded { get; }
     bool ShouldDeferDomainHandling();
-    void UpdateExtensionHostState();
     void SetSignalLayoutPreferences(SignalLayoutPreferences preferences);
     void SetAnalysisRangeBoundary(double boundarySeconds);
     void RequestSessionInsights();
