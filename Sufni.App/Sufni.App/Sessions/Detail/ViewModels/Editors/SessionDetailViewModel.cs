@@ -1601,17 +1601,38 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         if (previous.Session != state.Session)
         {
+            sessionSnapshot = state.Session;
             OnPropertyChanged(nameof(CurrentSessionSnapshot));
         }
 
         if (previous.TelemetryData != state.TelemetryData)
         {
+            if (telemetryData != state.TelemetryData)
+            {
+                telemetryData = state.TelemetryData;
+                telemetryGeneration++;
+            }
+
+            IsComplete = state.TelemetryData is not null;
+            PreferencesPage.SampleRate = state.TelemetryData?.Metadata.SampleRate ?? 0;
+            NotesPage.SetTemperatureAverages(state.TelemetryData?.TemperatureAverages ?? []);
             OnPropertyChanged(nameof(CurrentTelemetryData));
+        }
+
+        if (previous.FullTrackPoints != state.FullTrackPoints)
+        {
+            fullTrackPoints = ToTrackPointList(state.FullTrackPoints);
         }
 
         if (previous.TrackPoints != state.TrackPoints)
         {
+            trackPoints = ToTrackPointList(state.TrackPoints);
             OnPropertyChanged(nameof(CurrentTrackPoints));
+        }
+
+        if (previous.TrackTimelineContext != state.TrackTimelineContext)
+        {
+            trackTimelineContext = state.TrackTimelineContext;
         }
 
         if (previous.Intent.SelectedPageIndex != state.Intent.SelectedPageIndex)
