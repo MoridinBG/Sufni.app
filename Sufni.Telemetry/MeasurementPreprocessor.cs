@@ -1,3 +1,5 @@
+using System.Buffers;
+
 namespace Sufni.Telemetry;
 
 public enum MeasurementSensorType
@@ -20,22 +22,54 @@ public static class MeasurementPreprocessor
         MeasurementSensorType sensorType,
         int sampleRate)
     {
-        var signal = sensorType switch
+        var signal = ArrayPool<int>.Shared.Rent(samples.Length);
+        try
         {
-            MeasurementSensorType.Linear => Array.ConvertAll(samples, value => (int)value),
-            MeasurementSensorType.Rotational => UnwrapCircularSamples(samples),
-            _ => throw new ArgumentOutOfRangeException(nameof(sensorType), sensorType, null),
-        };
+            var signalSpan = signal.AsSpan(0, samples.Length);
+            switch (sensorType)
+            {
+                case MeasurementSensorType.Linear:
+                    for (var index = 0; index < samples.Length; index++)
+                    {
+                        signalSpan[index] = samples[index];
+                    }
 
-        var fixedSignal = SpikeElimination.EliminateSpikesAsInt(signal, sampleRate);
-        var fixedSamples = sensorType switch
+                    break;
+                case MeasurementSensorType.Rotational:
+                    UnwrapCircularSamples(samples, signalSpan);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(sensorType), sensorType, null);
+            }
+
+            var anomalyCount = SpikeElimination.EliminateSpikesAsInt(signalSpan, sampleRate);
+            var fixedSamples = new ushort[samples.Length];
+            switch (sensorType)
+            {
+                case MeasurementSensorType.Linear:
+                    for (var index = 0; index < samples.Length; index++)
+                    {
+                        fixedSamples[index] = ClampLinearSample(signalSpan[index]);
+                    }
+
+                    break;
+                case MeasurementSensorType.Rotational:
+                    for (var index = 0; index < samples.Length; index++)
+                    {
+                        fixedSamples[index] = WrapCircularSample(signalSpan[index]);
+                    }
+
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(sensorType), sensorType, null);
+            }
+
+            return new MeasurementPreprocessorResult(fixedSamples, anomalyCount);
+        }
+        finally
         {
-            MeasurementSensorType.Linear => Array.ConvertAll(fixedSignal.fixedSignal, ClampLinearSample),
-            MeasurementSensorType.Rotational => Array.ConvertAll(fixedSignal.fixedSignal, WrapCircularSample),
-            _ => throw new ArgumentOutOfRangeException(nameof(sensorType), sensorType, null),
-        };
-
-        return new MeasurementPreprocessorResult(fixedSamples, fixedSignal.anomalyCount);
+            ArrayPool<int>.Shared.Return(signal);
+        }
     }
 
     public static MeasurementSensorType SensorTypeForWrapping(bool measurementWraps)
@@ -45,19 +79,18 @@ public static class MeasurementPreprocessor
             : MeasurementSensorType.Linear;
     }
 
-    private static int[] UnwrapCircularSamples(IReadOnlyList<ushort> samples)
+    private static void UnwrapCircularSamples(ushort[] samples, Span<int> unwrapped)
     {
-        if (samples.Count == 0)
+        if (samples.Length == 0)
         {
-            return [];
+            return;
         }
 
-        var unwrapped = new int[samples.Count];
         var offset = 0;
         var previous = NormalizeCircularSample(samples[0]);
         unwrapped[0] = previous;
 
-        for (var index = 1; index < samples.Count; index++)
+        for (var index = 1; index < samples.Length; index++)
         {
             var current = NormalizeCircularSample(samples[index]);
             var delta = current - previous;
@@ -73,8 +106,6 @@ public static class MeasurementPreprocessor
             unwrapped[index] = current + offset;
             previous = current;
         }
-
-        return unwrapped;
     }
 
     private static int NormalizeCircularSample(ushort sample) => sample % AdcCircularRange;

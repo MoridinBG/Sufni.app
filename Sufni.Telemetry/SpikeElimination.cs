@@ -1,3 +1,5 @@
+using System.Buffers;
+
 namespace Sufni.Telemetry;
 
 public record SignalChange(int Start, int End, int Change);
@@ -19,12 +21,18 @@ public static class SpikeElimination
         int[] signal,
         int sampleRate)
     {
-        var (fixedSignal, anomalyCount) = EliminateSpikesAsInt(signal, sampleRate);
-        return (fixedSignal.Select(ClampAdcSample).ToArray(), anomalyCount);
+        var anomalyCount = EliminateSpikesAsInt(signal.AsSpan(), sampleRate);
+        var fixedSignal = new ushort[signal.Length];
+        for (var index = 0; index < signal.Length; index++)
+        {
+            fixedSignal[index] = ClampAdcSample(signal[index]);
+        }
+
+        return (fixedSignal, anomalyCount);
     }
 
-    public static (int[] fixedSignal, int anomalyCount) EliminateSpikesAsInt(
-        int[] signal,
+    public static int EliminateSpikesAsInt(
+        Span<int> signal,
         int sampleRate)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleRate);
@@ -102,7 +110,7 @@ public static class SpikeElimination
             signal[j] -= activeFaultDelta;
         }
 
-        return (signal, anomalyCount);
+        return anomalyCount;
     }
 
     private static ushort ClampAdcSample(int value) => (ushort)Math.Clamp(value, 0, 4095);
@@ -118,7 +126,7 @@ public static class SpikeElimination
     }
 
     private static List<SignalChange> DetectSuddenChanges(
-        int[] signal,
+        ReadOnlySpan<int> signal,
         int maxCandidateSamples,
         int minimumCandidateTotalChangeCounts,
         int minimumAdjacentStepChangeCounts,
@@ -126,61 +134,69 @@ public static class SpikeElimination
     {
         var n = signal.Length;
         var changes = new List<SignalChange>();
-        var included = new bool[n]; // Track included indexes to avoid nesting
-
-        for (var window = maxCandidateSamples; window > 0; window--)
+        var includedBuffer = ArrayPool<bool>.Shared.Rent(n);
+        var included = includedBuffer.AsSpan(0, n);
+        included.Clear();
+        try
         {
-            for (var i = 0; i <= n - window - 1; i++)
+            for (var window = maxCandidateSamples; window > 0; window--)
             {
-                // Skip if entire window is already included in previous change
-                var overlap = false;
-                for (var k = i; k <= i + window; k++)
+                for (var i = 0; i <= n - window - 1; i++)
                 {
-                    if (!included[k]) continue;
-                    overlap = true;
-                    break;
+                    // Skip if entire window is already included in previous change
+                    var overlap = false;
+                    for (var k = i; k <= i + window; k++)
+                    {
+                        if (!included[k]) continue;
+                        overlap = true;
+                        break;
+                    }
+                    if (overlap)
+                        continue;
+
+                    var start = signal[i];
+                    var end = signal[i + window];
+                    var totalChange = end - start;
+
+                    if (Math.Abs(totalChange) < minimumCandidateTotalChangeCounts)
+                        continue;
+
+                    var allStepsBigEnough = true;
+                    for (var j = i; j < i + window; j++)
+                    {
+                        var stepDiff = signal[j + 1] - signal[j];
+                        if (Math.Abs(stepDiff) >= minimumAdjacentStepChangeCounts) continue;
+                        allStepsBigEnough = false;
+                        break;
+                    }
+
+                    if (!allStepsBigEnough) continue;
+
+                    var canApplyContinuationCheck = window >= 2 || maxCandidateSamples == 1;
+                    if (canApplyContinuationCheck &&
+                        ContinuesPastEndpoint(signal, i + window, totalChange, minimumAdjacentStepChangeCounts, continuationLookaheadSamples))
+                    {
+                        continue;
+                    }
+
+                    changes.Add(new SignalChange(i, i + window, totalChange));
+
+                    // Mark this region as included to avoid overlapping detections
+                    for (var k = i; k <= i + window; k++)
+                        included[k] = true;
                 }
-                if (overlap)
-                    continue;
-
-                var start = signal[i];
-                var end = signal[i + window];
-                var totalChange = end - start;
-
-                if (Math.Abs(totalChange) < minimumCandidateTotalChangeCounts)
-                    continue;
-
-                var allStepsBigEnough = true;
-                for (var j = i; j < i + window; j++)
-                {
-                    var stepDiff = signal[j + 1] - signal[j];
-                    if (Math.Abs(stepDiff) >= minimumAdjacentStepChangeCounts) continue;
-                    allStepsBigEnough = false;
-                    break;
-                }
-
-                if (!allStepsBigEnough) continue;
-
-                var canApplyContinuationCheck = window >= 2 || maxCandidateSamples == 1;
-                if (canApplyContinuationCheck &&
-                    ContinuesPastEndpoint(signal, i + window, totalChange, minimumAdjacentStepChangeCounts, continuationLookaheadSamples))
-                {
-                    continue;
-                }
-
-                changes.Add(new SignalChange(i, i + window, totalChange));
-
-                // Mark this region as included to avoid overlapping detections
-                for (var k = i; k <= i + window; k++)
-                    included[k] = true;
             }
-        }
 
-        return changes;
+            return changes;
+        }
+        finally
+        {
+            ArrayPool<bool>.Shared.Return(includedBuffer);
+        }
     }
 
     private static bool ContinuesPastEndpoint(
-        int[] signal,
+        ReadOnlySpan<int> signal,
         int end,
         int change,
         int minimumContinuationCounts,
