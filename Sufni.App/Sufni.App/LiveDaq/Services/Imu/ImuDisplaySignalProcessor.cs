@@ -599,7 +599,7 @@ internal sealed class AttitudeCorrectionContext
 
     private static SuspensionTimeSeriesSampler? CreateVelocitySampler(Suspension? suspension, int sampleRate) =>
         suspension is { HasGaps: true, Segments.Length: > 0 } && sampleRate > 0
-            ? new SuspensionTimeSeriesSampler(suspension.Segments, sampleRate)
+            ? new SuspensionTimeSeriesSampler(suspension.Segments, suspension.Velocity, sampleRate)
             : null;
 
     public static AttitudeCorrectionContext CreateRecorded(TelemetryData telemetryData)

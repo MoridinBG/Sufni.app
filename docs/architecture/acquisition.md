@@ -56,6 +56,17 @@ The import-sessions feature is the canonical worked example of the current bound
 - `ITelemetryDataStoreService` owns the live `DataStores` collection, mass-storage/network browse lifetime, storage-provider datastore construction, duplicate detection, and one-shot board detection for setup creation.
 - `ImportSessionsCoordinator` owns the full per-file import / trash workflow, source capture through `RecordedSessionSourceFactory`, processed telemetry derivation through `IRecordedSessionReprocessor`, atomic session/source/track persistence, session/source-store upserts, background execution, and per-file progress reporting.
 
+The import workflow is staged once the user starts a batch. Network files are
+grouped into one producer lane per DAQ endpoint so downloads stay serial on each
+device connection; local files share one local lane. Producers read source bytes
+and feed a bounded channel. A bounded set of consumer tasks
+(`ImportProcessDop = clamp(Environment.ProcessorCount / 2, 2, 4)`) performs SST
+source creation, processing, and persistence in parallel. After all consumers
+finish, imported session/source store publishes are batched once, then
+`OnImported()` acknowledgements drain serially from a queue so remote
+`MARK_SST_UPLOADED` / local move operations happen only after persistence
+succeeds.
+
 ### Mass Storage
 
 `MassStorageTelemetryDataStore` (`Sufni.App/Sufni.App/Acquisition/Models/MassStorageTelemetryDataStore.cs`) identifies DAQ drives by the presence of a `BOARDID` marker file at the drive root. The file contains the device serial as a hex string, converted to a UUID via `UuidUtil.CreateDeviceUuid()`.
@@ -72,7 +83,7 @@ On import, files move to an `uploaded/` subdirectory, which the datastore create
 
 - `Initialization` performs only board-ID resolution through `ILiveDaqBoardIdInspector.InspectAsync(...)`, which opens a short-lived LIVE identify handshake and stores the resulting device GUID on the datastore. File listing happens in `GetFiles()`.
 - `GetFiles()` calls `IDaqManagementService.ListDirectoryAsync(host, port, DaqDirectoryId.Root)`, pattern-matches the returned `DaqRootDirectoryRecord`, ignores `DaqConfigFileRecord` entries, maps `DaqSstFileRecord` values into importable `NetworkTelemetryFile` instances, and maps `DaqMalformedSstFileRecord` values into non-importable `NetworkTelemetryFile` instances (`canImport: false`) carrying the malformed message. The combined list is returned sorted by descending `StartTime`.
-- `NetworkTelemetryFile` carries the DAQ `recordId` from the management directory listing. `ReadSourceAsync(...)` streams bytes through `IDaqManagementService.GetFileAsync(...)` into a temporary `sufni-source-*.SST` file, reads those bytes into a `TelemetryFileSource`, and deletes the temporary file in a `finally` block. Stale matching temp files older than one day are removed before each read. `OnImported()` calls `IDaqManagementService.MarkSstUploadedAsync(...)` (wire request `MARK_SST_UPLOADED`) after the validated session has been persisted, and `OnTrashed()` routes remote delete through `IDaqManagementService.TrashFileAsync(...)`.
+- `NetworkTelemetryFile` carries the DAQ `recordId` from the management directory listing. `ReadSourceAsync(...)` streams bytes through `IDaqManagementService.GetFileAsync(...)` directly into a `MemoryStream` and returns a `TelemetryFileSource`; it does not create a temporary local SST file. `OnImported()` calls `IDaqManagementService.MarkSstUploadedAsync(...)` (wire request `MARK_SST_UPLOADED`) after the validated session has been persisted, and `OnTrashed()` routes remote delete through `IDaqManagementService.TrashFileAsync(...)`.
 - Typed management failures are translated back into exceptions at the `ITelemetryDataStore` / `ITelemetryFile` boundary so the import workflow remains exception-based.
 
 Import still shares the DAQ's single-client TCP port with live preview. The diagnostics tab disables its management actions while the LIVE client is connected, but the import path does not globally coordinate with open live tabs. Listing or file-transfer conflicts therefore surface as load/import failures on the import page; `TelemetryDataStoreService.ErrorOccurred` is reserved for browse-time datastore initialization errors.

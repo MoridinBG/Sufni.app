@@ -3,6 +3,7 @@ using DynamicData;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
+using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Coordination;
@@ -380,6 +381,37 @@ public class SessionListViewModelTests
     }
 
     [Fact]
+    public void DateGroups_CoalesceRowChangesUntilDispatcherRuns()
+    {
+        var (projection, sessionCache) = CreateProjection();
+        using (sessionCache)
+        {
+            var dispatcher = new DeferredUiThreadDispatcher();
+            sessionCache.AddOrUpdate(CreateSummary("Morning", timestamp: ToUnixSeconds(2026, 5, 20, 9, 15)));
+
+            var viewModel = new SessionListViewModel(
+                projection,
+                TestCoordinatorSubstitutes.Session(),
+                dispatcher);
+            var group = Assert.Single(viewModel.DateGroups);
+            Assert.Single(group.Items);
+
+            sessionCache.AddOrUpdate(CreateSummary("Afternoon", timestamp: ToUnixSeconds(2026, 5, 20, 16, 30)));
+            sessionCache.AddOrUpdate(CreateSummary("Evening", timestamp: ToUnixSeconds(2026, 5, 20, 19, 45)));
+
+            Assert.Equal(3, viewModel.Items.Count);
+            Assert.Single(group.Items);
+            Assert.Equal(1, dispatcher.PostCount);
+            Assert.Equal(1, dispatcher.PendingCount);
+
+            dispatcher.RunAll();
+
+            Assert.Equal(3, group.Items.Count);
+            Assert.Equal(0, dispatcher.PendingCount);
+        }
+    }
+
+    [Fact]
     public void DateGroups_PreserveCollapsedState_WhenFilteringRemovesAndRestoresGroup()
     {
         var (projection, sessionCache) = CreateProjection();
@@ -524,6 +556,44 @@ public class SessionListViewModelTests
     {
         var local = new DateTime(year, month, day, hour, minute, 0, DateTimeKind.Local);
         return new DateTimeOffset(local).ToUnixTimeSeconds();
+    }
+
+    private sealed class DeferredUiThreadDispatcher : IUiThreadDispatcher
+    {
+        private readonly Queue<Action> callbacks = [];
+
+        public int PostCount { get; private set; }
+
+        public int PendingCount => callbacks.Count;
+
+        public bool CheckAccess() => true;
+
+        public void Post(Action action)
+        {
+            PostCount++;
+            callbacks.Enqueue(action);
+        }
+
+        public Task InvokeAsync(Action action)
+        {
+            action();
+            return Task.CompletedTask;
+        }
+
+        public async Task InvokeAsync(Func<Task> action)
+        {
+            await action();
+        }
+
+        public Task<T> InvokeAsync<T>(Func<T> action) => Task.FromResult(action());
+
+        public void RunAll()
+        {
+            while (callbacks.TryDequeue(out var callback))
+            {
+                callback();
+            }
+        }
     }
 
 }

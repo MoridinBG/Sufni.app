@@ -35,6 +35,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
     private readonly BehaviorSubject<Func<RecordedSessionSummary, bool>> filterSubject = new(_ => true);
     private readonly HashSet<Guid> pendingDeleteIds = [];
     private readonly Dictionary<SessionDateGroupKey, bool> dateGroupExpansionState = [];
+    private bool dateGroupSyncQueued;
 
     #endregion Private fields
 
@@ -179,7 +180,17 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     private void OnSessionRowsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        SynchronizeDateGroups();
+        if (dateGroupSyncQueued)
+        {
+            return;
+        }
+
+        dateGroupSyncQueued = true;
+        UiThreadDispatcher.Post(() =>
+        {
+            dateGroupSyncQueued = false;
+            SynchronizeDateGroups();
+        });
     }
 
     private void OnListExtensionContributionsChanged(object? sender, EventArgs e)

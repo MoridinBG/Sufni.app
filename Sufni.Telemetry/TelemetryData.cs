@@ -54,7 +54,10 @@ public class TelemetryData
 
     public static TelemetryData FromBinary(byte[]? data)
     {
-        return MessagePackSerializer.Deserialize<TelemetryData>(data);
+        var telemetryData = MessagePackSerializer.Deserialize<TelemetryData>(data);
+        NormalizeSegmentSampleCounts(telemetryData.Front);
+        NormalizeSegmentSampleCounts(telemetryData.Rear);
+        return telemetryData;
     }
 
     #endregion
@@ -206,7 +209,7 @@ public class TelemetryData
             return true;
         }
 
-        var sampler = new SuspensionTimeSeriesSampler(suspension.Segments, Metadata.SampleRate);
+        var sampler = new SuspensionTimeSeriesSampler(suspension.Segments, suspension.Travel, Metadata.SampleRate);
         var startSeconds = StrokeStartSeconds(stroke);
         var endSeconds = StrokeEndSeconds(stroke);
         var values = new List<double>();
@@ -244,8 +247,7 @@ public class TelemetryData
                     FirstDenseIndex = 0,
                     FirstSourceIndex = 0,
                     StartSeconds = 0,
-                    Travel = trace.Travel,
-                    Velocity = trace.Velocity,
+                    SampleCount = trace.Travel.Length,
                 },
             ];
         }
@@ -273,7 +275,6 @@ public class TelemetryData
         bool measurementWraps,
         Func<ushort, double>? measurementToTravel,
         int sampleRate,
-        double[] time,
         SavitzkyGolay? filter)
     {
         if (!suspension.Present)
@@ -296,7 +297,6 @@ public class TelemetryData
             suspension.MaxTravel!.Value,
             measurementToTravel,
             sampleRate,
-            time,
             filter);
 
         ApplySuspensionTrace(suspension, trace);
@@ -367,14 +367,12 @@ public class TelemetryData
             }
             else
             {
-                var segmentTime = CreateTimeArray(preprocessed.Samples.Length, sampleRate);
                 var segmentFilter = CreateVelocityFilter(preprocessed.Samples.Length, sampleRate, processingOptions);
                 var trace = SuspensionTraceProcessor.Process(
                     preprocessed.Samples,
                     suspension.MaxTravel!.Value,
                     measurementToTravel,
                     sampleRate,
-                    segmentTime,
                     segmentFilter);
                 segmentTravel = trace.Travel;
                 segmentVelocity = trace.Velocity;
@@ -389,8 +387,7 @@ public class TelemetryData
                 FirstDenseIndex = denseOffset,
                 FirstSourceIndex = rawSegment.FirstIndex,
                 StartSeconds = segmentStartSeconds,
-                Travel = segmentTravel,
-                Velocity = segmentVelocity,
+                SampleCount = segmentTravel.Length,
             });
             compressions.AddRange(segmentStrokes.Compressions);
             rebounds.AddRange(segmentStrokes.Rebounds);
@@ -426,17 +423,6 @@ public class TelemetryData
         return travel;
     }
 
-    private static double[] CreateTimeArray(int length, int sampleRate)
-    {
-        var time = new double[length];
-        for (var index = 0; index < time.Length; index++)
-        {
-            time[index] = index / (double)sampleRate;
-        }
-
-        return time;
-    }
-
     private static void OffsetStrokeTimes(Strokes strokes, int denseOffset, double segmentStartSeconds, int sampleRate)
     {
         foreach (var stroke in strokes.Compressions.Concat(strokes.Rebounds).Concat(strokes.Idlings))
@@ -448,6 +434,45 @@ public class TelemetryData
             stroke.StartSeconds = segmentStartSeconds + localStart / (double)sampleRate;
             stroke.EndSeconds = segmentStartSeconds + localEnd / (double)sampleRate;
         }
+    }
+
+    private static void NormalizeSegmentSampleCounts(Suspension? suspension)
+    {
+        if (suspension is null)
+        {
+            return;
+        }
+
+        if (suspension.Segments is not { Length: > 0 } segments)
+        {
+            suspension.Segments = [];
+            return;
+        }
+
+        if (segments.All(segment => segment.SampleCount > 0))
+        {
+            return;
+        }
+
+        var travelLength = suspension.Travel?.Length ?? 0;
+        if (travelLength == 0)
+        {
+            foreach (var segment in segments)
+            {
+                segment.SampleCount = 0;
+            }
+
+            return;
+        }
+
+        for (var index = 0; index < segments.Length - 1; index++)
+        {
+            segments[index].SampleCount =
+                segments[index + 1].FirstDenseIndex - segments[index].FirstDenseIndex;
+        }
+
+        var last = segments[^1];
+        last.SampleCount = travelLength - last.FirstDenseIndex;
     }
 
     private static SavitzkyGolay? CreateVelocityFilter(
@@ -548,20 +573,21 @@ public class TelemetryData
                 throw new Exception("Front and rear record arrays are empty!");
             }
 
-            ProcessSegmentAwareSuspensionSide(
-                td.Front,
-                rawData.FrontSegments,
-                bikeData.FrontMeasurementWraps,
-                bikeData.FrontMeasurementToTravel,
-                td.Metadata.SampleRate,
-                processingOptions);
-            ProcessSegmentAwareSuspensionSide(
-                td.Rear,
-                rawData.RearSegments,
-                bikeData.RearMeasurementWraps,
-                bikeData.RearMeasurementToTravel,
-                td.Metadata.SampleRate,
-                processingOptions);
+            Parallel.Invoke(
+                () => ProcessSegmentAwareSuspensionSide(
+                    td.Front,
+                    rawData.FrontSegments,
+                    bikeData.FrontMeasurementWraps,
+                    bikeData.FrontMeasurementToTravel,
+                    td.Metadata.SampleRate,
+                    processingOptions),
+                () => ProcessSegmentAwareSuspensionSide(
+                    td.Rear,
+                    rawData.RearSegments,
+                    bikeData.RearMeasurementWraps,
+                    bikeData.RearMeasurementToTravel,
+                    td.Metadata.SampleRate,
+                    processingOptions));
 
             td.Front.HasGaps = td.Front.HasGaps || HasTravelGapForSide(rawData.StreamGaps, SstV5Constants.SensorForkTravel);
             td.Rear.HasGaps = td.Rear.HasGaps || HasTravelGapForSide(rawData.StreamGaps, SstV5Constants.SensorShockTravel);
@@ -609,13 +635,7 @@ public class TelemetryData
             throw new Exception("Front and rear record counts are not equal!");
         }
 
-        // Create time array
         var recordCount = Math.Max(fc, rc);
-        var time = new double[recordCount];
-        for (var i = 0; i < time.Length; i++)
-        {
-            time[i] = 1.0 / td.Metadata.SampleRate * i;
-        }
 
         if (recordCount < 5)
         {
@@ -629,22 +649,21 @@ public class TelemetryData
         // shorter than a full SST import during early-session save or stats recompute.
         var filter = CreateVelocityFilter(recordCount, td.Metadata.SampleRate, processingOptions);
 
-        ProcessSuspensionSide(
-            td.Front,
-            rawData.Front,
-            bikeData.FrontMeasurementWraps,
-            bikeData.FrontMeasurementToTravel,
-            td.Metadata.SampleRate,
-            time,
-            filter);
-        ProcessSuspensionSide(
-            td.Rear,
-            rawData.Rear,
-            bikeData.RearMeasurementWraps,
-            bikeData.RearMeasurementToTravel,
-            td.Metadata.SampleRate,
-            time,
-            filter);
+        Parallel.Invoke(
+            () => ProcessSuspensionSide(
+                td.Front,
+                rawData.Front,
+                bikeData.FrontMeasurementWraps,
+                bikeData.FrontMeasurementToTravel,
+                td.Metadata.SampleRate,
+                filter),
+            () => ProcessSuspensionSide(
+                td.Rear,
+                rawData.Rear,
+                bikeData.RearMeasurementWraps,
+                bikeData.RearMeasurementToTravel,
+                td.Metadata.SampleRate,
+                filter));
 
         td.CalculateAirTimes();
 

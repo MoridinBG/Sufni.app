@@ -40,8 +40,6 @@ public abstract class SufniTelemetryPlotView : SufniTimeSeriesPlotView
                     RequestReload();
                     break;
             }
-
-            RefreshPlot();
         };
     }
 

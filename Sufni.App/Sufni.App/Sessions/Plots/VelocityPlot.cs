@@ -75,9 +75,22 @@ public class VelocityPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSer
                 .Select(segment => CreateExplicitSegment(
                     segment,
                     sampleRate,
-                    segment.Velocity.Select(value => value / 1000).ToArray()))
+                    GetSegmentValues(denseVelocityMetersPerSecond, segment)))
                 .Where(segment => segment.YValues.Length > 0)
                 .ToArray());
+    }
+
+    private static double[] GetSegmentValues(double[] values, ProcessedSuspensionSegment segment)
+    {
+        if (segment.SampleCount <= 0 ||
+            segment.FirstDenseIndex < 0 ||
+            segment.FirstDenseIndex >= values.Length)
+        {
+            return [];
+        }
+
+        var endIndex = Math.Min(segment.FirstDenseIndex + segment.SampleCount, values.Length);
+        return values[segment.FirstDenseIndex..endIndex];
     }
 
     private static ExplicitValues CreateExplicitSegment(

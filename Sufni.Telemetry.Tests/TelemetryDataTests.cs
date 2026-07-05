@@ -1,3 +1,4 @@
+using MessagePack;
 using Sufni.Telemetry;
 
 namespace Sufni.Telemetry.Tests;
@@ -373,8 +374,7 @@ public class TelemetryDataTests
                         FirstDenseIndex = 0,
                         FirstSourceIndex = 10,
                         StartSeconds = 1.5,
-                        Travel = [0, 1],
-                        Velocity = [0, 10],
+                        SampleCount = 2,
                     }
                 ],
                 Strokes = new Strokes
@@ -444,6 +444,7 @@ public class TelemetryDataTests
 
         Assert.True(result.Front.HasGaps);
         Assert.Equal(1.5, result.Front.Segments[0].StartSeconds);
+        Assert.Equal(2, result.Front.Segments[0].SampleCount);
         Assert.Equal(1.5, result.Front.Strokes.Compressions[0].StartSeconds);
         Assert.NotNull(result.ImuData);
         Assert.True(result.ImuData.HasGaps);
@@ -452,6 +453,86 @@ public class TelemetryDataTests
         Assert.Equal("index_gap", result.StreamGaps[0].Reason);
         Assert.NotNull(result.FinalStatus);
         Assert.Equal(2, result.FinalStatus.SessionResultReason);
+    }
+
+    [Fact]
+    public void SuspensionTimeSeriesSampler_WithFlatArrays_UsesSegmentDenseOffsets()
+    {
+        var sampler = new SuspensionTimeSeriesSampler(
+            [
+                new ProcessedSuspensionSegment { FirstDenseIndex = 0, StartSeconds = 0.0, SampleCount = 2 },
+                new ProcessedSuspensionSegment { FirstDenseIndex = 2, StartSeconds = 1.0, SampleCount = 2 },
+            ],
+            [1.0, 3.0, 10.0, 20.0],
+            sampleRate: 10);
+
+        Assert.True(sampler.TrySampleTravel(0.05, out var firstSegmentTravel));
+        Assert.Equal(2.0, firstSegmentTravel, precision: 6);
+        Assert.True(sampler.TrySampleTravel(1.1, out var secondSegmentTravel));
+        Assert.Equal(20.0, secondSegmentTravel, precision: 6);
+        Assert.False(sampler.TrySampleTravel(0.5, out _));
+    }
+
+    [Fact]
+    public void FromBinary_WithLegacyDenseSegment_InferSampleCountFromFlatArrays()
+    {
+        var bytes = CreateLegacySegmentedTelemetryBlob(
+            frontTravel: [1.0, 2.0, 3.0],
+            frontVelocity: [10.0, 20.0, 30.0],
+            hasGaps: false,
+            [
+                new LegacyProcessedSuspensionSegment
+                {
+                    FirstDenseIndex = 0,
+                    FirstSourceIndex = 0,
+                    StartSeconds = 0.0,
+                    Travel = [1.0, 2.0, 3.0],
+                    Velocity = [10.0, 20.0, 30.0],
+                },
+            ]);
+
+        var result = TelemetryData.FromBinary(bytes);
+
+        var segment = Assert.Single(result.Front.Segments);
+        Assert.Equal(3, segment.SampleCount);
+        Assert.Equal([1.0, 2.0, 3.0], result.Front.Travel);
+        Assert.Equal([10.0, 20.0, 30.0], result.Front.Velocity);
+    }
+
+    [Fact]
+    public void FromBinary_WithLegacyGappedSegments_InferSampleCountsFromDenseOffsets()
+    {
+        var bytes = CreateLegacySegmentedTelemetryBlob(
+            frontTravel: [1.0, 2.0, 10.0, 20.0],
+            frontVelocity: [10.0, 20.0, 100.0, 200.0],
+            hasGaps: true,
+            [
+                new LegacyProcessedSuspensionSegment
+                {
+                    FirstDenseIndex = 0,
+                    FirstSourceIndex = 0,
+                    StartSeconds = 0.0,
+                    Travel = [1.0, 2.0],
+                    Velocity = [10.0, 20.0],
+                },
+                new LegacyProcessedSuspensionSegment
+                {
+                    FirstDenseIndex = 2,
+                    FirstSourceIndex = 10,
+                    StartSeconds = 1.0,
+                    Travel = [10.0, 20.0],
+                    Velocity = [100.0, 200.0],
+                },
+            ]);
+
+        var result = TelemetryData.FromBinary(bytes);
+
+        Assert.Equal([2, 2], result.Front.Segments.Select(segment => segment.SampleCount));
+        Assert.Equal([1.0, 2.0], result.Front.Travel[..2]);
+        Assert.Equal([10.0, 20.0], result.Front.Travel[2..]);
+        var sampler = new SuspensionTimeSeriesSampler(result.Front.Segments, result.Front.Travel, result.Metadata.SampleRate);
+        Assert.True(sampler.TrySampleTravel(1.1, out var travel));
+        Assert.Equal(20.0, travel, precision: 6);
     }
 
     [Fact]
@@ -521,7 +602,7 @@ public class TelemetryDataTests
         {
             Assert.Contains(result.Front.Segments, segment =>
                 stroke.Start >= segment.FirstDenseIndex &&
-                stroke.End < segment.FirstDenseIndex + segment.Travel.Length);
+                stroke.End < segment.FirstDenseIndex + segment.SampleCount);
         });
     }
 
@@ -921,15 +1002,15 @@ public class TelemetryDataTests
         [
             new ProcessedSuspensionSegment
             {
+                FirstDenseIndex = 0,
                 StartSeconds = 0.0,
-                Travel = [1.0, 2.0],
-                Velocity = [0.0, 0.0],
+                SampleCount = 2,
             },
             new ProcessedSuspensionSegment
             {
+                FirstDenseIndex = 2,
                 StartSeconds = 1.0,
-                Travel = [10.0, 20.0],
-                Velocity = [0.0, 0.0],
+                SampleCount = 2,
             },
         ];
         var options = new TravelStatisticsOptions(
@@ -1393,16 +1474,14 @@ public class TelemetryDataTests
                         FirstDenseIndex = 0,
                         FirstSourceIndex = 0,
                         StartSeconds = 0.0,
-                        Travel = [0, 10],
-                        Velocity = [0, 100],
+                        SampleCount = 2,
                     },
                     new ProcessedSuspensionSegment
                     {
                         FirstDenseIndex = 2,
                         FirstSourceIndex = 10,
                         StartSeconds = 1.0,
-                        Travel = [20, 30],
-                        Velocity = [0, 100],
+                        SampleCount = 2,
                     }
                 ],
                 Strokes = Strokes.FromCategorized([compression], [], []),
@@ -1636,6 +1715,87 @@ public class TelemetryDataTests
             }
         ],
     };
+
+    private static byte[] CreateLegacySegmentedTelemetryBlob(
+        double[] frontTravel,
+        double[] frontVelocity,
+        bool hasGaps,
+        LegacyProcessedSuspensionSegment[] segments)
+    {
+        var legacy = new LegacyTelemetryData
+        {
+            Metadata = new Metadata { SampleRate = 10, Duration = frontTravel.Length / 10.0 },
+            Front = new LegacySuspension
+            {
+                Present = true,
+                MaxTravel = 100,
+                Travel = frontTravel,
+                Velocity = frontVelocity,
+                Strokes = new Strokes(),
+                TravelBins = CreateTravelBins(100),
+                VelocityBins = [-100, 0, 100],
+                FineVelocityBins = [-100, 0, 100],
+                Segments = segments,
+                HasGaps = hasGaps,
+            },
+            Rear = new LegacySuspension
+            {
+                Present = false,
+                Travel = [],
+                Velocity = [],
+                Strokes = new Strokes(),
+                TravelBins = [],
+                VelocityBins = [],
+                FineVelocityBins = [],
+                Segments = [],
+            },
+            Airtimes = [],
+        };
+
+        return MessagePackSerializer.Serialize(legacy);
+    }
+
+    [MessagePackObject(keyAsPropertyName: true, AllowPrivate = true)]
+    internal sealed class LegacyTelemetryData
+    {
+        public Metadata Metadata { get; set; } = new();
+        public LegacySuspension Front { get; set; } = new();
+        public LegacySuspension Rear { get; set; } = new();
+        public Airtime[] Airtimes { get; set; } = [];
+        public MarkerData[] Markers { get; set; } = [];
+        public RawImuData? ImuData { get; set; }
+        public GpsRecord[]? GpsData { get; set; }
+        public TemperatureAverage[] TemperatureAverages { get; set; } = [];
+        public RawStreamGap[] StreamGaps { get; set; } = [];
+        public SstFinalStatus? FinalStatus { get; set; }
+        public bool MissingFinalStatus { get; set; }
+    }
+
+    [MessagePackObject(keyAsPropertyName: true, AllowPrivate = true)]
+    internal sealed class LegacySuspension
+    {
+        public bool Present { get; set; }
+        public double AnomalyRate { get; set; }
+        public double? MaxTravel { get; set; }
+        public double[] Travel { get; set; } = [];
+        public double[] Velocity { get; set; } = [];
+        public Strokes Strokes { get; set; } = new();
+        public double[] TravelBins { get; set; } = [];
+        public double[] VelocityBins { get; set; } = [];
+        public double[] FineVelocityBins { get; set; } = [];
+        public LegacyProcessedSuspensionSegment[] Segments { get; set; } = [];
+        public bool HasGaps { get; set; }
+    }
+
+    [MessagePackObject(keyAsPropertyName: true, AllowPrivate = true)]
+    internal sealed class LegacyProcessedSuspensionSegment
+    {
+        public int FirstDenseIndex { get; set; }
+        public ulong FirstSourceIndex { get; set; }
+        public double StartSeconds { get; set; }
+        public double[] Travel { get; set; } = [];
+        public double[] Velocity { get; set; } = [];
+    }
 
     private static TelemetryData CreateTelemetry(
         double[] travel,

@@ -41,7 +41,7 @@ public class SynchronizationServerServiceTests
     public async Task ApplySessionDataPatchAsync_FillPersistsThroughTelemetryWriter_AndRaisesSessionDataArrived()
     {
         var sessionId = Guid.NewGuid();
-        var transfer = new SessionDataTransfer("fingerprint-a", [1, 2, 3]);
+        var payload = new SessionBlobPayload("fingerprint-a", [1, 2, 3]);
         var sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
         var swapRequestStore = Substitute.For<ISessionBlobSwapRequestStore>();
         var arrivedSessionIds = new List<Guid>();
@@ -49,15 +49,15 @@ public class SynchronizationServerServiceTests
 
         var result = await SynchronizationServerService.ApplySessionDataPatchAsync(
             sessionId,
-            transfer,
+            payload,
             sessionTelemetryWriter,
             swapRequestStore,
             arrivedSessionIds.Add);
 
         await sessionTelemetryWriter.Received(1).PatchSessionPsstAsync(
             sessionId,
-            transfer.Data,
-            transfer.Fingerprint);
+            payload.Data,
+            payload.Fingerprint);
         await sessionTelemetryWriter.DidNotReceive().SwapSessionPsstAsync(
             Arg.Any<Guid>(),
             Arg.Any<byte[]>(),

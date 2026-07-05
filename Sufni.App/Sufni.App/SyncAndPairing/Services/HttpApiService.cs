@@ -2,6 +2,7 @@ using Sufni.App.ExtensionHost.Contracts.Services;
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http;
@@ -63,6 +64,7 @@ internal class HttpApiService : IHttpApiService
     {
         this.secureStorage = secureStorage;
         client = new HttpClient(CreateHandler());
+        ConfigureProtocolHeaders(client);
         Initialization = Init();
     }
 
@@ -70,6 +72,7 @@ internal class HttpApiService : IHttpApiService
     {
         this.secureStorage = secureStorage;
         this.client = client;
+        ConfigureProtocolHeaders(this.client);
         Initialization = Init();
     }
 
@@ -97,6 +100,47 @@ internal class HttpApiService : IHttpApiService
 
     private static HttpRequestException CreateMissingCredentialsException() =>
         new("Synchronization pairing credentials are missing.", null, HttpStatusCode.Unauthorized);
+
+    private static void ConfigureProtocolHeaders(HttpClient client)
+    {
+        client.DefaultRequestHeaders.Remove(SynchronizationProtocol.SyncProtocolHeader);
+        client.DefaultRequestHeaders.Add(
+            SynchronizationProtocol.SyncProtocolHeader,
+            SynchronizationProtocol.SyncProtocolVersion.ToString(CultureInfo.InvariantCulture));
+    }
+
+    private static ByteArrayContent CreateOctetStreamContent(byte[] data)
+    {
+        var content = new ByteArrayContent(data);
+        content.Headers.ContentType = new MediaTypeHeaderValue(SynchronizationProtocol.OctetStreamContentType);
+        return content;
+    }
+
+    private static string? GetResponseHeader(HttpResponseMessage response, string headerName)
+    {
+        if (!response.Headers.TryGetValues(headerName, out var values))
+        {
+            return null;
+        }
+
+        foreach (var value in values)
+        {
+            return string.IsNullOrEmpty(value) ? null : value;
+        }
+
+        return null;
+    }
+
+    private static string GetRequiredResponseHeader(HttpResponseMessage response, string headerName)
+    {
+        var value = GetResponseHeader(response, headerName);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new HttpRequestException($"Sync response is missing required {headerName} header.");
+        }
+
+        return value;
+    }
 
     private HttpClientHandler CreateHandler()
     {
@@ -241,6 +285,15 @@ internal class HttpApiService : IHttpApiService
                 GetRoute(url),
                 (int)response.StatusCode,
                 stopwatch.Elapsed.TotalMilliseconds);
+
+            if (response.StatusCode == HttpStatusCode.UpgradeRequired)
+            {
+                response.Dispose();
+                throw new HttpRequestException(
+                    "Sync protocol version mismatch. Both devices must run the same app version.",
+                    null,
+                    HttpStatusCode.UpgradeRequired);
+            }
 
             return response;
         }
@@ -520,7 +573,7 @@ internal class HttpApiService : IHttpApiService
         return incompleteSessions ?? [];
     }
 
-    public async Task<SessionDataTransfer?> GetSessionPsstAsync(Guid id)
+    public async Task<SessionBlobPayload?> GetSessionPsstAsync(Guid id)
     {
         await EnsureTokenFreshAsync();
 
@@ -535,9 +588,10 @@ internal class HttpApiService : IHttpApiService
             return null;
         }
         response.EnsureSuccessStatusCode();
-        // The body carries the fingerprint of the bytes alongside them so the
-        // caller can verify the download against its swap/fill target.
-        var transfer = await response.Content.ReadFromJsonAsync(AppJson.Context.SessionDataTransfer);
+        var data = await response.Content.ReadAsByteArrayAsync();
+        var transfer = new SessionBlobPayload(
+            GetResponseHeader(response, SynchronizationProtocol.FingerprintHeader),
+            data);
 
         logger.Verbose("Downloaded {ByteCount} bytes of session data for {SessionId}", transfer?.Data.Length ?? 0, id);
 
@@ -554,10 +608,20 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Patch,
             route,
-            () => client.PatchAsJsonAsync(
-                route,
-                new SessionDataTransfer(fingerprint, data),
-                AppJson.Context.SessionDataTransfer));
+            async () =>
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Patch, route)
+                {
+                    Content = CreateOctetStreamContent(data)
+                };
+
+                if (fingerprint is not null)
+                {
+                    request.Headers.TryAddWithoutValidation(SynchronizationProtocol.FingerprintHeader, fingerprint);
+                }
+
+                return await client.SendAsync(request);
+            });
         response.EnsureSuccessStatusCode();
     }
 
@@ -580,7 +644,7 @@ internal class HttpApiService : IHttpApiService
         return incompleteSources ?? [];
     }
 
-    public async Task<RecordedSessionSourceTransfer?> GetRecordedSessionSourceAsync(Guid id)
+    public async Task<RecordedSessionSourcePayload?> GetRecordedSessionSourceAsync(Guid id)
     {
         await EnsureTokenFreshAsync();
 
@@ -596,7 +660,33 @@ internal class HttpApiService : IHttpApiService
         }
 
         response.EnsureSuccessStatusCode();
-        var source = await response.Content.ReadFromJsonAsync(AppJson.Context.RecordedSessionSourceTransfer);
+        var sourceKindValue = GetRequiredResponseHeader(response, SynchronizationProtocol.SourceKindHeader);
+        RecordedSessionSourceKind sourceKind;
+        try
+        {
+            sourceKind = RecordedSessionSourceKindExtensions.FromStorageValue(sourceKindValue);
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            throw new HttpRequestException(
+                $"Sync response contained unknown {SynchronizationProtocol.SourceKindHeader} header value.",
+                ex);
+        }
+
+        var sourceName = Uri.UnescapeDataString(GetRequiredResponseHeader(response, SynchronizationProtocol.SourceNameHeader));
+        var schemaVersionValue = GetRequiredResponseHeader(response, SynchronizationProtocol.SchemaVersionHeader);
+        if (!int.TryParse(schemaVersionValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var schemaVersion))
+        {
+            throw new HttpRequestException($"Sync response contained invalid {SynchronizationProtocol.SchemaVersionHeader} header value.");
+        }
+
+        var source = new RecordedSessionSourcePayload(
+            id,
+            sourceKind,
+            sourceName,
+            schemaVersion,
+            GetRequiredResponseHeader(response, SynchronizationProtocol.SourceHashHeader),
+            await response.Content.ReadAsByteArrayAsync());
 
         logger.Verbose(
             "Downloaded recorded source for {SessionId} with {ByteCount} bytes",
@@ -606,7 +696,7 @@ internal class HttpApiService : IHttpApiService
         return source;
     }
 
-    public async Task PatchRecordedSessionSourceAsync(RecordedSessionSourceTransfer source)
+    public async Task PatchRecordedSessionSourceAsync(RecordedSessionSourcePayload source)
     {
         await EnsureTokenFreshAsync();
 
@@ -616,10 +706,20 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Patch,
             route,
-            () => client.PatchAsJsonAsync(
-                route,
-                source,
-                AppJson.Context.RecordedSessionSourceTransfer));
+            async () =>
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Patch, route)
+                {
+                    Content = CreateOctetStreamContent(source.Payload)
+                };
+
+                request.Headers.TryAddWithoutValidation(SynchronizationProtocol.SourceKindHeader, source.SourceKind.StorageValue);
+                request.Headers.TryAddWithoutValidation(SynchronizationProtocol.SourceNameHeader, Uri.EscapeDataString(source.SourceName));
+                request.Headers.TryAddWithoutValidation(SynchronizationProtocol.SchemaVersionHeader, source.SchemaVersion.ToString(CultureInfo.InvariantCulture));
+                request.Headers.TryAddWithoutValidation(SynchronizationProtocol.SourceHashHeader, source.SourceHash);
+
+                return await client.SendAsync(request);
+            });
         response.EnsureSuccessStatusCode();
     }
 

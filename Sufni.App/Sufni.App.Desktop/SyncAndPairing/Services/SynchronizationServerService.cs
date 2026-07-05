@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.IO;
 using System.Linq;
@@ -47,6 +48,7 @@ public class SynchronizationServerService : ISynchronizationServerService
     private const int Port = 5575;
     private const string DefaultServiceInstanceName = "s1";
     private const int MaxServiceProbeAttempts = 5;
+    private const long MaxSyncRequestBodyBytes = 256L * 1024 * 1024;
 
     private readonly ISyncDataStore syncDataStore;
     private readonly IPairedDeviceRepository pairedDeviceRepository;
@@ -64,6 +66,144 @@ public class SynchronizationServerService : ISynchronizationServerService
     private readonly ConcurrentDictionary<string, (string deviceId, string? displayName, DateTime expiresAt)> pendingPairings = new();
 
     private static string GeneratePin() => RandomNumberGenerator.GetInt32(100000, 999999).ToString();
+
+    private static async ValueTask<object?> RequireSyncProtocolVersionAsync(
+        EndpointFilterInvocationContext context,
+        EndpointFilterDelegate next)
+    {
+        var expected = SynchronizationProtocol.SyncProtocolVersion.ToString(CultureInfo.InvariantCulture);
+        var actual = context.HttpContext.Request.Headers[SynchronizationProtocol.SyncProtocolHeader].ToString();
+        if (!string.Equals(actual, expected, StringComparison.Ordinal))
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status426UpgradeRequired,
+                title: "Sync protocol version mismatch");
+        }
+
+        return await next(context);
+    }
+
+    private sealed record RecordedSourceRequestMetadata(
+        RecordedSessionSourceKind SourceKind,
+        string SourceName,
+        int SchemaVersion,
+        string SourceHash);
+
+    private static bool IsOctetStreamRequest(HttpRequest request)
+    {
+        var contentType = request.ContentType;
+        if (string.IsNullOrWhiteSpace(contentType))
+        {
+            return false;
+        }
+
+        var separatorIndex = contentType.IndexOf(';');
+        var mediaType = separatorIndex >= 0 ? contentType[..separatorIndex] : contentType;
+        return string.Equals(
+            mediaType.Trim(),
+            SynchronizationProtocol.OctetStreamContentType,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IResult CreateInvalidContentTypeResult() =>
+        Results.Problem(
+            statusCode: StatusCodes.Status400BadRequest,
+            detail: $"Content-Type must be {SynchronizationProtocol.OctetStreamContentType}.");
+
+    private static string? GetOptionalHeader(HttpRequest request, string headerName)
+    {
+        var value = request.Headers[headerName].ToString();
+        return string.IsNullOrEmpty(value) ? null : value;
+    }
+
+    private static bool TryGetRequiredHeader(
+        HttpRequest request,
+        string headerName,
+        [NotNullWhen(true)] out string? value,
+        [NotNullWhen(false)] out IResult? error)
+    {
+        value = request.Headers[headerName].ToString();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            error = Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                detail: $"Missing or empty {headerName} header.");
+            return false;
+        }
+
+        error = null;
+        return true;
+    }
+
+    private static bool TryReadRecordedSourceRequestMetadata(
+        HttpRequest request,
+        [NotNullWhen(true)] out RecordedSourceRequestMetadata? metadata,
+        [NotNullWhen(false)] out IResult? error)
+    {
+        metadata = null;
+        if (!TryGetRequiredHeader(request, SynchronizationProtocol.SourceKindHeader, out var sourceKindValue, out error))
+        {
+            return false;
+        }
+
+        RecordedSessionSourceKind sourceKind;
+        try
+        {
+            sourceKind = RecordedSessionSourceKindExtensions.FromStorageValue(sourceKindValue);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            error = Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                detail: $"Unknown {SynchronizationProtocol.SourceKindHeader} header value.");
+            return false;
+        }
+
+        if (!TryGetRequiredHeader(request, SynchronizationProtocol.SourceNameHeader, out var sourceNameValue, out error))
+        {
+            return false;
+        }
+
+        var sourceName = Uri.UnescapeDataString(sourceNameValue);
+        if (string.IsNullOrWhiteSpace(sourceName))
+        {
+            error = Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                detail: $"Missing or empty {SynchronizationProtocol.SourceNameHeader} header.");
+            return false;
+        }
+
+        if (!TryGetRequiredHeader(request, SynchronizationProtocol.SchemaVersionHeader, out var schemaVersionValue, out error))
+        {
+            return false;
+        }
+
+        if (!int.TryParse(schemaVersionValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var schemaVersion))
+        {
+            error = Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                detail: $"Invalid {SynchronizationProtocol.SchemaVersionHeader} header value.");
+            return false;
+        }
+
+        if (!TryGetRequiredHeader(request, SynchronizationProtocol.SourceHashHeader, out var sourceHash, out error))
+        {
+            return false;
+        }
+
+        metadata = new RecordedSourceRequestMetadata(sourceKind, sourceName, schemaVersion, sourceHash);
+        return true;
+    }
+
+    private static async Task<byte[]> ReadRequestBodyAsync(HttpRequest request)
+    {
+        var capacity = request.ContentLength is > 0 and <= int.MaxValue
+            ? (int)request.ContentLength.Value
+            : 0;
+        using var stream = capacity > 0 ? new MemoryStream(capacity) : new MemoryStream();
+        await request.Body.CopyToAsync(stream);
+        return stream.ToArray();
+    }
 
     private string? jwtSecret;
     private string? certPassword;
@@ -312,7 +452,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
         builder.WebHost.ConfigureKestrel(options =>
         {
-            options.Limits.MaxRequestBodySize = null;
+            options.Limits.MaxRequestBodySize = MaxSyncRequestBodyBytes;
             options.ConfigureHttpsDefaults(httpsOptions =>
             {
                 httpsOptions.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
@@ -410,7 +550,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     internal static async Task<IResult> ApplySessionDataPatchAsync(
         Guid id,
-        SessionDataTransfer transfer,
+        SessionBlobPayload payload,
         ISessionTelemetryWriter sessionTelemetryWriter,
         ISessionBlobSwapRequestStore swapRequestStore,
         Action<Guid> sessionDataArrived)
@@ -426,9 +566,9 @@ public class SynchronizationServerService : ISynchronizationServerService
                 // Any other upload is just a client that does not have those
                 // bytes yet, so it is ignored and the row stays pending — no
                 // 400, so that client's sync run does not fail.
-                if (StringComparer.Ordinal.Equals(transfer.Fingerprint, swapTarget))
+                if (StringComparer.Ordinal.Equals(payload.Fingerprint, swapTarget))
                 {
-                    await sessionTelemetryWriter.SwapSessionPsstAsync(id, transfer.Data, transfer.Fingerprint);
+                    await sessionTelemetryWriter.SwapSessionPsstAsync(id, payload.Data, payload.Fingerprint);
                     await swapRequestStore.ClearAsync(id);
                 }
             }
@@ -437,7 +577,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                 // Fill: rejects invalid bytes AND a fingerprint that does not
                 // match this row's stored fingerprint; both throw
                 // InvalidDataException, mapped to 400 so the row stays pending.
-                await sessionTelemetryWriter.PatchSessionPsstAsync(id, transfer.Data, transfer.Fingerprint);
+                await sessionTelemetryWriter.PatchSessionPsstAsync(id, payload.Data, payload.Fingerprint);
             }
         }
         catch (InvalidDataException ex)
@@ -451,7 +591,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             return Results.NotFound();
         }
 
-        logger.Verbose("Patched session data for {SessionId} with {ByteCount} bytes", id, transfer.Data.Length);
+        logger.Verbose("Patched session data for {SessionId} with {ByteCount} bytes", id, payload.Data.Length);
         sessionDataArrived(id);
         return Results.NoContent();
     }
@@ -539,6 +679,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
             // Anonymous, rate-limited pairing surface.
             var pairing = app.MapGroup("").RequireRateLimiting("pairing");
+            pairing.AddEndpointFilter(RequireSyncProtocolVersionAsync);
 
             pairing.MapPost(SynchronizationProtocol.EndpointPairRequest, ([FromBody] PairingRequest req) =>
             {
@@ -618,6 +759,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
             // Authenticated sync surface — one RequireAuthorization for the whole group.
             var authorized = app.MapGroup("").RequireAuthorization();
+            authorized.AddEndpointFilter(RequireSyncProtocolVersionAsync);
 
             authorized.MapGet(SynchronizationProtocol.EndpointSyncPull, ([FromQuery] long since, ClaimsPrincipal user) =>
             {
@@ -700,7 +842,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                     });
             });
 
-            authorized.MapGet($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", ([FromRoute] Guid id, ClaimsPrincipal user) =>
+            authorized.MapGet($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", ([FromRoute] Guid id, HttpResponse response, ClaimsPrincipal user) =>
             {
                 return RunSyncActivity(
                     SyncActivity(SynchronizationPhase.ServingSessionData, "Serving session data"),
@@ -715,10 +857,12 @@ public class SynchronizationServerService : ISynchronizationServerService
 
                         logger.Verbose("Serving session data for {SessionId} with {ByteCount} bytes", id, blob.Value.Data.Length);
 
-                        // The response carries the fingerprint of the bytes so the
-                        // client can verify the download against its swap/fill
-                        // target before committing (download-then-swap).
-                        return Results.Ok(new SessionDataTransfer(blob.Value.Fingerprint, blob.Value.Data));
+                        if (!string.IsNullOrEmpty(blob.Value.Fingerprint))
+                        {
+                            response.Headers[SynchronizationProtocol.FingerprintHeader] = blob.Value.Fingerprint;
+                        }
+
+                        return Results.Bytes(blob.Value.Data, SynchronizationProtocol.OctetStreamContentType);
                     });
             });
 
@@ -728,26 +872,19 @@ public class SynchronizationServerService : ISynchronizationServerService
                     SyncActivity(SynchronizationPhase.ReceivingSessionData, "Receiving session data"),
                     async () =>
                     {
-                        SessionDataTransfer? transfer;
-                        try
+                        if (!IsOctetStreamRequest(request))
                         {
-                            transfer = await request.ReadFromJsonAsync(AppJson.InboundContext.SessionDataTransfer);
-                        }
-                        catch (JsonException ex)
-                        {
-                            logger.Warning(ex, "Session data patch rejected because request JSON was malformed for {SessionId}", id);
-                            return Results.BadRequest();
+                            logger.Warning("Session data patch rejected because request content type was invalid for {SessionId}", id);
+                            return CreateInvalidContentTypeResult();
                         }
 
-                        if (transfer is null)
-                        {
-                            logger.Warning("Session data patch failed because request JSON was empty for {SessionId}", id);
-                            return Results.BadRequest();
-                        }
+                        var payload = new SessionBlobPayload(
+                            GetOptionalHeader(request, SynchronizationProtocol.FingerprintHeader),
+                            await ReadRequestBodyAsync(request));
 
                         return await ApplySessionDataPatchAsync(
                             id,
-                            transfer,
+                            payload,
                             sessionTelemetryWriter,
                             swapRequestStore,
                             sessionId => SessionDataArrived?.Invoke(this, new SessionDataArrivedEventArgs(sessionId)));
@@ -766,7 +903,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                     });
             });
 
-            authorized.MapGet($"{SynchronizationProtocol.EndpointSessionSourceData}{{id:guid}}", ([FromRoute] Guid id, ClaimsPrincipal user) =>
+            authorized.MapGet($"{SynchronizationProtocol.EndpointSessionSourceData}{{id:guid}}", ([FromRoute] Guid id, HttpResponse response, ClaimsPrincipal user) =>
             {
                 return RunSyncActivity(
                     SyncActivity(SynchronizationPhase.ServingSessionSourceData, "Serving recorded source data"),
@@ -780,13 +917,11 @@ public class SynchronizationServerService : ISynchronizationServerService
                         }
 
                         logger.Verbose("Serving recorded source for {SessionId} with {ByteCount} bytes", id, source.Payload.Length);
-                        return Results.Ok(new RecordedSessionSourceTransfer(
-                            source.SessionId,
-                            source.SourceKind,
-                            source.SourceName,
-                            source.SchemaVersion,
-                            source.SourceHash,
-                            source.Payload));
+                        response.Headers[SynchronizationProtocol.SourceKindHeader] = source.SourceKind.StorageValue;
+                        response.Headers[SynchronizationProtocol.SourceNameHeader] = Uri.EscapeDataString(source.SourceName);
+                        response.Headers[SynchronizationProtocol.SchemaVersionHeader] = source.SchemaVersion.ToString(CultureInfo.InvariantCulture);
+                        response.Headers[SynchronizationProtocol.SourceHashHeader] = source.SourceHash;
+                        return Results.Bytes(source.Payload, SynchronizationProtocol.OctetStreamContentType);
                     });
             });
 
@@ -796,28 +931,25 @@ public class SynchronizationServerService : ISynchronizationServerService
                     SyncActivity(SynchronizationPhase.ReceivingSessionSourceData, "Receiving recorded source data"),
                     async () =>
                     {
-                        RecordedSessionSourceTransfer? transfer;
-                        try
+                        if (!IsOctetStreamRequest(request))
                         {
-                            transfer = await request.ReadFromJsonAsync(AppJson.InboundContext.RecordedSessionSourceTransfer);
-                        }
-                        catch (JsonException ex)
-                        {
-                            logger.Warning(ex, "Recorded source patch rejected because request JSON was malformed for {SessionId}", id);
-                            return Results.BadRequest();
+                            logger.Warning("Recorded source patch rejected because request content type was invalid for {SessionId}", id);
+                            return CreateInvalidContentTypeResult();
                         }
 
-                        if (transfer is null)
+                        if (!TryReadRecordedSourceRequestMetadata(request, out var metadata, out var metadataError))
                         {
-                            logger.Warning("Recorded source patch failed because request JSON was empty for {SessionId}", id);
-                            return Results.BadRequest();
+                            logger.Warning("Recorded source patch rejected because metadata headers were invalid for {SessionId}", id);
+                            return metadataError;
                         }
 
-                        if (transfer.SessionId != id)
-                        {
-                            logger.Warning("Recorded source patch rejected because route id {RouteSessionId} did not match payload id {PayloadSessionId}", id, transfer.SessionId);
-                            return Results.BadRequest();
-                        }
+                        var transfer = new RecordedSessionSourcePayload(
+                            id,
+                            metadata.SourceKind,
+                            metadata.SourceName,
+                            metadata.SchemaVersion,
+                            metadata.SourceHash,
+                            await ReadRequestBodyAsync(request));
 
                         if (!RecordedSessionSourceHash.Matches(transfer))
                         {

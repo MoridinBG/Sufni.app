@@ -86,11 +86,11 @@ public class SessionCoordinatorTests
             .Returns(Task.CompletedTask);
     }
 
-    private SessionLoader CreateLoader() =>
+    private SessionLoader CreateLoader(IBackgroundTaskRunner? runner = null) =>
         new(
             sessionStore,
             processedTelemetryReader,
-            backgroundTaskRunner,
+            runner ?? backgroundTaskRunner,
             trackCoordinator,
             sessionPresentationService,
             domainQuery);
@@ -144,10 +144,12 @@ public class SessionCoordinatorTests
             derivationWindowProvider,
             transactionRunner);
 
-    private SessionCoordinator CreateCoordinator(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
+    private SessionCoordinator CreateCoordinator(
+        UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace,
+        IBackgroundTaskRunner? backgroundTaskRunner = null) =>
         new(
             sessionStore,
-            CreateLoader(),
+            CreateLoader(backgroundTaskRunner),
             CreateCommandService(layoutProfile),
             () => editorFactory);
 
@@ -809,6 +811,51 @@ public class SessionCoordinatorTests
         Assert.Equal(percentages, loaded.Data.TelemetryPresentation.DampingPercentages);
         Assert.Equal(new DampingSpeedCutoffOwner(bike.Id, bike.Updated), loaded.Data.TelemetryPresentation.DampingSpeedCutoffOwner);
         Assert.Equal(new DampingSpeedCutoffOwner(bike.Id, bike.Updated), loaded.Data.CachePresentation.DampingSpeedCutoffOwner);
+    }
+
+    [Fact]
+    public async Task LoadDetailAsync_BuildsPresentationWhileTrackLoadIsPending()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var dimensions = new SessionPresentationDimensions(320, 180);
+        var trackStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var trackCompletion = new TaskCompletionSource<SessionTrackPresentationData>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var presentationStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var presentationSawTrackPending = false;
+
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        SetLocalTelemetry(snapshot.Id, telemetry);
+        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                trackStarted.TrySetResult(true);
+                return trackCompletion.Task;
+            });
+        sessionPresentationService.BuildCachePresentation(
+                telemetry,
+                dimensions,
+                Arg.Any<CancellationToken>(),
+                Arg.Any<DampingSpeedCutoffs?>())
+            .Returns(_ =>
+            {
+                presentationSawTrackPending = !trackCompletion.Task.IsCompleted;
+                presentationStarted.TrySetResult(true);
+                return CachePresentation();
+            });
+
+        var loadTask = CreateCoordinator(backgroundTaskRunner: new BackgroundTaskRunner())
+            .LoadDetailAsync(snapshot.Id, dimensions);
+
+        await presentationStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.True(await trackStarted.Task.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.False(loadTask.IsCompleted);
+        Assert.True(presentationSawTrackPending);
+
+        trackCompletion.SetResult(new SessionTrackPresentationData(null, null, null, null));
+        Assert.IsType<SessionDetailLoadResult.Loaded>(
+            await loadTask.WaitAsync(TimeSpan.FromSeconds(2)));
     }
 
     [Fact]

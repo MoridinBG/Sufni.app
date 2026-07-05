@@ -25,6 +25,59 @@ internal static class TelemetryDisplayDownsampling
         return (downsampled, step * stride);
     }
 
+    public static (double[] XValues, double[] YValues) PrepareIrregular(
+        double[] xValues,
+        double[] yValues,
+        int? maximumDisplayHz)
+    {
+        if (maximumDisplayHz is not > 0 ||
+            xValues.Length != yValues.Length ||
+            xValues.Length < 3)
+        {
+            return (xValues, yValues);
+        }
+
+        var xSpan = xValues[^1] - xValues[0];
+        if (!double.IsFinite(xSpan) || xSpan <= 0)
+        {
+            return (xValues, yValues);
+        }
+
+        var strideValue = Math.Ceiling(xValues.Length / (xSpan * maximumDisplayHz.Value));
+        if (!double.IsFinite(strideValue) || strideValue <= 1)
+        {
+            return (xValues, yValues);
+        }
+
+        var stride = (int)strideValue;
+        var displayCount = (xValues.Length + stride - 1) / stride;
+        if ((xValues.Length - 1) % stride != 0)
+        {
+            displayCount++;
+        }
+
+        var displayXValues = new double[displayCount];
+        var displayYValues = new double[displayCount];
+        var writeIndex = 0;
+        var lastReadIndex = 0;
+
+        for (var readIndex = 0; readIndex < xValues.Length; readIndex += stride)
+        {
+            displayXValues[writeIndex] = xValues[readIndex];
+            displayYValues[writeIndex] = yValues[readIndex];
+            writeIndex++;
+            lastReadIndex = readIndex;
+        }
+
+        if (lastReadIndex != xValues.Length - 1)
+        {
+            displayXValues[writeIndex] = xValues[^1];
+            displayYValues[writeIndex] = yValues[^1];
+        }
+
+        return (displayXValues, displayYValues);
+    }
+
     public static int GetStride(int sampleRate, int maximumDisplayHz)
     {
         if (sampleRate <= 0 || maximumDisplayHz <= 0)

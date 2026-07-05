@@ -58,8 +58,9 @@ public class SpikeEliminationTests
     public void EliminateSpikesAsInt_WithContinuingPositiveRamp_DoesNotFlattenRamp()
     {
         int[] signal = [12, 12, 12, 15, 46, 109, 181, 238, 275, 294, 299, 299, 302, 316, 336, 352];
+        var fixedSignal = signal.ToArray();
 
-        var (fixedSignal, anomalyCount) = SpikeElimination.EliminateSpikesAsInt(signal.ToArray(), sampleRate: 1000);
+        var anomalyCount = SpikeElimination.EliminateSpikesAsInt(fixedSignal, sampleRate: 1000);
 
         Assert.Equal(0, anomalyCount);
         Assert.Equal(signal, fixedSignal);
@@ -74,8 +75,9 @@ public class SpikeEliminationTests
         int step)
     {
         int[] signal = [0, step, step * 2, step * 3, step * 3, step * 3];
+        var fixedSignal = signal.ToArray();
 
-        var (fixedSignal, anomalyCount) = SpikeElimination.EliminateSpikesAsInt(signal.ToArray(), sampleRate);
+        var anomalyCount = SpikeElimination.EliminateSpikesAsInt(fixedSignal, sampleRate);
 
         Assert.Equal(0, anomalyCount);
         Assert.Equal(signal, fixedSignal);
@@ -92,8 +94,9 @@ public class SpikeEliminationTests
         {
             signal[index] = ramp[^1];
         }
+        var fixedSignal = signal.ToArray();
 
-        var (fixedSignal, anomalyCount) = SpikeElimination.EliminateSpikesAsInt(signal.ToArray(), sampleRate: 1000);
+        var anomalyCount = SpikeElimination.EliminateSpikesAsInt(fixedSignal, sampleRate: 1000);
 
         Assert.Equal(0, anomalyCount);
         Assert.Equal(signal, fixedSignal);
@@ -106,8 +109,9 @@ public class SpikeEliminationTests
         Array.Fill(signal, 10);
         int[] jump = [40, 80, 130, 170, 171, 168, 172, 171];
         jump.CopyTo(signal, 110);
+        var fixedSignal = signal.ToArray();
 
-        var (fixedSignal, anomalyCount) = SpikeElimination.EliminateSpikesAsInt(signal.ToArray(), sampleRate: 1000);
+        var anomalyCount = SpikeElimination.EliminateSpikesAsInt(fixedSignal, sampleRate: 1000);
 
         Assert.True(anomalyCount > 0);
         Assert.Equal(170, fixedSignal[110]);

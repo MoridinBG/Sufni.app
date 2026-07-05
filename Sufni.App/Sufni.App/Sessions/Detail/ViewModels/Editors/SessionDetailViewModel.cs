@@ -172,6 +172,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private List<TrackPoint>? fullTrackPoints;
     private List<TrackPoint>? trackPoints;
     private MapViewModel? mapViewModel;
+    private bool mapInitializeRequested;
 
     #endregion Private fields
 
@@ -1532,7 +1533,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         Pages.CollectionChanged += OnPagesChanged;
         PublishEditorInput(pageCountInput, Pages.Count);
         mapViewModel = mapViewModelFactory.Create();
-        _ = mapViewModel.InitializeAsync();
         if (snapshot.HasProcessedData)
         {
             presentationApplier.ApplyRecordedLoadingStates(snapshot.FullTrackId is not null);
@@ -1583,6 +1583,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         var previous = currentEditorState;
         currentEditorState = state;
+        if (state.Presentation.MapState.ReservesLayout && !mapInitializeRequested)
+        {
+            mapInitializeRequested = true;
+            _ = mapViewModel?.InitializeAsync();
+        }
 
         var isComplete = IsCompleteFromLoadPresentation(state.Load);
         if (IsComplete != isComplete)

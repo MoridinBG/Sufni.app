@@ -48,14 +48,7 @@ public abstract class SourceCacheStoreBase<TSnapshot, TKey>(
     protected Task ReplaceWithAsync(IEnumerable<TSnapshot> snapshots)
     {
         var snapshotList = snapshots.ToArray();
-        return MutateAsync(() =>
-        {
-            source.Edit(cache =>
-            {
-                cache.Clear();
-                cache.AddOrUpdate(snapshotList);
-            });
-        });
+        return MutateAsync(() => source.EditDiff(snapshotList, EqualityComparer<TSnapshot>.Default));
     }
 
     private Task MutateAsync(Action mutation)

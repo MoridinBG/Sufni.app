@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using Sufni.Kinematics;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
@@ -47,6 +48,50 @@ public sealed record BikeSnapshot(
     public ReadOnlySpan<byte> ImageBytesSpan => imageBytes;
 
     public byte[] CopyImageBytes() => [.. imageBytes];
+
+    public bool Equals(BikeSnapshot? other)
+    {
+        if (ReferenceEquals(this, other))
+        {
+            return true;
+        }
+
+        return other is not null &&
+            Id == other.Id &&
+            Name == other.Name &&
+            HeadAngle.Equals(other.HeadAngle) &&
+            Nullable.Equals(ForkStroke, other.ForkStroke) &&
+            Nullable.Equals(ShockStroke, other.ShockStroke) &&
+            EqualityComparer<RearSuspensionSpec>.Default.Equals(RearSuspension, other.RearSuspension) &&
+            EqualityComparer<DampingSpeedCutoffs>.Default.Equals(DampingSpeedCutoffs, other.DampingSpeedCutoffs) &&
+            Nullable.Equals(Chainstay, other.Chainstay) &&
+            PixelsToMillimeters.Equals(other.PixelsToMillimeters) &&
+            EqualityComparer<WheelSpec?>.Default.Equals(FrontWheel, other.FrontWheel) &&
+            EqualityComparer<WheelSpec?>.Default.Equals(RearWheel, other.RearWheel) &&
+            ImageRotationDegrees.Equals(other.ImageRotationDegrees) &&
+            imageBytes.AsSpan().SequenceEqual(other.imageBytes) &&
+            Updated == other.Updated;
+    }
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(Id);
+        hash.Add(Name);
+        hash.Add(HeadAngle);
+        hash.Add(ForkStroke);
+        hash.Add(ShockStroke);
+        hash.Add(RearSuspension);
+        hash.Add(DampingSpeedCutoffs);
+        hash.Add(Chainstay);
+        hash.Add(PixelsToMillimeters);
+        hash.Add(FrontWheel);
+        hash.Add(RearWheel);
+        hash.Add(ImageRotationDegrees);
+        hash.Add(imageBytes.Length);
+        hash.Add(Updated);
+        return hash.ToHashCode();
+    }
 
     public double FrontCompressionDampingCutoffMmPerSecond
     {

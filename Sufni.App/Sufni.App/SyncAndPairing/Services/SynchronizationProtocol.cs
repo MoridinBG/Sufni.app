@@ -5,6 +5,14 @@ public static class SynchronizationProtocol
     public const string ServiceType = "_sstsync._tcp";
     public const string CertificateSubjectName = "cn=com.sghctoma.sst-api";
     public const int PinTtlSeconds = 30;
+    public const int SyncProtocolVersion = 2;
+    public const string SyncProtocolHeader = "X-Sufni-Sync-Protocol";
+    public const string FingerprintHeader = "X-Sufni-Processing-Fingerprint";
+    public const string SourceKindHeader = "X-Sufni-Source-Kind";
+    public const string SourceNameHeader = "X-Sufni-Source-Name";
+    public const string SchemaVersionHeader = "X-Sufni-Schema-Version";
+    public const string SourceHashHeader = "X-Sufni-Source-Hash";
+    public const string OctetStreamContentType = "application/octet-stream";
     public const string EndpointPairRequest = "/pair/request";
     public const string EndpointPairConfirm = "/pair/confirm";
     public const string EndpointPairRefresh = "/pair/refresh";

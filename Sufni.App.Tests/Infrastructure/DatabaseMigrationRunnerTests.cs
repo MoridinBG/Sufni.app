@@ -427,6 +427,51 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
+    public async Task Initialization_CreatesSyncDeltaIndexes()
+    {
+        using var tempDatabase = new TempDatabase("sync-indexes.db");
+        var databasePath = tempDatabase.DatabasePath;
+
+        var database = new TestPersistenceHarness(databasePath);
+        _ = await database.GetAllAsync<Board>();
+
+        using var connection = new SQLiteConnection(databasePath);
+        var indexNames = connection.Query<SqliteMasterRow>(
+            """
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'index'
+              AND name IN (
+                'ix_board_updated', 'ix_board_deleted',
+                'ix_bike_updated', 'ix_bike_deleted',
+                'ix_setup_updated', 'ix_setup_deleted',
+                'ix_session_updated', 'ix_session_deleted',
+                'ix_track_updated', 'ix_track_deleted'
+              )
+            """)
+            .Select(row => row.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        string[] expected =
+        [
+            "ix_board_updated",
+            "ix_board_deleted",
+            "ix_bike_updated",
+            "ix_bike_deleted",
+            "ix_setup_updated",
+            "ix_setup_deleted",
+            "ix_session_updated",
+            "ix_session_deleted",
+            "ix_track_updated",
+            "ix_track_deleted",
+        ];
+
+        Assert.Equal(
+            expected.OrderBy(name => name, StringComparer.Ordinal),
+            indexNames.OrderBy(name => name, StringComparer.Ordinal));
+    }
+
+    [Fact]
     public async Task Initialization_CreatesExtensionMigratorTables()
     {
         using var tempDatabase = new TempDatabase("extension-table.db");

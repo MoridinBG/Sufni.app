@@ -11,7 +11,7 @@ public class TelemetryDspBenchmarks
     private SavitzkyGolay filter = null!;
     private double[] travel = null!;
     private double[] velocity = null!;
-    private double[] h = null!;
+    private double dt;
 
     [GlobalSetup]
     public void Setup()
@@ -38,12 +38,11 @@ public class TelemetryDspBenchmarks
         filter = SavitzkyGolay.Create(51, 1, 3);
         travel = new double[samples];
         velocity = new double[samples];
-        h = new double[samples];
+        dt = 1.0 / sampleRate;
         for (var i = 0; i < samples; i++)
         {
             travel[i] = front[i] / 10.0;
             velocity[i] = i > 0 ? (travel[i] - travel[i - 1]) * sampleRate : 0.0;
-            h[i] = 1.0 / sampleRate;
         }
     }
 
@@ -54,7 +53,7 @@ public class TelemetryDspBenchmarks
 
     // Dominant SIMD win: Savitzky-Golay convolution -> TensorPrimitives.Dot.
     [Benchmark]
-    public double[] SavitzkyGolay_Process() => filter.Process(travel, h);
+    public double[] SavitzkyGolay_Process() => filter.Process(travel, dt);
 
     // Isolated allocation win: per-stroke Sum/Max/Min reductions (4 double[] -> 0 per stroke).
     [Benchmark]

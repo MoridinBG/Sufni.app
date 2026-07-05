@@ -8,7 +8,6 @@ public class SuspensionTraceProcessorTests
     public void Process_ConvertsMeasurementsToClampedTravel()
     {
         ushort[] measurements = [0, 1, 10, 20, 30];
-        double[] time = [0, 0.001, 0.002, 0.003, 0.004];
         var filter = SavitzkyGolay.Create(5, 1, 3);
 
         var result = SuspensionTraceProcessor.Process(
@@ -16,7 +15,6 @@ public class SuspensionTraceProcessorTests
             maxTravel: 2,
             measurementToTravel: measurement => measurement,
             sampleRate: 1000,
-            time,
             filter);
 
         Assert.Equal([0, 1, 2, 2, 2], result.Travel);
@@ -36,9 +34,6 @@ public class SuspensionTraceProcessorTests
             measurements[index] = (ushort)(200 - (index - 100) * 2);
         }
 
-        var time = Enumerable.Range(0, measurements.Length)
-            .Select(index => index / 1000.0)
-            .ToArray();
         var filter = SavitzkyGolay.Create(51, 1, 3);
 
         var result = SuspensionTraceProcessor.Process(
@@ -46,7 +41,6 @@ public class SuspensionTraceProcessorTests
             maxTravel: 20,
             measurementToTravel: measurement => measurement / 10.0,
             sampleRate: 1000,
-            time,
             filter);
 
         Assert.True(result.Present);
@@ -63,14 +57,12 @@ public class SuspensionTraceProcessorTests
     public void Process_WithNullVelocityFilter_UsesUnfilteredVelocity()
     {
         ushort[] measurements = [0, 10, 30, 60, 100];
-        double[] time = [0, 0.001, 0.002, 0.003, 0.004];
 
         var result = SuspensionTraceProcessor.Process(
             measurements,
             maxTravel: 200,
             measurementToTravel: measurement => measurement,
             sampleRate: 1000,
-            time,
             velocityFilter: null);
 
         Assert.Equal([10000, 15000, 25000, 35000, 40000], result.Velocity);

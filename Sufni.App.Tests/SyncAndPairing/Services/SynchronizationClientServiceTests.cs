@@ -268,7 +268,7 @@ public class SynchronizationClientServiceTests
         syncDataStore.ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>())
             .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(sessionId, """{"target":true}""")]);
         // The peer does not yet hold the target BLOB, so the swap cannot commit.
-        httpApiService.GetSessionPsstAsync(sessionId).Returns((SessionDataTransfer?)null);
+        httpApiService.GetSessionPsstAsync(sessionId).Returns((SessionBlobPayload?)null);
 
         var result = await CreateService().SyncAll();
 
@@ -293,7 +293,7 @@ public class SynchronizationClientServiceTests
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
         syncDataStore.ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>())
             .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(sessionId, target)]);
-        httpApiService.GetSessionPsstAsync(sessionId).Returns(new SessionDataTransfer(target, [1, 2, 3]));
+        httpApiService.GetSessionPsstAsync(sessionId).Returns(new SessionBlobPayload(target, [1, 2, 3]));
         sessionStore
             .CommitPsstSwapAsync(sessionId, Arg.Any<byte[]>(), target, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<StoreMutationResult<SessionSnapshot>>(
@@ -435,7 +435,7 @@ public class SynchronizationClientServiceTests
 
         await CreateService().SyncAll();
 
-        await httpApiService.Received(1).PatchRecordedSessionSourceAsync(Arg.Is<RecordedSessionSourceTransfer>(transfer =>
+        await httpApiService.Received(1).PatchRecordedSessionSourceAsync(Arg.Is<RecordedSessionSourcePayload>(transfer =>
             transfer.SessionId == source.SessionId &&
             transfer.SourceKind == source.SourceKind &&
             transfer.SourceName == source.SourceName &&
@@ -445,7 +445,7 @@ public class SynchronizationClientServiceTests
     }
 
     [Fact]
-    public async Task SyncAll_DoesNotPushRecordedSource_WhenHashDoesNotMatchPayload()
+    public async Task SyncAll_PushesRecordedSourceWithoutRehashingPayload()
     {
         var source = CreateRecordedSource();
         source.SourceHash = "invalid";
@@ -458,14 +458,17 @@ public class SynchronizationClientServiceTests
 
         await CreateService().SyncAll();
 
-        await httpApiService.DidNotReceive().PatchRecordedSessionSourceAsync(Arg.Any<RecordedSessionSourceTransfer>());
+        await httpApiService.Received(1).PatchRecordedSessionSourceAsync(Arg.Is<RecordedSessionSourcePayload>(transfer =>
+            transfer.SessionId == source.SessionId &&
+            transfer.SourceHash == "invalid" &&
+            transfer.Payload.SequenceEqual(source.Payload)));
     }
 
     [Fact]
     public async Task SyncAll_PullsMissingRecordedSourcesFromServer()
     {
         var source = CreateRecordedSource();
-        var transfer = new RecordedSessionSourceTransfer(
+        var transfer = new RecordedSessionSourcePayload(
             source.SessionId,
             source.SourceKind,
             source.SourceName,
@@ -494,10 +497,41 @@ public class SynchronizationClientServiceTests
     }
 
     [Fact]
+    public async Task SyncAll_PublishesPulledRecordedSourcesInOneBatch()
+    {
+        var first = CreateRecordedSource();
+        var second = CreateRecordedSource();
+        var firstTransfer = ToPayload(first);
+        var secondTransfer = ToPayload(second);
+
+        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([first.SessionId, second.SessionId]);
+        httpApiService.GetRecordedSessionSourceAsync(first.SessionId).Returns(firstTransfer);
+        httpApiService.GetRecordedSessionSourceAsync(second.SessionId).Returns(secondTransfer);
+
+        await CreateService().SyncAll();
+
+        await recordedSessionSourceRepository.Received(1).PutRecordedSessionSourceAsync(Arg.Is<RecordedSessionSource>(saved =>
+            saved.SessionId == first.SessionId &&
+            saved.Payload.SequenceEqual(first.Payload)));
+        await recordedSessionSourceRepository.Received(1).PutRecordedSessionSourceAsync(Arg.Is<RecordedSessionSource>(saved =>
+            saved.SessionId == second.SessionId &&
+            saved.Payload.SequenceEqual(second.Payload)));
+        await sourceStore.Received(1).PublishSourcesChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids =>
+                ids.Count == 2 &&
+                ids.Contains(first.SessionId) &&
+                ids.Contains(second.SessionId)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task SyncAll_DoesNotPersistPulledRecordedSource_WhenHashDoesNotMatchPayload()
     {
         var source = CreateRecordedSource();
-        var transfer = new RecordedSessionSourceTransfer(
+        var transfer = new RecordedSessionSourcePayload(
             source.SessionId,
             source.SourceKind,
             source.SourceName,
@@ -510,10 +544,15 @@ public class SynchronizationClientServiceTests
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
         recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([source.SessionId]);
         httpApiService.GetRecordedSessionSourceAsync(source.SessionId).Returns(transfer);
+        recordedSessionSourceRepository.PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>())
+            .Returns(Task.FromException(new InvalidOperationException("Recorded session source hash does not match its payload.")));
 
         await CreateService().SyncAll();
 
-        await recordedSessionSourceRepository.DidNotReceive().PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>());
+        await recordedSessionSourceRepository.Received(1).PutRecordedSessionSourceAsync(Arg.Is<RecordedSessionSource>(saved =>
+            saved.SessionId == source.SessionId &&
+            saved.SourceHash == "invalid" &&
+            saved.Payload.SequenceEqual(source.Payload)));
         await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
             Arg.Any<IReadOnlyCollection<Guid>>(),
             Arg.Any<CancellationToken>());
@@ -536,6 +575,14 @@ public class SynchronizationClientServiceTests
             Payload = payload
         };
     }
+
+    private static RecordedSessionSourcePayload ToPayload(RecordedSessionSource source) => new(
+        source.SessionId,
+        source.SourceKind,
+        source.SourceName,
+        source.SchemaVersion,
+        source.SourceHash,
+        source.Payload);
 
     private static ExtensionSyncEnvelope CreateExtensionEnvelope(string extensionId) => new(
         extensionId,

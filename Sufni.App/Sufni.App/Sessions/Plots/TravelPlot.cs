@@ -29,7 +29,7 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
                 CreateSegmentAwareValues(
                     telemetryData.Front,
                     telemetryData.Metadata.SampleRate,
-                    segment => segment.Travel),
+                    (suspension, segment) => GetSegmentValues(suspension.Travel, segment)),
                 "0.#",
                 SourceKey: TelemetrySourceKeys.Front)
             {
@@ -47,7 +47,7 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
                 CreateSegmentAwareValues(
                     telemetryData.Rear,
                     telemetryData.Metadata.SampleRate,
-                    segment => segment.Travel),
+                    (suspension, segment) => GetSegmentValues(suspension.Travel, segment)),
                 "0.#",
                 SourceKey: TelemetrySourceKeys.Rear)
             {
@@ -85,7 +85,7 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
     private static RecordedTimeSeriesValues CreateSegmentAwareValues(
         Suspension suspension,
         int sampleRate,
-        Func<ProcessedSuspensionSegment, double[]> getValues)
+        Func<Suspension, ProcessedSuspensionSegment, double[]> getValues)
     {
         if (!suspension.HasGaps)
         {
@@ -94,9 +94,22 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
 
         return new SegmentedValues(
             suspension.Segments
-                .Select(segment => CreateExplicitSegment(segment, sampleRate, getValues(segment)))
+                .Select(segment => CreateExplicitSegment(segment, sampleRate, getValues(suspension, segment)))
                 .Where(segment => segment.YValues.Length > 0)
                 .ToArray());
+    }
+
+    private static double[] GetSegmentValues(double[] values, ProcessedSuspensionSegment segment)
+    {
+        if (segment.SampleCount <= 0 ||
+            segment.FirstDenseIndex < 0 ||
+            segment.FirstDenseIndex >= values.Length)
+        {
+            return [];
+        }
+
+        var endIndex = Math.Min(segment.FirstDenseIndex + segment.SampleCount, values.Length);
+        return values[segment.FirstDenseIndex..endIndex];
     }
 
     private static ExplicitValues CreateExplicitSegment(

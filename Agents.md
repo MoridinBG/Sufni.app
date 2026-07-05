@@ -202,17 +202,22 @@ Binary, little-endian. Parsing lives in
 `Sufni.Telemetry/RawTelemetryData.cs`, which is the authoritative reference.
 High level:
 
-- 14-byte header: `"SST"` magic, version byte, `uint16` sample rate (Hz),
-  `int64` Unix timestamp.
-- Records are interleaved `int16` pairs (front, rear) of raw encoder counts.
-- Parsing applies spike elimination (sliding-window MAD-based detection with
-  interpolation) before returning samples.
+- SST v3 uses the legacy fixed-record header and interleaved front/rear raw
+  encoder counts.
+- SST v4 is TLV-based and may include telemetry, markers, IMU, GPS, and
+  temperature chunks.
+- SST v5 is descriptor/chunk based, preserves fixed-rate stream gaps, and can
+  expose segment-aware raw travel/IMU runs.
+- Parsing returns raw samples, segments, and metadata. Spike elimination runs
+  later inside `TelemetryData.FromRecording()` after setup/bike calibration is
+  known.
 
 Full details: [docs/architecture/acquisition.md § File Format & Parsing](docs/architecture/acquisition.md#file-format--parsing),
 including [SST V3 Format](docs/architecture/acquisition.md#sst-v3-format),
 [SST V4 TLV Format](docs/architecture/acquisition.md#sst-v4-tlv-format),
+[SST V5 Chunked Format](docs/architecture/acquisition.md#sst-v5-chunked-format),
 [Spike Elimination](docs/architecture/acquisition.md#spike-elimination), and
-[V4 Data Structures](docs/architecture/acquisition.md#v4-data-structures).
+[Parsed Telemetry Data Structures](docs/architecture/acquisition.md#parsed-telemetry-data-structures).
 
 # Processing Pipeline
 
@@ -222,18 +227,19 @@ orchestrates the pipeline. Roughly:
 1. Load and despike raw samples.
 2. Convert counts to millimetres of travel using the `Setup`'s
    `ISensorConfiguration` calibration function.
-3. Compute velocity via a Savitzky-Golay filter (see `Filters.cs`).
+3. Compute velocity via a fixed-dt Savitzky-Golay filter (see `Filters.cs`).
 4. Detect strokes — compression, rebound, idling (see `Strokes.cs`).
 5. Detect airtimes from stroke overlap heuristics.
-6. Build travel, velocity, fine-velocity and FFT-based frequency histograms
-   (MathNet.Numerics does the FFT).
-7. Compute statistics (max/avg travel and velocity, bottomouts,
-   velocity-band percentages, etc.).
+6. Persist travel/velocity arrays, stroke data, bin definitions, markers, gaps,
+   and other parsed side-channel data.
+7. Compute histogram tallies, FFT frequency histogram, balance, vibration, and
+   other statistics lazily on demand.
 
 Thresholds and tunables live in `Sufni.Telemetry/Parameters.cs`.
 
-The result is a `TelemetryData` object serialized with MessagePack and stored
-as a BLOB on the session row.
+Front/rear processing runs in parallel when both sides are present. The result
+is a `TelemetryData` object serialized with MessagePack and stored as a BLOB on
+the session row.
 
 Full details: [docs/architecture/processing.md § Signal Processing Pipeline](docs/architecture/processing.md#signal-processing-pipeline),
 including [Travel Calculation](docs/architecture/processing.md#travel-calculation),
@@ -274,8 +280,10 @@ A desktop instance can host an embedded ASP.NET Core HTTP server
 (`SyncAndPairing/Services/SynchronizationServerService.cs`) over TLS with JWT auth,
 advertised via mDNS. Mobile clients
 (`SyncAndPairing/Services/SynchronizationClientService.cs`, driving `HttpApiService`) pair
-with the server, then push and pull entity changes and session data blobs.
-These two services are the source of truth for the endpoints and payloads.
+with the server, then push and pull entity changes plus processed-session and
+recorded-source BLOBs through dedicated binary endpoints. Protocol version 2 is
+carried by an HTTP header on every sync request. These two services are the
+source of truth for the endpoints and payloads.
 
 Full details: [docs/architecture/sync.md](docs/architecture/sync.md),
 including [Pairing Flow](docs/architecture/sync.md#pairing-flow),

@@ -68,10 +68,17 @@ public class BikeDependencyQueryTests
     [Fact]
     public async Task Changes_EmitsInitiallyAndPerStoreChange()
     {
-        setupRepository.GetAllAsync().Returns(Task.FromResult(new List<Setup>
-        {
-            new(Guid.NewGuid(), "race") { BikeId = Guid.NewGuid() },
-        }));
+        var setupId = Guid.NewGuid();
+        var bikeId = Guid.NewGuid();
+        setupRepository.GetAllAsync().Returns(
+            Task.FromResult(new List<Setup>
+            {
+                new(setupId, "race") { BikeId = bikeId, Updated = 1 },
+            }),
+            Task.FromResult(new List<Setup>
+            {
+                new(setupId, "race updated") { BikeId = bikeId, Updated = 2 },
+            }));
         using var query = CreateQuery();
         await setupStore.RefreshAsync();
 
@@ -82,6 +89,6 @@ public class BikeDependencyQueryTests
         Assert.Equal(1, emits);
 
         await setupStore.RefreshAsync();
-        Assert.True(emits > 1);
+        Assert.Equal(2, emits);
     }
 }

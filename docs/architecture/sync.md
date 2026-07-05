@@ -36,6 +36,13 @@ sequenceDiagram
 - **Rate limiting**: the anonymous `/pair/*` surface is throttled per remote IP by a fixed-window limiter — 10 requests per PIN-TTL window (30 s) — bounding PIN guesses per source per PIN lifetime. Excess requests get `429` with a `Retry-After` header and are logged; the partition key fails closed to `"unknown"` when the peer IP is unavailable.
 - **Strict inbound JSON**: request bodies bind with a hardened profile (reject duplicate keys, reject unmapped members, case-sensitive names, required non-nullable members and constructor parameters). Well-formed first-party traffic is unaffected because the client emits every snake_case key explicitly; responses and other serialization stay on the lenient profile. See [Persistence § JSON Serialization](persistence.md#json-serialization).
 
+All sync HTTP requests, including pairing, carry `X-Sufni-Sync-Protocol: 2`.
+Both the anonymous pairing group and the JWT-protected sync group reject missing
+or mismatched protocol headers with `426 Upgrade Required`. The client installs
+the header on its shared `HttpClient`, so new endpoint groups must either stay
+behind that service or explicitly add the same version gate. Kestrel caps sync
+request bodies at 256 MiB.
+
 | Endpoint                       | Method | Auth | Purpose                                                     |
 | ------------------------------ | ------ | ---- | ----------------------------------------------------------- |
 | `/pair/request`                | POST   | No   | Start pairing, generates 6-digit PIN with 30s TTL           |
@@ -45,11 +52,11 @@ sequenceDiagram
 | `/sync/push`                   | PUT    | JWT  | Receive `SynchronizationData` from mobile                   |
 | `/sync/pull`                   | GET    | JWT  | Return changes since `?since=` timestamp                    |
 | `/session/incomplete`          | GET    | JWT  | List session IDs the hub needs a blob for: missing-blob **fills** and held-blob **push-swaps** |
-| `/session/data/{id}`           | GET    | JWT  | Download a processed telemetry blob **and the fingerprint of those bytes** (`SessionDataTransfer`) |
-| `/session/data/{id}`           | PATCH  | JWT  | Upload a processed telemetry blob with its fingerprint. Commits a **swap** when it matches a recorded push-swap target (a non-match on a push-swap row is ignored, not an error); a **fill** is **400** when it does not match the row's stored fingerprint |
+| `/session/data/{id}`           | GET    | JWT  | Download a processed telemetry blob as `application/octet-stream`; `X-Sufni-Processing-Fingerprint` carries the fingerprint of those bytes |
+| `/session/data/{id}`           | PATCH  | JWT  | Upload a processed telemetry blob as `application/octet-stream` with optional `X-Sufni-Processing-Fingerprint`. Commits a **swap** when it matches a recorded push-swap target (a non-match on a push-swap row is ignored, not an error); a **fill** is **400** when it does not match the row's stored fingerprint |
 | `/session/source/incomplete`   | GET    | JWT  | List recorded-source ids this peer should upload: ordinary missing source rows plus referenced derivation source ids absent locally |
-| `/session/source/data/{id}`    | GET    | JWT  | Download a `RecordedSessionSourceTransfer` JSON payload      |
-| `/session/source/data/{id}`    | PATCH  | JWT  | Upload a `RecordedSessionSourceTransfer` JSON payload        |
+| `/session/source/data/{id}`    | GET    | JWT  | Download a recorded-source payload as `application/octet-stream`; source kind/name/schema/hash travel in `X-Sufni-Source-*` headers |
+| `/session/source/data/{id}`    | PATCH  | JWT  | Upload a recorded-source payload as `application/octet-stream` with source kind/name/schema/hash in `X-Sufni-Source-*` headers |
 
 Authorization is enforced as a route group — `MapGroup("").RequireAuthorization()` wrapping the eight JWT endpoints — not a per-endpoint attribute. The four `/pair/*` endpoints form a separate anonymous, rate-limited group. `/pair/unpair` stays in that anonymous group and authenticates by matching `deviceId` + refresh token in its body, because a device revoking itself may no longer hold a valid access token.
 
@@ -61,10 +68,16 @@ Authorization is enforced as a route group — `MapGroup("").RequireAuthorizatio
 
 1. **Push local changes** — collect all entities changed since last sync, add app-preference changes from `IAppPreferences.GetSyncDataAsync`, append outgoing extension envelopes, and PUT to `/sync/push`
 2. **Pull remote changes** — GET `/sync/pull?since=`, merge deletes or upserts into SQLite locally, apply `AppPreferencesSyncData` through `IAppPreferences.ApplySyncDataAsync`, then route extension envelopes
-3. **Push incomplete sessions** — for each session id the server advertises (a missing-blob *fill* or a held-blob *push-swap*), upload the local blob **and its fingerprint**; the server commits a fill or a push-swap when the fingerprint matches its target, ignores a non-matching push-swap upload, and rejects (400) a non-matching fill
+3. **Push incomplete sessions** — for each session id the server advertises (a missing-blob *fill* or a held-blob *push-swap*), upload the local blob **and its stored fingerprint**; the server commits a fill or a push-swap when the fingerprint matches its target, ignores a non-matching push-swap upload, and rejects (400) a non-matching fill
 4. **Pull incomplete sessions** — download blobs for two kinds of target and commit each only when the downloaded fingerprint matches the target (otherwise keep what is local and retry later): **fills** (local rows with no blob, target = the row's own stored fingerprint) and **swaps** (rows whose held blob has a different current-schema fingerprint than the one just pulled, target = the accepted remote fingerprint — see *Processed-BLOB coherence* below)
-5. **Push incomplete recorded sources** — for each source id the server advertises, upload the local `RecordedSessionSourceTransfer`
-6. **Pull incomplete recorded sources** — for each local source id produced by `IRecordedSessionSourceSyncQuery`, download the server's `RecordedSessionSourceTransfer`
+5. **Push incomplete recorded sources** — for each source id the server advertises, upload the local `RecordedSessionSourcePayload`
+6. **Pull incomplete recorded sources** — for each local source id produced by `IRecordedSessionSourceSyncQuery`, download the server's `RecordedSessionSourcePayload`
+
+The four blob/source transfer phases run with bounded client concurrency
+(`SyncTransferDop = 3`). Session pulls preserve fill-before-swap phasing:
+all missing-blob fills are downloaded and committed before swap downloads
+start, and the last-sync watermark is still held back when any swap remains
+unresolved.
 
 Source sync runs after metadata and extension sync so both sides know which
 session ids and derivation windows exist before asking for missing source
@@ -73,7 +86,12 @@ when a side has no source row or when its local source hash no longer matches
 the `SourceHash` stored in the session's processing fingerprint. For derived
 sessions, the query does not ask for a source under the derived session id; it
 uses the fingerprint/window source id (`DerivationWindow.SourceSessionId`) and
-also asks for any referenced source ids that are absent locally.
+also asks for any referenced source ids that are absent locally. Push uses the
+stored source hash on the local row; it does not rehash the local payload before
+upload. Hash validation happens when source rows are created/persisted and on
+the receiver's patch path before repository acceptance. Pull treats a source
+validation failure as an item-level skip and leaves that source pending for a
+future run.
 
 Local write flows use semantic store commit methods when the app itself owns
 the write intent. Sync apply is different: `SynchronizationMergeEngine`, the
@@ -121,7 +139,7 @@ or contain a malformed union are rejected during deserialization on both the
 client pull path and the desktop inbound push path; legacy rear-suspension data
 is accepted only by the local SQLite startup migration.
 
-Processed telemetry blobs (`session.data`) and raw recorded sources (`session_recording_source.payload`) are transferred through the dedicated session-data and session-source endpoints, not through `SynchronizationData`.
+Processed telemetry blobs (`session.data`) and raw recorded sources (`session_recording_source.payload`) are transferred through the dedicated session-data and session-source endpoints, not through `SynchronizationData`. Their bodies are binary `application/octet-stream`; row metadata travels in HTTP headers so large BLOBs are not base64-encoded in JSON.
 
 Extension envelopes are handled by `ExtensionSyncService`. Outgoing
 participants create batches containing an extension id, payload

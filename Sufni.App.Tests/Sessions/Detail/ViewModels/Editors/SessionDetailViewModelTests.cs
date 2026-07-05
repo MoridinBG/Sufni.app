@@ -180,6 +180,63 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Construction_WithoutTrack_DoesNotInitializeMap()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+
+        var editor = CreateEditor(snapshot);
+
+        Assert.NotNull(editor.MapViewModel);
+        await tileLayerService.DidNotReceive().InitializeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task Construction_WithTrackLoadingState_InitializesMap()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true) with
+        {
+            FullTrackId = Guid.NewGuid(),
+        };
+
+        _ = CreateEditor(snapshot);
+
+        await tileLayerService.Received(1).InitializeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_WithTrackPoints_InitializesMapOnce_WhenStateReservesLayout()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var trackPoints = new List<TrackPoint> { new(1, 2, 3, 4) };
+        ConfigureLoadResult(snapshot, LoadedResult(
+            new SessionCachePresentationData(
+                FrontTravelDistribution: null,
+                RearTravelDistribution: null,
+                FrontVelocityDistribution: null,
+                RearVelocityDistribution: null,
+                CompressionBalance: null,
+                ReboundBalance: null,
+                DampingPercentages: SessionDampingPercentages.Empty,
+                BalanceAvailable: false),
+            telemetry,
+            new SessionTrackPresentationData(
+                FullTrackId: null,
+                FullTrackPoints: null,
+                TrackPoints: trackPoints,
+                MediaColumnWidth: null)));
+
+        var editor = CreateEditor(snapshot);
+        await tileLayerService.DidNotReceive().InitializeAsync();
+
+        await editor.LoadedCommand.ExecuteAsync(null);
+        await tileLayerService.Received(1).InitializeAsync();
+
+        await editor.LoadedCommand.ExecuteAsync(null);
+        await tileLayerService.Received(1).InitializeAsync();
+    }
+
+    [AvaloniaFact]
     public void Construction_ExposesProjectedMobileWorkspace()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);

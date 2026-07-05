@@ -106,6 +106,37 @@ public class BikeSnapshotTests
     }
 
     [Fact]
+    public void Equality_UsesImageByteContents()
+    {
+        var snapshot = TestSnapshots.Bike() with
+        {
+            ImageBytes = [1, 2, 3],
+        };
+        var equivalent = snapshot with
+        {
+            ImageBytes = [1, 2, 3],
+        };
+
+        Assert.Equal(snapshot, equivalent);
+        Assert.Equal(snapshot.GetHashCode(), equivalent.GetHashCode());
+    }
+
+    [Fact]
+    public void Equality_DetectsImageByteContentChanges()
+    {
+        var snapshot = TestSnapshots.Bike() with
+        {
+            ImageBytes = [1, 2, 3],
+        };
+        var changed = snapshot with
+        {
+            ImageBytes = [1, 9, 3],
+        };
+
+        Assert.NotEqual(snapshot, changed);
+    }
+
+    [Fact]
     public void WithExpression_ReplacesLinkageSpecWithoutMutatingOriginalSnapshot()
     {
         var linkage = TestSnapshots.FullSuspensionLinkageSpec();

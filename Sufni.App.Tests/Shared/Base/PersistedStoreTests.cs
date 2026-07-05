@@ -101,6 +101,41 @@ public class PersistedStoreTests
     }
 
     [Fact]
+    public async Task RefreshAsync_DoesNotPublishChanges_WhenSnapshotsAreUnchanged()
+    {
+        var bikeId = Guid.NewGuid();
+        var first = new Bike
+        {
+            Id = bikeId,
+            Name = "Trail bike",
+            HeadAngle = 64,
+            ImageBytes = [1, 2, 3],
+            Updated = 7
+        };
+        var second = new Bike
+        {
+            Id = bikeId,
+            Name = "Trail bike",
+            HeadAngle = 64,
+            ImageBytes = [1, 2, 3],
+            Updated = 7
+        };
+        var bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
+        bikeRepository.GetAllAsync().Returns([first], [second]);
+        var store = new BikeStore(bikeRepository, UiThreadDispatcher);
+        var changeSets = new List<IChangeSet<BikeSnapshot, Guid>>();
+        using var subscription = store.Connect().Subscribe(changeSets.Add);
+
+        await store.RefreshAsync();
+        await store.RefreshAsync();
+
+        var changeSet = Assert.Single(changeSets);
+        var change = Assert.Single(changeSet);
+        Assert.Equal(ChangeReason.Add, change.Reason);
+        Assert.Equal(bikeId, change.Key);
+    }
+
+    [Fact]
     public async Task SetupStore_RefreshLoadsBoardAssociations_AndFindsByBoardId()
     {
         var setupId = Guid.NewGuid();

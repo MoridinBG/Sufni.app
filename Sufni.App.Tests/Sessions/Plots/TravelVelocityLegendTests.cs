@@ -79,14 +79,14 @@ public class TravelVelocityLegendTests
         telemetry.Front.HasGaps = true;
         telemetry.Front.Segments =
         [
-            new ProcessedSuspensionSegment { StartSeconds = 0.0, Travel = [0, 25], Velocity = [0, 10] },
-            new ProcessedSuspensionSegment { StartSeconds = 1.0, Travel = [50, 75], Velocity = [20, 30] },
+            new ProcessedSuspensionSegment { FirstDenseIndex = 0, StartSeconds = 0.0, SampleCount = 2 },
+            new ProcessedSuspensionSegment { FirstDenseIndex = 2, StartSeconds = 1.0, SampleCount = 2 },
         ];
         telemetry.Rear.HasGaps = true;
         telemetry.Rear.Segments =
         [
-            new ProcessedSuspensionSegment { StartSeconds = 0.0, Travel = [0, 20], Velocity = [0, 8] },
-            new ProcessedSuspensionSegment { StartSeconds = 1.0, Travel = [40, 60], Velocity = [16, 24] },
+            new ProcessedSuspensionSegment { FirstDenseIndex = 0, StartSeconds = 0.0, SampleCount = 2 },
+            new ProcessedSuspensionSegment { FirstDenseIndex = 2, StartSeconds = 1.0, SampleCount = 2 },
         ];
         var visibility = new TelemetrySourceVisibilityStore();
         var plot = new Plot();
