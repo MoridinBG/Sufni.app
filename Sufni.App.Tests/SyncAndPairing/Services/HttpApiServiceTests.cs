@@ -1,4 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Globalization;
 using System.Net;
 using System.Net.Http;
 using System.Reactive.Linq;
@@ -55,6 +56,58 @@ public class HttpApiServiceTests
         Assert.Equal(2, dataRequestCount);
         Assert.All(seenAuthorizations, header => Assert.Equal(issuedAccessToken, header));
         await secureStorage.Received(1).SetStringAsync("RefreshToken", "refresh-2");
+    }
+
+    [Fact]
+    public async Task Requests_IncludeSyncProtocolHeader()
+    {
+        var secureStorage = CreateSecureStorage();
+        var issuedAccessToken = CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var seenProtocolHeaders = new List<string?>();
+
+        var service = CreateService(secureStorage, (request, _) =>
+        {
+            seenProtocolHeaders.Add(request.Headers.TryGetValues(
+                    SynchronizationProtocol.SyncProtocolHeader,
+                    out var values)
+                ? Assert.Single(values)
+                : null);
+
+            return Task.FromResult(request.RequestUri?.AbsolutePath switch
+            {
+                SynchronizationProtocol.EndpointPairRefresh => CreateJsonResponse(new TokenResponse(issuedAccessToken, "refresh-2")),
+                SynchronizationProtocol.EndpointSessionIncomplete => CreateJsonResponse(new List<Guid>()),
+                _ => throw new InvalidOperationException($"Unexpected request path {request.RequestUri?.AbsolutePath}")
+            });
+        });
+
+        await service.GetIncompleteSessionIdsAsync();
+
+        Assert.Equal(
+            [SynchronizationProtocol.SyncProtocolVersion.ToString(CultureInfo.InvariantCulture),
+                SynchronizationProtocol.SyncProtocolVersion.ToString(CultureInfo.InvariantCulture)],
+            seenProtocolHeaders);
+    }
+
+    [Fact]
+    public async Task UpgradeRequiredResponse_ThrowsSyncProtocolMismatchError()
+    {
+        var secureStorage = CreateSecureStorage();
+        var issuedAccessToken = CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var service = CreateService(secureStorage, (request, _) =>
+        {
+            return Task.FromResult(request.RequestUri?.AbsolutePath switch
+            {
+                SynchronizationProtocol.EndpointPairRefresh => CreateJsonResponse(new TokenResponse(issuedAccessToken, "refresh-2")),
+                SynchronizationProtocol.EndpointSessionIncomplete => new HttpResponseMessage(HttpStatusCode.UpgradeRequired),
+                _ => throw new InvalidOperationException($"Unexpected request path {request.RequestUri?.AbsolutePath}")
+            });
+        });
+
+        var exception = await Assert.ThrowsAsync<HttpRequestException>(() => service.GetIncompleteSessionIdsAsync());
+
+        Assert.Equal(HttpStatusCode.UpgradeRequired, exception.StatusCode);
+        Assert.Contains("same app version", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

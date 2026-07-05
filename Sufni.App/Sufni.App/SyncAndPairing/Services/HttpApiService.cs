@@ -2,6 +2,7 @@ using Sufni.App.ExtensionHost.Contracts.Services;
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http;
@@ -63,6 +64,7 @@ internal class HttpApiService : IHttpApiService
     {
         this.secureStorage = secureStorage;
         client = new HttpClient(CreateHandler());
+        ConfigureProtocolHeaders(client);
         Initialization = Init();
     }
 
@@ -70,6 +72,7 @@ internal class HttpApiService : IHttpApiService
     {
         this.secureStorage = secureStorage;
         this.client = client;
+        ConfigureProtocolHeaders(this.client);
         Initialization = Init();
     }
 
@@ -97,6 +100,14 @@ internal class HttpApiService : IHttpApiService
 
     private static HttpRequestException CreateMissingCredentialsException() =>
         new("Synchronization pairing credentials are missing.", null, HttpStatusCode.Unauthorized);
+
+    private static void ConfigureProtocolHeaders(HttpClient client)
+    {
+        client.DefaultRequestHeaders.Remove(SynchronizationProtocol.SyncProtocolHeader);
+        client.DefaultRequestHeaders.Add(
+            SynchronizationProtocol.SyncProtocolHeader,
+            SynchronizationProtocol.SyncProtocolVersion.ToString(CultureInfo.InvariantCulture));
+    }
 
     private HttpClientHandler CreateHandler()
     {
@@ -241,6 +252,15 @@ internal class HttpApiService : IHttpApiService
                 GetRoute(url),
                 (int)response.StatusCode,
                 stopwatch.Elapsed.TotalMilliseconds);
+
+            if (response.StatusCode == HttpStatusCode.UpgradeRequired)
+            {
+                response.Dispose();
+                throw new HttpRequestException(
+                    "Sync protocol version mismatch. Both devices must run the same app version.",
+                    null,
+                    HttpStatusCode.UpgradeRequired);
+            }
 
             return response;
         }

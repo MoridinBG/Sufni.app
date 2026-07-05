@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.IO;
 using System.Linq;
@@ -64,6 +65,22 @@ public class SynchronizationServerService : ISynchronizationServerService
     private readonly ConcurrentDictionary<string, (string deviceId, string? displayName, DateTime expiresAt)> pendingPairings = new();
 
     private static string GeneratePin() => RandomNumberGenerator.GetInt32(100000, 999999).ToString();
+
+    private static async ValueTask<object?> RequireSyncProtocolVersionAsync(
+        EndpointFilterInvocationContext context,
+        EndpointFilterDelegate next)
+    {
+        var expected = SynchronizationProtocol.SyncProtocolVersion.ToString(CultureInfo.InvariantCulture);
+        var actual = context.HttpContext.Request.Headers[SynchronizationProtocol.SyncProtocolHeader].ToString();
+        if (!string.Equals(actual, expected, StringComparison.Ordinal))
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status426UpgradeRequired,
+                title: "Sync protocol version mismatch");
+        }
+
+        return await next(context);
+    }
 
     private string? jwtSecret;
     private string? certPassword;
@@ -491,6 +508,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
             // Anonymous, rate-limited pairing surface.
             var pairing = app.MapGroup("").RequireRateLimiting("pairing");
+            pairing.AddEndpointFilter(RequireSyncProtocolVersionAsync);
 
             pairing.MapPost(SynchronizationProtocol.EndpointPairRequest, ([FromBody] PairingRequest req) =>
             {
@@ -570,6 +588,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
             // Authenticated sync surface — one RequireAuthorization for the whole group.
             var authorized = app.MapGroup("").RequireAuthorization();
+            authorized.AddEndpointFilter(RequireSyncProtocolVersionAsync);
 
             authorized.MapGet(SynchronizationProtocol.EndpointSyncPull, ([FromQuery] long since, ClaimsPrincipal user) =>
             {
