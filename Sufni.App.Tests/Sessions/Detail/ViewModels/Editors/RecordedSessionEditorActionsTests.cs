@@ -2,6 +2,7 @@ using System.Reactive.Subjects;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
@@ -573,6 +574,86 @@ public class RecordedSessionEditorActionsTests
         Assert.Equal(plotCutoffs, observed[^1].PlotDampingSpeedCutoffs);
         Assert.True(observed[^1].CanEditDampingSpeedCutoffs);
         Assert.Equal(insights, observed[^1].SessionInsights);
+    }
+
+    [Fact]
+    public void StateController_DerivesSignalPresentation_FromInputs()
+    {
+        using var legacyState = new Subject<RecordedSessionEditorState>();
+        using var actions = new RecordedSessionEditorActions();
+        using var pageCounts = new Subject<int>();
+        using var preferenceReplays = new Subject<SessionPreferences>();
+        using var screenStates = new Subject<SessionScreenPresentationState>();
+        using var operationStates = new Subject<SessionOperationPresentationState>();
+        using var mapStates = new Subject<SurfacePresentationState>();
+        using var mediaPaneStates = new Subject<SurfacePresentationState>();
+        using var mediaColumnWidths = new Subject<double?>();
+        using var mediaUrls = new Subject<string?>();
+        using var analysisPresentationStates = new Subject<RecordedAnalysisPresentationState>();
+        using var dampingPercentages = new Subject<SessionDampingPercentages>();
+        using var plotDampingSpeedCutoffs = new Subject<DampingSpeedCutoffs>();
+        using var canEditDampingSpeedCutoffs = new Subject<bool>();
+        using var sessionInsights = new Subject<SessionInsightsResult>();
+        using var signalPresentationStates = new Subject<RecordedSignalPresentationState>();
+        using var controller = new RecordedSessionEditorStateController(
+            legacyState,
+            actions.Intents,
+            pageCounts,
+            preferenceReplays,
+            screenStates,
+            operationStates,
+            mapStates,
+            mediaPaneStates,
+            mediaColumnWidths,
+            mediaUrls,
+            analysisPresentationStates,
+            dampingPercentages,
+            plotDampingSpeedCutoffs,
+            canEditDampingSpeedCutoffs,
+            sessionInsights,
+            signalPresentationStates);
+        var observed = new List<RecordedSignalPresentationState>();
+        using var subscription = controller.State.Subscribe(state => observed.Add(state.Presentation.Signals));
+        SignalRowAction[] travelHeaderActions = [new SignalRowAction { Id = "travel" }];
+        SignalRowAction[] velocityHeaderActions = [new SignalRowAction { Id = "velocity" }];
+        var signals = new RecordedSignalPresentationState(
+            Travel: SurfacePresentationState.Ready,
+            Velocity: SurfacePresentationState.Loading("Loading velocity"),
+            Imu: SurfacePresentationState.Hidden,
+            PitchRoll: SurfacePresentationState.WaitingForData("Waiting"),
+            Speed: SurfacePresentationState.Ready,
+            Elevation: SurfacePresentationState.Hidden,
+            ShowAirtime: true,
+            ShowVelocityAirtime: true,
+            ShowImuAirtime: false,
+            ShowPitchRollAirtime: true,
+            ShowSpeedAirtime: false,
+            ShowElevationAirtime: true,
+            ShowAnalysisSelection: true,
+            ShowVelocityAnalysisSelection: false,
+            ShowImuAnalysisSelection: true,
+            ShowPitchRollAnalysisSelection: false,
+            ShowSpeedAnalysisSelection: true,
+            ShowElevationAnalysisSelection: false,
+            TravelHeaderActions: travelHeaderActions,
+            VelocityHeaderActions: velocityHeaderActions,
+            ImuHeaderActions: [],
+            PitchRollHeaderActions: [],
+            SpeedHeaderActions: [],
+            ElevationHeaderActions: []);
+
+        legacyState.OnNext(CreateState(selectedPageIndex: 0));
+        signalPresentationStates.OnNext(signals);
+        var staleLegacyState = CreateState(selectedPageIndex: 0, telemetryData: TestTelemetryData.CreateProcessed());
+        legacyState.OnNext(staleLegacyState);
+
+        Assert.Equal(3, observed.Count);
+        Assert.Equal(SurfacePresentationState.Hidden, observed[0].Travel);
+        Assert.False(observed[0].ShowAirtime);
+        Assert.Equal(signals, observed[1]);
+        Assert.Equal(signals, observed[^1]);
+        Assert.Same(travelHeaderActions, observed[^1].TravelHeaderActions);
+        Assert.Same(velocityHeaderActions, observed[^1].VelocityHeaderActions);
     }
 
     [Fact]

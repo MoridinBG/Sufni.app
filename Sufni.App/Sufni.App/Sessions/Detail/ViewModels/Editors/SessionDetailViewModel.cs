@@ -113,6 +113,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<DampingSpeedCutoffs> plotDampingSpeedCutoffsInput = new();
     private readonly Subject<bool> canEditDampingSpeedCutoffsInput = new();
     private readonly Subject<SessionInsightsResult> sessionInsightsInput = new();
+    private readonly Subject<RecordedSignalPresentationState> signalPresentationInput = new();
     private readonly RecordedSessionEditorStateController editorStateController;
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
     private readonly Func<IEditorFactory> editorFactory;
@@ -1453,7 +1454,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             dampingPercentagesInput,
             plotDampingSpeedCutoffsInput,
             canEditDampingSpeedCutoffsInput,
-            sessionInsightsInput);
+            sessionInsightsInput,
+            signalPresentationInput);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
@@ -1635,6 +1637,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         PreferencesPage.ProcessingPreferenceChangeCommitted += OnProcessingPreferenceChangeCommitted;
 
         ResetImplementation();
+        signalPresentationInput.OnNext(CreateSignalPresentationState());
         PublishEditorState();
     }
 
@@ -1761,6 +1764,35 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             showElevationAnalysisSelection);
     }
 
+    private RecordedSignalPresentationState CreateSignalPresentationState()
+    {
+        return new RecordedSignalPresentationState(
+            Travel: travelSignalState,
+            Velocity: velocitySignalState,
+            Imu: imuSignalState,
+            PitchRoll: pitchRollSignalState,
+            Speed: speedSignalState,
+            Elevation: elevationSignalState,
+            ShowAirtime: showAirtime,
+            ShowVelocityAirtime: showVelocityAirtime,
+            ShowImuAirtime: showImuAirtime,
+            ShowPitchRollAirtime: showPitchRollAirtime,
+            ShowSpeedAirtime: showSpeedAirtime,
+            ShowElevationAirtime: showElevationAirtime,
+            ShowAnalysisSelection: showAnalysisSelection,
+            ShowVelocityAnalysisSelection: showVelocityAnalysisSelection,
+            ShowImuAnalysisSelection: showImuAnalysisSelection,
+            ShowPitchRollAnalysisSelection: showPitchRollAnalysisSelection,
+            ShowSpeedAnalysisSelection: showSpeedAnalysisSelection,
+            ShowElevationAnalysisSelection: showElevationAnalysisSelection,
+            TravelHeaderActions: TravelHeaderActions,
+            VelocityHeaderActions: VelocityHeaderActions,
+            ImuHeaderActions: ImuHeaderActions,
+            PitchRollHeaderActions: PitchRollHeaderActions,
+            SpeedHeaderActions: SpeedHeaderActions,
+            ElevationHeaderActions: ElevationHeaderActions);
+    }
+
     private RecordedAnalysisModeState CreateAnalysisModeState()
     {
         return new RecordedAnalysisModeState(
@@ -1836,7 +1868,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         field = value;
-        PublishEditorState();
+        signalPresentationInput.OnNext(CreateSignalPresentationState());
     }
 
     private void SetTravelDistributionMode(TravelDistributionMode mode)
@@ -2057,7 +2089,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         if (changed)
         {
-            PublishEditorState();
+            signalPresentationInput.OnNext(CreateSignalPresentationState());
         }
     }
 

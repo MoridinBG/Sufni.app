@@ -148,6 +148,43 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         IObservable<DampingSpeedCutoffs> plotDampingSpeedCutoffs,
         IObservable<bool> canEditDampingSpeedCutoffs,
         IObservable<SessionInsightsResult> sessionInsights)
+        : this(
+            legacyState,
+            intents,
+            pageCounts,
+            preferenceReplays,
+            screenStates,
+            operationStates,
+            mapStates,
+            mediaPaneStates,
+            mediaColumnWidths,
+            mediaUrls,
+            analysisPresentationStates,
+            dampingPercentages,
+            plotDampingSpeedCutoffs,
+            canEditDampingSpeedCutoffs,
+            sessionInsights,
+            Observable.Empty<RecordedSignalPresentationState>())
+    {
+    }
+
+    public RecordedSessionEditorStateController(
+        IObservable<RecordedSessionEditorState> legacyState,
+        IObservable<RecordedSessionEditorIntent> intents,
+        IObservable<int> pageCounts,
+        IObservable<SessionPreferences> preferenceReplays,
+        IObservable<SessionScreenPresentationState> screenStates,
+        IObservable<SessionOperationPresentationState> operationStates,
+        IObservable<SurfacePresentationState> mapStates,
+        IObservable<SurfacePresentationState> mediaPaneStates,
+        IObservable<double?> mediaColumnWidths,
+        IObservable<string?> mediaUrls,
+        IObservable<RecordedAnalysisPresentationState> analysisPresentationStates,
+        IObservable<SessionDampingPercentages> dampingPercentages,
+        IObservable<DampingSpeedCutoffs> plotDampingSpeedCutoffs,
+        IObservable<bool> canEditDampingSpeedCutoffs,
+        IObservable<SessionInsightsResult> sessionInsights,
+        IObservable<RecordedSignalPresentationState> signalPresentationStates)
     {
         ArgumentNullException.ThrowIfNull(legacyState);
         ArgumentNullException.ThrowIfNull(intents);
@@ -164,6 +201,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(plotDampingSpeedCutoffs);
         ArgumentNullException.ThrowIfNull(canEditDampingSpeedCutoffs);
         ArgumentNullException.ThrowIfNull(sessionInsights);
+        ArgumentNullException.ThrowIfNull(signalPresentationStates);
 
         var selectedPageIndex = CreateSelectedPageIndexState(intents, pageCounts);
         var analysisRange = CreateAnalysisRangeState(intents);
@@ -190,6 +228,9 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var sessionInsightsState = CreateInputState(
             sessionInsights,
             SessionInsightsResult.Hidden);
+        var signalPresentationState = CreateInputState(
+            signalPresentationStates,
+            CreateHiddenSignalPresentationState());
         var derivedIntentState = selectedPageIndex
             .CombineLatest(
                 analysisRange,
@@ -246,7 +287,10 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                 static (current, canEditCutoffs) => new { current.state, current.derived, current.presentation, current.media, current.analysis, current.percentages, current.plotCutoffs, canEditCutoffs })
             .CombineLatest(
                 sessionInsightsState,
-                static (current, insights) => current.state with
+                static (current, insights) => new { current.state, current.derived, current.presentation, current.media, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, insights })
+            .CombineLatest(
+                signalPresentationState,
+                static (current, signals) => current.state with
                 {
                     Preferences = current.state.Preferences with
                     {
@@ -275,11 +319,12 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                         MediaPaneState = current.media.MediaPaneState,
                         MediaColumnWidth = current.media.MediaColumnWidth,
                         MediaUrl = current.media.MediaUrl,
+                        Signals = signals,
                         Analysis = current.analysis,
                         DampingPercentages = current.percentages,
                         PlotDampingSpeedCutoffs = current.plotCutoffs,
                         CanEditDampingSpeedCutoffs = current.canEditCutoffs,
-                        SessionInsights = insights,
+                        SessionInsights = current.insights,
                         ScreenState = current.presentation.ScreenState,
                         OperationState = current.presentation.OperationState,
                     },
@@ -345,6 +390,35 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             FrontFrameVibration: SurfacePresentationState.Hidden,
             RearForkVibration: SurfacePresentationState.Hidden,
             RearFrameVibration: SurfacePresentationState.Hidden);
+    }
+
+    private static RecordedSignalPresentationState CreateHiddenSignalPresentationState()
+    {
+        return new RecordedSignalPresentationState(
+            Travel: SurfacePresentationState.Hidden,
+            Velocity: SurfacePresentationState.Hidden,
+            Imu: SurfacePresentationState.Hidden,
+            PitchRoll: SurfacePresentationState.Hidden,
+            Speed: SurfacePresentationState.Hidden,
+            Elevation: SurfacePresentationState.Hidden,
+            ShowAirtime: false,
+            ShowVelocityAirtime: false,
+            ShowImuAirtime: false,
+            ShowPitchRollAirtime: false,
+            ShowSpeedAirtime: false,
+            ShowElevationAirtime: false,
+            ShowAnalysisSelection: false,
+            ShowVelocityAnalysisSelection: false,
+            ShowImuAnalysisSelection: false,
+            ShowPitchRollAnalysisSelection: false,
+            ShowSpeedAnalysisSelection: false,
+            ShowElevationAnalysisSelection: false,
+            TravelHeaderActions: [],
+            VelocityHeaderActions: [],
+            ImuHeaderActions: [],
+            PitchRollHeaderActions: [],
+            SpeedHeaderActions: [],
+            ElevationHeaderActions: []);
     }
 
     private static IObservable<T> CreateInputState<T>(IObservable<T> updates, T initialValue)
