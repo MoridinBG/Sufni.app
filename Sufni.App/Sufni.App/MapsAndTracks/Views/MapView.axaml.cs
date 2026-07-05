@@ -33,6 +33,7 @@ namespace Sufni.App.MapsAndTracks.Views;
 public partial class MapView : UserControl
 {
     private const string ExtensionOverlayLayerName = "Extension Overlays";
+    private const string MapsuiInfoWidgetNamespace = "Mapsui.Widgets.InfoWidgets";
 
     private MapControl? mapControl;
     private RecordedSessionExtensionSlots? subscribedSlots;
@@ -109,7 +110,7 @@ public partial class MapView : UserControl
         if (mapControl != null)
         {
             mapControl.Map = new Mapsui.Map();
-            RemoveLoggingWidgets();
+            RemoveInfoWidgets();
             var trackLayer = CreateFullTrackLayer(); // Initially empty until ViewModel updates
             mapControl.Map.Layers.Add(trackLayer);
 
@@ -354,7 +355,7 @@ public partial class MapView : UserControl
         mapControl.Refresh();
     }
 
-    private void RemoveLoggingWidgets()
+    private void RemoveInfoWidgets()
     {
         if (mapControl is null)
         {
@@ -365,7 +366,7 @@ public partial class MapView : UserControl
         if (widgets is ConcurrentQueue<IWidget> widgetQueue)
         {
             var retainedWidgets = widgetQueue
-                .Where(static widget => widget is not LoggingWidget)
+                .Where(static widget => !IsInfoWidget(widget))
                 .ToArray();
             widgetQueue.Clear();
             foreach (var widget in retainedWidgets)
@@ -376,7 +377,7 @@ public partial class MapView : UserControl
             return;
         }
 
-        foreach (var widget in mapControl.Map.Widgets.OfType<LoggingWidget>().ToArray())
+        foreach (var widget in mapControl.Map.Widgets.Where(IsInfoWidget).ToArray())
         {
             if (widgets is ICollection<IWidget> widgetCollection)
             {
@@ -394,6 +395,9 @@ public partial class MapView : UserControl
             removeMethod?.Invoke(widgets, [widget]);
         }
     }
+
+    private static bool IsInfoWidget(IWidget widget) =>
+        widget.GetType().Namespace == MapsuiInfoWidgetNamespace;
 
     private static void AddExtensionOverlayFeatures(
         List<IFeature> features,

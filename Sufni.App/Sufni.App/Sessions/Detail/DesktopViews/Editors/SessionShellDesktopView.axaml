@@ -41,7 +41,6 @@ mc:Ignorable="d">
                 <desktopControls:CollapsibleSplitView.SecondContent>
                     <ContentControl
                         Name="MediaHost"
-                        Margin="0,39,0,0"
                         Content="{Binding #Root.MediaContent}" />
                 </desktopControls:CollapsibleSplitView.SecondContent>
             </desktopControls:CollapsibleSplitView>
