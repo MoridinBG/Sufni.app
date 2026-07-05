@@ -224,6 +224,47 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         IObservable<SessionInsightsResult> sessionInsights,
         IObservable<RecordedSignalPresentationState> signalPresentationStates,
         IObservable<AnalysisSelectionState> analysisSelectionStates)
+        : this(
+            legacyState,
+            intents,
+            pageCounts,
+            preferenceReplays,
+            screenStates,
+            operationStates,
+            mapStates,
+            mediaPaneStates,
+            mediaColumnWidths,
+            mediaUrls,
+            analysisPresentationStates,
+            dampingPercentages,
+            plotDampingSpeedCutoffs,
+            canEditDampingSpeedCutoffs,
+            sessionInsights,
+            signalPresentationStates,
+            analysisSelectionStates,
+            Observable.Empty<RecordedSessionLoadedDataState>())
+    {
+    }
+
+    public RecordedSessionEditorStateController(
+        IObservable<RecordedSessionEditorState> legacyState,
+        IObservable<RecordedSessionEditorIntent> intents,
+        IObservable<int> pageCounts,
+        IObservable<SessionPreferences> preferenceReplays,
+        IObservable<SessionScreenPresentationState> screenStates,
+        IObservable<SessionOperationPresentationState> operationStates,
+        IObservable<SurfacePresentationState> mapStates,
+        IObservable<SurfacePresentationState> mediaPaneStates,
+        IObservable<double?> mediaColumnWidths,
+        IObservable<string?> mediaUrls,
+        IObservable<RecordedAnalysisPresentationState> analysisPresentationStates,
+        IObservable<SessionDampingPercentages> dampingPercentages,
+        IObservable<DampingSpeedCutoffs> plotDampingSpeedCutoffs,
+        IObservable<bool> canEditDampingSpeedCutoffs,
+        IObservable<SessionInsightsResult> sessionInsights,
+        IObservable<RecordedSignalPresentationState> signalPresentationStates,
+        IObservable<AnalysisSelectionState> analysisSelectionStates,
+        IObservable<RecordedSessionLoadedDataState> loadedDataStates)
     {
         ArgumentNullException.ThrowIfNull(legacyState);
         ArgumentNullException.ThrowIfNull(intents);
@@ -242,6 +283,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(sessionInsights);
         ArgumentNullException.ThrowIfNull(signalPresentationStates);
         ArgumentNullException.ThrowIfNull(analysisSelectionStates);
+        ArgumentNullException.ThrowIfNull(loadedDataStates);
 
         var selectedPageIndex = CreateSelectedPageIndexState(intents, pageCounts);
         var analysisRange = CreateAnalysisRangeState(intents);
@@ -274,6 +316,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var analysisSelectionState = CreateInputState(
             analysisSelectionStates,
             new AnalysisSelectionState(ActiveFront: null, ActiveRear: null, HighlightRanges: []));
+        var loadedDataState = CreateOptionalInputState(loadedDataStates);
         var derivedIntentState = selectedPageIndex
             .CombineLatest(
                 analysisRange,
@@ -336,45 +379,63 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                 static (current, signals) => new { current.state, current.derived, current.presentation, current.media, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, current.insights, signals })
             .CombineLatest(
                 analysisSelectionState,
-                static (current, analysisSelection) => current.state with
+                static (current, analysisSelection) => new { current.state, current.derived, current.presentation, current.media, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, current.insights, current.signals, analysisSelection })
+            .CombineLatest(
+                loadedDataState,
+                static (current, loadedData) =>
                 {
-                    Preferences = current.state.Preferences with
+                    var loaded = loadedData ?? new RecordedSessionLoadedDataState(
+                        current.state.Session,
+                        current.state.TelemetryData,
+                        current.state.FullTrackPoints,
+                        current.state.TrackPoints,
+                        current.state.TrackTimelineContext);
+
+                    return current.state with
                     {
-                        Analysis = current.derived.Preferences.Analysis,
-                        SignalDisplay = current.derived.Preferences.SignalDisplay,
-                        SignalLayout = current.derived.Preferences.SignalLayout,
-                        Layout = current.derived.Preferences.Layout,
-                    },
-                    Intent = current.state.Intent with
-                    {
-                        SelectedPageIndex = current.derived.SelectedPageIndex,
-                        AnalysisRange = ClampAnalysisRange(current.derived.AnalysisRange, current.state.TelemetryData),
-                        SelectedTravelDistributionMode = current.derived.Preferences.Analysis.TravelDistributionMode,
-                        SelectedBalanceDisplacementMode = current.derived.Preferences.Analysis.BalanceDisplacementMode,
-                        SelectedBalanceSpeedMode = current.derived.Preferences.Analysis.BalanceSpeedMode,
-                        SelectedVelocityAverageMode = current.derived.Preferences.Analysis.VelocityAverageMode,
-                        SelectedSessionInsightsTargetProfile = current.derived.Preferences.Analysis.SessionInsightsTargetProfile,
-                        DampingSpeedCutoffs = current.derived.DampingSpeedCutoffs,
-                        SignalDisplayPreferences = current.derived.Preferences.SignalDisplay,
-                        SignalLayoutPreferences = current.derived.Preferences.SignalLayout,
-                        LayoutPreferences = current.derived.Preferences.Layout,
-                    },
-                    Presentation = current.state.Presentation with
-                    {
-                        MapState = current.media.MapState,
-                        MediaPaneState = current.media.MediaPaneState,
-                        MediaColumnWidth = current.media.MediaColumnWidth,
-                        MediaUrl = current.media.MediaUrl,
-                        Signals = current.signals,
-                        Analysis = current.analysis,
-                        DampingPercentages = current.percentages,
-                        PlotDampingSpeedCutoffs = current.plotCutoffs,
-                        CanEditDampingSpeedCutoffs = current.canEditCutoffs,
-                        SessionInsights = current.insights,
-                        ScreenState = current.presentation.ScreenState,
-                        OperationState = current.presentation.OperationState,
-                    },
-                    AnalysisSelection = analysisSelection,
+                        Session = loaded.Session,
+                        TelemetryData = loaded.TelemetryData,
+                        FullTrackPoints = loaded.FullTrackPoints,
+                        TrackPoints = loaded.TrackPoints,
+                        TrackTimelineContext = loaded.TrackTimelineContext,
+                        Preferences = current.state.Preferences with
+                        {
+                            Analysis = current.derived.Preferences.Analysis,
+                            SignalDisplay = current.derived.Preferences.SignalDisplay,
+                            SignalLayout = current.derived.Preferences.SignalLayout,
+                            Layout = current.derived.Preferences.Layout,
+                        },
+                        Intent = current.state.Intent with
+                        {
+                            SelectedPageIndex = current.derived.SelectedPageIndex,
+                            AnalysisRange = ClampAnalysisRange(current.derived.AnalysisRange, loaded.TelemetryData),
+                            SelectedTravelDistributionMode = current.derived.Preferences.Analysis.TravelDistributionMode,
+                            SelectedBalanceDisplacementMode = current.derived.Preferences.Analysis.BalanceDisplacementMode,
+                            SelectedBalanceSpeedMode = current.derived.Preferences.Analysis.BalanceSpeedMode,
+                            SelectedVelocityAverageMode = current.derived.Preferences.Analysis.VelocityAverageMode,
+                            SelectedSessionInsightsTargetProfile = current.derived.Preferences.Analysis.SessionInsightsTargetProfile,
+                            DampingSpeedCutoffs = current.derived.DampingSpeedCutoffs,
+                            SignalDisplayPreferences = current.derived.Preferences.SignalDisplay,
+                            SignalLayoutPreferences = current.derived.Preferences.SignalLayout,
+                            LayoutPreferences = current.derived.Preferences.Layout,
+                        },
+                        Presentation = current.state.Presentation with
+                        {
+                            MapState = current.media.MapState,
+                            MediaPaneState = current.media.MediaPaneState,
+                            MediaColumnWidth = current.media.MediaColumnWidth,
+                            MediaUrl = current.media.MediaUrl,
+                            Signals = current.signals,
+                            Analysis = current.analysis,
+                            DampingPercentages = current.percentages,
+                            PlotDampingSpeedCutoffs = current.plotCutoffs,
+                            CanEditDampingSpeedCutoffs = current.canEditCutoffs,
+                            SessionInsights = current.insights,
+                            ScreenState = current.presentation.ScreenState,
+                            OperationState = current.presentation.OperationState,
+                        },
+                        AnalysisSelection = current.analysisSelection,
+                    };
                 })
             .DistinctUntilChanged()
             .Replay(1);
@@ -472,6 +533,17 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
     {
         return updates
             .StartWith(initialValue)
+            .DistinctUntilChanged()
+            .Replay(1)
+            .RefCount();
+    }
+
+    private static IObservable<T?> CreateOptionalInputState<T>(IObservable<T> updates)
+        where T : class
+    {
+        return updates
+            .Select(static value => (T?)value)
+            .StartWith((T?)null)
             .DistinctUntilChanged()
             .Replay(1)
             .RefCount();

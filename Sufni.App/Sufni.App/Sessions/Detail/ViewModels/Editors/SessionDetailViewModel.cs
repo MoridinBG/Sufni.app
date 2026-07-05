@@ -115,6 +115,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<SessionInsightsResult> sessionInsightsInput = new();
     private readonly Subject<RecordedSignalPresentationState> signalPresentationInput = new();
     private readonly Subject<AnalysisSelectionState> analysisSelectionInput = new();
+    private readonly Subject<RecordedSessionLoadedDataState> loadedDataInput = new();
     private readonly RecordedSessionEditorStateController editorStateController;
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
     private readonly Func<IEditorFactory> editorFactory;
@@ -635,7 +636,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         fullTrackPoints = points;
         SessionContext.FullTrackPoints = points;
         MapViewModel?.FullTrackPoints = points;
-        PublishEditorState();
+        PublishLoadedDataState();
     }
 
     internal void SetTrackPoints(List<TrackPoint>? points)
@@ -651,7 +652,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             presentationApplier.ApplyRecordedTrackSignalStates();
         }
 
-        PublishEditorState();
+        PublishLoadedDataState();
     }
 
     internal void ApplyTelemetryDataWithoutAnalysisRecompute(TelemetryData? value)
@@ -691,7 +692,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             analysisRequestScheduler.OnTelemetryUnavailable();
             UpdateRecordedSessionExtensionHostState();
-            PublishEditorState();
+            PublishLoadedDataState();
             return;
         }
 
@@ -707,7 +708,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 RequestCurrentAnalysisResults(includeInsights: true);
             }
 
-            PublishEditorState();
+            PublishLoadedDataState();
             return;
         }
 
@@ -725,7 +726,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         UpdateRecordedSessionExtensionHostState();
-        PublishEditorState();
+        PublishLoadedDataState();
     }
 
     private void RefreshTrackTimelineContext()
@@ -744,7 +745,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SessionContext.TrackTimelineContext = timelineContext;
         MapViewModel?.TimelineContext = timelineContext;
         UpdateRecordedSessionExtensionHostState();
-        PublishEditorState();
+        PublishLoadedDataState();
     }
 
     private static string FormatSeconds(double seconds)
@@ -866,6 +867,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         session = snapshot.ToMetadataEntity();
         sessionSnapshot = snapshot;
         SessionContext.SessionSnapshot = snapshot;
+        PublishLoadedDataState();
         BaselineUpdated = snapshot.Updated;
         metadataConflictPending = false;
         IsComplete = snapshot.HasProcessedData;
@@ -1000,6 +1002,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         IsComplete = snapshot.HasProcessedData;
         sessionSnapshot = snapshot;
         SessionContext.SessionSnapshot = snapshot;
+        PublishLoadedDataState();
         UpdateRecordedSessionExtensionHostState();
     }
 
@@ -1457,7 +1460,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             canEditDampingSpeedCutoffsInput,
             sessionInsightsInput,
             signalPresentationInput,
-            analysisSelectionInput);
+            analysisSelectionInput,
+            loadedDataInput);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
@@ -1640,6 +1644,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         ResetImplementation();
         signalPresentationInput.OnNext(CreateSignalPresentationState());
+        PublishLoadedDataState();
         PublishEditorState();
     }
 
@@ -1744,6 +1749,21 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 trackTimelineContext));
         ApplyProjectedEditorState(state);
         editorStateInput.OnNext(state);
+    }
+
+    private void PublishLoadedDataState()
+    {
+        loadedDataInput.OnNext(CreateLoadedDataState());
+    }
+
+    private RecordedSessionLoadedDataState CreateLoadedDataState()
+    {
+        return new RecordedSessionLoadedDataState(
+            sessionSnapshot,
+            telemetryData,
+            fullTrackPoints,
+            trackPoints,
+            trackTimelineContext);
     }
 
     private RecordedSignalToggleState CreateSignalToggleState()
@@ -2382,6 +2402,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                     session = conflict.CurrentSnapshot.ToMetadataEntity();
                     sessionSnapshot = conflict.CurrentSnapshot;
                     SessionContext.SessionSnapshot = conflict.CurrentSnapshot;
+                    PublishLoadedDataState();
                     BaselineUpdated = conflict.CurrentSnapshot.Updated;
                     metadataConflictPending = false;
                     IsComplete = conflict.CurrentSnapshot.HasProcessedData;

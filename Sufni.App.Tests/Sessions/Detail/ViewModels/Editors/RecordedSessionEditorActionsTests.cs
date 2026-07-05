@@ -719,6 +719,79 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void StateController_DerivesLoadedData_FromInputs()
+    {
+        using var legacyState = new Subject<RecordedSessionEditorState>();
+        using var actions = new RecordedSessionEditorActions();
+        using var pageCounts = new Subject<int>();
+        using var preferenceReplays = new Subject<SessionPreferences>();
+        using var screenStates = new Subject<SessionScreenPresentationState>();
+        using var operationStates = new Subject<SessionOperationPresentationState>();
+        using var mapStates = new Subject<SurfacePresentationState>();
+        using var mediaPaneStates = new Subject<SurfacePresentationState>();
+        using var mediaColumnWidths = new Subject<double?>();
+        using var mediaUrls = new Subject<string?>();
+        using var analysisPresentationStates = new Subject<RecordedAnalysisPresentationState>();
+        using var dampingPercentages = new Subject<SessionDampingPercentages>();
+        using var plotDampingSpeedCutoffs = new Subject<DampingSpeedCutoffs>();
+        using var canEditDampingSpeedCutoffs = new Subject<bool>();
+        using var sessionInsights = new Subject<SessionInsightsResult>();
+        using var signalPresentationStates = new Subject<RecordedSignalPresentationState>();
+        using var analysisSelectionStates = new Subject<AnalysisSelectionState>();
+        using var loadedDataStates = new Subject<RecordedSessionLoadedDataState>();
+        using var controller = new RecordedSessionEditorStateController(
+            legacyState,
+            actions.Intents,
+            pageCounts,
+            preferenceReplays,
+            screenStates,
+            operationStates,
+            mapStates,
+            mediaPaneStates,
+            mediaColumnWidths,
+            mediaUrls,
+            analysisPresentationStates,
+            dampingPercentages,
+            plotDampingSpeedCutoffs,
+            canEditDampingSpeedCutoffs,
+            sessionInsights,
+            signalPresentationStates,
+            analysisSelectionStates,
+            loadedDataStates);
+        var observed = new List<RecordedSessionEditorState>();
+        using var subscription = controller.State.Subscribe(observed.Add);
+        var session = TestSnapshots.Session();
+        var telemetry = TestTelemetryData.CreateProcessed();
+        List<TrackPoint> fullTrackPoints = [new TrackPoint(1, 2, 3, 4)];
+        List<TrackPoint> trackPoints = [new TrackPoint(5, 6, 7, 8)];
+        var timelineContext = new TrackTimeRange(10, 20);
+        var loadedData = new RecordedSessionLoadedDataState(
+            session,
+            telemetry,
+            fullTrackPoints,
+            trackPoints,
+            timelineContext);
+
+        legacyState.OnNext(CreateState(selectedPageIndex: 0));
+        loadedDataStates.OnNext(loadedData);
+        legacyState.OnNext(CreateState(selectedPageIndex: 0));
+        actions.SetTravelDistributionMode(TravelDistributionMode.DynamicSag);
+
+        Assert.Null(observed[0].Session);
+        Assert.Null(observed[0].TelemetryData);
+        Assert.Same(session, observed[1].Session);
+        Assert.Same(telemetry, observed[1].TelemetryData);
+        Assert.Same(fullTrackPoints, observed[1].FullTrackPoints);
+        Assert.Same(trackPoints, observed[1].TrackPoints);
+        Assert.Equal(timelineContext, observed[1].TrackTimelineContext);
+        Assert.Same(session, observed[^1].Session);
+        Assert.Same(telemetry, observed[^1].TelemetryData);
+        Assert.Same(fullTrackPoints, observed[^1].FullTrackPoints);
+        Assert.Same(trackPoints, observed[^1].TrackPoints);
+        Assert.Equal(timelineContext, observed[^1].TrackTimelineContext);
+    }
+
+    [Fact]
     public void StateController_DisposeStopsSourceSubscription()
     {
         using var source = new Subject<RecordedSessionEditorState>();
