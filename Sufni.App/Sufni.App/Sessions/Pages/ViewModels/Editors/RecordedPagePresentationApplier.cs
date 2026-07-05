@@ -53,7 +53,6 @@ internal sealed class RecordedPagePresentationApplier
         owner.SetTrackPoints(null);
         owner.SetMediaColumnWidth(null);
         owner.ApplyDampingPercentages(SessionDampingPercentages.Empty);
-        owner.SetRecordedAnalysisStates(RecordedSessionPresentationDeriver.CreateHiddenAnalysisPresentationState());
         ApplyRecordedSignalPresentation(
             RecordedSessionPresentationDeriver.CreateHiddenSignalPresentationState());
         springPage.FrontDistributionState = SurfacePresentationState.Hidden;
@@ -69,7 +68,6 @@ internal sealed class RecordedPagePresentationApplier
         owner.SetScreenState(SessionScreenPresentationState.Ready);
         ApplyRecordedSignalPresentation(
             RecordedSessionPresentationDeriver.CreateLoadingSignalPresentation(mapExpected));
-        owner.SetRecordedAnalysisStates(RecordedSessionPresentationDeriver.CreateLoadingAnalysisPresentationState());
         owner.SetMapState(mapExpected
             ? SurfacePresentationState.Loading("Loading map data.")
             : SurfacePresentationState.Hidden);
@@ -95,11 +93,6 @@ internal sealed class RecordedPagePresentationApplier
                 owner.SetTrackPoints(telemetryPresentation.TrackPoints);
                 owner.SetMediaColumnWidth(telemetryPresentation.MediaColumnWidth);
                 owner.ApplyModeAwareDampingPercentages(telemetryPresentation.DampingPercentages);
-                ApplyMobileExtendedAnalysisStates(
-                    telemetryPresentation.TelemetryData,
-                    HasFrontCacheAnalysis(cachePresentation),
-                    HasRearCacheAnalysis(cachePresentation),
-                    cachePresentation.BalanceAvailable);
                 ApplyRecordedReadySignalStates(telemetryPresentation.TelemetryData);
                 owner.SetMapState(RecordedSessionPresentationDeriver.CreateMapState(
                     telemetryPresentation.TrackPoints,
@@ -138,14 +131,6 @@ internal sealed class RecordedPagePresentationApplier
         return missingParts.Count == 0
             ? "Local session data is incomplete. Run sync and try again."
             : $"Local session data is incomplete: {string.Join(", ", missingParts)}. Run sync and try again.";
-    }
-
-    public void RefreshAnalysisRangeStates()
-    {
-        if (owner.CurrentTelemetryData is { } telemetry)
-        {
-            ApplyAnalysisRangeStates(telemetry);
-        }
     }
 
     public void ApplyRecordedTrackSignalStates()
@@ -197,62 +182,7 @@ internal sealed class RecordedPagePresentationApplier
         balancePage.ReboundBalanceState = hasReboundBalance
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
-        owner.SetRecordedAnalysisStates(new RecordedAnalysisPresentationState(
-            springPage.FrontDistributionState.ReservesLayout || dampingPage.FrontDistributionState.ReservesLayout
-                ? SurfacePresentationState.Ready
-                : SurfacePresentationState.Hidden,
-            springPage.RearDistributionState.ReservesLayout || dampingPage.RearDistributionState.ReservesLayout
-                ? SurfacePresentationState.Ready
-                : SurfacePresentationState.Hidden,
-            balancePage.CompressionBalanceState,
-            balancePage.ReboundBalanceState,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden));
         EnsureBalancePage(data.BalanceAvailable);
-    }
-
-    private void ApplyAnalysisRangeStates(TelemetryData telemetry)
-    {
-        owner.SetRecordedAnalysisStates(RecordedSessionPresentationDeriver.CreateAnalysisPresentation(
-            telemetry,
-            owner.CurrentAnalysisRange,
-            frontAnalysisAvailable: true,
-            rearAnalysisAvailable: true,
-            balanceAvailable: true));
-    }
-
-    private static bool HasFrontCacheAnalysis(SessionCachePresentationData data)
-    {
-        return !string.IsNullOrWhiteSpace(data.FrontTravelDistribution)
-               || !string.IsNullOrWhiteSpace(data.FrontVelocityDistribution);
-    }
-
-    private static bool HasRearCacheAnalysis(SessionCachePresentationData data)
-    {
-        return !string.IsNullOrWhiteSpace(data.RearTravelDistribution)
-               || !string.IsNullOrWhiteSpace(data.RearVelocityDistribution);
-    }
-
-    private void ApplyMobileExtendedAnalysisStates(
-        TelemetryData? telemetry,
-        bool frontAnalysisAvailable,
-        bool rearAnalysisAvailable,
-        bool balanceAvailable)
-    {
-        if (telemetry is null)
-        {
-            owner.SetRecordedAnalysisStates(RecordedSessionPresentationDeriver.CreateHiddenAnalysisPresentationState());
-            return;
-        }
-
-        owner.SetRecordedAnalysisStates(RecordedSessionPresentationDeriver.CreateAnalysisPresentation(
-            telemetry,
-            owner.CurrentAnalysisRange,
-            frontAnalysisAvailable,
-            rearAnalysisAvailable,
-            balanceAvailable));
     }
 
     private void ApplyRecordedReadySignalStates(TelemetryData? telemetry)

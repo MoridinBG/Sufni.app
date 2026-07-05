@@ -1677,7 +1677,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             OnPropertyChanged(nameof(CurrentAnalysisRange));
             OnPropertyChanged(nameof(SessionAnalysisRangeText));
             ClearAnalysisSelections();
-            presentationApplier.RefreshAnalysisRangeStates();
         }
         if (previous.AnalysisSelection != state.AnalysisSelection)
         {
