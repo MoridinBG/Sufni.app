@@ -5,6 +5,8 @@ using NSubstitute;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
+using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.ExtensionHost.Runtime.Stores;
 using Sufni.App.ExtensionHost.TestSupport.Async;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.Services;
@@ -81,6 +83,21 @@ public class PersistedStoreTests
 
         Assert.Equal(1, dispatcher.InvokeCount);
         Assert.Single(snapshots);
+    }
+
+    [Fact]
+    public async Task SourceCacheStoreBase_PublishSnapshotAsync_DispatchesMutation_WhenOffUiThread()
+    {
+        var dispatcher = new RecordingUiThreadDispatcher(checkAccess: false);
+        var store = new TestSourceCacheStore(dispatcher);
+        var snapshot = new TestSourceCacheSnapshot(Guid.NewGuid(), "Snapshot");
+        using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
+
+        await store.PublishAsync(snapshot);
+
+        Assert.Equal(1, dispatcher.InvokeCount);
+        Assert.Equal(snapshot, Assert.Single(snapshots));
+        Assert.Equal(snapshot, store.Get(snapshot.Id));
     }
 
     [Fact]
@@ -183,5 +200,14 @@ public class PersistedStoreTests
         Assert.IsType<StoreDeleteResult<PairedDeviceSnapshot>.Deleted>(deleteResult);
         Assert.Empty(snapshots);
         Assert.Null(store.Get("device-1"));
+    }
+
+    private sealed record TestSourceCacheSnapshot(Guid Id, string Name);
+
+    private sealed class TestSourceCacheStore(IUiThreadDispatcher uiThreadDispatcher)
+        : SourceCacheStoreBase<TestSourceCacheSnapshot, Guid>(snapshot => snapshot.Id, uiThreadDispatcher)
+    {
+        public Task PublishAsync(TestSourceCacheSnapshot snapshot) =>
+            PublishSnapshotAsync(snapshot);
     }
 }
