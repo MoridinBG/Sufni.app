@@ -49,6 +49,8 @@ internal abstract record RecordedSessionEditorIntent
     public sealed record SetSignalLayoutPreferences(SignalLayoutPreferences Preferences) : RecordedSessionEditorIntent;
 
     public sealed record SetLayoutPreferences(SessionLayoutPreferences Preferences) : RecordedSessionEditorIntent;
+
+    public sealed record SetSignalPresentation(RecordedSignalPresentationState State) : RecordedSessionEditorIntent;
 }
 
 internal sealed class RecordedSessionEditorActions : IDisposable
@@ -147,6 +149,12 @@ internal sealed class RecordedSessionEditorActions : IDisposable
     {
         ArgumentNullException.ThrowIfNull(preferences);
         Emit(new RecordedSessionEditorIntent.SetLayoutPreferences(preferences));
+    }
+
+    public void SetSignalPresentation(RecordedSignalPresentationState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        Emit(new RecordedSessionEditorIntent.SetSignalPresentation(state));
     }
 
     public void Dispose()

@@ -33,7 +33,6 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
                 PlotDampingSpeedCutoffs,
                 CanEditDampingSpeedCutoffs,
                 SessionInsights,
-                SignalPresentationStates,
                 AnalysisSelections,
                 SignalPlotContextMenuActions,
                 DomainStates));
@@ -50,7 +49,6 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
     public Subject<DampingSpeedCutoffs> PlotDampingSpeedCutoffs { get; } = new();
     public Subject<bool> CanEditDampingSpeedCutoffs { get; } = new();
     public Subject<SessionInsightsResult> SessionInsights { get; } = new();
-    public Subject<RecordedSignalPresentationState> SignalPresentationStates { get; } = new();
     public Subject<AnalysisSelectionState> AnalysisSelections { get; } = new();
     public Subject<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> SignalPlotContextMenuActions { get; } = new();
     public Subject<RecordedSessionDomainSnapshot> DomainStates { get; } = new();
@@ -109,7 +107,6 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
         PlotDampingSpeedCutoffs.Dispose();
         CanEditDampingSpeedCutoffs.Dispose();
         SessionInsights.Dispose();
-        SignalPresentationStates.Dispose();
         AnalysisSelections.Dispose();
         SignalPlotContextMenuActions.Dispose();
         DomainStates.Dispose();

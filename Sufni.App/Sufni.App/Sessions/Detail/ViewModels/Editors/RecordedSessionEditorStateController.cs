@@ -28,7 +28,6 @@ internal sealed record RecordedSessionEditorStateInputs(
     IObservable<DampingSpeedCutoffs> PlotDampingSpeedCutoffs,
     IObservable<bool> CanEditDampingSpeedCutoffs,
     IObservable<SessionInsightsResult> SessionInsights,
-    IObservable<RecordedSignalPresentationState> SignalPresentationStates,
     IObservable<AnalysisSelectionState> AnalysisSelections,
     IObservable<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> SignalPlotContextMenuActions,
     IObservable<RecordedSessionDomainSnapshot> DomainStates);
@@ -52,7 +51,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(inputs.PlotDampingSpeedCutoffs);
         ArgumentNullException.ThrowIfNull(inputs.CanEditDampingSpeedCutoffs);
         ArgumentNullException.ThrowIfNull(inputs.SessionInsights);
-        ArgumentNullException.ThrowIfNull(inputs.SignalPresentationStates);
         ArgumentNullException.ThrowIfNull(inputs.AnalysisSelections);
         ArgumentNullException.ThrowIfNull(inputs.SignalPlotContextMenuActions);
         ArgumentNullException.ThrowIfNull(inputs.DomainStates);
@@ -100,7 +98,9 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             loadPresentationState.Select(CreateSignalAvailabilityFromLoadPresentation),
             CreateHiddenSignalAvailabilityState());
         var explicitSignalPresentationState = CreateInputState(
-            inputs.SignalPresentationStates,
+            inputs.Intents
+                .OfType<RecordedSessionEditorIntent.SetSignalPresentation>()
+                .Select(static intent => intent.State),
             CreateHiddenSignalPresentationState());
         var signalPresentationState = loadPresentationState
             .CombineLatest(

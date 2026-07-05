@@ -567,7 +567,7 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
-    public void StateController_DerivesSignalPresentation_FromInputs()
+    public void StateController_PreservesSignalPresentationOverlays_FromIntent()
     {
         using var driver = new RecordedSessionEditorStateControllerTestDriver();
         var observed = new List<RecordedSignalPresentationState>();
@@ -600,7 +600,7 @@ public class RecordedSessionEditorActionsTests
             SpeedHeaderActions: [],
             ElevationHeaderActions: []);
 
-        driver.SignalPresentationStates.OnNext(signals);
+        driver.Actions.SetSignalPresentation(signals);
 
         Assert.Equal(2, observed.Count);
         Assert.Equal(SurfacePresentationState.Hidden, observed[0].Travel);

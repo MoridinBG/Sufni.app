@@ -216,13 +216,6 @@ public class SessionDetailViewModelTests
         editor.SetTelemetryData(TestTelemetryData.CreateProcessed());
         editor.SetAnalysisRange(0.02, 0.16);
         editor.SetMediaUrl("session-media.mp4");
-        editor.SetRecordedSignalStates(
-            SurfacePresentationState.Ready,
-            SurfacePresentationState.Ready,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden);
         editor.SetSessionOperationState(SessionOperationPresentationState.Progress("working", 50));
 
         Assert.Same(pages, editor.Pages);
@@ -324,13 +317,6 @@ public class SessionDetailViewModelTests
         };
 
         editor.SetTelemetryData(telemetry);
-        editor.SetRecordedSignalStates(
-            SurfacePresentationState.Ready,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden,
-            SurfacePresentationState.Hidden);
         var velocityAirtimeAction = GetRowAction(editor.VelocityHeaderActions, "velocity_airtime");
         velocityAirtimeAction.Command!.Execute(null);
         var selection = CreateFrontDampingSelection(telemetry, editor.AnalysisWorkspace.SelectedVelocityAverageMode);

@@ -110,7 +110,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<DampingSpeedCutoffs> plotDampingSpeedCutoffsInput = new();
     private readonly Subject<bool> canEditDampingSpeedCutoffsInput = new();
     private readonly Subject<SessionInsightsResult> sessionInsightsInput = new();
-    private readonly Subject<RecordedSignalPresentationState> signalPresentationInput = new();
     private readonly Subject<AnalysisSelectionState> analysisSelectionInput = new();
     private readonly Subject<RecordedSessionHostRuntimeState> hostRuntimeInput = new();
     private readonly Subject<RecordedSessionDomainSnapshot> domainInput = new();
@@ -1433,7 +1432,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 plotDampingSpeedCutoffsInput,
                 canEditDampingSpeedCutoffsInput,
                 sessionInsightsInput,
-                signalPresentationInput,
                 analysisSelectionInput,
                 signalPlotContextMenuActionsInput,
                 domainInput));
@@ -1612,7 +1610,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         PreferencesPage.ProcessingPreferenceChangeCommitted += OnProcessingPreferenceChangeCommitted;
 
         ResetImplementation();
-        signalPresentationInput.OnNext(CreateSignalPresentationState());
+        SetSignalPresentationState(CreateSignalPresentationState());
         if (!snapshot.HasProcessedData)
         {
             PublishCurrentLoadPresentation();
@@ -1957,7 +1955,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         if (currentEditorState.Presentation.Signals != state)
         {
-            signalPresentationInput.OnNext(state);
+            editorActions.SetSignalPresentation(state);
         }
     }
 
@@ -1998,25 +1996,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             sessionInsightsInput.OnNext(insights);
         }
-    }
-
-    internal void SetRecordedSignalStates(
-        SurfacePresentationState travelState,
-        SurfacePresentationState velocityState,
-        SurfacePresentationState imuState,
-        SurfacePresentationState pitchRollState,
-        SurfacePresentationState speedState,
-        SurfacePresentationState elevationState)
-    {
-        SetSignalPresentationState(CreateSignalPresentationState() with
-        {
-            Travel = travelState,
-            Velocity = velocityState,
-            Imu = imuState,
-            PitchRoll = pitchRollState,
-            Speed = speedState,
-            Elevation = elevationState,
-        });
     }
 
     internal void SetMediaUrl(string? url)
