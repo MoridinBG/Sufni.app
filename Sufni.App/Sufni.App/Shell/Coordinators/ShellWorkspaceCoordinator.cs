@@ -18,11 +18,15 @@ public sealed class ShellWorkspaceCoordinator(
     {
         if (view is TabPageViewModelBase tab)
         {
-            workspace.OpenOrFocus(tab);
+            OpenTab(tab, restoreEntry: null, background: false);
         }
     }
 
-    public void OpenOrFocus<T>(Func<T, bool> match, Func<T> create) where T : ViewModelBase
+    public void OpenOrFocus<T>(
+        Func<T, bool> match,
+        Func<T> create,
+        ClosedTabRestoreEntry? restoreEntry = null)
+        where T : ViewModelBase
     {
         ArgumentNullException.ThrowIfNull(match);
         ArgumentNullException.ThrowIfNull(create);
@@ -30,20 +34,24 @@ public sealed class ShellWorkspaceCoordinator(
         var existing = workspace.Tabs.OfType<T>().FirstOrDefault(match);
         if (existing is TabPageViewModelBase existingTab)
         {
-            workspace.OpenOrFocus(existingTab);
+            workspace.OpenOrFocus(existingTab, restoreEntry);
             return;
         }
 
-        if (workspace.TakeTabHistory(match) is TabPageViewModelBase restoredTab)
+        if (TryRestoreFromHistory(restoreEntry, create) is { } restoredTab)
         {
-            workspace.OpenOrFocus(restoredTab);
+            OpenTab(restoredTab, restoreEntry, background: false);
             return;
         }
 
-        Open(create());
+        OpenTab(create(), restoreEntry, background: false);
     }
 
-    public void OpenInBackground<T>(Func<T, bool> match, Func<T> create) where T : ViewModelBase
+    public void OpenInBackground<T>(
+        Func<T, bool> match,
+        Func<T> create,
+        ClosedTabRestoreEntry? restoreEntry = null)
+        where T : ViewModelBase
     {
         ArgumentNullException.ThrowIfNull(match);
         ArgumentNullException.ThrowIfNull(create);
@@ -53,42 +61,84 @@ public sealed class ShellWorkspaceCoordinator(
             return;
         }
 
-        if (workspace.TakeTabHistory(match) is TabPageViewModelBase restoredTab)
+        if (TryRestoreFromHistory(restoreEntry, create) is { } restoredTab)
         {
-            workspace.OpenInBackground(restoredTab);
+            OpenTab(restoredTab, restoreEntry, background: true);
             return;
         }
 
-        if (create() is TabPageViewModelBase tab)
-        {
-            workspace.OpenInBackground(tab);
-        }
+        OpenTab(create(), restoreEntry, background: true);
     }
 
     public void Close(ViewModelBase view)
     {
         if (view is TabPageViewModelBase tab)
         {
-            workspace.CloseTab(tab, rememberForRestore: ShouldRememberClosedTabs);
+            workspace.CloseTab(tab, ShouldRememberClosedTabs);
         }
     }
 
-    public async Task CloseIfOpen<T>(Func<T, bool> match, bool forgetRestoreHistory = false) where T : ViewModelBase
+    public async Task CloseIfOpen<T>(
+        Func<T, bool> match,
+        bool forgetRestoreHistory = false,
+        object? restoreKey = null)
+        where T : ViewModelBase
     {
         ArgumentNullException.ThrowIfNull(match);
 
         var existing = workspace.Tabs.OfType<T>().FirstOrDefault(match);
-        if (forgetRestoreHistory)
+        if (forgetRestoreHistory && restoreKey is not null)
         {
-            workspace.ForgetTabHistory(match);
+            workspace.ForgetTabHistory(typeof(T), restoreKey);
         }
 
         if (existing is TabPageViewModelBase tab)
         {
             await tab.PrepareCloseAsync();
-            workspace.CloseTab(tab, rememberForRestore: !forgetRestoreHistory && ShouldRememberClosedTabs);
+            var rememberForRestore =
+                !forgetRestoreHistory &&
+                ShouldRememberClosedTabs;
+            workspace.CloseTab(tab, rememberForRestore);
         }
     }
 
     public bool GoBack() => workspace.GoBack();
+
+    private void OpenTab(
+        ViewModelBase view,
+        ClosedTabRestoreEntry? restoreEntry,
+        bool background)
+    {
+        if (view is not TabPageViewModelBase tab)
+        {
+            return;
+        }
+
+        if (background)
+        {
+            workspace.OpenInBackground(tab, restoreEntry);
+            return;
+        }
+
+        workspace.OpenOrFocus(tab, restoreEntry);
+    }
+
+    private TabPageViewModelBase? TryRestoreFromHistory<T>(
+        ClosedTabRestoreEntry? restoreEntry,
+        Func<T> fallbackCreate)
+        where T : ViewModelBase
+    {
+        if (restoreEntry is null)
+        {
+            return null;
+        }
+
+        var closedEntry = workspace.TakeTabHistory(restoreEntry.TabType, restoreEntry.Key);
+        if (closedEntry is null)
+        {
+            return null;
+        }
+
+        return closedEntry.Restore() ?? fallbackCreate() as TabPageViewModelBase;
+    }
 }

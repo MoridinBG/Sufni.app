@@ -78,14 +78,19 @@ public class ShellWorkspaceCoordinatorTests
     }
 
     [Fact]
-    public void OpenOrFocus_ReusesMatchingClosedTab_AndDoesNotInvokeFactory()
+    public void OpenOrFocus_RestoresMatchingClosedEntry_WithFreshInstance()
     {
         var workspace = CreateWorkspace();
-        var restored = new TestTabPageViewModel(id: 1);
-        workspace.OpenOrFocus(restored);
-        workspace.CloseTab(restored);
-        var factoryInvoked = false;
         var coordinator = CreateCoordinator(workspace);
+        var original = new TestTabPageViewModel(id: 1);
+        var restored = new TestTabPageViewModel(id: 1);
+
+        coordinator.OpenOrFocus<TestTabPageViewModel>(
+            match: tab => tab.Id == 1,
+            create: () => original,
+            restoreEntry: RestoreEntry(1, () => restored));
+        coordinator.Close(original);
+        var factoryInvoked = false;
 
         coordinator.OpenOrFocus<TestTabPageViewModel>(
             match: tab => tab.Id == 1,
@@ -93,10 +98,12 @@ public class ShellWorkspaceCoordinatorTests
             {
                 factoryInvoked = true;
                 return new TestTabPageViewModel(id: 1);
-            });
+            },
+            restoreEntry: RestoreEntry(1, () => restored));
 
         Assert.False(factoryInvoked);
         Assert.Same(restored, workspace.CurrentTab);
+        Assert.NotSame(original, workspace.CurrentTab);
         Assert.Equal([restored], workspace.Tabs);
     }
 
@@ -137,16 +144,21 @@ public class ShellWorkspaceCoordinatorTests
     }
 
     [Fact]
-    public void OpenInBackground_ReusesMatchingClosedTab_AndDoesNotInvokeFactory()
+    public void OpenInBackground_RestoresMatchingClosedEntry_WithFreshInstance()
     {
         var workspace = CreateWorkspace();
         var current = new TestTabPageViewModel(id: 1);
+        var original = new TestTabPageViewModel(id: 2);
         var restored = new TestTabPageViewModel(id: 2);
         workspace.OpenOrFocus(current);
-        workspace.OpenOrFocus(restored);
-        workspace.CloseTab(restored);
-        var factoryInvoked = false;
         var coordinator = CreateCoordinator(workspace);
+
+        coordinator.OpenOrFocus<TestTabPageViewModel>(
+            match: tab => tab.Id == 2,
+            create: () => original,
+            restoreEntry: RestoreEntry(2, () => restored));
+        coordinator.Close(original);
+        var factoryInvoked = false;
 
         coordinator.OpenInBackground<TestTabPageViewModel>(
             match: tab => tab.Id == 2,
@@ -154,10 +166,12 @@ public class ShellWorkspaceCoordinatorTests
             {
                 factoryInvoked = true;
                 return new TestTabPageViewModel(id: 2);
-            });
+            },
+            restoreEntry: RestoreEntry(2, () => restored));
 
         Assert.False(factoryInvoked);
         Assert.Same(current, workspace.CurrentTab);
+        Assert.NotSame(original, restored);
         Assert.Equal([current, restored], workspace.Tabs);
     }
 
@@ -206,13 +220,51 @@ public class ShellWorkspaceCoordinatorTests
     }
 
     [Fact]
-    public void Close_DoesNotRememberClosedTab_WhenLayoutProfileIsCompact()
+    public void Close_RemembersRestoreEntry_WhenLayoutProfileIsWorkspace()
+    {
+        var workspace = CreateWorkspace();
+        var coordinator = CreateCoordinator(workspace);
+        var original = new TestTabPageViewModel(id: 1);
+        var restored = new TestTabPageViewModel(id: 1);
+
+        coordinator.OpenOrFocus<TestTabPageViewModel>(
+            match: tab => tab.Id == 1,
+            create: () => original,
+            restoreEntry: RestoreEntry(1, () => restored));
+        coordinator.Close(original);
+        workspace.Restore();
+
+        Assert.Same(restored, workspace.CurrentTab);
+        Assert.NotSame(original, workspace.CurrentTab);
+        Assert.Equal([restored], workspace.Tabs);
+    }
+
+    [Fact]
+    public void Close_DoesNotRememberDirectOpenedTab()
     {
         var workspace = CreateWorkspace();
         var tab = new TestTabPageViewModel();
-        workspace.OpenOrFocus(tab);
-        var coordinator = CreateCoordinator(workspace, UiLayoutProfile.Compact);
+        var coordinator = CreateCoordinator(workspace);
 
+        coordinator.Open(tab);
+        coordinator.Close(tab);
+        workspace.Restore();
+
+        Assert.Null(workspace.CurrentTab);
+        Assert.Empty(workspace.Tabs);
+    }
+
+    [Fact]
+    public void Close_DoesNotRememberClosedTab_WhenLayoutProfileIsCompact()
+    {
+        var workspace = CreateWorkspace();
+        var coordinator = CreateCoordinator(workspace, UiLayoutProfile.Compact);
+        var tab = new TestTabPageViewModel(id: 1);
+
+        coordinator.OpenOrFocus<TestTabPageViewModel>(
+            match: candidate => candidate.Id == 1,
+            create: () => tab,
+            restoreEntry: RestoreEntry(1, () => new TestTabPageViewModel(id: 1)));
         coordinator.Close(tab);
         workspace.Restore();
 
@@ -270,10 +322,16 @@ public class ShellWorkspaceCoordinatorTests
     {
         var workspace = CreateWorkspace();
         var closed = new TestTabPageViewModel(id: 1);
-        workspace.OpenOrFocus(closed);
         var coordinator = CreateCoordinator(workspace);
 
-        await coordinator.CloseIfOpen<TestTabPageViewModel>(tab => tab.Id == 1, forgetRestoreHistory: true);
+        coordinator.OpenOrFocus<TestTabPageViewModel>(
+            match: tab => tab.Id == 1,
+            create: () => closed,
+            restoreEntry: RestoreEntry(1, () => new TestTabPageViewModel(id: 1)));
+        await coordinator.CloseIfOpen<TestTabPageViewModel>(
+            tab => tab.Id == 1,
+            forgetRestoreHistory: true,
+            restoreKey: 1);
         var factoryInvoked = false;
         coordinator.OpenOrFocus<TestTabPageViewModel>(
             match: tab => tab.Id == 1,
@@ -281,7 +339,8 @@ public class ShellWorkspaceCoordinatorTests
             {
                 factoryInvoked = true;
                 return new TestTabPageViewModel(id: 1);
-            });
+            },
+            restoreEntry: RestoreEntry(1, () => new TestTabPageViewModel(id: 1)));
 
         Assert.True(factoryInvoked);
         Assert.NotSame(closed, workspace.CurrentTab);
@@ -292,9 +351,12 @@ public class ShellWorkspaceCoordinatorTests
     {
         var workspace = CreateWorkspace();
         var closed = new TestTabPageViewModel(id: 1);
-        workspace.OpenOrFocus(closed);
         var coordinator = CreateCoordinator(workspace, UiLayoutProfile.Compact);
 
+        coordinator.OpenOrFocus<TestTabPageViewModel>(
+            match: tab => tab.Id == 1,
+            create: () => closed,
+            restoreEntry: RestoreEntry(1, () => new TestTabPageViewModel(id: 1)));
         await coordinator.CloseIfOpen<TestTabPageViewModel>(tab => tab.Id == 1);
         workspace.Restore();
 
@@ -307,11 +369,17 @@ public class ShellWorkspaceCoordinatorTests
     {
         var workspace = CreateWorkspace();
         var closed = new TestTabPageViewModel(id: 1);
-        workspace.OpenOrFocus(closed);
-        workspace.CloseTab(closed);
         var coordinator = CreateCoordinator(workspace);
 
-        await coordinator.CloseIfOpen<TestTabPageViewModel>(tab => tab.Id == 1, forgetRestoreHistory: true);
+        coordinator.OpenOrFocus<TestTabPageViewModel>(
+            match: tab => tab.Id == 1,
+            create: () => closed,
+            restoreEntry: RestoreEntry(1, () => new TestTabPageViewModel(id: 1)));
+        coordinator.Close(closed);
+        await coordinator.CloseIfOpen<TestTabPageViewModel>(
+            tab => tab.Id == 1,
+            forgetRestoreHistory: true,
+            restoreKey: 1);
         var factoryInvoked = false;
         coordinator.OpenOrFocus<TestTabPageViewModel>(
             match: tab => tab.Id == 1,
@@ -319,7 +387,8 @@ public class ShellWorkspaceCoordinatorTests
             {
                 factoryInvoked = true;
                 return new TestTabPageViewModel(id: 1);
-            });
+            },
+            restoreEntry: RestoreEntry(1, () => new TestTabPageViewModel(id: 1)));
 
         Assert.True(factoryInvoked);
         Assert.NotSame(closed, workspace.CurrentTab);
@@ -426,6 +495,11 @@ public class ShellWorkspaceCoordinatorTests
     }
 
     private static ShellWorkspaceViewModel CreateWorkspace() => new(TestDispatcher);
+
+    private static ClosedTabRestoreEntry RestoreEntry(
+        int id,
+        Func<TestTabPageViewModel?> restore) =>
+        ClosedTabRestoreEntry.For(id, restore);
 
     private static ShellWorkspaceCoordinator CreateCoordinator(
         ShellWorkspaceViewModel workspace,

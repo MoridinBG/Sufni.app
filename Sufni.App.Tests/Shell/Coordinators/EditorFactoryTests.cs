@@ -25,6 +25,7 @@ using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
+using Sufni.App.Setups.Stores;
 using Sufni.App.Setups.ViewModels.Editors;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Doubles;
@@ -61,6 +62,7 @@ public class EditorFactoryTests
         Assert.Equal(typeof(BikeEditorViewModel), shell.OpenOrFocusType);
         var match = Assert.IsType<Func<BikeEditorViewModel, bool>>(shell.OpenOrFocusMatch);
         var create = Assert.IsType<Func<BikeEditorViewModel>>(shell.OpenOrFocusCreate);
+        AssertRestoreEntry<BikeEditorViewModel>(shell.OpenOrFocusRestoreEntry, snapshot.Id);
 
         Assert.True(match(factory.CreateBikeEditor(snapshot, isNew: false)));
         Assert.False(match(factory.CreateBikeEditor(otherSnapshot, isNew: false)));
@@ -80,6 +82,7 @@ public class EditorFactoryTests
 
         Assert.Equal(typeof(BikeEditorViewModel), shell.CloseIfOpenType);
         Assert.True(shell.CloseIfOpenForgetRestoreHistory);
+        Assert.Equal(snapshot.Id, shell.CloseIfOpenRestoreKey);
         var match = Assert.IsType<Func<BikeEditorViewModel, bool>>(shell.CloseIfOpenMatch);
         Assert.True(match(factory.CreateBikeEditor(snapshot, isNew: false)));
         Assert.False(match(factory.CreateBikeEditor(TestSnapshots.Bike(), isNew: false)));
@@ -112,6 +115,7 @@ public class EditorFactoryTests
         Assert.Equal(typeof(SetupEditorViewModel), shell.OpenOrFocusType);
         var match = Assert.IsType<Func<SetupEditorViewModel, bool>>(shell.OpenOrFocusMatch);
         var create = Assert.IsType<Func<SetupEditorViewModel>>(shell.OpenOrFocusCreate);
+        AssertRestoreEntry<SetupEditorViewModel>(shell.OpenOrFocusRestoreEntry, snapshot.Id);
 
         Assert.True(match(factory.CreateSetupEditor(snapshot, isNew: false)));
         Assert.False(match(factory.CreateSetupEditor(otherSnapshot, isNew: false)));
@@ -131,6 +135,7 @@ public class EditorFactoryTests
 
         Assert.Equal(typeof(SetupEditorViewModel), shell.CloseIfOpenType);
         Assert.True(shell.CloseIfOpenForgetRestoreHistory);
+        Assert.Equal(snapshot.Id, shell.CloseIfOpenRestoreKey);
         var match = Assert.IsType<Func<SetupEditorViewModel, bool>>(shell.CloseIfOpenMatch);
         Assert.True(match(factory.CreateSetupEditor(snapshot, isNew: false)));
         Assert.False(match(factory.CreateSetupEditor(TestSnapshots.Setup(), isNew: false)));
@@ -145,6 +150,7 @@ public class EditorFactoryTests
         factory.OpenImportSessions();
 
         Assert.Equal(typeof(ImportSessionsViewModel), shell.OpenOrFocusType);
+        Assert.Null(shell.OpenOrFocusRestoreEntry);
         var match = Assert.IsType<Func<ImportSessionsViewModel, bool>>(shell.OpenOrFocusMatch);
         Assert.True(match(null!));
     }
@@ -162,11 +168,32 @@ public class EditorFactoryTests
         Assert.Equal(typeof(SessionDetailViewModel), shell.OpenOrFocusType);
         var match = Assert.IsType<Func<SessionDetailViewModel, bool>>(shell.OpenOrFocusMatch);
         var create = Assert.IsType<Func<SessionDetailViewModel>>(shell.OpenOrFocusCreate);
+        AssertRestoreEntry<SessionDetailViewModel>(shell.OpenOrFocusRestoreEntry, snapshot.Id);
 
         Assert.True(match(factory.CreateSessionDetail(snapshot)));
         Assert.False(match(factory.CreateSessionDetail(otherSnapshot)));
         var created = create();
         Assert.Equal(snapshot.Id, created.Id);
+    }
+
+    [Fact]
+    public void OpenSessionDetail_RestoreEntryCreatesEditorFromCurrentStoreSnapshot()
+    {
+        var shell = new CapturingShellCoordinator();
+        var snapshot = TestSnapshots.Session(name: "closed", updated: 5);
+        var fresh = TestSnapshots.Session(id: snapshot.Id, name: "fresh", updated: 9);
+        var sessionStore = Substitute.For<ISessionStore>();
+        sessionStore.Get(snapshot.Id).Returns(fresh);
+        var factory = CreateFactory(shell, sessionStore: sessionStore);
+
+        factory.OpenSessionDetail(snapshot);
+
+        var restoreEntry = AssertRestoreEntry<SessionDetailViewModel>(
+            shell.OpenOrFocusRestoreEntry,
+            snapshot.Id);
+        var restored = Assert.IsType<SessionDetailViewModel>(restoreEntry.Restore());
+        Assert.Equal("fresh", restored.Name);
+        Assert.Equal(9, restored.BaselineUpdated);
     }
 
     [Fact]
@@ -182,6 +209,7 @@ public class EditorFactoryTests
         Assert.Equal(typeof(SessionDetailViewModel), shell.OpenInBackgroundType);
         var match = Assert.IsType<Func<SessionDetailViewModel, bool>>(shell.OpenInBackgroundMatch);
         var create = Assert.IsType<Func<SessionDetailViewModel>>(shell.OpenInBackgroundCreate);
+        AssertRestoreEntry<SessionDetailViewModel>(shell.OpenInBackgroundRestoreEntry, snapshot.Id);
 
         Assert.True(match(factory.CreateSessionDetail(snapshot)));
         Assert.False(match(factory.CreateSessionDetail(otherSnapshot)));
@@ -200,6 +228,7 @@ public class EditorFactoryTests
 
         Assert.Equal(typeof(SessionDetailViewModel), shell.CloseIfOpenType);
         Assert.True(shell.CloseIfOpenForgetRestoreHistory);
+        Assert.Equal(snapshot.Id, shell.CloseIfOpenRestoreKey);
         var match = Assert.IsType<Func<SessionDetailViewModel, bool>>(shell.CloseIfOpenMatch);
         Assert.True(match(factory.CreateSessionDetail(snapshot)));
         Assert.False(match(factory.CreateSessionDetail(TestSnapshots.Session())));
@@ -221,6 +250,7 @@ public class EditorFactoryTests
         Assert.Equal(typeof(LiveDaqDetailViewModel), shell.OpenOrFocusType);
         var match = Assert.IsType<Func<LiveDaqDetailViewModel, bool>>(shell.OpenOrFocusMatch);
         var create = Assert.IsType<Func<LiveDaqDetailViewModel>>(shell.OpenOrFocusCreate);
+        Assert.Null(shell.OpenOrFocusRestoreEntry);
 
         Assert.True(match(factory.CreateLiveDaqDetail(snapshot, sharedStream)));
         Assert.False(match(factory.CreateLiveDaqDetail(otherSnapshot, sharedStream)));
@@ -241,6 +271,7 @@ public class EditorFactoryTests
         Assert.Equal(typeof(LiveSessionDetailViewModel), shell.OpenOrFocusType);
         var match = Assert.IsType<Func<LiveSessionDetailViewModel, bool>>(shell.OpenOrFocusMatch);
         var create = Assert.IsType<Func<LiveSessionDetailViewModel>>(shell.OpenOrFocusCreate);
+        Assert.Null(shell.OpenOrFocusRestoreEntry);
 
         Assert.True(match(factory.CreateLiveSessionDetail(context, liveSessionService)));
         Assert.False(match(factory.CreateLiveSessionDetail(
@@ -276,7 +307,22 @@ public class EditorFactoryTests
             DampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(bikeId, 0));
     }
 
-    private static EditorFactory CreateFactory(CapturingShellCoordinator shell)
+    private static ClosedTabRestoreEntry AssertRestoreEntry<T>(
+        ClosedTabRestoreEntry? restoreEntry,
+        object key)
+        where T : TabPageViewModelBase
+    {
+        Assert.NotNull(restoreEntry);
+        Assert.Equal(typeof(T), restoreEntry.TabType);
+        Assert.Equal(key, restoreEntry.Key);
+        return restoreEntry;
+    }
+
+    private static EditorFactory CreateFactory(
+        CapturingShellCoordinator shell,
+        IBikeStore? bikeStore = null,
+        ISetupStore? setupStore = null,
+        ISessionStore? sessionStore = null)
     {
         var sessionPresentationService = Substitute.For<ISessionPresentationService>();
         var sessionAnalysisService = Substitute.For<ISessionInsightsService>();
@@ -290,11 +336,12 @@ public class EditorFactoryTests
         return new EditorFactory(
             TestCoordinatorSubstitutes.Bike(),
             Substitute.For<IBikeDependencyQuery>(),
-            Substitute.For<IBikeStore>(),
+            bikeStore ?? Substitute.For<IBikeStore>(),
             TestCoordinatorSubstitutes.Setup(),
+            setupStore ?? Substitute.For<ISetupStore>(),
             TestCoordinatorSubstitutes.Session(),
             TestCoordinatorSubstitutes.Track(),
-            Substitute.For<ISessionStore>(),
+            sessionStore ?? Substitute.For<ISessionStore>(),
             Substitute.For<IRecordedSessionProjection>(),
             sessionPresentationService,
             analysisResultStateFactory,
@@ -338,41 +385,56 @@ public class EditorFactoryTests
         public Type? OpenOrFocusType { get; private set; }
         public object? OpenOrFocusMatch { get; private set; }
         public object? OpenOrFocusCreate { get; private set; }
+        public ClosedTabRestoreEntry? OpenOrFocusRestoreEntry { get; private set; }
         public Type? OpenInBackgroundType { get; private set; }
         public object? OpenInBackgroundMatch { get; private set; }
         public object? OpenInBackgroundCreate { get; private set; }
+        public ClosedTabRestoreEntry? OpenInBackgroundRestoreEntry { get; private set; }
         public Type? CloseIfOpenType { get; private set; }
         public object? CloseIfOpenMatch { get; private set; }
         public bool CloseIfOpenForgetRestoreHistory { get; private set; }
+        public object? CloseIfOpenRestoreKey { get; private set; }
 
         public void Open(ViewModelBase view) => OpenedView = view;
 
-        public void OpenOrFocus<T>(Func<T, bool> match, Func<T> create)
+        public void OpenOrFocus<T>(
+            Func<T, bool> match,
+            Func<T> create,
+            ClosedTabRestoreEntry? restoreEntry = null)
             where T : ViewModelBase
         {
             OpenOrFocusType = typeof(T);
             OpenOrFocusMatch = match;
             OpenOrFocusCreate = create;
+            OpenOrFocusRestoreEntry = restoreEntry;
         }
 
-        public void OpenInBackground<T>(Func<T, bool> match, Func<T> create)
+        public void OpenInBackground<T>(
+            Func<T, bool> match,
+            Func<T> create,
+            ClosedTabRestoreEntry? restoreEntry = null)
             where T : ViewModelBase
         {
             OpenInBackgroundType = typeof(T);
             OpenInBackgroundMatch = match;
             OpenInBackgroundCreate = create;
+            OpenInBackgroundRestoreEntry = restoreEntry;
         }
 
         public void Close(ViewModelBase view)
         {
         }
 
-        public Task CloseIfOpen<T>(Func<T, bool> match, bool forgetRestoreHistory = false)
+        public Task CloseIfOpen<T>(
+            Func<T, bool> match,
+            bool forgetRestoreHistory = false,
+            object? restoreKey = null)
             where T : ViewModelBase
         {
             CloseIfOpenType = typeof(T);
             CloseIfOpenMatch = match;
             CloseIfOpenForgetRestoreHistory = forgetRestoreHistory;
+            CloseIfOpenRestoreKey = restoreKey;
             return Task.CompletedTask;
         }
 

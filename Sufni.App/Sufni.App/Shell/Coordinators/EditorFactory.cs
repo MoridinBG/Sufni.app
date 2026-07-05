@@ -38,6 +38,7 @@ internal sealed class EditorFactory(
     IBikeDependencyQuery bikeDependencyQuery,
     IBikeStore bikeStore,
     ISetupCoordinator setupCoordinator,
+    ISetupStore setupStore,
     ISessionCoordinator sessionCoordinator,
     ITrackCoordinator trackCoordinator,
     ISessionStore sessionStore,
@@ -76,12 +77,16 @@ internal sealed class EditorFactory(
     {
         shell.OpenOrFocus<BikeEditorViewModel>(
             editor => editor.Id == snapshot.Id,
-            () => CreateBikeEditor(snapshot, isNew: false));
+            () => CreateBikeEditor(snapshot, isNew: false),
+            CreateBikeRestoreEntry(snapshot.Id));
     }
 
     public Task CloseBikeEditor(Guid bikeId)
     {
-        return shell.CloseIfOpen<BikeEditorViewModel>(editor => editor.Id == bikeId, forgetRestoreHistory: true);
+        return shell.CloseIfOpen<BikeEditorViewModel>(
+            editor => editor.Id == bikeId,
+            forgetRestoreHistory: true,
+            restoreKey: bikeId);
     }
 
     public BikeEditorViewModel CreateBikeEditor(BikeSnapshot snapshot, bool isNew) =>
@@ -105,12 +110,16 @@ internal sealed class EditorFactory(
     {
         shell.OpenOrFocus<SetupEditorViewModel>(
             editor => editor.Id == snapshot.Id,
-            () => CreateSetupEditor(snapshot, isNew: false));
+            () => CreateSetupEditor(snapshot, isNew: false),
+            CreateSetupRestoreEntry(snapshot.Id));
     }
 
     public Task CloseSetupEditor(Guid setupId)
     {
-        return shell.CloseIfOpen<SetupEditorViewModel>(editor => editor.Id == setupId, forgetRestoreHistory: true);
+        return shell.CloseIfOpen<SetupEditorViewModel>(
+            editor => editor.Id == setupId,
+            forgetRestoreHistory: true,
+            restoreKey: setupId);
     }
 
     public SetupEditorViewModel CreateSetupEditor(SetupSnapshot snapshot, bool isNew) =>
@@ -135,19 +144,24 @@ internal sealed class EditorFactory(
     {
         shell.OpenOrFocus<SessionDetailViewModel>(
             editor => editor.Id == snapshot.Id,
-            () => CreateSessionDetail(snapshot));
+            () => CreateSessionDetail(snapshot),
+            CreateSessionDetailRestoreEntry(snapshot.Id));
     }
 
     public void OpenSessionDetailInBackground(SessionSnapshot snapshot)
     {
         shell.OpenInBackground<SessionDetailViewModel>(
             editor => editor.Id == snapshot.Id,
-            () => CreateSessionDetail(snapshot));
+            () => CreateSessionDetail(snapshot),
+            CreateSessionDetailRestoreEntry(snapshot.Id));
     }
 
     public Task CloseSessionDetail(Guid sessionId)
     {
-        return shell.CloseIfOpen<SessionDetailViewModel>(editor => editor.Id == sessionId, forgetRestoreHistory: true);
+        return shell.CloseIfOpen<SessionDetailViewModel>(
+            editor => editor.Id == sessionId,
+            forgetRestoreHistory: true,
+            restoreKey: sessionId);
     }
 
     public SessionDetailViewModel CreateSessionDetail(SessionSnapshot snapshot) =>
@@ -175,6 +189,27 @@ internal sealed class EditorFactory(
                 recordedSessionDataReader,
                 backgroundTaskRunner),
             layoutProfileTransitionState);
+
+    private ClosedTabRestoreEntry CreateBikeRestoreEntry(Guid bikeId) =>
+        ClosedTabRestoreEntry.For<BikeEditorViewModel>(
+            bikeId,
+            () => bikeStore.Get(bikeId) is { } snapshot
+                ? CreateBikeEditor(snapshot, isNew: false)
+                : null);
+
+    private ClosedTabRestoreEntry CreateSetupRestoreEntry(Guid setupId) =>
+        ClosedTabRestoreEntry.For<SetupEditorViewModel>(
+            setupId,
+            () => setupStore.Get(setupId) is { } snapshot
+                ? CreateSetupEditor(snapshot, isNew: false)
+                : null);
+
+    private ClosedTabRestoreEntry CreateSessionDetailRestoreEntry(Guid sessionId) =>
+        ClosedTabRestoreEntry.For<SessionDetailViewModel>(
+            sessionId,
+            () => sessionStore.Get(sessionId) is { } snapshot
+                ? CreateSessionDetail(snapshot)
+                : null);
 
     public void OpenLiveDaqDetail(LiveDaqSnapshot snapshot, ILiveDaqSharedStream sharedStream)
     {

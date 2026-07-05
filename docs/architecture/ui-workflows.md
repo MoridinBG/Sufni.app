@@ -209,10 +209,14 @@ and control-internal keys stay local to their controls.
 
 `ShellWorkspaceCoordinator` translates every coordinator call into
 `ShellWorkspaceViewModel` operations. `OpenOrFocus<T>(match, create)` walks the
-open tab collection, reuses a matching tab when found, restores a matching
-closed-history tab when available, and otherwise creates a new tab through the
-caller-supplied factory. `OpenInBackground<T>(match, create)` uses the same
-dedupe/restoration behavior without selecting the tab. `Close` and
+open tab collection, reuses a matching tab when found, and otherwise creates a
+new tab through the caller-supplied factory. Persisted editors can also provide
+a closed-tab restore entry keyed by their entity id; closed history stores only
+that entry, and restore creates a fresh view model from the current store
+snapshot instead of reviving the closed instance. `OpenInBackground<T>(match,
+create)` uses the same dedupe/restoration behavior without selecting the tab.
+Transient, create-only, import, and live-session tabs do not provide restore
+entries and are therefore not restored after close. `Close` and
 `CloseIfOpen<T>` remove tabs through the tab page close path so dirty editors
 continue to run their close commands and unsaved-change prompts. `GoBack()`
 selects the previously focused tab when possible, otherwise clears the current

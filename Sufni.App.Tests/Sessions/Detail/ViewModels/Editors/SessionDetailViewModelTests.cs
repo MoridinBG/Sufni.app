@@ -1306,7 +1306,7 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task CloseThenLoaded_ReinitializesRecordedSessionExtensionScopes_ForTabHistoryRestore()
+    public async Task UnloadedThenLoaded_ReinitializesRecordedSessionExtensionScopes()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         var factory = new TestRecordedSessionExtensionFactory(
@@ -1329,7 +1329,7 @@ public class SessionDetailViewModelTests
         Assert.NotNull(firstScope);
         Assert.True(editor.MediaWorkspace.HasMediaContent);
 
-        await editor.CloseCommand.ExecuteAsync(null);
+        await editor.UnloadedCommand.ExecuteAsync(null);
         Assert.True(firstScope!.Disposed);
         Assert.False(editor.MediaWorkspace.HasMediaContent);
 
@@ -2782,6 +2782,49 @@ public class SessionDetailViewModelTests
             Arg.Any<string>(),
             Arg.Any<IReadOnlyList<DialogChoice>>());
         await sessionCoordinator.Received(1).RequestRecomputeAsync(snapshot.Id, Arg.Any<RecomputeReason>());
+    }
+
+    [AvaloniaFact]
+    public async Task Loaded_AfterUnload_ReplaysStalePromptForSameDomain()
+    {
+        var snapshot = TestSnapshots.Session(name: "trail run", hasProcessedData: true, updated: 5);
+        var watch = new ReplaySubject<RecordedSessionDomainSnapshot>(1);
+        var promptCount = 0;
+        var secondPrompt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var staleDomain = DomainFromSnapshot(
+            snapshot,
+            DerivedChangeKind.Initial,
+            new SessionStaleness.DependencyHashChanged());
+
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(IncompleteResult(snapshot.Id));
+        dialogService.ShowChoiceAsync(
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<IReadOnlyList<DialogChoice>>())
+            .Returns(call =>
+            {
+                promptCount++;
+                if (promptCount == 2)
+                {
+                    secondPrompt.TrySetResult();
+                }
+
+                return call.Arg<IReadOnlyList<DialogChoice>>().First(c => c.Label == "Cancel").Id;
+            });
+
+        watch.OnNext(staleDomain);
+        var editor = CreateEditor(snapshot, watch.AsObservable(), isDesktop: true);
+
+        await editor.LoadedCommand.ExecuteAsync(null);
+        await WaitForAsync(() => promptCount == 1);
+
+        await editor.UnloadedCommand.ExecuteAsync(null);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        await secondPrompt.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(2, promptCount);
+        await sessionCoordinator.DidNotReceive().RequestRecomputeAsync(snapshot.Id, Arg.Any<RecomputeReason>());
     }
 
     [AvaloniaFact]

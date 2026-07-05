@@ -26,6 +26,8 @@ internal abstract record RecordedSessionEditorEffect
 
     public sealed record EvaluateRecomputeStaleness(RecordedSessionDomainSnapshot Domain) : RecordedSessionEditorEffect;
 
+    public sealed record ReplayRecomputeStaleness(RecordedSessionDomainSnapshot Domain) : RecordedSessionEditorEffect;
+
     public sealed record UpdateDirtyBaseline : RecordedSessionEditorEffect;
 }
 
@@ -156,13 +158,29 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
     public static IObservable<RecordedSessionEditorEffect> RecomputeStaleness(
         IObservable<RecordedSessionEditorState> states)
     {
-        ArgumentNullException.ThrowIfNull(states);
+        return RecomputeStaleness(states, Observable.Empty<Unit>());
+    }
 
-        return states
+    public static IObservable<RecordedSessionEditorEffect> RecomputeStaleness(
+        IObservable<RecordedSessionEditorState> states,
+        IObservable<Unit> replayRequests)
+    {
+        ArgumentNullException.ThrowIfNull(states);
+        ArgumentNullException.ThrowIfNull(replayRequests);
+
+        var domainChanges = states
             .Select(static state => state.Domain)
             .Where(static domain => domain is not null)
             .DistinctUntilChanged()
-            .Select(static domain => new RecordedSessionEditorEffect.EvaluateRecomputeStaleness(domain!));
+            .Select(static domain => domain!);
+        var replayedDomains = replayRequests
+            .WithLatestFrom(states, static (_, state) => state.Domain)
+            .Where(static domain => domain is not null)
+            .Select(static domain => domain!);
+
+        return domainChanges
+            .Select(static domain => (RecordedSessionEditorEffect)new RecordedSessionEditorEffect.EvaluateRecomputeStaleness(domain))
+            .Merge(replayedDomains.Select(static domain => new RecordedSessionEditorEffect.ReplayRecomputeStaleness(domain)));
     }
 
     public static IObservable<RecordedSessionEditorEffect> DirtyBaselineTracking(

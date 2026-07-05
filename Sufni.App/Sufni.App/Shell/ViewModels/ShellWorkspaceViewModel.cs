@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Shared.Base;
+using Sufni.App.Shell.Coordinators;
 
 namespace Sufni.App.Shell.ViewModels;
 
@@ -15,8 +16,8 @@ public interface IShellWorkspaceHost
 {
     ObservableCollection<TabPageViewModelBase> Tabs { get; }
     TabPageViewModelBase? CurrentTab { get; set; }
-    void OpenOrFocus(TabPageViewModelBase page);
-    void OpenInBackground(TabPageViewModelBase page);
+    void OpenOrFocus(TabPageViewModelBase page, ClosedTabRestoreEntry? restoreEntry = null);
+    void OpenInBackground(TabPageViewModelBase page, ClosedTabRestoreEntry? restoreEntry = null);
     bool CloseIfOpen(Func<TabPageViewModelBase, bool> predicate, bool rememberForRestore = true);
     Task<bool> CloseCurrentAsync();
     bool GoBack();
@@ -25,8 +26,9 @@ public interface IShellWorkspaceHost
 
 public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHost
 {
-    private readonly Stack<TabPageViewModelBase> tabHistory = new();
+    private readonly Stack<ClosedTabRestoreEntry> tabHistory = new();
     private readonly Stack<TabPageViewModelBase> focusHistory = new();
+    private readonly Dictionary<TabPageViewModelBase, ClosedTabRestoreEntry> activeRestoreEntries = [];
     private bool isClosing;
     private bool isNavigatingHistory;
     private bool isReorderingTabs;
@@ -61,8 +63,9 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
         }
     }
 
-    public void OpenOrFocus(TabPageViewModelBase page)
+    public void OpenOrFocus(TabPageViewModelBase page, ClosedTabRestoreEntry? restoreEntry = null)
     {
+        RegisterRestoreEntry(page, restoreEntry);
         if (!Tabs.Contains(page))
         {
             Tabs.Add(page);
@@ -71,8 +74,9 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
         CurrentTab = page;
     }
 
-    public void OpenInBackground(TabPageViewModelBase page)
+    public void OpenInBackground(TabPageViewModelBase page, ClosedTabRestoreEntry? restoreEntry = null)
     {
+        RegisterRestoreEntry(page, restoreEntry);
         if (!Tabs.Contains(page))
         {
             Tabs.Add(page);
@@ -144,12 +148,14 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
 
         RemoveFocusHistory(tab);
 
-        if (rememberForRestore)
+        if (rememberForRestore && activeRestoreEntries.Remove(tab, out var restoreEntry))
         {
-            RemoveTabHistory<TabPageViewModelBase>(
-                historyTab => ReferenceEquals(historyTab, tab),
-                out _);
-            tabHistory.Push(tab);
+            RemoveTabHistory(restoreEntry.TabType, restoreEntry.Key, out _);
+            tabHistory.Push(restoreEntry);
+        }
+        else
+        {
+            activeRestoreEntries.Remove(tab);
         }
 
         if (tab == closingTab)
@@ -247,12 +253,20 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
     [RelayCommand]
     public void Restore()
     {
-        tabHistory.TryPop(out var toRestore);
-        if (toRestore is null)
+        TabPageViewModelBase? toRestore = null;
+        ClosedTabRestoreEntry? restoredEntry = null;
+        while (toRestore is null && tabHistory.TryPop(out var entry))
+        {
+            restoredEntry = entry;
+            toRestore = entry.Restore();
+        }
+
+        if (toRestore is null || restoredEntry is null)
         {
             return;
         }
 
+        activeRestoreEntries[toRestore] = restoredEntry;
         Tabs.Add(toRestore);
         CurrentTab = toRestore;
     }
@@ -269,30 +283,29 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
         SelectRelativeTab(-1);
     }
 
-    public void ForgetTabHistory<T>(Func<T, bool> match) where T : ViewModelBase
-        => RemoveTabHistory(match, out _);
+    public void ForgetTabHistory(Type tabType, object key)
+        => RemoveTabHistory(tabType, key, out _);
 
-    public T? TakeTabHistory<T>(Func<T, bool> match) where T : ViewModelBase
+    public ClosedTabRestoreEntry? TakeTabHistory(Type tabType, object key)
     {
-        RemoveTabHistory(match, out var tab);
-        return tab;
+        RemoveTabHistory(tabType, key, out var entry);
+        return entry;
     }
 
-    private void RemoveTabHistory<T>(Func<T, bool> match, out T? mostRecentMatch)
-        where T : ViewModelBase
+    private void RemoveTabHistory(Type tabType, object key, out ClosedTabRestoreEntry? mostRecentMatch)
     {
         mostRecentMatch = null;
-        var retained = new List<TabPageViewModelBase>(tabHistory.Count);
+        var retained = new List<ClosedTabRestoreEntry>(tabHistory.Count);
 
-        while (tabHistory.TryPop(out var tab))
+        while (tabHistory.TryPop(out var entry))
         {
-            if (tab is T typed && match(typed))
+            if (entry.Matches(tabType, key))
             {
-                mostRecentMatch ??= typed;
+                mostRecentMatch ??= entry;
                 continue;
             }
 
-            retained.Add(tab);
+            retained.Add(entry);
         }
 
         for (var i = retained.Count - 1; i >= 0; i--)
@@ -332,5 +345,18 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
         {
             focusHistory.Push(historyTab);
         }
+    }
+
+    private void RegisterRestoreEntry(
+        TabPageViewModelBase tab,
+        ClosedTabRestoreEntry? restoreEntry)
+    {
+        if (restoreEntry is not null)
+        {
+            activeRestoreEntries[tab] = restoreEntry;
+            return;
+        }
+
+        activeRestoreEntries.Remove(tab);
     }
 }

@@ -118,6 +118,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<RecordedSessionLoadedData> loadedDataInput = new();
     private readonly Subject<RecordedSessionHostRuntimeState> hostRuntimeInput = new();
     private readonly Subject<RecordedSessionDomainSnapshot> domainInput = new();
+    private readonly Subject<Unit> stalenessReplayInput = new();
     private readonly Subject<Unit> dirtyBaselineInput = new();
     private readonly Subject<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> signalPlotContextMenuActionsInput = new();
     private readonly RecordedSessionEditorStateController editorStateController;
@@ -125,6 +126,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Func<IEditorFactory> editorFactory;
     private readonly ILayoutProfileTransitionState layoutProfileTransitionState;
     private bool observedInitialDomain;
+    private bool replayStalenessOnNextLoad;
     private RecordedSessionDomainSnapshot? deferredDomain;
     private readonly AnalysisSelectionController analysisSelectionController = new();
     private readonly RecordedPresentationApplier presentationApplier;
@@ -1615,7 +1617,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 RecordedSessionEditorEffects.ExplicitAnalysisRequests(editorActions.Intents),
                 RecordedSessionEditorEffects.MapMediaSync(editorStateController.State),
                 RecordedSessionEditorEffects.CommandRefresh(editorStateController.State),
-                RecordedSessionEditorEffects.RecomputeStaleness(editorStateController.State),
+                RecordedSessionEditorEffects.RecomputeStaleness(
+                    editorStateController.State,
+                    stalenessReplayInput),
                 RecordedSessionEditorEffects.DirtyBaselineTracking(dirtyBaselineInput),
                 RecordedSessionEditorEffects.ExtensionHostPublication(
                     editorStateController.State,
@@ -2216,6 +2220,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
+        if (effect is RecordedSessionEditorEffect.ReplayRecomputeStaleness stalenessReplay)
+        {
+            _ = ReplayStalenessOnLoadAsync(stalenessReplay.Domain);
+            return;
+        }
+
         if (effect is RecordedSessionEditorEffect.UpdateDirtyBaseline)
         {
             EvaluateDirtiness();
@@ -2226,6 +2236,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             recordedSessionExtensions?.UpdateHostState(publish.State);
         }
+    }
+
+    private async Task ReplayStalenessOnLoadAsync(RecordedSessionDomainSnapshot domain)
+    {
+        if (!viewLoaded)
+        {
+            return;
+        }
+
+        await stalenessReconciler.HandleStalenessAsync(domain, RecomputeReason.StaleOnOpen);
     }
 
     private void ApplyMapMediaSync(RecordedSessionLoadedData loadedData)
@@ -2732,6 +2752,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             s.Add(recordedPreferenceStore.Observe().Subscribe(OnSyncedPreferencesArrived));
             s.Add(watch.Subscribe(domainInput.OnNext));
         });
+        if (replayStalenessOnNextLoad)
+        {
+            replayStalenessOnNextLoad = false;
+            stalenessReplayInput.OnNext(Unit.Default);
+        }
 
         await InitializeRecordedSessionExtensionsAsync();
         PublishRecordedSessionHostRuntimeState();
@@ -2791,6 +2816,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         viewLoaded = false;
         loadOperation.Cancel();
         observedInitialDomain = false;
+        replayStalenessOnNextLoad = true;
         deferredDomain = null;
         stalenessReconciler.ResetForUnload();
         PublishRecordedSessionHostRuntimeState();
