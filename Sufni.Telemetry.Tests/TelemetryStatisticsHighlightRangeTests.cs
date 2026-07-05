@@ -111,15 +111,15 @@ public class TelemetryStatisticsHighlightRangeTests
         [
             new ProcessedSuspensionSegment
             {
+                FirstDenseIndex = 0,
                 StartSeconds = 0.0,
-                Travel = [0, 5],
-                Velocity = [0, 0],
+                SampleCount = 2,
             },
             new ProcessedSuspensionSegment
             {
+                FirstDenseIndex = 2,
                 StartSeconds = 1.0,
-                Travel = [10, 25],
-                Velocity = [0, 0],
+                SampleCount = 2,
             },
         ];
         var selection = new StrokeLengthRangeSelection(

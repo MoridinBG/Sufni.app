@@ -373,8 +373,7 @@ public class TelemetryDataTests
                         FirstDenseIndex = 0,
                         FirstSourceIndex = 10,
                         StartSeconds = 1.5,
-                        Travel = [0, 1],
-                        Velocity = [0, 10],
+                        SampleCount = 2,
                     }
                 ],
                 Strokes = new Strokes
@@ -444,6 +443,7 @@ public class TelemetryDataTests
 
         Assert.True(result.Front.HasGaps);
         Assert.Equal(1.5, result.Front.Segments[0].StartSeconds);
+        Assert.Equal(2, result.Front.Segments[0].SampleCount);
         Assert.Equal(1.5, result.Front.Strokes.Compressions[0].StartSeconds);
         Assert.NotNull(result.ImuData);
         Assert.True(result.ImuData.HasGaps);
@@ -521,7 +521,7 @@ public class TelemetryDataTests
         {
             Assert.Contains(result.Front.Segments, segment =>
                 stroke.Start >= segment.FirstDenseIndex &&
-                stroke.End < segment.FirstDenseIndex + segment.Travel.Length);
+                stroke.End < segment.FirstDenseIndex + segment.SampleCount);
         });
     }
 
@@ -921,15 +921,15 @@ public class TelemetryDataTests
         [
             new ProcessedSuspensionSegment
             {
+                FirstDenseIndex = 0,
                 StartSeconds = 0.0,
-                Travel = [1.0, 2.0],
-                Velocity = [0.0, 0.0],
+                SampleCount = 2,
             },
             new ProcessedSuspensionSegment
             {
+                FirstDenseIndex = 2,
                 StartSeconds = 1.0,
-                Travel = [10.0, 20.0],
-                Velocity = [0.0, 0.0],
+                SampleCount = 2,
             },
         ];
         var options = new TravelStatisticsOptions(
@@ -1393,16 +1393,14 @@ public class TelemetryDataTests
                         FirstDenseIndex = 0,
                         FirstSourceIndex = 0,
                         StartSeconds = 0.0,
-                        Travel = [0, 10],
-                        Velocity = [0, 100],
+                        SampleCount = 2,
                     },
                     new ProcessedSuspensionSegment
                     {
                         FirstDenseIndex = 2,
                         FirstSourceIndex = 10,
                         StartSeconds = 1.0,
-                        Travel = [20, 30],
-                        Velocity = [0, 100],
+                        SampleCount = 2,
                     }
                 ],
                 Strokes = Strokes.FromCategorized([compression], [], []),

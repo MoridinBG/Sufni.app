@@ -189,7 +189,7 @@ public static partial class TelemetryStatistics
             return null;
         }
 
-        var sampler = new SuspensionTimeSeriesSampler(suspension.Segments, telemetryData.Metadata.SampleRate);
+        var sampler = new SuspensionTimeSeriesSampler(suspension.Segments, suspension.Travel, telemetryData.Metadata.SampleRate);
         var compression = new VibrationAccumulator();
         var rebound = new VibrationAccumulator();
         var other = new VibrationAccumulator();
@@ -333,7 +333,7 @@ public static partial class TelemetryStatistics
         var total = 0.0;
         foreach (var segment in suspension.Segments)
         {
-            for (var index = 1; index < segment.Travel.Length; index++)
+            for (var index = 1; index < segment.SampleCount; index++)
             {
                 var seconds = segment.StartSeconds + index / (double)sampleRate;
                 if (seconds < selectedStartSeconds || seconds >= selectedEndSeconds)
@@ -341,7 +341,14 @@ public static partial class TelemetryStatistics
                     continue;
                 }
 
-                total += Math.Abs(segment.Travel[index] - segment.Travel[index - 1]);
+                var denseIndex = segment.FirstDenseIndex + index;
+                var previousDenseIndex = denseIndex - 1;
+                if (previousDenseIndex < 0 || denseIndex >= suspension.Travel.Length)
+                {
+                    continue;
+                }
+
+                total += Math.Abs(suspension.Travel[denseIndex] - suspension.Travel[previousDenseIndex]);
             }
         }
 

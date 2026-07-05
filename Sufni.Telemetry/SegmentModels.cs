@@ -57,6 +57,5 @@ public class ProcessedSuspensionSegment
     public int FirstDenseIndex { get; set; }
     public ulong FirstSourceIndex { get; set; }
     public double StartSeconds { get; set; }
-    public double[] Travel { get; set; } = [];
-    public double[] Velocity { get; set; } = [];
+    public int SampleCount { get; set; }
 }

@@ -96,15 +96,22 @@ public static partial class TelemetryStatistics
         var samples = new List<double>();
         foreach (var segment in suspension.Segments.OrderBy(segment => segment.StartSeconds))
         {
-            for (var index = 0; index < segment.Travel.Length; index++)
+            var endIndex = segment.FirstDenseIndex + segment.SampleCount;
+            for (var denseIndex = segment.FirstDenseIndex; denseIndex < endIndex && denseIndex < suspension.Travel.Length; denseIndex++)
             {
-                var seconds = segment.StartSeconds + index / (double)telemetryData.Metadata.SampleRate;
+                if (denseIndex < 0)
+                {
+                    continue;
+                }
+
+                var segmentIndex = denseIndex - segment.FirstDenseIndex;
+                var seconds = segment.StartSeconds + segmentIndex / (double)telemetryData.Metadata.SampleRate;
                 if (seconds < startSeconds || seconds >= endSeconds)
                 {
                     continue;
                 }
 
-                samples.Add(segment.Travel[index]);
+                samples.Add(suspension.Travel[denseIndex]);
             }
         }
 

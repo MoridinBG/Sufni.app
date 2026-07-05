@@ -54,7 +54,10 @@ public class TelemetryData
 
     public static TelemetryData FromBinary(byte[]? data)
     {
-        return MessagePackSerializer.Deserialize<TelemetryData>(data);
+        var telemetryData = MessagePackSerializer.Deserialize<TelemetryData>(data);
+        NormalizeSegmentSampleCounts(telemetryData.Front);
+        NormalizeSegmentSampleCounts(telemetryData.Rear);
+        return telemetryData;
     }
 
     #endregion
@@ -206,7 +209,7 @@ public class TelemetryData
             return true;
         }
 
-        var sampler = new SuspensionTimeSeriesSampler(suspension.Segments, Metadata.SampleRate);
+        var sampler = new SuspensionTimeSeriesSampler(suspension.Segments, suspension.Travel, Metadata.SampleRate);
         var startSeconds = StrokeStartSeconds(stroke);
         var endSeconds = StrokeEndSeconds(stroke);
         var values = new List<double>();
@@ -244,8 +247,7 @@ public class TelemetryData
                     FirstDenseIndex = 0,
                     FirstSourceIndex = 0,
                     StartSeconds = 0,
-                    Travel = trace.Travel,
-                    Velocity = trace.Velocity,
+                    SampleCount = trace.Travel.Length,
                 },
             ];
         }
@@ -385,8 +387,7 @@ public class TelemetryData
                 FirstDenseIndex = denseOffset,
                 FirstSourceIndex = rawSegment.FirstIndex,
                 StartSeconds = segmentStartSeconds,
-                Travel = segmentTravel,
-                Velocity = segmentVelocity,
+                SampleCount = segmentTravel.Length,
             });
             compressions.AddRange(segmentStrokes.Compressions);
             rebounds.AddRange(segmentStrokes.Rebounds);
@@ -433,6 +434,45 @@ public class TelemetryData
             stroke.StartSeconds = segmentStartSeconds + localStart / (double)sampleRate;
             stroke.EndSeconds = segmentStartSeconds + localEnd / (double)sampleRate;
         }
+    }
+
+    private static void NormalizeSegmentSampleCounts(Suspension? suspension)
+    {
+        if (suspension is null)
+        {
+            return;
+        }
+
+        if (suspension.Segments is not { Length: > 0 } segments)
+        {
+            suspension.Segments = [];
+            return;
+        }
+
+        if (segments.All(segment => segment.SampleCount > 0))
+        {
+            return;
+        }
+
+        var travelLength = suspension.Travel?.Length ?? 0;
+        if (travelLength == 0)
+        {
+            foreach (var segment in segments)
+            {
+                segment.SampleCount = 0;
+            }
+
+            return;
+        }
+
+        for (var index = 0; index < segments.Length - 1; index++)
+        {
+            segments[index].SampleCount =
+                segments[index + 1].FirstDenseIndex - segments[index].FirstDenseIndex;
+        }
+
+        var last = segments[^1];
+        last.SampleCount = travelLength - last.FirstDenseIndex;
     }
 
     private static SavitzkyGolay? CreateVelocityFilter(

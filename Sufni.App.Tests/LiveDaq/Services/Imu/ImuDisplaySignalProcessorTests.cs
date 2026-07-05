@@ -134,8 +134,8 @@ public class ImuDisplaySignalProcessorTests
                 Strokes = new Strokes(),
                 Segments =
                 [
-                    new ProcessedSuspensionSegment { FirstDenseIndex = 0, StartSeconds = 0.0, Travel = [0, 0], Velocity = [0, 0] },
-                    new ProcessedSuspensionSegment { FirstDenseIndex = 2, StartSeconds = 1.0, Travel = [0, 0], Velocity = [500, 500] },
+                    new ProcessedSuspensionSegment { FirstDenseIndex = 0, StartSeconds = 0.0, SampleCount = 2 },
+                    new ProcessedSuspensionSegment { FirstDenseIndex = 2, StartSeconds = 1.0, SampleCount = 2 },
                 ],
             },
             Rear = new Suspension { Present = false, Strokes = new Strokes() },
