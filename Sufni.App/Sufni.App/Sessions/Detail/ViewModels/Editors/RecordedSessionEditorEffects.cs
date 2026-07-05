@@ -64,7 +64,7 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
         ArgumentNullException.ThrowIfNull(intents);
 
         return intents
-            .Where(IsPreferencePersistenceIntent)
+            .Where(RecordedSessionEditorIntentReducers.IsPreferencePersistenceIntent)
             .Select(static intent => new RecordedSessionEditorEffect.PersistPreferences(intent));
     }
 
@@ -229,19 +229,6 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
 
         disposed = true;
         subscriptions.Dispose();
-    }
-
-    private static bool IsPreferencePersistenceIntent(RecordedSessionEditorIntent intent)
-    {
-        return intent is
-            RecordedSessionEditorIntent.SetTravelDistributionMode or
-            RecordedSessionEditorIntent.SetBalanceDisplacementMode or
-            RecordedSessionEditorIntent.SetBalanceSpeedMode or
-            RecordedSessionEditorIntent.SetVelocityAverageMode or
-            RecordedSessionEditorIntent.SetSessionInsightsTargetProfile or
-            RecordedSessionEditorIntent.SetSignalDisplayPreferences or
-            RecordedSessionEditorIntent.SetSignalLayoutPreferences or
-            RecordedSessionEditorIntent.SetLayoutPreferences;
     }
 
     private static RecordedSessionEditorEffect? CreateAnalysisRequest(

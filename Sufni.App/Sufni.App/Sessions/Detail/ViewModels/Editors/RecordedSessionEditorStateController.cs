@@ -555,49 +555,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         IObservable<SessionPreferences> preferenceReplays)
     {
         var userUpdates = intents
-            .Select(static intent => intent switch
-            {
-                RecordedSessionEditorIntent.SetTravelDistributionMode set =>
-                    new Func<SessionPreferences, SessionPreferences>(
-                        current => current with
-                        {
-                            Analysis = current.Analysis with { TravelDistributionMode = set.Mode },
-                        }),
-                RecordedSessionEditorIntent.SetBalanceDisplacementMode set =>
-                    new Func<SessionPreferences, SessionPreferences>(
-                        current => current with
-                        {
-                            Analysis = current.Analysis with { BalanceDisplacementMode = set.Mode },
-                        }),
-                RecordedSessionEditorIntent.SetBalanceSpeedMode set =>
-                    new Func<SessionPreferences, SessionPreferences>(
-                        current => current with
-                        {
-                            Analysis = current.Analysis with { BalanceSpeedMode = set.Mode },
-                        }),
-                RecordedSessionEditorIntent.SetVelocityAverageMode set =>
-                    new Func<SessionPreferences, SessionPreferences>(
-                        current => current with
-                        {
-                            Analysis = current.Analysis with { VelocityAverageMode = set.Mode },
-                        }),
-                RecordedSessionEditorIntent.SetSessionInsightsTargetProfile set =>
-                    new Func<SessionPreferences, SessionPreferences>(
-                        current => current with
-                        {
-                            Analysis = current.Analysis with { SessionInsightsTargetProfile = set.Profile },
-                        }),
-                RecordedSessionEditorIntent.SetSignalDisplayPreferences set =>
-                    new Func<SessionPreferences, SessionPreferences>(
-                        current => current with { SignalDisplay = set.Preferences }),
-                RecordedSessionEditorIntent.SetSignalLayoutPreferences set =>
-                    new Func<SessionPreferences, SessionPreferences>(
-                        current => current with { SignalLayout = set.Preferences }),
-                RecordedSessionEditorIntent.SetLayoutPreferences set =>
-                    new Func<SessionPreferences, SessionPreferences>(
-                        current => current with { Layout = set.Preferences }),
-                _ => null,
-            })
+            .Select(RecordedSessionEditorIntentReducers.CreatePreferenceUpdate)
             .Where(static update => update is not null)
             .Select(static update => update!);
 
