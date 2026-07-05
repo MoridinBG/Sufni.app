@@ -15,7 +15,7 @@ using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Presentation;
 namespace Sufni.App.Sessions.Pages.ViewModels.Editors;
 
-internal sealed class RecordedPresentationApplier
+internal sealed class RecordedPagePresentationApplier
 {
     private readonly SessionDetailViewModel owner;
     private readonly ObservableCollection<PageViewModelBase> pages;
@@ -27,7 +27,7 @@ internal sealed class RecordedPresentationApplier
     private readonly NotesPageViewModel notesPage;
     private readonly PreferencesPageViewModel preferencesPage;
 
-    public RecordedPresentationApplier(
+    public RecordedPagePresentationApplier(
         SessionDetailViewModel owner,
         ObservableCollection<PageViewModelBase> pages,
         SpringPageViewModel springPage,

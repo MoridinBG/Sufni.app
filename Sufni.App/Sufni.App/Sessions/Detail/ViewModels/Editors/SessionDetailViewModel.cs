@@ -130,7 +130,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private bool observedInitialDomain;
     private bool replayStalenessOnNextLoad;
     private RecordedSessionDomainSnapshot? deferredDomain;
-    private readonly RecordedPresentationApplier presentationApplier;
+    private readonly RecordedPagePresentationApplier presentationApplier;
     private readonly RecordedPreferenceStore recordedPreferenceStore;
     private readonly RecordedSessionExtensionPagesController? extensionPagesController;
     private readonly ProcessingPreferenceWorkflow processingPreferenceWorkflow;
@@ -1564,7 +1564,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         BalancePage = new BalancePageViewModel(AnalysisWorkspace);
         VibrationPage = new VibrationPageViewModel(AnalysisWorkspace);
         AnalysisPage = new SessionInsightsPageViewModel(AnalysisWorkspace);
-        presentationApplier = new RecordedPresentationApplier(
+        presentationApplier = new RecordedPagePresentationApplier(
             this,
             Pages,
             SpringPage,
