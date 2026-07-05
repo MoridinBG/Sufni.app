@@ -233,7 +233,6 @@ public class SessionDetailViewModelTests
             SurfacePresentationState.Hidden,
             SurfacePresentationState.Hidden,
             SurfacePresentationState.Hidden));
-        editor.SetScreenState(SessionScreenPresentationState.Loading("loading"));
         editor.SetSessionOperationState(SessionOperationPresentationState.Progress("working", 50));
 
         Assert.Same(pages, editor.Pages);
@@ -252,14 +251,17 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public void MobileWorkspace_TracksOwnerPresentationState()
+    public async Task MobileWorkspace_TracksOwnerPresentationState()
     {
-        var editor = CreateEditor(TestSnapshots.Session());
+        var snapshot = TestSnapshots.Session(hasProcessedData: false);
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
+            .Returns(new SessionDetailLoadResult.Failed("boom"));
+        var editor = CreateEditor(snapshot);
         var observed = new List<string?>();
         ((INotifyPropertyChanged)editor.MobileWorkspace).PropertyChanged += (_, args) =>
             observed.Add(args.PropertyName);
 
-        editor.SetScreenState(SessionScreenPresentationState.Loading("loading"));
+        await editor.LoadedCommand.ExecuteAsync(null);
         editor.SetSessionOperationState(SessionOperationPresentationState.Progress("working", 25));
 
         Assert.Equal(editor.ScreenState, editor.MobileWorkspace.ScreenState);

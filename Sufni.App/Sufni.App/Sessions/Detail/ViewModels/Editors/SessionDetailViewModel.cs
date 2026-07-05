@@ -103,7 +103,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<int> pageCountInput = new();
     private readonly Subject<SessionPreferences> preferenceReplayInput = new();
     private readonly Subject<RecordedSessionLoadPresentation> loadPresentationInput = new();
-    private readonly Subject<SessionScreenPresentationState> screenStateInput = new();
     private readonly Subject<SessionOperationPresentationState> sessionOperationStateInput = new();
     private readonly Subject<SurfacePresentationState> mapStateInput = new();
     private readonly Subject<SurfacePresentationState> mediaPaneStateInput = new();
@@ -764,7 +763,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         else
         {
             PublishLoadPresentation(new RecordedSessionLoadPresentation.Empty(currentSnapshot));
-            SetScreenState(SessionScreenPresentationState.Ready);
         }
 
         try
@@ -1431,7 +1429,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 pageCountInput,
                 preferenceReplayInput,
                 loadPresentationInput,
-                screenStateInput,
                 sessionOperationStateInput,
                 mapStateInput,
                 mediaPaneStateInput,
@@ -1988,15 +1985,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         plotDampingSpeedCutoffsInput.OnNext(cutoffs);
-    }
-
-    internal void SetScreenState(SessionScreenPresentationState state)
-    {
-        var changed = SetProperty(ref screenState, state, nameof(ScreenState));
-        if (changed)
-        {
-            screenStateInput.OnNext(state);
-        }
     }
 
     internal void SetSessionOperationState(SessionOperationPresentationState state)

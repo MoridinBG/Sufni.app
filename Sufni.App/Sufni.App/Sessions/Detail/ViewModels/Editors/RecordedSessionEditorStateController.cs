@@ -21,7 +21,6 @@ internal sealed record RecordedSessionEditorStateInputs(
     IObservable<int> PageCounts,
     IObservable<SessionPreferences> PreferenceReplays,
     IObservable<RecordedSessionLoadPresentation> LoadPresentations,
-    IObservable<SessionScreenPresentationState> ScreenStates,
     IObservable<SessionOperationPresentationState> OperationStates,
     IObservable<SurfacePresentationState> MapStates,
     IObservable<SurfacePresentationState> MediaPaneStates,
@@ -49,7 +48,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(inputs.PageCounts);
         ArgumentNullException.ThrowIfNull(inputs.PreferenceReplays);
         ArgumentNullException.ThrowIfNull(inputs.LoadPresentations);
-        ArgumentNullException.ThrowIfNull(inputs.ScreenStates);
         ArgumentNullException.ThrowIfNull(inputs.OperationStates);
         ArgumentNullException.ThrowIfNull(inputs.MapStates);
         ArgumentNullException.ThrowIfNull(inputs.MediaPaneStates);
@@ -76,7 +74,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var dampingSpeedCutoffs = CreateDampingSpeedCutoffsState(inputs.Intents);
         var preferenceIntent = CreatePreferenceIntentState(inputs.Intents, inputs.PreferenceReplays);
         var screenState = CreateInputState(
-            inputs.ScreenStates.Merge(loadPresentationState.Select(CreateScreenStateFromLoadPresentation)),
+            loadPresentationState.Select(CreateScreenStateFromLoadPresentation),
             SessionScreenPresentationState.Ready);
         var operationState = CreateInputState(inputs.OperationStates, SessionOperationPresentationState.Hidden);
         var mapState = CreateInputState(

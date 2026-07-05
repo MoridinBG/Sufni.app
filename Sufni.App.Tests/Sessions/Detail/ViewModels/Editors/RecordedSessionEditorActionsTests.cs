@@ -352,19 +352,25 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
-    public void StateController_DerivesScreenAndOperationState_FromLifecycleInputs()
+    public void StateController_DerivesScreenState_FromLoadPresentation_AndOperationStateFromInput()
     {
         using var driver = new RecordedSessionEditorStateControllerTestDriver();
         var observed = new List<RecordedSessionEditorPresentationState>();
         using var subscription = driver.Controller.State.Subscribe(state => observed.Add(state.Presentation));
-        var loading = SessionScreenPresentationState.Loading("Loading");
         var operation = SessionOperationPresentationState.Progress("Working", 25);
+        var incomplete = new RecordedSessionLoadPresentation.IncompleteLocalData(
+            new MissingSessionData(
+                ProcessedTelemetryBlob: true,
+                RecordedSourceMissingOrHashMismatch: false),
+            HasProcessedData: true);
 
-        driver.ScreenStates.OnNext(loading);
+        driver.LoadPresentations.OnNext(incomplete);
         driver.OperationStates.OnNext(operation);
 
+        var transitions = AdjacentDistinct(observed.Select(state => (state.ScreenState, state.OperationState)));
+
         Assert.Collection(
-            observed,
+            transitions,
             state =>
             {
                 Assert.Equal(SessionScreenPresentationState.Ready, state.ScreenState);
@@ -372,12 +378,12 @@ public class RecordedSessionEditorActionsTests
             },
             state =>
             {
-                Assert.Equal(loading, state.ScreenState);
+                Assert.Equal(SessionScreenStateKind.IncompleteLocalData, state.ScreenState.Kind);
                 Assert.Equal(SessionOperationPresentationState.Hidden, state.OperationState);
             },
             state =>
             {
-                Assert.Equal(loading, state.ScreenState);
+                Assert.Equal(SessionScreenStateKind.IncompleteLocalData, state.ScreenState.Kind);
                 Assert.Equal(operation, state.OperationState);
             });
     }
