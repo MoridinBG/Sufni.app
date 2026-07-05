@@ -39,433 +39,67 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
     private readonly IDisposable connection;
     private bool disposed;
 
-    public RecordedSessionEditorStateController(IObservable<RecordedSessionEditorState> state)
-    {
-        ArgumentNullException.ThrowIfNull(state);
-
-        var replayingState = state
-            .DistinctUntilChanged()
-            .Replay(1);
-
-        State = replayingState.AsObservable();
-        connection = replayingState.Connect();
-    }
-
     public RecordedSessionEditorStateController(RecordedSessionEditorStateInputs inputs)
-        : this(
-            Observable.Return(RecordedSessionEditorState.CreateInitial()),
-            inputs.Intents,
-            inputs.PageCounts,
-            inputs.PreferenceReplays,
-            inputs.ScreenStates,
-            inputs.OperationStates,
-            inputs.MapStates,
-            inputs.MediaPaneStates,
-            inputs.MediaColumnWidths,
-            inputs.MediaUrls,
-            inputs.AnalysisPresentationStates,
-            inputs.DampingPercentages,
-            inputs.PlotDampingSpeedCutoffs,
-            inputs.CanEditDampingSpeedCutoffs,
-            inputs.SessionInsights,
-            inputs.SignalPresentationStates,
-            inputs.AnalysisSelections,
-            inputs.LoadedDataStates,
-            inputs.SignalPlotContextMenuActions,
-            inputs.DomainStates)
     {
-    }
+        ArgumentNullException.ThrowIfNull(inputs);
+        ArgumentNullException.ThrowIfNull(inputs.Intents);
+        ArgumentNullException.ThrowIfNull(inputs.PageCounts);
+        ArgumentNullException.ThrowIfNull(inputs.PreferenceReplays);
+        ArgumentNullException.ThrowIfNull(inputs.ScreenStates);
+        ArgumentNullException.ThrowIfNull(inputs.OperationStates);
+        ArgumentNullException.ThrowIfNull(inputs.MapStates);
+        ArgumentNullException.ThrowIfNull(inputs.MediaPaneStates);
+        ArgumentNullException.ThrowIfNull(inputs.MediaColumnWidths);
+        ArgumentNullException.ThrowIfNull(inputs.MediaUrls);
+        ArgumentNullException.ThrowIfNull(inputs.AnalysisPresentationStates);
+        ArgumentNullException.ThrowIfNull(inputs.DampingPercentages);
+        ArgumentNullException.ThrowIfNull(inputs.PlotDampingSpeedCutoffs);
+        ArgumentNullException.ThrowIfNull(inputs.CanEditDampingSpeedCutoffs);
+        ArgumentNullException.ThrowIfNull(inputs.SessionInsights);
+        ArgumentNullException.ThrowIfNull(inputs.SignalPresentationStates);
+        ArgumentNullException.ThrowIfNull(inputs.AnalysisSelections);
+        ArgumentNullException.ThrowIfNull(inputs.LoadedDataStates);
+        ArgumentNullException.ThrowIfNull(inputs.SignalPlotContextMenuActions);
+        ArgumentNullException.ThrowIfNull(inputs.DomainStates);
 
-    public RecordedSessionEditorStateController(
-        IObservable<RecordedSessionEditorState> legacyState,
-        IObservable<RecordedSessionEditorIntent> intents,
-        IObservable<int> pageCounts)
-        : this(
-            legacyState,
-            intents,
-            pageCounts,
-            Observable.Empty<SessionPreferences>())
-    {
-    }
-
-    public RecordedSessionEditorStateController(
-        IObservable<RecordedSessionEditorState> legacyState,
-        IObservable<RecordedSessionEditorIntent> intents,
-        IObservable<int> pageCounts,
-        IObservable<SessionPreferences> preferenceReplays)
-        : this(
-            legacyState,
-            intents,
-            pageCounts,
-            preferenceReplays,
-            Observable.Empty<SessionScreenPresentationState>(),
-            Observable.Empty<SessionOperationPresentationState>())
-    {
-    }
-
-    public RecordedSessionEditorStateController(
-        IObservable<RecordedSessionEditorState> legacyState,
-        IObservable<RecordedSessionEditorIntent> intents,
-        IObservable<int> pageCounts,
-        IObservable<SessionPreferences> preferenceReplays,
-        IObservable<SessionScreenPresentationState> screenStates,
-        IObservable<SessionOperationPresentationState> operationStates)
-        : this(
-            legacyState,
-            intents,
-            pageCounts,
-            preferenceReplays,
-            screenStates,
-            operationStates,
-            Observable.Empty<SurfacePresentationState>(),
-            Observable.Empty<SurfacePresentationState>(),
-            Observable.Empty<double?>(),
-            Observable.Empty<string?>())
-    {
-    }
-
-    public RecordedSessionEditorStateController(
-        IObservable<RecordedSessionEditorState> legacyState,
-        IObservable<RecordedSessionEditorIntent> intents,
-        IObservable<int> pageCounts,
-        IObservable<SessionPreferences> preferenceReplays,
-        IObservable<SessionScreenPresentationState> screenStates,
-        IObservable<SessionOperationPresentationState> operationStates,
-        IObservable<SurfacePresentationState> mapStates,
-        IObservable<SurfacePresentationState> mediaPaneStates,
-        IObservable<double?> mediaColumnWidths,
-        IObservable<string?> mediaUrls)
-        : this(
-            legacyState,
-            intents,
-            pageCounts,
-            preferenceReplays,
-            screenStates,
-            operationStates,
-            mapStates,
-            mediaPaneStates,
-            mediaColumnWidths,
-            mediaUrls,
-            Observable.Empty<RecordedAnalysisPresentationState>())
-    {
-    }
-
-    public RecordedSessionEditorStateController(
-        IObservable<RecordedSessionEditorState> legacyState,
-        IObservable<RecordedSessionEditorIntent> intents,
-        IObservable<int> pageCounts,
-        IObservable<SessionPreferences> preferenceReplays,
-        IObservable<SessionScreenPresentationState> screenStates,
-        IObservable<SessionOperationPresentationState> operationStates,
-        IObservable<SurfacePresentationState> mapStates,
-        IObservable<SurfacePresentationState> mediaPaneStates,
-        IObservable<double?> mediaColumnWidths,
-        IObservable<string?> mediaUrls,
-        IObservable<RecordedAnalysisPresentationState> analysisPresentationStates)
-        : this(
-            legacyState,
-            intents,
-            pageCounts,
-            preferenceReplays,
-            screenStates,
-            operationStates,
-            mapStates,
-            mediaPaneStates,
-            mediaColumnWidths,
-            mediaUrls,
-            analysisPresentationStates,
-            Observable.Empty<SessionDampingPercentages>(),
-            Observable.Empty<DampingSpeedCutoffs>(),
-            Observable.Empty<bool>(),
-            Observable.Empty<SessionInsightsResult>())
-    {
-    }
-
-    public RecordedSessionEditorStateController(
-        IObservable<RecordedSessionEditorState> legacyState,
-        IObservable<RecordedSessionEditorIntent> intents,
-        IObservable<int> pageCounts,
-        IObservable<SessionPreferences> preferenceReplays,
-        IObservable<SessionScreenPresentationState> screenStates,
-        IObservable<SessionOperationPresentationState> operationStates,
-        IObservable<SurfacePresentationState> mapStates,
-        IObservable<SurfacePresentationState> mediaPaneStates,
-        IObservable<double?> mediaColumnWidths,
-        IObservable<string?> mediaUrls,
-        IObservable<RecordedAnalysisPresentationState> analysisPresentationStates,
-        IObservable<SessionDampingPercentages> dampingPercentages,
-        IObservable<DampingSpeedCutoffs> plotDampingSpeedCutoffs,
-        IObservable<bool> canEditDampingSpeedCutoffs,
-        IObservable<SessionInsightsResult> sessionInsights)
-        : this(
-            legacyState,
-            intents,
-            pageCounts,
-            preferenceReplays,
-            screenStates,
-            operationStates,
-            mapStates,
-            mediaPaneStates,
-            mediaColumnWidths,
-            mediaUrls,
-            analysisPresentationStates,
-            dampingPercentages,
-            plotDampingSpeedCutoffs,
-            canEditDampingSpeedCutoffs,
-            sessionInsights,
-            Observable.Empty<RecordedSignalPresentationState>())
-    {
-    }
-
-    public RecordedSessionEditorStateController(
-        IObservable<RecordedSessionEditorState> legacyState,
-        IObservable<RecordedSessionEditorIntent> intents,
-        IObservable<int> pageCounts,
-        IObservable<SessionPreferences> preferenceReplays,
-        IObservable<SessionScreenPresentationState> screenStates,
-        IObservable<SessionOperationPresentationState> operationStates,
-        IObservable<SurfacePresentationState> mapStates,
-        IObservable<SurfacePresentationState> mediaPaneStates,
-        IObservable<double?> mediaColumnWidths,
-        IObservable<string?> mediaUrls,
-        IObservable<RecordedAnalysisPresentationState> analysisPresentationStates,
-        IObservable<SessionDampingPercentages> dampingPercentages,
-        IObservable<DampingSpeedCutoffs> plotDampingSpeedCutoffs,
-        IObservable<bool> canEditDampingSpeedCutoffs,
-        IObservable<SessionInsightsResult> sessionInsights,
-        IObservable<RecordedSignalPresentationState> signalPresentationStates)
-        : this(
-            legacyState,
-            intents,
-            pageCounts,
-            preferenceReplays,
-            screenStates,
-            operationStates,
-            mapStates,
-            mediaPaneStates,
-            mediaColumnWidths,
-            mediaUrls,
-            analysisPresentationStates,
-            dampingPercentages,
-            plotDampingSpeedCutoffs,
-            canEditDampingSpeedCutoffs,
-            sessionInsights,
-            signalPresentationStates,
-            Observable.Empty<AnalysisSelectionState>())
-    {
-    }
-
-    public RecordedSessionEditorStateController(
-        IObservable<RecordedSessionEditorState> legacyState,
-        IObservable<RecordedSessionEditorIntent> intents,
-        IObservable<int> pageCounts,
-        IObservable<SessionPreferences> preferenceReplays,
-        IObservable<SessionScreenPresentationState> screenStates,
-        IObservable<SessionOperationPresentationState> operationStates,
-        IObservable<SurfacePresentationState> mapStates,
-        IObservable<SurfacePresentationState> mediaPaneStates,
-        IObservable<double?> mediaColumnWidths,
-        IObservable<string?> mediaUrls,
-        IObservable<RecordedAnalysisPresentationState> analysisPresentationStates,
-        IObservable<SessionDampingPercentages> dampingPercentages,
-        IObservable<DampingSpeedCutoffs> plotDampingSpeedCutoffs,
-        IObservable<bool> canEditDampingSpeedCutoffs,
-        IObservable<SessionInsightsResult> sessionInsights,
-        IObservable<RecordedSignalPresentationState> signalPresentationStates,
-        IObservable<AnalysisSelectionState> analysisSelectionStates)
-        : this(
-            legacyState,
-            intents,
-            pageCounts,
-            preferenceReplays,
-            screenStates,
-            operationStates,
-            mapStates,
-            mediaPaneStates,
-            mediaColumnWidths,
-            mediaUrls,
-            analysisPresentationStates,
-            dampingPercentages,
-            plotDampingSpeedCutoffs,
-            canEditDampingSpeedCutoffs,
-            sessionInsights,
-            signalPresentationStates,
-            analysisSelectionStates,
-            Observable.Empty<RecordedSessionLoadedData>())
-    {
-    }
-
-    public RecordedSessionEditorStateController(
-        IObservable<RecordedSessionEditorIntent> intents,
-        IObservable<int> pageCounts,
-        IObservable<SessionPreferences> preferenceReplays,
-        IObservable<SessionScreenPresentationState> screenStates,
-        IObservable<SessionOperationPresentationState> operationStates,
-        IObservable<SurfacePresentationState> mapStates,
-        IObservable<SurfacePresentationState> mediaPaneStates,
-        IObservable<double?> mediaColumnWidths,
-        IObservable<string?> mediaUrls,
-        IObservable<RecordedAnalysisPresentationState> analysisPresentationStates,
-        IObservable<SessionDampingPercentages> dampingPercentages,
-        IObservable<DampingSpeedCutoffs> plotDampingSpeedCutoffs,
-        IObservable<bool> canEditDampingSpeedCutoffs,
-        IObservable<SessionInsightsResult> sessionInsights,
-        IObservable<RecordedSignalPresentationState> signalPresentationStates,
-        IObservable<AnalysisSelectionState> analysisSelectionStates,
-        IObservable<RecordedSessionLoadedData> loadedDataStates,
-        IObservable<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> signalPlotContextMenuActions,
-        IObservable<RecordedSessionDomainSnapshot>? domainStates = null)
-        : this(
-            Observable.Return(RecordedSessionEditorState.CreateInitial()),
-            intents,
-            pageCounts,
-            preferenceReplays,
-            screenStates,
-            operationStates,
-            mapStates,
-            mediaPaneStates,
-            mediaColumnWidths,
-            mediaUrls,
-            analysisPresentationStates,
-            dampingPercentages,
-            plotDampingSpeedCutoffs,
-            canEditDampingSpeedCutoffs,
-            sessionInsights,
-            signalPresentationStates,
-            analysisSelectionStates,
-            loadedDataStates,
-            signalPlotContextMenuActions,
-            domainStates)
-    {
-    }
-
-    public RecordedSessionEditorStateController(
-        IObservable<RecordedSessionEditorState> legacyState,
-        IObservable<RecordedSessionEditorIntent> intents,
-        IObservable<int> pageCounts,
-        IObservable<SessionPreferences> preferenceReplays,
-        IObservable<SessionScreenPresentationState> screenStates,
-        IObservable<SessionOperationPresentationState> operationStates,
-        IObservable<SurfacePresentationState> mapStates,
-        IObservable<SurfacePresentationState> mediaPaneStates,
-        IObservable<double?> mediaColumnWidths,
-        IObservable<string?> mediaUrls,
-        IObservable<RecordedAnalysisPresentationState> analysisPresentationStates,
-        IObservable<SessionDampingPercentages> dampingPercentages,
-        IObservable<DampingSpeedCutoffs> plotDampingSpeedCutoffs,
-        IObservable<bool> canEditDampingSpeedCutoffs,
-        IObservable<SessionInsightsResult> sessionInsights,
-        IObservable<RecordedSignalPresentationState> signalPresentationStates,
-        IObservable<AnalysisSelectionState> analysisSelectionStates,
-        IObservable<RecordedSessionLoadedData> loadedDataStates)
-        : this(
-            legacyState,
-            intents,
-            pageCounts,
-            preferenceReplays,
-            screenStates,
-            operationStates,
-            mapStates,
-            mediaPaneStates,
-            mediaColumnWidths,
-            mediaUrls,
-            analysisPresentationStates,
-            dampingPercentages,
-            plotDampingSpeedCutoffs,
-            canEditDampingSpeedCutoffs,
-            sessionInsights,
-            signalPresentationStates,
-            analysisSelectionStates,
-            loadedDataStates,
-            Observable.Empty<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>>())
-    {
-    }
-
-    public RecordedSessionEditorStateController(
-        IObservable<RecordedSessionEditorState> legacyState,
-        IObservable<RecordedSessionEditorIntent> intents,
-        IObservable<int> pageCounts,
-        IObservable<SessionPreferences> preferenceReplays,
-        IObservable<SessionScreenPresentationState> screenStates,
-        IObservable<SessionOperationPresentationState> operationStates,
-        IObservable<SurfacePresentationState> mapStates,
-        IObservable<SurfacePresentationState> mediaPaneStates,
-        IObservable<double?> mediaColumnWidths,
-        IObservable<string?> mediaUrls,
-        IObservable<RecordedAnalysisPresentationState> analysisPresentationStates,
-        IObservable<SessionDampingPercentages> dampingPercentages,
-        IObservable<DampingSpeedCutoffs> plotDampingSpeedCutoffs,
-        IObservable<bool> canEditDampingSpeedCutoffs,
-        IObservable<SessionInsightsResult> sessionInsights,
-        IObservable<RecordedSignalPresentationState> signalPresentationStates,
-        IObservable<AnalysisSelectionState> analysisSelectionStates,
-        IObservable<RecordedSessionLoadedData> loadedDataStates,
-        IObservable<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> signalPlotContextMenuActions,
-        IObservable<RecordedSessionDomainSnapshot>? domainStates = null)
-    {
-        ArgumentNullException.ThrowIfNull(legacyState);
-        ArgumentNullException.ThrowIfNull(intents);
-        ArgumentNullException.ThrowIfNull(pageCounts);
-        ArgumentNullException.ThrowIfNull(preferenceReplays);
-        ArgumentNullException.ThrowIfNull(screenStates);
-        ArgumentNullException.ThrowIfNull(operationStates);
-        ArgumentNullException.ThrowIfNull(mapStates);
-        ArgumentNullException.ThrowIfNull(mediaPaneStates);
-        ArgumentNullException.ThrowIfNull(mediaColumnWidths);
-        ArgumentNullException.ThrowIfNull(mediaUrls);
-        ArgumentNullException.ThrowIfNull(analysisPresentationStates);
-        ArgumentNullException.ThrowIfNull(dampingPercentages);
-        ArgumentNullException.ThrowIfNull(plotDampingSpeedCutoffs);
-        ArgumentNullException.ThrowIfNull(canEditDampingSpeedCutoffs);
-        ArgumentNullException.ThrowIfNull(sessionInsights);
-        ArgumentNullException.ThrowIfNull(signalPresentationStates);
-        ArgumentNullException.ThrowIfNull(analysisSelectionStates);
-        ArgumentNullException.ThrowIfNull(loadedDataStates);
-        ArgumentNullException.ThrowIfNull(signalPlotContextMenuActions);
-        domainStates ??= Observable.Empty<RecordedSessionDomainSnapshot>();
-
-        var selectedPageIndex = CreateSelectedPageIndexState(intents, pageCounts);
-        var loadedDataState = CreateOptionalInputState(
-            loadedDataStates.Merge(
-                legacyState
-                    .Select(CreateLoadedDataFromState)
-                    .Where(HasLoadedData)));
-        var analysisRange = CreateAnalysisRangeState(intents, loadedDataState);
-        var dampingSpeedCutoffs = CreateDampingSpeedCutoffsState(intents);
-        var preferenceIntent = CreatePreferenceIntentState(intents, preferenceReplays);
-        var screenState = CreateInputState(screenStates, SessionScreenPresentationState.Ready);
-        var operationState = CreateInputState(operationStates, SessionOperationPresentationState.Hidden);
-        var mapState = CreateInputState(mapStates, SurfacePresentationState.Hidden);
-        var mediaPaneState = CreateInputState(mediaPaneStates, SurfacePresentationState.Hidden);
-        var mediaColumnWidth = CreateInputState(mediaColumnWidths, (double?)null);
-        var mediaUrl = CreateInputState(mediaUrls, (string?)null);
+        var selectedPageIndex = CreateSelectedPageIndexState(inputs.Intents, inputs.PageCounts);
+        var loadedDataState = CreateOptionalInputState(inputs.LoadedDataStates);
+        var analysisRange = CreateAnalysisRangeState(inputs.Intents, loadedDataState);
+        var dampingSpeedCutoffs = CreateDampingSpeedCutoffsState(inputs.Intents);
+        var preferenceIntent = CreatePreferenceIntentState(inputs.Intents, inputs.PreferenceReplays);
+        var screenState = CreateInputState(inputs.ScreenStates, SessionScreenPresentationState.Ready);
+        var operationState = CreateInputState(inputs.OperationStates, SessionOperationPresentationState.Hidden);
+        var mapState = CreateInputState(inputs.MapStates, SurfacePresentationState.Hidden);
+        var mediaPaneState = CreateInputState(inputs.MediaPaneStates, SurfacePresentationState.Hidden);
+        var mediaColumnWidth = CreateInputState(inputs.MediaColumnWidths, (double?)null);
+        var mediaUrl = CreateInputState(inputs.MediaUrls, (string?)null);
         var analysisPresentation = CreateInputState(
-            analysisPresentationStates,
+            inputs.AnalysisPresentationStates,
             CreateHiddenAnalysisPresentationState());
         var dampingPercentageState = CreateInputState(
-            dampingPercentages,
+            inputs.DampingPercentages,
             SessionDampingPercentages.Empty);
         var plotDampingSpeedCutoffState = CreateInputState(
-            plotDampingSpeedCutoffs,
+            inputs.PlotDampingSpeedCutoffs,
             DampingSpeedCutoffs.Default);
         var canEditDampingSpeedCutoffState = CreateInputState(
-            canEditDampingSpeedCutoffs,
+            inputs.CanEditDampingSpeedCutoffs,
             false);
         var sessionInsightsState = CreateInputState(
-            sessionInsights,
+            inputs.SessionInsights,
             SessionInsightsResult.Hidden);
         var signalPresentationState = CreateInputState(
-            signalPresentationStates,
+            inputs.SignalPresentationStates,
             CreateHiddenSignalPresentationState());
         var analysisSelectionState = CreateAnalysisSelectionState(
-            intents,
-            analysisSelectionStates,
+            inputs.Intents,
+            inputs.AnalysisSelections,
             loadedDataState,
             analysisRange);
         var signalPlotContextMenuActionState = CreateInputState(
-            signalPlotContextMenuActions,
+            inputs.SignalPlotContextMenuActions,
             CreateEmptySignalPlotContextMenuActions());
-        var domainState = CreateOptionalInputState(domainStates);
+        var domainState = CreateOptionalInputState(inputs.DomainStates);
         var derivedIntentState = selectedPageIndex
             .CombineLatest(
                 analysisRange,
@@ -498,7 +132,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                     current.pane,
                     current.width,
                     url));
-        var replayingState = legacyState
+        var replayingState = Observable.Return(RecordedSessionEditorState.CreateInitial())
             .CombineLatest(
                 derivedIntentState,
                 static (state, derived) => new { state, derived })
@@ -699,25 +333,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             PitchRollHeaderActions: [],
             SpeedHeaderActions: [],
             ElevationHeaderActions: []);
-    }
-
-    private static RecordedSessionLoadedData CreateLoadedDataFromState(RecordedSessionEditorState state)
-    {
-        return new RecordedSessionLoadedData(
-            state.Session,
-            state.TelemetryData,
-            state.FullTrackPoints,
-            state.TrackPoints,
-            state.TrackTimelineContext);
-    }
-
-    private static bool HasLoadedData(RecordedSessionLoadedData state)
-    {
-        return state.Session is not null ||
-               state.TelemetryData is not null ||
-               state.FullTrackPoints is not null ||
-               state.TrackPoints is not null ||
-               state.TrackTimelineContext is not null;
     }
 
     private static IObservable<T> CreateInputState<T>(IObservable<T> updates, T initialValue)

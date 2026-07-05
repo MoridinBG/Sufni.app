@@ -121,27 +121,20 @@ public class SessionWorkspaceViewModelTests
     public void SessionShellMobileWorkspace_SelectedPageState_ComesFromEditorState()
     {
         var pages = new ObservableCollection<PageViewModelBase>();
-        using var actions = new RecordedSessionEditorActions();
-        using var legacyState = new Subject<RecordedSessionEditorState>();
-        using var pageCounts = new Subject<int>();
-        using var controller = new RecordedSessionEditorStateController(
-            legacyState,
-            actions.Intents,
-            pageCounts);
+        using var driver = new RecordedSessionEditorStateControllerTestDriver();
         var workspace = new SessionShellMobileWorkspaceViewModel(
             new TestTabPageViewModel(new InlineUiThreadDispatcher()),
             pages,
-            controller.State,
-            actions);
+            driver.Controller.State,
+            driver.Actions);
         var signals = new PageViewModelBase("Signals");
         var damping = new PageViewModelBase("Damping");
         var changes = TrackPropertyChanges(workspace);
 
         pages.Add(signals);
-        pageCounts.OnNext(pages.Count);
+        driver.PageCounts.OnNext(pages.Count);
         pages.Add(damping);
-        pageCounts.OnNext(pages.Count);
-        legacyState.OnNext(CreateState());
+        driver.PageCounts.OnNext(pages.Count);
 
         Assert.Equal(2, workspace.PageCount);
         Assert.Equal(0, workspace.SelectedPageIndex);
@@ -171,7 +164,7 @@ public class SessionWorkspaceViewModelTests
         changes.Clear();
 
         pages.Remove(damping);
-        pageCounts.OnNext(pages.Count);
+        driver.PageCounts.OnNext(pages.Count);
 
         Assert.Equal(0, workspace.SelectedPageIndex);
         Assert.Same(signals, workspace.SelectedPage);
@@ -182,7 +175,7 @@ public class SessionWorkspaceViewModelTests
         changes.Clear();
 
         pages.Clear();
-        pageCounts.OnNext(pages.Count);
+        driver.PageCounts.OnNext(pages.Count);
 
         Assert.Equal(0, workspace.SelectedPageIndex);
         Assert.Null(workspace.SelectedPage);
