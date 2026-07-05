@@ -1,4 +1,10 @@
 using System.Net;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Services;
 using Sufni.App.SyncAndPairing.Services;
 
 namespace Sufni.App.Tests.SyncAndPairing.Services;
@@ -29,5 +35,49 @@ public class SynchronizationServerServiceTests
         Assert.Equal(
             ["s1", "s1-2", "s1-3", "s1-4", "s1-5"],
             SynchronizationServerService.CreateServiceInstanceNames().ToList());
+    }
+
+    [Fact]
+    public async Task ApplySessionDataPatchAsync_FillPersistsThroughTelemetryWriter_AndRaisesSessionDataArrived()
+    {
+        var sessionId = Guid.NewGuid();
+        var transfer = new SessionDataTransfer("fingerprint-a", [1, 2, 3]);
+        var sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
+        var swapRequestStore = Substitute.For<ISessionBlobSwapRequestStore>();
+        var arrivedSessionIds = new List<Guid>();
+        swapRequestStore.GetTargetFingerprintAsync(sessionId).Returns((string?)null);
+
+        var result = await SynchronizationServerService.ApplySessionDataPatchAsync(
+            sessionId,
+            transfer,
+            sessionTelemetryWriter,
+            swapRequestStore,
+            arrivedSessionIds.Add);
+
+        await sessionTelemetryWriter.Received(1).PatchSessionPsstAsync(
+            sessionId,
+            transfer.Data,
+            transfer.Fingerprint);
+        await sessionTelemetryWriter.DidNotReceive().SwapSessionPsstAsync(
+            Arg.Any<Guid>(),
+            Arg.Any<byte[]>(),
+            Arg.Any<string?>());
+        await swapRequestStore.DidNotReceive().ClearAsync(Arg.Any<Guid>());
+        Assert.Equal([sessionId], arrivedSessionIds);
+        await AssertStatusCodeAsync(result, StatusCodes.Status204NoContent);
+    }
+
+    private static async Task AssertStatusCodeAsync(IResult result, int expectedStatusCode)
+    {
+        var context = new DefaultHttpContext
+        {
+            RequestServices = new ServiceCollection()
+                .AddLogging()
+                .BuildServiceProvider(),
+        };
+
+        await result.ExecuteAsync(context);
+
+        Assert.Equal(expectedStatusCode, context.Response.StatusCode);
     }
 }

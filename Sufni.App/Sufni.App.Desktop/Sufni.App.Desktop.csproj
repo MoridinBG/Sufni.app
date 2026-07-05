@@ -5,6 +5,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="Sufni.App.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="Avalonia.HarfBuzz" />
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
         <PackageReference Include="Makaretu.Dns.Multicast.New" />

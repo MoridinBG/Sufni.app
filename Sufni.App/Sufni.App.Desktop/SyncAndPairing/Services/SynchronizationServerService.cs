@@ -408,6 +408,54 @@ public class SynchronizationServerService : ISynchronizationServerService
         string message) =>
         new(phase, message, CurrentStep: 0, TotalSteps: 0, IsDeterminate: false);
 
+    internal static async Task<IResult> ApplySessionDataPatchAsync(
+        Guid id,
+        SessionDataTransfer transfer,
+        ISessionTelemetryWriter sessionTelemetryWriter,
+        ISessionBlobSwapRequestStore swapRequestStore,
+        Action<Guid> sessionDataArrived)
+    {
+        try
+        {
+            var swapTarget = await swapRequestStore.GetTargetFingerprintAsync(id);
+            if (swapTarget is not null)
+            {
+                // Push-swap row: only the uploader holding the wanted bytes
+                // commits the swap (overwriting the held BLOB + fingerprint +
+                // BLOB-derived metrics coherently and dropping the request).
+                // Any other upload is just a client that does not have those
+                // bytes yet, so it is ignored and the row stays pending — no
+                // 400, so that client's sync run does not fail.
+                if (StringComparer.Ordinal.Equals(transfer.Fingerprint, swapTarget))
+                {
+                    await sessionTelemetryWriter.SwapSessionPsstAsync(id, transfer.Data, transfer.Fingerprint);
+                    await swapRequestStore.ClearAsync(id);
+                }
+            }
+            else
+            {
+                // Fill: rejects invalid bytes AND a fingerprint that does not
+                // match this row's stored fingerprint; both throw
+                // InvalidDataException, mapped to 400 so the row stays pending.
+                await sessionTelemetryWriter.PatchSessionPsstAsync(id, transfer.Data, transfer.Fingerprint);
+            }
+        }
+        catch (InvalidDataException ex)
+        {
+            logger.Warning(ex, "Session data patch rejected because the uploaded data was invalid for {SessionId}", id);
+            return Results.BadRequest();
+        }
+        catch (Exception ex)
+        {
+            logger.Error(ex, "Session data patch failed because session {SessionId} was not found", id);
+            return Results.NotFound();
+        }
+
+        logger.Verbose("Patched session data for {SessionId} with {ByteCount} bytes", id, transfer.Data.Length);
+        sessionDataArrived(id);
+        return Results.NoContent();
+    }
+
     private void RaiseSyncActivityStarted(SynchronizationProgressSnapshot progress)
     {
         SyncActivityStarted?.Invoke(this, new SynchronizationActivityEventArgs(progress));
@@ -697,45 +745,12 @@ public class SynchronizationServerService : ISynchronizationServerService
                             return Results.BadRequest();
                         }
 
-                        try
-                        {
-                            var swapTarget = await swapRequestStore.GetTargetFingerprintAsync(id);
-                            if (swapTarget is not null)
-                            {
-                                // Push-swap row: only the uploader holding the wanted bytes
-                                // commits the swap (overwriting the held BLOB + fingerprint +
-                                // BLOB-derived metrics coherently and dropping the request).
-                                // Any other upload is just a client that does not have those
-                                // bytes yet, so it is ignored and the row stays pending — no
-                                // 400, so that client's sync run does not fail.
-                                if (StringComparer.Ordinal.Equals(transfer.Fingerprint, swapTarget))
-                                {
-                                    await sessionTelemetryWriter.SwapSessionPsstAsync(id, transfer.Data, transfer.Fingerprint);
-                                    await swapRequestStore.ClearAsync(id);
-                                }
-                            }
-                            else
-                            {
-                                // Fill: rejects invalid bytes AND a fingerprint that does not
-                                // match this row's stored fingerprint; both throw
-                                // InvalidDataException, mapped to 400 so the row stays pending.
-                                await sessionTelemetryWriter.PatchSessionPsstAsync(id, transfer.Data, transfer.Fingerprint);
-                            }
-                        }
-                        catch (InvalidDataException ex)
-                        {
-                            logger.Warning(ex, "Session data patch rejected because the uploaded data was invalid for {SessionId}", id);
-                            return Results.BadRequest();
-                        }
-                        catch (Exception ex)
-                        {
-                            logger.Error(ex, "Session data patch failed because session {SessionId} was not found", id);
-                            return Results.NotFound();
-                        }
-
-                        logger.Verbose("Patched session data for {SessionId} with {ByteCount} bytes", id, transfer.Data.Length);
-                        SessionDataArrived?.Invoke(this, new SessionDataArrivedEventArgs(id));
-                        return Results.NoContent();
+                        return await ApplySessionDataPatchAsync(
+                            id,
+                            transfer,
+                            sessionTelemetryWriter,
+                            swapRequestStore,
+                            sessionId => SessionDataArrived?.Invoke(this, new SessionDataArrivedEventArgs(sessionId)));
                     });
             });
 
