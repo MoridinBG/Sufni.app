@@ -20,7 +20,7 @@ internal sealed class ProcessingPreferenceWorkflow(
 {
     public async Task HandleProcessingPreferenceChangeCommittedAsync()
     {
-        if (!preferenceStore.PersistenceEnabled || !gateway.IsViewLoaded)
+        if (!gateway.IsViewLoaded)
         {
             return;
         }

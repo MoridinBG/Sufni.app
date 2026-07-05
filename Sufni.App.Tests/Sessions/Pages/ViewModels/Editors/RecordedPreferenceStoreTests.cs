@@ -7,7 +7,7 @@ namespace Sufni.App.Tests.Sessions.Pages.ViewModels.Editors;
 public class RecordedPreferenceStoreTests
 {
     [Fact]
-    public async Task RestoreAsync_AppliesRecordedPreferencesAndEnablesPersistence()
+    public async Task RestoreAsync_AppliesRecordedPreferences()
     {
         var sessionId = Guid.NewGuid();
         var preferences = SessionPreferences.Default with
@@ -24,7 +24,6 @@ public class RecordedPreferenceStoreTests
 
         Assert.Equal(preferences, applied);
         Assert.Equal(preferences, sut.Current);
-        Assert.True(sut.PersistenceEnabled);
         Assert.Empty(errors);
     }
 
@@ -42,7 +41,6 @@ public class RecordedPreferenceStoreTests
 
         Assert.Equal(SessionPreferences.Default, applied);
         Assert.Equal(SessionPreferences.Default, sut.Current);
-        Assert.True(sut.PersistenceEnabled);
         Assert.Contains(errors, error => error.Contains("bad json", StringComparison.Ordinal));
     }
 

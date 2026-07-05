@@ -1696,6 +1696,7 @@ public class SessionDetailViewModelTests
         var editor = CreateEditor(snapshot, sessionPreferences: preferences);
         await editor.LoadedCommand.ExecuteAsync(null);
         preferences.ClearReceivedCalls();
+        sessionCoordinator.ClearReceivedCalls();
 
         var synced = SessionPreferences.Default with
         {
@@ -1703,11 +1704,15 @@ public class SessionDetailViewModelTests
             {
                 TravelDistributionMode = TravelDistributionMode.DynamicSag,
             },
+            Processing = new SessionProcessingPreferences(VelocityFilterWindowMilliseconds: 250),
         };
         syncStream.OnNext(synced);
 
         Assert.Equal(TravelDistributionMode.DynamicSag, editor.AnalysisWorkspace.SelectedTravelDistributionMode);
+        Assert.Equal(250, editor.PreferencesPage.VelocityFilterWindowMilliseconds);
+        editor.PreferencesPage.CommitProcessingPreferenceChange();
         await preferences.DidNotReceive().UpdateRecordedAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
+        await sessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
     }
 
     [AvaloniaFact]

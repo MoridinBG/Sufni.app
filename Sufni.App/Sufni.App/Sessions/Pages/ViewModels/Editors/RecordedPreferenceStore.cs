@@ -9,7 +9,6 @@ internal sealed class RecordedPreferenceStore
     private readonly ISessionPreferences sessionPreferences;
     private readonly Func<Guid> sessionId;
     private readonly Action<string> addError;
-    private bool persistenceEnabled;
 
     public RecordedPreferenceStore(
         ISessionPreferences sessionPreferences,
@@ -23,8 +22,6 @@ internal sealed class RecordedPreferenceStore
 
     public SessionPreferences Current { get; private set; } = SessionPreferences.Default;
 
-    public bool PersistenceEnabled => persistenceEnabled;
-
     public IObservable<SessionPreferences> Observe()
     {
         return sessionPreferences.ObserveRecorded(sessionId());
@@ -32,7 +29,6 @@ internal sealed class RecordedPreferenceStore
 
     public async Task RestoreAsync(Action<SessionPreferences> apply)
     {
-        persistenceEnabled = false;
         try
         {
             Apply(await sessionPreferences.GetRecordedAsync(sessionId()), apply);
@@ -42,23 +38,11 @@ internal sealed class RecordedPreferenceStore
             addError($"Session preferences could not be loaded: {e.Message}");
             Apply(SessionPreferences.Default, apply);
         }
-        finally
-        {
-            persistenceEnabled = true;
-        }
     }
 
     public void ApplyWithoutPersisting(SessionPreferences preferences, Action<SessionPreferences> apply)
     {
-        persistenceEnabled = false;
-        try
-        {
-            Apply(preferences, apply);
-        }
-        finally
-        {
-            persistenceEnabled = true;
-        }
+        Apply(preferences, apply);
     }
 
     public void UpdateCurrent(Func<SessionPreferences, SessionPreferences> update)
