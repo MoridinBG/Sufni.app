@@ -24,7 +24,93 @@ internal sealed record RecordedSessionEditorState(
     SessionPreferences Preferences,
     RecordedSessionEditorIntentState Intent,
     RecordedSessionEditorPresentationState Presentation,
-    AnalysisSelectionState AnalysisSelection);
+    AnalysisSelectionState AnalysisSelection)
+{
+    public static RecordedSessionEditorState CreateInitial()
+    {
+        var preferences = SessionPreferences.Default;
+        return new RecordedSessionEditorState(
+            Domain: null,
+            Session: null,
+            TelemetryData: null,
+            FullTrackPoints: null,
+            TrackPoints: null,
+            TrackTimelineContext: null,
+            Preferences: preferences,
+            Intent: new RecordedSessionEditorIntentState(
+                SelectedPageIndex: 0,
+                AnalysisRange: null,
+                SelectedTravelDistributionMode: preferences.Analysis.TravelDistributionMode,
+                SelectedBalanceDisplacementMode: preferences.Analysis.BalanceDisplacementMode,
+                SelectedBalanceSpeedMode: preferences.Analysis.BalanceSpeedMode,
+                SelectedVelocityAverageMode: preferences.Analysis.VelocityAverageMode,
+                SelectedSessionInsightsTargetProfile: preferences.Analysis.SessionInsightsTargetProfile,
+                DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
+                SignalDisplayPreferences: preferences.SignalDisplay,
+                SignalLayoutPreferences: preferences.SignalLayout,
+                LayoutPreferences: preferences.Layout),
+            Presentation: new RecordedSessionEditorPresentationState(
+                MapState: SurfacePresentationState.Hidden,
+                MediaPaneState: SurfacePresentationState.Hidden,
+                MediaColumnWidth: null,
+                MediaUrl: null,
+                Signals: CreateHiddenSignalPresentationState(),
+                Analysis: CreateHiddenAnalysisPresentationState(),
+                DampingPercentages: SessionDampingPercentages.Empty,
+                PlotDampingSpeedCutoffs: DampingSpeedCutoffs.Default,
+                CanEditDampingSpeedCutoffs: false,
+                SessionInsights: SessionInsightsResult.Hidden,
+                SignalPlotContextMenuActionsBySignalRowId: new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>(),
+                ScreenState: SessionScreenPresentationState.Ready,
+                OperationState: SessionOperationPresentationState.Hidden),
+            AnalysisSelection: new AnalysisSelectionState(
+                ActiveFront: null,
+                ActiveRear: null,
+                HighlightRanges: []));
+    }
+
+    private static RecordedAnalysisPresentationState CreateHiddenAnalysisPresentationState()
+    {
+        return new RecordedAnalysisPresentationState(
+            FrontAnalysis: SurfacePresentationState.Hidden,
+            RearAnalysis: SurfacePresentationState.Hidden,
+            CompressionBalance: SurfacePresentationState.Hidden,
+            ReboundBalance: SurfacePresentationState.Hidden,
+            FrontForkVibration: SurfacePresentationState.Hidden,
+            FrontFrameVibration: SurfacePresentationState.Hidden,
+            RearForkVibration: SurfacePresentationState.Hidden,
+            RearFrameVibration: SurfacePresentationState.Hidden);
+    }
+
+    private static RecordedSignalPresentationState CreateHiddenSignalPresentationState()
+    {
+        return new RecordedSignalPresentationState(
+            Travel: SurfacePresentationState.Hidden,
+            Velocity: SurfacePresentationState.Hidden,
+            Imu: SurfacePresentationState.Hidden,
+            PitchRoll: SurfacePresentationState.Hidden,
+            Speed: SurfacePresentationState.Hidden,
+            Elevation: SurfacePresentationState.Hidden,
+            ShowAirtime: false,
+            ShowVelocityAirtime: false,
+            ShowImuAirtime: false,
+            ShowPitchRollAirtime: false,
+            ShowSpeedAirtime: false,
+            ShowElevationAirtime: false,
+            ShowAnalysisSelection: false,
+            ShowVelocityAnalysisSelection: false,
+            ShowImuAnalysisSelection: false,
+            ShowPitchRollAnalysisSelection: false,
+            ShowSpeedAnalysisSelection: false,
+            ShowElevationAnalysisSelection: false,
+            TravelHeaderActions: [],
+            VelocityHeaderActions: [],
+            ImuHeaderActions: [],
+            PitchRollHeaderActions: [],
+            SpeedHeaderActions: [],
+            ElevationHeaderActions: []);
+    }
+}
 
 internal sealed record RecordedSessionLoadedData(
     SessionSnapshot? Session,

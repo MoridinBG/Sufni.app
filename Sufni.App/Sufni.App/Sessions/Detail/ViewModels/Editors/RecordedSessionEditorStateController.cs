@@ -269,7 +269,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         IObservable<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> signalPlotContextMenuActions,
         IObservable<RecordedSessionDomainSnapshot>? domainStates = null)
         : this(
-            Observable.Return(CreateInitialState()),
+            Observable.Return(RecordedSessionEditorState.CreateInitial()),
             intents,
             pageCounts,
             preferenceReplays,
@@ -568,49 +568,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
 
         disposed = true;
         connection.Dispose();
-    }
-
-    private static RecordedSessionEditorState CreateInitialState()
-    {
-        var preferences = SessionPreferences.Default;
-        return new RecordedSessionEditorState(
-            Domain: null,
-            Session: null,
-            TelemetryData: null,
-            FullTrackPoints: null,
-            TrackPoints: null,
-            TrackTimelineContext: null,
-            Preferences: preferences,
-            Intent: new RecordedSessionEditorIntentState(
-                SelectedPageIndex: 0,
-                AnalysisRange: null,
-                SelectedTravelDistributionMode: preferences.Analysis.TravelDistributionMode,
-                SelectedBalanceDisplacementMode: preferences.Analysis.BalanceDisplacementMode,
-                SelectedBalanceSpeedMode: preferences.Analysis.BalanceSpeedMode,
-                SelectedVelocityAverageMode: preferences.Analysis.VelocityAverageMode,
-                SelectedSessionInsightsTargetProfile: preferences.Analysis.SessionInsightsTargetProfile,
-                DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-                SignalDisplayPreferences: preferences.SignalDisplay,
-                SignalLayoutPreferences: preferences.SignalLayout,
-                LayoutPreferences: preferences.Layout),
-            Presentation: new RecordedSessionEditorPresentationState(
-                MapState: SurfacePresentationState.Hidden,
-                MediaPaneState: SurfacePresentationState.Hidden,
-                MediaColumnWidth: null,
-                MediaUrl: null,
-                Signals: CreateHiddenSignalPresentationState(),
-                Analysis: CreateHiddenAnalysisPresentationState(),
-                DampingPercentages: SessionDampingPercentages.Empty,
-                PlotDampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-                CanEditDampingSpeedCutoffs: false,
-                SessionInsights: SessionInsightsResult.Hidden,
-                SignalPlotContextMenuActionsBySignalRowId: CreateEmptySignalPlotContextMenuActions(),
-                ScreenState: SessionScreenPresentationState.Ready,
-                OperationState: SessionOperationPresentationState.Hidden),
-            AnalysisSelection: new AnalysisSelectionState(
-                ActiveFront: null,
-                ActiveRear: null,
-                HighlightRanges: []));
     }
 
     private static IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> CreateEmptySignalPlotContextMenuActions()

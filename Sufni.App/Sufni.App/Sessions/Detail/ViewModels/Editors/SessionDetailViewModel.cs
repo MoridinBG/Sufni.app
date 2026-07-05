@@ -99,6 +99,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IDisposable analysisResultSubscription;
     private readonly RecordedSessionEditorActions editorActions = new();
     private readonly IDisposable editorActionsSubscription;
+    private readonly IDisposable editorStateSubscription;
     private readonly RecordedSessionEditorEffects editorEffects;
     private readonly Subject<int> pageCountInput = new();
     private readonly Subject<SessionPreferences> preferenceReplayInput = new();
@@ -122,6 +123,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<Unit> dirtyBaselineInput = new();
     private readonly Subject<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> signalPlotContextMenuActionsInput = new();
     private readonly RecordedSessionEditorStateController editorStateController;
+    private RecordedSessionEditorState currentEditorState = RecordedSessionEditorState.CreateInitial();
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
     private readonly Func<IEditorFactory> editorFactory;
     private readonly ILayoutProfileTransitionState layoutProfileTransitionState;
@@ -231,25 +233,25 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public NotesPageViewModel NotesPage { get; } = new();
     public SignalDisplayPreferences SignalDisplayPreferences
     {
-        get => signalDisplayPreferences;
+        get => currentEditorState.Intent.SignalDisplayPreferences;
         private set => SetProperty(ref signalDisplayPreferences, value);
     }
 
     public SignalLayoutPreferences SignalLayoutPreferences
     {
-        get => signalLayoutPreferences;
+        get => currentEditorState.Intent.SignalLayoutPreferences;
         set => editorActions.SetSignalLayoutPreferences(value);
     }
 
     public SessionLayoutPreferences LayoutPreferences
     {
-        get => layoutPreferences;
+        get => currentEditorState.Intent.LayoutPreferences;
         set => editorActions.SetLayoutPreferences(value);
     }
 
     public SessionPaneGroupPreferences? MediaLayoutPreferences
     {
-        get => LayoutPreferences.DesktopMediaRows;
+        get => currentEditorState.Intent.LayoutPreferences.DesktopMediaRows;
         set => LayoutPreferences = LayoutPreferences with { DesktopMediaRows = value };
     }
 
@@ -265,7 +267,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public TelemetryRangeSelection? ActiveFrontAnalysisSelection => analysisSelectionController.ActiveFrontAnalysisSelection;
     public TelemetryRangeSelection? ActiveRearAnalysisSelection => analysisSelectionController.ActiveRearAnalysisSelection;
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; }
-    public bool CanEditDampingSpeedCutoffs => canEditDampingSpeedCutoffs;
+    public bool CanEditDampingSpeedCutoffs => currentEditorState.Presentation.CanEditDampingSpeedCutoffs;
     public RecordedSessionExtensionSlots ExtensionSlots => recordedSessionExtensions?.ExtensionSlots ?? emptyExtensionSlots;
 
     #endregion Public fields
@@ -278,14 +280,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } = SessionInsightsPresentation.BalanceSpeedModeOptions;
     public IReadOnlyList<VelocityAverageModeOption> VelocityAverageModeOptions { get; } = SessionInsightsPresentation.VelocityAverageModeOptions;
     public IReadOnlyList<SessionInsightsTargetProfileOption> SessionInsightsTargetProfileOptions { get; } = SessionInsightsPresentation.SessionInsightsTargetProfileOptions;
-    public string SessionAnalysisRangeText => analysisRange is { } range
+    public string SessionAnalysisRangeText => currentEditorState.Intent.AnalysisRange is { } range
         ? $"Selected range {FormatSeconds(range.StartSeconds)}-{FormatSeconds(range.EndSeconds)}s"
         : "Full session";
     public string SessionAnalysisModesText => SessionInsightsPresentation.DescribeModes(
-        selectedTravelDistributionMode,
-        selectedVelocityAverageMode,
-        selectedBalanceDisplacementMode,
-        selectedBalanceSpeedMode);
+        currentEditorState.Intent.SelectedTravelDistributionMode,
+        currentEditorState.Intent.SelectedVelocityAverageMode,
+        currentEditorState.Intent.SelectedBalanceDisplacementMode,
+        currentEditorState.Intent.SelectedBalanceSpeedMode);
     public ObservableCollection<PageViewModelBase> Pages => pages;
     public SessionScreenPresentationState ScreenState => screenState;
     public SessionOperationPresentationState SessionOperationState => sessionOperationState;
@@ -616,19 +618,19 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private PageViewModelBase? SelectedPage => Pages.Count == 0
         ? null
-        : Pages[ClampSelectedPageIndex(selectedPageIndex)];
+        : Pages[ClampSelectedPageIndex(currentEditorState.Intent.SelectedPageIndex)];
 
     private bool IsSessionInsightsPageSelected => ReferenceEquals(SelectedPage, AnalysisPage);
 
     internal Guid? CurrentSessionFullTrack => session.FullTrack;
 
-    internal SessionSnapshot? CurrentSessionSnapshot => sessionSnapshot;
+    internal SessionSnapshot? CurrentSessionSnapshot => currentEditorState.Session;
 
-    internal TelemetryData? CurrentTelemetryData => telemetryData;
+    internal TelemetryData? CurrentTelemetryData => currentEditorState.TelemetryData;
 
-    internal IReadOnlyList<TrackPoint>? CurrentTrackPoints => trackPoints;
+    internal IReadOnlyList<TrackPoint>? CurrentTrackPoints => currentEditorState.TrackPoints;
 
-    internal TelemetryTimeRange? CurrentAnalysisRange => analysisRange;
+    internal TelemetryTimeRange? CurrentAnalysisRange => currentEditorState.Intent.AnalysisRange;
 
     internal void SetSessionFullTrack(Guid? fullTrackId)
     {
@@ -1434,6 +1436,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             loadedDataInput,
             signalPlotContextMenuActionsInput,
             domainInput);
+        editorStateSubscription = editorStateController.State.Subscribe(ApplyEditorState);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
@@ -1632,6 +1635,62 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     #endregion
 
     #region Private methods
+
+    private void ApplyEditorState(RecordedSessionEditorState state)
+    {
+        var previous = currentEditorState;
+        currentEditorState = state;
+
+        if (previous.Session != state.Session)
+        {
+            OnPropertyChanged(nameof(CurrentSessionSnapshot));
+        }
+
+        if (previous.TelemetryData != state.TelemetryData)
+        {
+            OnPropertyChanged(nameof(CurrentTelemetryData));
+        }
+
+        if (previous.TrackPoints != state.TrackPoints)
+        {
+            OnPropertyChanged(nameof(CurrentTrackPoints));
+        }
+
+        if (previous.Intent.AnalysisRange != state.Intent.AnalysisRange)
+        {
+            OnPropertyChanged(nameof(CurrentAnalysisRange));
+            OnPropertyChanged(nameof(SessionAnalysisRangeText));
+        }
+
+        if (previous.Presentation.CanEditDampingSpeedCutoffs != state.Presentation.CanEditDampingSpeedCutoffs)
+        {
+            OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
+        }
+
+        if (previous.Intent.SignalDisplayPreferences != state.Intent.SignalDisplayPreferences)
+        {
+            OnPropertyChanged(nameof(SignalDisplayPreferences));
+        }
+
+        if (previous.Intent.SignalLayoutPreferences != state.Intent.SignalLayoutPreferences)
+        {
+            OnPropertyChanged(nameof(SignalLayoutPreferences));
+        }
+
+        if (previous.Intent.LayoutPreferences != state.Intent.LayoutPreferences)
+        {
+            OnPropertyChanged(nameof(LayoutPreferences));
+            OnPropertyChanged(nameof(MediaLayoutPreferences));
+        }
+
+        if (previous.Intent.SelectedTravelDistributionMode != state.Intent.SelectedTravelDistributionMode ||
+            previous.Intent.SelectedVelocityAverageMode != state.Intent.SelectedVelocityAverageMode ||
+            previous.Intent.SelectedBalanceDisplacementMode != state.Intent.SelectedBalanceDisplacementMode ||
+            previous.Intent.SelectedBalanceSpeedMode != state.Intent.SelectedBalanceSpeedMode)
+        {
+            OnPropertyChanged(nameof(SessionAnalysisModesText));
+        }
+    }
 
     private void ClearAnalysisSelections()
     {
@@ -2515,6 +2574,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         Pages.CollectionChanged -= OnPagesChanged;
         extensionPagesController?.Dispose();
         editorEffects.Dispose();
+        editorStateSubscription.Dispose();
         analysisResultSubscription.Dispose();
         analysisResultState.Dispose();
         MapViewModel?.Dispose();
