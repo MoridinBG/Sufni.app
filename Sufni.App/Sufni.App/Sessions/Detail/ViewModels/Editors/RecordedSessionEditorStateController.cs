@@ -185,6 +185,45 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         IObservable<bool> canEditDampingSpeedCutoffs,
         IObservable<SessionInsightsResult> sessionInsights,
         IObservable<RecordedSignalPresentationState> signalPresentationStates)
+        : this(
+            legacyState,
+            intents,
+            pageCounts,
+            preferenceReplays,
+            screenStates,
+            operationStates,
+            mapStates,
+            mediaPaneStates,
+            mediaColumnWidths,
+            mediaUrls,
+            analysisPresentationStates,
+            dampingPercentages,
+            plotDampingSpeedCutoffs,
+            canEditDampingSpeedCutoffs,
+            sessionInsights,
+            signalPresentationStates,
+            Observable.Empty<AnalysisSelectionState>())
+    {
+    }
+
+    public RecordedSessionEditorStateController(
+        IObservable<RecordedSessionEditorState> legacyState,
+        IObservable<RecordedSessionEditorIntent> intents,
+        IObservable<int> pageCounts,
+        IObservable<SessionPreferences> preferenceReplays,
+        IObservable<SessionScreenPresentationState> screenStates,
+        IObservable<SessionOperationPresentationState> operationStates,
+        IObservable<SurfacePresentationState> mapStates,
+        IObservable<SurfacePresentationState> mediaPaneStates,
+        IObservable<double?> mediaColumnWidths,
+        IObservable<string?> mediaUrls,
+        IObservable<RecordedAnalysisPresentationState> analysisPresentationStates,
+        IObservable<SessionDampingPercentages> dampingPercentages,
+        IObservable<DampingSpeedCutoffs> plotDampingSpeedCutoffs,
+        IObservable<bool> canEditDampingSpeedCutoffs,
+        IObservable<SessionInsightsResult> sessionInsights,
+        IObservable<RecordedSignalPresentationState> signalPresentationStates,
+        IObservable<AnalysisSelectionState> analysisSelectionStates)
     {
         ArgumentNullException.ThrowIfNull(legacyState);
         ArgumentNullException.ThrowIfNull(intents);
@@ -202,6 +241,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(canEditDampingSpeedCutoffs);
         ArgumentNullException.ThrowIfNull(sessionInsights);
         ArgumentNullException.ThrowIfNull(signalPresentationStates);
+        ArgumentNullException.ThrowIfNull(analysisSelectionStates);
 
         var selectedPageIndex = CreateSelectedPageIndexState(intents, pageCounts);
         var analysisRange = CreateAnalysisRangeState(intents);
@@ -231,6 +271,9 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var signalPresentationState = CreateInputState(
             signalPresentationStates,
             CreateHiddenSignalPresentationState());
+        var analysisSelectionState = CreateInputState(
+            analysisSelectionStates,
+            new AnalysisSelectionState(ActiveFront: null, ActiveRear: null, HighlightRanges: []));
         var derivedIntentState = selectedPageIndex
             .CombineLatest(
                 analysisRange,
@@ -290,7 +333,10 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                 static (current, insights) => new { current.state, current.derived, current.presentation, current.media, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, insights })
             .CombineLatest(
                 signalPresentationState,
-                static (current, signals) => current.state with
+                static (current, signals) => new { current.state, current.derived, current.presentation, current.media, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, current.insights, signals })
+            .CombineLatest(
+                analysisSelectionState,
+                static (current, analysisSelection) => current.state with
                 {
                     Preferences = current.state.Preferences with
                     {
@@ -319,7 +365,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                         MediaPaneState = current.media.MediaPaneState,
                         MediaColumnWidth = current.media.MediaColumnWidth,
                         MediaUrl = current.media.MediaUrl,
-                        Signals = signals,
+                        Signals = current.signals,
                         Analysis = current.analysis,
                         DampingPercentages = current.percentages,
                         PlotDampingSpeedCutoffs = current.plotCutoffs,
@@ -328,6 +374,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                         ScreenState = current.presentation.ScreenState,
                         OperationState = current.presentation.OperationState,
                     },
+                    AnalysisSelection = analysisSelection,
                 })
             .DistinctUntilChanged()
             .Replay(1);

@@ -114,6 +114,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<bool> canEditDampingSpeedCutoffsInput = new();
     private readonly Subject<SessionInsightsResult> sessionInsightsInput = new();
     private readonly Subject<RecordedSignalPresentationState> signalPresentationInput = new();
+    private readonly Subject<AnalysisSelectionState> analysisSelectionInput = new();
     private readonly RecordedSessionEditorStateController editorStateController;
     private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
     private readonly Func<IEditorFactory> editorFactory;
@@ -1455,7 +1456,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             plotDampingSpeedCutoffsInput,
             canEditDampingSpeedCutoffsInput,
             sessionInsightsInput,
-            signalPresentationInput);
+            signalPresentationInput,
+            analysisSelectionInput);
         this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
@@ -1673,7 +1675,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         OnPropertyChanged(nameof(ActiveFrontAnalysisSelection));
         OnPropertyChanged(nameof(ActiveRearAnalysisSelection));
-        PublishEditorState();
+        analysisSelectionInput.OnNext(CreateAnalysisSelectionState());
     }
 
     private void OnSessionContextPropertyChanged(object? sender, PropertyChangedEventArgs args) => PublishEditorState();
@@ -1720,10 +1722,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             ElevationHeaderActions,
             CreateSignalToggleState(),
             CreateAnalysisModeState(),
-            new AnalysisSelectionState(
-                ActiveFrontAnalysisSelection,
-                ActiveRearAnalysisSelection,
-                analysisSelectionController.HighlightRanges),
+            CreateAnalysisSelectionState(),
             screenState,
             sessionOperationState,
             dampingPercentages,
@@ -1762,6 +1761,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             showPitchRollAnalysisSelection,
             showSpeedAnalysisSelection,
             showElevationAnalysisSelection);
+    }
+
+    private AnalysisSelectionState CreateAnalysisSelectionState()
+    {
+        return new AnalysisSelectionState(
+            ActiveFrontAnalysisSelection,
+            ActiveRearAnalysisSelection,
+            analysisSelectionController.HighlightRanges);
     }
 
     private RecordedSignalPresentationState CreateSignalPresentationState()

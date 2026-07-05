@@ -657,6 +657,68 @@ public class RecordedSessionEditorActionsTests
     }
 
     [Fact]
+    public void StateController_DerivesAnalysisSelection_FromInputs()
+    {
+        using var legacyState = new Subject<RecordedSessionEditorState>();
+        using var actions = new RecordedSessionEditorActions();
+        using var pageCounts = new Subject<int>();
+        using var preferenceReplays = new Subject<SessionPreferences>();
+        using var screenStates = new Subject<SessionScreenPresentationState>();
+        using var operationStates = new Subject<SessionOperationPresentationState>();
+        using var mapStates = new Subject<SurfacePresentationState>();
+        using var mediaPaneStates = new Subject<SurfacePresentationState>();
+        using var mediaColumnWidths = new Subject<double?>();
+        using var mediaUrls = new Subject<string?>();
+        using var analysisPresentationStates = new Subject<RecordedAnalysisPresentationState>();
+        using var dampingPercentages = new Subject<SessionDampingPercentages>();
+        using var plotDampingSpeedCutoffs = new Subject<DampingSpeedCutoffs>();
+        using var canEditDampingSpeedCutoffs = new Subject<bool>();
+        using var sessionInsights = new Subject<SessionInsightsResult>();
+        using var signalPresentationStates = new Subject<RecordedSignalPresentationState>();
+        using var analysisSelectionStates = new Subject<AnalysisSelectionState>();
+        using var controller = new RecordedSessionEditorStateController(
+            legacyState,
+            actions.Intents,
+            pageCounts,
+            preferenceReplays,
+            screenStates,
+            operationStates,
+            mapStates,
+            mediaPaneStates,
+            mediaColumnWidths,
+            mediaUrls,
+            analysisPresentationStates,
+            dampingPercentages,
+            plotDampingSpeedCutoffs,
+            canEditDampingSpeedCutoffs,
+            sessionInsights,
+            signalPresentationStates,
+            analysisSelectionStates);
+        var observed = new List<AnalysisSelectionState>();
+        using var subscription = controller.State.Subscribe(state => observed.Add(state.AnalysisSelection));
+        var selection = new DeepTravelRangeSelection(
+            SuspensionType.Front,
+            new TelemetryRangeSelection.BinRange(0, 0, 10, IsFirst: true, IsLast: false));
+        TelemetryHighlightRange[] highlightRanges = [new TelemetryHighlightRange(1, 2, SuspensionType.Front)];
+        var analysisSelection = new AnalysisSelectionState(
+            ActiveFront: selection,
+            ActiveRear: null,
+            HighlightRanges: highlightRanges);
+
+        legacyState.OnNext(CreateState(selectedPageIndex: 0));
+        analysisSelectionStates.OnNext(analysisSelection);
+        var staleLegacyState = CreateState(selectedPageIndex: 0, telemetryData: TestTelemetryData.CreateProcessed());
+        legacyState.OnNext(staleLegacyState);
+
+        Assert.Equal(3, observed.Count);
+        Assert.Null(observed[0].ActiveFront);
+        Assert.Empty(observed[0].HighlightRanges);
+        Assert.Equal(analysisSelection, observed[1]);
+        Assert.Equal(analysisSelection, observed[^1]);
+        Assert.Same(highlightRanges, observed[^1].HighlightRanges);
+    }
+
+    [Fact]
     public void StateController_DisposeStopsSourceSubscription()
     {
         using var source = new Subject<RecordedSessionEditorState>();
