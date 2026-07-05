@@ -113,9 +113,12 @@ The layer roles are consistent across slices:
   `PairedDeviceCoordinator` / `SyncCoordinator` plus the desktop-only
   `IInboundSyncCoordinator` / `IPairingServerCoordinator` and the mobile-only
   `IPairingClientCoordinator` (`SyncAndPairing/`), and the `IShellCoordinator`
-  desktop/mobile pair (`Shell/Coordinators/`). Coordinators are the only
-  writers to stores and the only owners of post-save navigation. They
-  construct and open editor view models only through `IEditorFactory` —
+  desktop/mobile pair (`Shell/Coordinators/`). View models depend on read-only
+  stores. Persisted write workflows live in coordinators or session use-case
+  services behind coordinators; sync appliers and transaction runners may use
+  writer interfaces for publish-only post-persistence updates. Stores remain
+  the only owners of DynamicData cache mutation. Coordinators construct and
+  open editor view models only through `IEditorFactory` —
   despite the name it is the editor *gateway*: the interface exposes only
   open-or-focus (`Open*`) and close (`Close*`) operations, and view-model
   creation is an implementation detail of the concrete `EditorFactory`.

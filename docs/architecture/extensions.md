@@ -104,6 +104,17 @@ context; inputs supplied through the original name scope, such as `#Root` or
 the extension still owns its control state and rendering; the host owns only the
 modal placement and close gestures.
 
+## Runtime Stores
+
+`Sufni.App.ExtensionHost.Runtime.Stores.SourceCacheStoreBase<TSnapshot, TKey>`
+is SDK-visible runtime behavior for DynamicData-backed persisted read stores.
+The base owns the cache lifetime, keyed connect/watch helpers, and UI-thread
+dispatching for snapshot/removal publication. Public app stores and extension
+stores can reuse it while keeping their own neutral read/write interfaces,
+persistence services, and domain-specific lookup methods. Public app code still
+does not name extension-specific store types; extensions opt into the shared
+runtime base from their own projects.
+
 ## Database Hooks
 
 `ExtensionDatabaseConnection` is registered as the concrete singleton behind `IExtensionDatabaseConnection`. Extensions call `OpenSessionAsync()` to wait for normal SQLite initialization and receive an `IExtensionDatabaseSession` scoped to declared extension table types. The session supports table queries plus find/insert/insert-or-replace/update/delete operations and rejects table types that are not owned by a registered extension migrator. For extension-owned multi-statement writes, `RunInTransactionAsync(Action<IExtensionDatabaseTransaction>)` runs a synchronous transaction callback with the same table validation on `Table`, `Find`, `Insert`, `InsertOrReplace`, `Update`, and `Delete`; exceptions roll the whole callback back.

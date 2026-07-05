@@ -7,9 +7,11 @@
 Stores own shared read state. One per entity family, registered as a
 singleton, exposed behind two interfaces: a read-only `IXxxStore`
 injected into list/row/editor view models and queries, and a
-`IXxxStoreWriter` (which extends the read interface) reserved for
-coordinators and the composition root. The implementation lives in
-each slice's store folder (e.g. `Bikes/Stores/`, `Sessions/Store/`).
+`IXxxStoreWriter` (which extends the read interface) used by coordinators,
+session use-case services behind coordinators, sync appliers, transaction
+runners, and the composition root. View models depend on read-only stores. The
+implementation lives in each slice's store folder (e.g. `Bikes/Stores/`,
+`Sessions/Store/`).
 
 | Store                        | Read interface                  | Writer interface                    | Snapshot type                     | Key      |
 | ---------------------------- | ------------------------------- | ----------------------------------- | --------------------------------- | -------- |

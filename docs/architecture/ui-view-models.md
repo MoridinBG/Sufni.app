@@ -169,14 +169,24 @@ There are five kinds of view model in the presentation layer:
   surface consumed by the signals, media, analysis, and mobile-shell
   workspaces. User-originated workspace setters call
   `RecordedSessionEditorActions` instead of mutating backing fields directly;
-  the editor applies validated intents, derives fresh state from typed input
-  streams, and drives named effects such as analysis invalidation, command refresh,
-  extension-host publication, map/media synchronization, and dirty/baseline
-  tracking. Stable runtime objects such as the page collection, timeline link,
+  `RecordedSessionEditorStateController` is the only reducer for those intents.
+  It combines intents with typed input streams to derive the current load data,
+  selected page, analysis range, signal availability, map/media state, and
+  analysis presentation. `SessionDetailViewModel` keeps one current state
+  snapshot for legacy read properties and property notifications, while
+  `RecordedSessionEditorEffects` drives named effects such as analysis
+  invalidation, command refresh, extension-host publication, map/media
+  synchronization, preference persistence, and dirty/baseline tracking.
+  `RecordedPagePresentationApplier` is limited to page-owned chart/string
+  projection and balance-page insertion; core signal, analysis, map, media, and
+  loaded-data availability come from `RecordedSessionEditorState`. Stable
+  runtime objects such as the page collection, timeline link,
   source-visibility store, map view model, and recorded-session extension slots
   are owned directly by the editor or extension manager and passed to workspaces
   by reference; state emissions update projected presentation without replacing
-  those objects. Internal collaborators in `ViewModels/Editors/` keep
+  those objects. The recorded signals, media, analysis, and mobile-shell
+  workspaces own state subscriptions and are disposed on final editor close.
+  Internal collaborators in `ViewModels/Editors/` keep
   flows off the editor itself: `SignalRowActionsController` builds the
   built-in signal-row header actions (airtime and analysis-selection toggles)
   through owner-supplied state accessors and actions;
