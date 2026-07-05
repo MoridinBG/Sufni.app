@@ -211,9 +211,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private bool showPitchRollAnalysisSelection;
     private bool showSpeedAnalysisSelection;
     private bool showElevationAnalysisSelection;
-    private SignalDisplayPreferences signalDisplayPreferences = SessionPreferences.Default.SignalDisplay;
-    private SignalLayoutPreferences signalLayoutPreferences = SessionPreferences.Default.SignalLayout;
-    private SessionLayoutPreferences layoutPreferences = SessionPreferences.Default.Layout;
 
     #endregion Private fields
 
@@ -224,7 +221,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public SignalDisplayPreferences SignalDisplayPreferences
     {
         get => currentEditorState.Intent.SignalDisplayPreferences;
-        private set => SetProperty(ref signalDisplayPreferences, value);
     }
 
     public SignalLayoutPreferences SignalLayoutPreferences
@@ -2053,27 +2049,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
     }
 
-    private bool ApplySignalDisplayPreferences(SignalDisplayPreferences preferences)
-    {
-        return SetProperty(ref signalDisplayPreferences, preferences, nameof(SignalDisplayPreferences));
-    }
-
-    private bool ApplySignalLayoutPreferences(SignalLayoutPreferences preferences)
-    {
-        return SetProperty(ref signalLayoutPreferences, preferences, nameof(SignalLayoutPreferences));
-    }
-
-    private bool ApplyLayoutPreferences(SessionLayoutPreferences preferences)
-    {
-        if (!SetProperty(ref layoutPreferences, preferences, nameof(LayoutPreferences)))
-        {
-            return false;
-        }
-
-        OnPropertyChanged(nameof(MediaLayoutPreferences));
-        return true;
-    }
-
     private void EvaluateDirtinessFromPageChange()
     {
         if (suppressDirtinessEvaluation)
@@ -2095,9 +2070,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         suppressInsightsRecompute = true;
         try
         {
-            ApplySignalDisplayPreferences(preferences.SignalDisplay);
-            ApplySignalLayoutPreferences(preferences.SignalLayout);
-            ApplyLayoutPreferences(preferences.Layout);
             ApplyPreferencesPageSignalDisplayPreferences(preferences.SignalDisplay);
             PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
             preferenceReplayInput.OnNext(preferences);
