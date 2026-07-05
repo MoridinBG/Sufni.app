@@ -763,9 +763,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             presentationApplier.ClearRecordedPresentation();
             presentationApplier.ApplyRecordedLoadingStates(currentSnapshot.FullTrackId is not null);
+            PublishLoadPresentation(new RecordedSessionLoadPresentation.Loading(currentSnapshot.FullTrackId is not null));
         }
         else
         {
+            PublishLoadPresentation(new RecordedSessionLoadPresentation.Empty());
             SetScreenState(SessionScreenPresentationState.Ready);
         }
 
@@ -779,10 +781,37 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             }
 
             presentationApplier.ApplyLoadResult(result);
+            PublishLoadPresentation(CreateLoadPresentation(result, sessionStore.Get(Id) ?? currentSnapshot));
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
         }
+    }
+
+    private void PublishLoadPresentation(RecordedSessionLoadPresentation presentation)
+    {
+        if (currentEditorState.Load != presentation)
+        {
+            loadPresentationInput.OnNext(presentation);
+        }
+    }
+
+    private static RecordedSessionLoadPresentation CreateLoadPresentation(
+        SessionDetailLoadResult result,
+        SessionSnapshot? snapshot)
+    {
+        return result switch
+        {
+            SessionDetailLoadResult.Loaded loaded => new RecordedSessionLoadPresentation.Loaded(
+                loaded.Data,
+                snapshot),
+            SessionDetailLoadResult.IncompleteLocalData incomplete =>
+                new RecordedSessionLoadPresentation.IncompleteLocalData(
+                    incomplete.Missing,
+                    snapshot?.HasProcessedData ?? false),
+            SessionDetailLoadResult.Failed failed => new RecordedSessionLoadPresentation.Failed(failed.ErrorMessage),
+            _ => new RecordedSessionLoadPresentation.Empty(),
+        };
     }
 
     private async Task ApplyPersistedSnapshotAsync(SessionSnapshot snapshot)
@@ -1561,6 +1590,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         if (snapshot.HasProcessedData)
         {
             presentationApplier.ApplyRecordedLoadingStates(snapshot.FullTrackId is not null);
+            PublishLoadPresentation(new RecordedSessionLoadPresentation.Loading(snapshot.FullTrackId is not null));
         }
 
         NotesPage.ForkSettings.PropertyChanged += (_, _) => EvaluateDirtinessFromPageChange();

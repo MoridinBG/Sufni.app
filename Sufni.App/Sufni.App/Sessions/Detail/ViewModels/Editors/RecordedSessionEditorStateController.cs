@@ -69,8 +69,11 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var loadPresentationState = CreateInputState(
             inputs.LoadPresentations,
             new RecordedSessionLoadPresentation.Empty());
-        var loadedDataState = CreateOptionalInputState(inputs.LoadedDataStates.Merge(
-            loadPresentationState.Select(CreateLoadedDataFromLoadPresentation)));
+        var loadDerivedLoadedData = loadPresentationState
+            .Select(CreateLoadedDataFromLoadPresentation)
+            .Where(static loadedData => loadedData is not null)
+            .Select(static loadedData => loadedData!);
+        var loadedDataState = CreateOptionalInputState(inputs.LoadedDataStates.Merge(loadDerivedLoadedData));
         var analysisRange = CreateAnalysisRangeState(inputs.Intents, loadedDataState);
         var dampingSpeedCutoffs = CreateDampingSpeedCutoffsState(inputs.Intents);
         var preferenceIntent = CreatePreferenceIntentState(inputs.Intents, inputs.PreferenceReplays);
@@ -106,9 +109,16 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var signalAvailabilityState = CreateInputState(
             loadPresentationState.Select(CreateSignalAvailabilityFromLoadPresentation),
             CreateHiddenSignalAvailabilityState());
-        var signalPresentationState = CreateInputState(
-            inputs.SignalPresentationStates.Merge(loadPresentationState.Select(CreateSignalPresentationFromLoadPresentation)),
+        var explicitSignalPresentationState = CreateInputState(
+            inputs.SignalPresentationStates,
             CreateHiddenSignalPresentationState());
+        var signalPresentationState = loadPresentationState
+            .CombineLatest(
+                explicitSignalPresentationState,
+                CreateSignalPresentationFromLoadPresentation)
+            .DistinctUntilChanged()
+            .Replay(1)
+            .RefCount();
         var analysisSelectionState = CreateAnalysisSelectionState(
             inputs.Intents,
             inputs.AnalysisSelections,
@@ -291,22 +301,17 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         return new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
     }
 
-    private static RecordedSessionLoadedData CreateLoadedDataFromLoadPresentation(
+    private static RecordedSessionLoadedData? CreateLoadedDataFromLoadPresentation(
         RecordedSessionLoadPresentation load)
     {
         if (load is not RecordedSessionLoadPresentation.Loaded loaded)
         {
-            return new RecordedSessionLoadedData(
-                Session: null,
-                TelemetryData: null,
-                FullTrackPoints: null,
-                TrackPoints: null,
-                TrackTimelineContext: null);
+            return null;
         }
 
         var telemetry = loaded.Data.TelemetryPresentation;
         return new RecordedSessionLoadedData(
-            Session: null,
+            Session: loaded.Session,
             TelemetryData: telemetry.TelemetryData,
             FullTrackPoints: telemetry.FullTrackPoints,
             TrackPoints: telemetry.TrackPoints,
@@ -362,6 +367,20 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
     }
 
     private static RecordedSignalPresentationState CreateSignalPresentationFromLoadPresentation(
+        RecordedSessionLoadPresentation load,
+        RecordedSignalPresentationState explicitState)
+    {
+        if (load is RecordedSessionLoadPresentation.Empty)
+        {
+            return explicitState;
+        }
+
+        return PreserveSignalPresentationOverlays(
+            CreateSignalPresentationFromLoadPresentation(load),
+            explicitState);
+    }
+
+    private static RecordedSignalPresentationState CreateSignalPresentationFromLoadPresentation(
         RecordedSessionLoadPresentation load)
     {
         return load switch
@@ -373,6 +392,33 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                     loaded.Data.TelemetryPresentation.TelemetryData,
                     loaded.Data.TelemetryPresentation.TrackPoints),
             _ => CreateHiddenSignalPresentationState(),
+        };
+    }
+
+    private static RecordedSignalPresentationState PreserveSignalPresentationOverlays(
+        RecordedSignalPresentationState derived,
+        RecordedSignalPresentationState explicitState)
+    {
+        return derived with
+        {
+            ShowAirtime = explicitState.ShowAirtime,
+            ShowVelocityAirtime = explicitState.ShowVelocityAirtime,
+            ShowImuAirtime = explicitState.ShowImuAirtime,
+            ShowPitchRollAirtime = explicitState.ShowPitchRollAirtime,
+            ShowSpeedAirtime = explicitState.ShowSpeedAirtime,
+            ShowElevationAirtime = explicitState.ShowElevationAirtime,
+            ShowAnalysisSelection = explicitState.ShowAnalysisSelection,
+            ShowVelocityAnalysisSelection = explicitState.ShowVelocityAnalysisSelection,
+            ShowImuAnalysisSelection = explicitState.ShowImuAnalysisSelection,
+            ShowPitchRollAnalysisSelection = explicitState.ShowPitchRollAnalysisSelection,
+            ShowSpeedAnalysisSelection = explicitState.ShowSpeedAnalysisSelection,
+            ShowElevationAnalysisSelection = explicitState.ShowElevationAnalysisSelection,
+            TravelHeaderActions = explicitState.TravelHeaderActions,
+            VelocityHeaderActions = explicitState.VelocityHeaderActions,
+            ImuHeaderActions = explicitState.ImuHeaderActions,
+            PitchRollHeaderActions = explicitState.PitchRollHeaderActions,
+            SpeedHeaderActions = explicitState.SpeedHeaderActions,
+            ElevationHeaderActions = explicitState.ElevationHeaderActions,
         };
     }
 

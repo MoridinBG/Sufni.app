@@ -141,7 +141,9 @@ internal abstract record RecordedSessionLoadPresentation
 
     public sealed record Loading(bool MapExpected) : RecordedSessionLoadPresentation;
 
-    public sealed record Loaded(SessionDetailData Data) : RecordedSessionLoadPresentation;
+    public sealed record Loaded(
+        SessionDetailData Data,
+        SessionSnapshot? Session = null) : RecordedSessionLoadPresentation;
 
     public sealed record IncompleteLocalData(
         MissingSessionData Missing,
