@@ -179,6 +179,34 @@ public class RecordedSessionSignalsDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task RecordedSessionSignalsDesktopView_ConstrainsSignalRowsToScrollableViewport()
+    {
+        var telemetry = TestTelemetryData.CreateProcessed();
+        telemetry.ImuData = TestTelemetryData.CreateWithImu().ImuData;
+        var workspace = new RecordedSessionSignalsWorkspaceStub(
+            telemetry,
+            pitchRollSignalState: SurfacePresentationState.Ready,
+            speedSignalState: SurfacePresentationState.Ready,
+            elevationSignalState: SurfacePresentationState.Ready);
+
+        await using var mounted = await MountAsync(workspace);
+
+        var rowsScrollViewer = Assert.Single(
+            mounted.View.GetVisualDescendants().OfType<ScrollViewer>(),
+            scrollViewer => scrollViewer.Name == "RowsScrollViewer");
+        var graphRoot = Assert.Single(mounted.View.GetVisualDescendants().OfType<SignalRowsRoot>());
+        var rowContentHeight = graphRoot.Rows.Sum(row => row.AllocatedGroupHeight);
+
+        Assert.True(rowsScrollViewer.Bounds.Height > 0, $"Rows scroll viewport height was {rowsScrollViewer.Bounds.Height}.");
+        Assert.True(
+            rowsScrollViewer.Bounds.Height < mounted.View.Bounds.Height,
+            $"Expected rows to be constrained below the toolbar. Rows height: {rowsScrollViewer.Bounds.Height}, view height: {mounted.View.Bounds.Height}.");
+        Assert.True(
+            rowContentHeight > rowsScrollViewer.Bounds.Height,
+            $"Expected row content to exceed the scroll viewport. Content height: {rowContentHeight}, viewport: {rowsScrollViewer.Bounds.Height}.");
+    }
+
+    [AvaloniaFact]
     public async Task RecordedSessionSignalsDesktopView_AnalysisRangeBindingKeepsAndClearsOverlayOnEveryPlot()
     {
         var telemetry = TestTelemetryData.CreateProcessed();
