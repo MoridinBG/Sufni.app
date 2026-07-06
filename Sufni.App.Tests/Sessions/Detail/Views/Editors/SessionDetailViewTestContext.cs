@@ -121,12 +121,13 @@ internal sealed class SessionDetailViewTestContext
 
     public async Task<MountedSessionDetailView<SessionDetailView>> MountMobileAsync(
         SessionSnapshot? snapshot = null,
-        SessionDetailLoadResult? loadResult = null)
+        SessionDetailLoadResult? loadResult = null,
+        Task<SessionDetailLoadResult>? loadTask = null)
     {
         snapshot ??= CreateTelemetryLightSnapshot();
         ConfigureStores(snapshot);
-        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
-            .Returns(loadResult ?? CreateLoadedState());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<IProgress<SessionDetailLoadProgress>>(), Arg.Any<CancellationToken>())
+            .Returns(_ => loadTask ?? Task.FromResult(loadResult ?? CreateLoadedState()));
 
         ViewTestHelpers.EnsureSessionDetailViewSetup(isDesktop: false);
 
@@ -142,12 +143,13 @@ internal sealed class SessionDetailViewTestContext
 
     public async Task<MountedSessionDetailView<SessionDetailDesktopView>> MountDesktopAsync(
         SessionSnapshot? snapshot = null,
-        SessionDetailLoadResult? loadResult = null)
+        SessionDetailLoadResult? loadResult = null,
+        Task<SessionDetailLoadResult>? loadTask = null)
     {
         snapshot ??= CreateTelemetryBearingSnapshot();
         ConfigureStores(snapshot);
-        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<CancellationToken>())
-            .Returns(loadResult ?? CreateLoadedState());
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<IProgress<SessionDetailLoadProgress>>(), Arg.Any<CancellationToken>())
+            .Returns(_ => loadTask ?? Task.FromResult(loadResult ?? CreateLoadedState()));
 
         ViewTestHelpers.EnsureSessionDetailViewSetup(isDesktop: true);
 

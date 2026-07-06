@@ -251,7 +251,7 @@ public class SessionWorkspaceViewModelTests
             actions);
         var changes = TrackPropertyChanges(workspace);
 
-        var screenState = SessionScreenPresentationState.Loading("Loading session.");
+        var screenState = SessionScreenPresentationState.Loading("Loading session.", 0.25);
         var operationState = SessionOperationPresentationState.Progress("Saving.", 25);
         pages.Add(new PageViewModelBase("Signals"));
         pages.Add(new PageViewModelBase("Damping"));
@@ -349,7 +349,7 @@ public class SessionWorkspaceViewModelTests
         state.OnNext(CreateState());
         changes.Clear();
 
-        state.OnNext(CreateState(screenState: SessionScreenPresentationState.Loading("Loading session.")));
+        state.OnNext(CreateState(screenState: SessionScreenPresentationState.Loading("Loading session.", 0.25)));
 
         Assert.Empty(changes);
     }

@@ -353,8 +353,10 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
     {
         return load switch
         {
-            RecordedSessionLoadPresentation.Loading =>
-                SessionScreenPresentationState.Loading("Loading session data."),
+            RecordedSessionLoadPresentation.Loading loading =>
+                SessionScreenPresentationState.Loading(
+                    loading.Progress.Message,
+                    loading.Progress.ProgressFraction),
             RecordedSessionLoadPresentation.IncompleteLocalData incomplete =>
                 SessionScreenPresentationState.IncompleteLocalData(
                     FormatIncompleteLocalDataMessage(incomplete.Missing)),

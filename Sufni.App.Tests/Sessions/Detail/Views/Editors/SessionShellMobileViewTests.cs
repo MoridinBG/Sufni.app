@@ -191,7 +191,7 @@ public class SessionShellMobileViewTests
     public async Task SessionShellMobileView_ChromeOverlay_TracksScreenState()
     {
         var host = CreateHost();
-        host.ScreenState = SessionScreenPresentationState.Loading("loading test");
+        host.ScreenState = SessionScreenPresentationState.Loading("loading test", 0.42);
         await using var mounted = await MountAsync(host);
 
         var busyOverlay = mounted.Shell.FindControl<BusyOverlay>("ScreenBusyOverlay")
@@ -200,6 +200,10 @@ public class SessionShellMobileViewTests
         Assert.True(busyOverlay.IsVisible);
         Assert.True(busyOverlay.UseStackLayout);
         Assert.Equal("loading test", busyOverlay.Message);
+        Assert.True(busyOverlay.ShowProgress);
+        Assert.False(busyOverlay.ShowIndicator);
+        Assert.Equal(0.42, busyOverlay.ProgressValue);
+        Assert.NotNull(busyOverlay.MessageForeground);
 
         var loadingMessage = mounted.Shell.GetVisualDescendants()
             .OfType<TextBlock>()

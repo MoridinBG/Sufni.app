@@ -97,6 +97,10 @@
             IsActive="{Binding ScreenState.IsLoading}"
             IsVisible="{Binding ScreenState.IsLoading}"
             Message="{Binding ScreenState.Message, TargetNullValue=Loading session data...}"
+            MessageForeground="{DynamicResource SufniForeground}"
+            ProgressValue="{Binding ScreenState.ProgressFraction}"
+            ShowIndicator="False"
+            ShowProgress="{Binding ScreenState.ShowProgress}"
             UseStackLayout="True" />
 
         <overlays:BusyOverlay

@@ -1,4 +1,6 @@
+using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
@@ -12,6 +14,7 @@ using Sufni.App.Sessions.Analysis.DesktopViews.Items;
 using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Shared.Views.Overlays;
 using Sufni.App.Tests.Sessions.Detail.Views.Editors;
+using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.Sessions.Detail.DesktopViews.Editors;
 
 [Collection("Ui")]
@@ -93,6 +96,30 @@ public class SessionDetailDesktopViewTests
 
         Assert.NotNull(errorText);
         Assert.False(shell.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionDetailDesktopView_ShowsProgressOnlyLoadingOverlay_WhileLoadIsPending()
+    {
+        var context = new SessionDetailViewTestContext();
+        var loadCompletion = new TaskCompletionSource<SessionDetailLoadResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        await using var mounted = await context.MountDesktopAsync(loadTask: loadCompletion.Task);
+
+        var busyOverlay = mounted.View.FindControl<BusyOverlay>("ScreenBusyOverlay")
+            ?? throw new InvalidOperationException("Screen busy overlay was not found.");
+
+        Assert.True(busyOverlay.IsActive);
+        Assert.True(busyOverlay.IsVisible);
+        Assert.True(busyOverlay.ShowProgress);
+        Assert.False(busyOverlay.ShowIndicator);
+        Assert.Equal(SessionDetailLoadProgress.PreparingSession.Message, busyOverlay.Message);
+        Assert.NotNull(busyOverlay.MessageForeground);
+        Assert.Equal(SessionDetailLoadProgress.PreparingSession.ProgressFraction, busyOverlay.ProgressValue);
+
+        loadCompletion.SetResult(context.CreateLoadedState());
+        await ViewTestHelpers.FlushDispatcherAsync();
     }
 
     [AvaloniaFact]

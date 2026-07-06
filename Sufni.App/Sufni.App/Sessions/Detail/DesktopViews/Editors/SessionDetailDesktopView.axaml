@@ -10,7 +10,7 @@ xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:editors="clr-namespace:Sufni.App.Sessions.Detail.DesktopViews.Editors"
 xmlns:items="clr-namespace:Sufni.App.Sessions.Analysis.DesktopViews.Items"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
+xmlns:overlays="clr-namespace:Sufni.App.Shared.Views.Overlays"
 xmlns:vm="clr-namespace:Sufni.App.Sessions.Detail.ViewModels.Editors"
 d:DesignHeight="800"
 d:DesignWidth="800"
@@ -85,10 +85,19 @@ mc:Ignorable="d">
             </editors:SessionShellDesktopView.SidebarContent>
         </editors:SessionShellDesktopView>
 
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" IsVisible="{Binding ScreenState.IsLoading}">
-            <progRing:ProgressRing Width="40" Height="40" Foreground="{DynamicResource SufniAccentSpinner}" IsActive="True" />
-            <TextBlock HorizontalAlignment="Center" Text="{Binding ScreenState.Message, TargetNullValue=Loading session data...}" />
-        </StackPanel>
+        <overlays:BusyOverlay
+            Name="ScreenBusyOverlay"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            IndicatorForeground="{DynamicResource SufniAccentSpinner}"
+            IsActive="{Binding ScreenState.IsLoading}"
+            IsVisible="{Binding ScreenState.IsLoading}"
+            Message="{Binding ScreenState.Message}"
+            MessageForeground="{DynamicResource SufniForeground}"
+            ProgressValue="{Binding ScreenState.ProgressFraction}"
+            ShowIndicator="False"
+            ShowProgress="{Binding ScreenState.ShowProgress}"
+            UseStackLayout="True" />
 
         <Border
             Background="{DynamicResource SufniRegion}"

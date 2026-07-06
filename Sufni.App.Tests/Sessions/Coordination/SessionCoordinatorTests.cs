@@ -765,7 +765,12 @@ public class SessionCoordinatorTests
                 Arg.Any<DampingSpeedCutoffs?>())
             .Returns(cacheData);
 
-        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, dimensions);
+        var progress = new CapturingSessionDetailLoadProgress();
+
+        var result = await CreateCoordinator().LoadDetailAsync(
+            snapshot.Id,
+            dimensions,
+            progress);
 
         var loaded = Assert.IsType<SessionDetailLoadResult.Loaded>(result);
         Assert.Same(telemetry, loaded.Data.TelemetryPresentation.TelemetryData);
@@ -773,6 +778,17 @@ public class SessionCoordinatorTests
         Assert.Equal(400.0, loaded.Data.TelemetryPresentation.MediaColumnWidth);
         Assert.Equal(percentages, loaded.Data.TelemetryPresentation.DampingPercentages);
         Assert.Equal(cacheData, loaded.Data.CachePresentation with { DampingSpeedCutoffOwner = null });
+        Assert.Equal(
+            [
+                SessionDetailLoadStage.LoadingTelemetryData,
+                SessionDetailLoadStage.CheckingLocalData,
+                SessionDetailLoadStage.LoadingMapData,
+                SessionDetailLoadStage.BuildingSessionPresentation,
+                SessionDetailLoadStage.FinalizingSessionData,
+            ],
+            progress.Reports.Select(report => report.Stage));
+        Assert.True(progress.Reports.Zip(progress.Reports.Skip(1))
+            .All(pair => pair.First.ProgressFraction < pair.Second.ProgressFraction));
     }
 
     [Fact]
@@ -804,7 +820,10 @@ public class SessionCoordinatorTests
                 Arg.Is<DampingSpeedCutoffs?>(value => value == cutoffs))
             .Returns(cacheData);
 
-        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, dimensions);
+        var result = await CreateCoordinator().LoadDetailAsync(
+            snapshot.Id,
+            dimensions,
+            new CapturingSessionDetailLoadProgress());
 
         var loaded = Assert.IsType<SessionDetailLoadResult.Loaded>(result);
         Assert.Equal(cutoffs, loaded.Data.TelemetryPresentation.DampingSpeedCutoffs);
@@ -845,7 +864,7 @@ public class SessionCoordinatorTests
             });
 
         var loadTask = CreateCoordinator(backgroundTaskRunner: new BackgroundTaskRunner())
-            .LoadDetailAsync(snapshot.Id, dimensions);
+            .LoadDetailAsync(snapshot.Id, dimensions, new CapturingSessionDetailLoadProgress());
 
         await presentationStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
@@ -865,12 +884,23 @@ public class SessionCoordinatorTests
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         SetLocalTelemetry(snapshot.Id, null);
 
-        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+        var progress = new CapturingSessionDetailLoadProgress();
+
+        var result = await CreateCoordinator().LoadDetailAsync(
+            snapshot.Id,
+            new SessionPresentationDimensions(320, 180),
+            progress);
 
         var incomplete = Assert.IsType<SessionDetailLoadResult.IncompleteLocalData>(result);
         Assert.Equal(snapshot.Id, incomplete.SessionId);
         Assert.True(incomplete.Missing.ProcessedTelemetryBlob);
         Assert.False(incomplete.Missing.RecordedSourceMissingOrHashMismatch);
+        Assert.Equal(
+            [
+                SessionDetailLoadStage.LoadingTelemetryData,
+                SessionDetailLoadStage.CheckingLocalData,
+            ],
+            progress.Reports.Select(report => report.Stage));
         await trackCoordinator.DidNotReceive().LoadSessionTrackAsync(
             Arg.Any<Guid>(),
             Arg.Any<Guid?>(),
@@ -885,7 +915,10 @@ public class SessionCoordinatorTests
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         SetLocalTelemetry(snapshot.Id, null);
 
-        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+        var result = await CreateCoordinator().LoadDetailAsync(
+            snapshot.Id,
+            new SessionPresentationDimensions(320, 180),
+            new CapturingSessionDetailLoadProgress());
 
         Assert.IsType<SessionDetailLoadResult.IncompleteLocalData>(result);
         await http.DidNotReceive().GetSessionPsstAsync(Arg.Any<Guid>());
@@ -902,7 +935,10 @@ public class SessionCoordinatorTests
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         SetLocalTelemetry(snapshot.Id, null);
 
-        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+        var result = await CreateCoordinator().LoadDetailAsync(
+            snapshot.Id,
+            new SessionPresentationDimensions(320, 180),
+            new CapturingSessionDetailLoadProgress());
 
         var incomplete = Assert.IsType<SessionDetailLoadResult.IncompleteLocalData>(result);
         Assert.True(incomplete.Missing.ProcessedTelemetryBlob);
@@ -917,11 +953,22 @@ public class SessionCoordinatorTests
         domainQuery.Get(snapshot.Id).Returns(DomainWithMissingSource(snapshot));
         SetLocalTelemetry(snapshot.Id, telemetry);
 
-        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+        var progress = new CapturingSessionDetailLoadProgress();
+
+        var result = await CreateCoordinator().LoadDetailAsync(
+            snapshot.Id,
+            new SessionPresentationDimensions(320, 180),
+            progress);
 
         var incomplete = Assert.IsType<SessionDetailLoadResult.IncompleteLocalData>(result);
         Assert.False(incomplete.Missing.ProcessedTelemetryBlob);
         Assert.True(incomplete.Missing.RecordedSourceMissingOrHashMismatch);
+        Assert.Equal(
+            [
+                SessionDetailLoadStage.LoadingTelemetryData,
+                SessionDetailLoadStage.CheckingLocalData,
+            ],
+            progress.Reports.Select(report => report.Stage));
         await trackCoordinator.DidNotReceive().LoadSessionTrackAsync(
             Arg.Any<Guid>(),
             Arg.Any<Guid?>(),
@@ -943,7 +990,10 @@ public class SessionCoordinatorTests
         domainQuery.Get(snapshot.Id).Returns(DomainWithSourceHashMismatch(snapshot));
         SetLocalTelemetry(snapshot.Id, telemetry);
 
-        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+        var result = await CreateCoordinator().LoadDetailAsync(
+            snapshot.Id,
+            new SessionPresentationDimensions(320, 180),
+            new CapturingSessionDetailLoadProgress());
 
         var incomplete = Assert.IsType<SessionDetailLoadResult.IncompleteLocalData>(result);
         Assert.False(incomplete.Missing.ProcessedTelemetryBlob);
@@ -970,7 +1020,10 @@ public class SessionCoordinatorTests
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("track failed"));
 
-        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, new SessionPresentationDimensions(320, 180));
+        var result = await CreateCoordinator().LoadDetailAsync(
+            snapshot.Id,
+            new SessionPresentationDimensions(320, 180),
+            new CapturingSessionDetailLoadProgress());
 
         Assert.IsType<SessionDetailLoadResult.Failed>(result);
     }
@@ -994,7 +1047,10 @@ public class SessionCoordinatorTests
                 Arg.Any<DampingSpeedCutoffs?>())
             .Returns(cacheData);
 
-        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, dimensions);
+        var result = await CreateCoordinator().LoadDetailAsync(
+            snapshot.Id,
+            dimensions,
+            new CapturingSessionDetailLoadProgress());
 
         var loaded = Assert.IsType<SessionDetailLoadResult.Loaded>(result);
         Assert.Equal("front-travel", loaded.Data.CachePresentation.FrontTravelDistribution);
@@ -1017,7 +1073,10 @@ public class SessionCoordinatorTests
                 Arg.Any<DampingSpeedCutoffs?>())
             .Throws(new InvalidOperationException("render failed"));
 
-        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, dimensions);
+        var result = await CreateCoordinator().LoadDetailAsync(
+            snapshot.Id,
+            dimensions,
+            new CapturingSessionDetailLoadProgress());
 
         Assert.IsType<SessionDetailLoadResult.Failed>(result);
     }
@@ -1051,6 +1110,7 @@ public class SessionCoordinatorTests
             CreateCoordinator().LoadDetailAsync(
                 snapshot.Id,
                 dimensions,
+                new CapturingSessionDetailLoadProgress(),
                 cancellationTokenSource.Token));
 
     }
@@ -1370,5 +1430,15 @@ public class SessionCoordinatorTests
                     fullTrack,
                     fingerprint));
             });
+    }
+
+    private sealed class CapturingSessionDetailLoadProgress : IProgress<SessionDetailLoadProgress>
+    {
+        public List<SessionDetailLoadProgress> Reports { get; } = [];
+
+        public void Report(SessionDetailLoadProgress value)
+        {
+            Reports.Add(value);
+        }
     }
 }

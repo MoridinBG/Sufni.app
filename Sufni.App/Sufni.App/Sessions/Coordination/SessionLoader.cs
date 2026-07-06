@@ -46,8 +46,10 @@ public sealed class SessionLoader
     public async Task<SessionDetailLoadResult> LoadDetailAsync(
         Guid sessionId,
         SessionPresentationDimensions dimensions,
+        IProgress<SessionDetailLoadProgress> progress,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(progress);
         logger.Information("Starting session detail load for {SessionId}", sessionId);
 
         try
@@ -56,7 +58,9 @@ public sealed class SessionLoader
             var dampingSpeedCutoffContext = ResolveDampingSpeedCutoffContext(domain);
 
             logger.Verbose("Loading local telemetry data for session {SessionId}", sessionId);
+            progress.Report(SessionDetailLoadProgress.LoadingTelemetryData);
             var telemetryData = await LoadTelemetryDataAsync(sessionId, cancellationToken);
+            progress.Report(SessionDetailLoadProgress.CheckingLocalData);
             var recordedSourceMissingOrHashMismatch = IsRecordedSourceMissingOrHashMismatch(domain);
             if (telemetryData is null || recordedSourceMissingOrHashMismatch)
             {
@@ -72,6 +76,7 @@ public sealed class SessionLoader
 
             var fullTrackId = sessionStore.Get(sessionId)?.FullTrackId;
             logger.Verbose("Resolving track data for session {SessionId}", sessionId);
+            progress.Report(SessionDetailLoadProgress.LoadingMapData);
             var trackTask = trackCoordinator.LoadSessionTrackAsync(
                 sessionId,
                 fullTrackId,
@@ -79,6 +84,7 @@ public sealed class SessionLoader
                 cancellationToken);
 
             logger.Verbose("Building session presentation data for {SessionId}", sessionId);
+            progress.Report(SessionDetailLoadProgress.BuildingSessionPresentation);
             var presentationTask = backgroundTaskRunner.RunAsync(
                 () => sessionPresentationService.BuildCachePresentation(
                     telemetryData,
@@ -88,6 +94,7 @@ public sealed class SessionLoader
                 cancellationToken);
 
             await Task.WhenAll(trackTask, presentationTask);
+            progress.Report(SessionDetailLoadProgress.FinalizingSessionData);
             var trackData = trackTask.Result;
             var cachePresentation = presentationTask.Result with { DampingSpeedCutoffOwner = dampingSpeedCutoffContext.Owner };
 

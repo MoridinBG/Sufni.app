@@ -425,12 +425,16 @@ public class RecordedSessionEditorActionsTests
         var observed = new List<RecordedSessionEditorState>();
         using var subscription = driver.Controller.State.Subscribe(observed.Add);
 
-        driver.LoadPresentations.OnNext(new RecordedSessionLoadPresentation.Loading(MapExpected: true));
+        driver.LoadPresentations.OnNext(new RecordedSessionLoadPresentation.Loading(
+            MapExpected: true,
+            Progress: SessionDetailLoadProgress.LoadingMapData));
 
         var state = observed[^1];
         Assert.IsType<RecordedSessionLoadPresentation.Loading>(state.Load);
         Assert.Equal(SessionScreenStateKind.Loading, state.Presentation.ScreenState.Kind);
-        Assert.Contains("Loading", state.Presentation.ScreenState.Message);
+        Assert.Equal(SessionDetailLoadProgress.LoadingMapData.Message, state.Presentation.ScreenState.Message);
+        Assert.Equal(SessionDetailLoadProgress.LoadingMapData.ProgressFraction, state.Presentation.ScreenState.ProgressFraction);
+        Assert.True(state.Presentation.ScreenState.ShowProgress);
         Assert.Equal(SurfaceStateKind.Loading, state.Presentation.MapState.Kind);
         Assert.Equal(SurfaceStateKind.Loading, state.Presentation.Signals.Travel.Kind);
         Assert.Equal(SurfaceStateKind.Loading, state.Presentation.Signals.Velocity.Kind);

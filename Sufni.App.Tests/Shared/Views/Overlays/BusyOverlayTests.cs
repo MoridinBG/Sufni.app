@@ -1,3 +1,4 @@
+using System;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
@@ -81,6 +82,28 @@ public class BusyOverlayTests
         Assert.True(progressBar!.IsVisible);
         Assert.Equal(0.5, progressBar.Value);
         Assert.False(progressBar.IsIndeterminate);
+    }
+
+    [AvaloniaFact]
+    public async Task BusyOverlay_HidesIndicatorButKeepsProgress_WhenShowIndicatorIsFalse()
+    {
+        await using var mounted = await MountAsync(new BusyOverlay
+        {
+            IsActive = true,
+            UseStackLayout = true,
+            ShowIndicator = false,
+            ShowProgress = true,
+            ProgressValue = 0.75,
+        });
+
+        var indicator = mounted.View.FindControl<ActivityIndicator>("StackBusyIndicator")
+            ?? throw new InvalidOperationException("Stack busy indicator was not found.");
+        var progressBar = mounted.View.FindControl<ProgressBar>("StackBusyProgressBar")
+            ?? throw new InvalidOperationException("Stack busy progress bar was not found.");
+
+        Assert.False(indicator.IsVisible);
+        Assert.True(progressBar.IsVisible);
+        Assert.Equal(0.75, progressBar.Value);
     }
 
     private static async Task<MountedBusyOverlay> MountAsync(BusyOverlay view)

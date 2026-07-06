@@ -7,6 +7,44 @@ namespace Sufni.App.Sessions.Processing.SessionDetails;
 
 public sealed record DampingSpeedCutoffOwner(Guid BikeId, long BaselineUpdated);
 
+public enum SessionDetailLoadStage
+{
+    PreparingSession,
+    LoadingTelemetryData,
+    CheckingLocalData,
+    LoadingMapData,
+    BuildingSessionPresentation,
+    FinalizingSessionData,
+    ApplyingSessionData,
+}
+
+public sealed record SessionDetailLoadProgress(
+    SessionDetailLoadStage Stage,
+    string Message,
+    double ProgressFraction)
+{
+    public static SessionDetailLoadProgress PreparingSession { get; } =
+        new(SessionDetailLoadStage.PreparingSession, "Preparing session...", 0.05);
+
+    public static SessionDetailLoadProgress LoadingTelemetryData { get; } =
+        new(SessionDetailLoadStage.LoadingTelemetryData, "Loading telemetry data...", 0.20);
+
+    public static SessionDetailLoadProgress CheckingLocalData { get; } =
+        new(SessionDetailLoadStage.CheckingLocalData, "Checking local data...", 0.35);
+
+    public static SessionDetailLoadProgress LoadingMapData { get; } =
+        new(SessionDetailLoadStage.LoadingMapData, "Loading map data...", 0.50);
+
+    public static SessionDetailLoadProgress BuildingSessionPresentation { get; } =
+        new(SessionDetailLoadStage.BuildingSessionPresentation, "Building session presentation...", 0.70);
+
+    public static SessionDetailLoadProgress FinalizingSessionData { get; } =
+        new(SessionDetailLoadStage.FinalizingSessionData, "Finalizing session data...", 0.90);
+
+    public static SessionDetailLoadProgress ApplyingSessionData { get; } =
+        new(SessionDetailLoadStage.ApplyingSessionData, "Applying session data...", 0.95);
+}
+
 public sealed record SessionTelemetryPresentationData(
     TelemetryData TelemetryData,
     Guid? FullTrackId,

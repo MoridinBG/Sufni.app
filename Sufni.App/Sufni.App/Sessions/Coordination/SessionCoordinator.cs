@@ -48,8 +48,9 @@ public class SessionCoordinator : ISessionCoordinator
     public Task<SessionDetailLoadResult> LoadDetailAsync(
         Guid sessionId,
         SessionPresentationDimensions dimensions,
+        IProgress<SessionDetailLoadProgress> progress,
         CancellationToken cancellationToken = default)
-        => sessionLoader.LoadDetailAsync(sessionId, dimensions, cancellationToken);
+        => sessionLoader.LoadDetailAsync(sessionId, dimensions, progress, cancellationToken);
 
     public Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated) =>
         commandService.SaveAsync(session, baselineUpdated);

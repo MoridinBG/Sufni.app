@@ -10,6 +10,7 @@ using NSubstitute;
 using Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
@@ -28,6 +29,7 @@ using Sufni.App.Sessions.Media.DesktopViews.Items;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Analysis.DesktopViews.Items;
+using Sufni.App.Shared.Views.Overlays;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.Tests.TestSupport.Doubles;
@@ -64,6 +66,26 @@ public class LiveSessionDetailDesktopViewTests
         var headerFields = mounted.View.GetVisualDescendants().OfType<LiveSessionHeaderFields>().Single();
 
         Assert.Equal(12, headerFields.FieldFontSize);
+    }
+
+    [AvaloniaFact]
+    public async Task LiveSessionDetailDesktopView_ShowsProgressOnlyLoadingOverlay_WhenScreenIsLoading()
+    {
+        var editor = CreateEditor();
+        editor.ScreenState = SessionScreenPresentationState.Loading("Starting live session...", 0.6);
+
+        await using var mounted = await MountAsync(editor);
+
+        var busyOverlay = mounted.View.FindControl<BusyOverlay>("ScreenBusyOverlay")
+            ?? throw new InvalidOperationException("Screen busy overlay was not found.");
+
+        Assert.True(busyOverlay.IsActive);
+        Assert.True(busyOverlay.IsVisible);
+        Assert.True(busyOverlay.ShowProgress);
+        Assert.False(busyOverlay.ShowIndicator);
+        Assert.Equal("Starting live session...", busyOverlay.Message);
+        Assert.NotNull(busyOverlay.MessageForeground);
+        Assert.Equal(0.6, busyOverlay.ProgressValue);
     }
 
     private static LiveSessionDetailViewModel CreateEditor()

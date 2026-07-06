@@ -664,13 +664,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         var token = loadOperation.Start();
         var currentSnapshot = sessionStore.Get(Id);
+        var mapExpected = currentSnapshot?.FullTrackId is not null;
         if (currentSnapshot?.HasProcessedData == true)
         {
             presentationApplier.ClearRecordedPresentation();
-            presentationApplier.ApplyRecordedLoadingStates(currentSnapshot.FullTrackId is not null);
-            PublishLoadPresentation(new RecordedSessionLoadPresentation.Loading(
-                currentSnapshot.FullTrackId is not null,
-                currentSnapshot));
+            presentationApplier.ApplyRecordedLoadingStates(mapExpected);
+            await PublishSessionLoadProgressAsync(
+                SessionDetailLoadProgress.PreparingSession,
+                mapExpected,
+                currentSnapshot,
+                token);
         }
         else
         {
@@ -680,12 +683,19 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         try
         {
             var dimensions = lastPresentationDimensions ?? SessionPresentationDimensions.Default;
-            var result = await sessionCoordinator.LoadDetailAsync(Id, dimensions, token);
+            var progress = new SessionLoadProgressReporter(
+                update => PublishSessionLoadProgress(update, mapExpected, currentSnapshot, token));
+            var result = await sessionCoordinator.LoadDetailAsync(Id, dimensions, progress, token);
             if (token.IsCancellationRequested)
             {
                 return;
             }
 
+            await PublishSessionLoadProgressAsync(
+                SessionDetailLoadProgress.ApplyingSessionData,
+                mapExpected,
+                sessionStore.Get(Id) ?? currentSnapshot,
+                token);
             var loadPresentation = CreateLoadPresentation(result, sessionStore.Get(Id) ?? currentSnapshot);
             PublishLoadResultPresentation(loadPresentation);
             ApplyLoadedStateInputs(result);
@@ -722,6 +732,80 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         if (currentEditorState.Load != presentation)
         {
             PublishEditorInput(loadPresentationInput, presentation);
+        }
+    }
+
+    private void PublishSessionLoadProgress(
+        SessionDetailLoadProgress progress,
+        bool mapExpected,
+        SessionSnapshot? fallbackSnapshot,
+        CancellationToken token)
+    {
+        if (token.IsCancellationRequested || !viewLoaded)
+        {
+            return;
+        }
+
+        if (UiThreadDispatcher.CheckAccess())
+        {
+            PublishSessionLoadProgressOnCurrentThread(progress, mapExpected, fallbackSnapshot, token);
+            return;
+        }
+
+        UiThreadDispatcher.Post(() =>
+            PublishSessionLoadProgressOnCurrentThread(progress, mapExpected, fallbackSnapshot, token));
+    }
+
+    private Task PublishSessionLoadProgressAsync(
+        SessionDetailLoadProgress progress,
+        bool mapExpected,
+        SessionSnapshot? fallbackSnapshot,
+        CancellationToken token)
+    {
+        if (token.IsCancellationRequested || !viewLoaded)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (UiThreadDispatcher.CheckAccess())
+        {
+            PublishSessionLoadProgressOnCurrentThread(progress, mapExpected, fallbackSnapshot, token);
+            return Task.CompletedTask;
+        }
+
+        return UiThreadDispatcher.InvokeAsync(() =>
+            PublishSessionLoadProgressOnCurrentThread(progress, mapExpected, fallbackSnapshot, token));
+    }
+
+    private void PublishSessionLoadProgressOnCurrentThread(
+        SessionDetailLoadProgress progress,
+        bool mapExpected,
+        SessionSnapshot? fallbackSnapshot,
+        CancellationToken token)
+    {
+        if (token.IsCancellationRequested || !viewLoaded)
+        {
+            return;
+        }
+
+        PublishLoadPresentation(new RecordedSessionLoadPresentation.Loading(
+            mapExpected,
+            progress,
+            sessionStore.Get(Id) ?? sessionSnapshot ?? fallbackSnapshot));
+    }
+
+    private sealed class SessionLoadProgressReporter : IProgress<SessionDetailLoadProgress>
+    {
+        private readonly Action<SessionDetailLoadProgress> onReport;
+
+        public SessionLoadProgressReporter(Action<SessionDetailLoadProgress> onReport)
+        {
+            this.onReport = onReport;
+        }
+
+        public void Report(SessionDetailLoadProgress value)
+        {
+            onReport(value);
         }
     }
 
@@ -1538,6 +1622,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             presentationApplier.ApplyRecordedLoadingStates(snapshot.FullTrackId is not null);
             PublishLoadPresentation(new RecordedSessionLoadPresentation.Loading(
                 snapshot.FullTrackId is not null,
+                SessionDetailLoadProgress.PreparingSession,
                 snapshot));
         }
 

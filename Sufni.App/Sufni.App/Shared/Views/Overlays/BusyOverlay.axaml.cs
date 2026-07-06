@@ -33,6 +33,9 @@ public partial class BusyOverlay : UserControl
     public static readonly StyledProperty<bool> ShowProgressProperty =
         AvaloniaProperty.Register<BusyOverlay, bool>(nameof(ShowProgress));
 
+    public static readonly StyledProperty<bool> ShowIndicatorProperty =
+        AvaloniaProperty.Register<BusyOverlay, bool>(nameof(ShowIndicator), defaultValue: true);
+
     public static readonly StyledProperty<double> ProgressValueProperty =
         AvaloniaProperty.Register<BusyOverlay, double>(nameof(ProgressValue));
 
@@ -115,6 +118,12 @@ public partial class BusyOverlay : UserControl
     {
         get => GetValue(ShowProgressProperty);
         set => SetValue(ShowProgressProperty, value);
+    }
+
+    public bool ShowIndicator
+    {
+        get => GetValue(ShowIndicatorProperty);
+        set => SetValue(ShowIndicatorProperty, value);
     }
 
     public double ProgressValue

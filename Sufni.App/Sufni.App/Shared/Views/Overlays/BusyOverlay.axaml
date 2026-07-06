@@ -30,7 +30,8 @@ mc:Ignorable="d">
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 Foreground="{Binding #Root.IndicatorForeground}"
-                IsActive="{Binding #Root.IsActive}" />
+                IsActive="{Binding #Root.IsActive}"
+                IsVisible="{Binding #Root.ShowIndicator}" />
 
                 <TextBlock
                 Name="BusyMessageText"
@@ -85,7 +86,8 @@ mc:Ignorable="d">
                 Height="{Binding #Root.IndicatorSize}"
                 HorizontalAlignment="Center"
                 Foreground="{Binding #Root.IndicatorForeground}"
-                IsActive="{Binding #Root.IsActive}" />
+                IsActive="{Binding #Root.IsActive}"
+                IsVisible="{Binding #Root.ShowIndicator}" />
 
                 <TextBlock
                 Name="StackBusyMessageText"

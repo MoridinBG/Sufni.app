@@ -90,6 +90,7 @@ internal abstract record RecordedSessionLoadPresentation
 
     public sealed record Loading(
         bool MapExpected,
+        SessionDetailLoadProgress Progress,
         SessionSnapshot? Session = null) : RecordedSessionLoadPresentation;
 
     public sealed record Loaded(
