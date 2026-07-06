@@ -5,8 +5,12 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Collections;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.VisualTree;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
@@ -29,6 +33,7 @@ public sealed class SignalRowsRoot : UserControl
     private readonly HashSet<SignalRow> watchedRows = [];
     private SignalRow? activeDraggedRow;
     private SignalRow? activeDropTargetRow;
+    private ScrollContentPresenter? rowsScrollPresenter;
     private bool applyingSignalLayoutPreferences;
     private bool publishingSignalLayoutPreferences;
     private IDisposable? themeVariantSubscription;
@@ -63,11 +68,20 @@ public sealed class SignalRowsRoot : UserControl
         scrollViewer = new ScrollViewer
         {
             Name = "RowsScrollViewer",
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             IsScrollChainingEnabled = false,
             Content = rowsPanel,
         };
+        scrollViewer.TemplateApplied += (_, e) =>
+        {
+            rowsScrollPresenter = e.NameScope.Find<Control>("PART_ContentPresenter") as ScrollContentPresenter;
+        };
+        scrollViewer.AddHandler(
+            InputElement.PointerWheelChangedEvent,
+            OnRowsScrollViewerPointerWheelChanged,
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
         rootDropIndicator = new Border
         {
             Name = "RootDropIndicator",
@@ -98,6 +112,106 @@ public sealed class SignalRowsRoot : UserControl
             ? null
             : availableSize.Height;
         return base.MeasureOverride(availableSize);
+    }
+
+    private void OnRowsScrollViewerPointerWheelChanged(object? sender, PointerWheelEventArgs args)
+    {
+        if (!args.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            return;
+        }
+
+        var deltaY = GetVerticalScrollDelta(args.Delta);
+        args.Handled = true;
+
+        if (deltaY == 0 || !CanScrollRowsVertically(deltaY))
+        {
+            return;
+        }
+
+        var presenter = ResolveRowsScrollPresenter();
+        if (presenter is null)
+        {
+            return;
+        }
+
+        var forwardedModifiers = args.KeyModifiers & ~KeyModifiers.Control;
+        var forwardedArgs = new PointerWheelEventArgs(
+            presenter,
+            args.Pointer,
+            presenter,
+            args.GetPosition(presenter),
+            args.Timestamp,
+            new PointerPointProperties(ToRawInputModifiers(forwardedModifiers), PointerUpdateKind.Other),
+            forwardedModifiers,
+            new Vector(0, deltaY))
+        {
+            RoutedEvent = InputElement.PointerWheelChangedEvent,
+        };
+
+        presenter.RaiseEvent(forwardedArgs);
+    }
+
+    private ScrollContentPresenter? ResolveRowsScrollPresenter()
+    {
+        if (rowsScrollPresenter is { } cached && cached.IsEffectivelyVisible)
+        {
+            return cached;
+        }
+
+        rowsScrollPresenter = scrollViewer
+            .GetVisualDescendants()
+            .OfType<ScrollContentPresenter>()
+            .FirstOrDefault();
+        return rowsScrollPresenter;
+    }
+
+    private bool CanScrollRowsVertically(double deltaY)
+    {
+        var maxOffset = GetMaxVerticalOffset();
+        if (maxOffset <= 0)
+        {
+            return false;
+        }
+
+        return deltaY < 0
+            ? scrollViewer.Offset.Y < maxOffset
+            : scrollViewer.Offset.Y > 0;
+    }
+
+    private double GetMaxVerticalOffset()
+    {
+        return Math.Max(
+            0,
+            Math.Max(
+                scrollViewer.ScrollBarMaximum.Y,
+                scrollViewer.Extent.Height - scrollViewer.Viewport.Height));
+    }
+
+    private static double GetVerticalScrollDelta(Vector delta)
+    {
+        return delta.Y != 0 ? delta.Y : delta.X;
+    }
+
+    private static RawInputModifiers ToRawInputModifiers(KeyModifiers keyModifiers)
+    {
+        var rawModifiers = RawInputModifiers.None;
+        if (keyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            rawModifiers |= RawInputModifiers.Shift;
+        }
+
+        if (keyModifiers.HasFlag(KeyModifiers.Alt))
+        {
+            rawModifiers |= RawInputModifiers.Alt;
+        }
+
+        if (keyModifiers.HasFlag(KeyModifiers.Meta))
+        {
+            rawModifiers |= RawInputModifiers.Meta;
+        }
+
+        return rawModifiers;
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)

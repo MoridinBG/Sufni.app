@@ -6,7 +6,6 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
-using Avalonia.Themes.Fluent;
 using ScottPlot;
 using ScottPlot.Interactivity.UserActionResponses;
 using static Sufni.App.Tests.TestSupport.Fixtures.PlotTestHelpers;
@@ -18,83 +17,6 @@ namespace Sufni.App.Tests.Shared.Views.Plots;
 [Collection("Ui")]
 public class SufniAvaPlotTests
 {
-    [AvaloniaFact]
-    public async Task SufniAvaPlot_ShiftWheel_LeavesEventUnhandledWithoutZoomingPlot()
-    {
-        var plot = CreatePlot();
-        var host = new Window
-        {
-            Width = 400,
-            Height = 220,
-            Content = plot,
-        };
-
-        host.Show();
-        await RenderAsync(plot);
-
-        var initialLimits = plot.Plot.Axes.GetLimits();
-
-        var args = plot.InvokeWheel(GetDataAreaCenter(plot), KeyModifiers.Shift, new Vector(0, 1));
-        await RenderAsync(plot);
-
-        Assert.False(args.Handled);
-        AssertAxisLimitsEqual(initialLimits, plot.Plot.Axes.GetLimits());
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
-    }
-
-    [AvaloniaFact]
-    public void SufniAvaPlot_ShiftWheel_ScrollsAncestorWithoutZoomingPlot()
-    {
-        EnsureFluentTheme();
-
-        var plot = CreatePlot();
-        var scrollViewer = new ScrollViewer
-        {
-            Width = 400,
-            Height = 220,
-            Content = new StackPanel
-            {
-                Children =
-                {
-                    plot,
-                    new Border { Height = 800 },
-                },
-            },
-        };
-        var host = new Window
-        {
-            Width = 400,
-            Height = 220,
-            Content = scrollViewer,
-        };
-
-        host.Show();
-        try
-        {
-            scrollViewer.Measure(new Size(400, 220));
-            scrollViewer.Arrange(new Rect(0, 0, 400, 220));
-            plot.Measure(new Size(400, 220));
-            plot.Arrange(new Rect(0, 0, 400, 220));
-            plot.Plot.RenderInMemory(400, 220);
-            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-
-            var initialLimits = plot.Plot.Axes.GetLimits();
-            var initialOffset = scrollViewer.Offset.Y;
-
-            var args = plot.InvokeWheel(GetDataAreaCenter(plot), KeyModifiers.Shift, new Vector(0, -1));
-
-            Assert.True(args.Handled);
-            Assert.True(scrollViewer.Offset.Y > initialOffset);
-            AssertAxisLimitsEqual(initialLimits, plot.Plot.Axes.GetLimits());
-        }
-        finally
-        {
-            host.Close();
-        }
-    }
-
     [AvaloniaFact]
     public void PlotWheelZoomModifier_RunWithPrecisionZoom_ScalesAndRestoresZoomFraction()
     {
@@ -186,17 +108,6 @@ public class SufniAvaPlotTests
 
     private static MouseWheelZoom GetMouseWheelZoom(SufniAvaPlot plot) =>
         Assert.Single(plot.UserInputProcessor.UserActionResponses.OfType<MouseWheelZoom>());
-
-    private static void EnsureFluentTheme()
-    {
-        var application = Application.Current
-            ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
-
-        if (!application.Styles.OfType<FluentTheme>().Any())
-        {
-            application.Styles.Add(new FluentTheme());
-        }
-    }
 
     private static RawInputModifiers ToRawInputModifiers(KeyModifiers keyModifiers)
     {

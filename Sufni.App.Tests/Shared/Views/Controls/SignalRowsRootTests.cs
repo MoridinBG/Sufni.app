@@ -1,12 +1,18 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Themes.Fluent;
 using Avalonia.VisualTree;
 using Sufni.App.Theming;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
+using static Sufni.App.Tests.TestSupport.Fixtures.PlotTestHelpers;
 
 using Sufni.App.Shared.Views.Controls;
+using Sufni.App.Shared.Views.Plots;
 using Sufni.App.Infrastructure;
 using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.Shared.Views.Controls;
@@ -45,6 +51,97 @@ public class SignalRowsRootTests
         var contentHeight = travel.AllocatedGroupHeight + imu.AllocatedGroupHeight;
         Assert.Equal(424, contentHeight);
         Assert.True(contentHeight > 300);
+    }
+
+    [AvaloniaFact]
+    public async Task SignalRowsRoot_CtrlWheelOverPlot_ScrollsRowsWithoutZoomingPlot()
+    {
+        EnsureFluentTheme();
+        var plot = CreateWheelPlot();
+        var root = CreateScrollableRootWithWheelPlot(plot);
+
+        await using var mounted = await MountAsync(root, width: 400, height: 300);
+        await LayoutForWheelAsync(root, plot);
+
+        var scrollViewer = FindRowsScrollViewer(root);
+        var initialOffset = scrollViewer.Offset.Y;
+        var initialLimits = plot.Plot.Axes.GetLimits();
+
+        var args = plot.InvokeWheel(mounted.Host, GetDataAreaCenterPoint(plot), KeyModifiers.Control, new Vector(0, -1));
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.True(args.Handled);
+        Assert.True(
+            scrollViewer.Offset.Y > initialOffset,
+            $"Offset did not increase. Initial={initialOffset}, Actual={scrollViewer.Offset.Y}, Extent={scrollViewer.Extent}, Viewport={scrollViewer.Viewport}, ScrollBarMaximum={scrollViewer.ScrollBarMaximum}.");
+        AssertAxisLimitsEqual(initialLimits, plot.Plot.Axes.GetLimits());
+    }
+
+    [AvaloniaFact]
+    public async Task SignalRowsRoot_PlainWheelOverPlot_DoesNotScrollRows()
+    {
+        EnsureFluentTheme();
+        var plot = CreateWheelPlot();
+        var root = CreateScrollableRootWithWheelPlot(plot);
+
+        await using var mounted = await MountAsync(root, width: 400, height: 300);
+        await LayoutForWheelAsync(root, plot);
+
+        var scrollViewer = FindRowsScrollViewer(root);
+        var initialOffset = scrollViewer.Offset.Y;
+
+        var args = plot.InvokeWheel(mounted.Host, GetDataAreaCenterPoint(plot), KeyModifiers.None, new Vector(0, -1));
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(initialOffset, scrollViewer.Offset.Y);
+        Assert.True(args.Handled);
+        Assert.True(plot.IsPointInDataArea(args.GetPosition(plot)));
+    }
+
+    [AvaloniaFact]
+    public async Task SignalRowsRoot_CtrlWheelUsesHorizontalDeltaFallback_ForVerticalScroll()
+    {
+        EnsureFluentTheme();
+        var plot = CreateWheelPlot();
+        var root = CreateScrollableRootWithWheelPlot(plot);
+
+        await using var mounted = await MountAsync(root, width: 400, height: 300);
+        await LayoutForWheelAsync(root, plot);
+
+        var scrollViewer = FindRowsScrollViewer(root);
+        var initialOffset = scrollViewer.Offset.Y;
+
+        var args = plot.InvokeWheel(mounted.Host, GetDataAreaCenterPoint(plot), KeyModifiers.Control, new Vector(-1, 0));
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.True(args.Handled);
+        Assert.True(
+            scrollViewer.Offset.Y > initialOffset,
+            $"Offset did not increase. Initial={initialOffset}, Actual={scrollViewer.Offset.Y}, Extent={scrollViewer.Extent}, Viewport={scrollViewer.Viewport}, ScrollBarMaximum={scrollViewer.ScrollBarMaximum}.");
+    }
+
+    [AvaloniaFact]
+    public async Task SignalRowsRoot_CtrlWheelAtScrollBoundary_DoesNotZoomPlot()
+    {
+        EnsureFluentTheme();
+        var plot = CreateWheelPlot();
+        var root = CreateScrollableRootWithWheelPlotAtEnd(plot);
+
+        await using var mounted = await MountAsync(root, width: 400, height: 300);
+        await LayoutForWheelAsync(root, plot);
+
+        var scrollViewer = FindRowsScrollViewer(root);
+        scrollViewer.Offset = new Vector(scrollViewer.Offset.X, scrollViewer.ScrollBarMaximum.Y);
+        await ViewTestHelpers.FlushDispatcherAsync();
+        var initialOffset = scrollViewer.Offset.Y;
+        var initialLimits = plot.Plot.Axes.GetLimits();
+
+        var args = plot.InvokeWheel(mounted.Host, GetDataAreaCenterPoint(plot), KeyModifiers.Control, new Vector(0, -1));
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.True(args.Handled);
+        Assert.Equal(initialOffset, scrollViewer.Offset.Y);
+        AssertAxisLimitsEqual(initialLimits, plot.Plot.Axes.GetLimits());
     }
 
     [AvaloniaFact]
@@ -422,6 +519,13 @@ public class SignalRowsRootTests
     private static SignalRow CreateRow(string title)
         => CreateRow(title, rowId: null);
 
+    private static SignalRow CreateRowWithPlot(string title, Control plotContent)
+    {
+        var row = CreateRow(title);
+        row.PlotContent = plotContent;
+        return row;
+    }
+
     private static SignalRow CreateRow(string title, string? rowId)
     {
         return new SignalRow
@@ -439,10 +543,75 @@ public class SignalRowsRootTests
         };
     }
 
+    private static TestWheelPlot CreateWheelPlot()
+    {
+        var plot = new TestWheelPlot
+        {
+            Width = 400,
+            Height = 180,
+        };
+
+        plot.Plot.Axes.SetLimits(0, 10, 0, 10);
+        plot.Plot.Add.Scatter(new double[] { 0, 10 }, new double[] { 0, 10 });
+        return plot;
+    }
+
+    private static SignalRowsRoot CreateScrollableRootWithWheelPlot(TestWheelPlot plot)
+    {
+        return CreateRoot(
+            CreateRowWithPlot("Travel", plot),
+            CreateRow("Velocity"),
+            CreateRow("IMU"));
+    }
+
+    private static SignalRowsRoot CreateScrollableRootWithWheelPlotAtEnd(TestWheelPlot plot)
+    {
+        return CreateRoot(
+            CreateRow("Travel"),
+            CreateRow("Velocity"),
+            CreateRowWithPlot("IMU", plot));
+    }
+
+    private static async Task LayoutForWheelAsync(SignalRowsRoot root, TestWheelPlot plot)
+    {
+        Measure(root, 400, 300);
+        root.UpdateLayout();
+        RenderPlotInMemory(plot);
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        await ViewTestHelpers.FlushDispatcherAsync();
+    }
+
+    private static ScrollViewer FindRowsScrollViewer(SignalRowsRoot root)
+    {
+        return Assert.Single(
+            root.GetVisualDescendants().OfType<ScrollViewer>(),
+            scrollViewer => scrollViewer.Name == "RowsScrollViewer");
+    }
+
     private static async Task<MountedRoot> MountAsync(SignalRowsRoot root)
     {
         ViewTestHelpers.EnsureViewTestResources();
         var host = await ViewTestHelpers.ShowViewAsync(root);
+        return new MountedRoot(host);
+    }
+
+    private static async Task<MountedRoot> MountAsync(SignalRowsRoot root, double width, double height)
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        var host = new Window
+        {
+            Width = width,
+            Height = height,
+            Content = root,
+        };
+
+        host.Show();
+        await ViewTestHelpers.FlushDispatcherAsync();
+        root.Measure(new Size(width, height));
+        root.Arrange(new Rect(0, 0, width, height));
+        root.UpdateLayout();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
         return new MountedRoot(host);
     }
 
@@ -452,14 +621,80 @@ public class SignalRowsRootTests
         root.Arrange(new Rect(0, 0, width, height));
     }
 
+    private static void EnsureFluentTheme()
+    {
+        var application = Application.Current
+            ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
+
+        if (!application.Styles.OfType<FluentTheme>().Any())
+        {
+            application.Styles.Add(new FluentTheme());
+        }
+    }
+
+    private static RawInputModifiers ToRawInputModifiers(KeyModifiers keyModifiers)
+    {
+        var rawModifiers = RawInputModifiers.None;
+        if (keyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            rawModifiers |= RawInputModifiers.Control;
+        }
+
+        if (keyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            rawModifiers |= RawInputModifiers.Shift;
+        }
+
+        if (keyModifiers.HasFlag(KeyModifiers.Alt))
+        {
+            rawModifiers |= RawInputModifiers.Alt;
+        }
+
+        if (keyModifiers.HasFlag(KeyModifiers.Meta))
+        {
+            rawModifiers |= RawInputModifiers.Meta;
+        }
+
+        return rawModifiers;
+    }
+
     private static void AssertBrushColor(Color expected, IBrush? brush)
     {
         var solidBrush = Assert.IsType<SolidColorBrush>(brush);
         Assert.Equal(expected, solidBrush.Color);
     }
 
+    private sealed class TestWheelPlot : SufniAvaPlot
+    {
+        public PointerWheelEventArgs InvokeWheel(TopLevel host, Point point, KeyModifiers keyModifiers, Vector delta)
+        {
+            PointerWheelEventArgs? received = null;
+            var rowsScrollViewer = this
+                .GetVisualAncestors()
+                .OfType<ScrollViewer>()
+                .Single(scrollViewer => scrollViewer.Name == "RowsScrollViewer");
+            rowsScrollViewer.AddHandler(
+                InputElement.PointerWheelChangedEvent,
+                (_, args) => received ??= args,
+                RoutingStrategies.Tunnel,
+                handledEventsToo: true);
+
+            var hostPoint = this.TranslatePoint(point, host);
+            Assert.NotNull(hostPoint);
+
+            var rawModifiers = ToRawInputModifiers(keyModifiers);
+            host.MouseMove(hostPoint.Value, rawModifiers);
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            host.MouseWheel(hostPoint.Value, delta, rawModifiers);
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            return received ?? throw new InvalidOperationException("The rows scroll viewer did not receive a wheel event.");
+        }
+    }
+
     private sealed class MountedRoot(Window host) : IAsyncDisposable
     {
+        public Window Host => host;
+
         public async ValueTask DisposeAsync()
         {
             host.Close();
