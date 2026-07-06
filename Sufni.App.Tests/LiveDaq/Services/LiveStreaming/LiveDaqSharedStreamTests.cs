@@ -247,60 +247,43 @@ public class LiveDaqSharedStreamTests
         Assert.Equal(LiveConnectionState.Connected, stream.CurrentState.ConnectionState);
     }
 
-    [Fact]
-    public async Task EnsureStartedAsync_WhenConnectThrowsCanceled_DoesNotPublishError()
+    [Theory]
+    [InlineData(CanceledOperation.Connect)]
+    [InlineData(CanceledOperation.Stop)]
+    [InlineData(CanceledOperation.ApplyConfiguration)]
+    public async Task Operations_WhenClientThrowsCanceled_DoNotPublishError(CanceledOperation operation)
     {
         using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
-        clientFactory.ConfigureBeforeReturn = c => c.ThrowCanceledOnConnect = true;
+        if (operation is CanceledOperation.Connect)
+        {
+            clientFactory.ConfigureBeforeReturn = c => c.ThrowCanceledOnConnect = true;
+        }
 
         var stream = registry.GetOrCreate(snapshot);
         await using var lease = stream.AcquireLease();
+        if (operation is not CanceledOperation.Connect)
+        {
+            await stream.EnsureStartedAsync();
+            Assert.Equal(LiveConnectionState.Connected, stream.CurrentState.ConnectionState);
+            clientFactory.CreatedClients.Single().ThrowCanceledOnDisconnect = true;
+        }
 
-        var result = await stream.EnsureStartedAsync();
-
-        Assert.Null(result);
-        Assert.Null(stream.CurrentState.LastError);
-        Assert.False(stream.CurrentState.IsClosed);
-    }
-
-    [Fact]
-    public async Task StopAsync_WhenDisconnectThrowsCanceled_DoesNotPublishError()
-    {
-        using var registry = CreateRegistry();
-        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
-        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
-
-        var stream = registry.GetOrCreate(snapshot);
-        await using var lease = stream.AcquireLease();
-        await stream.EnsureStartedAsync();
-        Assert.Equal(LiveConnectionState.Connected, stream.CurrentState.ConnectionState);
-
-        var client = clientFactory.CreatedClients.Single();
-        client.ThrowCanceledOnDisconnect = true;
-
-        await stream.StopAsync();
-
-        Assert.Null(stream.CurrentState.LastError);
-        Assert.False(stream.CurrentState.IsClosed);
-    }
-
-    [Fact]
-    public async Task ApplyConfigurationAsync_WhenDisconnectThrowsCanceled_DoesNotPublishError()
-    {
-        using var registry = CreateRegistry();
-        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
-        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
-
-        var stream = registry.GetOrCreate(snapshot);
-        await using var lease = stream.AcquireLease();
-        await stream.EnsureStartedAsync();
-
-        var client = clientFactory.CreatedClients.Single();
-        client.ThrowCanceledOnDisconnect = true;
-
-        await stream.ApplyConfigurationAsync(LiveDaqStreamConfiguration.FromRequestedRates(100, 0, 5));
+        switch (operation)
+        {
+            case CanceledOperation.Connect:
+                Assert.Null(await stream.EnsureStartedAsync());
+                break;
+            case CanceledOperation.Stop:
+                await stream.StopAsync();
+                break;
+            case CanceledOperation.ApplyConfiguration:
+                await stream.ApplyConfigurationAsync(LiveDaqStreamConfiguration.FromRequestedRates(100, 0, 5));
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(operation), operation, null);
+        }
 
         Assert.Null(stream.CurrentState.LastError);
         Assert.False(stream.CurrentState.IsClosed);
@@ -739,5 +722,12 @@ public class LiveDaqSharedStreamTests
 
             events.OnCompleted();
         }
+    }
+
+    public enum CanceledOperation
+    {
+        Connect,
+        Stop,
+        ApplyConfiguration
     }
 }

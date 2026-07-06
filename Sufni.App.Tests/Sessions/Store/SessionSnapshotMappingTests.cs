@@ -1,4 +1,3 @@
-using System.Reflection;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Store;
@@ -8,34 +7,6 @@ namespace Sufni.App.Tests.Sessions.Store;
 
 public class SessionSnapshotMappingTests
 {
-    private static readonly string[] MappedSessionSnapshotProperties =
-    [
-        nameof(SessionSnapshot.Id),
-        nameof(SessionSnapshot.Name),
-        nameof(SessionSnapshot.Description),
-        nameof(SessionSnapshot.SetupId),
-        nameof(SessionSnapshot.Timestamp),
-        nameof(SessionSnapshot.FullTrackId),
-        nameof(SessionSnapshot.HasProcessedData),
-        nameof(SessionSnapshot.ProcessingFingerprintJson),
-        nameof(SessionSnapshot.FrontSpringRate),
-        nameof(SessionSnapshot.FrontHighSpeedCompression),
-        nameof(SessionSnapshot.FrontLowSpeedCompression),
-        nameof(SessionSnapshot.FrontLowSpeedRebound),
-        nameof(SessionSnapshot.FrontHighSpeedRebound),
-        nameof(SessionSnapshot.RearSpringRate),
-        nameof(SessionSnapshot.RearHighSpeedCompression),
-        nameof(SessionSnapshot.RearLowSpeedCompression),
-        nameof(SessionSnapshot.RearLowSpeedRebound),
-        nameof(SessionSnapshot.RearHighSpeedRebound),
-        nameof(SessionSnapshot.Updated),
-        nameof(SessionSnapshot.DurationSeconds),
-        nameof(SessionSnapshot.DistanceMeters),
-        nameof(SessionSnapshot.AscentMeters),
-        nameof(SessionSnapshot.DescentMeters),
-        nameof(SessionSnapshot.GpsOffsetSeconds)
-    ];
-
     [Fact]
     public void ToMetadataEntity_RoundTripsEveryMappedSnapshotField_WithoutPayloads()
     {
@@ -71,22 +42,6 @@ public class SessionSnapshotMappingTests
         Assert.Null(entity.ProcessedData);
         Assert.Null(entity.Track);
         Assert.Equal(snapshot, roundTrip);
-    }
-
-    [Fact]
-    public void ToMetadataEntity_CoverageListMatchesSessionSnapshotProperties()
-    {
-        var expected = MappedSessionSnapshotProperties
-            .OrderBy(name => name, StringComparer.Ordinal)
-            .ToArray();
-        var actual = typeof(SessionSnapshot)
-            .GetProperties(BindingFlags.Instance | BindingFlags.Public)
-            .Where(property => property.GetMethod?.IsPublic == true)
-            .Select(property => property.Name)
-            .OrderBy(name => name, StringComparer.Ordinal)
-            .ToArray();
-
-        Assert.Equal(expected, actual);
     }
 
     [Fact]

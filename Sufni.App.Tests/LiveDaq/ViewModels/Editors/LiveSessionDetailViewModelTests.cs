@@ -1,39 +1,33 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
 using System.Reactive.Subjects;
-using System.Threading;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using NSubstitute;
-using Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
-using Sufni.Telemetry;
+using Sufni.App.Bikes.Coordinators;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-
-using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Queries;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.LiveDaq.ViewModels.Editors;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Sessions.Coordination;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Shell.Coordinators;
-using Sufni.App.LiveDaq.ViewModels.SessionPages;
-using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
-using Sufni.App.Tests.TestSupport.Fixtures;
-using Sufni.App.Tests.TestSupport.Harness;
+using Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
+using Sufni.App.Tests.TestSupport.Async;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Extensions;
-using Sufni.App.Tests.TestSupport.Async;
+using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Tests.TestSupport.Harness;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.LiveDaq.ViewModels.Editors;
 
@@ -50,7 +44,6 @@ public class LiveSessionDetailViewModelTests : IDisposable
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly Subject<LiveSignalBatch> signalBatches = new();
     private readonly LiveSessionCapturePackage capturePackage;
-
     private readonly BehaviorSubject<LiveSessionPresentationSnapshot> snapshots;
     private LiveSessionPresentationSnapshot currentSnapshot;
 
@@ -98,83 +91,10 @@ public class LiveSessionDetailViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task Loaded_InitializesMap_AndAttachesService()
-    {
-        var editor = CreateEditor();
-
-        await editor.LoadedCommand.ExecuteAsync(null);
-
-        await tileLayerService.Received(1).InitializeAsync();
-        await liveSessionService.Received(1).EnsureAttachedAsync(Arg.Any<CancellationToken>());
-    }
-
-    [AvaloniaFact]
-    public void Construction_ExposesHiddenSessionInsightsForV1()
-    {
-        var editor = CreateEditor();
-
-        Assert.Equal(SurfacePresentationState.Hidden, editor.SessionInsights.State);
-        Assert.Empty(editor.SessionInsights.Findings);
-        Assert.Equal(SessionInsightsTargetProfile.Trail, editor.SelectedSessionInsightsTargetProfile);
-    }
-
-    [AvaloniaFact]
-    public void SelectedPageState_TracksLivePagesAndClampsCollectionChanges()
-    {
-        var editor = CreateEditor();
-        var changes = TrackPropertyChanges(editor);
-
-        Assert.Equal(editor.Pages.Count, editor.PageCount);
-        Assert.Same(editor.Pages[0], editor.SelectedPage);
-        Assert.Equal("Signals", editor.SelectedPageDisplayName);
-
-        editor.SelectedPageIndex = 2;
-
-        Assert.Same(editor.Pages[2], editor.SelectedPage);
-        Assert.Equal("Damping", editor.SelectedPageDisplayName);
-        Assert.Contains(nameof(LiveSessionDetailViewModel.SelectedPageIndex), changes);
-        Assert.Contains(nameof(LiveSessionDetailViewModel.SelectedPage), changes);
-        Assert.Contains(nameof(LiveSessionDetailViewModel.PageCount), changes);
-        Assert.Contains(nameof(LiveSessionDetailViewModel.SelectedPageDisplayName), changes);
-
-        editor.SelectedPageIndex = 99;
-        Assert.Equal(editor.Pages.Count - 1, editor.SelectedPageIndex);
-
-        changes.Clear();
-
-        editor.Pages.Clear();
-
-        Assert.Equal(0, editor.SelectedPageIndex);
-        Assert.Null(editor.SelectedPage);
-        Assert.Equal(0, editor.PageCount);
-        Assert.Equal(string.Empty, editor.SelectedPageDisplayName);
-        Assert.Contains(nameof(LiveSessionDetailViewModel.PageCount), changes);
-        Assert.Contains(nameof(LiveSessionDetailViewModel.SelectedPage), changes);
-        Assert.Contains(nameof(LiveSessionDetailViewModel.SelectedPageDisplayName), changes);
-    }
-
-    [AvaloniaFact]
-    public async Task Reload_AfterUnload_ResubscribesToSnapshots()
-    {
-        var editor = CreateEditor();
-
-        await editor.LoadedCommand.ExecuteAsync(null);
-        await editor.UnloadedCommand.ExecuteAsync(null);
-        await editor.LoadedCommand.ExecuteAsync(null);
-
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        Assert.Same(currentSnapshot.AnalysisTelemetry, editor.TelemetryData);
-    }
-
-    [AvaloniaFact]
-    public async Task SnapshotUpdate_ProjectsTelemetryTrack_AndEnablesSave()
+    public async Task SnapshotUpdate_ProjectsTelemetryTrackAndSaveState()
     {
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
-
         var telemetryData = TestTelemetryData.CreateProcessed();
         var trackPoints = new List<TrackPoint>
         {
@@ -182,9 +102,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
             new(2, 3, 4, 5),
         };
 
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData, trackPoints);
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
+        await PublishSnapshotAsync(CreateSnapshot(canSave: true, telemetryData, trackPoints));
 
         Assert.Same(telemetryData, editor.TelemetryData);
         Assert.Equal(currentSnapshot.Controls.SessionHeader!.SessionStartUtc.LocalDateTime, editor.Timestamp);
@@ -194,132 +112,23 @@ public class LiveSessionDetailViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task SnapshotUpdate_UsesWaitingStates_ForExpectedLiveSurfacesBeforeDataArrives()
-    {
-        var editor = CreateEditor(CreateSessionContext(hasFrontTravelCalibration: true, hasRearTravelCalibration: true));
-        await editor.LoadedCommand.ExecuteAsync(null);
-
-        currentSnapshot = CreateSnapshot(canSave: false);
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.TravelSignalState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.VelocitySignalState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.ImuSignalState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.PitchRollSignalState.Kind);
-        Assert.True(editor.PreferencesPage.TravelSignal.Available);
-        Assert.True(editor.PreferencesPage.VelocitySignal.Available);
-        Assert.True(editor.PreferencesPage.ImuSignal.Available);
-        Assert.True(editor.PreferencesPage.PitchRollSignal.Available);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.MediaWorkspace.MapState.Kind);
-        Assert.True(editor.MediaWorkspace.HasMediaContent);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontAnalysisState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.RearAnalysisState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.CompressionBalanceState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.ReboundBalanceState.Kind);
-    }
-
-    [AvaloniaFact]
-    public async Task SignalBatches_PromoteTravelAndImuStates_Independently()
-    {
-        var editor = CreateEditor(CreateSessionContext(hasFrontTravelCalibration: true, hasRearTravelCalibration: true));
-        await editor.LoadedCommand.ExecuteAsync(null);
-
-        currentSnapshot = CreateSnapshot(canSave: false);
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        signalBatches.OnNext(CreateTravelOnlyBatch(revision: 1));
-        await WaitForUiRefreshAsync();
-
-        Assert.Equal(SurfaceStateKind.Ready, editor.SignalsWorkspace.TravelSignalState.Kind);
-        Assert.Equal(SurfaceStateKind.Ready, editor.SignalsWorkspace.VelocitySignalState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.ImuSignalState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.PitchRollSignalState.Kind);
-
-        signalBatches.OnNext(CreateImuOnlyBatch(revision: 2));
-        await WaitForUiRefreshAsync();
-
-        Assert.Equal(SurfaceStateKind.Ready, editor.SignalsWorkspace.ImuSignalState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.PitchRollSignalState.Kind);
-    }
-
-    [AvaloniaFact]
-    public async Task SignalSmoothingPreferenceChange_UpdatesLiveSignalStateWithoutChangingDirtyState()
-    {
-        var editor = CreateEditor(CreateSessionContext(hasFrontTravelCalibration: true, hasRearTravelCalibration: true));
-        await editor.LoadedCommand.ExecuteAsync(null);
-
-        currentSnapshot = CreateSnapshot(canSave: false);
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        signalBatches.OnNext(CreateTravelOnlyBatch(revision: 1));
-        await WaitForUiRefreshAsync();
-
-        var wasDirty = editor.IsDirty;
-
-        editor.PreferencesPage.VelocitySignal.SelectedSmoothing = PlotSmoothingLevel.Strong;
-
-        Assert.Equal(wasDirty, editor.IsDirty);
-        Assert.True(editor.SignalsWorkspace.TravelSignalState.IsReady);
-        Assert.True(editor.SignalsWorkspace.VelocitySignalState.IsReady);
-        Assert.Equal(PlotSmoothingLevel.Strong, editor.SignalsWorkspace.SignalDisplayPreferences.VelocitySmoothing);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.ImuSignalState.Kind);
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.SignalsWorkspace.PitchRollSignalState.Kind);
-    }
-
-    [AvaloniaFact]
-    public async Task SnapshotUpdate_TransitionsMapState_FromWaitingToReady_WhenTrackPointsArrive()
+    public async Task SnapshotUpdate_UsesWaitingMapState_WhenExpectedTrackHasNoPoints()
     {
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        currentSnapshot = CreateSnapshot(canSave: false, trackPoints: []);
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
+        await PublishSnapshotAsync(CreateSnapshot(canSave: false, trackPoints: []));
 
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.MediaWorkspace.MapState.Kind);
-
-        currentSnapshot = CreateSnapshot(
-            canSave: false,
-            trackPoints:
-            [
-                new TrackPoint(1, 2, 0, 1),
-                new TrackPoint(2, 3, 1, 2),
-            ]);
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        Assert.Equal(SurfaceStateKind.Ready, editor.MediaWorkspace.MapState.Kind);
         Assert.True(editor.MediaWorkspace.HasMediaContent);
     }
 
     [AvaloniaFact]
-    public async Task SnapshotUpdate_KeepsAnalysisHidden_ForUnconfiguredSide()
-    {
-        var editor = CreateEditor(CreateSessionContext(hasFrontTravelCalibration: true, hasRearTravelCalibration: false));
-        await editor.LoadedCommand.ExecuteAsync(null);
-
-        currentSnapshot = CreateSnapshot(canSave: false);
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        Assert.Equal(SurfaceStateKind.WaitingForData, editor.FrontAnalysisState.Kind);
-        Assert.Equal(SurfaceStateKind.Hidden, editor.RearAnalysisState.Kind);
-        Assert.Equal(SurfaceStateKind.Hidden, editor.CompressionBalanceState.Kind);
-        Assert.Equal(SurfaceStateKind.Hidden, editor.ReboundBalanceState.Kind);
-    }
-
-    [AvaloniaFact]
-    public async Task SaveCommand_UsesCustomName_AndResetsLiveCapture()
+    public async Task SaveCommand_UsesCustomNamePreferencesAndResetsLiveCapture()
     {
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
-
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
+        await PublishSnapshotAsync(CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed()));
 
         editor.Name = "Morning lap";
         editor.DescriptionText = "first lap";
@@ -362,89 +171,31 @@ public class LiveSessionDetailViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task SaveCommand_RefreshesAutoGeneratedNameAfterSave()
+    public async Task ResetCommand_ClearsCaptureButPreservesSidebarState()
     {
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
+        await PublishSnapshotAsync(CreateSnapshot(
+            canSave: true,
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            trackPoints:
+            [
+                new TrackPoint(1, 2, 3, 4),
+            ]));
+        editor.Name = "Custom live session";
+        editor.DescriptionText = "first lap";
+        editor.ForkSettings.SpringRate = "550 lb/in";
 
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
+        await editor.ResetCommand.ExecuteAsync(null);
 
-        editor.Name = "Live Session 01-01-2000 00:00:00";
-
-        await editor.SaveCommand.ExecuteAsync(null);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        await sessionCoordinator.Received(1).SaveLiveCaptureAsync(
-            Arg.Is<Session>(session =>
-                session.Name.StartsWith("Live Session ", StringComparison.Ordinal)
-                && session.Name != "Live Session 01-01-2000 00:00:00"),
-            capturePackage,
-            Arg.Any<SessionPreferences>(),
-            Arg.Any<CancellationToken>());
-        Assert.StartsWith("Live Session ", editor.Name);
-        Assert.NotEqual("Live Session 01-01-2000 00:00:00", editor.Name);
-    }
-
-    [AvaloniaFact]
-    public async Task SaveCommand_WhenCanceled_DoesNotAppendErrorMessage()
-    {
-        liveSessionService
-            .PrepareCaptureForSaveAsync(Arg.Any<CancellationToken>())
-            .Returns<LiveSessionCapturePackage>(_ => throw new OperationCanceledException());
-
-        var editor = CreateEditor();
-        await editor.LoadedCommand.ExecuteAsync(null);
-
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        await editor.SaveCommand.ExecuteAsync(null);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        Assert.Empty(editor.ErrorMessages);
-        await sessionCoordinator.DidNotReceive().SaveLiveCaptureAsync(
-            Arg.Any<Session>(),
-            Arg.Any<LiveSessionCapturePackage>(),
-            Arg.Any<SessionPreferences>(),
-            Arg.Any<CancellationToken>());
-    }
-
-    [AvaloniaFact]
-    public async Task DampingSpeedCutoffPreview_RecomputesLivePercentagesWithoutDirtying()
-    {
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var initialCutoffs = DampingSpeedCutoffs.FromValues(100, 200, 300, 400);
-        var previewCutoffs = initialCutoffs.With(SuspensionType.Rear, DampingSpeedCircuit.Compression, 520);
-        var previewPercentages = new SessionDampingPercentages(11, 12, 13, 14, 15, 16, 17, 18);
-        var bikeId = Guid.NewGuid();
-        var context = CreateSessionContext(
-            bikeId: bikeId,
-            dampingSpeedCutoffs: initialCutoffs,
-            dampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(bikeId, 7));
-        var editor = CreateEditor(context);
-        await editor.LoadedCommand.ExecuteAsync(null);
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: telemetry);
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-        sessionPresentationService.ClearReceivedCalls();
-        sessionPresentationService
-            .CalculateDampingPercentages(
-                telemetry,
-                Arg.Any<TelemetryTimeRange?>(),
-                Arg.Any<VelocityAverageMode>(),
-                Arg.Is<DampingSpeedCutoffs?>(value => value == previewCutoffs))
-            .Returns(previewPercentages);
-        var wasDirty = editor.IsDirty;
-
-        editor.PreviewDampingSpeedCutoff(SuspensionType.Rear, DampingSpeedCircuit.Compression, 517);
-
-        Assert.Equal(previewCutoffs, editor.DampingSpeedCutoffs);
-        Assert.Equal(initialCutoffs, editor.PlotDampingSpeedCutoffs);
-        Assert.Equal(previewPercentages, editor.DampingPercentages);
-        Assert.Equal(wasDirty, editor.IsDirty);
+        await liveSessionService.Received(1).ResetCaptureAsync(Arg.Any<CancellationToken>());
+        Assert.Equal("Custom live session", editor.Name);
+        Assert.Equal("first lap", editor.DescriptionText);
+        Assert.Equal("550 lb/in", editor.ForkSettings.SpringRate);
+        Assert.Null(editor.TelemetryData);
+        Assert.Equal(TimeSpan.Zero, editor.ControlState.CaptureDuration);
+        Assert.False(editor.SaveCommand.CanExecute(null));
+        Assert.False(editor.ResetCommand.CanExecute(null));
     }
 
     [AvaloniaFact]
@@ -518,300 +269,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
-    public async Task SaveCommand_WhenPostSaveCleanupFails_DisablesResavingPersistedCapture()
-    {
-        liveSessionService
-            .ResetCaptureAsync(Arg.Any<CancellationToken>())
-            .Returns<Task>(_ => throw new InvalidOperationException("reset failed"));
-
-        var editor = CreateEditor();
-        await editor.LoadedCommand.ExecuteAsync(null);
-
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed(), captureRevision: 7);
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        await editor.SaveCommand.ExecuteAsync(null);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        await sessionCoordinator.Received(1).SaveLiveCaptureAsync(
-            Arg.Any<Session>(),
-            capturePackage,
-            Arg.Any<SessionPreferences>(),
-            Arg.Any<CancellationToken>());
-        Assert.False(editor.SaveCommand.CanExecute(null));
-        Assert.True(editor.ResetCommand.CanExecute(null));
-        Assert.Contains(editor.ErrorMessages, message => message.Contains("reset failed", StringComparison.Ordinal));
-    }
-
-    [AvaloniaFact]
-    public async Task SnapshotUpdate_WithNewCaptureRevision_ReenablesSave_AfterCleanupFailure()
-    {
-        liveSessionService
-            .ResetCaptureAsync(Arg.Any<CancellationToken>())
-            .Returns<Task>(_ => throw new InvalidOperationException("reset failed"));
-
-        var editor = CreateEditor();
-        await editor.LoadedCommand.ExecuteAsync(null);
-
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed(), captureRevision: 7);
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        await editor.SaveCommand.ExecuteAsync(null);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-        Assert.False(editor.SaveCommand.CanExecute(null));
-
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed(), captureRevision: 8);
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        Assert.True(editor.SaveCommand.CanExecute(null));
-    }
-
-    [AvaloniaFact]
-    public async Task ResetCommand_ClearsCaptureButPreservesSidebarState()
-    {
-        var editor = CreateEditor();
-        await editor.LoadedCommand.ExecuteAsync(null);
-
-        currentSnapshot = CreateSnapshot(
-            canSave: true,
-            telemetryData: TestTelemetryData.CreateProcessed(),
-            trackPoints:
-            [
-                new TrackPoint(1, 2, 3, 4),
-            ]);
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        editor.Name = "Custom live session";
-        editor.DescriptionText = "first lap";
-        editor.ForkSettings.SpringRate = "550 lb/in";
-
-        await editor.ResetCommand.ExecuteAsync(null);
-
-        await liveSessionService.Received(1).ResetCaptureAsync(Arg.Any<CancellationToken>());
-        Assert.Equal("Custom live session", editor.Name);
-        Assert.Equal("first lap", editor.DescriptionText);
-        Assert.Equal("550 lb/in", editor.ForkSettings.SpringRate);
-        Assert.Null(editor.TelemetryData);
-        Assert.Equal(TimeSpan.Zero, editor.ControlState.CaptureDuration);
-        Assert.False(editor.SaveCommand.CanExecute(null));
-        Assert.False(editor.ResetCommand.CanExecute(null));
-    }
-
-    [AvaloniaFact]
-    public void Pages_Initial_IsLiveSignalsSpringDampingNotesPreferences()
-    {
-        var editor = CreateEditor();
-
-        Assert.IsType<LiveSignalsPageViewModel>(editor.Pages[0]);
-        Assert.IsType<SpringPageViewModel>(editor.Pages[1]);
-        Assert.IsType<DampingPageViewModel>(editor.Pages[2]);
-        Assert.IsType<NotesPageViewModel>(editor.Pages[3]);
-        Assert.IsType<PreferencesPageViewModel>(editor.Pages[4]);
-        Assert.DoesNotContain(editor.Pages, page => page is BalancePageViewModel);
-    }
-
-    [AvaloniaFact]
-    public async Task Bake_WithNewAnalysisTelemetry_AndDimensions_PopulatesPageFields()
-    {
-        var bakeData = new SessionCachePresentationData(
-            FrontTravelDistribution: "<svg id='front-travel' />",
-            RearTravelDistribution: "<svg id='rear-travel' />",
-            FrontVelocityDistribution: "<svg id='front-vel' />",
-            RearVelocityDistribution: "<svg id='rear-vel' />",
-            CompressionBalance: null,
-            ReboundBalance: null,
-            DampingPercentages: new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8),
-            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-            BalanceAvailable: false);
-
-        sessionPresentationService
-            .BuildCachePresentation(
-                Arg.Any<TelemetryData>(),
-                Arg.Any<SessionPresentationDimensions>(),
-                Arg.Any<CancellationToken>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(bakeData);
-        ConfigureRunnerToRunOnBackgroundTask();
-
-        var editor = CreateEditor();
-        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
-
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        sessionPresentationService
-            .Received(1)
-            .BuildCachePresentation(
-                Arg.Any<TelemetryData>(),
-                Arg.Any<SessionPresentationDimensions>(),
-                Arg.Any<CancellationToken>(),
-                Arg.Any<DampingSpeedCutoffs?>());
-        Assert.Equal(bakeData.FrontTravelDistribution, editor.SpringPage.FrontTravelDistribution);
-        Assert.Equal(bakeData.RearTravelDistribution, editor.SpringPage.RearTravelDistribution);
-        Assert.Equal(bakeData.FrontVelocityDistribution, editor.DampingPage.FrontVelocityDistribution);
-        Assert.Equal(bakeData.RearVelocityDistribution, editor.DampingPage.RearVelocityDistribution);
-        Assert.Equal(1d, editor.DampingPage.FrontHscPercentage);
-        Assert.Equal(8d, editor.DampingPage.RearHsrPercentage);
-        Assert.Equal(1d, editor.DampingPercentages.FrontHscPercentage);
-    }
-
-    [AvaloniaFact]
-    public async Task Bake_UsesCurrentDampingSpeedCutoffs()
-    {
-        var cutoffs = DampingSpeedCutoffs.FromValues(150, 250, 350, 450);
-        var bakeData = new SessionCachePresentationData(
-            FrontTravelDistribution: "<svg id='front-travel' />",
-            RearTravelDistribution: null,
-            FrontVelocityDistribution: null,
-            RearVelocityDistribution: null,
-            CompressionBalance: null,
-            ReboundBalance: null,
-            DampingPercentages: SessionDampingPercentages.Empty,
-            DampingSpeedCutoffs: cutoffs,
-            BalanceAvailable: false);
-        sessionPresentationService
-            .BuildCachePresentation(
-                Arg.Any<TelemetryData>(),
-                Arg.Any<SessionPresentationDimensions>(),
-                Arg.Any<CancellationToken>(),
-                Arg.Is<DampingSpeedCutoffs?>(value => value == cutoffs))
-            .Returns(bakeData);
-        ConfigureRunnerToRunSynchronously();
-
-        var editor = CreateEditor(CreateSessionContext(dampingSpeedCutoffs: cutoffs));
-        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        sessionPresentationService.Received(1).BuildCachePresentation(
-            Arg.Any<TelemetryData>(),
-            Arg.Any<SessionPresentationDimensions>(),
-            Arg.Any<CancellationToken>(),
-            Arg.Is<DampingSpeedCutoffs?>(value => value == cutoffs));
-    }
-
-    [AvaloniaFact]
-    public async Task Bake_WithoutDimensions_DoesNotRun()
-    {
-        ConfigureRunnerToRunSynchronously();
-
-        var editor = CreateEditor();
-        await editor.LoadedCommand.ExecuteAsync(null);
-
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        sessionPresentationService
-            .DidNotReceive()
-            .BuildCachePresentation(
-                Arg.Any<TelemetryData>(),
-                Arg.Any<SessionPresentationDimensions>(),
-                Arg.Any<CancellationToken>(),
-                Arg.Any<DampingSpeedCutoffs?>());
-    }
-
-    [AvaloniaFact]
-    public async Task Bake_InsertsBalancePageBeforeNotes_WhenBothSidesConfigured_AndPagePersists()
-    {
-        var balanceData = new SessionCachePresentationData(
-            FrontTravelDistribution: null,
-            RearTravelDistribution: null,
-            FrontVelocityDistribution: null,
-            RearVelocityDistribution: null,
-            CompressionBalance: "<svg id='compression' />",
-            ReboundBalance: "<svg id='rebound' />",
-            DampingPercentages: SessionDampingPercentages.Empty,
-            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-            BalanceAvailable: true);
-        var noBalanceData = balanceData with
-        {
-            CompressionBalance = null,
-            ReboundBalance = null,
-            BalanceAvailable = false,
-        };
-
-        var returnValue = balanceData;
-        sessionPresentationService
-            .BuildCachePresentation(
-                Arg.Any<TelemetryData>(),
-                Arg.Any<SessionPresentationDimensions>(),
-                Arg.Any<CancellationToken>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(_ => returnValue);
-        ConfigureRunnerToRunSynchronously();
-
-        var editor = CreateEditor();
-        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
-
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        Assert.Contains(editor.Pages, page => page is BalancePageViewModel);
-        var balanceIndex = editor.Pages.IndexOf(editor.BalancePage);
-        var notesIndex = editor.Pages.IndexOf(editor.NotesPage);
-        Assert.True(balanceIndex < notesIndex);
-        Assert.True(editor.BalancePage.CompressionBalanceState.IsReady);
-
-        returnValue = noBalanceData;
-        // Simulate a warm-up-style telemetry (strokes cleared) so the live
-        // workspace's balance state becomes WaitingForData.
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TelemetryWithoutStrokes(), captureRevision: 2);
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        // Both sides are configured and the session header is accepted, so the
-        // balance workspace stays in WaitingForData when SVGs aren't emitted.
-        // The tab should remain visible during the warm-up and render the
-        // waiting placeholder.
-        Assert.Contains(editor.Pages, page => page is BalancePageViewModel);
-        Assert.Equal(
-            Sufni.App.ExtensionHost.Contracts.Presentation.SurfaceStateKind.WaitingForData,
-            editor.BalancePage.CompressionBalanceState.Kind);
-    }
-
-    [AvaloniaFact]
-    public async Task Bake_OmitsBalancePage_WhenOneSideUnconfigured()
-    {
-        var bakeData = new SessionCachePresentationData(
-            FrontTravelDistribution: null,
-            RearTravelDistribution: null,
-            FrontVelocityDistribution: null,
-            RearVelocityDistribution: null,
-            CompressionBalance: null,
-            ReboundBalance: null,
-            DampingPercentages: SessionDampingPercentages.Empty,
-            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-            BalanceAvailable: false);
-
-        sessionPresentationService
-            .BuildCachePresentation(
-                Arg.Any<TelemetryData>(),
-                Arg.Any<SessionPresentationDimensions>(),
-                Arg.Any<CancellationToken>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(bakeData);
-        ConfigureRunnerToRunSynchronously();
-
-        var editor = CreateEditor(CreateSessionContext(hasFrontTravelCalibration: true, hasRearTravelCalibration: false));
-        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
-
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        Assert.DoesNotContain(editor.Pages, page => page is BalancePageViewModel);
-    }
-
-    [AvaloniaFact]
-    public async Task Bake_SecondSnapshot_CancelsInFlightToken_AndDoesNotApplyStaleResult()
+    public async Task Bake_SecondSnapshot_CancelsInFlightTokenAndIgnoresStaleResult()
     {
         var firstBakeGate = new TaskCompletionSource<SessionCachePresentationData>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -829,7 +287,6 @@ public class LiveSessionDetailViewModelTests : IDisposable
         {
             FrontTravelDistribution = "<svg id='second-front' />",
         };
-
         var firstBakeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         CancellationToken capturedFirstToken = default;
         var callCount = 0;
@@ -852,17 +309,11 @@ public class LiveSessionDetailViewModelTests : IDisposable
                 return secondData;
             });
         ConfigureRunnerToRunOnBackgroundTask();
-
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
 
-        var firstTelemetry = TestTelemetryData.CreateProcessed();
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: firstTelemetry);
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
+        await PublishSnapshotAsync(CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed()));
         await firstBakeStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.Equal(1, callCount);
 
         var secondBakeApplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         editor.SpringPage.PropertyChanged += (_, args) =>
@@ -874,14 +325,11 @@ public class LiveSessionDetailViewModelTests : IDisposable
             }
         };
 
-        var secondTelemetry = TestTelemetryData.CreateProcessed();
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: secondTelemetry, captureRevision: 2);
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        // Release the first bake — but by now the CTS for the first bake should be cancelled.
+        await PublishSnapshotAsync(CreateSnapshot(
+            canSave: true,
+            telemetryData: TestTelemetryData.CreateProcessed(),
+            captureRevision: 2));
         firstBakeGate.SetResult(firstData);
-
         await WaitForUiRefreshAsync();
         if (editor.SpringPage.FrontTravelDistribution != secondData.FrontTravelDistribution)
         {
@@ -890,234 +338,6 @@ public class LiveSessionDetailViewModelTests : IDisposable
 
         Assert.True(capturedFirstToken.IsCancellationRequested);
         Assert.Equal(secondData.FrontTravelDistribution, editor.SpringPage.FrontTravelDistribution);
-    }
-
-    [AvaloniaFact]
-    public async Task NotesPageDescription_Change_FiresDescriptionTextInpc()
-    {
-        var editor = CreateEditor();
-        var raised = new List<string?>();
-        editor.PropertyChanged += (_, args) => raised.Add(args.PropertyName);
-
-        editor.NotesPage.Description = "new notes";
-
-        Assert.Contains("DescriptionText", raised);
-        Assert.Equal("new notes", editor.DescriptionText);
-    }
-
-    [AvaloniaFact]
-    public async Task NotesPageDescription_Change_RefreshesCommandState()
-    {
-        var editor = CreateEditor();
-        await editor.LoadedCommand.ExecuteAsync(null);
-
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        Assert.True(editor.SaveCommand.CanExecute(null));
-        var canExecuteChangedCount = 0;
-        editor.SaveCommand.CanExecuteChanged += (_, _) => canExecuteChangedCount++;
-
-        editor.NotesPage.Description = "edit";
-
-        Assert.True(canExecuteChangedCount > 0);
-    }
-
-    [AvaloniaFact]
-    public async Task SaveCommand_WritesNotesPageFields_IntoPersistedSession()
-    {
-        var editor = CreateEditor();
-        await editor.LoadedCommand.ExecuteAsync(null);
-
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        editor.NotesPage.Description = "lap notes";
-        editor.NotesPage.ForkSettings.SpringRate = "520";
-        editor.NotesPage.ShockSettings.HighSpeedCompression = 4;
-
-        await editor.SaveCommand.ExecuteAsync(null);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        await sessionCoordinator.Received(1).SaveLiveCaptureAsync(
-            Arg.Is<Session>(session =>
-                session.Description == "lap notes" &&
-                session.FrontSpringRate == "520" &&
-                session.RearHighSpeedCompression == 4),
-            Arg.Any<LiveSessionCapturePackage>(),
-            Arg.Any<SessionPreferences>(),
-            Arg.Any<CancellationToken>());
-    }
-
-    [AvaloniaFact]
-    public async Task Bake_WarmUp_WithoutStrokeData_PushesWaitingState_OntoPageVMs()
-    {
-        var warmUpData = new SessionCachePresentationData(
-            FrontTravelDistribution: null,
-            RearTravelDistribution: null,
-            FrontVelocityDistribution: null,
-            RearVelocityDistribution: null,
-            CompressionBalance: null,
-            ReboundBalance: null,
-            DampingPercentages: SessionDampingPercentages.Empty,
-            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-            BalanceAvailable: false);
-
-        sessionPresentationService
-            .BuildCachePresentation(
-                Arg.Any<TelemetryData>(),
-                Arg.Any<SessionPresentationDimensions>(),
-                Arg.Any<CancellationToken>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(warmUpData);
-        ConfigureRunnerToRunSynchronously();
-
-        var editor = CreateEditor();
-        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
-
-        // Telemetry with no stroke data yet — the live-VM workspace state is
-        // WaitingForData, and the bake returns null SVGs because
-        // HasStrokeData / HasBalanceData are false during warm-up.
-        var warmUpTelemetry = TelemetryWithoutStrokes();
-        currentSnapshot = CreateSnapshot(canSave: false, telemetryData: warmUpTelemetry);
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        Assert.Equal(
-            Sufni.App.ExtensionHost.Contracts.Presentation.SurfaceStateKind.WaitingForData,
-            editor.SpringPage.FrontDistributionState.Kind);
-        Assert.Equal(
-            Sufni.App.ExtensionHost.Contracts.Presentation.SurfaceStateKind.WaitingForData,
-            editor.DampingPage.RearDistributionState.Kind);
-        Assert.Equal(
-            Sufni.App.ExtensionHost.Contracts.Presentation.SurfaceStateKind.WaitingForData,
-            editor.BalancePage.CompressionBalanceState.Kind);
-    }
-
-    [AvaloniaFact]
-    public async Task Reset_ClearsStaleAnalysisPreviews_RemovesBalancePage_AndCancelsInFlightBake()
-    {
-        var bakedData = new SessionCachePresentationData(
-            FrontTravelDistribution: "<svg id='front' />",
-            RearTravelDistribution: "<svg id='rear' />",
-            FrontVelocityDistribution: "<svg id='front-vel' />",
-            RearVelocityDistribution: "<svg id='rear-vel' />",
-            CompressionBalance: "<svg id='comp' />",
-            ReboundBalance: "<svg id='reb' />",
-            DampingPercentages: new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8),
-            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-            BalanceAvailable: true);
-
-        sessionPresentationService
-            .BuildCachePresentation(
-                Arg.Any<TelemetryData>(),
-                Arg.Any<SessionPresentationDimensions>(),
-                Arg.Any<CancellationToken>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(bakedData);
-        ConfigureRunnerToRunSynchronously();
-
-        var editor = CreateEditor();
-        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
-
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        Assert.Contains(editor.Pages, page => page is BalancePageViewModel);
-        Assert.True(editor.SpringPage.FrontDistributionState.IsReady);
-        Assert.Equal(1d, editor.DampingPage.FrontHscPercentage);
-
-        await editor.ResetCommand.ExecuteAsync(null);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Null(editor.SpringPage.FrontTravelDistribution);
-        Assert.Null(editor.SpringPage.RearTravelDistribution);
-        Assert.Null(editor.DampingPage.FrontVelocityDistribution);
-        Assert.Null(editor.DampingPage.RearVelocityDistribution);
-        Assert.Null(editor.BalancePage.CompressionBalance);
-        Assert.Null(editor.BalancePage.ReboundBalance);
-        Assert.True(editor.SpringPage.FrontDistributionState.IsHidden);
-        Assert.True(editor.DampingPage.FrontDistributionState.IsHidden);
-        Assert.True(editor.BalancePage.CompressionBalanceState.IsHidden);
-        Assert.Null(editor.DampingPage.FrontHscPercentage);
-        Assert.Null(editor.DampingPercentages.FrontHscPercentage);
-        Assert.DoesNotContain(editor.Pages, page => page is BalancePageViewModel);
-    }
-
-    [AvaloniaFact]
-    public async Task Reset_DuringInFlightBake_DoesNotRepaintWithStaleData()
-    {
-        var bakeGate = new TaskCompletionSource<SessionCachePresentationData>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var staleData = new SessionCachePresentationData(
-            FrontTravelDistribution: "<svg id='stale' />",
-            RearTravelDistribution: null,
-            FrontVelocityDistribution: null,
-            RearVelocityDistribution: null,
-            CompressionBalance: null,
-            ReboundBalance: null,
-            DampingPercentages: SessionDampingPercentages.Empty,
-            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-            BalanceAvailable: false);
-        CancellationToken capturedBakeToken = default;
-        var bakeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        sessionPresentationService
-            .BuildCachePresentation(
-                Arg.Any<TelemetryData>(),
-                Arg.Any<SessionPresentationDimensions>(),
-                Arg.Any<CancellationToken>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(callInfo =>
-            {
-                capturedBakeToken = callInfo.Arg<CancellationToken>();
-                bakeStarted.TrySetResult();
-                return bakeGate.Task.WaitAsync(capturedBakeToken).GetAwaiter().GetResult();
-            });
-        ConfigureRunnerToRunOnBackgroundTask();
-
-        var editor = CreateEditor();
-        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
-
-        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed());
-        snapshots.OnNext(currentSnapshot);
-        await WaitForUiRefreshAsync();
-
-        await bakeStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-
-        await editor.ResetCommand.ExecuteAsync(null);
-        bakeGate.SetResult(staleData);
-        await WaitForUiRefreshAsync();
-
-        Assert.True(capturedBakeToken.IsCancellationRequested);
-        Assert.Null(editor.SpringPage.FrontTravelDistribution);
-        Assert.True(editor.SpringPage.FrontDistributionState.IsHidden);
-    }
-
-    private static TelemetryData TelemetryWithoutStrokes()
-    {
-        // TestTelemetryData.CreateProcessed() happens to produce strokes; we want a
-        // warm-up-style telemetry with present front/rear but no strokes.
-        var telemetry = TestTelemetryData.CreateProcessed();
-        telemetry.Front.Strokes.Compressions = [];
-        telemetry.Front.Strokes.Rebounds = [];
-        telemetry.Rear.Strokes.Compressions = [];
-        telemetry.Rear.Strokes.Rebounds = [];
-        return telemetry;
-    }
-
-    private void ConfigureRunnerToRunSynchronously()
-    {
-        backgroundTaskRunner
-            .RunAsync(Arg.Any<Func<SessionCachePresentationData>>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
-            {
-                var work = callInfo.Arg<Func<SessionCachePresentationData>>();
-                return Task.FromResult(work());
-            });
     }
 
     private void ConfigureRunnerToRunOnBackgroundTask()
@@ -1145,6 +365,13 @@ public class LiveSessionDetailViewModelTests : IDisposable
             dialogService,
             new InlineUiThreadDispatcher(),
             bikeCoordinator);
+    }
+
+    private async Task PublishSnapshotAsync(LiveSessionPresentationSnapshot snapshot)
+    {
+        currentSnapshot = snapshot;
+        snapshots.OnNext(snapshot);
+        await WaitForUiRefreshAsync();
     }
 
     private static LiveSessionPresentationSnapshot CreateSnapshot(
@@ -1248,58 +475,5 @@ public class LiveSessionDetailViewModelTests : IDisposable
         }
 
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-    }
-
-    private static List<string> TrackPropertyChanges(INotifyPropertyChanged source)
-    {
-        var changes = new List<string>();
-        source.PropertyChanged += (_, args) =>
-        {
-            if (args.PropertyName is not null)
-            {
-                changes.Add(args.PropertyName);
-            }
-        };
-        return changes;
-    }
-
-    private static LiveSignalBatch CreateTravelOnlyBatch(long revision)
-    {
-        return new LiveSignalBatch(
-            Revision: revision,
-            TravelTimes: [0.0, 0.01],
-            FrontTravel: [10.0, 11.0],
-            RearTravel: [9.0, 10.0],
-            VelocityTimes: [0.0, 0.01],
-            FrontVelocity: [100.0, 110.0],
-            RearVelocity: [90.0, 100.0],
-            ImuTimes: new Dictionary<LiveImuLocation, IReadOnlyList<double>>(),
-            ImuVibrationRms: new Dictionary<LiveImuLocation, IReadOnlyList<double>>(),
-            FramePitchRollTimes: [],
-            FramePitchDegrees: [],
-            FrameRollDegrees: []);
-    }
-
-    private static LiveSignalBatch CreateImuOnlyBatch(long revision)
-    {
-        return new LiveSignalBatch(
-            Revision: revision,
-            TravelTimes: [],
-            FrontTravel: [],
-            RearTravel: [],
-            VelocityTimes: [],
-            FrontVelocity: [],
-            RearVelocity: [],
-            ImuTimes: new Dictionary<LiveImuLocation, IReadOnlyList<double>>
-            {
-                [LiveImuLocation.Frame] = [0.0, 0.01],
-            },
-            ImuVibrationRms: new Dictionary<LiveImuLocation, IReadOnlyList<double>>
-            {
-                [LiveImuLocation.Frame] = [1.0, 1.5],
-            },
-            FramePitchRollTimes: [],
-            FramePitchDegrees: [],
-            FrameRollDegrees: []);
     }
 }

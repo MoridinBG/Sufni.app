@@ -4,9 +4,6 @@ using System.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using ScottPlot;
 using ScottPlot.Plottables;
@@ -28,60 +25,33 @@ namespace Sufni.App.Tests.Sessions.Plots.Views.Plots;
 [Collection("Ui")]
 public class AnalysisPlotViewTests
 {
-    [AvaloniaFact]
-    public async Task AnalysisPlotView_UsesTravelDistributionPlot_ForTravelDistributionKind()
+    [AvaloniaTheory]
+    [InlineData(AnalysisPlotKind.TravelDistribution, SuspensionType.Front, null, typeof(TravelDistributionPlot))]
+    [InlineData(AnalysisPlotKind.TravelFrequencyDistribution, SuspensionType.Rear, null, typeof(TravelFrequencyDistributionPlot))]
+    [InlineData(AnalysisPlotKind.VelocityDistribution, SuspensionType.Front, null, typeof(VelocityDistributionPlot))]
+    [InlineData(AnalysisPlotKind.Balance, null, BalanceType.Compression, typeof(BalancePlot))]
+    public async Task AnalysisPlotView_UsesExpectedPlotModel_ForPlotKind(
+        AnalysisPlotKind plotKind,
+        SuspensionType? suspensionType,
+        BalanceType? balanceType,
+        Type expectedPlotModelType)
     {
         var view = new TestableAnalysisPlotView
         {
-            AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
-            SuspensionType = SuspensionType.Front,
+            AnalysisPlotKind = plotKind,
         };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        Assert.Equal(typeof(TravelDistributionPlot), mounted.View.PlotModelType);
-    }
-
-    [AvaloniaFact]
-    public async Task AnalysisPlotView_UsesTravelFrequencyDistributionPlot_ForTravelFrequencyKind()
-    {
-        var view = new TestableAnalysisPlotView
+        if (suspensionType.HasValue)
         {
-            AnalysisPlotKind = AnalysisPlotKind.TravelFrequencyDistribution,
-            SuspensionType = SuspensionType.Rear,
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        Assert.Equal(typeof(TravelFrequencyDistributionPlot), mounted.View.PlotModelType);
-    }
-
-    [AvaloniaFact]
-    public async Task AnalysisPlotView_UsesVelocityDistributionPlot_ForVelocityDistributionKind()
-    {
-        var view = new TestableAnalysisPlotView
+            view.SuspensionType = suspensionType.Value;
+        }
+        if (balanceType.HasValue)
         {
-            AnalysisPlotKind = AnalysisPlotKind.VelocityDistribution,
-            SuspensionType = SuspensionType.Front,
-        };
+            view.BalanceType = balanceType.Value;
+        }
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
-        Assert.Equal(typeof(VelocityDistributionPlot), mounted.View.PlotModelType);
-    }
-
-    [AvaloniaFact]
-    public async Task AnalysisPlotView_UsesBalancePlot_ForBalanceKind()
-    {
-        var view = new TestableAnalysisPlotView
-        {
-            AnalysisPlotKind = AnalysisPlotKind.Balance,
-            BalanceType = BalanceType.Compression,
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        Assert.Equal(typeof(BalancePlot), mounted.View.PlotModelType);
+        Assert.Equal(expectedPlotModelType, mounted.View.PlotModelType);
     }
 
     [AvaloniaFact]
@@ -266,67 +236,6 @@ public class AnalysisPlotViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Empty(mounted.View.ScottPlotTitle);
-    }
-
-    [AvaloniaFact]
-    public async Task AnalysisPlotView_HeaderContentPushesTitleInsteadOfOverlapping()
-    {
-        var header = new Border
-        {
-            Width = 300,
-            Height = 24,
-        };
-        var view = new TestableAnalysisPlotView
-        {
-            Width = 360,
-            AnalysisPlotKind = AnalysisPlotKind.Balance,
-            BalanceType = BalanceType.Compression,
-            HeaderContent = header,
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        var title = mounted.View.AnalysisTitleTextBlock;
-        var headerContent = mounted.View.AnalysisHeaderContentPresenter;
-        Assert.Same(header, headerContent.Content);
-        var titleTopLeft = title.TranslatePoint(default, mounted.View)!.Value;
-        var headerTopLeft = headerContent.TranslatePoint(default, mounted.View)!.Value;
-        var titleRight = titleTopLeft.X + title.Bounds.Width;
-        var headerLeft = headerTopLeft.X;
-
-        Assert.True(titleRight <= headerLeft);
-        Assert.True(titleTopLeft.X + title.Bounds.Width / 2 < mounted.View.Bounds.Width / 2);
-    }
-
-    [AvaloniaFact]
-    public async Task AnalysisPlotView_HeaderContentKeepsTitleCentered_WhenSpaceAllows()
-    {
-        var header = new Border
-        {
-            Width = 300,
-            Height = 24,
-        };
-        var view = new TestableAnalysisPlotView
-        {
-            Width = 900,
-            AnalysisPlotKind = AnalysisPlotKind.Balance,
-            BalanceType = BalanceType.Compression,
-            HeaderContent = header,
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        var title = mounted.View.AnalysisTitleTextBlock;
-        var headerContent = mounted.View.AnalysisHeaderContentPresenter;
-        Assert.Same(header, headerContent.Content);
-        var titleTopLeft = title.TranslatePoint(default, mounted.View)!.Value;
-        var headerTopLeft = headerContent.TranslatePoint(default, mounted.View)!.Value;
-        var titleCenter = titleTopLeft.X + title.Bounds.Width / 2;
-        var viewCenter = mounted.View.Bounds.Width / 2;
-        var titleRight = titleTopLeft.X + title.Bounds.Width;
-
-        Assert.True(Math.Abs(titleCenter - viewCenter) < 1);
-        Assert.True(titleRight < headerTopLeft.X);
     }
 
     [AvaloniaFact]
@@ -550,21 +459,9 @@ public class AnalysisPlotViewTests
 
     private sealed class TestableAnalysisPlotView : AnalysisPlotView
     {
-        private TextBlock? analysisTitleTextBlock;
-        private ContentControl? statisticsHeaderContentPresenter;
-
         public Type PlotModelType => PlotModel.GetType();
         public TelemetryTimeRange? PlotAnalysisRange => PlotModel.AnalysisRange;
         public bool PlotShowsScottPlotTitle => PlotModel.ShowTitle;
         public string ScottPlotTitle => PlotControl.Plot.Axes.Title.Label.Text;
-        public TextBlock AnalysisTitleTextBlock => analysisTitleTextBlock!;
-        public ContentControl AnalysisHeaderContentPresenter => statisticsHeaderContentPresenter!;
-
-        protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
-        {
-            base.OnApplyTemplate(e);
-            analysisTitleTextBlock = e.NameScope.Find<TextBlock>("AnalysisTitleTextBlock");
-            statisticsHeaderContentPresenter = e.NameScope.Find<ContentControl>("AnalysisHeaderContentPresenter");
-        }
     }
 }

@@ -23,6 +23,22 @@ namespace Sufni.App.Tests.Infrastructure;
 
 public class DatabaseMigrationRunnerTests
 {
+    public enum ExtensionMigratorValidationCase
+    {
+        DuplicateIds,
+        DuplicateTableOwnership,
+        ReservedCoreTableName,
+    }
+
+    public enum ProcessedSessionFingerprintCase
+    {
+        MissingLegacyFingerprint,
+        PreviousProcessingVersion,
+        LegacyRearSuspensionKind,
+        DependencyHashMismatch,
+        UnexpectedProcessingVersion,
+    }
+
     [Fact]
     public async Task Initialization_BackfillsLegacyLinkageRows_AndKeepsBackfillIdempotent()
     {
@@ -493,55 +509,24 @@ public class DatabaseMigrationRunnerTests
         Assert.Single(tables);
     }
 
-    [Fact]
-    public void Constructor_RejectsDuplicateExtensionMigratorIds()
+    [Theory]
+    [InlineData(ExtensionMigratorValidationCase.DuplicateIds)]
+    [InlineData(ExtensionMigratorValidationCase.DuplicateTableOwnership)]
+    [InlineData(ExtensionMigratorValidationCase.ReservedCoreTableName)]
+    public void Constructor_RejectsInvalidExtensionMigratorDefinitions(
+        ExtensionMigratorValidationCase validationCase)
     {
-        using var tempDatabase = new TempDatabase("duplicate-extension-id.db");
+        using var tempDatabase = new TempDatabase("invalid-extension-migrator.db");
         var databasePath = tempDatabase.DatabasePath;
+        var (migrators, expectedMessages) = CreateInvalidExtensionMigratorCase(validationCase);
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            new TestPersistenceHarness(
-                databasePath,
-                [
-                    new TestExtensionMigrator("test", targetVersion: 0, [typeof(TestExtensionRow)], []),
-                    new TestExtensionMigrator("test", targetVersion: 0, [typeof(SecondTestExtensionRow)], []),
-                ]));
+            new TestPersistenceHarness(databasePath, migrators));
 
-        Assert.Contains("test", exception.Message);
-    }
-
-    [Fact]
-    public void Constructor_RejectsDuplicateExtensionTableOwnership()
-    {
-        using var tempDatabase = new TempDatabase("duplicate-extension-table.db");
-        var databasePath = tempDatabase.DatabasePath;
-
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            new TestPersistenceHarness(
-                databasePath,
-                [
-                    new TestExtensionMigrator("first", targetVersion: 0, [typeof(TestExtensionRow)], []),
-                    new TestExtensionMigrator("second", targetVersion: 0, [typeof(DuplicateNamedExtensionRow)], []),
-                ]));
-
-        Assert.Contains("test_extension_row", exception.Message);
-        Assert.Contains("first", exception.Message);
-        Assert.Contains("second", exception.Message);
-    }
-
-    [Fact]
-    public void Constructor_RejectsExtensionTablesThatUseReservedCoreTableNames()
-    {
-        using var tempDatabase = new TempDatabase("reserved-extension-table.db");
-        var databasePath = tempDatabase.DatabasePath;
-
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            new TestPersistenceHarness(
-                databasePath,
-                [new TestExtensionMigrator("test", targetVersion: 0, [typeof(CoreNamedExtensionRow)], [])]));
-
-        Assert.Contains("session", exception.Message);
-        Assert.Contains("reserved", exception.Message);
+        foreach (var expectedMessage in expectedMessages)
+        {
+            Assert.Contains(expectedMessage, exception.Message);
+        }
     }
 
     [Fact]
@@ -642,181 +627,49 @@ public class DatabaseMigrationRunnerTests
         Assert.Contains(columns, column => column.Name == "descent_meters");
     }
 
-    [Fact]
-    public async Task Initialization_DoesNotBackfillLegacySessionProcessingFingerprintAfterProcessingVersionAdvance()
+    [Theory]
+    [InlineData(ProcessedSessionFingerprintCase.MissingLegacyFingerprint)]
+    [InlineData(ProcessedSessionFingerprintCase.PreviousProcessingVersion)]
+    [InlineData(ProcessedSessionFingerprintCase.LegacyRearSuspensionKind)]
+    [InlineData(ProcessedSessionFingerprintCase.DependencyHashMismatch)]
+    [InlineData(ProcessedSessionFingerprintCase.UnexpectedProcessingVersion)]
+    public async Task Initialization_DoesNotBackfillProcessedSessionFingerprintCase(
+        ProcessedSessionFingerprintCase fingerprintCase)
     {
-        using var tempDatabase = new TempDatabase("legacy-session-fingerprint-backfill.db");
-        var seed = SeedProcessedSessionDatabase(tempDatabase.DatabasePath);
-
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        var persisted = await database.GetSessionAsync(seed.Session.Id);
-
-        Assert.NotNull(persisted);
-        Assert.Equal(seed.Session.Updated, persisted.Updated);
-        Assert.Equal(seed.ProcessedData, await database.GetSessionRawPsstAsync(seed.Session.Id));
-
-        var fingerprintService = new ProcessingFingerprintService();
-        var evaluation = fingerprintService.EvaluateState(
-            SessionSnapshot.From(persisted),
-            SetupSnapshot.From(seed.Setup, boardId: null),
-            BikeSnapshot.From(seed.Bike),
-            RecordedSessionSourceSnapshot.From(seed.Source));
-
-        Assert.Null(evaluation.Persisted);
-        Assert.IsType<SessionStaleness.UnknownLegacyFingerprint>(evaluation.Staleness);
-    }
-
-    [Fact]
-    public async Task Initialization_DoesNotBackfillPreviousProcessingVersionFingerprintAfterProcessingVersionAdvance()
-    {
-        using var tempDatabase = new TempDatabase("old-processing-version-fingerprint.db");
+        using var tempDatabase = new TempDatabase($"{fingerprintCase}.db");
         ProcessingFingerprint? staleFingerprint = null;
+        var seedOptions = CreateProcessedSessionFingerprintSeedOptions(
+            fingerprintCase,
+            fingerprint => staleFingerprint = fingerprint);
         var seed = SeedProcessedSessionDatabase(
             tempDatabase.DatabasePath,
-            seed =>
-            {
-                var current = CreateCurrentFingerprint(seed);
-                staleFingerprint = current with
-                {
-                    ProcessingVersion = TelemetryProcessingVersion.Current - 1
-                };
-                return AppJson.Serialize(staleFingerprint);
-            });
+            seedOptions.CreateFingerprintJson,
+            seedOptions.BikeSnapshot,
+            seedOptions.StoreLegacyRearSuspensionKind);
 
         var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
         var persisted = await database.GetSessionAsync(seed.Session.Id);
-
-        Assert.NotNull(persisted);
-        Assert.Equal(seed.Session.Updated, persisted.Updated);
-        Assert.Equal(seed.ProcessedData, await database.GetSessionRawPsstAsync(seed.Session.Id));
-
-        var fingerprintService = new ProcessingFingerprintService();
-        var evaluation = fingerprintService.EvaluateState(
-            SessionSnapshot.From(persisted),
-            SetupSnapshot.From(seed.Setup, boardId: null),
-            BikeSnapshot.From(seed.Bike),
-            RecordedSessionSourceSnapshot.From(seed.Source));
-
-        Assert.Equal(staleFingerprint, evaluation.Persisted);
-        var staleness = Assert.IsType<SessionStaleness.ProcessingVersionChanged>(evaluation.Staleness);
-        Assert.Equal(TelemetryProcessingVersion.Current - 1, staleness.Persisted);
-        Assert.Equal(TelemetryProcessingVersion.Current, staleness.CurrentVersion);
-    }
-
-    [Fact]
-    public async Task Initialization_DoesNotBackfillLegacyRearSuspensionKindFingerprintAfterProcessingVersionAdvance()
-    {
-        using var tempDatabase = new TempDatabase("legacy-rear-suspension-kind-fingerprint.db");
-        var linkage = TestSnapshots.FullSuspensionLinkageSpec();
-        var bikeSnapshot = TestSnapshots.Bike(id: Guid.NewGuid(), updated: 20) with
-        {
-            ShockStroke = linkage.ShockStroke,
-            RearSuspension = new RearSuspensionSpec.Linkage(linkage)
-        };
-        ProcessingFingerprint? staleFingerprint = null;
-        var seed = SeedProcessedSessionDatabase(
-            tempDatabase.DatabasePath,
-            seed =>
-            {
-                var fingerprintService = new ProcessingFingerprintService();
-                var legacyBike = BikeSnapshot.From(seed.Bike) with
-                {
-                    RearSuspension = new RearSuspensionSpec.Hardtail()
-                };
-                staleFingerprint = fingerprintService.CreateCurrent(
-                    SessionSnapshot.From(seed.Session),
-                    SetupSnapshot.From(seed.Setup, boardId: null),
-                    legacyBike,
-                    RecordedSessionSourceSnapshot.From(seed.Source));
-                return AppJson.Serialize(staleFingerprint);
-            },
-            bikeSnapshot,
-            storeLegacyRearSuspensionKind: true);
-
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        var persisted = await database.GetSessionAsync(seed.Session.Id);
-        var persistedBike = await database.GetAsync<Bike>(seed.Bike.Id);
+        var persistedBike = seedOptions.StoreLegacyRearSuspensionKind
+            ? await database.GetAsync<Bike>(seed.Bike.Id)
+            : seed.Bike;
 
         Assert.NotNull(persisted);
         Assert.NotNull(persistedBike);
-        Assert.IsType<RearSuspensionSpec.Linkage>(persistedBike.RearSuspension);
+        if (seedOptions.StoreLegacyRearSuspensionKind)
+        {
+            Assert.IsType<RearSuspensionSpec.Linkage>(persistedBike!.RearSuspension);
+        }
+
         Assert.Equal(seed.Session.Updated, persisted.Updated);
         Assert.Equal(seed.ProcessedData, await database.GetSessionRawPsstAsync(seed.Session.Id));
-
         var fingerprintService = new ProcessingFingerprintService();
         var evaluation = fingerprintService.EvaluateState(
             SessionSnapshot.From(persisted),
             SetupSnapshot.From(seed.Setup, boardId: null),
-            BikeSnapshot.From(persistedBike),
+            BikeSnapshot.From(persistedBike!),
             RecordedSessionSourceSnapshot.From(seed.Source));
 
-        Assert.Equal(staleFingerprint, evaluation.Persisted);
-        Assert.IsType<SessionStaleness.DependencyHashChanged>(evaluation.Staleness);
-    }
-
-    [Fact]
-    public async Task Initialization_DoesNotBackfillExistingDependencyHashMismatchAfterProcessingVersionAdvance()
-    {
-        using var tempDatabase = new TempDatabase("existing-dependency-mismatch-fingerprint.db");
-        ProcessingFingerprint? staleFingerprint = null;
-        var seed = SeedProcessedSessionDatabase(
-            tempDatabase.DatabasePath,
-            seed =>
-            {
-                staleFingerprint = CreateCurrentFingerprint(seed) with
-                {
-                    DependencyHash = "changed-dependency"
-                };
-                return AppJson.Serialize(staleFingerprint);
-            });
-
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        var persisted = await database.GetSessionAsync(seed.Session.Id);
-
-        Assert.NotNull(persisted);
-        Assert.Equal(seed.Session.Updated, persisted.Updated);
-        Assert.Equal(seed.ProcessedData, await database.GetSessionRawPsstAsync(seed.Session.Id));
-
-        var fingerprintService = new ProcessingFingerprintService();
-        var evaluation = fingerprintService.EvaluateState(
-            SessionSnapshot.From(persisted),
-            SetupSnapshot.From(seed.Setup, boardId: null),
-            BikeSnapshot.From(seed.Bike),
-            RecordedSessionSourceSnapshot.From(seed.Source));
-
-        Assert.Equal(staleFingerprint, evaluation.Persisted);
-        Assert.IsType<SessionStaleness.DependencyHashChanged>(evaluation.Staleness);
-    }
-
-    [Fact]
-    public async Task Initialization_DoesNotBackfillUnexpectedProcessingVersionFingerprint()
-    {
-        using var tempDatabase = new TempDatabase("unexpected-processing-version-fingerprint.db");
-        ProcessingFingerprint? staleFingerprint = null;
-        var seed = SeedProcessedSessionDatabase(
-            tempDatabase.DatabasePath,
-            seed =>
-            {
-                staleFingerprint = CreateCurrentFingerprint(seed) with
-                {
-                    ProcessingVersion = 0
-                };
-                return AppJson.Serialize(staleFingerprint);
-            });
-
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        var persisted = await database.GetSessionAsync(seed.Session.Id);
-
-        Assert.NotNull(persisted);
-        var fingerprintService = new ProcessingFingerprintService();
-        var evaluation = fingerprintService.EvaluateState(
-            SessionSnapshot.From(persisted),
-            SetupSnapshot.From(seed.Setup, boardId: null),
-            BikeSnapshot.From(seed.Bike),
-            RecordedSessionSourceSnapshot.From(seed.Source));
-
-        Assert.Equal(staleFingerprint, evaluation.Persisted);
-        Assert.IsType<SessionStaleness.ProcessingVersionChanged>(evaluation.Staleness);
+        AssertProcessedSessionFingerprintCase(fingerprintCase, evaluation, staleFingerprint);
     }
 
     [Fact]
@@ -1015,12 +868,163 @@ public class DatabaseMigrationRunnerTests
             RecordedSessionSourceSnapshot.From(seed.Source));
     }
 
+    private static (IReadOnlyList<TestExtensionMigrator> Migrators, string[] ExpectedMessages)
+        CreateInvalidExtensionMigratorCase(ExtensionMigratorValidationCase validationCase)
+    {
+        return validationCase switch
+        {
+            ExtensionMigratorValidationCase.DuplicateIds => (
+                [
+                    new TestExtensionMigrator("test", targetVersion: 0, [typeof(TestExtensionRow)], []),
+                    new TestExtensionMigrator("test", targetVersion: 0, [typeof(SecondTestExtensionRow)], []),
+                ],
+                ["test"]),
+
+            ExtensionMigratorValidationCase.DuplicateTableOwnership => (
+                [
+                    new TestExtensionMigrator("first", targetVersion: 0, [typeof(TestExtensionRow)], []),
+                    new TestExtensionMigrator("second", targetVersion: 0, [typeof(DuplicateNamedExtensionRow)], []),
+                ],
+                ["test_extension_row", "first", "second"]),
+
+            ExtensionMigratorValidationCase.ReservedCoreTableName => (
+                [new TestExtensionMigrator("test", targetVersion: 0, [typeof(CoreNamedExtensionRow)], [])],
+                ["session", "reserved"]),
+
+            _ => throw new ArgumentOutOfRangeException(nameof(validationCase), validationCase, null),
+        };
+    }
+
+    private static ProcessedSessionFingerprintSeedOptions CreateProcessedSessionFingerprintSeedOptions(
+        ProcessedSessionFingerprintCase fingerprintCase,
+        Action<ProcessingFingerprint> captureStaleFingerprint)
+    {
+        return fingerprintCase switch
+        {
+            ProcessedSessionFingerprintCase.MissingLegacyFingerprint => new ProcessedSessionFingerprintSeedOptions(
+                CreateFingerprintJson: null,
+                BikeSnapshot: null,
+                StoreLegacyRearSuspensionKind: false),
+
+            ProcessedSessionFingerprintCase.PreviousProcessingVersion => new ProcessedSessionFingerprintSeedOptions(
+                seed =>
+                {
+                    var staleFingerprint = CreateCurrentFingerprint(seed) with
+                    {
+                        ProcessingVersion = TelemetryProcessingVersion.Current - 1
+                    };
+                    captureStaleFingerprint(staleFingerprint);
+                    return AppJson.Serialize(staleFingerprint);
+                },
+                BikeSnapshot: null,
+                StoreLegacyRearSuspensionKind: false),
+
+            ProcessedSessionFingerprintCase.LegacyRearSuspensionKind => CreateLegacyRearSuspensionFingerprintSeedOptions(
+                captureStaleFingerprint),
+
+            ProcessedSessionFingerprintCase.DependencyHashMismatch => new ProcessedSessionFingerprintSeedOptions(
+                seed =>
+                {
+                    var staleFingerprint = CreateCurrentFingerprint(seed) with
+                    {
+                        DependencyHash = "changed-dependency"
+                    };
+                    captureStaleFingerprint(staleFingerprint);
+                    return AppJson.Serialize(staleFingerprint);
+                },
+                BikeSnapshot: null,
+                StoreLegacyRearSuspensionKind: false),
+
+            ProcessedSessionFingerprintCase.UnexpectedProcessingVersion => new ProcessedSessionFingerprintSeedOptions(
+                seed =>
+                {
+                    var staleFingerprint = CreateCurrentFingerprint(seed) with
+                    {
+                        ProcessingVersion = 0
+                    };
+                    captureStaleFingerprint(staleFingerprint);
+                    return AppJson.Serialize(staleFingerprint);
+                },
+                BikeSnapshot: null,
+                StoreLegacyRearSuspensionKind: false),
+
+            _ => throw new ArgumentOutOfRangeException(nameof(fingerprintCase), fingerprintCase, null),
+        };
+    }
+
+    private static ProcessedSessionFingerprintSeedOptions CreateLegacyRearSuspensionFingerprintSeedOptions(
+        Action<ProcessingFingerprint> captureStaleFingerprint)
+    {
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec();
+        var bikeSnapshot = TestSnapshots.Bike(id: Guid.NewGuid(), updated: 20) with
+        {
+            ShockStroke = linkage.ShockStroke,
+            RearSuspension = new RearSuspensionSpec.Linkage(linkage)
+        };
+
+        return new ProcessedSessionFingerprintSeedOptions(
+            seed =>
+            {
+                var fingerprintService = new ProcessingFingerprintService();
+                var legacyBike = BikeSnapshot.From(seed.Bike) with
+                {
+                    RearSuspension = new RearSuspensionSpec.Hardtail()
+                };
+                var staleFingerprint = fingerprintService.CreateCurrent(
+                    SessionSnapshot.From(seed.Session),
+                    SetupSnapshot.From(seed.Setup, boardId: null),
+                    legacyBike,
+                    RecordedSessionSourceSnapshot.From(seed.Source));
+                captureStaleFingerprint(staleFingerprint);
+                return AppJson.Serialize(staleFingerprint);
+            },
+            bikeSnapshot,
+            StoreLegacyRearSuspensionKind: true);
+    }
+
+    private static void AssertProcessedSessionFingerprintCase(
+        ProcessedSessionFingerprintCase fingerprintCase,
+        ProcessingFingerprintEvaluation evaluation,
+        ProcessingFingerprint? staleFingerprint)
+    {
+        if (fingerprintCase == ProcessedSessionFingerprintCase.MissingLegacyFingerprint)
+        {
+            Assert.Null(evaluation.Persisted);
+            Assert.IsType<SessionStaleness.UnknownLegacyFingerprint>(evaluation.Staleness);
+            return;
+        }
+
+        Assert.Equal(staleFingerprint, evaluation.Persisted);
+        switch (fingerprintCase)
+        {
+            case ProcessedSessionFingerprintCase.PreviousProcessingVersion:
+                var previous = Assert.IsType<SessionStaleness.ProcessingVersionChanged>(evaluation.Staleness);
+                Assert.Equal(TelemetryProcessingVersion.Current - 1, previous.Persisted);
+                Assert.Equal(TelemetryProcessingVersion.Current, previous.CurrentVersion);
+                break;
+            case ProcessedSessionFingerprintCase.LegacyRearSuspensionKind:
+            case ProcessedSessionFingerprintCase.DependencyHashMismatch:
+                Assert.IsType<SessionStaleness.DependencyHashChanged>(evaluation.Staleness);
+                break;
+            case ProcessedSessionFingerprintCase.UnexpectedProcessingVersion:
+                Assert.IsType<SessionStaleness.ProcessingVersionChanged>(evaluation.Staleness);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(fingerprintCase), fingerprintCase, null);
+        }
+    }
+
     private sealed record SeededProcessedSession(
         Bike Bike,
         Setup Setup,
         Session Session,
         RecordedSessionSource Source,
         byte[] ProcessedData);
+
+    private sealed record ProcessedSessionFingerprintSeedOptions(
+        Func<SeededProcessedSession, string?>? CreateFingerprintJson,
+        BikeSnapshot? BikeSnapshot,
+        bool StoreLegacyRearSuspensionKind);
 
     private sealed record LegacyRearSuspensionCase(
         Guid Id,

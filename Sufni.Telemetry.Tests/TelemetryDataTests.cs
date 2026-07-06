@@ -586,11 +586,7 @@ public class TelemetryDataTests
                 Counts = Enumerable.Range(0, 50).Select(index => (ushort)(50 - index)).ToArray(),
             });
 
-        var result = TelemetryData.FromRecording(
-            rawData,
-            new Metadata { SampleRate = 100, Duration = 1.5 },
-            new BikeData(100, null, value => value, null),
-            new TelemetryProcessingOptions(0));
+        var result = ProcessV5Segments(1.5, rawData.FrontSegments);
 
         Assert.True(result.Front.HasGaps);
         Assert.Equal(2, result.Front.Segments.Length);
@@ -673,11 +669,7 @@ public class TelemetryDataTests
             Counts = [1, 2, 3],
         });
 
-        var result = TelemetryData.FromRecording(
-            rawData,
-            new Metadata { SampleRate = 100, Duration = 0.13 },
-            new BikeData(100, null, value => value, null),
-            new TelemetryProcessingOptions(0));
+        var result = ProcessV5Segments(0.13, rawData.FrontSegments);
 
         Assert.True(result.Front.Present);
         Assert.Equal([1.0, 2.0, 3.0], result.Front.Travel);
@@ -704,11 +696,7 @@ public class TelemetryDataTests
                 Counts = Enumerable.Range(0, 50).Select(index => (ushort)(50 - index)).ToArray(),
             });
 
-        var result = TelemetryData.FromRecording(
-            rawData,
-            new Metadata { SampleRate = 100, Duration = 1.5 },
-            new BikeData(100, null, value => value, null),
-            new TelemetryProcessingOptions(0));
+        var result = ProcessV5Segments(1.5, rawData.FrontSegments);
 
         var rebound = Assert.Single(result.Front.Strokes.Rebounds);
         Assert.InRange(rebound.StartSeconds, 1.0, 1.5);
@@ -752,65 +740,51 @@ public class TelemetryDataTests
         Assert.Equal(0, frontBands.HighSpeedRebound);
     }
 
-    [Fact]
-    public void HasStrokeData_WithPresentSuspensionButNoStrokes_ReturnsFalse()
+    [Theory]
+    [InlineData(NoStrokeSafeDefault.HasStrokeData)]
+    [InlineData(NoStrokeSafeDefault.TravelHistogram)]
+    [InlineData(NoStrokeSafeDefault.VelocityHistogram)]
+    [InlineData(NoStrokeSafeDefault.NormalDistribution)]
+    [InlineData(NoStrokeSafeDefault.TravelStatistics)]
+    [InlineData(NoStrokeSafeDefault.VelocityStatistics)]
+    public void PresentSuspensionWithoutStrokes_ReturnsSafeDefaults(NoStrokeSafeDefault safeDefault)
     {
         var telemetry = CreatePresentSuspensionWithoutStrokesTelemetry();
 
-        Assert.False(TelemetryStatistics.HasStrokeData(telemetry, SuspensionType.Front));
-    }
-
-    [Fact]
-    public void TravelHistogram_WithPresentSuspensionButNoStrokes_ReturnsZeroValues()
-    {
-        var telemetry = CreatePresentSuspensionWithoutStrokesTelemetry();
-
-        var travelHistogram = TelemetryStatistics.CalculateTravelHistogram(telemetry, SuspensionType.Front);
-
-        Assert.All(travelHistogram.Values, value => Assert.Equal(0, value));
-    }
-
-    [Fact]
-    public void VelocityHistogram_WithPresentSuspensionButNoStrokes_ReturnsZeroValues()
-    {
-        var telemetry = CreatePresentSuspensionWithoutStrokesTelemetry();
-
-        var velocityHistogram = TelemetryStatistics.CalculateVelocityHistogram(telemetry, SuspensionType.Front);
-
-        Assert.All(velocityHistogram.Values.SelectMany(values => values), value => Assert.Equal(0, value));
-    }
-
-    [Fact]
-    public void NormalDistribution_WithPresentSuspensionButNoStrokes_ReturnsEmptyValues()
-    {
-        var telemetry = CreatePresentSuspensionWithoutStrokesTelemetry();
-
-        var normal = TelemetryStatistics.CalculateNormalDistribution(telemetry, SuspensionType.Front);
-
-        Assert.Empty(normal.Y);
-        Assert.Empty(normal.Pdf);
-    }
-
-    [Fact]
-    public void TravelStatistics_WithPresentSuspensionButNoStrokes_ReturnsZeroValues()
-    {
-        var telemetry = CreatePresentSuspensionWithoutStrokesTelemetry();
-
-        var travelStatistics = TelemetryStatistics.CalculateTravelStatistics(telemetry, SuspensionType.Front);
-
-        Assert.Equal(0, travelStatistics.Max);
-        Assert.Equal(0, travelStatistics.Average);
-    }
-
-    [Fact]
-    public void VelocityStatistics_WithPresentSuspensionButNoStrokes_ReturnsZeroValues()
-    {
-        var telemetry = CreatePresentSuspensionWithoutStrokesTelemetry();
-
-        var velocityStatistics = TelemetryStatistics.CalculateVelocityStatistics(telemetry, SuspensionType.Front);
-
-        Assert.Equal(0, velocityStatistics.AverageCompression);
-        Assert.Equal(0, velocityStatistics.AverageRebound);
+        switch (safeDefault)
+        {
+            case NoStrokeSafeDefault.HasStrokeData:
+                Assert.False(TelemetryStatistics.HasStrokeData(telemetry, SuspensionType.Front));
+                break;
+            case NoStrokeSafeDefault.TravelHistogram:
+                Assert.All(
+                    TelemetryStatistics.CalculateTravelHistogram(telemetry, SuspensionType.Front).Values,
+                    value => Assert.Equal(0, value));
+                break;
+            case NoStrokeSafeDefault.VelocityHistogram:
+                Assert.All(
+                    TelemetryStatistics.CalculateVelocityHistogram(telemetry, SuspensionType.Front).Values
+                        .SelectMany(values => values),
+                    value => Assert.Equal(0, value));
+                break;
+            case NoStrokeSafeDefault.NormalDistribution:
+                var normal = TelemetryStatistics.CalculateNormalDistribution(telemetry, SuspensionType.Front);
+                Assert.Empty(normal.Y);
+                Assert.Empty(normal.Pdf);
+                break;
+            case NoStrokeSafeDefault.TravelStatistics:
+                var travelStatistics = TelemetryStatistics.CalculateTravelStatistics(telemetry, SuspensionType.Front);
+                Assert.Equal(0, travelStatistics.Max);
+                Assert.Equal(0, travelStatistics.Average);
+                break;
+            case NoStrokeSafeDefault.VelocityStatistics:
+                var velocityStatistics = TelemetryStatistics.CalculateVelocityStatistics(telemetry, SuspensionType.Front);
+                Assert.Equal(0, velocityStatistics.AverageCompression);
+                Assert.Equal(0, velocityStatistics.AverageRebound);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(safeDefault), safeDefault, null);
+        }
     }
 
     [Fact]
@@ -1546,116 +1520,26 @@ public class TelemetryDataTests
         Assert.Equal(100.0 / 3.0, stats.CompressionThirds.Upper, 3);
     }
 
-    [Fact]
-    public void CalculateVibration_WithoutImuData_ReturnsNull()
+    [Theory]
+    [InlineData(VibrationNullCase.WithoutImuData)]
+    [InlineData(VibrationNullCase.InactiveLocation)]
+    [InlineData(VibrationNullCase.WithoutPairedStrokeData)]
+    [InlineData(VibrationNullCase.InvalidScale)]
+    [InlineData(VibrationNullCase.MissingMeta)]
+    [InlineData(VibrationNullCase.MissingTravelSamples)]
+    [InlineData(VibrationNullCase.ZeroMaxTravel)]
+    [InlineData(VibrationNullCase.ZeroTelemetrySampleRate)]
+    [InlineData(VibrationNullCase.ZeroImuSampleRate)]
+    public void CalculateVibration_WithMissingPrerequisite_ReturnsNull(VibrationNullCase missingPrerequisite)
     {
-        var telemetry = CreateTelemetry(
-            travel: [0, 10],
-            maxTravel: 100,
-            compressions: [CreateStroke(0, 1)]);
+        var (telemetry, location) = CreateVibrationNullCase(missingPrerequisite);
 
-        Assert.False(TelemetryStatistics.HasVibrationData(telemetry, ImuLocation.Fork));
-        Assert.Null(TelemetryStatistics.CalculateVibration(telemetry, ImuLocation.Fork, SuspensionType.Front));
-    }
+        if (missingPrerequisite is VibrationNullCase.WithoutImuData or VibrationNullCase.InactiveLocation)
+        {
+            Assert.False(TelemetryStatistics.HasVibrationData(telemetry, location));
+        }
 
-    [Fact]
-    public void CalculateVibration_ForInactiveLocation_ReturnsNull()
-    {
-        var telemetry = CreateTelemetry(
-            travel: [0, 10],
-            maxTravel: 100,
-            compressions: [CreateStroke(0, 1)],
-            imuData: CreateImuData(ImuLocation.Fork, sampleRate: 10, sampleCount: 10, vibrationG: 1));
-
-        Assert.False(TelemetryStatistics.HasVibrationData(telemetry, ImuLocation.Frame));
-        Assert.Null(TelemetryStatistics.CalculateVibration(telemetry, ImuLocation.Frame, SuspensionType.Front));
-    }
-
-    [Fact]
-    public void CalculateVibration_WithoutPairedStrokeData_ReturnsNull()
-    {
-        var telemetry = CreateTelemetry(
-            travel: [0, 10],
-            maxTravel: 100,
-            imuData: CreateImuData(ImuLocation.Fork, sampleRate: 10, sampleCount: 10, vibrationG: 1));
-
-        Assert.Null(TelemetryStatistics.CalculateVibration(telemetry, ImuLocation.Fork, SuspensionType.Front));
-    }
-
-    [Fact]
-    public void CalculateVibration_WithInvalidScale_ReturnsNull()
-    {
-        var telemetry = CreateTelemetry(
-            travel: [0, 10],
-            maxTravel: 100,
-            compressions: [CreateStroke(0, 1)],
-            imuData: CreateImuData(ImuLocation.Fork, sampleRate: 10, sampleCount: 10, vibrationG: 1));
-        telemetry.ImuData!.Meta[0] = new ImuMetaEntry((byte)ImuLocation.Fork, 0, 1.0f);
-
-        Assert.Null(TelemetryStatistics.CalculateVibration(telemetry, ImuLocation.Fork, SuspensionType.Front));
-    }
-
-    [Fact]
-    public void CalculateVibration_WithMissingMeta_ReturnsNull()
-    {
-        var telemetry = CreateTelemetry(
-            travel: [0, 10],
-            maxTravel: 100,
-            compressions: [CreateStroke(0, 1)],
-            imuData: CreateImuData(ImuLocation.Fork, sampleRate: 10, sampleCount: 10, vibrationG: 1));
-        telemetry.ImuData!.Meta.Clear();
-
-        Assert.Null(TelemetryStatistics.CalculateVibration(telemetry, ImuLocation.Fork, SuspensionType.Front));
-    }
-
-    [Fact]
-    public void CalculateVibration_WithMissingTravelSamples_ReturnsNull()
-    {
-        var telemetry = CreateTelemetry(
-            travel: [10],
-            maxTravel: 100,
-            compressions: [CreateStroke(0, 0)],
-            imuData: CreateImuData(ImuLocation.Fork, sampleRate: 10, sampleCount: 10, vibrationG: 1));
-
-        Assert.Null(TelemetryStatistics.CalculateVibration(telemetry, ImuLocation.Fork, SuspensionType.Front));
-    }
-
-    [Fact]
-    public void CalculateVibration_WithZeroMaxTravel_ReturnsNull()
-    {
-        var telemetry = CreateTelemetry(
-            travel: [0, 10],
-            maxTravel: 0,
-            compressions: [CreateStroke(0, 1)],
-            imuData: CreateImuData(ImuLocation.Fork, sampleRate: 10, sampleCount: 10, vibrationG: 1));
-
-        Assert.Null(TelemetryStatistics.CalculateVibration(telemetry, ImuLocation.Fork, SuspensionType.Front));
-    }
-
-    [Fact]
-    public void CalculateVibration_WithZeroTelemetrySampleRate_ReturnsNull()
-    {
-        var telemetry = CreateTelemetry(
-            travel: [0, 10],
-            maxTravel: 100,
-            compressions: [CreateStroke(0, 1)],
-            imuData: CreateImuData(ImuLocation.Fork, sampleRate: 10, sampleCount: 10, vibrationG: 1));
-        telemetry.Metadata.SampleRate = 0;
-
-        Assert.Null(TelemetryStatistics.CalculateVibration(telemetry, ImuLocation.Fork, SuspensionType.Front));
-    }
-
-    [Fact]
-    public void CalculateVibration_WithZeroImuSampleRate_ReturnsNull()
-    {
-        var telemetry = CreateTelemetry(
-            travel: [0, 10],
-            maxTravel: 100,
-            compressions: [CreateStroke(0, 1)],
-            imuData: CreateImuData(ImuLocation.Fork, sampleRate: 10, sampleCount: 10, vibrationG: 1));
-        telemetry.ImuData!.SampleRate = 0;
-
-        Assert.Null(TelemetryStatistics.CalculateVibration(telemetry, ImuLocation.Fork, SuspensionType.Front));
+        Assert.Null(TelemetryStatistics.CalculateVibration(telemetry, location, SuspensionType.Front));
     }
 
     [Theory]
@@ -1715,6 +1599,13 @@ public class TelemetryDataTests
             }
         ],
     };
+
+    private static TelemetryData ProcessV5Segments(double duration, params RawCountSegment[] frontSegments) =>
+        TelemetryData.FromRecording(
+            CreateSegmentedRaw(frontSegments),
+            new Metadata { SampleRate = 100, Duration = duration },
+            new BikeData(100, null, value => value, null),
+            new TelemetryProcessingOptions(0));
 
     private static byte[] CreateLegacySegmentedTelemetryBlob(
         double[] frontTravel,
@@ -1895,6 +1786,40 @@ public class TelemetryDataTests
         };
     }
 
+    private static (TelemetryData Telemetry, ImuLocation Location) CreateVibrationNullCase(
+        VibrationNullCase missingPrerequisite)
+    {
+        var telemetry = CreateTelemetry(
+            travel: missingPrerequisite == VibrationNullCase.MissingTravelSamples ? [10] : [0, 10],
+            maxTravel: missingPrerequisite == VibrationNullCase.ZeroMaxTravel ? 0 : 100,
+            compressions: missingPrerequisite == VibrationNullCase.WithoutPairedStrokeData
+                ? null
+                : [CreateStroke(0, missingPrerequisite == VibrationNullCase.MissingTravelSamples ? 0 : 1)],
+            imuData: missingPrerequisite == VibrationNullCase.WithoutImuData
+                ? null
+                : CreateImuData(ImuLocation.Fork, sampleRate: 10, sampleCount: 10, vibrationG: 1));
+
+        switch (missingPrerequisite)
+        {
+            case VibrationNullCase.InactiveLocation:
+                return (telemetry, ImuLocation.Frame);
+            case VibrationNullCase.InvalidScale:
+                telemetry.ImuData!.Meta[0] = new ImuMetaEntry((byte)ImuLocation.Fork, 0, 1.0f);
+                break;
+            case VibrationNullCase.MissingMeta:
+                telemetry.ImuData!.Meta.Clear();
+                break;
+            case VibrationNullCase.ZeroTelemetrySampleRate:
+                telemetry.Metadata.SampleRate = 0;
+                break;
+            case VibrationNullCase.ZeroImuSampleRate:
+                telemetry.ImuData!.SampleRate = 0;
+                break;
+        }
+
+        return (telemetry, ImuLocation.Fork);
+    }
+
     private static RawImuData CreateImuData(ImuLocation location, int sampleRate, int sampleCount, double vibrationG)
     {
         const float accelScale = 1000.0f;
@@ -1908,5 +1833,28 @@ public class TelemetryDataTests
                 .Select(_ => new ImuRecord(0, 0, az, 0, 0, 0))
                 .ToList(),
         };
+    }
+
+    public enum NoStrokeSafeDefault
+    {
+        HasStrokeData,
+        TravelHistogram,
+        VelocityHistogram,
+        NormalDistribution,
+        TravelStatistics,
+        VelocityStatistics
+    }
+
+    public enum VibrationNullCase
+    {
+        WithoutImuData,
+        InactiveLocation,
+        WithoutPairedStrokeData,
+        InvalidScale,
+        MissingMeta,
+        MissingTravelSamples,
+        ZeroMaxTravel,
+        ZeroTelemetrySampleRate,
+        ZeroImuSampleRate
     }
 }

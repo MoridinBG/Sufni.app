@@ -12,45 +12,24 @@ using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Tests.TestSupport.Sync;
 namespace Sufni.App.Tests.SyncAndPairing.Services;
 
 public class SynchronizationClientServiceTests
 {
-    private readonly ISyncDataStore syncDataStore = Substitute.For<ISyncDataStore>();
-    private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
-    private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
-    private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
-    private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
-    private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery = Substitute.For<IRecordedSessionSourceSyncQuery>();
-    private readonly IHttpApiService httpApiService = Substitute.For<IHttpApiService>();
-    private readonly IAppPreferences appPreferences = Substitute.For<IAppPreferences>();
+    private readonly SyncTestServerHarness harness = new();
 
-    public SynchronizationClientServiceTests()
-    {
-        httpApiService.ServerUrl.Returns("https://temporary-sync-endpoint.test");
-        httpApiService.GetIncompleteSessionIdsAsync().Returns([]);
-        sessionRepository.GetIncompleteSessionIdsAsync().Returns([]);
-        sessionRepository.GetIncompleteSessionIdsWithFingerprintAsync().Returns([]);
-        httpApiService.GetIncompleteSessionSourceIdsAsync().Returns([]);
-        recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync().Returns([]);
-        recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([]);
-        appPreferences.GetSyncDataAsync(Arg.Any<long>()).Returns((AppPreferencesSyncData?)null);
-        appPreferences.ApplySyncDataAsync(Arg.Any<AppPreferencesSyncData?>()).Returns(Task.CompletedTask);
-    }
+    private ISyncDataStore syncDataStore => harness.SyncDataStore;
+    private ISessionRepository sessionRepository => harness.SessionRepository;
+    private ISessionStoreWriter sessionStore => harness.SessionStore;
+    private IRecordedSessionSourceRepository recordedSessionSourceRepository => harness.RecordedSessionSourceRepository;
+    private IRecordedSessionSourceStoreWriter sourceStore => harness.SourceStore;
+    private IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery => harness.RecordedSessionSourceSyncQuery;
+    private IHttpApiService httpApiService => harness.HttpApiService;
+    private IAppPreferences appPreferences => harness.AppPreferences;
 
-    private SynchronizationClientService CreateService(IExtensionSyncService? extensionSync = null)
-    {
-        return new SynchronizationClientService(
-            syncDataStore,
-            sessionRepository,
-            sessionStore,
-            recordedSessionSourceRepository,
-            sourceStore,
-            recordedSessionSourceSyncQuery,
-            httpApiService,
-            appPreferences,
-            extensionSync);
-    }
+    private SynchronizationClientService CreateService(IExtensionSyncService? extensionSync = null) =>
+        harness.CreateSynchronizationClientService(extensionSync);
 
     [Fact]
     public async Task SyncAll_PushesSynchronizationDataFromDatabase()
@@ -462,10 +441,16 @@ public class SynchronizationClientServiceTests
         Assert.Equal([1, 2, 3, 4, 5, 6], events.Select(e => e.CurrentStep).ToArray());
     }
 
-    [Fact]
-    public async Task SyncAll_PushesMissingRecordedSourcesToServer()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("invalid")]
+    public async Task SyncAll_PushesRecordedSourcesWithStoredHash(string? storedHash)
     {
-        var source = CreateRecordedSource();
+        var source = SyncTestServerHarness.CreateRecordedSource();
+        if (storedHash is not null)
+        {
+            source.SourceHash = storedHash;
+        }
 
         syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
@@ -484,65 +469,74 @@ public class SynchronizationClientServiceTests
             transfer.Payload.SequenceEqual(source.Payload)));
     }
 
-    [Fact]
-    public async Task SyncAll_PushesRecordedSourceWithoutRehashingPayload()
+    [Theory]
+    [InlineData(PulledRecordedSourceOutcome.Persisted)]
+    [InlineData(PulledRecordedSourceOutcome.InvalidHash)]
+    [InlineData(PulledRecordedSourceOutcome.RepositoryFailure)]
+    public async Task SyncAll_HandlesPulledRecordedSourceOutcome(PulledRecordedSourceOutcome outcome)
     {
-        var source = CreateRecordedSource();
-        source.SourceHash = "invalid";
-
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
-        httpApiService.GetIncompleteSessionSourceIdsAsync().Returns([source.SessionId]);
-        recordedSessionSourceRepository.GetRecordedSessionSourceAsync(source.SessionId).Returns(source);
-
-        await CreateService().SyncAll();
-
-        await httpApiService.Received(1).PatchRecordedSessionSourceAsync(Arg.Is<RecordedSessionSourcePayload>(transfer =>
-            transfer.SessionId == source.SessionId &&
-            transfer.SourceHash == "invalid" &&
-            transfer.Payload.SequenceEqual(source.Payload)));
-    }
-
-    [Fact]
-    public async Task SyncAll_PullsMissingRecordedSourcesFromServer()
-    {
-        var source = CreateRecordedSource();
-        var transfer = new RecordedSessionSourcePayload(
-            source.SessionId,
-            source.SourceKind,
-            source.SourceName,
-            source.SchemaVersion,
-            source.SourceHash,
-            source.Payload);
+        var source = SyncTestServerHarness.CreateRecordedSource();
+        var transfer = outcome == PulledRecordedSourceOutcome.InvalidHash
+            ? new RecordedSessionSourcePayload(
+                source.SessionId,
+                source.SourceKind,
+                source.SourceName,
+                source.SchemaVersion,
+                "invalid",
+                source.Payload)
+            : SyncTestServerHarness.ToPayload(source);
 
         syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
         recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([source.SessionId]);
         httpApiService.GetRecordedSessionSourceAsync(source.SessionId).Returns(transfer);
+        if (outcome == PulledRecordedSourceOutcome.RepositoryFailure)
+        {
+            recordedSessionSourceRepository.PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>())
+                .Returns(Task.FromException(new InvalidOperationException("database busy")));
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().SyncAll());
+
+            await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
+                Arg.Any<IReadOnlyCollection<Guid>>(),
+                Arg.Any<CancellationToken>());
+            await syncDataStore.DidNotReceive().UpdateLastSyncTimeAsync(
+                SynchronizationClientService.SyncStateKey);
+            return;
+        }
 
         await CreateService().SyncAll();
 
-        await recordedSessionSourceRepository.Received(1).PutRecordedSessionSourceAsync(Arg.Is<RecordedSessionSource>(saved =>
-            saved.SessionId == source.SessionId &&
-            saved.SourceKind == source.SourceKind &&
-            saved.SourceName == source.SourceName &&
-            saved.SchemaVersion == source.SchemaVersion &&
-            saved.SourceHash == source.SourceHash &&
-            saved.Payload.SequenceEqual(source.Payload)));
-        await sourceStore.Received(1).PublishSourcesChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(source.SessionId)),
+        if (outcome == PulledRecordedSourceOutcome.Persisted)
+        {
+            await recordedSessionSourceRepository.Received(1).PutRecordedSessionSourceAsync(Arg.Is<RecordedSessionSource>(saved =>
+                saved.SessionId == source.SessionId &&
+                saved.SourceKind == source.SourceKind &&
+                saved.SourceName == source.SourceName &&
+                saved.SchemaVersion == source.SchemaVersion &&
+                saved.SourceHash == source.SourceHash &&
+                saved.Payload.SequenceEqual(source.Payload)));
+            await sourceStore.Received(1).PublishSourcesChangedAsync(
+                Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(source.SessionId)),
+                Arg.Any<CancellationToken>());
+            return;
+        }
+
+        await recordedSessionSourceRepository.DidNotReceive().PutRecordedSessionSourceAsync(
+            Arg.Any<RecordedSessionSource>());
+        await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task SyncAll_PublishesPulledRecordedSourcesInOneBatch()
     {
-        var first = CreateRecordedSource();
-        var second = CreateRecordedSource();
-        var firstTransfer = ToPayload(first);
-        var secondTransfer = ToPayload(second);
+        var first = SyncTestServerHarness.CreateRecordedSource();
+        var second = SyncTestServerHarness.CreateRecordedSource();
+        var firstTransfer = SyncTestServerHarness.ToPayload(first);
+        var secondTransfer = SyncTestServerHarness.ToPayload(second);
 
         syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
@@ -567,87 +561,18 @@ public class SynchronizationClientServiceTests
             Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task SyncAll_DoesNotPersistPulledRecordedSource_WhenHashDoesNotMatchPayload()
-    {
-        var source = CreateRecordedSource();
-        var transfer = new RecordedSessionSourcePayload(
-            source.SessionId,
-            source.SourceKind,
-            source.SourceName,
-            source.SchemaVersion,
-            "invalid",
-            source.Payload);
-
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
-        recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([source.SessionId]);
-        httpApiService.GetRecordedSessionSourceAsync(source.SessionId).Returns(transfer);
-
-        await CreateService().SyncAll();
-
-        await recordedSessionSourceRepository.DidNotReceive().PutRecordedSessionSourceAsync(
-            Arg.Any<RecordedSessionSource>());
-        await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task SyncAll_PropagatesRecordedSourceRepositoryFailures()
-    {
-        var source = CreateRecordedSource();
-        var transfer = ToPayload(source);
-
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
-        recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([source.SessionId]);
-        httpApiService.GetRecordedSessionSourceAsync(source.SessionId).Returns(transfer);
-        recordedSessionSourceRepository.PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>())
-            .Returns(Task.FromException(new InvalidOperationException("database busy")));
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().SyncAll());
-
-        await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
-            Arg.Any<CancellationToken>());
-        await syncDataStore.DidNotReceive().UpdateLastSyncTimeAsync(
-            SynchronizationClientService.SyncStateKey);
-    }
-
-    private static RecordedSessionSource CreateRecordedSource()
-    {
-        var payload = new byte[] { 8, 6, 7, 5 };
-        return new RecordedSessionSource
-        {
-            SessionId = Guid.NewGuid(),
-            SourceKind = RecordedSessionSourceKind.ImportedSst,
-            SourceName = "sync.SST",
-            SchemaVersion = 1,
-            SourceHash = RecordedSessionSourceHash.Compute(
-                RecordedSessionSourceKind.ImportedSst,
-                "sync.SST",
-                1,
-                payload),
-            Payload = payload
-        };
-    }
-
-    private static RecordedSessionSourcePayload ToPayload(RecordedSessionSource source) => new(
-        source.SessionId,
-        source.SourceKind,
-        source.SourceName,
-        source.SchemaVersion,
-        source.SourceHash,
-        source.Payload);
-
     private static ExtensionSyncEnvelope CreateExtensionEnvelope(string extensionId) => new(
         extensionId,
         SchemaVersion: 1,
         ContentType: "application/test",
         Payload: [1, 2, 3]);
+
+    public enum PulledRecordedSourceOutcome
+    {
+        Persisted,
+        InvalidHash,
+        RepositoryFailure
+    }
 
     private sealed class ProgressCapture(List<SynchronizationProgressSnapshot> events) : IProgress<SynchronizationProgressSnapshot>
     {

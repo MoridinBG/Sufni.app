@@ -1,255 +1,51 @@
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Threading;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Sufni.Telemetry;
-using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
-using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetrySources;
-using Sufni.App.ExtensionHost.Contracts.Services;
-
 using Sufni.App.Acquisition.Coordinators;
-using Sufni.App.Acquisition.Services;
-using Sufni.App.Bikes.Models;
-using Sufni.App.Sessions.Processing.Services;
-using Sufni.App.Sessions.Processing.RecordedSessionProjection;
-using Sufni.App.Sessions.Store;
-using Sufni.App.Setups.Models;
-using Sufni.App.Shell.Coordinators;
-using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Acquisition.Models;
+using Sufni.App.Acquisition.Services;
 using Sufni.App.Acquisition.Services.Management;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
+using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Tests.TestSupport.Async;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
+using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Tests.TestSupport.Acquisition;
+using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetrySources;
+
 namespace Sufni.App.Tests.Acquisition.Coordinators;
 
 public class ImportSessionsCoordinatorTests
 {
-    private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
-    private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
-    private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
-    private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
-    private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
-    private readonly RecordingBackgroundTaskRunner backgroundTaskRunner = new();
-    private readonly IDaqManagementService daqManagementService = Substitute.For<IDaqManagementService>();
-    private readonly IRecordedSessionReprocessor reprocessor = Substitute.For<IRecordedSessionReprocessor>();
-
-    private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
-
-    public ImportSessionsCoordinatorTests()
-    {
-        reprocessor
-            .ReprocessAsync(
-                Arg.Any<RecordedSessionDomainSnapshot>(),
-                Arg.Any<RecordedSessionSource>(),
-                Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
-            {
-                var domain = callInfo.ArgAt<RecordedSessionDomainSnapshot>(0);
-                var source = callInfo.ArgAt<RecordedSessionSource>(1);
-                var telemetryData = CreateMinimal();
-                var fingerprint = new ProcessingFingerprint(
-                    SchemaVersion: 2,
-                    ProcessingVersion: 1,
-                    SetupId: domain.Setup!.Id,
-                    BikeId: domain.Bike!.Id,
-                    TrackProjectionVersion: 1,
-                    DependencyHash: "dependency",
-                    SourceHash: source.SourceHash);
-                return Task.FromResult(ReprocessResult(telemetryData, GeneratedFullTrack: null, fingerprint));
-            });
-
-        sessionTelemetryWriter
-            .PutProcessedSessionAsync(
-                Arg.Any<Session>(),
-                Arg.Any<ProcessedTelemetryPayload>(),
-                Arg.Any<Track?>(),
-                Arg.Any<RecordedSessionSource?>())
-            .Returns(callInfo =>
-            {
-                var session = callInfo.ArgAt<Session>(0);
-                var payload = callInfo.ArgAt<ProcessedTelemetryPayload>(1);
-                var track = callInfo.ArgAt<Track?>(2);
-                session.ProcessedData = payload.Data;
-                session.ProcessingFingerprintJson = payload.FingerprintJson;
-                session.FullTrack = track?.Id;
-                session.HasProcessedData = session.ProcessedData is not null;
-                session.Updated = 10;
-                return Task.FromResult(session);
-            });
-    }
-
-    private ImportSessionsCoordinator CreateCoordinator() => new(
-        sessionTelemetryWriter,
-        setupRepository,
-        bikeRepository,
-        sessionStore,
-        sourceStore,
-        backgroundTaskRunner,
-        daqManagementService,
-        reprocessor,
-        editorFactory);
-
-    private static RecordedSessionReprocessResult ReprocessResult(
-        TelemetryData telemetryData,
-        Track? GeneratedFullTrack,
-        ProcessingFingerprint fingerprint) =>
-        new(
-            new ProcessedTelemetryPayload(
-                telemetryData,
-                telemetryData.BinaryForm,
-                AppJson.Serialize(fingerprint)),
-            GeneratedFullTrack,
-            fingerprint);
-
-    // ----- OpenAsync -----
-
     [Fact]
     public async Task OpenAsync_OpensImportSessionsThroughTheEditorFactory()
     {
-        var coordinator = CreateCoordinator();
+        var harness = new ImportWorkflowHarness();
 
-        await coordinator.OpenAsync();
+        await harness.CreateCoordinator().OpenAsync();
 
-        editorFactory.Received(1).OpenImportSessions();
-    }
-
-    // ----- ImportAsync argument-loading failures -----
-
-    [Fact]
-    public async Task ImportAsync_Throws_WhenSetupCannotBeLoaded()
-    {
-        var setupId = Guid.NewGuid();
-        setupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(null));
-
-        var coordinator = CreateCoordinator();
-
-        await Assert.ThrowsAsync<Exception>(() =>
-            coordinator.ImportAsync(Array.Empty<ITelemetryFile>(), setupId));
-
-        await bikeRepository.DidNotReceive().GetAsync(Arg.Any<Guid>());
+        harness.EditorFactory.Received(1).OpenImportSessions();
     }
 
     [Fact]
-    public async Task ImportAsync_Throws_WhenBikeCannotBeLoaded()
+    public async Task ImportAsync_ImportsSourcePublishesStoresBeforeAcknowledgementAndReportsProgress()
     {
-        var setupId = Guid.NewGuid();
-        var bikeId = Guid.NewGuid();
-        var setup = new Setup(setupId, "setup") { BikeId = bikeId };
-        setupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(setup));
-        bikeRepository.GetAsync(bikeId).Returns(Task.FromResult<Bike?>(null));
-
-        var coordinator = CreateCoordinator();
-
-        await Assert.ThrowsAsync<Exception>(() =>
-            coordinator.ImportAsync(Array.Empty<ITelemetryFile>(), setupId));
-    }
-
-    // ----- ImportAsync BikeData construction -----
-
-    [Fact]
-    public async Task ImportAsync_BuildsDomainFromSetupAndBike_AndForwardsIntoReprocessor()
-    {
-        var (setup, bike) = SeedSetupAndBike(headAngle: 64.5);
-        var file = CreateTelemetryFile(shouldBeImported: true);
-
-        var coordinator = CreateCoordinator();
-        await coordinator.ImportAsync([file], setup.Id);
-
-        await reprocessor.Received(1).ReprocessAsync(
-            Arg.Is<RecordedSessionDomainSnapshot>(domain =>
-                domain.Setup!.Id == setup.Id &&
-                domain.Bike!.Id == bike.Id &&
-                domain.Bike.HeadAngle == 64.5),
-            Arg.Any<RecordedSessionSource>(),
-            Arg.Any<CancellationToken>());
-    }
-
-    // ----- ImportAsync per-file branches -----
-
-    [Fact]
-    public async Task ImportAsync_ShouldBeImportedTrue_ReadsSourceReprocessesWritesSessionSourcePublishesAndReports()
-    {
-        var (setup, bike) = SeedSetupAndBike();
+        var harness = new ImportWorkflowHarness();
+        var (setup, _) = harness.SeedSetupAndBike();
         var startTime = new DateTime(2025, 6, 1, 12, 34, 56, DateTimeKind.Utc);
         var file = CreateTelemetryFile(
             name: "ride-01",
             description: "morning lap",
             startTime: startTime,
             shouldBeImported: true);
-
-        var progressEvents = new List<SessionImportEvent>();
-        var progress = new ProgressCapture(progressEvents);
-
-        var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync([file], setup.Id, progress);
-
-        // Session persisted with the expected metadata.
-        var expectedTimestamp = new DateTimeOffset(startTime).ToUnixTimeSeconds();
-        await sessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
-            Arg.Is<Session>(s =>
-                s.Name == "ride-01" &&
-                s.Description == "morning lap" &&
-                s.Setup == setup.Id &&
-                s.Timestamp == expectedTimestamp &&
-                s.ProcessedData != null &&
-                s.ProcessingFingerprintJson != null),
-            Arg.Any<ProcessedTelemetryPayload>(),
-            null,
-            Arg.Is<RecordedSessionSource>(source =>
-                source.SourceKind == RecordedSessionSourceKind.ImportedSst &&
-                source.SourceName == "ride-01.SST" &&
-                !source.Payload.SequenceEqual(new byte[] { 1, 2, 3 }) &&
-                RecordedSessionSourcePayloadCodec.DecompressImportedSst(source.Payload).SequenceEqual(new byte[] { 1, 2, 3 }) &&
-                RecordedSessionSourceHash.Matches(source)));
-        await file.Received(1).OnImported();
-        await file.DidNotReceive().OnTrashed();
-
-        Assert.Single(result.Imported);
-        Assert.Empty(result.Failures);
-        await sessionStore.Received(1).PublishSessionsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(result.Imported[0].Id)),
-            Arg.Any<CancellationToken>());
-        await sourceStore.Received(1).PublishSourcesChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(result.Imported[0].Id)),
-            Arg.Any<CancellationToken>());
-
-        // Progress reported.
-        var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
-        var imported = Assert.Single(nonProgressEvents);
-        Assert.IsType<SessionImportEvent.Imported>(imported);
-        Assert.Contains(progressEvents, e => e is SessionImportEvent.Progress { Current: 1, Total: 1 });
-    }
-
-    [Fact]
-    public async Task ImportAsync_PublishesSessionAndSourceThroughStoreWriters()
-    {
-        var (setup, _) = SeedSetupAndBike();
-        var file = CreateTelemetryFile(shouldBeImported: true);
-
-        var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync([file], setup.Id);
-
-        await sessionStore.Received(1).PublishSessionsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(result.Imported[0].Id)),
-            Arg.Any<CancellationToken>());
-        await sourceStore.Received(1).PublishSourcesChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(result.Imported[0].Id)),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task ImportAsync_BatchesStorePublishesBeforeAcknowledgements()
-    {
-        var (setup, _) = SeedSetupAndBike();
-        var first = CreateTelemetryFile(name: "first", shouldBeImported: true);
-        var second = CreateTelemetryFile(name: "second", shouldBeImported: true);
         var sessionsPublished = false;
         var sourcesPublished = false;
-        sessionStore.PublishSessionsChangedAsync(
+        harness.SessionStore.PublishSessionsChangedAsync(
                 Arg.Any<IReadOnlyCollection<Guid>>(),
                 Arg.Any<CancellationToken>())
             .Returns(_ =>
@@ -257,7 +53,7 @@ public class ImportSessionsCoordinatorTests
                 sessionsPublished = true;
                 return Task.CompletedTask;
             });
-        sourceStore.PublishSourcesChangedAsync(
+        harness.SourceStore.PublishSourcesChangedAsync(
                 Arg.Any<IReadOnlyCollection<Guid>>(),
                 Arg.Any<CancellationToken>())
             .Returns(_ =>
@@ -265,93 +61,221 @@ public class ImportSessionsCoordinatorTests
                 sourcesPublished = true;
                 return Task.CompletedTask;
             });
-        first.OnImported().Returns(_ =>
+        file.OnImported().Returns(_ =>
         {
             Assert.True(sessionsPublished);
             Assert.True(sourcesPublished);
             return Task.CompletedTask;
         });
-        second.OnImported().Returns(_ =>
-        {
-            Assert.True(sessionsPublished);
-            Assert.True(sourcesPublished);
-            return Task.CompletedTask;
-        });
-
-        var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync([first, second], setup.Id);
-
-        Assert.Equal(2, result.Imported.Count);
-        var importedIds = result.Imported.Select(snapshot => snapshot.Id).ToHashSet();
-        await sessionStore.Received(1).PublishSessionsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 2 && ids.All(importedIds.Contains)),
-            Arg.Any<CancellationToken>());
-        await sourceStore.Received(1).PublishSourcesChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 2 && ids.All(importedIds.Contains)),
-            Arg.Any<CancellationToken>());
-        await first.Received(1).OnImported();
-        await second.Received(1).OnImported();
-    }
-
-    [Fact]
-    public async Task ImportAsync_AcknowledgesPersistedFiles_WhenStorePublishFails()
-    {
-        var (setup, _) = SeedSetupAndBike();
-        var file = CreateTelemetryFile(name: "committed", shouldBeImported: true);
-        sessionStore.PublishSessionsChangedAsync(
-                Arg.Any<IReadOnlyCollection<Guid>>(),
-                Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException("publish"));
-
         var progressEvents = new List<SessionImportEvent>();
-        var progress = new ProgressCapture(progressEvents);
 
-        var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync([file], setup.Id, progress);
+        var result = await harness.CreateCoordinator().ImportAsync(
+            [file],
+            setup.Id,
+            harness.CaptureImportProgress(progressEvents));
 
-        Assert.Single(result.Imported);
-        var failure = Assert.Single(result.Failures);
-        Assert.Equal("committed", failure.FileName);
-        Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
-        await file.Received(1).OnImported();
-        await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
+        var imported = Assert.Single(result.Imported);
+        Assert.Empty(result.Failures);
+        Assert.Equal("ride-01", imported.Name);
+        Assert.Equal("morning lap", imported.Description);
+        Assert.Equal(new DateTimeOffset(startTime).ToUnixTimeSeconds(), imported.Timestamp);
+        await harness.SessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
+            Arg.Is<Session>(session =>
+                session.Name == "ride-01" &&
+                session.Description == "morning lap" &&
+                session.Setup == setup.Id),
+            Arg.Any<ProcessedTelemetryPayload>(),
+            null,
+            Arg.Is<RecordedSessionSource>(source =>
+                source.SourceKind == RecordedSessionSourceKind.ImportedSst &&
+                source.SourceName == "ride-01.SST" &&
+                RecordedSessionSourcePayloadCodec.DecompressImportedSst(source.Payload).SequenceEqual(new byte[] { 1, 2, 3 }) &&
+                RecordedSessionSourceHash.Matches(source)));
+        await harness.SessionStore.Received(1).PublishSessionsChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(imported.Id)),
             Arg.Any<CancellationToken>());
+        await harness.SourceStore.Received(1).PublishSourcesChangedAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(imported.Id)),
+            Arg.Any<CancellationToken>());
+        await file.Received(1).OnImported();
+        Assert.Contains(progressEvents, e => e is SessionImportEvent.Progress { Current: 1, Total: 1 });
+        Assert.Contains(progressEvents, e => e is SessionImportEvent.Imported importedEvent && importedEvent.Snapshot.Id == imported.Id);
+    }
 
-        Assert.Contains(progressEvents, e => e is SessionImportEvent.Imported);
-        Assert.Contains(progressEvents, e => e is SessionImportEvent.ImportFailed failed && failed.FileName == "committed");
+    [Theory]
+    [InlineData(true, ImportAction.Import)]
+    [InlineData(null, ImportAction.Trash)]
+    [InlineData(false, ImportAction.Ignore)]
+    public async Task ImportAsync_RoutesImportTrashAndIgnoreActions(
+        bool? shouldBeImported,
+        ImportAction expectedAction)
+    {
+        var harness = new ImportWorkflowHarness();
+        var (setup, _) = harness.SeedSetupAndBike();
+        var file = CreateTelemetryFile(name: "candidate", shouldBeImported: shouldBeImported);
+
+        var result = await harness.CreateCoordinator().ImportAsync([file], setup.Id);
+
+        switch (expectedAction)
+        {
+            case ImportAction.Import:
+                Assert.Single(result.Imported);
+                Assert.Empty(result.Failures);
+                await file.Received(1).ReadSourceAsync(Arg.Any<CancellationToken>());
+                await file.Received(1).OnImported();
+                await file.DidNotReceive().OnTrashed();
+                break;
+            case ImportAction.Trash:
+                Assert.Empty(result.Imported);
+                Assert.Empty(result.Failures);
+                await file.Received(1).OnTrashed();
+                await file.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
+                await file.DidNotReceive().OnImported();
+                break;
+            case ImportAction.Ignore:
+                Assert.Empty(result.Imported);
+                Assert.Empty(result.Failures);
+                await file.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
+                await file.DidNotReceive().OnImported();
+                await file.DidNotReceive().OnTrashed();
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(expectedAction), expectedAction, null);
+        }
     }
 
     [Fact]
-    public async Task ImportAsync_Continues_WhenProgressCallbackThrows()
+    public async Task ImportAsync_SkipsMalformedFileUnlessItIsExplicitlyImportable()
     {
-        var (setup, _) = SeedSetupAndBike();
-        var file = CreateTelemetryFile(name: "progress-throws", shouldBeImported: true);
+        var harness = new ImportWorkflowHarness();
+        var (setup, _) = harness.SeedSetupAndBike();
+        var rejected = CreateTelemetryFile(
+            name: "bad",
+            shouldBeImported: true,
+            malformedMessage: "invalid telemetry payload");
+        var importable = CreateTelemetryFile(
+            name: "trimmed",
+            shouldBeImported: true,
+            malformedMessage: "trailing chunk was trimmed",
+            canImport: true);
+        var progressEvents = new List<SessionImportEvent>();
 
-        var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync([file], setup.Id, new ThrowingProgress());
+        var result = await harness.CreateCoordinator().ImportAsync(
+            [rejected, importable],
+            setup.Id,
+            harness.CaptureImportProgress(progressEvents));
 
-        Assert.Single(result.Imported);
-        Assert.Empty(result.Failures);
-        await file.Received(1).OnImported();
+        Assert.Equal("trimmed", Assert.Single(result.Imported).Name);
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal("bad", failure.FileName);
+        Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
+        await rejected.Received(1).ReadSourceAsync(Arg.Any<CancellationToken>());
+        await rejected.DidNotReceive().OnImported();
+        await importable.Received(1).OnImported();
+        await harness.Reprocessor.Received(1).ReprocessAsync(
+            Arg.Is<RecordedSessionDomainSnapshot>(domain => domain.Session.Name == "trimmed"),
+            Arg.Any<RecordedSessionSource>(),
+            Arg.Any<CancellationToken>());
+        Assert.Contains(progressEvents, e => e is SessionImportEvent.ImportFailed failed && failed.FileName == "bad");
+    }
+
+    [Theory]
+    [InlineData(ImportFailurePoint.ReadSource)]
+    [InlineData(ImportFailurePoint.Reprocess)]
+    public async Task ImportAsync_ContinuesAfterPerFileReadOrReprocessFailure(ImportFailurePoint failurePoint)
+    {
+        var harness = new ImportWorkflowHarness();
+        var (setup, _) = harness.SeedSetupAndBike();
+        var broken = CreateTelemetryFile(name: "broken", shouldBeImported: true);
+        var good = CreateTelemetryFile(name: "ok", shouldBeImported: true);
+        if (failurePoint is ImportFailurePoint.ReadSource)
+        {
+            broken.ReadSourceAsync(Arg.Any<CancellationToken>())
+                .ThrowsAsync(new InvalidOperationException("read"));
+        }
+        else
+        {
+            harness.Reprocessor
+                .ReprocessAsync(
+                    Arg.Any<RecordedSessionDomainSnapshot>(),
+                    Arg.Any<RecordedSessionSource>(),
+                    Arg.Any<CancellationToken>())
+                .Returns(callInfo =>
+                {
+                    var domain = callInfo.ArgAt<RecordedSessionDomainSnapshot>(0);
+                    var source = callInfo.ArgAt<RecordedSessionSource>(1);
+                    return source.SourceName == "broken.SST"
+                        ? Task.FromException<RecordedSessionReprocessResult>(new InvalidOperationException("reprocess"))
+                        : Task.FromResult(ImportWorkflowHarness.CreateReprocessResult(domain, source));
+                });
+        }
+
+        var result = await harness.CreateCoordinator().ImportAsync([broken, good], setup.Id);
+
+        Assert.Equal("ok", Assert.Single(result.Imported).Name);
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal("broken", failure.FileName);
+        Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
+        await harness.SessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
+            Arg.Is<Session>(session => session.Name == "ok"),
+            Arg.Any<ProcessedTelemetryPayload>(),
+            Arg.Any<Track?>(),
+            Arg.Any<RecordedSessionSource?>());
+    }
+
+    [Fact]
+    public async Task ImportAsync_OpensOneNetworkSessionPerEndpointRoutesTrashThroughSessionAndDisposes()
+    {
+        var harness = new ImportWorkflowHarness();
+        var (setup, _) = harness.SeedSetupAndBike();
+        var endpointA = new IPEndPoint(IPAddress.Parse("10.0.0.1"), 1557);
+        var endpointB = new IPEndPoint(IPAddress.Parse("10.0.0.2"), 1557);
+        var sessionA = Substitute.For<IDaqManagementSession>();
+        var sessionB = Substitute.For<IDaqManagementSession>();
+        harness.DaqManagementService.OpenSessionAsync("10.0.0.1", 1557, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(sessionA));
+        harness.DaqManagementService.OpenSessionAsync("10.0.0.2", 1557, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(sessionB));
+        sessionA.TrashFileAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
+        sessionB.TrashFileAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
+        var fileA1 = CreateNetworkFile(endpointA, id: 1);
+        var fileA2 = CreateNetworkFile(endpointA, id: 2);
+        var fileB = CreateNetworkFile(endpointB, id: 3);
+
+        await harness.CreateCoordinator().ImportAsync([fileA1, fileA2, fileB], setup.Id);
+
+        await harness.DaqManagementService.Received(1)
+            .OpenSessionAsync("10.0.0.1", 1557, Arg.Any<CancellationToken>());
+        await harness.DaqManagementService.Received(1)
+            .OpenSessionAsync("10.0.0.2", 1557, Arg.Any<CancellationToken>());
+        await sessionA.Received(1).TrashFileAsync(1, Arg.Any<CancellationToken>());
+        await sessionA.Received(1).TrashFileAsync(2, Arg.Any<CancellationToken>());
+        await sessionB.Received(1).TrashFileAsync(3, Arg.Any<CancellationToken>());
+        await harness.DaqManagementService.DidNotReceiveWithAnyArgs()
+            .TrashFileAsync(default!, default, default, default);
+        await sessionA.Received(1).DisposeAsync();
+        await sessionB.Received(1).DisposeAsync();
     }
 
     [Fact]
     public async Task ImportAsync_OverlapsDownloadWithProcessing()
     {
-        var (setup, _) = SeedSetupAndBike();
+        var harness = new ImportWorkflowHarness();
+        var (setup, _) = harness.SeedSetupAndBike();
         var first = CreateTelemetryFile(name: "first", shouldBeImported: true);
+        var second = CreateTelemetryFile(name: "second", shouldBeImported: true);
         var secondReadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var firstProcessingStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseFirstProcessing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var second = CreateTelemetryFile(name: "second", shouldBeImported: true);
         second.ReadSourceAsync(Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
+            .Returns(_ =>
             {
                 secondReadStarted.TrySetResult();
                 return Task.FromResult(new TelemetryFileSource("second.SST", [1, 2, 3]));
             });
-        reprocessor
+        harness.Reprocessor
             .ReprocessAsync(
                 Arg.Any<RecordedSessionDomainSnapshot>(),
                 Arg.Any<RecordedSessionSource>(),
@@ -366,472 +290,34 @@ public class ImportSessionsCoordinatorTests
                     await releaseFirstProcessing.Task;
                 }
 
-                var telemetryData = CreateMinimal();
-                var fingerprint = new ProcessingFingerprint(2, 1, domain.Setup!.Id, domain.Bike!.Id, 1, "dependency", source.SourceHash);
-                return ReprocessResult(telemetryData, GeneratedFullTrack: null, fingerprint);
+                return ImportWorkflowHarness.CreateReprocessResult(domain, source);
             });
 
-        var coordinator = CreateCoordinator();
-        var importTask = coordinator.ImportAsync([first, second], setup.Id);
+        var importTask = harness.CreateCoordinator().ImportAsync([first, second], setup.Id);
 
         await firstProcessingStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
         await secondReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-
         releaseFirstProcessing.SetResult();
         var result = await importTask;
 
         Assert.Equal(2, result.Imported.Count);
     }
 
-    [Fact]
-    public async Task ImportAsync_WithGpsData_PersistsTrackAndAssociatesSession()
-    {
-        var (setup, _) = SeedSetupAndBike();
-        GpsRecord[] gpsRecords =
-        [
-            new GpsRecord(new DateTime(2025, 6, 1, 12, 34, 56, DateTimeKind.Utc), 42.6977, 23.3219, 590f, 5f, 180f, 3, 10, 1f, 2f),
-            new GpsRecord(new DateTime(2025, 6, 1, 12, 34, 57, DateTimeKind.Utc), 42.6978, 23.3220, 591f, 5.5f, 182f, 3, 10, 1f, 2f)
-        ];
-
-        var telemetryData = CreateMinimal();
-        telemetryData.GpsData = gpsRecords;
-        var generatedTrack = Track.FromGpsRecords(gpsRecords);
-        var file = CreateTelemetryFile(name: "ride-gps", shouldBeImported: true);
-        reprocessor
-            .ReprocessAsync(
-                Arg.Any<RecordedSessionDomainSnapshot>(),
-                Arg.Any<RecordedSessionSource>(),
-                Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
-            {
-                var domain = callInfo.ArgAt<RecordedSessionDomainSnapshot>(0);
-                var source = callInfo.ArgAt<RecordedSessionSource>(1);
-                var fingerprint = new ProcessingFingerprint(2, 1, domain.Setup!.Id, domain.Bike!.Id, 1, "dependency", source.SourceHash);
-                return Task.FromResult(ReprocessResult(
-                    telemetryData,
-                    generatedTrack,
-                    fingerprint));
-            });
-
-        var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync([file], setup.Id);
-
-        await sessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
-            Arg.Is<Session>(s =>
-                s.Name == "ride-gps" &&
-                s.ProcessedData != null &&
-                s.ProcessedData.SequenceEqual(telemetryData.BinaryForm)),
-            Arg.Is<ProcessedTelemetryPayload>(payload =>
-                payload.Data.SequenceEqual(telemetryData.BinaryForm)),
-            Arg.Is<Track>(track =>
-                track.Points.Count == 2 &&
-                track.Points[0].FixMode == 3 &&
-                track.Points[0].Satellites == 10 &&
-                track.Points[0].Epe2d == 1f &&
-                track.Points[0].Epe3d == 2f),
-            Arg.Any<RecordedSessionSource>());
-        Assert.Single(result.Imported);
-        Assert.NotNull(result.Imported[0].FullTrackId);
-        Assert.Empty(result.Failures);
-        await sessionStore.Received(1).PublishSessionsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(result.Imported[0].Id)),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task ImportAsync_ShouldBeImportedNull_CallsOnTrashed_AndDoesNotCreateSession()
-    {
-        var (setup, _) = SeedSetupAndBike();
-        var file = CreateTelemetryFile(shouldBeImported: null);
-
-        var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync([file], setup.Id);
-
-        await file.Received(1).OnTrashed();
-        await file.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
-        await sessionTelemetryWriter.DidNotReceive().PutProcessedSessionAsync(
-            Arg.Any<Session>(),
-            Arg.Any<ProcessedTelemetryPayload>(),
-            Arg.Any<Track?>(),
-            Arg.Any<RecordedSessionSource?>());
-        await sessionStore.DidNotReceive().PublishSessionsChangedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
-            Arg.Any<CancellationToken>());
-        Assert.Empty(result.Imported);
-        Assert.Empty(result.Failures);
-    }
-
-    [Fact]
-    public async Task ImportAsync_ShouldBeImportedFalse_IsLeftAlone()
-    {
-        var (setup, _) = SeedSetupAndBike();
-        var file = CreateTelemetryFile(shouldBeImported: false);
-
-        var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync([file], setup.Id);
-
-        await file.DidNotReceive().OnTrashed();
-        await file.DidNotReceive().OnImported();
-        await file.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
-        await sessionTelemetryWriter.DidNotReceive().PutProcessedSessionAsync(
-            Arg.Any<Session>(),
-            Arg.Any<ProcessedTelemetryPayload>(),
-            Arg.Any<Track?>(),
-            Arg.Any<RecordedSessionSource?>());
-        Assert.Empty(result.Imported);
-        Assert.Empty(result.Failures);
-    }
-
-    // ----- ImportAsync per-file failure handling -----
-
-    [Fact]
-    public async Task ImportAsync_ReadSourceThrows_CapturedInFailures_AndReportedAsFailed()
-    {
-        var (setup, _) = SeedSetupAndBike();
-        var file = CreateTelemetryFile(name: "broken", shouldBeImported: true);
-        file.ReadSourceAsync(Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException("boom"));
-
-        var progressEvents = new List<SessionImportEvent>();
-        var progress = new ProgressCapture(progressEvents);
-
-        var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync([file], setup.Id, progress);
-
-        Assert.Empty(result.Imported);
-        var failure = Assert.Single(result.Failures);
-        Assert.Equal("broken", failure.FileName);
-        Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
-        await sessionTelemetryWriter.DidNotReceive().PutProcessedSessionAsync(
-            Arg.Any<Session>(),
-            Arg.Any<ProcessedTelemetryPayload>(),
-            Arg.Any<Track?>(),
-            Arg.Any<RecordedSessionSource?>());
-        await sessionStore.DidNotReceive().PublishSessionsChangedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
-            Arg.Any<CancellationToken>());
-
-        var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
-        var reported = Assert.Single(nonProgressEvents);
-        var failed = Assert.IsType<SessionImportEvent.ImportFailed>(reported);
-        Assert.Equal("broken", failed.FileName);
-    }
-
-    [Fact]
-    public async Task ImportAsync_PutProcessedSessionThrows_CapturedInFailures_AndReportedAsFailed()
-    {
-        var (setup, _) = SeedSetupAndBike();
-        var file = CreateTelemetryFile(name: "persist-fail", shouldBeImported: true);
-        sessionTelemetryWriter
-            .PutProcessedSessionAsync(
-                Arg.Any<Session>(),
-                Arg.Any<ProcessedTelemetryPayload>(),
-                Arg.Any<Track?>(),
-                Arg.Any<RecordedSessionSource?>())
-            .ThrowsAsync(new InvalidOperationException("db"));
-
-        var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync([file], setup.Id);
-
-        Assert.Empty(result.Imported);
-        var failure = Assert.Single(result.Failures);
-        Assert.Equal("persist-fail", failure.FileName);
-        Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
-        await file.DidNotReceive().OnImported();
-        await sessionStore.DidNotReceive().PublishSessionsChangedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task ImportAsync_OnImportedThrows_PublishesCommittedSessionAndReportsFailure()
-    {
-        var (setup, _) = SeedSetupAndBike();
-        var file = CreateTelemetryFile(name: "post-import-fail", shouldBeImported: true);
-        file.OnImported().ThrowsAsync(new InvalidOperationException("post"));
-
-        var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync([file], setup.Id);
-
-        Assert.Single(result.Imported);
-        var failure = Assert.Single(result.Failures);
-        Assert.Equal("post-import-fail", failure.FileName);
-        Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
-        await sessionStore.Received(1).PublishSessionsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(result.Imported[0].Id)),
-            Arg.Any<CancellationToken>());
-        await sourceStore.Received(1).PublishSourcesChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(result.Imported[0].Id)),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task ImportAsync_OnTrashedThrows_CapturedInFailures()
-    {
-        var (setup, _) = SeedSetupAndBike();
-        var file = CreateTelemetryFile(name: "trash-fail", shouldBeImported: null);
-        file.OnTrashed().ThrowsAsync(new InvalidOperationException("trash"));
-
-        var progressEvents = new List<SessionImportEvent>();
-        var progress = new ProgressCapture(progressEvents);
-
-        var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync([file], setup.Id, progress);
-
-        var failure = Assert.Single(result.Failures);
-        Assert.Equal("trash-fail", failure.FileName);
-        Assert.Equal(SessionImportFailureOperation.Trash, failure.Operation);
-        var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
-        var reported = Assert.Single(nonProgressEvents);
-        var failed = Assert.IsType<SessionImportEvent.TrashFailed>(reported);
-        Assert.Equal("trash-fail", failed.FileName);
-    }
-
-    [Fact]
-    public async Task ImportAsync_ContinuesAfterPerFileFailure()
-    {
-        var (setup, _) = SeedSetupAndBike();
-
-        var brokenFile = CreateTelemetryFile(name: "broken", shouldBeImported: true);
-        brokenFile.ReadSourceAsync(Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException("boom"));
-
-        var goodFile = CreateTelemetryFile(name: "ok", shouldBeImported: true);
-
-        var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync([brokenFile, goodFile], setup.Id);
-
-        Assert.Single(result.Failures);
-        Assert.Single(result.Imported);
-        Assert.Equal("ok", result.Imported[0].Name);
-        await sessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
-            Arg.Is<Session>(s => s.Name == "ok"),
-            Arg.Any<ProcessedTelemetryPayload>(),
-            Arg.Any<Track?>(),
-            Arg.Any<RecordedSessionSource?>());
-        await sessionStore.Received(1).PublishSessionsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(result.Imported[0].Id)),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task ImportAsync_MalformedFile_IsRejectedWithoutReprocessing()
-    {
-        var (setup, _) = SeedSetupAndBike();
-        var file = CreateTelemetryFile(
-            name: "bad",
-            shouldBeImported: true,
-            malformedMessage: "invalid telemetry payload");
-
-        var progressEvents = new List<SessionImportEvent>();
-        var progress = new ProgressCapture(progressEvents);
-
-        var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync([file], setup.Id, progress);
-
-        Assert.Empty(result.Imported);
-        var failure = Assert.Single(result.Failures);
-        Assert.Equal("bad", failure.FileName);
-        Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
-        await file.Received(1).ReadSourceAsync(Arg.Any<CancellationToken>());
-        await reprocessor.DidNotReceive().ReprocessAsync(
-            Arg.Any<RecordedSessionDomainSnapshot>(),
-            Arg.Any<RecordedSessionSource>(),
-            Arg.Any<CancellationToken>());
-        await file.DidNotReceive().OnImported();
-
-        var nonProgressEvents = progressEvents.Where(e => e is not SessionImportEvent.Progress).ToList();
-        var reported = Assert.Single(nonProgressEvents);
-        var failed = Assert.IsType<SessionImportEvent.ImportFailed>(reported);
-        Assert.Equal("bad", failed.FileName);
-    }
-
-    [Fact]
-    public async Task ImportAsync_ImportableMalformedFile_IsImported()
-    {
-        var (setup, _) = SeedSetupAndBike();
-        var file = CreateTelemetryFile(
-            name: "trimmed",
-            shouldBeImported: true,
-            malformedMessage: "trailing chunk was trimmed",
-            canImport: true);
-
-        var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync([file], setup.Id);
-
-        Assert.Single(result.Imported);
-        Assert.Empty(result.Failures);
-        await file.Received(1).ReadSourceAsync(Arg.Any<CancellationToken>());
-        await file.Received(1).OnImported();
-    }
-
-    [Fact]
-    public async Task ImportAsync_ReportsProgressForEachProcessedFile_IgnoringSkipped()
-    {
-        var (setup, _) = SeedSetupAndBike();
-        var importedFile = CreateTelemetryFile(name: "import-me", shouldBeImported: true);
-
-        var trashedFile = CreateTelemetryFile(name: "trash-me", shouldBeImported: null);
-        var ignoredFile = CreateTelemetryFile(name: "leave-me", shouldBeImported: false);
-
-        var progressEvents = new List<SessionImportEvent>();
-        var progress = new ProgressCapture(progressEvents);
-
-        var coordinator = CreateCoordinator();
-        await coordinator.ImportAsync(
-            [importedFile, ignoredFile, trashedFile],
-            setup.Id,
-            progress);
-
-        var progressUpdates = progressEvents.OfType<SessionImportEvent.Progress>().ToList();
-        Assert.Equal(2, progressUpdates.Count);
-        Assert.All(progressUpdates, p => Assert.Equal(2, p.Total));
-        Assert.Equal(1, progressUpdates[0].Current);
-        Assert.Equal(2, progressUpdates[1].Current);
-    }
-
-    [Fact]
-    public async Task ImportAsync_RoutesWorkflowThroughBackgroundTaskRunner()
-    {
-        var (setup, _) = SeedSetupAndBike();
-
-        var coordinator = CreateCoordinator();
-        await coordinator.ImportAsync(Array.Empty<ITelemetryFile>(), setup.Id);
-
-        Assert.Equal(1, backgroundTaskRunner.InvocationCount);
-    }
-
-    // ----- ImportAsync NetworkTelemetryFile session lifecycle -----
-
-    [Fact]
-    public async Task ImportAsync_OpensOneSessionPerNetworkEndpoint_RoutesTrashThroughSession_AndDisposes()
-    {
-        var (setup, _) = SeedSetupAndBike();
-
-        var endpointA = new IPEndPoint(IPAddress.Parse("10.0.0.1"), 1557);
-        var endpointB = new IPEndPoint(IPAddress.Parse("10.0.0.2"), 1557);
-
-        var sessionA = Substitute.For<IDaqManagementSession>();
-        var sessionB = Substitute.For<IDaqManagementSession>();
-
-        daqManagementService.OpenSessionAsync("10.0.0.1", 1557, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(sessionA));
-        daqManagementService.OpenSessionAsync("10.0.0.2", 1557, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(sessionB));
-
-        sessionA.TrashFileAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
-        sessionB.TrashFileAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
-
-        var fileA1 = new NetworkTelemetryFile(endpointA, daqManagementService, 1, "00001.SST", 3,
-            DateTimeOffset.FromUnixTimeSeconds(111), TimeSpan.FromSeconds(6))
-        { ShouldBeImported = null };
-        var fileA2 = new NetworkTelemetryFile(endpointA, daqManagementService, 2, "00002.SST", 3,
-            DateTimeOffset.FromUnixTimeSeconds(222), TimeSpan.FromSeconds(6))
-        { ShouldBeImported = null };
-        var fileB = new NetworkTelemetryFile(endpointB, daqManagementService, 3, "00003.SST", 3,
-            DateTimeOffset.FromUnixTimeSeconds(333), TimeSpan.FromSeconds(6))
+    private static NetworkTelemetryFile CreateNetworkFile(IPEndPoint endpoint, int id) =>
+        new(endpoint, Substitute.For<IDaqManagementService>(), id, $"{id:00000}.SST", 3,
+            DateTimeOffset.FromUnixTimeSeconds(111 + id), TimeSpan.FromSeconds(6))
         { ShouldBeImported = null };
 
-        var coordinator = CreateCoordinator();
-        await coordinator.ImportAsync([fileA1, fileA2, fileB], setup.Id);
-
-        await daqManagementService.Received(1)
-            .OpenSessionAsync("10.0.0.1", 1557, Arg.Any<CancellationToken>());
-        await daqManagementService.Received(1)
-            .OpenSessionAsync("10.0.0.2", 1557, Arg.Any<CancellationToken>());
-
-        await sessionA.Received(1).TrashFileAsync(1, Arg.Any<CancellationToken>());
-        await sessionA.Received(1).TrashFileAsync(2, Arg.Any<CancellationToken>());
-        await sessionB.Received(1).TrashFileAsync(3, Arg.Any<CancellationToken>());
-
-        await daqManagementService.DidNotReceiveWithAnyArgs()
-            .TrashFileAsync(default!, default, default, default);
-
-        await sessionA.Received(1).DisposeAsync();
-        await sessionB.Received(1).DisposeAsync();
+    public enum ImportAction
+    {
+        Import,
+        Trash,
+        Ignore
     }
 
-    [Fact]
-    public async Task ImportAsync_RoutesGetFileThroughSession_AndDisposes_WhenGetFileReturnsError()
+    public enum ImportFailurePoint
     {
-        var (setup, _) = SeedSetupAndBike();
-
-        var endpoint = new IPEndPoint(IPAddress.Parse("10.0.0.1"), 1557);
-        var session = Substitute.For<IDaqManagementSession>();
-
-        daqManagementService.OpenSessionAsync("10.0.0.1", 1557, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(session));
-        session.GetFileAsync(Arg.Any<DaqFileClass>(), Arg.Any<int>(), Arg.Any<Stream>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<DaqGetFileResult>(
-                new DaqGetFileResult.Error(DaqManagementErrorCode.Busy, "Device busy")));
-
-        var file = new NetworkTelemetryFile(endpoint, daqManagementService, 1, "00001.SST", 3,
-            DateTimeOffset.FromUnixTimeSeconds(111), TimeSpan.FromSeconds(6))
-        { ShouldBeImported = true };
-
-        var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync([file], setup.Id);
-
-        await session.Received(1)
-            .GetFileAsync(DaqFileClass.RootSst, 1, Arg.Any<Stream>(), Arg.Any<CancellationToken>());
-        await daqManagementService.DidNotReceiveWithAnyArgs()
-            .GetFileAsync(default!, default, default!, default, default!, default);
-        await session.Received(1).DisposeAsync();
-
-        Assert.Single(result.Failures);
-    }
-
-    [Fact]
-    public async Task ImportAsync_DisposesSessions_EvenWhenSessionThrows()
-    {
-        var (setup, _) = SeedSetupAndBike();
-
-        var endpoint = new IPEndPoint(IPAddress.Parse("10.0.0.1"), 1557);
-        var session = Substitute.For<IDaqManagementSession>();
-
-        daqManagementService.OpenSessionAsync("10.0.0.1", 1557, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(session));
-        session.GetFileAsync(Arg.Any<DaqFileClass>(), Arg.Any<int>(), Arg.Any<Stream>(), Arg.Any<CancellationToken>())
-            .ThrowsAsync(new IOException("boom"));
-
-        var file = new NetworkTelemetryFile(endpoint, daqManagementService, 1, "00001.SST", 3,
-            DateTimeOffset.FromUnixTimeSeconds(111), TimeSpan.FromSeconds(6))
-        { ShouldBeImported = true };
-
-        var coordinator = CreateCoordinator();
-        var result = await coordinator.ImportAsync([file], setup.Id);
-
-        Assert.Single(result.Failures);
-        await session.Received(1).DisposeAsync();
-    }
-
-    // ----- helpers -----
-
-    private (Setup setup, Bike bike) SeedSetupAndBike(double headAngle = 65.0)
-    {
-        var bikeId = Guid.NewGuid();
-        var setupId = Guid.NewGuid();
-        var bike = new Bike(bikeId, "test bike") { HeadAngle = headAngle, ForkStroke = 160 };
-        var setup = new Setup(setupId, "test setup") { BikeId = bikeId };
-        setupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(setup));
-        bikeRepository.GetAsync(bikeId).Returns(Task.FromResult<Bike?>(bike));
-        return (setup, bike);
-    }
-
-    /// <summary>
-    /// `IProgress<T>.Report` is void — using a capture list lets tests
-    /// assert on the sequence of progress events synchronously without
-    /// an NSubstitute stub.
-    /// </summary>
-    private sealed class ProgressCapture(List<SessionImportEvent> events) : IProgress<SessionImportEvent>
-    {
-        public void Report(SessionImportEvent value) => events.Add(value);
-    }
-
-    private sealed class ThrowingProgress : IProgress<SessionImportEvent>
-    {
-        public void Report(SessionImportEvent value) => throw new InvalidOperationException("progress");
+        ReadSource,
+        Reprocess
     }
 }

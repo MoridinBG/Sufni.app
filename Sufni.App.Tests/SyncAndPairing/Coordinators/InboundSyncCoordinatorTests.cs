@@ -28,125 +28,86 @@ public class InboundSyncCoordinatorTests
 
     // ----- Bikes -----
 
-    [AvaloniaFact]
-    public async Task SynchronizationDataArrived_UpsertsNonDeletedBikes()
+    [AvaloniaTheory]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    public async Task SynchronizationDataArrived_PublishesBikeChangeOrRemoval(
+        bool incomingDeleted,
+        bool authoritativeExists,
+        bool expectRemoved)
     {
         var coordinator = CreateCoordinator();
         var bikeId = Guid.NewGuid();
-        bikeRepository.GetAsync(bikeId).Returns(Task.FromResult<Bike?>(new Bike(bikeId, "fresh bike") { HeadAngle = 65, ForkStroke = 160, Updated = 7 }));
-        var data = new SynchronizationData
+        bikeRepository.GetAsync(bikeId).Returns(Task.FromResult<Bike?>(
+            authoritativeExists ? new Bike(bikeId, "fresh bike") { HeadAngle = 65, ForkStroke = 160, Updated = 7 } : null));
+        var incoming = new Bike(bikeId, incomingDeleted ? "gone" : "test bike") { HeadAngle = 65, ForkStroke = 160, Updated = 4 };
+        if (incomingDeleted)
         {
-            Bikes = { new Bike(bikeId, "test bike") { HeadAngle = 65, ForkStroke = 160, Updated = 4 } },
-        };
+            incoming.Deleted = 5;
+        }
+        var data = new SynchronizationData { Bikes = { incoming } };
 
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
         await DrainDispatcherAsync();
 
-        await bikeStore.Received(1).PublishBikesChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(bikeId)),
-            Arg.Any<CancellationToken>());
-    }
-
-    [AvaloniaFact]
-    public async Task SynchronizationDataArrived_RemovesDeletedBikes()
-    {
-        var coordinator = CreateCoordinator();
-        var bikeId = Guid.NewGuid();
-        bikeRepository.GetAsync(bikeId).Returns(Task.FromResult<Bike?>(null));
-        var data = new SynchronizationData
+        if (expectRemoved)
         {
-            Bikes = { new Bike(bikeId, "gone") { Updated = 5, Deleted = 5 } },
-        };
-
-        server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
-        await DrainDispatcherAsync();
-
-        await bikeStore.Received(1).PublishBikesRemovedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(bikeId)),
-            Arg.Any<CancellationToken>());
-    }
-
-    [AvaloniaFact]
-    public async Task SynchronizationDataArrived_DoesNotRemoveBike_WhenDeleteWasDiscardedByMerge()
-    {
-        var coordinator = CreateCoordinator();
-        var bikeId = Guid.NewGuid();
-        bikeRepository.GetAsync(bikeId).Returns(Task.FromResult<Bike?>(new Bike(bikeId, "kept bike") { Updated = 9 }));
-        var data = new SynchronizationData
+            await bikeStore.Received(1).PublishBikesRemovedAsync(
+                Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(bikeId)),
+                Arg.Any<CancellationToken>());
+        }
+        else
         {
-            Bikes = { new Bike(bikeId, "gone") { Updated = 5, Deleted = 5 } },
-        };
-
-        server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
-        await DrainDispatcherAsync();
-
-        await bikeStore.Received(1).PublishBikesChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(bikeId)),
-            Arg.Any<CancellationToken>());
+            await bikeStore.Received(1).PublishBikesChangedAsync(
+                Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(bikeId)),
+                Arg.Any<CancellationToken>());
+        }
     }
 
     // ----- Setups -----
 
-    [AvaloniaFact]
-    public async Task SynchronizationDataArrived_PublishesNonDeletedSetupChange()
+    [AvaloniaTheory]
+    [InlineData(false, true, 8, false)]
+    [InlineData(false, true, 3, false)]
+    [InlineData(true, false, 0, true)]
+    public async Task SynchronizationDataArrived_PublishesSetupChangeOrRemoval(
+        bool incomingDeleted,
+        bool authoritativeExists,
+        int authoritativeUpdated,
+        bool expectRemoved)
     {
         var setupId = Guid.NewGuid();
-        setupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(new Setup(setupId, "fresh tuned") { BikeId = Guid.NewGuid(), Updated = 8 }));
+        setupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(
+            authoritativeExists
+                ? new Setup(setupId, "authoritative setup") { BikeId = Guid.NewGuid(), Updated = authoritativeUpdated }
+                : null));
         var coordinator = CreateCoordinator();
-
-        var data = new SynchronizationData
+        var incoming = new Setup(setupId, incomingDeleted ? "gone" : "tuned") { BikeId = Guid.NewGuid(), Updated = 3 };
+        if (incomingDeleted)
         {
-            Setups = { new Setup(setupId, "tuned") { BikeId = Guid.NewGuid(), Updated = 3 } },
-        };
+            incoming.Deleted = 9;
+        }
+        var data = new SynchronizationData { Setups = { incoming } };
 
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
         await DrainDispatcherAsync();
 
-        await setupStore.Received(1).PublishSetupsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(setupId)),
-            Arg.Any<CancellationToken>());
-    }
-
-    [AvaloniaFact]
-    public async Task SynchronizationDataArrived_PublishesSetupChange_WhenAuthoritativeSetupExists()
-    {
-        var setupId = Guid.NewGuid();
-        setupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(new Setup(setupId, "untuned") { BikeId = Guid.NewGuid(), Updated = 3 }));
-        var coordinator = CreateCoordinator();
-
-        var data = new SynchronizationData
+        if (expectRemoved)
         {
-            Setups = { new Setup(setupId, "untuned") { BikeId = Guid.NewGuid(), Updated = 3 } },
-        };
-
-        server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
-        await DrainDispatcherAsync();
-
-        await setupStore.Received(1).PublishSetupsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(setupId)),
-            Arg.Any<CancellationToken>());
-    }
-
-    [AvaloniaFact]
-    public async Task SynchronizationDataArrived_RemovesDeletedSetups()
-    {
-        var coordinator = CreateCoordinator();
-        var setupId = Guid.NewGuid();
-        setupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(null));
-        var data = new SynchronizationData
+            await setupStore.Received(1).PublishSetupsRemovedAsync(
+                Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(setupId)),
+                Arg.Any<CancellationToken>());
+            await setupStore.DidNotReceive().PublishSetupsChangedAsync(
+                Arg.Any<IReadOnlyCollection<Guid>>(),
+                Arg.Any<CancellationToken>());
+        }
+        else
         {
-            Setups = { new Setup(setupId, "gone") { Updated = 9, Deleted = 9 } },
-        };
-
-        server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
-        await DrainDispatcherAsync();
-
-        await setupStore.Received(1).PublishSetupsRemovedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(setupId)),
-            Arg.Any<CancellationToken>());
-        await setupStore.DidNotReceive().PublishSetupsChangedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
-            Arg.Any<CancellationToken>());
+            await setupStore.Received(1).PublishSetupsChangedAsync(
+                Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(setupId)),
+                Arg.Any<CancellationToken>());
+        }
     }
 
     // ----- Mixed payload -----

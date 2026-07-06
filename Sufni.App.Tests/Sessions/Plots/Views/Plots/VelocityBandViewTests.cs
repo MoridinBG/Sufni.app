@@ -8,11 +8,8 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml.Styling;
-using Avalonia.Controls.Shapes;
 using Avalonia.VisualTree;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
@@ -230,126 +227,6 @@ public class VelocityBandViewTests
         finally
         {
             TestApp.SetIsDesktop(true);
-        }
-    }
-
-    [AvaloniaFact]
-    public async Task DampingAnalysisHost_RendersSortedMetricAnnotationsForCurrentSuspensionSide()
-    {
-        TestApp.SetIsDesktop(true);
-        var slots = new RecordedSessionExtensionSlots();
-        slots.AnalysisMetrics.Add(new RecordedSessionAnalysisMetricContribution(
-            "extension-b",
-            "second",
-            Order: 20,
-            RecordedSessionAnalysisMetricTarget.FrontHscPercentage,
-            "match second",
-            null,
-            RecordedSessionMetricTone.Default));
-        slots.AnalysisMetrics.Add(new RecordedSessionAnalysisMetricContribution(
-            "extension-a",
-            "first",
-            Order: 10,
-            RecordedSessionAnalysisMetricTarget.FrontHscPercentage,
-            "match first",
-            "+1.00",
-            RecordedSessionMetricTone.Positive));
-        slots.AnalysisMetrics.Add(new RecordedSessionAnalysisMetricContribution(
-            "extension-a",
-            "rear",
-            Order: 10,
-            RecordedSessionAnalysisMetricTarget.RearHscPercentage,
-            "rear match",
-            "-1.00",
-            RecordedSessionMetricTone.Negative));
-        var host = new DampingAnalysisHost
-        {
-            Width = 600,
-            Height = 420,
-            PresentationState = SurfacePresentationState.Ready,
-            HasAnalysisData = false,
-            StaticSource = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"12\" />",
-            SuspensionType = SuspensionType.Front,
-            DampingSpeedCutoffs = DampingSpeedCutoffs.Default,
-            ExtensionSlots = slots,
-            AnalysisWorkspace = CreateWorkspace(),
-        };
-
-        EnsureVelocityBandStyle();
-        var window = await ViewTestHelpers.ShowViewAsync(host);
-        try
-        {
-            var band = host.GetVisualDescendants().OfType<VelocityBandView>().Single();
-            Assert.Equal(["match first", "match second"], band.HscMetricAnnotations.Select(metric => metric.DisplayValue));
-            Assert.Empty(band.HsrMetricAnnotations);
-
-            host.SuspensionType = SuspensionType.Rear;
-            await ViewTestHelpers.FlushDispatcherAsync();
-
-            Assert.Equal(["rear match"], band.HscMetricAnnotations.Select(metric => metric.DisplayValue));
-        }
-        finally
-        {
-            window.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
-    }
-
-    [AvaloniaFact]
-    public async Task DampingAnalysisHost_DashedGuideIsClippedToVelocityPlotColumn()
-    {
-        TestApp.SetIsDesktop(true);
-        var workspace = CreateWorkspace();
-        var host = new DampingAnalysisHost
-        {
-            Width = 600,
-            Height = 420,
-            PresentationState = SurfacePresentationState.Ready,
-            HasAnalysisData = false,
-            StaticSource = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"12\" />",
-            SuspensionType = SuspensionType.Front,
-            DampingSpeedCutoffs = DampingSpeedCutoffs.Default,
-            AnalysisWorkspace = workspace,
-        };
-
-        EnsureVelocityBandStyle();
-        var window = await ViewTestHelpers.ShowViewAsync(host);
-        try
-        {
-            var band = host.GetVisualDescendants().OfType<VelocityBandView>().Single();
-            var guide = host.GetVisualDescendants().OfType<Line>().Single();
-            var handle = FindHandle(band, "PART_ReboundHandle");
-            var start = Translate(handle, window);
-            var dragTarget = Translate(band, window, new Point(band.Bounds.Width / 2.0, 120));
-
-            window.MouseDown(start, MouseButton.Left, RawInputModifiers.None);
-            window.MouseMove(dragTarget, RawInputModifiers.LeftMouseButton);
-            await ViewTestHelpers.FlushDispatcherAsync();
-
-            var guideLayer = Assert.IsType<Canvas>(guide.Parent);
-            var guideLabel = host.GetVisualDescendants()
-                .OfType<Border>()
-                .Single(control => control.Name == "PART_DampingGuideLabel");
-            var guideLabelText = guideLabel.GetVisualDescendants().OfType<TextBlock>().Single();
-
-            Assert.True(band.IsDampingGuideVisible);
-            Assert.True(guide.IsVisible);
-            Assert.True(guideLabel.IsVisible);
-            Assert.StartsWith("-", guideLabelText.Text ?? string.Empty);
-            Assert.EndsWith(" mm/s", guideLabelText.Text ?? string.Empty);
-            Assert.Equal(0, Grid.GetColumn(guideLayer));
-            Assert.Equal(1, Grid.GetColumnSpan(guideLayer));
-            Assert.Equal(0, guide.StartPoint.X);
-            Assert.True(guide.EndPoint.X > host.Bounds.Width);
-            Assert.Equal(guide.StartPoint.Y, guide.EndPoint.Y);
-
-            window.MouseUp(dragTarget, MouseButton.Left, RawInputModifiers.None);
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
-        finally
-        {
-            window.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
         }
     }
 

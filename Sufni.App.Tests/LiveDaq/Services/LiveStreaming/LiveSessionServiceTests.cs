@@ -374,13 +374,24 @@ public class LiveSessionServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.PrepareCaptureForSaveAsync());
     }
 
-    [Fact]
-    public async Task GpsFrames_CalculateSpeedIncrementally_AndCopySecondSpeedToFirstPoint()
+    [Theory]
+    [InlineData(GpsSpeedScenario.Incremental)]
+    [InlineData(GpsSpeedScenario.OutOfOrderFallback)]
+    public async Task GpsFrames_CalculateSpeeds_ForOrderedAndOutOfOrderFrames(GpsSpeedScenario scenario)
     {
         var service = CreateService();
         await service.EnsureAttachedAsync();
 
         frames.OnNext(CreateGpsBatchFrame());
+        if (scenario is GpsSpeedScenario.OutOfOrderFallback)
+        {
+            frames.OnNext(CreateGpsBatchFrame(
+                timestamp: new DateTime(2026, 1, 2, 3, 4, 8, DateTimeKind.Utc),
+                latitude: 42.6979,
+                longitude: 23.3221,
+                altitude: 602));
+        }
+
         frames.OnNext(CreateGpsBatchFrame(
             timestamp: new DateTime(2026, 1, 2, 3, 4, 7, DateTimeKind.Utc),
             latitude: 42.6978,
@@ -388,37 +399,19 @@ public class LiveSessionServiceTests
             altitude: 601));
 
         var points = service.Current.SessionTrackPoints;
-        Assert.Equal(2, points.Count);
-        Assert.NotNull(points[1].Speed);
-        Assert.True(points[1].Speed > 0);
-        Assert.Equal(points[1].Speed, points[0].Speed);
-    }
+        if (scenario is GpsSpeedScenario.Incremental)
+        {
+            Assert.Equal(2, points.Count);
+            Assert.NotNull(points[1].Speed);
+            Assert.True(points[1].Speed > 0);
+            Assert.Equal(points[1].Speed, points[0].Speed);
+            return;
+        }
 
-    [Fact]
-    public async Task GpsFrames_OutOfOrderFallback_RebuildsCalculatedSpeeds()
-    {
-        var service = CreateService();
-        await service.EnsureAttachedAsync();
-
-        frames.OnNext(CreateGpsBatchFrame());
-        frames.OnNext(CreateGpsBatchFrame(
-            timestamp: new DateTime(2026, 1, 2, 3, 4, 8, DateTimeKind.Utc),
-            latitude: 42.6979,
-            longitude: 23.3221,
-            altitude: 602));
-        frames.OnNext(CreateGpsBatchFrame(
-            timestamp: new DateTime(2026, 1, 2, 3, 4, 7, DateTimeKind.Utc),
-            latitude: 42.6978,
-            longitude: 23.3220,
-            altitude: 601));
-
-        var points = service.Current.SessionTrackPoints;
         Assert.Equal(3, points.Count);
         Assert.True(points[0].Time < points[1].Time);
         Assert.True(points[1].Time < points[2].Time);
-        Assert.NotNull(points[0].Speed);
-        Assert.NotNull(points[1].Speed);
-        Assert.NotNull(points[2].Speed);
+        Assert.All(points, point => Assert.NotNull(point.Speed));
     }
 
     [Fact]
@@ -934,5 +927,11 @@ public class LiveSessionServiceTests
             TravelCalibration: new LiveDaqTravelCalibration(null, null),
             DampingSpeedCutoffs: cutoffs ?? DampingSpeedCutoffs.Default,
             DampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(Guid.Empty, 0));
+    }
+
+    public enum GpsSpeedScenario
+    {
+        Incremental,
+        OutOfOrderFallback
     }
 }

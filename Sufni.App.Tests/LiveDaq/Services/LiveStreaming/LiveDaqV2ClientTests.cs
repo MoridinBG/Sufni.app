@@ -8,6 +8,7 @@ using System.Threading;
 using Sufni.Telemetry;
 
 using Sufni.App.LiveDaq.Services.LiveStreaming;
+using Sufni.App.Tests.TestSupport.LiveDaq;
 namespace Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
 
 public class LiveDaqV2ClientTests
@@ -15,37 +16,35 @@ public class LiveDaqV2ClientTests
     [Fact]
     public async Task StartPreviewAsync_ReturnsStarted_WhenAckAndSessionHeaderReceived()
     {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         var expectedHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(
             sessionId: 501,
             requestedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu,
             acceptedSensorMask: LiveSensorInstanceMask.ForkTravel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.RearImu);
         var expectedMask = LiveStreamMask.Travel | LiveStreamMask.Imu;
+        var harness = new LiveDaqClientProtocolHarness<LiveDaqV2Client>(() => new LiveDaqV2Client());
 
-        var serverTask = Task.Run(async () =>
-        {
-            using var serverClient = await listener.AcceptTcpClientAsync();
-            await using var stream = serverClient.GetStream();
+        var result = await harness.WithServerAsync(
+            async stream =>
+            {
+                var requestBytes = await LiveDaqClientProtocolHarness<LiveDaqV2Client>.ReadExactAsync(
+                    stream,
+                    LiveV2ProtocolConstants.FrameHeaderSize + LiveV2ProtocolConstants.StartRequestPayloadSize);
+                var request = Assert.IsType<LiveStartRequestFrame>(LiveV2ProtocolReader.ParseFrame(requestBytes));
+                Assert.Equal(LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu, request.Payload.RequestedSensorMask);
+                Assert.Equal((uint)200_000, request.Payload.TravelRateMhz);
+                Assert.Equal((uint)100_000, request.Payload.ImuRateMhz);
 
-            var requestBytes = await ReadExactAsync(stream, LiveV2ProtocolConstants.FrameHeaderSize + LiveV2ProtocolConstants.StartRequestPayloadSize);
-            var request = Assert.IsType<LiveStartRequestFrame>(LiveV2ProtocolReader.ParseFrame(requestBytes));
-            Assert.Equal(LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu, request.Payload.RequestedSensorMask);
-            Assert.Equal((uint)200_000, request.Payload.TravelRateMhz);
-            Assert.Equal((uint)100_000, request.Payload.ImuRateMhz);
-
-            await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.Ok, expectedHeader.SessionId, expectedMask));
-            await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, expectedHeader));
-            await stream.FlushAsync();
-        });
-
-        await using var client = new LiveDaqV2Client();
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
-
-        var result = await client.StartPreviewAsync(
-            new LiveStartRequest(LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu, 200_000, 100_000, 0))
-            .WaitAsync(TimeSpan.FromSeconds(2));
+                await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.Ok, expectedHeader.SessionId, expectedMask));
+                await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, expectedHeader));
+                await stream.FlushAsync();
+            },
+            async (client, port) =>
+            {
+                await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+                return await client.StartPreviewAsync(
+                        new LiveStartRequest(LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu, 200_000, 100_000, 0))
+                    .WaitAsync(TimeSpan.FromSeconds(2));
+            });
 
         var started = Assert.IsType<LivePreviewStartResult.Started>(result);
         Assert.Equal(expectedHeader.SessionId, started.Header.SessionId);
@@ -53,72 +52,40 @@ public class LiveDaqV2ClientTests
         Assert.Equal(expectedHeader.ActiveImuMask, started.Header.ActiveImuMask);
         Assert.Equal(expectedHeader.AcceptedSensorMask, started.Header.AcceptedSensorMask);
         Assert.Equal(LiveSensorInstanceMask.ShockTravel | LiveSensorInstanceMask.ForkImu, started.Header.MissingSensorMask);
-
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
-    [Fact]
-    public async Task StartPreviewAsync_ReturnsRejected_WhenNoRequestedSensorsStarted()
+    [Theory]
+    [InlineData(StartRejectSource.StartAck, LiveStartErrorCode.NoSensorsStarted)]
+    [InlineData(StartRejectSource.ErrorFrame, LiveStartErrorCode.Busy)]
+    public async Task StartPreviewAsync_ReturnsRejected_WhenDeviceRejectsStart(
+        StartRejectSource source,
+        LiveStartErrorCode expectedError)
     {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var harness = new LiveDaqClientProtocolHarness<LiveDaqV2Client>(() => new LiveDaqV2Client());
 
-        var serverTask = Task.Run(async () =>
-        {
-            using var serverClient = await listener.AcceptTcpClientAsync();
-            await using var stream = serverClient.GetStream();
-
-            _ = await ReadExactAsync(stream, LiveV2ProtocolConstants.FrameHeaderSize + LiveV2ProtocolConstants.StartRequestPayloadSize);
-            await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.NoSensorsStarted, sessionId: 0, selectedStreamMask: LiveStreamMask.None));
-            await stream.FlushAsync();
-        });
-
-        await using var client = new LiveDaqV2Client();
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
-
-        var result = await client.StartPreviewAsync(
-            new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0))
-            .WaitAsync(TimeSpan.FromSeconds(2));
+        var result = await harness.WithServerAsync(
+            async stream =>
+            {
+                _ = await LiveDaqClientProtocolHarness<LiveDaqV2Client>.ReadExactAsync(
+                    stream,
+                    LiveV2ProtocolConstants.FrameHeaderSize + LiveV2ProtocolConstants.StartRequestPayloadSize);
+                var frame = source is StartRejectSource.StartAck
+                    ? LiveProtocolTestFrames.CreateStartAckFrame(1, expectedError, sessionId: 0, selectedStreamMask: LiveStreamMask.None)
+                    : LiveProtocolTestFrames.CreateErrorFrame(1, expectedError);
+                await stream.WriteAsync(frame);
+                await stream.FlushAsync();
+            },
+            async (client, port) =>
+            {
+                await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+                return await client.StartPreviewAsync(
+                        new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0))
+                    .WaitAsync(TimeSpan.FromSeconds(2));
+            });
 
         var rejected = Assert.IsType<LivePreviewStartResult.Rejected>(result);
-        Assert.Equal(LiveStartErrorCode.NoSensorsStarted, rejected.ErrorCode);
+        Assert.Equal(expectedError, rejected.ErrorCode);
         Assert.False(string.IsNullOrWhiteSpace(rejected.UserMessage));
-
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
-    }
-
-    [Fact]
-    public async Task StartPreviewAsync_ReturnsRejected_WhenDeviceSendsErrorFrame()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-
-        var serverTask = Task.Run(async () =>
-        {
-            using var serverClient = await listener.AcceptTcpClientAsync();
-            await using var stream = serverClient.GetStream();
-
-            _ = await ReadExactAsync(stream, LiveV2ProtocolConstants.FrameHeaderSize + LiveV2ProtocolConstants.StartRequestPayloadSize);
-            await stream.WriteAsync(LiveProtocolTestFrames.CreateErrorFrame(1, LiveStartErrorCode.Busy));
-            await stream.FlushAsync();
-        });
-
-        await using var client = new LiveDaqV2Client();
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
-
-        var result = await client.StartPreviewAsync(
-            new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0))
-            .WaitAsync(TimeSpan.FromSeconds(2));
-
-        var rejected = Assert.IsType<LivePreviewStartResult.Rejected>(result);
-        Assert.Equal(LiveStartErrorCode.Busy, rejected.ErrorCode);
-
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -174,55 +141,37 @@ public class LiveDaqV2ClientTests
     [Fact]
     public async Task Events_EmitFrameReceived_WhenFramesArrive()
     {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 713);
+        var harness = new LiveDaqClientProtocolHarness<LiveDaqV2Client>(() => new LiveDaqV2Client());
 
-        var serverTask = Task.Run(async () =>
-        {
-            using var serverClient = await listener.AcceptTcpClientAsync();
-            await using var stream = serverClient.GetStream();
-
-            _ = await ReadExactAsync(stream, LiveV2ProtocolConstants.FrameHeaderSize + LiveV2ProtocolConstants.StartRequestPayloadSize);
-            await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.Ok, sessionHeader.SessionId, LiveStreamMask.Travel | LiveStreamMask.Imu));
-            await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, sessionHeader));
-            await stream.FlushAsync();
-        });
-
-        await using var client = new LiveDaqV2Client();
-        var observedFrames = new List<LiveProtocolFrame>();
-        var framesObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var subscription = client.Events.Subscribe(clientEvent =>
-        {
-            if (clientEvent is not LiveDaqClientEvent.FrameReceived frameReceived)
+        var observedFrames = await harness.WithServerAsync(
+            async stream =>
             {
-                return;
-            }
-
-            lock (observedFrames)
+                _ = await LiveDaqClientProtocolHarness<LiveDaqV2Client>.ReadExactAsync(
+                    stream,
+                    LiveV2ProtocolConstants.FrameHeaderSize + LiveV2ProtocolConstants.StartRequestPayloadSize);
+                await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.Ok, sessionHeader.SessionId, LiveStreamMask.Travel | LiveStreamMask.Imu));
+                await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, sessionHeader));
+                await stream.FlushAsync();
+            },
+            async (client, port) =>
             {
-                observedFrames.Add(frameReceived.Frame);
-                if (observedFrames.Count == 2)
-                {
-                    framesObserved.TrySetResult();
-                }
-            }
-        });
-
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
-        var result = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu, 200_000, 100_000, 0));
-        Assert.IsType<LivePreviewStartResult.Started>(result);
-
-        await framesObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+                return await LiveDaqClientProtocolHarness<LiveDaqV2Client>.ObserveFramesAsync(
+                    client,
+                    expectedCount: 2,
+                    async () =>
+                    {
+                        var result = await client.StartPreviewAsync(
+                            new LiveStartRequest(LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu, 200_000, 100_000, 0));
+                        Assert.IsType<LivePreviewStartResult.Started>(result);
+                    });
+            });
 
         Assert.Collection(
             observedFrames,
             frame => Assert.IsType<LiveStartAckFrame>(frame),
             frame => Assert.IsType<LiveSessionHeaderFrame>(frame));
-
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -573,5 +522,11 @@ public class LiveDaqV2ClientTests
             WasDisposed = true;
             base.Dispose(disposing);
         }
+    }
+
+    public enum StartRejectSource
+    {
+        StartAck,
+        ErrorFrame
     }
 }

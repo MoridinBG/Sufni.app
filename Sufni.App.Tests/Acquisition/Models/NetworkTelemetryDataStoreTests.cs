@@ -158,183 +158,95 @@ public class NetworkTelemetryDataStoreTests
             });
     }
 
-    [Fact]
-    public async Task ReadSourceAsync_UsesInjectedRecordIdRatherThanFileName()
+    [Theory]
+    [InlineData(NetworkTelemetryFileOperation.ReadSource)]
+    [InlineData(NetworkTelemetryFileOperation.MarkImported)]
+    [InlineData(NetworkTelemetryFileOperation.Trash)]
+    public async Task NetworkTelemetryFile_RoutesSuccessfulOperationByRecordId(
+        NetworkTelemetryFileOperation operation)
     {
+        Stream? capturedDestination = null;
         var daqManagementService = Substitute.For<IDaqManagementService>();
+        var sourceBytes = TestSstFiles.CreateValidV3();
         daqManagementService
             .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
-                var bytes = TestSstFiles.CreateValidV3();
                 var destination = callInfo.ArgAt<Stream>(4);
-                destination.Write(bytes);
-                return Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Downloaded("DEVICE.SST", (ulong)bytes.Length));
+                capturedDestination = destination;
+                destination.Write(sourceBytes);
+                return Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Downloaded("DEVICE.SST", (ulong)sourceBytes.Length));
             });
+        daqManagementService
+            .MarkSstUploadedAsync(IPAddress.Loopback.ToString(), 5555, 42, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
+        daqManagementService
+            .TrashFileAsync(IPAddress.Loopback.ToString(), 5555, 42, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
+        var file = CreateNetworkFile(daqManagementService);
 
-        var file = new NetworkTelemetryFile(
-            new IPEndPoint(IPAddress.Loopback, 5555),
-            daqManagementService,
-            42,
-            "NOT-A-NUMERIC-NAME.SST",
-            3,
-            DateTimeOffset.FromUnixTimeSeconds(111),
-            TimeSpan.FromSeconds(6));
-
-        var source = await file.ReadSourceAsync();
-
-        Assert.Equal("DEVICE.SST", source.FileName);
-        Assert.Equal(TestSstFiles.CreateValidV3(), source.SstBytes);
-        await daqManagementService.Received(1)
-            .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>());
+        switch (operation)
+        {
+            case NetworkTelemetryFileOperation.ReadSource:
+                var source = await file.ReadSourceAsync();
+                Assert.Equal("DEVICE.SST", source.FileName);
+                Assert.Equal(sourceBytes, source.SstBytes);
+                Assert.IsType<MemoryStream>(capturedDestination);
+                await daqManagementService.Received(1)
+                    .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>());
+                break;
+            case NetworkTelemetryFileOperation.MarkImported:
+                await file.OnImported();
+                Assert.True(file.Imported);
+                await daqManagementService.Received(1)
+                    .MarkSstUploadedAsync(IPAddress.Loopback.ToString(), 5555, 42, Arg.Any<CancellationToken>());
+                break;
+            case NetworkTelemetryFileOperation.Trash:
+                await file.OnTrashed();
+                await daqManagementService.Received(1)
+                    .TrashFileAsync(IPAddress.Loopback.ToString(), 5555, 42, Arg.Any<CancellationToken>());
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(operation), operation, null);
+        }
     }
 
-    [Fact]
-    public async Task ReadSourceAsync_ThrowsWhenGetFileReturnsTypedError()
+    [Theory]
+    [InlineData(NetworkTelemetryFileOperation.ReadSource, DaqManagementErrorCode.Busy)]
+    [InlineData(NetworkTelemetryFileOperation.MarkImported, DaqManagementErrorCode.NotFound)]
+    [InlineData(NetworkTelemetryFileOperation.Trash, DaqManagementErrorCode.Busy)]
+    public async Task NetworkTelemetryFile_ThrowsTypedError_ForFailedOperation(
+        NetworkTelemetryFileOperation operation,
+        DaqManagementErrorCode expectedError)
     {
         var daqManagementService = Substitute.For<IDaqManagementService>();
         daqManagementService
             .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<DaqGetFileResult>(
-                new DaqGetFileResult.Error(DaqManagementErrorCode.Busy, "Device busy")));
-
-        var file = new NetworkTelemetryFile(
-            new IPEndPoint(IPAddress.Loopback, 5555),
-            daqManagementService,
-            42,
-            "NOT-A-NUMERIC-NAME.SST",
-            3,
-            DateTimeOffset.FromUnixTimeSeconds(111),
-            TimeSpan.FromSeconds(6));
-
-        var exception = await Assert.ThrowsAsync<DaqManagementException>(() => file.ReadSourceAsync());
-
-        Assert.Equal(DaqManagementErrorCode.Busy, exception.ErrorCode);
-    }
-
-    [Fact]
-    public async Task ReadSourceAsync_DownloadsIntoMemoryStream()
-    {
-        Stream? capturedDestination = null;
-        var daqManagementService = Substitute.For<IDaqManagementService>();
-        daqManagementService
-            .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
-            {
-                var bytes = TestSstFiles.CreateValidV3();
-                var destination = callInfo.ArgAt<Stream>(4);
-                capturedDestination = destination;
-                destination.Write(bytes);
-                return Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Downloaded("DEVICE.SST", (ulong)bytes.Length));
-            });
-
-        var file = new NetworkTelemetryFile(
-            new IPEndPoint(IPAddress.Loopback, 5555),
-            daqManagementService,
-            42,
-            "NOT-A-NUMERIC-NAME.SST",
-            3,
-            DateTimeOffset.FromUnixTimeSeconds(111),
-            TimeSpan.FromSeconds(6));
-
-        var source = await file.ReadSourceAsync();
-
-        Assert.IsType<MemoryStream>(capturedDestination);
-        Assert.Equal(TestSstFiles.CreateValidV3(), source.SstBytes);
-    }
-
-    [Fact]
-    public async Task OnImported_MarksSstUploadedByRecordId()
-    {
-        var daqManagementService = Substitute.For<IDaqManagementService>();
-        daqManagementService
-            .MarkSstUploadedAsync(IPAddress.Loopback.ToString(), 5555, 42, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
-
-        var file = new NetworkTelemetryFile(
-            new IPEndPoint(IPAddress.Loopback, 5555),
-            daqManagementService,
-            42,
-            "NOT-A-NUMERIC-NAME.SST",
-            3,
-            DateTimeOffset.FromUnixTimeSeconds(111),
-            TimeSpan.FromSeconds(6));
-
-        await file.OnImported();
-
-        Assert.True(file.Imported);
-        await daqManagementService.Received(1)
-            .MarkSstUploadedAsync(IPAddress.Loopback.ToString(), 5555, 42, Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task OnImported_ThrowsWhenMarkUploadedReturnsTypedError()
-    {
-        var daqManagementService = Substitute.For<IDaqManagementService>();
+                new DaqGetFileResult.Error(expectedError, "Device rejected request")));
         daqManagementService
             .MarkSstUploadedAsync(IPAddress.Loopback.ToString(), 5555, 42, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<DaqManagementResult>(
-                new DaqManagementResult.Error(DaqManagementErrorCode.NotFound, "Missing")));
-
-        var file = new NetworkTelemetryFile(
-            new IPEndPoint(IPAddress.Loopback, 5555),
-            daqManagementService,
-            42,
-            "NOT-A-NUMERIC-NAME.SST",
-            3,
-            DateTimeOffset.FromUnixTimeSeconds(111),
-            TimeSpan.FromSeconds(6));
-
-        var exception = await Assert.ThrowsAsync<DaqManagementException>(() => file.OnImported());
-
-        Assert.Equal(DaqManagementErrorCode.NotFound, exception.ErrorCode);
-        Assert.False(file.Imported);
-    }
-
-    [Fact]
-    public async Task OnTrashed_UsesInjectedRecordIdRatherThanFileName()
-    {
-        var daqManagementService = Substitute.For<IDaqManagementService>();
-        daqManagementService
-            .TrashFileAsync(IPAddress.Loopback.ToString(), 5555, 42, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
-
-        var file = new NetworkTelemetryFile(
-            new IPEndPoint(IPAddress.Loopback, 5555),
-            daqManagementService,
-            42,
-            "NOT-A-NUMERIC-NAME.SST",
-            3,
-            DateTimeOffset.FromUnixTimeSeconds(111),
-            TimeSpan.FromSeconds(6));
-
-        await file.OnTrashed();
-
-        await daqManagementService.Received(1)
-            .TrashFileAsync(IPAddress.Loopback.ToString(), 5555, 42, Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task OnTrashed_ThrowsWhenTrashReturnsTypedError()
-    {
-        var daqManagementService = Substitute.For<IDaqManagementService>();
+                new DaqManagementResult.Error(expectedError, "Device rejected request")));
         daqManagementService
             .TrashFileAsync(IPAddress.Loopback.ToString(), 5555, 42, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<DaqManagementResult>(
-                new DaqManagementResult.Error(DaqManagementErrorCode.Busy, "Device busy")));
+                new DaqManagementResult.Error(expectedError, "Device rejected request")));
+        var file = CreateNetworkFile(daqManagementService);
 
-        var file = new NetworkTelemetryFile(
-            new IPEndPoint(IPAddress.Loopback, 5555),
-            daqManagementService,
-            42,
-            "NOT-A-NUMERIC-NAME.SST",
-            3,
-            DateTimeOffset.FromUnixTimeSeconds(111),
-            TimeSpan.FromSeconds(6));
+        var exception = await Assert.ThrowsAsync<DaqManagementException>(() => operation switch
+        {
+            NetworkTelemetryFileOperation.ReadSource => file.ReadSourceAsync(),
+            NetworkTelemetryFileOperation.MarkImported => file.OnImported(),
+            NetworkTelemetryFileOperation.Trash => file.OnTrashed(),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, null)
+        });
 
-        var exception = await Assert.ThrowsAsync<DaqManagementException>(() => file.OnTrashed());
-
-        Assert.Equal(DaqManagementErrorCode.Busy, exception.ErrorCode);
+        Assert.Equal(expectedError, exception.ErrorCode);
+        if (operation is NetworkTelemetryFileOperation.MarkImported)
+        {
+            Assert.False(file.Imported);
+        }
     }
 
     private static ILiveDaqBoardIdInspector CreateBoardIdInspector()
@@ -346,4 +258,20 @@ public class NetworkTelemetryDataStoreTests
         return boardIdInspector;
     }
 
+    private static NetworkTelemetryFile CreateNetworkFile(IDaqManagementService daqManagementService) =>
+        new(
+            new IPEndPoint(IPAddress.Loopback, 5555),
+            daqManagementService,
+            42,
+            "NOT-A-NUMERIC-NAME.SST",
+            3,
+            DateTimeOffset.FromUnixTimeSeconds(111),
+            TimeSpan.FromSeconds(6));
+
+    public enum NetworkTelemetryFileOperation
+    {
+        ReadSource,
+        MarkImported,
+        Trash
+    }
 }

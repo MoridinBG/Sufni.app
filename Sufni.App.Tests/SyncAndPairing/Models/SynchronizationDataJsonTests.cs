@@ -1,8 +1,10 @@
 using System.Text.Json;
 using Sufni.App.Infrastructure;
 using Sufni.App.Bikes.Models;
+using Sufni.App.Sessions.Models;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.SyncAndPairing.Models;
 
@@ -40,6 +42,49 @@ public class SynchronizationDataJsonTests
             suspension => Assert.IsType<RearSuspensionSpec.LeverageRatioDraft>(suspension),
             suspension => Assert.Equal(linkage, Assert.IsType<RearSuspensionSpec.Linkage>(suspension).Spec),
             suspension => Assert.Equal(leverageRatio, Assert.IsType<RearSuspensionSpec.LeverageRatio>(suspension).Spec));
+    }
+
+    [Fact]
+    public void SynchronizationData_RoundTripsAppPreferencesSnapshot()
+    {
+        var selectedLayerId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+        var data = new SynchronizationData
+        {
+            AppPreferences = new AppPreferencesSyncData
+            {
+                Updated = 42,
+                Maps = new MapPreferencesSyncData
+                {
+                    SelectedLayerId = selectedLayerId,
+                },
+                Session = new SessionPreferencesSyncData
+                {
+                    Sessions =
+                    {
+                        [sessionId] = SessionPreferences.Default with
+                        {
+                            SignalDisplay = SessionPreferences.Default.SignalDisplay with
+                            {
+                                TravelSmoothing = PlotSmoothingLevel.Strong,
+                            },
+                            SignalLayout = new SignalLayoutPreferences(
+                            [
+                                new SignalLayoutRowPreferences(SignalRowIds.Imu, isExpanded: false),
+                            ]),
+                        },
+                    },
+                },
+            },
+        };
+
+        var roundTripped = AppJson.Deserialize<SynchronizationData>(AppJson.Serialize(data));
+
+        Assert.NotNull(roundTripped?.AppPreferences);
+        Assert.Equal(42, roundTripped!.AppPreferences!.Updated);
+        Assert.Equal(selectedLayerId, roundTripped.AppPreferences.Maps.SelectedLayerId);
+        Assert.Equal(PlotSmoothingLevel.Strong, roundTripped.AppPreferences.Session.Sessions[sessionId].SignalDisplay.TravelSmoothing);
+        Assert.False(roundTripped.AppPreferences.Session.Sessions[sessionId].SignalLayout.Rows[0].IsExpanded);
     }
 
     [Fact]

@@ -150,13 +150,12 @@ public class SstV4TlvParserTests
         Assert.Equal(TimeSpan.FromSeconds(1.0 / 1000.0), inspection.Duration);
     }
 
-    [Fact]
-    public void Inspect_InvalidTelemetryChunkLength_ReturnsMalformedInspection()
+    [Theory]
+    [InlineData(TlvChunkType.Telemetry)]
+    [InlineData(TlvChunkType.Temperature)]
+    public void Inspect_InvalidChunkLength_ReturnsMalformedInspection(TlvChunkType chunkType)
     {
-        using var ms = SstTestFiles.CreateV4Stream(
-            123456789,
-            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
-            SstTestFiles.Chunk(TlvChunkType.Telemetry, [1, 2, 3, 4, 5]));
+        using var ms = CreateInvalidChunkLengthStream(chunkType);
 
         var result = RawTelemetryData.InspectStream(ms);
 
@@ -166,42 +165,12 @@ public class SstV4TlvParserTests
         Assert.NotEmpty(inspection.Message);
     }
 
-    [Fact]
-    public void Parse_InvalidTelemetryChunkLength_ThrowsFormatException()
+    [Theory]
+    [InlineData(TlvChunkType.Telemetry)]
+    [InlineData(TlvChunkType.Temperature)]
+    public void Parse_InvalidChunkLength_ThrowsFormatException(TlvChunkType chunkType)
     {
-        using var ms = SstTestFiles.CreateV4Stream(
-            123456789,
-            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
-            SstTestFiles.Chunk(TlvChunkType.Telemetry, [1, 2, 3, 4, 5]));
-
-        Assert.Throws<FormatException>(() => RawTelemetryData.FromStream(ms));
-    }
-
-    [Fact]
-    public void Inspect_InvalidTemperatureChunkLength_ReturnsMalformedInspection()
-    {
-        using var ms = SstTestFiles.CreateV4Stream(
-            123456789,
-            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
-            SstTestFiles.Telemetry((500, 600)),
-            SstTestFiles.Chunk(TlvChunkType.Temperature, new byte[12]));
-
-        var result = RawTelemetryData.InspectStream(ms);
-
-        var inspection = Assert.IsType<MalformedSstFileInspection>(result);
-        Assert.Equal((byte)4, inspection.Version);
-        Assert.NotNull(inspection.StartTime);
-        Assert.NotEmpty(inspection.Message);
-    }
-
-    [Fact]
-    public void Parse_InvalidTemperatureChunkLength_ThrowsFormatException()
-    {
-        using var ms = SstTestFiles.CreateV4Stream(
-            123456789,
-            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
-            SstTestFiles.Telemetry((500, 600)),
-            SstTestFiles.Chunk(TlvChunkType.Temperature, new byte[12]));
+        using var ms = CreateInvalidChunkLengthStream(chunkType);
 
         Assert.Throws<FormatException>(() => RawTelemetryData.FromStream(ms));
     }
@@ -262,5 +231,25 @@ public class SstV4TlvParserTests
             123456789,
             SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
             SstTestFiles.Chunk(TlvChunkType.Telemetry, payload, (ushort)declaredTelemetryPayloadBytes));
+    }
+
+    private static MemoryStream CreateInvalidChunkLengthStream(TlvChunkType chunkType)
+    {
+        var chunks = new List<Action<BinaryWriter>>
+        {
+            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000))
+        };
+
+        if (chunkType == TlvChunkType.Temperature)
+        {
+            chunks.Add(SstTestFiles.Telemetry((500, 600)));
+            chunks.Add(SstTestFiles.Chunk(TlvChunkType.Temperature, new byte[12]));
+        }
+        else
+        {
+            chunks.Add(SstTestFiles.Chunk(TlvChunkType.Telemetry, [1, 2, 3, 4, 5]));
+        }
+
+        return SstTestFiles.CreateV4Stream(123456789, chunks.ToArray());
     }
 }

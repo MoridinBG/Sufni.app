@@ -87,39 +87,32 @@ public class RecordedSessionSourceRepositoryTests
         Assert.Equal([9, 8, 7, 6], fullSource!.Payload);
     }
 
-    [Fact]
-    public async Task GetSessionIdsMissingRecordedSourceAsync_IncludesSourceHashMismatches()
+    [Theory]
+    [InlineData(MissingRecordedSourceCase.DirectHashMismatch)]
+    [InlineData(MissingRecordedSourceCase.DirectNullFingerprintHash)]
+    [InlineData(MissingRecordedSourceCase.DerivationWindowSourceHashMismatch)]
+    public async Task GetSessionIdsMissingRecordedSourceAsync_FindsMissingSourceStates(
+        MissingRecordedSourceCase scenario)
     {
-        using var tempDatabase = new TempDatabase("source-mismatch.db");
+        using var tempDatabase = new TempDatabase("source-missing-states.db");
         var databasePath = tempDatabase.DatabasePath;
-        var matchingSessionId = Guid.NewGuid();
-        var staleSessionId = Guid.NewGuid();
 
         var database = new TestPersistenceHarness(databasePath);
-        var matchingSource = PersistenceTestData.CreateRecordedSessionSource(matchingSessionId);
-        var staleSource = PersistenceTestData.CreateRecordedSessionSource(staleSessionId);
-        var expectedStaleHash = RecordedSessionSourceHash.Compute(
-            RecordedSessionSourceKind.ImportedSst,
-            "replacement.SST",
-            1,
-            [9, 8, 7]);
-
-        await database.PutSessionAsync(new Session(matchingSessionId, "matching", "desc", null, 100)
-        {
-            ProcessingFingerprintJson = $$"""{"SourceHash":"{{matchingSource.SourceHash}}"}"""
-        });
-        await database.PutSessionAsync(new Session(staleSessionId, "stale", "desc", null, 101)
-        {
-            ProcessingFingerprintJson = $$"""{"SourceHash":"{{expectedStaleHash}}"}"""
-        });
-        await database.PutRecordedSessionSourceAsync(matchingSource);
-        await database.PutRecordedSessionSourceAsync(staleSource);
+        var (expectedMissingIds, expectedPresentIds) = await SeedMissingRecordedSourceScenarioAsync(
+            database,
+            scenario);
 
         var sourceIds = await database.GetSessionIdsMissingRecordedSourceAsync();
 
-        Assert.DoesNotContain(matchingSessionId, sourceIds);
-        Assert.Contains(staleSessionId, sourceIds);
+        foreach (var id in expectedPresentIds)
+        {
+            Assert.DoesNotContain(id, sourceIds);
+        }
 
+        foreach (var id in expectedMissingIds)
+        {
+            Assert.Contains(id, sourceIds);
+        }
     }
 
     [Fact]
@@ -153,68 +146,6 @@ public class RecordedSessionSourceRepositoryTests
     }
 
     [Fact]
-    public async Task GetSessionIdsMissingRecordedSourceAsync_IncludesNullFingerprintSourceHash()
-    {
-        using var tempDatabase = new TempDatabase("source-null-fingerprint-hash.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var sessionId = Guid.NewGuid();
-
-        var database = new TestPersistenceHarness(databasePath);
-        var source = PersistenceTestData.CreateRecordedSessionSource(sessionId);
-        await database.PutSessionAsync(new Session(sessionId, "null hash", "desc", null, 100)
-        {
-            ProcessingFingerprintJson = """{"SourceHash":null}"""
-        });
-        await database.PutRecordedSessionSourceAsync(source);
-
-        var sourceIds = await database.GetSessionIdsMissingRecordedSourceAsync();
-
-        Assert.Contains(sessionId, sourceIds);
-    }
-
-    [Fact]
-    public async Task GetSessionIdsMissingRecordedSourceAsync_UsesDerivationWindowSource()
-    {
-        using var tempDatabase = new TempDatabase("source-derived-parent.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var matchingSourceSessionId = Guid.NewGuid();
-        var matchingDerivedSessionId = Guid.NewGuid();
-        var staleSourceSessionId = Guid.NewGuid();
-        var staleDerivedSessionId = Guid.NewGuid();
-
-        var database = new TestPersistenceHarness(databasePath);
-        var matchingSource = PersistenceTestData.CreateRecordedSessionSource(matchingSourceSessionId);
-        var staleSource = PersistenceTestData.CreateRecordedSessionSource(staleSourceSessionId);
-        var expectedReplacementHash = RecordedSessionSourceHash.Compute(
-            RecordedSessionSourceKind.ImportedSst,
-            "replacement.SST",
-            1,
-            [9, 8, 7]);
-
-        await database.PutSessionAsync(new Session(matchingSourceSessionId, "matching source", "desc", null, 100));
-        await database.PutSessionAsync(new Session(staleSourceSessionId, "stale source", "desc", null, 101));
-        await database.PutSessionAsync(new Session(matchingDerivedSessionId, "matching derived", "desc", null, 102)
-        {
-            ProcessingFingerprintJson = CreateFingerprintJson(
-                matchingSource.SourceHash,
-                new RecordedSessionDerivationWindow(matchingSourceSessionId, 1, 2))
-        });
-        await database.PutSessionAsync(new Session(staleDerivedSessionId, "stale derived", "desc", null, 103)
-        {
-            ProcessingFingerprintJson = CreateFingerprintJson(
-                expectedReplacementHash,
-                new RecordedSessionDerivationWindow(staleSourceSessionId, 1, 2))
-        });
-        await database.PutRecordedSessionSourceAsync(matchingSource);
-        await database.PutRecordedSessionSourceAsync(staleSource);
-
-        var sourceIds = await database.GetSessionIdsMissingRecordedSourceAsync();
-
-        Assert.DoesNotContain(matchingDerivedSessionId, sourceIds);
-        Assert.Contains(staleDerivedSessionId, sourceIds);
-    }
-
-    [Fact]
     public async Task PutRecordedSessionSourceAsync_RejectsHashMismatch()
     {
         using var tempDatabase = new TempDatabase("source-invalid-hash.db");
@@ -231,6 +162,86 @@ public class RecordedSessionSourceRepositoryTests
 
         Assert.Null(await database.GetRecordedSessionSourceAsync(sessionId));
 
+    }
+
+    private static async Task<(Guid[] MissingIds, Guid[] PresentIds)> SeedMissingRecordedSourceScenarioAsync(
+        TestPersistenceHarness database,
+        MissingRecordedSourceCase scenario)
+    {
+        if (scenario == MissingRecordedSourceCase.DirectNullFingerprintHash)
+        {
+            var sessionId = Guid.NewGuid();
+            var source = PersistenceTestData.CreateRecordedSessionSource(sessionId);
+            await database.PutSessionWithRecordedSourceAsync(new Session(sessionId, "null hash", "desc", null, 100)
+            {
+                ProcessingFingerprintJson = """{"SourceHash":null}"""
+            }, source);
+            return ([sessionId], []);
+        }
+
+        if (scenario == MissingRecordedSourceCase.DerivationWindowSourceHashMismatch)
+        {
+            var matchingSourceSessionId = Guid.NewGuid();
+            var matchingDerivedSessionId = Guid.NewGuid();
+            var staleSourceSessionId = Guid.NewGuid();
+            var staleDerivedSessionId = Guid.NewGuid();
+            var matchingSource = PersistenceTestData.CreateRecordedSessionSource(matchingSourceSessionId);
+            var staleSource = PersistenceTestData.CreateRecordedSessionSource(staleSourceSessionId);
+            var expectedReplacementHash = RecordedSessionSourceHash.Compute(
+                RecordedSessionSourceKind.ImportedSst,
+                "replacement.SST",
+                1,
+                [9, 8, 7]);
+
+            await database.PutSessionWithRecordedSourceAsync(
+                new Session(matchingSourceSessionId, "matching source", "desc", null, 100),
+                matchingSource);
+            await database.PutSessionWithRecordedSourceAsync(
+                new Session(staleSourceSessionId, "stale source", "desc", null, 101),
+                staleSource);
+            await database.PutSessionAsync(new Session(matchingDerivedSessionId, "matching derived", "desc", null, 102)
+            {
+                ProcessingFingerprintJson = CreateFingerprintJson(
+                    matchingSource.SourceHash,
+                    new RecordedSessionDerivationWindow(matchingSourceSessionId, 1, 2))
+            });
+            await database.PutSessionAsync(new Session(staleDerivedSessionId, "stale derived", "desc", null, 103)
+            {
+                ProcessingFingerprintJson = CreateFingerprintJson(
+                    expectedReplacementHash,
+                    new RecordedSessionDerivationWindow(staleSourceSessionId, 1, 2))
+            });
+
+            return ([staleDerivedSessionId], [matchingDerivedSessionId]);
+        }
+
+        var matchingSessionId = Guid.NewGuid();
+        var staleSessionId = Guid.NewGuid();
+        var directMatchingSource = PersistenceTestData.CreateRecordedSessionSource(matchingSessionId);
+        var directStaleSource = PersistenceTestData.CreateRecordedSessionSource(staleSessionId);
+        var expectedStaleHash = RecordedSessionSourceHash.Compute(
+            RecordedSessionSourceKind.ImportedSst,
+            "replacement.SST",
+            1,
+            [9, 8, 7]);
+
+        await database.PutSessionWithRecordedSourceAsync(new Session(matchingSessionId, "matching", "desc", null, 100)
+        {
+            ProcessingFingerprintJson = $$"""{"SourceHash":"{{directMatchingSource.SourceHash}}"}"""
+        }, directMatchingSource);
+        await database.PutSessionWithRecordedSourceAsync(new Session(staleSessionId, "stale", "desc", null, 101)
+        {
+            ProcessingFingerprintJson = $$"""{"SourceHash":"{{expectedStaleHash}}"}"""
+        }, directStaleSource);
+
+        return ([staleSessionId], [matchingSessionId]);
+    }
+
+    public enum MissingRecordedSourceCase
+    {
+        DirectHashMismatch,
+        DirectNullFingerprintHash,
+        DerivationWindowSourceHashMismatch
     }
 
     private static string CreateFingerprintJson(string sourceHash, RecordedSessionDerivationWindow window)

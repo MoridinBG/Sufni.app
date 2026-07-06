@@ -1,12 +1,8 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Globalization;
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Reactive.Linq;
 using System.Security.Authentication;
-using System.Text;
-using System.Text.Json;
 using System.Threading;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.Services;
@@ -14,6 +10,7 @@ using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.Tests.TestSupport.Sync;
 namespace Sufni.App.Tests.SyncAndPairing.Services;
 
 public class HttpApiServiceTests
@@ -30,7 +27,7 @@ public class HttpApiServiceTests
     public async Task GetIncompleteSessionIdsAsync_ReusesFreshTokenAcrossSequentialCalls()
     {
         var secureStorage = CreateSecureStorage();
-        var issuedAccessToken = CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
         var seenAuthorizations = new List<string?>();
         var refreshRequestCount = 0;
         var dataRequestCount = 0;
@@ -41,11 +38,11 @@ public class HttpApiServiceTests
             {
                 case SynchronizationProtocol.EndpointPairRefresh:
                     refreshRequestCount++;
-                    return CreateJsonResponse(new TokenResponse(issuedAccessToken, "refresh-2"));
+                    return SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2"));
                 case SynchronizationProtocol.EndpointSessionIncomplete:
                     dataRequestCount++;
                     seenAuthorizations.Add(request.Headers.Authorization?.Parameter);
-                    return CreateJsonResponse(new List<Guid> { Guid.NewGuid() });
+                    return SyncTestServerHarness.Json(new List<Guid> { Guid.NewGuid() });
                 default:
                     throw new InvalidOperationException($"Unexpected request path {request.RequestUri?.AbsolutePath}");
             }
@@ -64,7 +61,7 @@ public class HttpApiServiceTests
     public async Task Requests_IncludeSyncProtocolHeader()
     {
         var secureStorage = CreateSecureStorage();
-        var issuedAccessToken = CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
         var seenProtocolHeaders = new List<string?>();
 
         var service = CreateService(secureStorage, (request, _) =>
@@ -77,8 +74,8 @@ public class HttpApiServiceTests
 
             return Task.FromResult(request.RequestUri?.AbsolutePath switch
             {
-                SynchronizationProtocol.EndpointPairRefresh => CreateJsonResponse(new TokenResponse(issuedAccessToken, "refresh-2")),
-                SynchronizationProtocol.EndpointSessionIncomplete => CreateJsonResponse(new List<Guid>()),
+                SynchronizationProtocol.EndpointPairRefresh => SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2")),
+                SynchronizationProtocol.EndpointSessionIncomplete => SyncTestServerHarness.Json(new List<Guid>()),
                 _ => throw new InvalidOperationException($"Unexpected request path {request.RequestUri?.AbsolutePath}")
             });
         });
@@ -95,12 +92,12 @@ public class HttpApiServiceTests
     public async Task UpgradeRequiredResponse_ThrowsSyncProtocolMismatchError()
     {
         var secureStorage = CreateSecureStorage();
-        var issuedAccessToken = CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
         var service = CreateService(secureStorage, (request, _) =>
         {
             return Task.FromResult(request.RequestUri?.AbsolutePath switch
             {
-                SynchronizationProtocol.EndpointPairRefresh => CreateJsonResponse(new TokenResponse(issuedAccessToken, "refresh-2")),
+                SynchronizationProtocol.EndpointPairRefresh => SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2")),
                 SynchronizationProtocol.EndpointSessionIncomplete => new HttpResponseMessage(HttpStatusCode.UpgradeRequired),
                 _ => throw new InvalidOperationException($"Unexpected request path {request.RequestUri?.AbsolutePath}")
             });
@@ -116,14 +113,14 @@ public class HttpApiServiceTests
     public async Task GetSessionPsstAsync_ReadsOctetStreamBodyAndFingerprintHeader()
     {
         var secureStorage = CreateSecureStorage();
-        var issuedAccessToken = CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
         var sessionId = Guid.NewGuid();
         var service = CreateService(secureStorage, (request, _) =>
         {
             return Task.FromResult(request.RequestUri?.AbsolutePath switch
             {
-                SynchronizationProtocol.EndpointPairRefresh => CreateJsonResponse(new TokenResponse(issuedAccessToken, "refresh-2")),
-                var path when path == $"{SynchronizationProtocol.EndpointSessionData}{sessionId}" => CreateOctetStreamResponse([1, 2, 3], headers =>
+                SynchronizationProtocol.EndpointPairRefresh => SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2")),
+                var path when path == $"{SynchronizationProtocol.EndpointSessionData}{sessionId}" => SyncTestServerHarness.OctetStream([1, 2, 3], headers =>
                 {
                     headers.TryAddWithoutValidation(SynchronizationProtocol.FingerprintHeader, "fp-1");
                 }),
@@ -142,7 +139,7 @@ public class HttpApiServiceTests
     public async Task PatchSessionPsstAsync_SendsOctetStreamBodyAndFingerprintHeader()
     {
         var secureStorage = CreateSecureStorage();
-        var issuedAccessToken = CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
         var sessionId = Guid.NewGuid();
         byte[]? body = null;
         string? fingerprint = null;
@@ -152,7 +149,7 @@ public class HttpApiServiceTests
             switch (request.RequestUri?.AbsolutePath)
             {
                 case SynchronizationProtocol.EndpointPairRefresh:
-                    return CreateJsonResponse(new TokenResponse(issuedAccessToken, "refresh-2"));
+                    return SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2"));
                 case var path when path == $"{SynchronizationProtocol.EndpointSessionData}{sessionId}":
                     Assert.Equal(HttpMethod.Patch, request.Method);
                     body = await request.Content!.ReadAsByteArrayAsync();
@@ -177,14 +174,14 @@ public class HttpApiServiceTests
     public async Task GetRecordedSessionSourceAsync_ReadsOctetStreamBodyAndMetadataHeaders()
     {
         var secureStorage = CreateSecureStorage();
-        var issuedAccessToken = CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
         var sessionId = Guid.NewGuid();
         var service = CreateService(secureStorage, (request, _) =>
         {
             return Task.FromResult(request.RequestUri?.AbsolutePath switch
             {
-                SynchronizationProtocol.EndpointPairRefresh => CreateJsonResponse(new TokenResponse(issuedAccessToken, "refresh-2")),
-                var path when path == $"{SynchronizationProtocol.EndpointSessionSourceData}{sessionId}" => CreateOctetStreamResponse([7, 8, 9], headers =>
+                SynchronizationProtocol.EndpointPairRefresh => SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2")),
+                var path when path == $"{SynchronizationProtocol.EndpointSessionSourceData}{sessionId}" => SyncTestServerHarness.OctetStream([7, 8, 9], headers =>
                 {
                     headers.TryAddWithoutValidation(SynchronizationProtocol.SourceKindHeader, RecordedSessionSourceKind.ImportedSst.StorageValue);
                     headers.TryAddWithoutValidation(SynchronizationProtocol.SourceNameHeader, Uri.EscapeDataString("ride data.sst"));
@@ -210,7 +207,7 @@ public class HttpApiServiceTests
     public async Task PatchRecordedSessionSourceAsync_SendsOctetStreamBodyAndMetadataHeaders()
     {
         var secureStorage = CreateSecureStorage();
-        var issuedAccessToken = CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
         var sessionId = Guid.NewGuid();
         byte[]? body = null;
         string? contentType = null;
@@ -220,15 +217,15 @@ public class HttpApiServiceTests
             switch (request.RequestUri?.AbsolutePath)
             {
                 case SynchronizationProtocol.EndpointPairRefresh:
-                    return CreateJsonResponse(new TokenResponse(issuedAccessToken, "refresh-2"));
+                    return SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2"));
                 case var path when path == $"{SynchronizationProtocol.EndpointSessionSourceData}{sessionId}":
                     Assert.Equal(HttpMethod.Patch, request.Method);
                     body = await request.Content!.ReadAsByteArrayAsync();
                     contentType = request.Content.Headers.ContentType?.MediaType;
-                    seenHeaders[SynchronizationProtocol.SourceKindHeader] = ReadHeader(request, SynchronizationProtocol.SourceKindHeader);
-                    seenHeaders[SynchronizationProtocol.SourceNameHeader] = ReadHeader(request, SynchronizationProtocol.SourceNameHeader);
-                    seenHeaders[SynchronizationProtocol.SchemaVersionHeader] = ReadHeader(request, SynchronizationProtocol.SchemaVersionHeader);
-                    seenHeaders[SynchronizationProtocol.SourceHashHeader] = ReadHeader(request, SynchronizationProtocol.SourceHashHeader);
+                    seenHeaders[SynchronizationProtocol.SourceKindHeader] = SyncTestServerHarness.Header(request, SynchronizationProtocol.SourceKindHeader);
+                    seenHeaders[SynchronizationProtocol.SourceNameHeader] = SyncTestServerHarness.Header(request, SynchronizationProtocol.SourceNameHeader);
+                    seenHeaders[SynchronizationProtocol.SchemaVersionHeader] = SyncTestServerHarness.Header(request, SynchronizationProtocol.SchemaVersionHeader);
+                    seenHeaders[SynchronizationProtocol.SourceHashHeader] = SyncTestServerHarness.Header(request, SynchronizationProtocol.SourceHashHeader);
                     return new HttpResponseMessage(HttpStatusCode.NoContent);
                 default:
                     throw new InvalidOperationException($"Unexpected request path {request.RequestUri?.AbsolutePath}");
@@ -257,7 +254,7 @@ public class HttpApiServiceTests
         var secureStorage = CreateSecureStorage();
         var refreshStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var allowRefreshToComplete = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var issuedAccessToken = CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
         var refreshRequestCount = 0;
         var dataRequestCount = 0;
         var seenAuthorizations = new List<string?>();
@@ -271,7 +268,7 @@ public class HttpApiServiceTests
                     Interlocked.Increment(ref refreshRequestCount);
                     refreshStarted.TrySetResult();
                     await allowRefreshToComplete.Task.WaitAsync(cancellationToken);
-                    return CreateJsonResponse(new TokenResponse(issuedAccessToken, "refresh-2"));
+                    return SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2"));
                 case SynchronizationProtocol.EndpointSessionIncomplete:
                     Interlocked.Increment(ref dataRequestCount);
                     lock (authorizationLock)
@@ -279,7 +276,7 @@ public class HttpApiServiceTests
                         seenAuthorizations.Add(request.Headers.Authorization?.Parameter);
                     }
 
-                    return CreateJsonResponse(new List<Guid>());
+                    return SyncTestServerHarness.Json(new List<Guid>());
                 default:
                     throw new InvalidOperationException($"Unexpected request path {request.RequestUri?.AbsolutePath}");
             }
@@ -378,54 +375,22 @@ public class HttpApiServiceTests
         Assert.Equal(1, refreshRequestCount);
     }
 
-    [Fact]
-    public async Task IsPairedAsync_ReturnsTrueFromStoredRefreshToken_WithoutRefreshingTemporaryUrl()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PairingStateProbes_ReflectStoredRefreshToken(bool hasRefreshToken)
     {
         var secureStorage = CreateSecureStorage();
+        if (!hasRefreshToken)
+        {
+            secureStorage.GetStringAsync("RefreshToken").Returns((string?)null);
+        }
+
         var service = CreateService(secureStorage, (_, _) =>
-            throw new InvalidOperationException("Pairing probe should not use the stored endpoint."));
+            throw new InvalidOperationException("Pairing probes should not use the stored endpoint."));
 
-        var isPaired = await service.IsPairedAsync();
-
-        Assert.True(isPaired);
-    }
-
-    [Fact]
-    public async Task PairedState_ReplaysTrue_WhenStoredRefreshTokenExists()
-    {
-        var secureStorage = CreateSecureStorage();
-        var service = CreateService(secureStorage, (_, _) =>
-            throw new InvalidOperationException("Pairing state should not use the stored endpoint."));
-
-        var isPaired = await ReadNextPairedStateAsync(service);
-
-        Assert.True(isPaired);
-    }
-
-    [Fact]
-    public async Task IsPairedAsync_ReturnsFalse_WhenRefreshTokenIsMissing()
-    {
-        var secureStorage = CreateSecureStorage();
-        secureStorage.GetStringAsync("RefreshToken").Returns((string?)null);
-        var service = CreateService(secureStorage, (_, _) =>
-            throw new InvalidOperationException("Pairing probe should not use the stored endpoint."));
-
-        var isPaired = await service.IsPairedAsync();
-
-        Assert.False(isPaired);
-    }
-
-    [Fact]
-    public async Task PairedState_ReplaysFalse_WhenRefreshTokenIsMissing()
-    {
-        var secureStorage = CreateSecureStorage();
-        secureStorage.GetStringAsync("RefreshToken").Returns((string?)null);
-        var service = CreateService(secureStorage, (_, _) =>
-            throw new InvalidOperationException("Pairing state should not use the stored endpoint."));
-
-        var isPaired = await ReadNextPairedStateAsync(service);
-
-        Assert.False(isPaired);
+        Assert.Equal(hasRefreshToken, await service.IsPairedAsync());
+        Assert.Equal(hasRefreshToken, await ReadNextPairedStateAsync(service));
     }
 
     [Fact]
@@ -433,12 +398,12 @@ public class HttpApiServiceTests
     {
         var secureStorage = CreateSecureStorage();
         secureStorage.GetStringAsync("RefreshToken").Returns((string?)null);
-        var issuedAccessToken = CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
         var service = CreateService(secureStorage, (request, _) =>
         {
             Assert.Equal(SynchronizationProtocol.EndpointPairConfirm, request.RequestUri?.AbsolutePath);
             return Task.FromResult<HttpResponseMessage>(
-                CreateJsonResponse(new TokenResponse(issuedAccessToken, "refresh-2")));
+                SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2")));
         });
         var pairedStates = new List<bool>();
         var paired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -472,37 +437,6 @@ public class HttpApiServiceTests
         secureStorage.GetStringAsync("ServerUrl").Returns("https://sync.example.test");
         secureStorage.GetStringAsync("RefreshToken").Returns("refresh-1");
         return secureStorage;
-    }
-
-    private static HttpResponseMessage CreateJsonResponse<T>(T payload)
-    {
-        return new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(
-                JsonSerializer.Serialize(payload),
-                Encoding.UTF8,
-                "application/json")
-        };
-    }
-
-    private static HttpResponseMessage CreateOctetStreamResponse(byte[] payload, Action<HttpResponseHeaders>? configureHeaders = null)
-    {
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new ByteArrayContent(payload)
-        };
-        response.Content.Headers.ContentType = new MediaTypeHeaderValue(SynchronizationProtocol.OctetStreamContentType);
-        configureHeaders?.Invoke(response.Headers);
-        return response;
-    }
-
-    private static string? ReadHeader(HttpRequestMessage request, string headerName) =>
-        request.Headers.TryGetValues(headerName, out var values) ? Assert.Single(values) : null;
-
-    private static string CreateAccessToken(DateTimeOffset expiresAt)
-    {
-        var token = new JwtSecurityToken(expires: expiresAt.UtcDateTime);
-        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
     private static async Task<bool> ReadNextPairedStateAsync(HttpApiService service)

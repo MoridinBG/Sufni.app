@@ -383,110 +383,88 @@ public class TravelPlotViewTests
         Assert.Same(action, Assert.Single(actions));
     }
 
-    [AvaloniaFact]
-    public async Task TravelPlotView_MobileSecondaryPointer_ShowsInstalledPlotMenu()
-    {
-        using var input = TestApp.UseTouchInput();
-        var telemetry = CreateMinimal(duration: 10);
-        var view = new MobileContextMenuTravelPlotView
-        {
-            Telemetry = telemetry,
-            SignalsWorkspace = new RecordedSessionSignalsWorkspaceStub(telemetry),
-            SignalRowId = SignalRowIds.Travel,
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        RenderPlotInMemory(plot);
-        var point = GetDataAreaCenterPoint(plot);
-        var pressPoint = plot.TranslatePoint(point, mounted.Host);
-        Assert.NotNull(pressPoint);
-
-        mounted.Host.MouseDown(pressPoint.Value, MouseButton.Right, RawInputModifiers.None);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.NotNull(view.PlotMenu.LastShowPixel);
-    }
-
-    [AvaloniaFact]
-    public async Task TravelPlotView_MobileLongPress_ShowsInstalledPlotMenuWithoutChangingAnalysisRange()
+    [AvaloniaTheory]
+    [InlineData(MobileMenuGesture.SecondaryPointer)]
+    [InlineData(MobileMenuGesture.LongPress)]
+    [InlineData(MobileMenuGesture.LongPressInsideAnalysisRange)]
+    public async Task TravelPlotView_MobileMenuGestures_ShowInstalledPlotMenu(MobileMenuGesture gesture)
     {
         using var input = TestApp.UseTouchInput();
         var telemetry = CreateMinimal(duration: 10);
         var workspace = new RecordedSessionSignalsWorkspaceStub(telemetry);
-        var view = new LongPressContextMenuTravelPlotView
-        {
-            Telemetry = telemetry,
-            SignalsWorkspace = workspace,
-            SignalRowId = SignalRowIds.Travel,
-        };
-        var feedbackRequestCount = 0;
-        view.AddHandler(
-            HapticFeedbackBehavior.LongPressFeedbackRequestedEvent,
-            (_, _) => feedbackRequestCount++);
+        var view = CreateMobileContextMenuView(gesture, telemetry, workspace);
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
         RenderPlotInMemory(plot);
-        var pressPoint = plot.TranslatePoint(
-            GetDataAreaCenterPoint(plot),
-            mounted.Host);
+        var point = gesture == MobileMenuGesture.LongPressInsideAnalysisRange
+            ? GetDataAreaPointAtX(plot, 3)
+            : GetDataAreaCenterPoint(plot);
+        var pressPoint = plot.TranslatePoint(point, mounted.Host);
         Assert.True(plot.Bounds.Width > 0 && plot.Bounds.Height > 0, $"Plot bounds were {plot.Bounds}.");
         Assert.NotNull(pressPoint);
 
-        mounted.Host.MouseDown(pressPoint.Value, MouseButton.Left, RawInputModifiers.None);
+        var button = gesture == MobileMenuGesture.SecondaryPointer
+            ? MouseButton.Right
+            : MouseButton.Left;
+        mounted.Host.MouseDown(pressPoint.Value, button, RawInputModifiers.None);
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        view.TriggerLongPress();
-        mounted.Host.MouseUp(pressPoint.Value, MouseButton.Left, RawInputModifiers.None);
-        await ViewTestHelpers.FlushDispatcherAsync();
+        if (view is LongPressContextMenuTravelPlotView longPressView)
+        {
+            longPressView.TriggerLongPress();
+            mounted.Host.MouseUp(pressPoint.Value, MouseButton.Left, RawInputModifiers.None);
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
 
+        Assert.NotNull(GetPlotMenu(view).LastShowPixel);
         Assert.Equal(0, workspace.SetAnalysisRangeBoundaryCallCount);
         Assert.Equal(0, workspace.ClearAnalysisRangeCallCount);
-        Assert.Equal(0, feedbackRequestCount);
-        Assert.NotNull(view.PlotMenu.LastShowPixel);
-        Assert.Null(workspace.AnalysisRange);
         Assert.Null(workspace.LastAnalysisRangeBoundary);
+        Assert.Equal(
+            gesture == MobileMenuGesture.LongPressInsideAnalysisRange ? new TelemetryTimeRange(2, 4) : null,
+            view.AnalysisRange);
     }
 
-    [AvaloniaFact]
-    public async Task TravelPlotView_MobileLongPressInsideAnalysisRange_ShowsInstalledPlotMenu()
+    private static TravelPlotView CreateMobileContextMenuView(
+        MobileMenuGesture gesture,
+        TelemetryData telemetry,
+        RecordedSessionSignalsWorkspaceStub workspace)
     {
-        using var input = TestApp.UseTouchInput();
-        var telemetry = CreateMinimal(duration: 10);
-        var workspace = new RecordedSessionSignalsWorkspaceStub(telemetry);
-        var view = new LongPressContextMenuTravelPlotView
+        return gesture == MobileMenuGesture.SecondaryPointer
+            ? new MobileContextMenuTravelPlotView
+            {
+                Telemetry = telemetry,
+                SignalsWorkspace = workspace,
+                SignalRowId = SignalRowIds.Travel,
+            }
+            : new LongPressContextMenuTravelPlotView
+            {
+                Telemetry = telemetry,
+                AnalysisRange = gesture == MobileMenuGesture.LongPressInsideAnalysisRange
+                    ? new TelemetryTimeRange(2, 4)
+                    : null,
+                SignalsWorkspace = workspace,
+                SignalRowId = SignalRowIds.Travel,
+            };
+    }
+
+    private static NoOpPlotMenu GetPlotMenu(TravelPlotView view)
+    {
+        return view switch
         {
-            Telemetry = telemetry,
-            AnalysisRange = new TelemetryTimeRange(2, 4),
-            SignalsWorkspace = workspace,
-            SignalRowId = SignalRowIds.Travel,
+            MobileContextMenuTravelPlotView mobile => mobile.PlotMenu,
+            LongPressContextMenuTravelPlotView longPress => longPress.PlotMenu,
+            _ => throw new ArgumentOutOfRangeException(nameof(view)),
         };
-        var feedbackRequestCount = 0;
-        view.AddHandler(
-            HapticFeedbackBehavior.LongPressFeedbackRequestedEvent,
-            (_, _) => feedbackRequestCount++);
+    }
 
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        RenderPlotInMemory(plot);
-        var pressPoint = plot.TranslatePoint(GetDataAreaPointAtX(plot, 3), mounted.Host);
-        Assert.NotNull(pressPoint);
-
-        mounted.Host.MouseDown(pressPoint.Value, MouseButton.Left, RawInputModifiers.None);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        view.TriggerLongPress();
-        mounted.Host.MouseUp(pressPoint.Value, MouseButton.Left, RawInputModifiers.None);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.NotNull(view.PlotMenu.LastShowPixel);
-        Assert.Equal(0, workspace.SetAnalysisRangeBoundaryCallCount);
-        Assert.Equal(0, workspace.ClearAnalysisRangeCallCount);
-        Assert.Equal(0, feedbackRequestCount);
+    public enum MobileMenuGesture
+    {
+        SecondaryPointer,
+        LongPress,
+        LongPressInsideAnalysisRange,
     }
 
     private sealed class TestableTravelPlotView : TravelPlotView

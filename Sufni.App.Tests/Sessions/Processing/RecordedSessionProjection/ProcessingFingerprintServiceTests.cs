@@ -236,193 +236,152 @@ public class ProcessingFingerprintServiceTests
         Assert.IsType<SessionStaleness.DependencyHashChanged>(staleness);
     }
 
-    [Fact]
-    public void Evaluate_ReturnsMissingDependencies_WhenSetupOrBikeIsMissing()
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Evaluate_ReturnsMissingDependencies_WhenDependencyIsMissing(
+        bool setupMissing,
+        bool bikeMissing)
     {
         var context = CreateContext();
+        SetupSnapshot? setup = setupMissing ? null : context.Setup;
+        BikeSnapshot? bike = bikeMissing ? null : context.Bike;
 
-        var missingSetup = service.Evaluate(context.Session, null, context.Bike, context.Source);
-        var missingBike = service.Evaluate(context.Session, context.Setup, null, context.Source);
+        var staleness = service.Evaluate(context.Session, setup, bike, context.Source);
 
-        var setupStaleness = Assert.IsType<SessionStaleness.MissingDependencies>(missingSetup);
-        Assert.True(setupStaleness.SetupMissing);
-        Assert.False(setupStaleness.BikeMissing);
-        var bikeStaleness = Assert.IsType<SessionStaleness.MissingDependencies>(missingBike);
-        Assert.False(bikeStaleness.SetupMissing);
-        Assert.True(bikeStaleness.BikeMissing);
+        var missingDependencies = Assert.IsType<SessionStaleness.MissingDependencies>(staleness);
+        Assert.Equal(setupMissing, missingDependencies.SetupMissing);
+        Assert.Equal(bikeMissing, missingDependencies.BikeMissing);
     }
 
-    [Fact]
-    public void Evaluate_ReturnsMissingRawSource_WhenSourceIsMissing()
+    [Theory]
+    [InlineData(MissingRawSourceCase.SourceMissing, false)]
+    [InlineData(MissingRawSourceCase.DerivationWindowDiffers, true)]
+    [InlineData(MissingRawSourceCase.SourceAndDependenciesMissing, true)]
+    [InlineData(MissingRawSourceCase.ProcessedDataMissing, true)]
+    [InlineData(MissingRawSourceCase.DependencyHashChanged, true)]
+    [InlineData(MissingRawSourceCase.TrackProjectionVersionDiffers, true)]
+    public void Evaluate_ReturnsMissingRawSource_WhenRawSourceIsUnavailable(
+        MissingRawSourceCase testCase,
+        bool expectedStale)
     {
         var context = CreateContext();
-        var current = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
-        var session = context.Session with { ProcessingFingerprintJson = AppJson.Serialize(current) };
+        var session = context.Session;
+        SetupSnapshot? setup = context.Setup;
+        BikeSnapshot? bike = context.Bike;
+        RecordedSessionDerivationWindow? window = null;
 
-        var staleness = service.Evaluate(session, context.Setup, context.Bike, null);
+        switch (testCase)
+        {
+            case MissingRawSourceCase.SourceMissing:
+                session = PersistCurrentFingerprint(context);
+                break;
+            case MissingRawSourceCase.DerivationWindowDiffers:
+                session = PersistCurrentFingerprint(context);
+                window = new RecordedSessionDerivationWindow(context.Source.SessionId, 1, 2);
+                break;
+            case MissingRawSourceCase.SourceAndDependenciesMissing:
+                setup = null;
+                bike = null;
+                break;
+            case MissingRawSourceCase.ProcessedDataMissing:
+                session = context.Session with { HasProcessedData = false };
+                break;
+            case MissingRawSourceCase.DependencyHashChanged:
+                session = PersistCurrentFingerprint(context);
+                bike = context.Bike with { HeadAngle = context.Bike.HeadAngle + 1 };
+                break;
+            case MissingRawSourceCase.TrackProjectionVersionDiffers:
+                var persisted = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source) with
+                {
+                    TrackProjectionVersion = 0
+                };
+                session = context.Session with { ProcessingFingerprintJson = AppJson.Serialize(persisted) };
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(testCase), testCase, null);
+        }
+
+        var staleness = service.Evaluate(session, setup, bike, null, window: window);
 
         Assert.IsType<SessionStaleness.MissingRawSource>(staleness);
-        Assert.False(staleness.IsStale);
+        Assert.Equal(expectedStale, staleness.IsStale);
         Assert.False(staleness.CanRecompute);
     }
 
-    [Fact]
-    public void Evaluate_ReturnsStaleMissingRawSource_WhenSourceIsMissingAndDerivationWindowDiffers()
+    [Theory]
+    [InlineData(ProcessedDataCase.ProcessedDataMissing, typeof(SessionStaleness.MissingProcessedData))]
+    [InlineData(ProcessedDataCase.FingerprintMissing, typeof(SessionStaleness.UnknownLegacyFingerprint))]
+    [InlineData(ProcessedDataCase.SchemaVersionDiffers, typeof(SessionStaleness.UnknownLegacyFingerprint))]
+    public void Evaluate_ReturnsExpectedStaleness_WhenProcessedDataOrFingerprintStateDiffers(
+        ProcessedDataCase testCase,
+        Type expectedStalenessType)
+    {
+        var context = CreateContext();
+        var session = context.Session;
+
+        switch (testCase)
+        {
+            case ProcessedDataCase.ProcessedDataMissing:
+                session = session with { HasProcessedData = false };
+                break;
+            case ProcessedDataCase.FingerprintMissing:
+                break;
+            case ProcessedDataCase.SchemaVersionDiffers:
+                var oldSchemaFingerprint = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source) with
+                {
+                    SchemaVersion = 1
+                };
+                session = session with { ProcessingFingerprintJson = AppJson.Serialize(oldSchemaFingerprint) };
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(testCase), testCase, null);
+        }
+
+        var staleness = service.Evaluate(session, context.Setup, context.Bike, context.Source);
+
+        Assert.Equal(expectedStalenessType, staleness.GetType());
+        Assert.True(staleness.CanRecompute);
+    }
+
+    [Theory]
+    [InlineData(FingerprintDifferenceCase.ProcessingVersion, typeof(SessionStaleness.ProcessingVersionChanged))]
+    [InlineData(FingerprintDifferenceCase.TrackProjectionVersion, typeof(SessionStaleness.DependencyHashChanged))]
+    [InlineData(FingerprintDifferenceCase.ProcessingDependency, typeof(SessionStaleness.DependencyHashChanged))]
+    public void Evaluate_ReturnsExpectedStaleness_WhenFingerprintInputDiffers(
+        FingerprintDifferenceCase testCase,
+        Type expectedStalenessType)
     {
         var context = CreateContext();
         var persisted = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
-        var session = context.Session with { ProcessingFingerprintJson = AppJson.Serialize(persisted) };
-        var window = new RecordedSessionDerivationWindow(context.Source.SessionId, 1, 2);
+        var bike = context.Bike;
 
-        var staleness = service.Evaluate(session, context.Setup, context.Bike, null, window: window);
-
-        Assert.IsType<SessionStaleness.MissingRawSource>(staleness);
-        Assert.True(staleness.IsStale);
-        Assert.False(staleness.CanRecompute);
-    }
-
-    [Fact]
-    public void Evaluate_ReturnsMissingRawSource_WhenSourceAndDependenciesAreMissing()
-    {
-        var context = CreateContext();
-
-        var staleness = service.Evaluate(context.Session, null, null, null);
-
-        Assert.IsType<SessionStaleness.MissingRawSource>(staleness);
-        Assert.True(staleness.IsStale);
-        Assert.False(staleness.CanRecompute);
-    }
-
-    [Fact]
-    public void Evaluate_ReturnsStaleMissingRawSource_WhenProcessedDataIsMissing()
-    {
-        var context = CreateContext();
-        var session = context.Session with { HasProcessedData = false };
-
-        var staleness = service.Evaluate(session, context.Setup, context.Bike, null);
-
-        Assert.IsType<SessionStaleness.MissingRawSource>(staleness);
-        Assert.True(staleness.IsStale);
-        Assert.False(staleness.CanRecompute);
-    }
-
-    [Fact]
-    public void Evaluate_ReturnsStaleMissingRawSource_WhenDependencyHashChanged()
-    {
-        var context = CreateContext();
-        var persisted = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
-        var session = context.Session with { ProcessingFingerprintJson = AppJson.Serialize(persisted) };
-        var changedBike = context.Bike with { HeadAngle = context.Bike.HeadAngle + 1 };
-
-        var staleness = service.Evaluate(session, context.Setup, changedBike, null);
-
-        Assert.IsType<SessionStaleness.MissingRawSource>(staleness);
-        Assert.True(staleness.IsStale);
-        Assert.False(staleness.CanRecompute);
-    }
-
-    [Fact]
-    public void Evaluate_ReturnsMissingProcessedData_WhenSourceAndDependenciesArePresent()
-    {
-        var context = CreateContext();
-        var session = context.Session with { HasProcessedData = false };
-
-        var staleness = service.Evaluate(session, context.Setup, context.Bike, context.Source);
-
-        Assert.IsType<SessionStaleness.MissingProcessedData>(staleness);
-        Assert.True(staleness.CanRecompute);
-    }
-
-    [Fact]
-    public void Evaluate_ReturnsUnknownLegacyFingerprint_WhenProcessedDataHasNoFingerprint()
-    {
-        var context = CreateContext();
-
-        var staleness = service.Evaluate(context.Session, context.Setup, context.Bike, context.Source);
-
-        Assert.IsType<SessionStaleness.UnknownLegacyFingerprint>(staleness);
-        Assert.True(staleness.CanRecompute);
-    }
-
-    [Fact]
-    public void Evaluate_ReturnsUnknownLegacyFingerprint_WhenPersistedSchemaDiffers()
-    {
-        var context = CreateContext();
-        var oldSchemaFingerprint = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source) with
+        switch (testCase)
         {
-            SchemaVersion = 1
-        };
-        var session = context.Session with { ProcessingFingerprintJson = AppJson.Serialize(oldSchemaFingerprint) };
+            case FingerprintDifferenceCase.ProcessingVersion:
+                persisted = persisted with { ProcessingVersion = TelemetryProcessingVersion.Current - 1 };
+                break;
+            case FingerprintDifferenceCase.TrackProjectionVersion:
+                persisted = persisted with { TrackProjectionVersion = 0 };
+                break;
+            case FingerprintDifferenceCase.ProcessingDependency:
+                bike = bike with { HeadAngle = bike.HeadAngle + 1 };
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(testCase), testCase, null);
+        }
 
-        var staleness = service.Evaluate(session, context.Setup, context.Bike, context.Source);
-
-        Assert.IsType<SessionStaleness.UnknownLegacyFingerprint>(staleness);
-        Assert.True(staleness.CanRecompute);
-    }
-
-    [Fact]
-    public void Evaluate_ReturnsProcessingVersionChanged_WhenPersistedVersionDiffers()
-    {
-        var context = CreateContext();
-        var oldFingerprint = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source) with
-        {
-            ProcessingVersion = TelemetryProcessingVersion.Current - 1
-        };
-        var session = context.Session with { ProcessingFingerprintJson = AppJson.Serialize(oldFingerprint) };
-
-        var staleness = service.Evaluate(session, context.Setup, context.Bike, context.Source);
-
-        var versionChanged = Assert.IsType<SessionStaleness.ProcessingVersionChanged>(staleness);
-        Assert.Equal(TelemetryProcessingVersion.Current - 1, versionChanged.Persisted);
-        Assert.Equal(TelemetryProcessingVersion.Current, versionChanged.CurrentVersion);
-        Assert.True(versionChanged.CanRecompute);
-    }
-
-    [Fact]
-    public void Evaluate_ReturnsDependencyHashChanged_WhenTrackProjectionVersionDiffers()
-    {
-        var context = CreateContext();
-        var persisted = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source) with
-        {
-            TrackProjectionVersion = 0
-        };
         var session = context.Session with { ProcessingFingerprintJson = AppJson.Serialize(persisted) };
+        var staleness = service.Evaluate(session, context.Setup, bike, context.Source);
 
-        var staleness = service.Evaluate(session, context.Setup, context.Bike, context.Source);
-
-        Assert.IsType<SessionStaleness.DependencyHashChanged>(staleness);
+        Assert.Equal(expectedStalenessType, staleness.GetType());
         Assert.True(staleness.CanRecompute);
-    }
-
-    [Fact]
-    public void Evaluate_ReturnsStaleMissingRawSource_WhenTrackProjectionVersionDiffers()
-    {
-        var context = CreateContext();
-        var persisted = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source) with
+        if (testCase is FingerprintDifferenceCase.ProcessingVersion)
         {
-            TrackProjectionVersion = 0
-        };
-        var session = context.Session with { ProcessingFingerprintJson = AppJson.Serialize(persisted) };
-
-        var staleness = service.Evaluate(session, context.Setup, context.Bike, null);
-
-        Assert.IsType<SessionStaleness.MissingRawSource>(staleness);
-        Assert.True(staleness.IsStale);
-        Assert.False(staleness.CanRecompute);
-    }
-
-    [Fact]
-    public void Evaluate_ReturnsDependencyHashChanged_WhenProcessingDependencyChanges()
-    {
-        var context = CreateContext();
-        var persisted = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
-        var session = context.Session with { ProcessingFingerprintJson = AppJson.Serialize(persisted) };
-        var changedBike = context.Bike with { HeadAngle = context.Bike.HeadAngle + 1 };
-
-        var staleness = service.Evaluate(session, context.Setup, changedBike, context.Source);
-
-        Assert.IsType<SessionStaleness.DependencyHashChanged>(staleness);
-        Assert.True(staleness.CanRecompute);
+            var versionChanged = Assert.IsType<SessionStaleness.ProcessingVersionChanged>(staleness);
+            Assert.Equal(TelemetryProcessingVersion.Current - 1, versionChanged.Persisted);
+            Assert.Equal(TelemetryProcessingVersion.Current, versionChanged.CurrentVersion);
+        }
     }
 
     [Fact]
@@ -594,6 +553,12 @@ public class ProcessingFingerprintServiceTests
         }
     }
 
+    private SessionSnapshot PersistCurrentFingerprint(TestContext context)
+    {
+        var current = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
+        return context.Session with { ProcessingFingerprintJson = AppJson.Serialize(current) };
+    }
+
     private static TestContext CreateContext()
     {
         var bike = TestSnapshots.Bike(id: Guid.NewGuid());
@@ -711,4 +676,28 @@ public class ProcessingFingerprintServiceTests
         RearSuspensionSpec RearSuspension,
         double? ShockStroke,
         string CurrentPayload);
+
+    public enum MissingRawSourceCase
+    {
+        SourceMissing,
+        DerivationWindowDiffers,
+        SourceAndDependenciesMissing,
+        ProcessedDataMissing,
+        DependencyHashChanged,
+        TrackProjectionVersionDiffers
+    }
+
+    public enum ProcessedDataCase
+    {
+        ProcessedDataMissing,
+        FingerprintMissing,
+        SchemaVersionDiffers
+    }
+
+    public enum FingerprintDifferenceCase
+    {
+        ProcessingVersion,
+        TrackProjectionVersion,
+        ProcessingDependency
+    }
 }

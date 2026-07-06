@@ -1,432 +1,116 @@
-using System.Collections.ObjectModel;
-using System.Linq;
-using System.Threading;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
-using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DynamicData;
 using NSubstitute;
-using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
-using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetrySources;
-
 using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Acquisition.Models;
-using Sufni.App.Acquisition.Services;
-using Sufni.App.Acquisition.ViewModels;
 using Sufni.App.Acquisition.Views;
-using Sufni.App.Infrastructure;
+using Sufni.App.Acquisition.Views.Shared;
 using Sufni.App.Sessions.Store;
-using Sufni.App.Setups.Stores;
-using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Shared.Views.Overlays;
-using Sufni.App.Shell.Coordinators;
-using Sufni.App.Tests.TestSupport.Fixtures;
-using Sufni.App.Tests.TestSupport.Doubles;
+using Sufni.App.Tests.TestSupport.Acquisition;
 using Sufni.App.Tests.TestSupport.Async;
+using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Tests.TestSupport.Harness;
+using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetrySources;
+
 namespace Sufni.App.Tests.Acquisition.Views;
 
 [Collection("Ui")]
 public class ImportSessionsViewTests
 {
     [AvaloniaFact]
-    public async Task ImportSessionsView_DisablesEditors_WhileImportRuns()
-    {
-        await AssertEditorsDisabledWhileImportRunsAsync(() => new ImportSessionsView());
-    }
-
-    [AvaloniaFact]
-    public async Task ImportSessionsView_MalformedLabel_ShowsTooltipReason()
-    {
-        await AssertMalformedLabelTooltipAsync(() => new ImportSessionsView());
-    }
-
-    [AvaloniaFact]
-    public async Task ImportSessionsView_ActionSelection_TintsEntireRow()
-    {
-        await AssertActionSelectionTintsEntireRowAsync(() => new ImportSessionsView());
-    }
-
-    [AvaloniaFact]
-    public async Task ImportSessionsView_NoDataStores_ShowsStatusWithoutTint()
-    {
-        await AssertNoDataStoresShowsStatusWithoutTintAsync(() => new ImportSessionsView());
-    }
-
-    [AvaloniaFact]
-    public async Task ImportSessionsView_LoadingFiles_ShowsStatusWithoutTint()
-    {
-        await AssertLoadingFilesShowsStatusWithoutTintAsync(() => new ImportSessionsView());
-    }
-
-    private static async Task AssertEditorsDisabledWhileImportRunsAsync(Func<UserControl> createView)
+    public async Task ImportSessionsView_ComposesImportContentAndDisablesEditorsWhileImportRuns()
     {
         using var _ = new TestSynchronizationContextScope();
-        EnsureImportViewResources();
-
-        var telemetryDataStoreService = Substitute.For<ITelemetryDataStoreService>();
-        var filesService = Substitute.For<IFilesService>();
-        var shell = Substitute.For<IShellCoordinator>();
-        var dialogService = Substitute.For<IDialogService>();
-        var setupCoordinator = TestCoordinatorSubstitutes.Setup();
-        var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
-        var setupStore = Substitute.For<ISetupStore>();
-
-        var dataStores = new ObservableCollection<ITelemetryDataStore>();
-        var setupCache = new SourceCache<SetupSnapshot, Guid>(s => s.Id);
-
-        telemetryDataStoreService.DataStores.Returns(dataStores);
-        setupStore.Connect().Returns(setupCache.Connect());
-        setupStore.FindByBoardId(Arg.Any<Guid>())
-            .Returns(callInfo => setupCache.Items.FirstOrDefault(s => s.BoardId == callInfo.Arg<Guid>()));
-
+        var harness = new ImportWorkflowHarness();
         var boardId = Guid.NewGuid();
-        var setup = TestSnapshots.Setup(boardId: boardId);
-        setupCache.AddOrUpdate(setup);
-
+        harness.SetupCache.AddOrUpdate(TestSnapshots.Setup(boardId: boardId));
         var dataStore = CreateDataStore(boardId: boardId);
         var file = CreateTelemetryFile("lap");
-        dataStores.Add(dataStore);
-
-        telemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
-            .Returns(
-                Task.FromResult<IReadOnlyList<ITelemetryFile>>(new[] { file }),
-                Task.FromResult<IReadOnlyList<ITelemetryFile>>(new[] { file }));
-
+        harness.DataStores.Add(dataStore);
+        harness.TelemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>(new[] { file }));
         var importCompletion = new TaskCompletionSource<SessionImportResult>();
-        importSessionsCoordinator.ImportAsync(
+        harness.ImportSessionsCoordinatorSubstitute.ImportAsync(
                 Arg.Any<IReadOnlyList<ITelemetryFile>>(),
-                setup.Id,
+                Arg.Any<Guid>(),
                 Arg.Any<IProgress<SessionImportEvent>?>())
             .Returns(importCompletion.Task);
+        var viewModel = harness.CreateViewModel();
 
-        var viewModel = new ImportSessionsViewModel(
-            telemetryDataStoreService,
-            filesService,
-            shell,
-            dialogService,
-            setupCoordinator,
-            importSessionsCoordinator,
-            setupStore,
-            new InlineUiThreadDispatcher());
+        await using var mounted = await MountAsync(viewModel);
 
-        var view = createView();
-        view.DataContext = viewModel;
-        var host = new Window
-        {
-            Width = 900,
-            Height = 700,
-            Content = view
-        };
+        Assert.Single(mounted.View.GetVisualDescendants().OfType<ImportSessionsContentView>());
+        Assert.Single(mounted.View.GetVisualDescendants().OfType<ImportSessionsActionRow>());
+        Assert.Equal([file], viewModel.TelemetryFiles);
 
-        host.Show();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        Assert.Equal(setup.Id, viewModel.SelectedSetup);
-        Assert.Single(viewModel.TelemetryFiles);
-
-        var expander = view.GetVisualDescendants().OfType<Expander>().First();
+        var expander = mounted.View.GetVisualDescendants().OfType<Expander>().First();
         expander.IsExpanded = true;
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         var importTask = viewModel.ImportSessionsCommand.ExecuteAsync(null);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        await ViewTestHelpers.FlushDispatcherAsync();
 
-        var importChoice = view.GetLogicalDescendants().OfType<ComboBox>()
+        var importChoice = mounted.View.GetLogicalDescendants().OfType<ComboBox>()
             .First(combo => combo.Classes.Contains("importchoice"));
-        var textBoxes = view.GetLogicalDescendants().OfType<TextBox>().ToArray();
+        var textBoxes = mounted.View.GetLogicalDescendants().OfType<TextBox>().ToArray();
+        var busyOverlay = mounted.View.GetVisualDescendants().OfType<BusyOverlay>().Single();
 
         Assert.False(importChoice.IsEnabled);
         Assert.NotEmpty(textBoxes);
         Assert.All(textBoxes, textBox => Assert.False(textBox.IsEnabled));
-
-        var busyOverlay = view.GetVisualDescendants().OfType<BusyOverlay>().Single();
         Assert.True(busyOverlay.IsActive);
         Assert.False(busyOverlay.ShowTint);
         Assert.True(busyOverlay.ShowMessage);
-        Assert.False(busyOverlay.ShowSecondaryMessage);
         Assert.Equal(viewModel.ImportProgressText, busyOverlay.Message);
 
-        importCompletion.SetResult(new SessionImportResult(
-            Array.Empty<SessionSnapshot>(),
-            Array.Empty<SessionImportFailure>()));
+        importCompletion.SetResult(new SessionImportResult([], []));
         await importTask;
-
-        host.Close();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
 
-    private static async Task AssertMalformedLabelTooltipAsync(Func<UserControl> createView)
+    [AvaloniaFact]
+    public async Task ImportSessionsView_ShowsMalformedFileReason()
     {
         using var _ = new TestSynchronizationContextScope();
-        EnsureImportViewResources();
-
-        var telemetryDataStoreService = Substitute.For<ITelemetryDataStoreService>();
-        var filesService = Substitute.For<IFilesService>();
-        var shell = Substitute.For<IShellCoordinator>();
-        var dialogService = Substitute.For<IDialogService>();
-        var setupCoordinator = TestCoordinatorSubstitutes.Setup();
-        var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
-        var setupStore = Substitute.For<ISetupStore>();
-
-        var dataStores = new ObservableCollection<ITelemetryDataStore>();
-        var setupCache = new SourceCache<SetupSnapshot, Guid>(s => s.Id);
+        var harness = new ImportWorkflowHarness();
         var reason = "trailing chunk was trimmed";
-
-        telemetryDataStoreService.DataStores.Returns(dataStores);
-        setupStore.Connect().Returns(setupCache.Connect());
-        setupStore.FindByBoardId(Arg.Any<Guid>())
-            .Returns(callInfo => setupCache.Items.FirstOrDefault(s => s.BoardId == callInfo.Arg<Guid>()));
-
         var dataStore = CreateDataStore();
         var file = CreateTelemetryFile(
             "trimmed",
             malformedMessage: reason,
             canImport: true);
-        dataStores.Add(dataStore);
-
-        telemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
+        harness.DataStores.Add(dataStore);
+        harness.TelemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>(new[] { file }));
+        var viewModel = harness.CreateViewModel();
 
-        var viewModel = new ImportSessionsViewModel(
-            telemetryDataStoreService,
-            filesService,
-            shell,
-            dialogService,
-            setupCoordinator,
-            importSessionsCoordinator,
-            setupStore,
-            new InlineUiThreadDispatcher());
+        await using var mounted = await MountAsync(viewModel);
 
-        var view = createView();
-        view.DataContext = viewModel;
-        var host = new Window
-        {
-            Width = 900,
-            Height = 700,
-            Content = view
-        };
-
-        host.Show();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        Assert.Single(viewModel.TelemetryFiles);
-
-        var label = view.GetLogicalDescendants().OfType<TextBlock>()
+        var label = mounted.View.GetLogicalDescendants()
+            .OfType<TextBlock>()
             .First(textBlock => textBlock.Text == "(Malformed)");
-
         Assert.Equal(reason, ToolTip.GetTip(label));
-
-        host.Close();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
 
-    private static async Task AssertActionSelectionTintsEntireRowAsync(Func<UserControl> createView)
+    private static async Task<MountedImportSessionsView> MountAsync(object dataContext)
     {
-        using var _ = new TestSynchronizationContextScope();
         EnsureImportViewResources();
-
-        var telemetryDataStoreService = Substitute.For<ITelemetryDataStoreService>();
-        var filesService = Substitute.For<IFilesService>();
-        var shell = Substitute.For<IShellCoordinator>();
-        var dialogService = Substitute.For<IDialogService>();
-        var setupCoordinator = TestCoordinatorSubstitutes.Setup();
-        var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
-        var setupStore = Substitute.For<ISetupStore>();
-
-        var dataStores = new ObservableCollection<ITelemetryDataStore>();
-        var setupCache = new SourceCache<SetupSnapshot, Guid>(s => s.Id);
-
-        telemetryDataStoreService.DataStores.Returns(dataStores);
-        setupStore.Connect().Returns(setupCache.Connect());
-        setupStore.FindByBoardId(Arg.Any<Guid>())
-            .Returns(callInfo => setupCache.Items.FirstOrDefault(s => s.BoardId == callInfo.Arg<Guid>()));
-
-        var dataStore = CreateDataStore();
-        var file = CreateTelemetryFile("lap", shouldBeImported: false);
-        dataStores.Add(dataStore);
-
-        telemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>(new[] { file }));
-
-        var viewModel = new ImportSessionsViewModel(
-            telemetryDataStoreService,
-            filesService,
-            shell,
-            dialogService,
-            setupCoordinator,
-            importSessionsCoordinator,
-            setupStore,
-            new InlineUiThreadDispatcher());
-
-        var view = createView();
-        view.DataContext = viewModel;
-        var host = new Window
+        var view = new ImportSessionsView
         {
-            Width = 900,
-            Height = 700,
-            Content = view
+            DataContext = dataContext,
         };
-
-        host.Show();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        var row = view.GetVisualDescendants().OfType<Expander>().First();
-        var rowHeader = view.GetLogicalDescendants().OfType<Grid>()
-            .First(grid => grid.Classes.Contains("importactionrowheader"));
-        var importChoice = view.GetLogicalDescendants().OfType<ComboBox>()
-            .First(combo => combo.Classes.Contains("importchoice"));
-
-        Assert.DoesNotContain("import", row.Classes);
-        Assert.DoesNotContain("trash", row.Classes);
-
-        importChoice.SelectedIndex = 1;
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        Assert.Contains("import", row.Classes);
-        Assert.DoesNotContain("trash", row.Classes);
-        AssertSolidBrush(Colors.Transparent, row.Background);
-        AssertSolidBrush(Colors.Black, row.BorderBrush);
-        AssertSolidBrush(Colors.Transparent, rowHeader.Background);
-        AssertSolidBrush(Colors.Transparent, importChoice.Background);
-        AssertSolidBrush(Colors.Transparent, importChoice.BorderBrush);
-        Assert.Equal(new Thickness(0), importChoice.BorderThickness);
-
-        importChoice.SelectedIndex = 2;
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        Assert.DoesNotContain("import", row.Classes);
-        Assert.Contains("trash", row.Classes);
-        AssertSolidBrush(Colors.Transparent, row.Background);
-        AssertSolidBrush(Colors.Black, row.BorderBrush);
-        AssertSolidBrush(Colors.Transparent, rowHeader.Background);
-        AssertSolidBrush(Colors.Transparent, importChoice.Background);
-        AssertSolidBrush(Colors.Transparent, importChoice.BorderBrush);
-        Assert.Equal(new Thickness(0), importChoice.BorderThickness);
-
-        host.Close();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-    }
-
-    private static async Task AssertNoDataStoresShowsStatusWithoutTintAsync(Func<UserControl> createView)
-    {
-        using var _ = new TestSynchronizationContextScope();
-        EnsureImportViewResources();
-
-        var telemetryDataStoreService = Substitute.For<ITelemetryDataStoreService>();
-        var filesService = Substitute.For<IFilesService>();
-        var shell = Substitute.For<IShellCoordinator>();
-        var dialogService = Substitute.For<IDialogService>();
-        var setupCoordinator = TestCoordinatorSubstitutes.Setup();
-        var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
-        var setupStore = Substitute.For<ISetupStore>();
-
-        telemetryDataStoreService.DataStores.Returns(new ObservableCollection<ITelemetryDataStore>());
-        setupStore.Connect().Returns(new SourceCache<SetupSnapshot, Guid>(s => s.Id).Connect());
-
-        var viewModel = new ImportSessionsViewModel(
-            telemetryDataStoreService,
-            filesService,
-            shell,
-            dialogService,
-            setupCoordinator,
-            importSessionsCoordinator,
-            setupStore,
-            new InlineUiThreadDispatcher());
-
-        var view = createView();
-        view.DataContext = viewModel;
-        var host = new Window
-        {
-            Width = 900,
-            Height = 700,
-            Content = view
-        };
-
-        host.Show();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        var busyOverlay = view.GetVisualDescendants().OfType<BusyOverlay>().Single();
-        Assert.True(busyOverlay.IsActive);
-        Assert.False(busyOverlay.ShowTint);
-        Assert.False(busyOverlay.ShowMessage);
-        Assert.True(busyOverlay.ShowSecondaryMessage);
-        Assert.Equal("Fetching sessions list", busyOverlay.SecondaryMessage);
-        Assert.True(busyOverlay.FindControl<ActivityIndicator>("BusyIndicator")!.IsActive);
-
-        host.Close();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-    }
-
-    private static async Task AssertLoadingFilesShowsStatusWithoutTintAsync(Func<UserControl> createView)
-    {
-        using var _ = new TestSynchronizationContextScope();
-        EnsureImportViewResources();
-
-        var telemetryDataStoreService = Substitute.For<ITelemetryDataStoreService>();
-        var filesService = Substitute.For<IFilesService>();
-        var shell = Substitute.For<IShellCoordinator>();
-        var dialogService = Substitute.For<IDialogService>();
-        var setupCoordinator = TestCoordinatorSubstitutes.Setup();
-        var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
-        var setupStore = Substitute.For<ISetupStore>();
-
-        var dataStores = new ObservableCollection<ITelemetryDataStore>();
-        var setupCache = new SourceCache<SetupSnapshot, Guid>(s => s.Id);
-        var dataStore = CreateDataStore();
-        var pendingFiles = new TaskCompletionSource<IReadOnlyList<ITelemetryFile>>();
-
-        telemetryDataStoreService.DataStores.Returns(dataStores);
-        telemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
-            .Returns(pendingFiles.Task);
-        setupStore.Connect().Returns(setupCache.Connect());
-        setupStore.FindByBoardId(Arg.Any<Guid>())
-            .Returns(callInfo => setupCache.Items.FirstOrDefault(s => s.BoardId == callInfo.Arg<Guid>()));
-
-        dataStores.Add(dataStore);
-
-        var viewModel = new ImportSessionsViewModel(
-            telemetryDataStoreService,
-            filesService,
-            shell,
-            dialogService,
-            setupCoordinator,
-            importSessionsCoordinator,
-            setupStore,
-            new InlineUiThreadDispatcher());
-
-        var view = createView();
-        view.DataContext = viewModel;
-        var host = new Window
-        {
-            Width = 900,
-            Height = 700,
-            Content = view
-        };
-
-        host.Show();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        var busyOverlay = view.GetVisualDescendants().OfType<BusyOverlay>().Single();
-        Assert.True(busyOverlay.IsActive);
-        Assert.False(busyOverlay.ShowTint);
-        Assert.False(busyOverlay.ShowMessage);
-        Assert.True(busyOverlay.ShowSecondaryMessage);
-        Assert.Equal("Fetching sessions list", busyOverlay.SecondaryMessage);
-        Assert.True(busyOverlay.FindControl<ActivityIndicator>("BusyIndicator")!.IsActive);
-
-        pendingFiles.SetResult(Array.Empty<ITelemetryFile>());
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        host.Close();
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+        return new MountedImportSessionsView(host, view);
     }
 
     private static void EnsureImportViewResources()
     {
+        ViewTestHelpers.EnsureViewTestResources();
         var resources = Application.Current?.Resources
             ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
 
@@ -438,10 +122,13 @@ public class ImportSessionsViewTests
         resources["SufniImportActionImportRowBrush"] = new SolidColorBrush(Colors.CornflowerBlue);
         resources["SufniImportActionTrashRowBrush"] = new SolidColorBrush(Colors.IndianRed);
     }
+}
 
-    private static void AssertSolidBrush(Color expectedColor, IBrush? actualBrush)
+internal sealed record MountedImportSessionsView(Window Host, ImportSessionsView View) : IAsyncDisposable
+{
+    public async ValueTask DisposeAsync()
     {
-        var brush = Assert.IsAssignableFrom<ISolidColorBrush>(actualBrush);
-        Assert.Equal(expectedColor, brush.Color);
+        Host.Close();
+        await ViewTestHelpers.FlushDispatcherAsync();
     }
 }

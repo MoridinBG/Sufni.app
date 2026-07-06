@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Reactive.Linq;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.Shared.Common;
+using Sufni.App.Tests.TestSupport.LiveDaq;
 using Sufni.Telemetry;
 using static Sufni.App.Tests.LiveDaq.Services.LiveStreaming.LiveV3ProtocolTestFrames;
 
@@ -16,74 +17,67 @@ public class LiveDaqV3ClientTests
     [Fact]
     public async Task ConnectAsync_SendsHandshakeBeforeAnyFrame()
     {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var harness = new LiveDaqClientProtocolHarness<LiveDaqV3Client>(() => new LiveDaqV3Client());
 
-        var serverTask = Task.Run(async () =>
-        {
-            using var serverClient = await listener.AcceptTcpClientAsync();
-            await using var stream = serverClient.GetStream();
-            var handshake = await ReadExactAsync(stream, LiveV3ProtocolConstants.HandshakeSize);
-            await stream.WriteAsync(LiveV3ProtocolReader.CreateServerHello(0x0102030405060708));
-            await stream.FlushAsync();
-            return handshake;
-        });
-
-        await using var client = new LiveDaqV3Client();
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
-
-        var handshake = await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.Equal(LiveV3ProtocolReader.CreateHandshake(), handshake);
-
-        await client.DisconnectAsync();
+        await harness.WithServerAsync(
+            async stream =>
+            {
+                var handshake = await LiveDaqClientProtocolHarness<LiveDaqV3Client>.ReadExactAsync(
+                    stream,
+                    LiveV3ProtocolConstants.HandshakeSize);
+                Assert.Equal(LiveV3ProtocolReader.CreateHandshake(), handshake);
+                await stream.WriteAsync(LiveV3ProtocolReader.CreateServerHello(0x0102030405060708));
+                await stream.FlushAsync();
+            },
+            async (client, port) =>
+            {
+                await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+                return true;
+            });
     }
 
-    [Fact]
-    public async Task ConnectAsync_RejectsInvalidServerHello()
+    [Theory]
+    [InlineData(ConnectFailureKind.InvalidServerHello)]
+    [InlineData(ConnectFailureKind.MismatchedDiscoveredBoardId)]
+    public async Task ConnectAsync_RejectsInvalidHello(ConnectFailureKind failureKind)
     {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-
-        var serverTask = Task.Run(async () =>
-        {
-            using var serverClient = await listener.AcceptTcpClientAsync();
-            await using var stream = serverClient.GetStream();
-            _ = await ReadExactAsync(stream, LiveV3ProtocolConstants.HandshakeSize);
-            var hello = LiveV3ProtocolReader.CreateServerHello(0x0102030405060708);
-            hello[4] = 4;
-            await stream.WriteAsync(hello);
-            await stream.FlushAsync();
-        });
-
-        await using var client = new LiveDaqV3Client();
-
-        await Assert.ThrowsAsync<FormatException>(() => client.ConnectAsync(IPAddress.Loopback.ToString(), port));
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
-    }
-
-    [Fact]
-    public async Task ConnectAsync_RejectsHelloWithMismatchedDiscoveredBoardId()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         var expectedBoardId = UuidUtil.CreateDeviceUuid("0102030405060708").ToString();
+        var harness = new LiveDaqClientProtocolHarness<LiveDaqV3Client>(() =>
+            failureKind is ConnectFailureKind.MismatchedDiscoveredBoardId
+                ? new LiveDaqV3Client(expectedBoardId)
+                : new LiveDaqV3Client());
 
-        var serverTask = Task.Run(async () =>
-        {
-            using var serverClient = await listener.AcceptTcpClientAsync();
-            await using var stream = serverClient.GetStream();
-            _ = await ReadExactAsync(stream, LiveV3ProtocolConstants.HandshakeSize);
-            await stream.WriteAsync(LiveV3ProtocolReader.CreateServerHello(0x1112131415161718));
-            await stream.FlushAsync();
-        });
+        await harness.WithServerAsync(
+            async stream =>
+            {
+                _ = await LiveDaqClientProtocolHarness<LiveDaqV3Client>.ReadExactAsync(
+                    stream,
+                    LiveV3ProtocolConstants.HandshakeSize);
+                var hello = LiveV3ProtocolReader.CreateServerHello(
+                    failureKind is ConnectFailureKind.MismatchedDiscoveredBoardId
+                        ? 0x1112131415161718UL
+                        : 0x0102030405060708UL);
+                if (failureKind is ConnectFailureKind.InvalidServerHello)
+                {
+                    hello[4] = 4;
+                }
 
-        await using var client = new LiveDaqV3Client(expectedBoardId);
+                await stream.WriteAsync(hello);
+                await stream.FlushAsync();
+            },
+            async (client, port) =>
+            {
+                if (failureKind is ConnectFailureKind.InvalidServerHello)
+                {
+                    await Assert.ThrowsAsync<FormatException>(() => client.ConnectAsync(IPAddress.Loopback.ToString(), port));
+                }
+                else
+                {
+                    await Assert.ThrowsAsync<IOException>(() => client.ConnectAsync(IPAddress.Loopback.ToString(), port));
+                }
 
-        await Assert.ThrowsAsync<IOException>(() => client.ConnectAsync(IPAddress.Loopback.ToString(), port));
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+                return true;
+            });
     }
 
     [Fact]
@@ -657,5 +651,11 @@ public class LiveDaqV3ClientTests
         }
 
         return buffer;
+    }
+
+    public enum ConnectFailureKind
+    {
+        InvalidServerHello,
+        MismatchedDiscoveredBoardId
     }
 }

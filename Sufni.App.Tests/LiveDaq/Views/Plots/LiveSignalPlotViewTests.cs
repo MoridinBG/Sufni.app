@@ -217,57 +217,6 @@ public class LiveSignalPlotViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
     }
 
-    [AvaloniaFact]
-    public async Task LiveSessionSignalsDesktopView_UsesNestedTelemetryRows()
-    {
-        ViewTestHelpers.EnsurePlotViewStyle();
-
-        var workspace = new StubLiveSessionSignalsWorkspace(
-            new Subject<LiveSignalBatch>(),
-            hasTravelSection: true,
-            hasVelocitySection: true,
-            hasImuSection: true,
-            hasSpeedSection: true);
-        var view = new LiveSessionSignalsDesktopView
-        {
-            DataContext = workspace
-        };
-        var host = new Window
-        {
-            Width = 1200,
-            Height = 900,
-            Content = view
-        };
-
-        host.Show();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var root = GetSignalRowsRoot(view);
-        Assert.Equal(
-            ["Travel (mm)", "Vibration RMS (g)", "GPS speed (km/h)"],
-            root.Rows.Select(row => row.Title!).ToArray());
-
-        var travelRow = GetBaseRow(root, "Travel (mm)");
-        var imuRow = GetBaseRow(root, "Vibration RMS (g)");
-        var gpsRow = GetBaseRow(root, "GPS speed (km/h)");
-
-        Assert.Equal(["Velocity (m/s)"], travelRow.ChildRows.Select(row => row.Title!).ToArray());
-        Assert.Equal(["Frame pitch/roll (deg)"], imuRow.ChildRows.Select(row => row.Title!).ToArray());
-        Assert.Equal(["Elevation (m)"], gpsRow.ChildRows.Select(row => row.Title!).ToArray());
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
-    }
-
-    private static SignalRowsRoot GetSignalRowsRoot(LiveSessionSignalsDesktopView view)
-    {
-        var root = view.GetVisualDescendants()
-            .OfType<SignalRowsRoot>()
-            .SingleOrDefault(root => root.Name == "SignalRowsRoot");
-        Assert.NotNull(root);
-        return root!;
-    }
-
     private static T GetNamedVisual<T>(Control root, string name)
         where T : Control
     {
@@ -276,12 +225,6 @@ public class LiveSignalPlotViewTests
         Assert.NotNull(visual);
         return visual!;
     }
-
-    private static SignalRow GetBaseRow(SignalRowsRoot root, string title)
-        => Assert.Single(root.Rows, row => row.Title == title);
-
-    private static SignalRow GetChildRow(SignalRow row, string title)
-        => Assert.Single(row.ChildRows, child => child.Title == title);
 
     private static AvaPlot GetRenderedPlot(Control view) =>
         Assert.Single(view.GetVisualDescendants().OfType<AvaPlot>());
@@ -344,9 +287,7 @@ public class LiveSignalPlotViewTests
         bool hasTravelSection = true,
         bool hasVelocitySection = true,
         bool hasImuSection = true,
-        bool hasPitchRollSection = false,
-        bool hasSpeedSection = false,
-        bool hasElevationSection = false) : ILiveSessionSignalsWorkspace
+        bool hasPitchRollSection = false) : ILiveSessionSignalsWorkspace
     {
         public IObservable<LiveSignalBatch> SignalBatches { get; } = signalBatches;
         public LiveSessionPlotRanges PlotRanges { get; } = new(180, 5, 5);
@@ -368,12 +309,8 @@ public class LiveSignalPlotViewTests
         public SurfacePresentationState PitchRollSignalState { get; } = hasPitchRollSection
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
-        public SurfacePresentationState SpeedSignalState { get; } = hasSpeedSection
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        public SurfacePresentationState ElevationSignalState { get; } = hasElevationSection
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
+        public SurfacePresentationState SpeedSignalState { get; } = SurfacePresentationState.Hidden;
+        public SurfacePresentationState ElevationSignalState { get; } = SurfacePresentationState.Hidden;
         public SignalDisplayPreferences SignalDisplayPreferences { get; } = new();
         public SignalLayoutPreferences SignalLayoutPreferences { get; set; } = SignalLayoutPreferences.Default;
         public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();

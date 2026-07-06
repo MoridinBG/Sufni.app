@@ -75,58 +75,25 @@ public class SynchronizableRepositoryTests
 
     }
 
-    [Fact]
-    public async Task DeleteAsync_AppliesCascadeRulesAndRefreshesParticipants()
+    [Theory]
+    [InlineData(RepositoryCascadeDeleteState.Live)]
+    [InlineData(RepositoryCascadeDeleteState.Tombstoned)]
+    [InlineData(RepositoryCascadeDeleteState.Missing)]
+    public async Task DeleteAsync_AppliesCascadeRulesForCoreRowState(RepositoryCascadeDeleteState state)
     {
         using var tempDatabase = new TempDatabase("delete-cascade.db");
         var sessionId = Guid.NewGuid();
         var (context, cascade, refresh) = CreateCascadeHarness(tempDatabase.DatabasePath);
         var connection = await context.GetInitializedConnectionAsync();
-        await connection.InsertAsync(new Session(sessionId, "session", "desc", null) { Updated = 10 });
-        await connection.InsertAsync(new RepositoryCascadeRow { Id = "extension", SessionId = sessionId });
-        var repository = new SynchronizableRepository<Session>(context, cascade);
-
-        await repository.DeleteAsync(sessionId);
-
-        var session = await connection.GetAsync<Session>(sessionId);
-        var extensionRow = await connection.GetAsync<RepositoryCascadeRow>("extension");
-        Assert.NotNull(session.Deleted);
-        Assert.NotNull(extensionRow.Deleted);
-        Assert.Equal(extensionRow.Deleted, extensionRow.Updated);
-        Assert.Equal(1, refresh.RefreshCount);
-    }
-
-    [Fact]
-    public async Task DeleteAsync_AppliesCascadeRules_WhenCoreRowAlreadyTombstoned()
-    {
-        using var tempDatabase = new TempDatabase("delete-cascade-tombstone.db");
-        var sessionId = Guid.NewGuid();
-        var (context, cascade, refresh) = CreateCascadeHarness(tempDatabase.DatabasePath);
-        var connection = await context.GetInitializedConnectionAsync();
-        await connection.InsertAsync(new Session(sessionId, "session", "desc", null)
+        if (state != RepositoryCascadeDeleteState.Missing)
         {
-            Updated = 10,
-            Deleted = 100
-        });
-        await connection.InsertAsync(new RepositoryCascadeRow { Id = "extension", SessionId = sessionId });
-        var repository = new SynchronizableRepository<Session>(context, cascade);
+            await connection.InsertAsync(new Session(sessionId, "session", "desc", null)
+            {
+                Updated = 10,
+                Deleted = state == RepositoryCascadeDeleteState.Tombstoned ? 100 : null
+            });
+        }
 
-        await repository.DeleteAsync(sessionId);
-
-        var session = await connection.GetAsync<Session>(sessionId);
-        var extensionRow = await connection.GetAsync<RepositoryCascadeRow>("extension");
-        Assert.Equal(100, session.Deleted);
-        Assert.NotNull(extensionRow.Deleted);
-        Assert.Equal(1, refresh.RefreshCount);
-    }
-
-    [Fact]
-    public async Task DeleteAsync_AppliesCascadeRules_WhenCoreRowIsMissing()
-    {
-        using var tempDatabase = new TempDatabase("delete-cascade-missing-core.db");
-        var sessionId = Guid.NewGuid();
-        var (context, cascade, refresh) = CreateCascadeHarness(tempDatabase.DatabasePath);
-        var connection = await context.GetInitializedConnectionAsync();
         await connection.InsertAsync(new RepositoryCascadeRow { Id = "extension", SessionId = sessionId });
         var repository = new SynchronizableRepository<Session>(context, cascade);
 
@@ -134,6 +101,18 @@ public class SynchronizableRepositoryTests
 
         var extensionRow = await connection.GetAsync<RepositoryCascadeRow>("extension");
         Assert.NotNull(extensionRow.Deleted);
+        if (state == RepositoryCascadeDeleteState.Live)
+        {
+            var session = await connection.GetAsync<Session>(sessionId);
+            Assert.NotNull(session.Deleted);
+            Assert.Equal(extensionRow.Deleted, extensionRow.Updated);
+        }
+        else if (state == RepositoryCascadeDeleteState.Tombstoned)
+        {
+            var session = await connection.GetAsync<Session>(sessionId);
+            Assert.Equal(100, session.Deleted);
+        }
+
         Assert.Equal(1, refresh.RefreshCount);
     }
 
@@ -173,6 +152,13 @@ public class SynchronizableRepositoryTests
     private sealed class TestCascadeRuleProvider(ExtensionCascadeRule rule) : IExtensionCascadeRuleProvider
     {
         public IReadOnlyList<ExtensionCascadeRule> Rules { get; } = [rule];
+    }
+
+    public enum RepositoryCascadeDeleteState
+    {
+        Live,
+        Tombstoned,
+        Missing
     }
 
     private sealed class RecordingRefreshParticipant : IExtensionStateRefreshParticipant

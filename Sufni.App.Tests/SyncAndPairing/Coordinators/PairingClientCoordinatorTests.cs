@@ -112,57 +112,29 @@ public class PairingClientCoordinatorTests
         await secureStorage.Received(1).SetStringAsync(DeviceIdKey, coordinator.DeviceId);
     }
 
-    [Fact]
-    public async Task Constructor_PrefersStoredDisplayName_OverFriendlyName()
+    [Theory]
+    [InlineData("  stored name  ", "friendly name", "stored name", false)]
+    [InlineData(null, "  friendly name  ", "friendly name", true)]
+    [InlineData(null, null, null, true)]
+    [InlineData("   ", "friendly name", "friendly name", true)]
+    public async Task Constructor_ResolvesDisplayName(
+        string? existingDisplayName,
+        string? friendlyName,
+        string? expectedDisplayName,
+        bool expectsFriendlyNameRead)
     {
         SeedInitDefaults(
-            existingDisplayName: "  stored name  ",
-            friendlyName: "friendly name");
+            existingDisplayName: existingDisplayName,
+            friendlyName: friendlyName);
 
         var coordinator = CreateCoordinator();
         await DrainInitializationAsync(coordinator);
 
-        Assert.Equal("stored name", coordinator.DisplayName);
-        _ = friendlyNameProvider.DidNotReceive().FriendlyName;
-    }
-
-    [Fact]
-    public async Task Constructor_FallsBackToFriendlyName_WhenNoStoredDisplayName()
-    {
-        SeedInitDefaults(
-            existingDisplayName: null,
-            friendlyName: "  friendly name  ");
-
-        var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
-
-        Assert.Equal("friendly name", coordinator.DisplayName);
-    }
-
-    [Fact]
-    public async Task Constructor_FallsBackToNull_WhenNeitherStoredNorFriendlyNameAvailable()
-    {
-        SeedInitDefaults(
-            existingDisplayName: null,
-            friendlyName: null);
-
-        var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
-
-        Assert.Null(coordinator.DisplayName);
-    }
-
-    [Fact]
-    public async Task Constructor_NormalizesWhitespaceStoredDisplayName_AndFallsBackToFriendlyName()
-    {
-        SeedInitDefaults(
-            existingDisplayName: "   ",
-            friendlyName: "friendly name");
-
-        var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
-
-        Assert.Equal("friendly name", coordinator.DisplayName);
+        Assert.Equal(expectedDisplayName, coordinator.DisplayName);
+        if (!expectsFriendlyNameRead)
+        {
+            _ = friendlyNameProvider.DidNotReceive().FriendlyName;
+        }
     }
 
     [Fact]
@@ -262,8 +234,16 @@ public class PairingClientCoordinatorTests
 
     // ----- ServiceAdded / ServiceRemoved -----
 
-    [Fact]
-    public async Task ServiceAdded_BuildsHttpsUrl_ForIPv4Address()
+    [Theory]
+    [InlineData("192.168.1.10", 8443, "https://192.168.1.10:8443", true)]
+    [InlineData("::ffff:192.0.2.1", 9000, "https://192.0.2.1:9000", true)]
+    [InlineData("2001:db8::1", 4321, "https://[2001:db8::1]:4321", true)]
+    [InlineData("fe80::1489:542b:5856:9669", 5575, null, false)]
+    public async Task ServiceAdded_FormsExpectedServerUrl(
+        string address,
+        int port,
+        string? expectedServerUrl,
+        bool expectedUrlChanged)
     {
         SeedInitDefaults();
         var coordinator = CreateCoordinator();
@@ -274,62 +254,10 @@ public class PairingClientCoordinatorTests
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
-            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("192.168.1.10"), 8443)));
+            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse(address), (ushort)port)));
 
-        Assert.Equal("https://192.168.1.10:8443", coordinator.ServerUrl);
-        Assert.True(urlChanged);
-    }
-
-    [Fact]
-    public async Task ServiceAdded_NormalizesIPv4MappedIPv6Address()
-    {
-        SeedInitDefaults();
-        var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
-
-        // ::ffff:192.0.2.1 is an IPv4-mapped IPv6 address.
-        var mapped = IPAddress.Parse("::ffff:192.0.2.1");
-        Assert.True(mapped.IsIPv4MappedToIPv6);
-
-        serviceDiscovery.ServiceAdded += Raise.EventWith(
-            serviceDiscovery,
-            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(mapped, 9000)));
-
-        Assert.Equal("https://192.0.2.1:9000", coordinator.ServerUrl);
-    }
-
-    [Fact]
-    public async Task ServiceAdded_BracketsGlobalIPv6Address()
-    {
-        SeedInitDefaults();
-        var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
-
-        var ipv6 = IPAddress.Parse("2001:db8::1");
-
-        serviceDiscovery.ServiceAdded += Raise.EventWith(
-            serviceDiscovery,
-            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(ipv6, 4321)));
-
-        Assert.Equal("https://[2001:db8::1]:4321", coordinator.ServerUrl);
-    }
-
-    [Fact]
-    public async Task ServiceAdded_IgnoresIPv6LinkLocalAddress()
-    {
-        SeedInitDefaults();
-        var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
-
-        var urlChanged = false;
-        coordinator.ServerUrlChanged += (_, _) => urlChanged = true;
-
-        serviceDiscovery.ServiceAdded += Raise.EventWith(
-            serviceDiscovery,
-            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("fe80::1489:542b:5856:9669"), 5575)));
-
-        Assert.Null(coordinator.ServerUrl);
-        Assert.False(urlChanged);
+        Assert.Equal(expectedServerUrl, coordinator.ServerUrl);
+        Assert.Equal(expectedUrlChanged, urlChanged);
     }
 
     [Fact]

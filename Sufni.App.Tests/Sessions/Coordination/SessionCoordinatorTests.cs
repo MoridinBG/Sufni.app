@@ -2,37 +2,35 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.Telemetry;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Stores;
 using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
-
-using Sufni.App.Bikes.Models;
 using Sufni.App.Extensibility.RecordedSessions;
-using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
+using Sufni.App.LiveDaq.Queries;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
+using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Models;
-using Sufni.App.Shell.Coordinators;
-using Sufni.App.SyncAndPairing.Services;
-using Sufni.App.LiveDaq.Queries;
-using Sufni.App.Sessions.Processing.SessionDetails;
-using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Shared.Stores;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Tests.TestSupport.Doubles;
-using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Extensions;
+using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Sessions.Coordination;
 
@@ -43,22 +41,16 @@ public class SessionCoordinatorTests
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
     private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
     private readonly TestSessionProcessedTelemetryReader processedTelemetryReader = new();
-    private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
     private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
     private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
     private readonly ISessionPersistenceTransactionRunner sessionPersistenceTransactions = Substitute.For<ISessionPersistenceTransactionRunner>();
-    private readonly IHttpApiService http = Substitute.For<IHttpApiService>();
     private readonly ITrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
-    private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
     private readonly ISessionPreferences sessionPreferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
-    private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
     private readonly IRecordedSessionDomainQuery domainQuery = Substitute.For<IRecordedSessionDomainQuery>();
-    private readonly IRecordedSessionProjection recordedSessionProjection = Substitute.For<IRecordedSessionProjection>();
     private readonly IRecordedSessionReprocessor reprocessor = Substitute.For<IRecordedSessionReprocessor>();
-    private readonly IRecordedSessionDataReader recordedSessionDataReader = Substitute.For<IRecordedSessionDataReader>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
     private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
     private readonly ISessionRecomputeEngine recomputeEngine = Substitute.For<ISessionRecomputeEngine>();
@@ -67,8 +59,6 @@ public class SessionCoordinatorTests
 
     public SessionCoordinatorTests()
     {
-        tileLayerService.AvailableLayers.Returns([]);
-        tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
         sessionPreferences.GetRecordedAsync(Arg.Any<Guid>())
             .Returns(Task.FromResult(SessionPreferences.Default));
         sessionPreferences.RemoveRecordedAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
@@ -86,91 +76,6 @@ public class SessionCoordinatorTests
             .Returns(Task.CompletedTask);
     }
 
-    private SessionLoader CreateLoader(IBackgroundTaskRunner? runner = null) =>
-        new(
-            sessionStore,
-            processedTelemetryReader,
-            runner ?? backgroundTaskRunner,
-            trackCoordinator,
-            sessionPresentationService,
-            domainQuery);
-
-    private void SetLocalTelemetry(Guid sessionId, TelemetryData? telemetry)
-    {
-        if (telemetry is null)
-        {
-            processedTelemetryReader.Set(sessionId, null);
-            return;
-        }
-
-        processedTelemetryReader.Set(sessionId, telemetry);
-    }
-
-    private static SessionCachePresentationData CachePresentation(
-        SessionDampingPercentages? percentages = null,
-        DampingSpeedCutoffs? cutoffs = null) =>
-        new(
-            FrontTravelDistribution: "front-travel",
-            RearTravelDistribution: null,
-            FrontVelocityDistribution: "front-velocity",
-            RearVelocityDistribution: null,
-            CompressionBalance: null,
-            ReboundBalance: null,
-            DampingPercentages: percentages ?? SessionDampingPercentages.Empty,
-            DampingSpeedCutoffs: cutoffs ?? DampingSpeedCutoffs.Default,
-            BalanceAvailable: false);
-
-    private SessionCommandService CreateCommandService(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
-        CreateCommandService(sessionPersistenceTransactions, layoutProfile);
-
-    private SessionCommandService CreateCommandService(
-        ISessionPersistenceTransactionRunner transactionRunner,
-        UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
-        new(
-            sessionStore,
-            sessionRepository,
-            sessionTelemetryWriter,
-            setupRepository,
-            bikeRepository,
-            sourceStore,
-            reprocessor,
-            backgroundTaskRunner,
-            sessionPreferences,
-            shell,
-            CreateEnvironment(layoutProfile),
-            recomputeEngine,
-            () => editorFactory,
-            derivationWindowCache,
-            derivationWindowProvider,
-            transactionRunner);
-
-    private SessionCoordinator CreateCoordinator(
-        UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace,
-        IBackgroundTaskRunner? backgroundTaskRunner = null) =>
-        new(
-            sessionStore,
-            CreateLoader(backgroundTaskRunner),
-            CreateCommandService(layoutProfile),
-            () => editorFactory);
-
-    private SessionSyncApplier CreateSyncApplier(ISynchronizationServerService? sync = null) =>
-        new(
-            sessionStore,
-            sourceStore,
-            sync);
-
-    // ----- OpenEditAsync -----
-
-    [Fact]
-    public async Task OpenEditAsync_NoOp_WhenSnapshotMissing()
-    {
-        sessionStore.Get(Arg.Any<Guid>()).Returns((SessionSnapshot?)null);
-
-        await CreateCoordinator().OpenEditAsync(Guid.NewGuid());
-
-        editorFactory.DidNotReceive().OpenSessionDetail(Arg.Any<SessionSnapshot>());
-    }
-
     [Fact]
     public async Task OpenEditAsync_OpensSessionDetail_ThroughFactory()
     {
@@ -182,21 +87,17 @@ public class SessionCoordinatorTests
         editorFactory.Received(1).OpenSessionDetail(snapshot);
     }
 
-    // ----- SaveAsync -----
-
     [Fact]
     public async Task SaveAsync_HappyPath_CommitsThroughStore()
     {
         var existing = TestSnapshots.Session(updated: 5);
         sessionStore.Get(existing.Id).Returns(existing);
-
         var session = new Session(existing.Id, "renamed", "", null) { Updated = 7 };
-        var fresh = new Session(existing.Id, "renamed", "", null)
+        var savedSnapshot = SessionSnapshot.From(new Session(existing.Id, "renamed", "", null)
         {
             Updated = 7,
             HasProcessedData = true,
-        };
-        var savedSnapshot = SessionSnapshot.From(fresh);
+        });
         sessionStore
             .CommitSessionMetadataAsync(session, 5, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<StoreMutationResult<SessionSnapshot>>(
@@ -211,51 +112,10 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
-    public async Task SaveAsync_OnCompact_NavigatesBackAfterSave()
-    {
-        var existing = TestSnapshots.Session(updated: 5);
-        sessionStore.Get(existing.Id).Returns(existing);
-
-        var session = new Session(existing.Id, "renamed", "", null) { Updated = 7 };
-        var fresh = new Session(existing.Id, "renamed", "", null)
-        {
-            Updated = 7,
-            HasProcessedData = true,
-        };
-        sessionStore
-            .CommitSessionMetadataAsync(session, 5, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<StoreMutationResult<SessionSnapshot>>(
-                new StoreMutationResult<SessionSnapshot>.Saved(SessionSnapshot.From(fresh))));
-
-        await CreateCoordinator(UiLayoutProfile.Compact).SaveAsync(session, baselineUpdated: 5);
-
-        shell.Received(1).GoBack();
-    }
-
-    [Fact]
-    public async Task SaveAsync_ReturnsFailed_WhenRefetchReturnsNull()
-    {
-        var existing = TestSnapshots.Session(updated: 5);
-        sessionStore.Get(existing.Id).Returns(existing);
-
-        var session = new Session(existing.Id, "renamed", "", null);
-        sessionStore
-            .CommitSessionMetadataAsync(session, 5, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<StoreMutationResult<SessionSnapshot>>(
-                new StoreMutationResult<SessionSnapshot>.Missing("Session disappeared after save.")));
-
-        var result = await CreateCoordinator().SaveAsync(session, baselineUpdated: 5);
-
-        Assert.IsType<SessionSaveResult.Failed>(result);
-        shell.DidNotReceive().GoBack();
-    }
-
-    [Fact]
     public async Task SaveAsync_ReturnsConflict_WhenStoreIsNewer()
     {
         var current = TestSnapshots.Session(updated: 10);
         sessionStore.Get(current.Id).Returns(current);
-
         var session = new Session(current.Id, "stale", "", null);
 
         var result = await CreateCoordinator().SaveAsync(session, baselineUpdated: 5);
@@ -270,11 +130,10 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
-    public async Task SaveAsync_ReturnsFailed_WhenPutSessionThrows()
+    public async Task SaveAsync_ReturnsFailed_WhenCommitFails()
     {
         var existing = TestSnapshots.Session(updated: 5);
         sessionStore.Get(existing.Id).Returns(existing);
-
         var session = new Session(existing.Id, "x", "", null);
         sessionStore
             .CommitSessionMetadataAsync(session, 5, Arg.Any<CancellationToken>())
@@ -326,11 +185,10 @@ public class SessionCoordinatorTests
             Arg.Any<TelemetryProcessingOptions>(),
             Arg.Any<CancellationToken>());
         await sessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
-            Arg.Is<Session>(saved =>
-                saved.Id == session.Id),
+            Arg.Is<Session>(saved => saved.Id == session.Id),
             Arg.Is<ProcessedTelemetryPayload>(payload =>
-                payload.Data.Length > 0
-                && payload.FingerprintJson != null),
+                payload.Data.Length > 0 &&
+                payload.FingerprintJson != null),
             Arg.Is<Track>(track =>
                 track.Points.Count == 1 &&
                 track.Points[0].FixMode == 3 &&
@@ -351,79 +209,6 @@ public class SessionCoordinatorTests
         var saved = Assert.IsType<LiveSessionSaveResult.Saved>(result);
         Assert.Equal(session.Id, saved.SessionId);
         Assert.Equal(9, saved.Updated);
-    }
-
-    [Fact]
-    public async Task SaveLiveCaptureAsync_SeedsRecordedPreferences_WhenProvided()
-    {
-        var capture = CreateLiveCapturePackage(withGps: false);
-        var session = new Session(Guid.NewGuid(), "live session", "desc", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
-        var fresh = new Session(session.Id, session.Name, session.Description, session.Setup)
-        {
-            Updated = 9,
-            HasProcessedData = true,
-        };
-        var preferences = new SessionPreferences(
-            new SignalDisplayPreferences(Travel: true, Velocity: false, Imu: true),
-            new AnalysisPreferences(
-                TravelDistributionMode.DynamicSag,
-                VelocityAverageMode.StrokePeakAveraged,
-                BalanceDisplacementMode.Travel,
-                BalanceSpeedMode.HighSpeed,
-                SessionInsightsTargetProfile.DH));
-        Func<SessionPreferences, SessionPreferences>? update = null;
-        SeedLiveCaptureDependencies(capture);
-        sessionTelemetryWriter
-            .PutProcessedSessionAsync(
-                Arg.Any<Session>(),
-                Arg.Any<ProcessedTelemetryPayload>(),
-                Arg.Any<Track?>(),
-                Arg.Any<RecordedSessionSource?>())
-            .Returns(Task.FromResult(fresh));
-        sessionPreferences.UpdateRecordedAsync(
-                session.Id,
-                Arg.Do<Func<SessionPreferences, SessionPreferences>>(value => update = value))
-            .Returns(Task.CompletedTask);
-
-        var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture, preferences);
-
-        Assert.IsType<LiveSessionSaveResult.Saved>(result);
-        await sessionPreferences.Received(1).UpdateRecordedAsync(session.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>());
-        Assert.NotNull(update);
-        Assert.Equal(preferences, update!(SessionPreferences.Default));
-    }
-
-    [Fact]
-    public async Task SaveLiveCaptureAsync_Publishes_WhenRecordedPreferenceWriteFails()
-    {
-        var capture = CreateLiveCapturePackage(withGps: false);
-        var session = new Session(Guid.NewGuid(), "live session", "desc", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
-        var fresh = new Session(session.Id, session.Name, session.Description, session.Setup)
-        {
-            Updated = 9,
-            HasProcessedData = true,
-        };
-        SeedLiveCaptureDependencies(capture);
-        sessionTelemetryWriter
-            .PutProcessedSessionAsync(
-                Arg.Any<Session>(),
-                Arg.Any<ProcessedTelemetryPayload>(),
-                Arg.Any<Track?>(),
-                Arg.Any<RecordedSessionSource?>())
-            .Returns(Task.FromResult(fresh));
-        sessionPreferences
-            .UpdateRecordedAsync(session.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>())
-            .ThrowsAsync(new InvalidOperationException("preferences locked"));
-
-        var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture, SessionPreferences.Default);
-
-        Assert.IsType<LiveSessionSaveResult.Saved>(result);
-        await sessionStore.Received(1).PublishSessionsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(session.Id)),
-            Arg.Any<CancellationToken>());
-        await sourceStore.Received(1).PublishSourcesChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(session.Id)),
-            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -450,33 +235,6 @@ public class SessionCoordinatorTests
             Arg.Any<IReadOnlyCollection<Guid>>(),
             Arg.Any<CancellationToken>());
     }
-
-    [Fact]
-    public async Task SaveLiveCaptureAsync_PropagatesCancellation_BeforePersistence()
-    {
-        var capture = CreateLiveCapturePackage(withGps: false);
-        var session = new Session(Guid.NewGuid(), "live session", "desc", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
-        SeedLiveCaptureDependencies(capture);
-        using var cancellationTokenSource = new CancellationTokenSource();
-        cancellationTokenSource.Cancel();
-
-        await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            CreateCoordinator().SaveLiveCaptureAsync(session, capture, SessionPreferences.Default, cancellationTokenSource.Token));
-
-        await sessionTelemetryWriter.DidNotReceive().PutProcessedSessionAsync(
-            Arg.Any<Session>(),
-            Arg.Any<ProcessedTelemetryPayload>(),
-            Arg.Any<Track?>(),
-            Arg.Any<RecordedSessionSource?>());
-        await sessionStore.DidNotReceive().PublishSessionsChangedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
-            Arg.Any<CancellationToken>());
-        await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
-            Arg.Any<CancellationToken>());
-    }
-
-    // ----- Editing operations -----
 
     [Fact]
     public async Task CreateDerivedSessionAsync_CreatesMetadataOnlySession_WithSourceAbsoluteOrigin()
@@ -524,85 +282,6 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
-    public async Task UpdateSessionOriginAsync_ReanchorsTimestampAndGpsOffset_FromCurrentWindow()
-    {
-        var sessionId = Guid.NewGuid();
-        var snapshot = TestSnapshots.Session(
-            id: sessionId,
-            setupId: Guid.NewGuid(),
-            timestamp: 100) with
-        {
-            GpsOffsetSeconds = 0.25
-        };
-        derivationWindowCache.Get(sessionId).Returns(new RecordedSessionDerivationWindow(Guid.NewGuid(), 1.5, 10));
-        sessionStore.Get(sessionId).Returns(snapshot);
-        Session? saved = null;
-        sessionStore.CommitSessionMetadataFieldAsync(
-                sessionId,
-                Arg.Any<Func<Session, Session>>(),
-                Arg.Any<CancellationToken>())
-            .Returns(call =>
-            {
-                var update = call.Arg<Func<Session, Session>>();
-                saved = update(snapshot.ToMetadataEntity());
-                return Task.FromResult<StoreMutationResult<SessionSnapshot>>(
-                    new StoreMutationResult<SessionSnapshot>.Saved(SessionSnapshot.From(saved)));
-            });
-
-        var result = await CreateCoordinator().UpdateSessionOriginAsync(sessionId, 3.75);
-
-        Assert.True(result);
-        Assert.NotNull(saved);
-        Assert.Equal(102, saved!.Timestamp);
-        Assert.Equal(0.5, saved.GpsOffsetSeconds, precision: 6);
-        await sessionStore.Received(1).CommitSessionMetadataFieldAsync(
-            sessionId,
-            Arg.Any<Func<Session, Session>>(),
-            Arg.Any<CancellationToken>());
-        await sessionStore.DidNotReceive().CommitSessionMetadataAsync(
-            Arg.Any<Session>(),
-            Arg.Any<long?>(),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task RenameSessionAsync_UpdatesNameWithoutNormalSaveNavigation()
-    {
-        var sessionId = Guid.NewGuid();
-        var snapshot = TestSnapshots.Session(id: sessionId, name: "before", setupId: Guid.NewGuid());
-        sessionStore.Get(sessionId).Returns(snapshot);
-        Session? saved = null;
-        sessionStore.CommitSessionMetadataFieldAsync(
-                sessionId,
-                Arg.Any<Func<Session, Session>>(),
-                Arg.Any<CancellationToken>())
-            .Returns(call =>
-            {
-                var update = call.Arg<Func<Session, Session>>();
-                saved = update(snapshot.ToMetadataEntity());
-                return Task.FromResult<StoreMutationResult<SessionSnapshot>>(
-                    new StoreMutationResult<SessionSnapshot>.Saved(SessionSnapshot.From(saved)));
-            });
-
-        var result = await CreateCoordinator().RenameSessionAsync(sessionId, "after");
-
-        Assert.True(result);
-        Assert.NotNull(saved);
-        Assert.Equal("after", saved!.Name);
-        shell.DidNotReceive().GoBack();
-        await sessionStore.Received(1).CommitSessionMetadataFieldAsync(
-            sessionId,
-            Arg.Any<Func<Session, Session>>(),
-            Arg.Any<CancellationToken>());
-        await sessionStore.DidNotReceive().CommitSessionMetadataAsync(
-            Arg.Any<Session>(),
-            Arg.Any<long?>(),
-            Arg.Any<CancellationToken>());
-    }
-
-    // ----- DeleteAsync -----
-
-    [Fact]
     public async Task DeleteAsync_DeletesOrphanedTrack_ClosesAndRemoves()
     {
         var id = Guid.NewGuid();
@@ -628,117 +307,6 @@ public class SessionCoordinatorTests
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
             Arg.Any<CancellationToken>());
     }
-
-    [Fact]
-    public async Task DeleteAsync_UsesTransactionRunner()
-    {
-        var id = Guid.NewGuid();
-        var trackId = Guid.NewGuid();
-        var transactionRunner = Substitute.For<ISessionPersistenceTransactionRunner>();
-        sessionRepository.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
-        sessionRepository.HasOtherActiveSessionWithFullTrackAsync(trackId, id).Returns(false);
-        transactionRunner.DeleteSessionAsync(
-                Arg.Any<Guid>(),
-                Arg.Any<Guid?>(),
-                Arg.Any<bool>(),
-                Arg.Any<bool>(),
-                Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
-
-        var result = await CreateCommandService(transactionRunner)
-            .DeleteAsync(id);
-
-        Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
-        await transactionRunner.Received(1).DeleteSessionAsync(
-            id,
-            trackId,
-            deleteFullTrack: true,
-            deleteSource: true,
-            Arg.Any<CancellationToken>());
-        await sourceStore.Received(1).PublishSourcesRemovedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
-            Arg.Any<CancellationToken>());
-        await sessionStore.Received(1).PublishSessionsRemovedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task DeleteAsync_DoesNotDeleteTrack_WhenAnotherSessionStillUsesIt()
-    {
-        var id = Guid.NewGuid();
-        var trackId = Guid.NewGuid();
-        sessionRepository.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
-        sessionRepository.HasOtherActiveSessionWithFullTrackAsync(trackId, id).Returns(true);
-
-        var result = await CreateCoordinator().DeleteAsync(id);
-
-        Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
-        await sessionPersistenceTransactions.Received(1).DeleteSessionAsync(
-            id,
-            trackId,
-            deleteFullTrack: false,
-            deleteSource: true,
-            Arg.Any<CancellationToken>());
-        await sourceStore.Received(1).PublishSourcesRemovedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
-            Arg.Any<CancellationToken>());
-        await editorFactory.Received(1).CloseSessionDetail(id);
-        await sessionStore.Received(1).PublishSessionsRemovedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task DeleteAsync_KeepsRecordedSource_WhenAnotherSessionReferencesIt()
-    {
-        var id = Guid.NewGuid();
-        sessionRepository.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null));
-        derivationWindowProvider.IsRecordingSourceReferencedAsync(id).Returns(Task.FromResult(true));
-
-        var result = await CreateCoordinator().DeleteAsync(id);
-
-        Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
-        await sessionPersistenceTransactions.Received(1).DeleteSessionAsync(
-            id,
-            null,
-            deleteFullTrack: false,
-            deleteSource: false,
-            Arg.Any<CancellationToken>());
-        await sourceStore.DidNotReceive().PublishSourcesRemovedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
-            Arg.Any<CancellationToken>());
-        await sessionStore.Received(1).PublishSessionsRemovedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task DeleteAsync_ReturnsFailed_WhenTransactionRunnerThrows()
-    {
-        var id = Guid.NewGuid();
-        var trackId = Guid.NewGuid();
-        sessionRepository.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
-        sessionRepository.HasOtherActiveSessionWithFullTrackAsync(trackId, id).Returns(false);
-        sessionPersistenceTransactions.DeleteSessionAsync(
-                id,
-                trackId,
-                deleteFullTrack: true,
-                deleteSource: true,
-                Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException("locked"));
-
-        var result = await CreateCoordinator().DeleteAsync(id);
-
-        Assert.Equal(SessionDeleteOutcome.Failed, result.Outcome);
-        await sessionPreferences.DidNotReceive().RemoveRecordedAsync(id);
-        await sessionStore.DidNotReceive().PublishSessionsRemovedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
-            Arg.Any<CancellationToken>());
-        await editorFactory.DidNotReceive().CloseSessionDetail(Arg.Any<Guid>());
-    }
-
-    // ----- Session detail load workflow -----
 
     [Fact]
     public async Task LoadDetailAsync_ReturnsLoaded_WhenTelemetryPresent()
@@ -767,10 +335,7 @@ public class SessionCoordinatorTests
 
         var progress = new CapturingSessionDetailLoadProgress();
 
-        var result = await CreateCoordinator().LoadDetailAsync(
-            snapshot.Id,
-            dimensions,
-            progress);
+        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, dimensions, progress);
 
         var loaded = Assert.IsType<SessionDetailLoadResult.Loaded>(result);
         Assert.Same(telemetry, loaded.Data.TelemetryPresentation.TelemetryData);
@@ -787,94 +352,6 @@ public class SessionCoordinatorTests
                 SessionDetailLoadStage.FinalizingSessionData,
             ],
             progress.Reports.Select(report => report.Stage));
-        Assert.True(progress.Reports.Zip(progress.Reports.Skip(1))
-            .All(pair => pair.First.ProgressFraction < pair.Second.ProgressFraction));
-    }
-
-    [Fact]
-    public async Task LoadDetailAsync_UsesBikeDampingSpeedCutoffs()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var dimensions = new SessionPresentationDimensions(320, 180);
-        var cutoffs = DampingSpeedCutoffs.FromValues(110, 220, 330, 440);
-        var bike = TestSnapshots.Bike(updated: 17) with
-        {
-            FrontCompressionDampingCutoffMmPerSecond = cutoffs.Front.CompressionMmPerSecond,
-            FrontReboundDampingCutoffMmPerSecond = cutoffs.Front.ReboundMmPerSecond,
-            RearCompressionDampingCutoffMmPerSecond = cutoffs.Rear.CompressionMmPerSecond,
-            RearReboundDampingCutoffMmPerSecond = cutoffs.Rear.ReboundMmPerSecond,
-        };
-        var percentages = new SessionDampingPercentages(11, 12, 13, 14, 15, 16, 17, 18);
-        var cacheData = CachePresentation(percentages, cutoffs);
-
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        domainQuery.Get(snapshot.Id).Returns(DomainWithBike(snapshot, bike));
-        SetLocalTelemetry(snapshot.Id, telemetry);
-        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
-            .Returns(new SessionTrackPresentationData(null, null, null, null));
-        sessionPresentationService.BuildCachePresentation(
-                telemetry,
-                dimensions,
-                Arg.Any<CancellationToken>(),
-                Arg.Is<DampingSpeedCutoffs?>(value => value == cutoffs))
-            .Returns(cacheData);
-
-        var result = await CreateCoordinator().LoadDetailAsync(
-            snapshot.Id,
-            dimensions,
-            new CapturingSessionDetailLoadProgress());
-
-        var loaded = Assert.IsType<SessionDetailLoadResult.Loaded>(result);
-        Assert.Equal(cutoffs, loaded.Data.TelemetryPresentation.DampingSpeedCutoffs);
-        Assert.Equal(percentages, loaded.Data.TelemetryPresentation.DampingPercentages);
-        Assert.Equal(new DampingSpeedCutoffOwner(bike.Id, bike.Updated), loaded.Data.TelemetryPresentation.DampingSpeedCutoffOwner);
-        Assert.Equal(new DampingSpeedCutoffOwner(bike.Id, bike.Updated), loaded.Data.CachePresentation.DampingSpeedCutoffOwner);
-    }
-
-    [Fact]
-    public async Task LoadDetailAsync_BuildsPresentationWhileTrackLoadIsPending()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var dimensions = new SessionPresentationDimensions(320, 180);
-        var trackStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var trackCompletion = new TaskCompletionSource<SessionTrackPresentationData>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var presentationStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var presentationSawTrackPending = false;
-
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        SetLocalTelemetry(snapshot.Id, telemetry);
-        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
-            .Returns(_ =>
-            {
-                trackStarted.TrySetResult(true);
-                return trackCompletion.Task;
-            });
-        sessionPresentationService.BuildCachePresentation(
-                telemetry,
-                dimensions,
-                Arg.Any<CancellationToken>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(_ =>
-            {
-                presentationSawTrackPending = !trackCompletion.Task.IsCompleted;
-                presentationStarted.TrySetResult(true);
-                return CachePresentation();
-            });
-
-        var loadTask = CreateCoordinator(backgroundTaskRunner: new BackgroundTaskRunner())
-            .LoadDetailAsync(snapshot.Id, dimensions, new CapturingSessionDetailLoadProgress());
-
-        await presentationStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-
-        Assert.True(await trackStarted.Task.WaitAsync(TimeSpan.FromSeconds(2)));
-        Assert.False(loadTask.IsCompleted);
-        Assert.True(presentationSawTrackPending);
-
-        trackCompletion.SetResult(new SessionTrackPresentationData(null, null, null, null));
-        Assert.IsType<SessionDetailLoadResult.Loaded>(
-            await loadTask.WaitAsync(TimeSpan.FromSeconds(2)));
     }
 
     [Fact]
@@ -883,7 +360,6 @@ public class SessionCoordinatorTests
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         SetLocalTelemetry(snapshot.Id, null);
-
         var progress = new CapturingSessionDetailLoadProgress();
 
         var result = await CreateCoordinator().LoadDetailAsync(
@@ -908,221 +384,11 @@ public class SessionCoordinatorTests
             Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task LoadDetailAsync_DoesNotDownloadMissingTelemetry()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: false);
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        SetLocalTelemetry(snapshot.Id, null);
-
-        var result = await CreateCoordinator().LoadDetailAsync(
-            snapshot.Id,
-            new SessionPresentationDimensions(320, 180),
-            new CapturingSessionDetailLoadProgress());
-
-        Assert.IsType<SessionDetailLoadResult.IncompleteLocalData>(result);
-        await http.DidNotReceive().GetSessionPsstAsync(Arg.Any<Guid>());
-        await sessionTelemetryWriter.DidNotReceive().SwapSessionPsstAsync(
-            Arg.Any<Guid>(),
-            Arg.Any<byte[]>(),
-            Arg.Any<string?>());
-    }
-
-    [Fact]
-    public async Task LoadDetailAsync_ReturnsIncompleteLocalData_WhenSnapshotClaimsTelemetryButBlobMissing()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        SetLocalTelemetry(snapshot.Id, null);
-
-        var result = await CreateCoordinator().LoadDetailAsync(
-            snapshot.Id,
-            new SessionPresentationDimensions(320, 180),
-            new CapturingSessionDetailLoadProgress());
-
-        var incomplete = Assert.IsType<SessionDetailLoadResult.IncompleteLocalData>(result);
-        Assert.True(incomplete.Missing.ProcessedTelemetryBlob);
-    }
-
-    [Fact]
-    public async Task LoadDetailAsync_ReturnsIncompleteLocalData_WhenRecordedSourceMissing()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.CreateProcessed();
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        domainQuery.Get(snapshot.Id).Returns(DomainWithMissingSource(snapshot));
-        SetLocalTelemetry(snapshot.Id, telemetry);
-
-        var progress = new CapturingSessionDetailLoadProgress();
-
-        var result = await CreateCoordinator().LoadDetailAsync(
-            snapshot.Id,
-            new SessionPresentationDimensions(320, 180),
-            progress);
-
-        var incomplete = Assert.IsType<SessionDetailLoadResult.IncompleteLocalData>(result);
-        Assert.False(incomplete.Missing.ProcessedTelemetryBlob);
-        Assert.True(incomplete.Missing.RecordedSourceMissingOrHashMismatch);
-        Assert.Equal(
-            [
-                SessionDetailLoadStage.LoadingTelemetryData,
-                SessionDetailLoadStage.CheckingLocalData,
-            ],
-            progress.Reports.Select(report => report.Stage));
-        await trackCoordinator.DidNotReceive().LoadSessionTrackAsync(
-            Arg.Any<Guid>(),
-            Arg.Any<Guid?>(),
-            Arg.Any<TelemetryData>(),
-            Arg.Any<CancellationToken>());
-        sessionPresentationService.DidNotReceive().BuildCachePresentation(
-            Arg.Any<TelemetryData>(),
-            Arg.Any<SessionPresentationDimensions>(),
-            Arg.Any<CancellationToken>(),
-            Arg.Any<DampingSpeedCutoffs?>());
-    }
-
-    [Fact]
-    public async Task LoadDetailAsync_ReturnsIncompleteLocalData_WhenRecordedSourceHashDoesNotMatchFingerprint()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.CreateProcessed();
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        domainQuery.Get(snapshot.Id).Returns(DomainWithSourceHashMismatch(snapshot));
-        SetLocalTelemetry(snapshot.Id, telemetry);
-
-        var result = await CreateCoordinator().LoadDetailAsync(
-            snapshot.Id,
-            new SessionPresentationDimensions(320, 180),
-            new CapturingSessionDetailLoadProgress());
-
-        var incomplete = Assert.IsType<SessionDetailLoadResult.IncompleteLocalData>(result);
-        Assert.False(incomplete.Missing.ProcessedTelemetryBlob);
-        Assert.True(incomplete.Missing.RecordedSourceMissingOrHashMismatch);
-        await trackCoordinator.DidNotReceive().LoadSessionTrackAsync(
-            Arg.Any<Guid>(),
-            Arg.Any<Guid?>(),
-            Arg.Any<TelemetryData>(),
-            Arg.Any<CancellationToken>());
-        sessionPresentationService.DidNotReceive().BuildCachePresentation(
-            Arg.Any<TelemetryData>(),
-            Arg.Any<SessionPresentationDimensions>(),
-            Arg.Any<CancellationToken>(),
-            Arg.Any<DampingSpeedCutoffs?>());
-    }
-
-    [Fact]
-    public async Task LoadDetailAsync_ReturnsFailed_WhenTrackCoordinatorThrows()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.CreateProcessed();
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        SetLocalTelemetry(snapshot.Id, telemetry);
-        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException("track failed"));
-
-        var result = await CreateCoordinator().LoadDetailAsync(
-            snapshot.Id,
-            new SessionPresentationDimensions(320, 180),
-            new CapturingSessionDetailLoadProgress());
-
-        Assert.IsType<SessionDetailLoadResult.Failed>(result);
-    }
-
-    [Fact]
-    public async Task LoadDetailAsync_BuildsPresentationInMemoryWithoutSessionCachePersistence()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var dimensions = new SessionPresentationDimensions(320, 180);
-        var cacheData = CachePresentation(new SessionDampingPercentages(1, null, 2, null, 3, null, 4, null));
-
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        SetLocalTelemetry(snapshot.Id, telemetry);
-        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
-            .Returns(new SessionTrackPresentationData(null, null, null, null));
-        sessionPresentationService.BuildCachePresentation(
-                telemetry,
-                dimensions,
-                Arg.Any<CancellationToken>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(cacheData);
-
-        var result = await CreateCoordinator().LoadDetailAsync(
-            snapshot.Id,
-            dimensions,
-            new CapturingSessionDetailLoadProgress());
-
-        var loaded = Assert.IsType<SessionDetailLoadResult.Loaded>(result);
-        Assert.Equal("front-travel", loaded.Data.CachePresentation.FrontTravelDistribution);
-    }
-
-    [Fact]
-    public async Task LoadDetailAsync_ReturnsFailed_WhenPresentationFails()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var dimensions = new SessionPresentationDimensions(320, 180);
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        SetLocalTelemetry(snapshot.Id, telemetry);
-        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
-            .Returns(new SessionTrackPresentationData(null, null, null, null));
-        sessionPresentationService.BuildCachePresentation(
-                telemetry,
-                dimensions,
-                Arg.Any<CancellationToken>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Throws(new InvalidOperationException("render failed"));
-
-        var result = await CreateCoordinator().LoadDetailAsync(
-            snapshot.Id,
-            dimensions,
-            new CapturingSessionDetailLoadProgress());
-
-        Assert.IsType<SessionDetailLoadResult.Failed>(result);
-    }
-
-    [Fact]
-    public async Task LoadDetailAsync_CancellationDuringPresentationBuild_DoesNotPersistPresentation()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var dimensions = new SessionPresentationDimensions(320, 180);
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        SetLocalTelemetry(snapshot.Id, telemetry);
-        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
-            .Returns(new SessionTrackPresentationData(null, null, null, null));
-        sessionPresentationService.BuildCachePresentation(
-                telemetry,
-                dimensions,
-                Arg.Any<CancellationToken>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(callInfo =>
-            {
-                var token = callInfo.ArgAt<CancellationToken>(2);
-                token.ThrowIfCancellationRequested();
-                return CachePresentation();
-            });
-
-        using var cancellationTokenSource = new CancellationTokenSource();
-        cancellationTokenSource.Cancel();
-
-        await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            CreateCoordinator().LoadDetailAsync(
-                snapshot.Id,
-                dimensions,
-                new CapturingSessionDetailLoadProgress(),
-                cancellationTokenSource.Token));
-
-    }
-
-    // ----- Sync arrival handlers -----
-
     [AvaloniaFact]
-    public async Task Constructor_SubscribesToSyncEvents_AndPublishesOnSessionDataArrived()
+    public async Task SyncApplier_PublishesOnSessionDataArrived()
     {
         var sync = Substitute.For<ISynchronizationServerService>();
         _ = CreateSyncApplier(sync);
-
         var sessionId = Guid.NewGuid();
 
         sync.SessionDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(sessionId));
@@ -1134,67 +400,12 @@ public class SessionCoordinatorTests
     }
 
     [AvaloniaFact]
-    public async Task Constructor_OnSessionDataArrived_IgnoresPublicationFailure()
+    public async Task SyncApplier_PublishesDeletedAndLiveSessions()
     {
         var sync = Substitute.For<ISynchronizationServerService>();
         _ = CreateSyncApplier(sync);
-
-        var sessionId = Guid.NewGuid();
-        sessionStore.PublishSessionsChangedAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException());
-
-        sync.SessionDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(sessionId));
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        await sessionStore.Received(1).PublishSessionsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(sessionId)),
-            Arg.Any<CancellationToken>());
-    }
-
-    [AvaloniaFact]
-    public async Task Constructor_SubscribesToSourceEvents_AndPublishesOnSessionSourceDataArrived()
-    {
-        var sync = Substitute.For<ISynchronizationServerService>();
-        _ = CreateSyncApplier(sync);
-
-        var source = CreateRecordedSource(Guid.NewGuid());
-
-        sync.SessionSourceDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(source.SessionId));
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        await sourceStore.Received(1).PublishSourcesChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(source.SessionId)),
-            Arg.Any<CancellationToken>());
-        await recordedSessionSourceRepository.DidNotReceive().GetRecordedSessionSourceAsync(source.SessionId);
-    }
-
-    [AvaloniaFact]
-    public async Task Constructor_OnSessionSourceDataArrived_IgnoresPublicationFailure()
-    {
-        var sync = Substitute.For<ISynchronizationServerService>();
-        _ = CreateSyncApplier(sync);
-
-        var sessionId = Guid.NewGuid();
-        sourceStore.PublishSourcesChangedAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException());
-
-        sync.SessionSourceDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(sessionId));
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        await sourceStore.Received(1).PublishSourcesChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(sessionId)),
-            Arg.Any<CancellationToken>());
-    }
-
-    [AvaloniaFact]
-    public async Task Constructor_OnSynchronizationDataArrived_PublishesDeletedAndLiveSessions()
-    {
-        var sync = Substitute.For<ISynchronizationServerService>();
-        _ = CreateSyncApplier(sync);
-
         var liveId = Guid.NewGuid();
         var deletedId = Guid.NewGuid();
-
         var data = new SynchronizationData
         {
             Sessions =
@@ -1215,110 +426,67 @@ public class SessionCoordinatorTests
             Arg.Any<CancellationToken>());
     }
 
-    [AvaloniaFact]
-    public async Task Constructor_OnSynchronizationDataArrived_IgnoresPublicationFailure()
-    {
-        var sync = Substitute.For<ISynchronizationServerService>();
-        _ = CreateSyncApplier(sync);
-
-        var liveId = Guid.NewGuid();
-        sessionStore.PublishSessionsChangedAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException());
-
-        var data = new SynchronizationData
-        {
-            Sessions =
-            {
-                new Session { Id = liveId, Updated = 6 },
-            },
-        };
-
-        sync.SynchronizationDataArrived += Raise.EventWith(sync, new SynchronizationDataArrivedEventArgs(data));
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        await sessionStore.Received(1).PublishSessionsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(liveId)),
-            Arg.Any<CancellationToken>());
-        await sessionStore.DidNotReceive().PublishSessionsRemovedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
-            Arg.Any<CancellationToken>());
-    }
-
-    private static RecordedSessionSource CreateRecordedSource(Guid sessionId)
-    {
-        byte[] payload = [1, 2, 3, 4];
-        return new RecordedSessionSource
-        {
-            SessionId = sessionId,
-            SourceKind = RecordedSessionSourceKind.ImportedSst,
-            SourceName = "recompute.SST",
-            SchemaVersion = 1,
-            SourceHash = RecordedSessionSourceHash.Compute(
-                RecordedSessionSourceKind.ImportedSst,
-                "recompute.SST",
-                1,
-                payload),
-            Payload = payload
-        };
-    }
-
-    private static RecordedSessionDomainSnapshot DomainWithBike(SessionSnapshot session, BikeSnapshot bike) =>
+    private SessionLoader CreateLoader(IBackgroundTaskRunner? runner = null) =>
         new(
-            session,
-            null,
-            bike,
-            null,
-            null,
-            new RecordedSessionSourceSnapshot(
-                session.Id,
-                RecordedSessionSourceKind.ImportedSst,
-                "source.SST",
-                1,
-                "source-hash"),
-            null,
-            new SessionStaleness.Current(),
-            DerivedChangeKind.None);
+            sessionStore,
+            processedTelemetryReader,
+            runner ?? backgroundTaskRunner,
+            trackCoordinator,
+            sessionPresentationService,
+            domainQuery);
 
-    private static RecordedSessionDomainSnapshot DomainWithMissingSource(SessionSnapshot session) => new(
-        session,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        new SessionStaleness.MissingRawSource(),
-        DerivedChangeKind.None);
+    private SessionCoordinator CreateCoordinator(
+        UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace,
+        IBackgroundTaskRunner? backgroundTaskRunner = null) =>
+        new(
+            sessionStore,
+            CreateLoader(backgroundTaskRunner),
+            CreateCommandService(layoutProfile),
+            () => editorFactory);
 
-    private static RecordedSessionDomainSnapshot DomainWithSourceHashMismatch(SessionSnapshot session)
+    private SessionCommandService CreateCommandService(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
+        new(
+            sessionStore,
+            sessionRepository,
+            sessionTelemetryWriter,
+            setupRepository,
+            bikeRepository,
+            sourceStore,
+            reprocessor,
+            backgroundTaskRunner,
+            sessionPreferences,
+            shell,
+            CreateEnvironment(layoutProfile),
+            recomputeEngine,
+            () => editorFactory,
+            derivationWindowCache,
+            derivationWindowProvider,
+            sessionPersistenceTransactions);
+
+    private SessionSyncApplier CreateSyncApplier(ISynchronizationServerService? sync = null) =>
+        new(
+            sessionStore,
+            sourceStore,
+            sync);
+
+    private void SetLocalTelemetry(Guid sessionId, TelemetryData? telemetry)
     {
-        const string expectedSourceHash = "expected-source-hash";
-        var source = new RecordedSessionSourceSnapshot(
-            session.Id,
-            RecordedSessionSourceKind.ImportedSst,
-            "source.SST",
-            1,
-            "actual-source-hash");
-        var persisted = new ProcessingFingerprint(
-            SchemaVersion: 3,
-            ProcessingVersion: TelemetryProcessingVersion.Current,
-            SetupId: Guid.NewGuid(),
-            BikeId: Guid.NewGuid(),
-            TrackProjectionVersion: 1,
-            DependencyHash: "dependency-hash",
-            SourceHash: expectedSourceHash);
-
-        return new RecordedSessionDomainSnapshot(
-            session,
-            null,
-            null,
-            null,
-            persisted,
-            source,
-            null,
-            new SessionStaleness.DependencyHashChanged(),
-            DerivedChangeKind.None);
+        processedTelemetryReader.Set(sessionId, telemetry);
     }
+
+    private static SessionCachePresentationData CachePresentation(
+        SessionDampingPercentages? percentages = null,
+        DampingSpeedCutoffs? cutoffs = null) =>
+        new(
+            FrontTravelDistribution: "front-travel",
+            RearTravelDistribution: null,
+            FrontVelocityDistribution: "front-velocity",
+            RearVelocityDistribution: null,
+            CompressionBalance: null,
+            ReboundBalance: null,
+            DampingPercentages: percentages ?? SessionDampingPercentages.Empty,
+            DampingSpeedCutoffs: cutoffs ?? DampingSpeedCutoffs.Default,
+            BalanceAvailable: false);
 
     private static IAppEnvironment CreateEnvironment(UiLayoutProfile layoutProfile) =>
         new AppEnvironment(

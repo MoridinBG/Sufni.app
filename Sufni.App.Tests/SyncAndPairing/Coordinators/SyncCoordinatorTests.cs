@@ -224,21 +224,26 @@ public class SyncCoordinatorTests
     }
 
     [AvaloniaFact]
-    public async Task SyncAllAsync_ClearsProgress_WhenNoServerEndpointIsDiscovered()
+    public async Task SyncAllAsync_WhenNoServerEndpointIsDiscovered_ReportsFailureClearsProgressAndHasNoSideEffects()
     {
         SetPairingState(true);
         pairing.ResolveServerUrlAsync(Arg.Any<TimeSpan>())
             .Returns(Task.FromResult<string?>(null));
         var coordinator = CreateCoordinator();
         var events = new List<SynchronizationProgressSnapshot?>();
+        var failed = 0;
         coordinator.ProgressChanged += (_, _) => events.Add(coordinator.Progress);
+        coordinator.SyncFailed += (_, _) => failed++;
 
         await coordinator.SyncAllAsync();
 
+        Assert.Equal(1, failed);
         Assert.Contains(events, e => e?.Phase == SynchronizationPhase.ResolvingServer);
         Assert.Null(events.Last());
         Assert.Null(coordinator.Progress);
         Assert.False(coordinator.IsRunning);
+        await syncClient.DidNotReceive().SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>());
+        await appStateRefreshOrchestrator.DidNotReceive().RefreshAllStateAsync(Arg.Any<CancellationToken>());
     }
 
     // ----- SyncAllAsync failure -----
@@ -375,24 +380,6 @@ public class SyncCoordinatorTests
             new SynchronizationRunResult.IncompleteLocalData(
                 missingProcessedSessionCount,
                 incompleteRecordedSourceCount));
-
-    [AvaloniaFact]
-    public async Task SyncAllAsync_RaisesSyncFailed_WhenNoServerEndpointIsDiscovered()
-    {
-        SetPairingState(true);
-        pairing.ResolveServerUrlAsync(Arg.Any<TimeSpan>())
-            .Returns(Task.FromResult<string?>(null));
-        var coordinator = CreateCoordinator();
-
-        var failed = 0;
-        coordinator.SyncFailed += (_, _) => failed++;
-
-        await coordinator.SyncAllAsync();
-
-        Assert.Equal(1, failed);
-        await syncClient.DidNotReceive().SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>());
-        await appStateRefreshOrchestrator.DidNotReceive().RefreshAllStateAsync(Arg.Any<CancellationToken>());
-    }
 
     [AvaloniaFact]
     public async Task ServerSyncActivity_DrivesRunningStateAndProgress()

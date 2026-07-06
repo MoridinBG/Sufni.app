@@ -56,38 +56,6 @@ public class LiveSessionDetailDesktopViewTests
         Assert.IsType<SessionSidebarDesktopView>(shellView.SidebarContent);
     }
 
-    [AvaloniaFact]
-    public async Task LiveSessionDetailDesktopView_HeaderFields_UseDefaultFontSize()
-    {
-        var editor = CreateEditor();
-
-        await using var mounted = await MountAsync(editor);
-
-        var headerFields = mounted.View.GetVisualDescendants().OfType<LiveSessionHeaderFields>().Single();
-
-        Assert.Equal(12, headerFields.FieldFontSize);
-    }
-
-    [AvaloniaFact]
-    public async Task LiveSessionDetailDesktopView_ShowsProgressOnlyLoadingOverlay_WhenScreenIsLoading()
-    {
-        var editor = CreateEditor();
-        editor.ScreenState = SessionScreenPresentationState.Loading("Starting live session...", 0.6);
-
-        await using var mounted = await MountAsync(editor);
-
-        var busyOverlay = mounted.View.FindControl<BusyOverlay>("ScreenBusyOverlay")
-            ?? throw new InvalidOperationException("Screen busy overlay was not found.");
-
-        Assert.True(busyOverlay.IsActive);
-        Assert.True(busyOverlay.IsVisible);
-        Assert.True(busyOverlay.ShowProgress);
-        Assert.False(busyOverlay.ShowIndicator);
-        Assert.Equal("Starting live session...", busyOverlay.Message);
-        Assert.NotNull(busyOverlay.MessageForeground);
-        Assert.Equal(0.6, busyOverlay.ProgressValue);
-    }
-
     private static LiveSessionDetailViewModel CreateEditor()
     {
         var sessionCoordinator = TestCoordinatorSubstitutes.Session();

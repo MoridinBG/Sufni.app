@@ -119,6 +119,12 @@ internal sealed class TestPersistenceHarness
     public Task<Guid> PutSessionAsync(Session session) =>
         sessionRepository.PutSessionAsync(session);
 
+    public async Task PutSessionWithRecordedSourceAsync(Session session, RecordedSessionSource source)
+    {
+        await PutSessionAsync(session);
+        await PutRecordedSessionSourceAsync(source);
+    }
+
     public Task<Session> PutProcessedSessionAsync(
         Session session,
         Track? newFullTrack,

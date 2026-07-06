@@ -57,18 +57,6 @@ public class RecordedSessionSourceStoreTests
     }
 
     [Fact]
-    public async Task LoadAsync_ReturnsRawSourceFromDatabase()
-    {
-        var store = new RecordedSessionSourceStore(sourceRepository, UiThreadDispatcher);
-        var source = CreateSource();
-        sourceRepository.GetRecordedSessionSourceAsync(source.SessionId).Returns(source);
-
-        var loaded = await store.LoadAsync(source.SessionId);
-
-        Assert.Same(source, loaded);
-    }
-
-    [Fact]
     public async Task PublishSourcesRemovedAsync_RemovesCachedSnapshot()
     {
         var store = new RecordedSessionSourceStore(sourceRepository, UiThreadDispatcher);

@@ -8,100 +8,42 @@ namespace Sufni.App.Tests.Acquisition.Models;
 
 public class TelemetryFileInspectionMappingTests
 {
-    [Fact]
-    public void MassStorageTelemetryFile_ValidV4WithUnknownChunk_SetsHasUnknownWithoutMalformed()
+    [Theory]
+    [InlineData(TelemetryFileSourceKind.MassStorage, InspectionPayload.ValidV4WithUnknownChunk)]
+    [InlineData(TelemetryFileSourceKind.StorageProvider, InspectionPayload.ValidV4WithUnknownChunk)]
+    [InlineData(TelemetryFileSourceKind.MassStorage, InspectionPayload.MalformedV4)]
+    [InlineData(TelemetryFileSourceKind.StorageProvider, InspectionPayload.MalformedV4)]
+    [InlineData(TelemetryFileSourceKind.MassStorage, InspectionPayload.TrimmedV4)]
+    [InlineData(TelemetryFileSourceKind.StorageProvider, InspectionPayload.TrimmedV4)]
+    public async Task TelemetryFile_MapsInspectionResult_ForSourceAndPayload(
+        TelemetryFileSourceKind sourceKind,
+        InspectionPayload payload)
     {
-        using var tempDirectory = new TempDirectory("sufni-inspection-test");
-        var path = Path.Combine(tempDirectory.Path, "sample.SST");
-        File.WriteAllBytes(path, TestSstFiles.CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000));
-
-        var file = new MassStorageTelemetryFile(new FileInfo(path));
+        var file = await CreateTelemetryFileAsync(sourceKind, payload);
 
         Assert.Equal((byte)4, file.Version);
-        Assert.True(file.HasUnknown);
-        Assert.Null(file.MalformedMessage);
-        Assert.True(file.CanImport);
         Assert.False(file.ShouldBeImported);
-        Assert.Equal("00:00:05", file.Duration);
-    }
-
-    [Fact]
-    public void MassStorageTelemetryFile_MalformedV4_IsNotImportable()
-    {
-        using var tempDirectory = new TempDirectory("sufni-inspection-test");
-        var path = Path.Combine(tempDirectory.Path, "broken.SST");
-        File.WriteAllBytes(path, TestSstFiles.CreateMalformedV4WithInvalidTelemetryLength());
-
-        var file = new MassStorageTelemetryFile(new FileInfo(path));
-
-        Assert.Equal((byte)4, file.Version);
-        Assert.False(file.HasUnknown);
-        Assert.False(file.CanImport);
-        Assert.False(file.ShouldBeImported);
-        Assert.False(string.IsNullOrWhiteSpace(file.MalformedMessage));
-    }
-
-    [Fact]
-    public async Task StorageProviderTelemetryFile_ValidV4WithUnknownChunk_SetsHasUnknownWithoutMalformed()
-    {
-        var storageFile = Substitute.For<IStorageFile>();
-        storageFile.Name.Returns("sample.SST");
-        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(TestSstFiles.CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000))));
-
-        var file = await StorageProviderTelemetryFile.CreateAsync(storageFile);
-
-        Assert.Equal((byte)4, file.Version);
-        Assert.True(file.HasUnknown);
-        Assert.Null(file.MalformedMessage);
-        Assert.True(file.CanImport);
-        Assert.False(file.ShouldBeImported);
-        Assert.Equal("00:00:05", file.Duration);
-    }
-
-    [Fact]
-    public async Task StorageProviderTelemetryFile_MalformedV4_IsNotImportable()
-    {
-        var storageFile = Substitute.For<IStorageFile>();
-        storageFile.Name.Returns("broken.SST");
-        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(TestSstFiles.CreateMalformedV4WithInvalidTelemetryLength())));
-
-        var file = await StorageProviderTelemetryFile.CreateAsync(storageFile);
-
-        Assert.Equal((byte)4, file.Version);
-        Assert.False(file.HasUnknown);
-        Assert.False(file.CanImport);
-        Assert.False(file.ShouldBeImported);
-        Assert.False(string.IsNullOrWhiteSpace(file.MalformedMessage));
-    }
-
-    [Fact]
-    public void MassStorageTelemetryFile_TrimmedV4_IsImportableWithMalformedMessage()
-    {
-        using var tempDirectory = new TempDirectory("sufni-inspection-test");
-        var path = Path.Combine(tempDirectory.Path, "trimmed.SST");
-        File.WriteAllBytes(path, TestSstFiles.CreateV4WithTelemetryChunkExtendingPastEnd(telemetrySampleCount: 5000));
-
-        var file = new MassStorageTelemetryFile(new FileInfo(path));
-
-        Assert.True(file.CanImport);
-        Assert.False(file.ShouldBeImported);
-        Assert.False(string.IsNullOrWhiteSpace(file.MalformedMessage));
-        Assert.Equal("00:00:05", file.Duration);
-    }
-
-    [Fact]
-    public async Task StorageProviderTelemetryFile_TrimmedV4_IsImportableWithMalformedMessage()
-    {
-        var storageFile = Substitute.For<IStorageFile>();
-        storageFile.Name.Returns("trimmed.SST");
-        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(TestSstFiles.CreateV4WithTelemetryChunkExtendingPastEnd(telemetrySampleCount: 5000))));
-
-        var file = await StorageProviderTelemetryFile.CreateAsync(storageFile);
-
-        Assert.True(file.CanImport);
-        Assert.False(file.ShouldBeImported);
-        Assert.False(string.IsNullOrWhiteSpace(file.MalformedMessage));
-        Assert.Equal("00:00:05", file.Duration);
+        switch (payload)
+        {
+            case InspectionPayload.ValidV4WithUnknownChunk:
+                Assert.True(file.HasUnknown);
+                Assert.True(file.CanImport);
+                Assert.Null(file.MalformedMessage);
+                Assert.Equal("00:00:05", file.Duration);
+                break;
+            case InspectionPayload.MalformedV4:
+                Assert.False(file.HasUnknown);
+                Assert.False(file.CanImport);
+                Assert.False(string.IsNullOrWhiteSpace(file.MalformedMessage));
+                break;
+            case InspectionPayload.TrimmedV4:
+                Assert.True(file.CanImport);
+                Assert.False(string.IsNullOrWhiteSpace(file.MalformedMessage));
+                Assert.Equal("00:00:05", file.Duration);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(payload), payload, null);
+        }
     }
 
     [Fact]
@@ -111,9 +53,7 @@ public class TelemetryFileInspectionMappingTests
         var uploaded = Substitute.For<IStorageFolder>();
         uploaded.Name.Returns("uploaded");
 
-        var storageFile = Substitute.For<IStorageFile>();
-        storageFile.Name.Returns("sample.SST");
-        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(TestSstFiles.CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000))));
+        var storageFile = CreateStorageFile("sample.SST", TestSstFiles.CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000));
         storageFile.GetParentAsync().Returns(Task.FromResult<IStorageFolder?>(parent));
         storageFile.MoveAsync(uploaded).Returns(Task.FromResult<IStorageItem?>(storageFile));
         parent.GetItemsAsync().Returns(EnumerateStorageItems(uploaded));
@@ -133,9 +73,7 @@ public class TelemetryFileInspectionMappingTests
         var uploaded = Substitute.For<IStorageFolder>();
         uploaded.Name.Returns("uploaded");
 
-        var storageFile = Substitute.For<IStorageFile>();
-        storageFile.Name.Returns("sample.SST");
-        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(TestSstFiles.CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000))));
+        var storageFile = CreateStorageFile("sample.SST", TestSstFiles.CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000));
         storageFile.GetParentAsync().Returns(Task.FromResult<IStorageFolder?>(parent));
         parent.GetItemsAsync().Returns(EnumerateStorageItems(uploaded));
 
@@ -145,4 +83,53 @@ public class TelemetryFileInspectionMappingTests
         await storageFile.DidNotReceive().MoveAsync(Arg.Any<IStorageFolder>());
     }
 
+    private static async Task<ITelemetryFile> CreateTelemetryFileAsync(
+        TelemetryFileSourceKind sourceKind,
+        InspectionPayload payload)
+    {
+        var bytes = payload switch
+        {
+            InspectionPayload.ValidV4WithUnknownChunk => TestSstFiles.CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000),
+            InspectionPayload.MalformedV4 => TestSstFiles.CreateMalformedV4WithInvalidTelemetryLength(),
+            InspectionPayload.TrimmedV4 => TestSstFiles.CreateV4WithTelemetryChunkExtendingPastEnd(telemetrySampleCount: 5000),
+            _ => throw new ArgumentOutOfRangeException(nameof(payload), payload, null)
+        };
+        var fileName = payload switch
+        {
+            InspectionPayload.MalformedV4 => "broken.SST",
+            InspectionPayload.TrimmedV4 => "trimmed.SST",
+            _ => "sample.SST"
+        };
+
+        if (sourceKind is TelemetryFileSourceKind.StorageProvider)
+        {
+            return await StorageProviderTelemetryFile.CreateAsync(CreateStorageFile(fileName, bytes));
+        }
+
+        using var tempDirectory = new TempDirectory("sufni-inspection-test");
+        var path = Path.Combine(tempDirectory.Path, fileName);
+        File.WriteAllBytes(path, bytes);
+        return new MassStorageTelemetryFile(new FileInfo(path));
+    }
+
+    private static IStorageFile CreateStorageFile(string name, byte[] bytes)
+    {
+        var storageFile = Substitute.For<IStorageFile>();
+        storageFile.Name.Returns(name);
+        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(bytes)));
+        return storageFile;
+    }
+
+    public enum TelemetryFileSourceKind
+    {
+        MassStorage,
+        StorageProvider
+    }
+
+    public enum InspectionPayload
+    {
+        ValidV4WithUnknownChunk,
+        MalformedV4,
+        TrimmedV4
+    }
 }
