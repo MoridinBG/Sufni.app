@@ -17,7 +17,6 @@ d:DesignWidth="800"
 x:Name="Root"
 x:DataType="vm:SessionDetailViewModel"
 Background="{DynamicResource SufniSurfacePage}"
-Focusable="True"
 mc:Ignorable="d">
 
     <Interaction.Behaviors>
