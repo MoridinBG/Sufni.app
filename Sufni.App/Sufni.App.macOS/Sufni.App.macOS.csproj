@@ -17,6 +17,12 @@
     <UserSecretsId>9dc6bf57-4366-4b6b-aede-915715ef1f8d</UserSecretsId>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(SufniEnableProfilingDiagnostics)' == 'true'">
+    <EnableDiagnostics>true</EnableDiagnostics>
+    <BundleCreateDump>true</BundleCreateDump>
+    <CodesignEntitlements>Profiling.Entitlements.plist</CodesignEntitlements>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Avalonia.Native" />
     <PackageReference Include="Avalonia.Skia" />
