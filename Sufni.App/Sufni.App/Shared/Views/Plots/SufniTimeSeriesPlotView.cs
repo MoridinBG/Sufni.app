@@ -5,6 +5,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Sufni.Telemetry;
 using ScottPlotPixel = ScottPlot.Pixel;
 using Sufni.App.ExtensionHost.Contracts.Plots;
@@ -29,6 +30,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private TelemetryPlot? plot;
     private bool hasPendingLoad;
+    private bool loadFlushQueued;
     private bool isSelectingAnalysisRange;
     private bool isPlotClickCandidate;
     private bool isPlaybackStopClickCandidate;
@@ -255,7 +257,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     protected void RequestReload()
     {
         hasPendingLoad = true;
-        TryApplyPendingLoad();
+        QueuePendingLoad();
     }
 
     protected void ReloadPlot()
@@ -980,6 +982,43 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private void TryApplyPendingLoad()
     {
+        // Applies a pending load synchronously when conditions allow (plot
+        // attached and ready). This is the attach / layout / plot-creation path,
+        // so a freshly opened plot paints with its data in the same UI turn
+        // rather than flashing empty first.
+        if (!hasPendingLoad || !CanLoadNow())
+        {
+            return;
+        }
+
+        hasPendingLoad = false;
+        LoadIntoPlot();
+    }
+
+    private void QueuePendingLoad()
+    {
+        // RequestReload() routes here so a reload is coalesced onto a later
+        // dispatcher turn rather than run inline. A reload can be triggered as a
+        // side effect of visual-tree teardown — the inherited ActualThemeVariant
+        // or the DataContext reverting to its default while the plot is being
+        // unparented raises property changes that reach the theme subscription
+        // and bound-property handlers. Running the load inline there would
+        // recompute heavy telemetry/analysis synchronously on the closing UI
+        // turn. Deferring lets the load run after teardown has finished, where
+        // CanLoadNow() is false and it no-ops. The synchronous attach/layout
+        // path (TryApplyPendingLoad) still flushes any load already pending.
+        if (!hasPendingLoad || loadFlushQueued)
+        {
+            return;
+        }
+
+        loadFlushQueued = true;
+        Dispatcher.UIThread.Post(FlushPendingLoad, DispatcherPriority.Render);
+    }
+
+    private void FlushPendingLoad()
+    {
+        loadFlushQueued = false;
         if (!hasPendingLoad || !CanLoadNow())
         {
             return;

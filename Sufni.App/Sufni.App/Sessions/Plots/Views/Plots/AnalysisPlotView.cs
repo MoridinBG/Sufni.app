@@ -33,6 +33,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
     private IDisposable? analysisInputSubscription;
     private IDisposable? analysisResultSubscription;
     private bool hasDeferredAnalysisReload;
+    private bool isStateBacked;
 
     public static readonly StyledProperty<AnalysisPlotKind> AnalysisPlotKindProperty =
         AvaloniaProperty.Register<AnalysisPlotView, AnalysisPlotKind>(nameof(AnalysisPlotKind));
@@ -197,7 +198,14 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             if (e.Property == AnalysisResultStateProperty)
             {
                 SubscribeToAnalysisResultState(AnalysisResultState);
-                RequestAnalysisReload();
+                if (AnalysisResultState is not null)
+                {
+                    RequestAnalysisReload();
+                }
+
+                // When the state binding clears (e.g. the DataContext reverting
+                // as the tab is torn down), there is nothing to reload against;
+                // skip the reload so an unbind cannot drive a recompute.
             }
 
             if (e.Property == IsAnalysisDemandActiveProperty)
@@ -294,6 +302,17 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         var key = CreateAnalysisKey();
         if (key is null || AnalysisResultState is not { } state)
         {
+            // A state-backed plot publishes results asynchronously through the
+            // result state. When no usable state/inputs are available — not yet
+            // initialized, or torn down while the tab is closing — leave the
+            // already-cleared plot and wait for the async result instead of
+            // recomputing the histogram/FFT synchronously on the UI thread. Only
+            // genuinely non-state-backed plots recompute directly here.
+            if (isStateBacked)
+            {
+                return;
+            }
+
             base.LoadPlotData(plotModel);
             return;
         }
@@ -332,6 +351,14 @@ public class AnalysisPlotView : SufniTelemetryPlotView
 
     private void SubscribeToAnalysisResultState(IRecordedSessionAnalysisResultState? state)
     {
+        // Once this plot has been given a result state it is a state-backed plot
+        // for the rest of its life: results arrive asynchronously and it must not
+        // fall back to synchronous recompute when the state is transiently absent.
+        if (state is not null)
+        {
+            isStateBacked = true;
+        }
+
         if (ReferenceEquals(subscribedAnalysisResultState, state))
         {
             return;

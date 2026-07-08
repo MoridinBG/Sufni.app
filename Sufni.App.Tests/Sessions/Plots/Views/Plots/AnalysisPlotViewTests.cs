@@ -218,6 +218,94 @@ public class AnalysisPlotViewTests
     }
 
     [AvaloniaFact]
+    public async Task AnalysisPlotView_DefersReloadToDispatcher_InsteadOfRunningSynchronously()
+    {
+        var telemetry = CreateProcessed();
+        var inputs = CreateAnalysisInputs();
+        using var state = new TestAnalysisResultState(inputs);
+        var view = new TestableAnalysisPlotView
+        {
+            AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
+            AnalysisResultState = state,
+            SuspensionType = SuspensionType.Front,
+            Telemetry = telemetry,
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+        await ViewTestHelpers.FlushDispatcherAsync();
+        state.Requests.Clear();
+
+        // A reload triggered by a bound-property change must be applied on a
+        // later dispatcher turn, not synchronously on the property-change
+        // callback, so teardown-time property reverts cannot recompute inline.
+        view.AnalysisRange = new TelemetryTimeRange(0.25, 0.75);
+        Assert.Empty(state.Requests);
+
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.NotEmpty(state.Requests);
+    }
+
+    [AvaloniaFact]
+    public async Task AnalysisPlotView_DoesNotRecomputeSynchronously_WhenStateInputsUnavailable()
+    {
+        var telemetry = CreateProcessed();
+        var inputs = CreateAnalysisInputs();
+        var key = inputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
+        using var state = new TestAnalysisResultState(inputs);
+        var view = new TestableAnalysisPlotView
+        {
+            AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
+            AnalysisResultState = state,
+            SuspensionType = SuspensionType.Front,
+            Telemetry = telemetry,
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+        await ViewTestHelpers.FlushDispatcherAsync();
+        state.Publish(key, CreateTravelDistributionResult(telemetry, range: null));
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.NotEmpty(GetBars(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot));
+
+        // With the result state's inputs unavailable (as during disposal on tab
+        // close), a state-backed plot must clear rather than recompute the
+        // histogram synchronously from telemetry.
+        state.SimulateUnavailable();
+        view.AnalysisRange = new TelemetryTimeRange(0.1, 0.5);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Empty(GetBars(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot));
+    }
+
+    [AvaloniaFact]
+    public async Task AnalysisPlotView_DoesNotReload_WhenAnalysisResultStateCleared()
+    {
+        var telemetry = CreateProcessed();
+        var inputs = CreateAnalysisInputs();
+        var key = inputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
+        using var state = new TestAnalysisResultState(inputs);
+        var view = new TestableAnalysisPlotView
+        {
+            AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
+            AnalysisResultState = state,
+            SuspensionType = SuspensionType.Front,
+            Telemetry = telemetry,
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+        await ViewTestHelpers.FlushDispatcherAsync();
+        state.Publish(key, CreateTravelDistributionResult(telemetry, range: null));
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.NotEmpty(GetBars(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot));
+
+        // Clearing the state binding (as the DataContext reverts during tab
+        // teardown) must not trigger a reload that clears or recomputes the plot.
+        view.AnalysisResultState = null;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.NotEmpty(GetBars(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot));
+    }
+
+    [AvaloniaFact]
     public async Task AnalysisPlotView_UsesAvaloniaTitleAndSuppressesScottPlotTitle()
     {
         var view = new TestableAnalysisPlotView
@@ -443,6 +531,8 @@ public class AnalysisPlotViewTests
             results.Clear();
             inputChanges.OnNext(nextInputs);
         }
+
+        public void SimulateUnavailable() => CurrentInputs = null;
 
         public void Publish(RecordedSessionAnalysisKey key, RecordedSessionAnalysisResult result)
         {
