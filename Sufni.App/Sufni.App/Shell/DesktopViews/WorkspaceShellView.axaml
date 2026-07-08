@@ -110,7 +110,7 @@
             </Grid>
 
             <Grid Grid.Row="1">
-                <ItemsControl ItemsSource="{Binding Workspace.Tabs}">
+                <ItemsControl Name="TabContentHost" ItemsSource="{Binding Workspace.Tabs}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <Panel />

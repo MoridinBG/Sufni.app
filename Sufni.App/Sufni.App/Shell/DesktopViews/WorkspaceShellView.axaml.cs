@@ -2,11 +2,13 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using Avalonia;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 
 using Sufni.App.Shared.Base;
@@ -73,6 +75,29 @@ public partial class WorkspaceShellView : UserControl
             OnTabPointerReleased,
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
+
+        // Avalonia keeps per-control automation peers and their cached child lists until the
+        // relevant peer recomputes its children; a removed item container's peer lingers in its
+        // panel peer's children list and pins the container's DataContext -> tab VM -> telemetry.
+        // Force the panel peer to recompute on removal so the dead subtree is released.
+        TabControl.ContainerClearing += OnTabContainerClearing;
+        TabContentHost.ContainerClearing += OnTabContainerClearing;
+    }
+
+    private static void OnTabContainerClearing(object? sender, ContainerClearingEventArgs e)
+    {
+        // Capture the panel now, while the container is still attached. Defer the re-read until
+        // after detach + InvalidateChildren have run.
+        if (e.Container.GetVisualParent() is not Control panel)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(
+            // FromElement returns the existing peer or null; if accessibility never materialized a
+            // peer there is nothing cached to leak, so this is a safe no-op.
+            () => ControlAutomationPeer.FromElement(panel)?.GetChildren(),
+            DispatcherPriority.Background);
     }
 
     private void UpdateResponsivePaneLength()
