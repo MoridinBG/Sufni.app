@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -18,6 +19,7 @@ using Mapsui.Nts.Extensions;
 using Mapsui.Styles;
 using Mapsui.Tiling.Layers;
 using Mapsui.UI.Avalonia;
+using Mapsui.Utilities;
 using Mapsui.Widgets;
 using Mapsui.Widgets.InfoWidgets;
 using NetTopologySuite.Geometries;
@@ -105,6 +107,17 @@ public partial class MapView : UserControl
         };
 
         mapControl = this.FindControl<MapControl>("MapControl");
+
+        // Mapsui's MapControl constructor stores a process-lifetime static delegate
+        // (Mapsui.Utilities.PlatformUtilities.OpenInBrowserMethod) bound to the control
+        // instance, and never clears it on dispose. That static pins the most recently
+        // created MapControl - and through the visual tree the whole session view and its
+        // telemetry - until another map is created. Re-point it at a control-independent
+        // handler so the control's lifetime is governed by the visual tree alone.
+        PlatformUtilities.SetOpenInBrowserFunc(static url =>
+        {
+            using (Process.Start(new ProcessStartInfo(url) { UseShellExecute = true })) { }
+        });
 
         // Setup initial layers
         if (mapControl != null)
