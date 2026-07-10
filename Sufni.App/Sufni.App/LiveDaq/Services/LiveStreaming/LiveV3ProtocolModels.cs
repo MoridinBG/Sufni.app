@@ -21,9 +21,9 @@ public static class LiveV3ProtocolConstants
     public const ushort StreamRequestFlagBatchDurationOverride = 0x0002;
     public const int DataHeaderSize = SstV5ProtocolConstants.DataHeaderSize;
 
-    public const int CapabilitiesHeaderSize = 20;
-    public const int StreamCapabilityRecordSize = 20;
-    public const int StartResultHeaderSize = 8;
+    public const int CapabilitiesHeaderSize = 16;
+    public const int StreamCapabilityRecordSize = 24;
+    public const int StartResultHeaderSize = 4;
     public const int AdmissionReasonRecordSize = 8;
     public const int SessionHeaderFixedSize = 24;
     public const int StopResultPayloadSize = 4;
@@ -32,7 +32,8 @@ public static class LiveV3ProtocolConstants
     public const int DeviceStateHeaderSize = 4;
     public const int StreamStateRecordSize = 12;
     public const int SourceStateRecordSize = 8;
-    public const int ErrorPayloadSize = 4;
+    public const int PingPongPayloadSize = 4;
+    public const int ErrorPayloadSize = 8;
 }
 
 public enum LiveV3FrameType : byte
@@ -67,10 +68,9 @@ public readonly record struct LiveV3ServerHello(
     Version FirmwareVersion);
 
 public readonly record struct LiveV3FrameHeader(
-    LiveV3FrameType FrameType,
-    byte Flags,
     byte SessionId,
-    byte Reserved,
+    LiveV3FrameType FrameType,
+    ushort FrameFlags,
     uint PayloadLength,
     uint TxSequence)
 {
@@ -94,35 +94,27 @@ public readonly record struct LiveV3StreamRequestRecord(
 public readonly record struct LiveV3StartResult(
     byte ResultCode,
     byte SessionId,
-    LiveStreamMask AcceptedStreamMask,
     IReadOnlyList<LiveStartAdmissionReason> AdmissionReasons)
 {
     public bool IsPending => ResultCode == 0;
     public bool IsDenied => ResultCode == 1;
 }
 
-public readonly record struct LiveV3StopResult(
-    byte ResultCode,
-    byte Reason)
-{
-    public bool Accepted => ResultCode == 0;
-}
-
-public readonly record struct LiveV3SessionResult(SstFinalStatus FinalStatus);
-
 public sealed record LiveV3Capabilities(
-    uint MaxFramePayloadBytes,
+    byte BoardId,
     LiveStreamMask SupportedStreamMask,
     LiveSensorInstanceMask SupportedSourceMask,
-    uint SupportedExtensionMask,
+    uint MaxFramePayloadBytes,
     IReadOnlyList<LiveV3StreamCapability> Streams);
 
 public sealed record LiveV3StreamCapability(
     LiveStreamMask Stream,
+    byte TimingModelId,
     LiveSensorInstanceMask SupportedSourceMask,
     uint SupportedExtensionMask,
     uint MinRateMhz,
-    uint MaxRateMhz);
+    uint MaxRateMhz,
+    uint MaxBatchDurationMs);
 
 public sealed record LiveV3DeviceState(
     IReadOnlyList<LiveV3StreamState> Streams,
@@ -138,23 +130,10 @@ public readonly record struct LiveV3SourceState(
     bool Available,
     LiveSensorInstanceMask Source);
 
-public readonly record struct LiveV3AdmissionReason(
-    byte TargetKind,
-    byte StreamKind,
-    byte Reason,
-    uint TargetMask);
-
-public readonly record struct LiveV3StreamStatus(
-    byte StreamKind,
-    byte ProducerState,
-    byte ProducerFailureReason,
-    ushort SinkBacklogBatches,
-    ulong ProducerMissedCount,
-    ulong ProducerMissingTimeUs,
-    ulong SinkMissedCount,
-    ulong SinkMissingTimeUs);
-
-public readonly record struct LiveV3Error(byte Code);
+public readonly record struct LiveV3Error(
+    byte Code,
+    byte OffendingFrameType,
+    uint Detail);
 
 public sealed record LiveV3CapabilitiesRequestFrame(LiveFrameMetadata Header) : LiveProtocolFrame(Header);
 public sealed record LiveV3CapabilitiesFrame(LiveFrameMetadata Header, LiveV3Capabilities Payload) : LiveProtocolFrame(Header);

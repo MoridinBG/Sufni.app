@@ -13,7 +13,7 @@ public sealed class LiveV3ProtocolReader
     private readonly FramedMessageReader frameReader = new(
         LiveV3ProtocolConstants.FrameHeaderSize,
         static headerBytes => ParseHeader(headerBytes).TotalFrameLength);
-    private readonly LiveV3SessionDecodeContext context = new();
+    private LiveV3SessionDecodeContext context = new();
 
     public int BufferedByteCount => frameReader.BufferedByteCount;
     public LiveV3SessionDecodeContext Context => context;
@@ -26,7 +26,12 @@ public sealed class LiveV3ProtocolReader
     public void Reset()
     {
         frameReader.Reset();
-        context.Reset();
+        ResetSessionContext();
+    }
+
+    public void ResetSessionContext()
+    {
+        context = new LiveV3SessionDecodeContext();
     }
 
     public bool TryReadFrame(out LiveProtocolFrame? frame)
@@ -119,6 +124,11 @@ public sealed class LiveV3ProtocolReader
             throw new ArgumentOutOfRangeException(nameof(request), "LIVE v3 START_REQ must contain between 1 and 6 stream records.");
         }
 
+        if (GetStartRequestValidationError(request) is { } validationError)
+        {
+            throw new ArgumentException(validationError, nameof(request));
+        }
+
         var payload = new byte[
             LiveV3ProtocolConstants.StartRequestHeaderSize +
             streamRequests.Count * LiveV3ProtocolConstants.StreamRequestRecordSize];
@@ -127,15 +137,8 @@ public sealed class LiveV3ProtocolReader
         payload[offset++] = 0;
         WriteUInt16(payload, ref offset, request.StartFlags);
 
-        byte previousStreamKind = 0;
         foreach (var record in streamRequests)
         {
-            if (!SstV5ProtocolConstants.IsKnownStreamKind(record.StreamKind) ||
-                record.StreamKind <= previousStreamKind)
-            {
-                throw new ArgumentException("LIVE v3 START_REQ stream records must use known stream kinds in ascending order.", nameof(request));
-            }
-
             payload[offset++] = record.StreamKind;
             payload[offset++] = 0;
             WriteUInt16(payload, ref offset, record.RecordFlags);
@@ -143,7 +146,6 @@ public sealed class LiveV3ProtocolReader
             WriteUInt32(payload, ref offset, record.ExtensionMask);
             WriteUInt32(payload, ref offset, record.RateMhz);
             WriteUInt32(payload, ref offset, record.BatchDurationMs);
-            previousStreamKind = record.StreamKind;
         }
 
         return CreateFrame(LiveV3FrameType.StartReq, sessionId: 0, sequence, payload);
@@ -152,8 +154,12 @@ public sealed class LiveV3ProtocolReader
     public static byte[] CreateStopRequestFrame(byte sessionId, uint sequence) =>
         CreateFrame(LiveV3FrameType.StopReq, sessionId, sequence, ReadOnlySpan<byte>.Empty);
 
-    public static byte[] CreatePingFrame(byte sessionId, uint sequence) =>
-        CreateFrame(LiveV3FrameType.Ping, sessionId, sequence, ReadOnlySpan<byte>.Empty);
+    public static byte[] CreatePingFrame(byte sessionId, uint sequence, uint nonce)
+    {
+        var payload = new byte[LiveV3ProtocolConstants.PingPongPayloadSize];
+        BinaryPrimitives.WriteUInt32LittleEndian(payload, nonce);
+        return CreateFrame(LiveV3FrameType.Ping, sessionId, sequence, payload);
+    }
 
     public static byte[] CreateDeviceStateRequestFrame(uint sequence) =>
         CreateFrame(LiveV3FrameType.DeviceStateReq, sessionId: 0, sequence, ReadOnlySpan<byte>.Empty);
@@ -165,7 +171,7 @@ public sealed class LiveV3ProtocolReader
             throw new FormatException("LIVE v3 frame header is truncated.");
         }
 
-        var rawFrameType = headerBytes[0];
+        var rawFrameType = headerBytes[1];
         var frameType = (LiveV3FrameType)rawFrameType;
         if (!allowUnknownFrameType && !IsKnownFrameType(frameType))
         {
@@ -173,21 +179,15 @@ public sealed class LiveV3ProtocolReader
         }
 
         var header = new LiveV3FrameHeader(
+            SessionId: headerBytes[0],
             FrameType: frameType,
-            Flags: headerBytes[1],
-            SessionId: headerBytes[2],
-            Reserved: headerBytes[3],
+            FrameFlags: BinaryPrimitives.ReadUInt16LittleEndian(headerBytes[2..4]),
             PayloadLength: BinaryPrimitives.ReadUInt32LittleEndian(headerBytes[4..8]),
             TxSequence: BinaryPrimitives.ReadUInt32LittleEndian(headerBytes[8..12]));
 
-        if (header.Flags != 0)
+        if (header.FrameFlags != 0)
         {
             throw new FormatException("LIVE v3 frame flags are invalid.");
-        }
-
-        if (header.Reserved != 0)
-        {
-            throw new FormatException("LIVE v3 frame reserved field is invalid.");
         }
 
         if (header.PayloadLength > LiveV3ProtocolConstants.MaxPayloadLength)
@@ -211,24 +211,30 @@ public sealed class LiveV3ProtocolReader
         var metadata = new LiveFrameMetadata(header.TxSequence);
         return header.FrameType switch
         {
-            LiveV3FrameType.CapabilitiesReq => ParseEmptyPayloadFrame(header, payload, new LiveV3CapabilitiesRequestFrame(metadata)),
-            LiveV3FrameType.CapabilitiesResp => new LiveV3CapabilitiesFrame(metadata, ParseCapabilities(payload)),
-            LiveV3FrameType.StartReq => new LiveV3StartRequestFrame(metadata, ParseStartRequest(payload)),
+            LiveV3FrameType.CapabilitiesReq => ParseSessionZeroEmptyPayloadFrame(header, payload, new LiveV3CapabilitiesRequestFrame(metadata)),
+            LiveV3FrameType.CapabilitiesResp => ParseCapabilitiesFrame(header, metadata, payload),
+            LiveV3FrameType.StartReq => ParseStartRequestFrame(header, metadata, payload),
             LiveV3FrameType.StartResult => ParseStartResultFrame(header, metadata, payload, context),
-            LiveV3FrameType.StopReq => ParseEmptyPayloadFrame(header, payload, new LiveStopRequestFrame(metadata)),
+            LiveV3FrameType.StopReq => ParseStopRequestFrame(header, metadata, payload, context),
             LiveV3FrameType.StopResult => new LiveStopResultFrame(metadata, ParseStopResult(header, payload, context)),
             LiveV3FrameType.SessionHeader => ParseSessionHeaderFrame(header, metadata, payload, context),
             LiveV3FrameType.SessionResult => ParseSessionResultFrame(header, metadata, payload, context),
             LiveV3FrameType.TravelData => ParseTravelDataFrame(header, metadata, payload, context),
             LiveV3FrameType.ImuData => ParseImuDataFrame(header, metadata, payload, context),
-            LiveV3FrameType.TemperatureData => ParseTemperatureDataFrame(header, payload, context),
+            LiveV3FrameType.TemperatureData => ParseTemperatureDataFrame(header, metadata, payload, context),
             LiveV3FrameType.GpsData => ParseGpsDataFrame(header, metadata, payload, context),
             LiveV3FrameType.BatteryData => ParseBatteryDataFrame(header, metadata, payload, context),
             LiveV3FrameType.MarkerData => ParseMarkerDataFrame(header, metadata, payload, context),
             LiveV3FrameType.Status => new LiveStatusFrame(metadata, ParseStatus(header, payload, context)),
-            LiveV3FrameType.Ping => ParseEmptyPayloadFrame(header, payload, new LivePingFrame(metadata)),
-            LiveV3FrameType.Pong => ParseEmptyPayloadFrame(header, payload, new LivePongFrame(metadata)),
-            LiveV3FrameType.Error => new LiveV3ErrorFrame(metadata, ParseError(payload)),
+            LiveV3FrameType.Ping => new LivePingFrame(metadata, ParseNonceFrame(header, payload, context))
+            {
+                SessionId = header.SessionId,
+            },
+            LiveV3FrameType.Pong => new LivePongFrame(metadata, ParseNonceFrame(header, payload, context))
+            {
+                SessionId = header.SessionId,
+            },
+            LiveV3FrameType.Error => ParseErrorFrame(header, metadata, payload, context),
             LiveV3FrameType.DeviceStateReq => ParseSessionZeroEmptyPayloadFrame(header, payload, new LiveV3DeviceStateRequestFrame(metadata)),
             LiveV3FrameType.DeviceStateResp => ParseDeviceStateFrame(header, metadata, payload),
             _ => throw new FormatException($"Unsupported LIVE v3 frame type {(byte)header.FrameType}."),
@@ -247,10 +253,9 @@ public sealed class LiveV3ProtocolReader
         }
 
         var frame = new byte[LiveV3ProtocolConstants.FrameHeaderSize + payload.Length];
-        frame[0] = (byte)frameType;
-        frame[1] = 0;
-        frame[2] = sessionId;
-        frame[3] = 0;
+        frame[0] = sessionId;
+        frame[1] = (byte)frameType;
+        BinaryPrimitives.WriteUInt16LittleEndian(frame.AsSpan(2, 2), 0);
         BinaryPrimitives.WriteUInt32LittleEndian(frame.AsSpan(4, 4), (uint)payload.Length);
         BinaryPrimitives.WriteUInt32LittleEndian(frame.AsSpan(8, 4), sequence);
         payload.CopyTo(frame.AsSpan(LiveV3ProtocolConstants.FrameHeaderSize));
@@ -327,11 +332,127 @@ public sealed class LiveV3ProtocolReader
                 BatchDurationMs: ReadUInt32(payload, ref offset));
         }
 
-        return new LiveV3StartRequest
+        var request = new LiveV3StartRequest
         {
             StartFlags = startFlags,
             StreamRequests = records,
         };
+        if (GetStartRequestValidationError(request) is { } validationError)
+        {
+            throw new FormatException(validationError);
+        }
+
+        return request;
+    }
+
+    private static LiveV3CapabilitiesFrame ParseCapabilitiesFrame(
+        LiveV3FrameHeader header,
+        LiveFrameMetadata metadata,
+        ReadOnlySpan<byte> payload)
+    {
+        EnsureSessionIdZero(header);
+        return new LiveV3CapabilitiesFrame(metadata, ParseCapabilities(payload));
+    }
+
+    private static LiveV3StartRequestFrame ParseStartRequestFrame(
+        LiveV3FrameHeader header,
+        LiveFrameMetadata metadata,
+        ReadOnlySpan<byte> payload)
+    {
+        EnsureSessionIdZero(header);
+        return new LiveV3StartRequestFrame(metadata, ParseStartRequest(payload));
+    }
+
+    private static LiveStopRequestFrame ParseStopRequestFrame(
+        LiveV3FrameHeader header,
+        LiveFrameMetadata metadata,
+        ReadOnlySpan<byte> payload,
+        LiveV3SessionDecodeContext context)
+    {
+        context.ValidateSessionId(header.SessionId);
+        return (LiveStopRequestFrame)ParseEmptyPayloadFrame(
+            header,
+            payload,
+            new LiveStopRequestFrame(metadata));
+    }
+
+    private static string? GetStartRequestValidationError(LiveV3StartRequest request)
+    {
+        const ushort validStartFlags =
+            LiveV3ProtocolConstants.StartFlagPriority |
+            LiveV3ProtocolConstants.StartFlagNoGpsHeaderWait;
+        const ushort validRecordFlags =
+            LiveV3ProtocolConstants.StreamRequestFlagRateOverride |
+            LiveV3ProtocolConstants.StreamRequestFlagBatchDurationOverride;
+        if ((request.StartFlags & ~validStartFlags) != 0)
+        {
+            return "LIVE v3 START_REQ start flags are invalid.";
+        }
+
+        byte previousStreamKind = 0;
+        var hasGps = false;
+        foreach (var record in request.StreamRequests)
+        {
+            if (!SstV5ProtocolConstants.IsKnownStreamKind(record.StreamKind) ||
+                record.StreamKind <= previousStreamKind ||
+                (record.RecordFlags & ~validRecordFlags) != 0 ||
+                !IsKnownSourceMask(record.SourceMask))
+            {
+                return "LIVE v3 START_REQ stream records must be valid and strictly ascending.";
+            }
+
+            var hasRateOverride =
+                (record.RecordFlags & LiveV3ProtocolConstants.StreamRequestFlagRateOverride) != 0;
+            var hasDurationOverride =
+                (record.RecordFlags & LiveV3ProtocolConstants.StreamRequestFlagBatchDurationOverride) != 0;
+            if (hasRateOverride != (record.RateMhz != 0) ||
+                hasDurationOverride != (record.BatchDurationMs != 0))
+            {
+                return "LIVE v3 START_REQ override flags and values do not match.";
+            }
+
+            var streamShapeValid = record.StreamKind switch
+            {
+                SstV5ProtocolConstants.StreamTravel =>
+                    (record.SourceMask & ~LiveSensorInstanceMask.Travel) == 0 &&
+                    record.ExtensionMask == 0,
+                SstV5ProtocolConstants.StreamImu =>
+                    (record.SourceMask & ~LiveSensorInstanceMask.Imu) == 0 &&
+                    record.ExtensionMask == 0,
+                SstV5ProtocolConstants.StreamTemperature =>
+                    (record.SourceMask & ~LiveSensorInstanceMask.Imu) == 0 &&
+                    record.ExtensionMask == 0 &&
+                    !hasDurationOverride,
+                SstV5ProtocolConstants.StreamGps =>
+                    record.SourceMask == LiveSensorInstanceMask.Gps &&
+                    (record.ExtensionMask & ~SstV5ProtocolConstants.ExtensionGpsDiagPublicV1) == 0 &&
+                    !hasDurationOverride,
+                SstV5ProtocolConstants.StreamBattery =>
+                    record.SourceMask == LiveSensorInstanceMask.Battery &&
+                    record.ExtensionMask == 0 &&
+                    !hasRateOverride &&
+                    !hasDurationOverride,
+                SstV5ProtocolConstants.StreamMarker =>
+                    record.SourceMask == LiveSensorInstanceMask.None &&
+                    record.ExtensionMask == 0 &&
+                    !hasRateOverride &&
+                    !hasDurationOverride,
+                _ => false,
+            };
+            if (!streamShapeValid)
+            {
+                return $"LIVE v3 START_REQ stream {record.StreamKind} has invalid fields.";
+            }
+
+            hasGps |= record.StreamKind == SstV5ProtocolConstants.StreamGps;
+            previousStreamKind = record.StreamKind;
+        }
+
+        if ((request.StartFlags & LiveV3ProtocolConstants.StartFlagNoGpsHeaderWait) != 0 && !hasGps)
+        {
+            return "LIVE v3 START_REQ NO_GPS_HEADER_WAIT requires a GPS record.";
+        }
+        return null;
     }
 
     private static LiveV3Capabilities ParseCapabilities(ReadOnlySpan<byte> payload)
@@ -341,14 +462,19 @@ public sealed class LiveV3ProtocolReader
             throw new FormatException("LIVE v3 capabilities payload is truncated.");
         }
 
-        var maxFramePayloadBytes = BinaryPrimitives.ReadUInt32LittleEndian(payload[0..4]);
+        var boardId = payload[0];
+        var streamCount = payload[1];
+        var capabilityFlags = BinaryPrimitives.ReadUInt16LittleEndian(payload[2..4]);
         var supportedStreamMask = (LiveStreamMask)BinaryPrimitives.ReadUInt32LittleEndian(payload[4..8]);
         var supportedSourceMask = (LiveSensorInstanceMask)BinaryPrimitives.ReadUInt32LittleEndian(payload[8..12]);
-        var supportedExtensionMask = BinaryPrimitives.ReadUInt32LittleEndian(payload[12..16]);
-        var streamCount = payload[16];
-        if (payload[17] != 0 || payload[18] != 0 || payload[19] != 0)
+        var maxFramePayloadBytes = BinaryPrimitives.ReadUInt32LittleEndian(payload[12..16]);
+        if (boardId is not 1 and not 2 ||
+            capabilityFlags != 0 ||
+            streamCount > 6 ||
+            !IsKnownStreamMask(supportedStreamMask) ||
+            !IsKnownSourceMask(supportedSourceMask))
         {
-            throw new FormatException("LIVE v3 capabilities reserved field is invalid.");
+            throw new FormatException("LIVE v3 capabilities header is invalid.");
         }
 
         if (maxFramePayloadBytes != LiveV3ProtocolConstants.MaxPayloadLength)
@@ -365,30 +491,54 @@ public sealed class LiveV3ProtocolReader
 
         var streams = new LiveV3StreamCapability[streamCount];
         var offset = LiveV3ProtocolConstants.CapabilitiesHeaderSize;
+        byte previousStreamKind = 0;
+        var describedStreamMask = LiveStreamMask.None;
         for (var index = 0; index < streams.Length; index++)
         {
             var streamKind = payload[offset];
+            var timingModelId = payload[offset + 1];
+            var sourceMask = (LiveSensorInstanceMask)BinaryPrimitives.ReadUInt32LittleEndian(payload[(offset + 4)..(offset + 8)]);
+            var extensionMask = BinaryPrimitives.ReadUInt32LittleEndian(payload[(offset + 8)..(offset + 12)]);
+            var minRateMhz = BinaryPrimitives.ReadUInt32LittleEndian(payload[(offset + 12)..(offset + 16)]);
+            var maxRateMhz = BinaryPrimitives.ReadUInt32LittleEndian(payload[(offset + 16)..(offset + 20)]);
+            var maxBatchDurationMs = BinaryPrimitives.ReadUInt32LittleEndian(payload[(offset + 20)..(offset + 24)]);
             if (!SstV5ProtocolConstants.IsKnownStreamKind(streamKind) ||
-                payload[offset + 1] != 0 ||
-                BinaryPrimitives.ReadUInt16LittleEndian(payload[(offset + 2)..(offset + 4)]) != 0)
+                streamKind <= previousStreamKind ||
+                BinaryPrimitives.ReadUInt16LittleEndian(payload[(offset + 2)..(offset + 4)]) != 0 ||
+                timingModelId != ExpectedTimingModel(streamKind) ||
+                !IsCapabilitySourceMaskValid(streamKind, sourceMask, supportedSourceMask) ||
+                !IsCapabilityExtensionMaskValid(streamKind, extensionMask) ||
+                minRateMhz > maxRateMhz ||
+                (streamKind is not SstV5ProtocolConstants.StreamTravel and
+                    not SstV5ProtocolConstants.StreamImu && maxBatchDurationMs != 0))
             {
                 throw new FormatException("LIVE v3 stream capability record is invalid.");
             }
 
+            var streamMask = ToLiveStreamMask(streamKind);
             streams[index] = new LiveV3StreamCapability(
-                Stream: ToLiveStreamMask(streamKind),
-                SupportedSourceMask: (LiveSensorInstanceMask)BinaryPrimitives.ReadUInt32LittleEndian(payload[(offset + 4)..(offset + 8)]),
-                SupportedExtensionMask: BinaryPrimitives.ReadUInt32LittleEndian(payload[(offset + 8)..(offset + 12)]),
-                MinRateMhz: BinaryPrimitives.ReadUInt32LittleEndian(payload[(offset + 12)..(offset + 16)]),
-                MaxRateMhz: BinaryPrimitives.ReadUInt32LittleEndian(payload[(offset + 16)..(offset + 20)]));
+                Stream: streamMask,
+                TimingModelId: timingModelId,
+                SupportedSourceMask: sourceMask,
+                SupportedExtensionMask: extensionMask,
+                MinRateMhz: minRateMhz,
+                MaxRateMhz: maxRateMhz,
+                MaxBatchDurationMs: maxBatchDurationMs);
+            describedStreamMask |= streamMask;
+            previousStreamKind = streamKind;
             offset += LiveV3ProtocolConstants.StreamCapabilityRecordSize;
         }
 
+        if (describedStreamMask != supportedStreamMask)
+        {
+            throw new FormatException("LIVE v3 capability stream records do not match the supported stream mask.");
+        }
+
         return new LiveV3Capabilities(
-            maxFramePayloadBytes,
+            boardId,
             supportedStreamMask,
             supportedSourceMask,
-            supportedExtensionMask,
+            maxFramePayloadBytes,
             streams);
     }
 
@@ -404,9 +554,8 @@ public sealed class LiveV3ProtocolReader
         }
 
         var resultCode = payload[0];
-        var sessionId = payload[1];
-        var admissionReasonCount = payload[2];
-        if (payload[3] != 0)
+        var admissionReasonCount = BinaryPrimitives.ReadUInt16LittleEndian(payload[2..4]);
+        if (payload[1] != 0)
         {
             throw new FormatException("LIVE v3 START_RESULT reserved field is invalid.");
         }
@@ -416,9 +565,10 @@ public sealed class LiveV3ProtocolReader
             throw new FormatException("LIVE v3 START_RESULT code is invalid.");
         }
 
-        if (resultCode == 0 && sessionId == 0)
+        if ((resultCode == 0 && (header.SessionId == 0 || admissionReasonCount != 0)) ||
+            (resultCode == 1 && header.SessionId != 0))
         {
-            throw new FormatException("LIVE v3 START_RESULT accepted session ID is invalid.");
+            throw new FormatException("LIVE v3 START_RESULT session state is invalid.");
         }
 
         var expectedLength = LiveV3ProtocolConstants.StartResultHeaderSize +
@@ -428,7 +578,6 @@ public sealed class LiveV3ProtocolReader
             throw new FormatException("LIVE v3 START_RESULT payload length is invalid.");
         }
 
-        var acceptedStreamMask = (LiveStreamMask)BinaryPrimitives.ReadUInt32LittleEndian(payload[4..8]);
         var reasons = new LiveStartAdmissionReason[admissionReasonCount];
         var offset = LiveV3ProtocolConstants.StartResultHeaderSize;
         for (var index = 0; index < reasons.Length; index++)
@@ -439,9 +588,16 @@ public sealed class LiveV3ProtocolReader
             var reserved = payload[offset + 3];
             var targetMask = BinaryPrimitives.ReadUInt32LittleEndian(payload[(offset + 4)..(offset + 8)]);
 
-            if (targetKind is < 1 or > 3 ||
+            var isWholeRequestReason = targetKind == 1 && streamKind == 0 && targetMask != 0;
+            var isWholeStreamReason = targetKind == 1 &&
+                                      SstV5ProtocolConstants.IsKnownStreamKind(streamKind) &&
+                                      targetMask == 0;
+            var isSourceOrExtensionReason = targetKind is 2 or 3 &&
+                                            SstV5ProtocolConstants.IsKnownStreamKind(streamKind) &&
+                                            targetMask != 0;
+            if (reason is < LiveV3ProtocolHelpers.AdmissionUnsupported or > LiveV3ProtocolHelpers.AdmissionNoTelemetry ||
                 reserved != 0 ||
-                (streamKind != 0 && !SstV5ProtocolConstants.IsKnownStreamKind(streamKind)))
+                (!isWholeRequestReason && !isWholeStreamReason && !isSourceOrExtensionReason))
             {
                 throw new FormatException("LIVE v3 START_RESULT admission reason is invalid.");
             }
@@ -453,18 +609,19 @@ public sealed class LiveV3ProtocolReader
                     : streamKind == 0 ? LiveStreamMask.None : ToLiveStreamMask(streamKind),
                 targetKind == 2 ? (LiveSensorInstanceMask)targetMask : LiveSensorInstanceMask.None,
                 targetKind,
-                targetMask);
+                targetMask,
+                streamKind);
             offset += LiveV3ProtocolConstants.AdmissionReasonRecordSize;
         }
 
         if (resultCode == 0)
         {
-            context.AcceptSession(sessionId);
+            context.AcceptSession(header.SessionId);
         }
 
         return new LiveV3StartResultFrame(
             metadata,
-            new LiveV3StartResult(resultCode, sessionId, acceptedStreamMask, reasons));
+            new LiveV3StartResult(resultCode, header.SessionId, reasons));
     }
 
     private static LiveStopResult ParseStopResult(
@@ -474,13 +631,13 @@ public sealed class LiveV3ProtocolReader
     {
         EnsureSessionFrame(header, context);
         EnsurePayloadLength(payload, LiveV3ProtocolConstants.StopResultPayloadSize, LiveV3FrameType.StopResult);
-        if (BinaryPrimitives.ReadUInt16LittleEndian(payload[2..4]) != 0)
+        if (payload[0] != 0 || payload[1] != 0 ||
+            BinaryPrimitives.ReadUInt16LittleEndian(payload[2..4]) != 0)
         {
-            throw new FormatException("LIVE v3 STOP_RESULT reserved field is invalid.");
+            throw new FormatException("LIVE v3 STOP_RESULT payload is invalid.");
         }
 
-        var result = new LiveV3StopResult(payload[0], payload[1]);
-        return new LiveStopResult(header.SessionId, result.Accepted, result.Reason);
+        return new LiveStopResult(header.SessionId, Accepted: true, Reason: 0);
     }
 
     private static LiveSessionHeaderFrame ParseSessionHeaderFrame(
@@ -501,19 +658,30 @@ public sealed class LiveV3ProtocolReader
 
         context.ValidateSessionId(header.SessionId);
 
-        var flags = (LiveSessionFlags)BinaryPrimitives.ReadUInt32LittleEndian(payload[0..4]);
-        var requestedSensorMask = (LiveSensorInstanceMask)BinaryPrimitives.ReadUInt32LittleEndian(payload[4..8]);
+        var boardId = payload[0];
+        var streamDescriptorCount = payload[1];
+        var sourceDescriptorTotalCount = payload[2];
+        var omissionCount = payload[3];
+        var acceptedStreamMask = (LiveStreamMask)BinaryPrimitives.ReadUInt32LittleEndian(payload[4..8]);
+        if (streamDescriptorCount > 6 || sourceDescriptorTotalCount > 8 || omissionCount > 16)
+        {
+            throw new FormatException("LIVE v3 SESSION_HEADER descriptor counts are invalid.");
+        }
+
         var sessionStartUtc = DateTimeOffset.FromUnixTimeMilliseconds(BinaryPrimitives.ReadInt64LittleEndian(payload[8..16]));
         var sessionStartMonotonicUs = BinaryPrimitives.ReadUInt64LittleEndian(payload[16..24]);
-        var descriptor = SstV5DescriptorReader.ReadSessionDescriptor(payload[LiveV3ProtocolConstants.SessionHeaderFixedSize..]);
+        var descriptor = SstV5DescriptorReader.ReadDescriptorRecords(
+            boardId,
+            streamDescriptorCount,
+            sourceDescriptorTotalCount,
+            omissionCount,
+            (uint)acceptedStreamMask,
+            payload[LiveV3ProtocolConstants.SessionHeaderFixedSize..]);
+        var admissionOmissions = CreateAdmissionOmissions(descriptor.OmissionRecords);
 
         context.SetSessionHeader(header.SessionId, sessionStartUtc, sessionStartMonotonicUs, descriptor);
 
         var acceptedSensorMask = CreateAcceptedSensorMask(descriptor);
-        if (requestedSensorMask == LiveSensorInstanceMask.None)
-        {
-            requestedSensorMask = acceptedSensorMask;
-        }
 
         return new LiveSessionHeaderFrame(
             metadata,
@@ -526,10 +694,19 @@ public sealed class LiveV3ProtocolReader
                 SessionStartMonotonicUs: sessionStartMonotonicUs,
                 ActiveImuMask: CreateActiveImuMask(descriptor),
                 ImuCalibrationScales: CreateImuCalibrationScales(descriptor),
-                Flags: flags,
-                RequestedSensorMask: requestedSensorMask,
+                Flags: LiveSessionFlags.None,
+                RequestedSensorMask: LiveSensorInstanceMask.None,
                 AcceptedSensorMask: acceptedSensorMask,
-                ProtocolVersion: LiveProtocolVersion.V3));
+                ProtocolVersion: LiveProtocolVersion.V3)
+            {
+                BoardId = boardId,
+                AcceptedStreamMask = acceptedStreamMask,
+                AcceptedTemperatureRateMhz = GetAcceptedRateMhz(
+                    descriptor,
+                    SstV5ProtocolConstants.StreamTemperature),
+                AdmissionOmissions = admissionOmissions,
+                StreamDescriptors = descriptor.StreamDescriptors,
+            });
     }
 
     private static LiveTravelBatchFrame ParseTravelDataFrame(
@@ -609,18 +786,33 @@ public sealed class LiveV3ProtocolReader
             records);
     }
 
-    private static LiveProtocolFrame ParseTemperatureDataFrame(
+    private static LiveTemperatureBatchFrame ParseTemperatureDataFrame(
         LiveV3FrameHeader frameHeader,
+        LiveFrameMetadata metadata,
         ReadOnlySpan<byte> payload,
         LiveV3SessionDecodeContext context)
     {
-        EnsureSessionFrame(frameHeader, context);
-        if (!context.TryGetStream(SstV5ProtocolConstants.StreamTemperature, out _))
-        {
-            throw new FormatException("LIVE v3 temperature data arrived without an accepted temperature descriptor.");
-        }
-
-        throw new FormatException("LIVE v3 temperature data is not supported by the live app.");
+        var descriptor = GetAcceptedDataDescriptor(
+            frameHeader,
+            context,
+            SstV5ProtocolConstants.StreamTemperature);
+        var dataHeader = SstV5DescriptorReader.ReadDataHeader(payload, descriptor);
+        var decoded = SstV5CompactPayloadDecoder.DecodeTemperature(
+            descriptor,
+            dataHeader,
+            context.SessionStartUtc.ToUnixTimeMilliseconds(),
+            payload[LiveV3ProtocolConstants.DataHeaderSize..]);
+        var records = decoded
+            .Select(record => new LiveTemperatureRecord(
+                record.Index,
+                record.MonotonicDeltaUs,
+                (LiveSensorInstanceMask)record.SourceBitMask,
+                record.Sample))
+            .ToArray();
+        return new LiveTemperatureBatchFrame(
+            metadata,
+            CreateBatchHeader(frameHeader, context, LiveStreamMask.Temperature, dataHeader),
+            records);
     }
 
     private static LiveGpsBatchFrame ParseGpsDataFrame(
@@ -696,6 +888,10 @@ public sealed class LiveV3ProtocolReader
         LiveV3SessionDecodeContext context)
     {
         EnsureSessionFrame(header, context);
+        if (!context.HasSessionHeader)
+        {
+            throw new FormatException("LIVE v3 STATUS arrived before SESSION_HEADER.");
+        }
         if (payload.Length < LiveV3ProtocolConstants.StatusHeaderSize)
         {
             throw new FormatException("LIVE v3 STATUS payload is truncated.");
@@ -708,7 +904,7 @@ public sealed class LiveV3ProtocolReader
         }
 
         var expectedLength = LiveV3ProtocolConstants.StatusHeaderSize + statusCount * LiveV3ProtocolConstants.StatusRecordSize;
-        if (payload.Length != expectedLength)
+        if (statusCount != context.StreamDescriptorOrder.Count || payload.Length != expectedLength)
         {
             throw new FormatException("LIVE v3 STATUS payload length is invalid.");
         }
@@ -717,16 +913,17 @@ public sealed class LiveV3ProtocolReader
         var offset = LiveV3ProtocolConstants.StatusHeaderSize;
         for (var index = 0; index < statuses.Length; index++)
         {
-            var streamKind = payload[offset];
-            if (!SstV5ProtocolConstants.IsKnownStreamKind(streamKind))
+            var producerState = payload[offset];
+            var producerFailureReason = payload[offset + 1];
+            if (producerState > 2 || producerFailureReason > 4)
             {
                 throw new FormatException("LIVE v3 STATUS stream record is invalid.");
             }
 
             statuses[index] = new LiveStreamStatus(
-                Stream: ToLiveStreamMask(streamKind),
-                ProducerState: payload[offset + 1],
-                ProducerFailureReason: 0,
+                Stream: ToLiveStreamMask(context.StreamDescriptorOrder[index].StreamKind),
+                ProducerState: producerState,
+                ProducerFailureReason: producerFailureReason,
                 SinkBacklogBatches: BinaryPrimitives.ReadUInt16LittleEndian(payload[(offset + 2)..(offset + 4)]),
                 ProducerMissedCount: BinaryPrimitives.ReadUInt64LittleEndian(payload[(offset + 4)..(offset + 12)]),
                 ProducerMissingTimeUs: BinaryPrimitives.ReadUInt64LittleEndian(payload[(offset + 12)..(offset + 20)]),
@@ -784,6 +981,10 @@ public sealed class LiveV3ProtocolReader
             var producerState = payload[offset];
             var producerFailureReason = payload[offset + 1];
             var sinkBacklogBatches = BinaryPrimitives.ReadUInt16LittleEndian(payload[(offset + 2)..(offset + 4)]);
+            if (producerState > 2 || producerFailureReason > 4)
+            {
+                throw new FormatException("LIVE v3 SESSION_RESULT stream status record is invalid.");
+            }
 
             statuses[index] = new SstStreamFinalStatus
             {
@@ -810,12 +1011,48 @@ public sealed class LiveV3ProtocolReader
     private static LiveV3Error ParseError(ReadOnlySpan<byte> payload)
     {
         EnsurePayloadLength(payload, LiveV3ProtocolConstants.ErrorPayloadSize, LiveV3FrameType.Error);
-        if (payload[1] != 0 || BinaryPrimitives.ReadUInt16LittleEndian(payload[2..4]) != 0)
+        if (payload[0] is < 1 or > 6 || BinaryPrimitives.ReadUInt16LittleEndian(payload[2..4]) != 0)
         {
             throw new FormatException("LIVE v3 ERROR reserved field is invalid.");
         }
 
-        return new LiveV3Error(payload[0]);
+        return new LiveV3Error(
+            payload[0],
+            payload[1],
+            BinaryPrimitives.ReadUInt32LittleEndian(payload[4..8]));
+    }
+
+    private static LiveV3ErrorFrame ParseErrorFrame(
+        LiveV3FrameHeader header,
+        LiveFrameMetadata metadata,
+        ReadOnlySpan<byte> payload,
+        LiveV3SessionDecodeContext context)
+    {
+        if (header.SessionId != 0)
+        {
+            context.ValidateSessionId(header.SessionId);
+        }
+
+        return new LiveV3ErrorFrame(metadata, ParseError(payload));
+    }
+
+    private static uint ParseNonce(ReadOnlySpan<byte> payload, LiveV3FrameType frameType)
+    {
+        EnsurePayloadLength(payload, LiveV3ProtocolConstants.PingPongPayloadSize, frameType);
+        return BinaryPrimitives.ReadUInt32LittleEndian(payload);
+    }
+
+    private static uint ParseNonceFrame(
+        LiveV3FrameHeader header,
+        ReadOnlySpan<byte> payload,
+        LiveV3SessionDecodeContext context)
+    {
+        if (header.SessionId != 0)
+        {
+            context.ValidateSessionId(header.SessionId);
+        }
+
+        return ParseNonce(payload, header.FrameType);
     }
 
     private static LiveV3DeviceState ParseDeviceState(ReadOnlySpan<byte> payload)
@@ -827,7 +1064,9 @@ public sealed class LiveV3ProtocolReader
 
         var streamStateCount = payload[0];
         var sourceStateCount = payload[1];
-        if (BinaryPrimitives.ReadUInt16LittleEndian(payload[2..4]) != 0)
+        if (streamStateCount > 6 ||
+            sourceStateCount > 7 ||
+            BinaryPrimitives.ReadUInt16LittleEndian(payload[2..4]) != 0)
         {
             throw new FormatException("LIVE v3 DEVICE_STATE_RESP state flags are invalid.");
         }
@@ -871,8 +1110,10 @@ public sealed class LiveV3ProtocolReader
             var available = payload[offset + 1];
             var reserved = BinaryPrimitives.ReadUInt16LittleEndian(payload[(offset + 2)..(offset + 4)]);
             var sourceBitMask = BinaryPrimitives.ReadUInt32LittleEndian(payload[(offset + 4)..(offset + 8)]);
-            if (available is not 0 and not 1 ||
+            if (calibrationStatus > 2 ||
+                available is not 0 and not 1 ||
                 reserved != 0 ||
+                !IsKnownSourceMask((LiveSensorInstanceMask)sourceBitMask) ||
                 !SstV5ProtocolConstants.IsSingleBitMask(sourceBitMask) ||
                 sourceBitMask <= previousSourceBit)
             {
@@ -978,6 +1219,58 @@ public sealed class LiveV3ProtocolReader
     private static LiveStreamMask ToLiveStreamMask(byte streamKind) =>
         (LiveStreamMask)SstV5ProtocolConstants.StreamMaskForKind(streamKind);
 
+    private static bool IsKnownStreamMask(LiveStreamMask mask)
+    {
+        const LiveStreamMask known =
+            LiveStreamMask.Travel |
+            LiveStreamMask.Imu |
+            LiveStreamMask.Temperature |
+            LiveStreamMask.Gps |
+            LiveStreamMask.Battery |
+            LiveStreamMask.Marker;
+        return (mask & ~known) == 0;
+    }
+
+    private static bool IsKnownSourceMask(LiveSensorInstanceMask mask) =>
+        (mask & ~LiveSensorInstanceMask.All) == 0;
+
+    private static byte ExpectedTimingModel(byte streamKind) => streamKind switch
+    {
+        SstV5ProtocolConstants.StreamTravel or SstV5ProtocolConstants.StreamImu =>
+            SstV5ProtocolConstants.TimingFixedRate,
+        SstV5ProtocolConstants.StreamGps => SstV5ProtocolConstants.TimingGpsReceiverTimed,
+        _ => SstV5ProtocolConstants.TimingMonotonicEventStatus,
+    };
+
+    private static bool IsCapabilitySourceMaskValid(
+        byte streamKind,
+        LiveSensorInstanceMask streamSources,
+        LiveSensorInstanceMask allSupportedSources)
+    {
+        if (!IsKnownSourceMask(streamSources) ||
+            (streamSources & ~allSupportedSources) != 0)
+        {
+            return false;
+        }
+
+        var allowed = streamKind switch
+        {
+            SstV5ProtocolConstants.StreamTravel => LiveSensorInstanceMask.Travel,
+            SstV5ProtocolConstants.StreamImu or SstV5ProtocolConstants.StreamTemperature =>
+                LiveSensorInstanceMask.Imu,
+            SstV5ProtocolConstants.StreamGps => LiveSensorInstanceMask.Gps,
+            SstV5ProtocolConstants.StreamBattery => LiveSensorInstanceMask.Battery,
+            SstV5ProtocolConstants.StreamMarker => LiveSensorInstanceMask.None,
+            _ => LiveSensorInstanceMask.None,
+        };
+        return (streamSources & ~allowed) == 0;
+    }
+
+    private static bool IsCapabilityExtensionMaskValid(byte streamKind, uint extensionMask) =>
+        streamKind == SstV5ProtocolConstants.StreamGps
+            ? (extensionMask & ~SstV5ProtocolConstants.ExtensionGpsDiagPublicV1) == 0
+            : extensionMask == 0;
+
     private static uint GetAcceptedRateMhz(SstV5SessionDescriptor descriptor, byte streamKind) =>
         descriptor.TryGetStream(streamKind, out var stream) ? stream.AcceptedRateMhz : 0;
 
@@ -990,6 +1283,63 @@ public sealed class LiveV3ProtocolReader
         }
 
         return mask;
+    }
+
+    private static IReadOnlyList<LiveStartAdmissionReason> CreateAdmissionOmissions(
+        IReadOnlyList<SstV5OmissionRecord> omissions)
+    {
+        var results = new LiveStartAdmissionReason[omissions.Count];
+        for (var index = 0; index < omissions.Count; index++)
+        {
+            var omission = omissions[index];
+            if (!SstV5ProtocolConstants.IsKnownStreamKind(omission.StreamKind) ||
+                omission.AdmissionReason is < 1 or > 8 ||
+                !IsSessionOmissionTargetValid(omission))
+            {
+                throw new FormatException("LIVE v3 SESSION_HEADER omission record is invalid.");
+            }
+
+            results[index] = new LiveStartAdmissionReason(
+                omission.AdmissionReason,
+                ToLiveStreamMask(omission.StreamKind),
+                omission.TargetKind == 2
+                    ? (LiveSensorInstanceMask)omission.TargetMask
+                    : LiveSensorInstanceMask.None,
+                omission.TargetKind,
+                omission.TargetMask,
+                omission.StreamKind);
+        }
+        return results;
+    }
+
+    private static bool IsSessionOmissionTargetValid(SstV5OmissionRecord omission)
+    {
+        if (omission.TargetKind == 1)
+        {
+            return omission.TargetMask == 0;
+        }
+        if (omission.TargetKind == 2)
+        {
+            var sources = (LiveSensorInstanceMask)omission.TargetMask;
+            if (sources == LiveSensorInstanceMask.None || !IsKnownSourceMask(sources))
+            {
+                return false;
+            }
+            var allowed = omission.StreamKind switch
+            {
+                SstV5ProtocolConstants.StreamTravel => LiveSensorInstanceMask.Travel,
+                SstV5ProtocolConstants.StreamImu or SstV5ProtocolConstants.StreamTemperature =>
+                    LiveSensorInstanceMask.Imu,
+                SstV5ProtocolConstants.StreamGps => LiveSensorInstanceMask.Gps,
+                SstV5ProtocolConstants.StreamBattery => LiveSensorInstanceMask.Battery,
+                _ => LiveSensorInstanceMask.None,
+            };
+            return (sources & ~allowed) == 0;
+        }
+        return omission.TargetKind == 3 &&
+               omission.StreamKind == SstV5ProtocolConstants.StreamGps &&
+               omission.TargetMask != 0 &&
+               (omission.TargetMask & ~SstV5ProtocolConstants.ExtensionGpsDiagPublicV1) == 0;
     }
 
     private static LiveImuLocationMask CreateActiveImuMask(SstV5SessionDescriptor descriptor)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using Sufni.Telemetry;
 
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;
@@ -72,7 +73,8 @@ public readonly record struct LiveStartAdmissionReason(
     LiveStreamMask Stream,
     LiveSensorInstanceMask Sources,
     byte TargetKind = 0,
-    uint TargetMask = 0);
+    uint TargetMask = 0,
+    byte StreamKind = 0);
 
 // Client-to-DAQ request. Rates are in millihertz so live v2, live v3, and SST
 // descriptors share one internal unit. Zero means no preference.
@@ -80,7 +82,14 @@ public readonly record struct LiveStartRequest(
     LiveSensorInstanceMask RequestedSensorMask,
     uint TravelRateMhz,
     uint ImuRateMhz,
-    uint GpsRateMhz);
+    uint GpsRateMhz,
+    LiveStreamMask RequestedStreamMask = LiveStreamMask.None,
+    uint TemperatureRateMhz = 0,
+    uint? TravelBatchDurationMs = null,
+    uint? ImuBatchDurationMs = null,
+    bool RequestGpsDiagnostics = false,
+    bool Priority = false,
+    bool NoGpsHeaderWait = false);
 
 public readonly record struct LiveStartAck(
     LiveStartErrorCode Result,
@@ -131,6 +140,13 @@ public sealed record LiveSessionHeader(
     LiveSensorInstanceMask AcceptedSensorMask,
     LiveProtocolVersion ProtocolVersion = LiveProtocolVersion.V2)
 {
+    public byte BoardId { get; init; }
+    public LiveStreamMask RequestedStreamMask { get; init; }
+    public LiveStreamMask AcceptedStreamMask { get; init; }
+    public uint AcceptedTemperatureRateMhz { get; init; }
+    public IReadOnlyList<LiveStartAdmissionReason> AdmissionOmissions { get; init; } = [];
+    public IReadOnlyList<SstV5StreamDescriptor> StreamDescriptors { get; init; } = [];
+
     public double AcceptedTravelHzDouble => AcceptedTravelRateMhz / 1000.0;
     public double AcceptedImuHzDouble => AcceptedImuRateMhz / 1000.0;
     public double AcceptedGpsHzDouble => AcceptedGpsRateMhz / 1000.0;
@@ -138,12 +154,19 @@ public sealed record LiveSessionHeader(
     public uint AcceptedTravelHz => LiveProtocolHelpers.MillihertzToWholeHertz(AcceptedTravelRateMhz);
     public uint AcceptedImuHz => LiveProtocolHelpers.MillihertzToWholeHertz(AcceptedImuRateMhz);
     public uint AcceptedGpsFixHz => LiveProtocolHelpers.MillihertzToWholeHertz(AcceptedGpsRateMhz);
+    public uint AcceptedTemperatureHz => LiveProtocolHelpers.MillihertzToWholeHertz(AcceptedTemperatureRateMhz);
 
     public uint TravelPeriodUs => AcceptedTravelRateMhz == 0 ? 0 : checked((uint)Math.Round(1_000_000_000.0 / AcceptedTravelRateMhz, MidpointRounding.AwayFromZero));
     public uint ImuPeriodUs => AcceptedImuRateMhz == 0 ? 0 : checked((uint)Math.Round(1_000_000_000.0 / AcceptedImuRateMhz, MidpointRounding.AwayFromZero));
     public uint GpsFixIntervalMs => AcceptedGpsRateMhz == 0 ? 0 : checked((uint)Math.Round(1_000_000.0 / AcceptedGpsRateMhz, MidpointRounding.AwayFromZero));
     public LiveSensorInstanceMask MissingSensorMask => RequestedSensorMask & ~AcceptedSensorMask;
     public IReadOnlyList<LiveImuLocation> GetActiveImuLocations() => LiveProtocolHelpers.GetActiveImuLocations(ActiveImuMask);
+    public IReadOnlyList<LiveImuLocation> GetActiveTemperatureLocations() =>
+        StreamDescriptors
+            .Where(stream => stream.StreamKind == SstV5ProtocolConstants.StreamTemperature)
+            .SelectMany(stream => stream.Sources)
+            .Select(source => (LiveImuLocation)SstV5ProtocolConstants.GetImuLocationId(source.SourceBitMask))
+            .ToArray();
 }
 
 public readonly record struct LiveStopAck(uint SessionId);
@@ -200,6 +223,12 @@ public readonly record struct LiveMarkerRecord(
     ulong MonotonicDeltaUs,
     byte MarkerType);
 
+public readonly record struct LiveTemperatureRecord(
+    ulong SampleIndex,
+    ulong MonotonicDeltaUs,
+    LiveSensorInstanceMask Source,
+    TemperatureSample Sample);
+
 public sealed record LiveStreamDescriptor(
     LiveStreamMask Stream,
     uint AcceptedRateMhz,
@@ -253,17 +282,24 @@ public abstract record LiveProtocolFrame(LiveFrameMetadata Header)
 
 public sealed record LiveStartRequestFrame(LiveFrameMetadata Header, LiveStartRequest Payload) : LiveProtocolFrame(Header);
 public sealed record LiveStopRequestFrame(LiveFrameMetadata Header) : LiveProtocolFrame(Header);
-public sealed record LivePingFrame(LiveFrameMetadata Header) : LiveProtocolFrame(Header);
+public sealed record LivePingFrame(LiveFrameMetadata Header, uint? Nonce = null) : LiveProtocolFrame(Header)
+{
+    public byte SessionId { get; init; }
+}
 public sealed record LiveIdentifyRequestFrame(LiveFrameMetadata Header) : LiveProtocolFrame(Header);
 public sealed record LiveStartAckFrame(LiveFrameMetadata Header, LiveStartAck Payload) : LiveProtocolFrame(Header);
 public sealed record LiveSessionHeaderFrame(LiveFrameMetadata Header, LiveSessionHeader Payload) : LiveProtocolFrame(Header);
 public sealed record LiveStopAckFrame(LiveFrameMetadata Header, LiveStopAck Payload) : LiveProtocolFrame(Header);
 public sealed record LiveStopResultFrame(LiveFrameMetadata Header, LiveStopResult Payload) : LiveProtocolFrame(Header);
 public sealed record LiveErrorFrame(LiveFrameMetadata Header, LiveError Payload) : LiveProtocolFrame(Header);
-public sealed record LivePongFrame(LiveFrameMetadata Header) : LiveProtocolFrame(Header);
+public sealed record LivePongFrame(LiveFrameMetadata Header, uint? Nonce = null) : LiveProtocolFrame(Header)
+{
+    public byte SessionId { get; init; }
+}
 public sealed record LiveIdentifyAckFrame(LiveFrameMetadata Header, LiveIdentifyAck Payload) : LiveProtocolFrame(Header);
 public sealed record LiveTravelBatchFrame(LiveFrameMetadata Header, LiveBatchHeader Batch, IReadOnlyList<LiveTravelRecord> Records) : LiveProtocolFrame(Header);
 public sealed record LiveImuBatchFrame(LiveFrameMetadata Header, LiveBatchHeader Batch, IReadOnlyList<ImuRecord> Records) : LiveProtocolFrame(Header);
+public sealed record LiveTemperatureBatchFrame(LiveFrameMetadata Header, LiveBatchHeader Batch, IReadOnlyList<LiveTemperatureRecord> Records) : LiveProtocolFrame(Header);
 public sealed record LiveGpsBatchFrame(LiveFrameMetadata Header, LiveBatchHeader Batch, IReadOnlyList<GpsRecord> Records) : LiveProtocolFrame(Header);
 public sealed record LiveBatteryBatchFrame(LiveFrameMetadata Header, LiveBatchHeader Batch, IReadOnlyList<LiveBatteryRecord> Records) : LiveProtocolFrame(Header);
 public sealed record LiveMarkerBatchFrame(LiveFrameMetadata Header, LiveBatchHeader Batch, IReadOnlyList<LiveMarkerRecord> Records) : LiveProtocolFrame(Header);

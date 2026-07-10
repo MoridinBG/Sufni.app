@@ -28,6 +28,29 @@ public static class SstV5DescriptorReader
             throw new FormatException("SST v5 metadata flags are invalid.");
         }
 
+        return ReadDescriptorRecords(
+            boardId,
+            streamDescriptorCount,
+            sourceDescriptorTotalCount,
+            omissionCount,
+            acceptedStreamMask,
+            payload[SstV5ProtocolConstants.MetadataHeaderSize..]);
+    }
+
+    public static SstV5SessionDescriptor ReadDescriptorRecords(
+        byte boardId,
+        byte streamDescriptorCount,
+        byte sourceDescriptorTotalCount,
+        byte omissionCount,
+        uint acceptedStreamMask,
+        ReadOnlySpan<byte> records)
+    {
+        if (boardId is not 1 and not 2)
+        {
+            throw new FormatException("SST v5 board ID is invalid.");
+        }
+
+        var reader = new SstByteReader(records);
         var streamBuilders = new List<StreamDescriptorBuilder>(streamDescriptorCount);
         var streamBuilderByKind = new Dictionary<byte, StreamDescriptorBuilder>();
         byte previousStreamKind = 0;
@@ -98,9 +121,9 @@ public static class SstV5DescriptorReader
             omissions[index] = new SstV5OmissionRecord(targetKind, streamKind, admissionReason, targetMask);
         }
 
-        if (reader.Position != reader.Length)
+        if (reader.Position != records.Length)
         {
-            throw new FormatException("SST v5 metadata payload length is invalid.");
+            throw new FormatException("SST v5 descriptor record payload length is invalid.");
         }
 
         return new SstV5SessionDescriptor

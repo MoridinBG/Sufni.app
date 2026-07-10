@@ -4,22 +4,21 @@ namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 
 public static class LiveV3ProtocolHelpers
 {
-    public const byte AdmissionInvalidShape = 1;
-    public const byte AdmissionUnknownId = 2;
-    public const byte AdmissionUnsupportedFlags = 3;
-    public const byte AdmissionCapacity = 4;
-    public const byte AdmissionPriorityConflict = 5;
-    public const byte AdmissionActiveOwner = 6;
-    public const byte AdmissionBusy = 7;
+    public const byte AdmissionUnsupported = 1;
+    public const byte AdmissionDisabled = 2;
+    public const byte AdmissionUnavailable = 3;
+    public const byte AdmissionCalibrationRequired = 4;
+    public const byte AdmissionConflict = 5;
+    public const byte AdmissionCapacity = 6;
+    public const byte AdmissionInvalidRequest = 7;
     public const byte AdmissionNoTelemetry = 8;
-    public const byte AdmissionAllRequestedStreamsOmitted = 9;
 
     public static LiveStartErrorCode MapAdmissionReasonToStartErrorCode(LiveStartAdmissionReason? reason) =>
         reason?.Reason switch
         {
-            AdmissionInvalidShape or AdmissionUnknownId or AdmissionUnsupportedFlags => LiveStartErrorCode.InvalidRequest,
-            AdmissionCapacity or AdmissionPriorityConflict or AdmissionActiveOwner or AdmissionBusy => LiveStartErrorCode.Busy,
-            AdmissionNoTelemetry or AdmissionAllRequestedStreamsOmitted => LiveStartErrorCode.NoSensorsStarted,
+            AdmissionUnsupported or AdmissionDisabled or AdmissionInvalidRequest => LiveStartErrorCode.InvalidRequest,
+            AdmissionConflict or AdmissionCapacity => LiveStartErrorCode.Busy,
+            AdmissionUnavailable or AdmissionCalibrationRequired or AdmissionNoTelemetry => LiveStartErrorCode.NoSensorsStarted,
             _ => LiveStartErrorCode.InvalidRequest,
         };
 
@@ -32,15 +31,14 @@ public static class LiveV3ProtocolHelpers
 
         return admissionReason.Reason switch
         {
-            AdmissionInvalidShape => "Live preview request was invalid.",
-            AdmissionUnknownId => "The device rejected an unknown live stream or source.",
-            AdmissionUnsupportedFlags => "The device rejected unsupported live preview flags.",
+            AdmissionUnsupported => "The requested live stream, source, extension, or mode is unsupported.",
+            AdmissionDisabled => "A requested live stream or source is disabled by device configuration.",
+            AdmissionUnavailable => "Requested live telemetry is currently unavailable.",
+            AdmissionCalibrationRequired => "A requested live sensor requires calibration.",
+            AdmissionConflict => "Live preview conflicts with another active device service or priority owner.",
             AdmissionCapacity => "The device does not have enough live streaming capacity.",
-            AdmissionPriorityConflict => "Live preview is blocked by a higher priority stream.",
-            AdmissionActiveOwner => "Another live preview owner is already active.",
-            AdmissionBusy => LiveStartErrorCode.Busy.UserMessage,
+            AdmissionInvalidRequest => "Live preview request was invalid.",
             AdmissionNoTelemetry => "The device reported no telemetry available for live preview.",
-            AdmissionAllRequestedStreamsOmitted => LiveStartErrorCode.NoSensorsStarted.UserMessage,
             _ => LiveStartErrorCode.InvalidRequest.UserMessage,
         };
     }
@@ -55,7 +53,6 @@ public static class LiveV3ProtocolHelpers
         _ => $"Live preview stopped with terminal reason {sessionResultReason}.",
     };
 
-    public static string CreateErrorMessage(byte errorCode) =>
-        $"LIVE v3 device error {errorCode}.";
+    public static string CreateErrorMessage(LiveV3Error error) =>
+        $"LIVE v3 device error {error.Code}; offending frame type {error.OffendingFrameType}; detail {error.Detail}.";
 }
-
