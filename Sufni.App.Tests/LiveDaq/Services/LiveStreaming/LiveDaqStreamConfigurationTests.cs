@@ -52,4 +52,57 @@ public class LiveDaqStreamConfigurationTests
         Assert.Equal((uint)200, imuOnly.ImuHz);
         Assert.Equal((uint)10, gpsOnly.GpsFixHz);
     }
+
+    [Fact]
+    public void ToStartRequest_PreservesExplicitV3StreamAndOverrideChoices()
+    {
+        var configuration = new LiveDaqStreamConfiguration(
+            RequestedSensorMask: LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.Gps,
+            TravelRateMhz: 0,
+            ImuRateMhz: 0,
+            GpsRateMhz: 5_000,
+            RequestedStreamMask: LiveStreamMask.Temperature |
+                                 LiveStreamMask.Gps |
+                                 LiveStreamMask.Battery |
+                                 LiveStreamMask.Marker,
+            TemperatureRateMhz: 30,
+            RequestGpsDiagnostics: true,
+            Priority: true,
+            NoGpsHeaderWait: true);
+
+        var request = configuration.ToStartRequest();
+
+        Assert.Equal(configuration.RequestedStreamMask, request.RequestedStreamMask);
+        Assert.Equal(30u, request.TemperatureRateMhz);
+        Assert.True(request.RequestGpsDiagnostics);
+        Assert.True(request.Priority);
+        Assert.True(request.NoGpsHeaderWait);
+        Assert.NotEqual(
+            LiveSensorInstanceMask.None,
+            request.RequestedSensorMask & LiveSensorInstanceMask.Battery);
+    }
+
+    [Fact]
+    public void ToStartRequest_RejectsNoGpsHeaderWaitWithoutGpsSelection()
+    {
+        var configuration = LiveDaqStreamConfiguration.Default with
+        {
+            NoGpsHeaderWait = true,
+        };
+
+        Assert.Throws<InvalidOperationException>(() => configuration.ToStartRequest());
+    }
+
+    [Fact]
+    public void ToStartRequest_RejectsMarkerWithoutTelemetry()
+    {
+        var configuration = new LiveDaqStreamConfiguration(
+            RequestedSensorMask: LiveSensorInstanceMask.None,
+            TravelRateMhz: 0,
+            ImuRateMhz: 0,
+            GpsRateMhz: 0,
+            RequestedStreamMask: LiveStreamMask.Marker);
+
+        Assert.Throws<InvalidOperationException>(() => configuration.ToStartRequest());
+    }
 }
