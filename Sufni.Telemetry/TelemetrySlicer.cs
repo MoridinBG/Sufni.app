@@ -79,7 +79,13 @@ internal static class TelemetrySlicer
             SliceMarkers(capture.Markers, window),
             streamGaps,
             SliceFinalStatus(capture.FinalStatus, window),
-            window.ReachesSourceEnd ? capture.MissingFinalStatus : false);
+            window.ReachesSourceEnd ? capture.MissingFinalStatus : false)
+        {
+            TemperatureData = SliceTemperatureData(
+                capture.TemperatureData,
+                capture.Metadata.Timestamp,
+                window),
+        };
     }
 
     private static double GetRawDurationSeconds(RawTelemetryData raw)

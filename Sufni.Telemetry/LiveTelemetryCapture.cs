@@ -12,6 +12,8 @@ public sealed record LiveTelemetryCapture(
     SstFinalStatus? FinalStatus,
     bool MissingFinalStatus)
 {
+    public TemperatureSample[] TemperatureData { get; init; } = [];
+
     public LiveTelemetryCapture(
         Metadata Metadata,
         BikeData BikeData,

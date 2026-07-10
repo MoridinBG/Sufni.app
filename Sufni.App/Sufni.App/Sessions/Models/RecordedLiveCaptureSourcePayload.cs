@@ -38,6 +38,9 @@ public sealed class RecordedLiveCaptureSourcePayload
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public GpsRecord[]? GpsData { get; init; }
 
+    [JsonPropertyName("temperature_data")]
+    public TemperatureSample[] TemperatureData { get; init; } = [];
+
     [JsonPropertyName("markers")]
     public MarkerData[] Markers { get; init; } = [];
 

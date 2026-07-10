@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 using Sufni.App.Shared.Formatting;
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;
@@ -27,6 +28,8 @@ public sealed record LiveSessionContractSnapshot(
     uint? AcceptedImuRateMhz = null,
     uint? AcceptedGpsRateMhz = null)
 {
+    public uint? AcceptedTemperatureRateMhz { get; init; }
+
     public static readonly LiveSessionContractSnapshot Empty = new(
         SessionId: null,
         SelectedStreamMask: LiveStreamMask.None,
@@ -49,6 +52,9 @@ public sealed record LiveSessionContractSnapshot(
     public string AcceptedImuRateText => LiveProtocolHelpers.FormatRateText("IMU", AcceptedImuRateMhz);
 
     public string AcceptedGpsRateText => LiveProtocolHelpers.FormatRateText("GPS", AcceptedGpsRateMhz);
+
+    public string AcceptedTemperatureRateText =>
+        LiveProtocolHelpers.FormatRateText("Temperature", AcceptedTemperatureRateMhz);
 }
 
 public sealed record LiveTravelUiSnapshot(
@@ -132,6 +138,13 @@ public sealed record LiveGpsUiSnapshot(
         DroppedBatches: 0);
 }
 
+public sealed record LiveTemperatureUiSnapshot(
+    LiveImuLocation Location,
+    bool HasData,
+    float? TemperatureCelsius,
+    TimeSpan? SampleOffset,
+    TimeSpan? SampleDelay);
+
 public sealed record LiveDaqUiSnapshot(
     LiveConnectionState ConnectionState,
     string ConnectionStateText,
@@ -142,6 +155,8 @@ public sealed record LiveDaqUiSnapshot(
     IReadOnlyList<LiveImuUiSnapshot> Imus,
     LiveGpsUiSnapshot Gps)
 {
+    public IReadOnlyList<LiveTemperatureUiSnapshot> Temperatures { get; init; } = [];
+
     public static readonly LiveDaqUiSnapshot Empty = new(
         ConnectionState: LiveConnectionState.Disconnected,
         ConnectionStateText: ToConnectionStateText(LiveConnectionState.Disconnected),
@@ -157,6 +172,7 @@ public sealed record LiveDaqUiSnapshot(
     public bool HasImuData => Imus.Count > 0;
     public bool HasTravelData => Travel.HasData;
     public bool HasGpsData => Gps.HasData;
+    public bool HasTemperatureData => Temperatures.Any(temperature => temperature.HasData);
 
     public bool CanConnect => ConnectionState is LiveConnectionState.Disconnected;
     public bool CanDisconnect => ConnectionState is LiveConnectionState.Connected;

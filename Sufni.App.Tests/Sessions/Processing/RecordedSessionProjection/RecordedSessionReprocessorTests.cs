@@ -163,7 +163,14 @@ public class RecordedSessionReprocessorTests
                     Epe2d: 0.5f,
                     Epe3d: 0.8f)
             ],
-            Markers: []);
+            Markers: [])
+        {
+            TemperatureData =
+            [
+                new TemperatureSample(1_700_000_000, 0, 21.5f),
+                new TemperatureSample(1_700_000_001, 0, 22.5f),
+            ],
+        };
         var source = RecordedSessionSourceFactory.CreateLiveCapture(session.Id, capture);
         var domain = new RecordedSessionDomainSnapshot(
             session,
@@ -184,6 +191,7 @@ public class RecordedSessionReprocessorTests
         Assert.NotEmpty(telemetryData.Front.Travel);
         Assert.NotNull(result.GeneratedFullTrack);
         Assert.Single(result.GeneratedFullTrack.Points);
+        Assert.Equal(22.0, Assert.Single(telemetryData.TemperatureAverages).TemperatureCelsius);
         Assert.Equal(source.SourceHash, result.Fingerprint.SourceHash);
     }
 

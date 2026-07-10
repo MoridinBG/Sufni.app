@@ -10,6 +10,7 @@ public sealed class LiveDaqSessionState
 {
     private readonly System.Threading.Lock gate = new();
     private readonly Dictionary<LiveImuLocation, LiveImuReading> latestImuReadings = [];
+    private readonly Dictionary<LiveImuLocation, LiveTemperatureReading> latestTemperatureReadings = [];
 
     private LiveStreamMask selectedStreamMask;
     private LiveSessionHeader? sessionHeader;
@@ -19,6 +20,7 @@ public sealed class LiveDaqSessionState
     private DateTimeOffset? lastFrameReceivedUtc;
     private DateTimeOffset? lastTravelBatchReceivedUtc;
     private DateTimeOffset? lastImuBatchReceivedUtc;
+    private DateTimeOffset? lastTemperatureBatchReceivedUtc;
     private uint travelQueueDepth;
     private uint imuQueueDepth;
     private uint gpsQueueDepth;
@@ -39,6 +41,7 @@ public sealed class LiveDaqSessionState
             lastFrameReceivedUtc = null;
             lastTravelBatchReceivedUtc = null;
             lastImuBatchReceivedUtc = null;
+            lastTemperatureBatchReceivedUtc = null;
             travelQueueDepth = 0;
             imuQueueDepth = 0;
             gpsQueueDepth = 0;
@@ -46,6 +49,7 @@ public sealed class LiveDaqSessionState
             imuDroppedBatches = 0;
             gpsDroppedBatches = 0;
             latestImuReadings.Clear();
+            latestTemperatureReadings.Clear();
         }
     }
 
@@ -79,6 +83,10 @@ public sealed class LiveDaqSessionState
                     ApplyGpsBatch(gpsBatchFrame);
                     break;
 
+                case LiveTemperatureBatchFrame temperatureBatchFrame:
+                    ApplyTemperatureBatch(temperatureBatchFrame);
+                    break;
+
                 case LiveSessionStatsFrame sessionStatsFrame:
                     ApplySessionStats(sessionStatsFrame.Payload);
                     break;
@@ -109,7 +117,10 @@ public sealed class LiveDaqSessionState
                 Session: session,
                 Travel: CreateTravelSnapshot(session, now),
                 Imus: CreateImuSnapshots(now),
-                Gps: CreateGpsSnapshot(session));
+                Gps: CreateGpsSnapshot(session))
+            {
+                Temperatures = CreateTemperatureSnapshots(now),
+            };
         }
     }
 
@@ -157,6 +168,23 @@ public sealed class LiveDaqSessionState
         latestGps = frame.Records[^1];
     }
 
+    private void ApplyTemperatureBatch(LiveTemperatureBatchFrame frame)
+    {
+        if (frame.Records.Count == 0 || sessionHeader is null)
+        {
+            return;
+        }
+
+        foreach (var record in frame.Records)
+        {
+            var location = (LiveImuLocation)record.Sample.LocationId;
+            latestTemperatureReadings[location] = new LiveTemperatureReading(
+                record.Sample,
+                checked(sessionHeader.SessionStartMonotonicUs + record.MonotonicDeltaUs));
+        }
+        lastTemperatureBatchReceivedUtc = lastFrameReceivedUtc;
+    }
+
     private void ApplySessionStats(LiveSessionStats stats)
     {
         travelQueueDepth = stats.TravelQueueDepth;
@@ -187,7 +215,10 @@ public sealed class LiveDaqSessionState
             ActiveImuLocations: sessionHeader.GetActiveImuLocations(),
             AcceptedTravelRateMhz: sessionHeader.AcceptedTravelRateMhz,
             AcceptedImuRateMhz: sessionHeader.AcceptedImuRateMhz,
-            AcceptedGpsRateMhz: sessionHeader.AcceptedGpsRateMhz);
+            AcceptedGpsRateMhz: sessionHeader.AcceptedGpsRateMhz)
+        {
+            AcceptedTemperatureRateMhz = sessionHeader.AcceptedTemperatureRateMhz,
+        };
     }
 
     private LiveTravelUiSnapshot CreateTravelSnapshot(LiveSessionContractSnapshot session, DateTimeOffset now)
@@ -302,6 +333,32 @@ public sealed class LiveDaqSessionState
             DroppedBatches: gpsDroppedBatches);
     }
 
+    private IReadOnlyList<LiveTemperatureUiSnapshot> CreateTemperatureSnapshots(DateTimeOffset now)
+    {
+        if (sessionHeader is null)
+        {
+            return [];
+        }
+
+        var snapshots = new List<LiveTemperatureUiSnapshot>();
+        foreach (var location in sessionHeader.GetActiveTemperatureLocations())
+        {
+            if (!latestTemperatureReadings.TryGetValue(location, out var reading))
+            {
+                snapshots.Add(new LiveTemperatureUiSnapshot(location, false, null, null, null));
+                continue;
+            }
+
+            snapshots.Add(new LiveTemperatureUiSnapshot(
+                location,
+                true,
+                reading.Sample.TemperatureCelsius,
+                CreateSampleOffset(reading.MonotonicUs),
+                ComputeBatchFreshness(now, lastTemperatureBatchReceivedUtc)));
+        }
+        return snapshots;
+    }
+
     private static TimeSpan? ComputeBatchFreshness(DateTimeOffset now, DateTimeOffset? lastBatchReceivedUtc)
     {
         if (lastBatchReceivedUtc is not { } batchUtc)
@@ -336,4 +393,5 @@ public sealed class LiveDaqSessionState
     }
 
     private readonly record struct LiveImuReading(ImuRecord Record, ulong MonotonicUs);
+    private readonly record struct LiveTemperatureReading(TemperatureSample Sample, ulong MonotonicUs);
 }

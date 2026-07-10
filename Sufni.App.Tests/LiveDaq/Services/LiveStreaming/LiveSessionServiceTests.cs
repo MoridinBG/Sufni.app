@@ -211,6 +211,82 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
+    public async Task TemperatureFrames_AreSavedSeparatelyFromImu_AndClearedOnReset()
+    {
+        var service = CreateService();
+        await service.EnsureAttachedAsync();
+        var temperatureHeader = sessionHeader with
+        {
+            AcceptedTemperatureRateMhz = 30,
+            AcceptedStreamMask = LiveStreamMask.Travel | LiveStreamMask.Temperature,
+            StreamDescriptors =
+            [
+                new SstV5StreamDescriptor
+                {
+                    StreamKind = SstV5ProtocolConstants.StreamTemperature,
+                    TimingModelId = SstV5ProtocolConstants.TimingMonotonicEventStatus,
+                    SourceDescriptorCount = 1,
+                    AcceptedSensorMask = SstV5ProtocolConstants.SensorFrameImu,
+                    AcceptedRateMhz = 30,
+                    CompactPayloadRecordBytes = 2,
+                    Sources =
+                    [
+                        new SstV5SourceDescriptor
+                        {
+                            StreamKind = SstV5ProtocolConstants.StreamTemperature,
+                            SourceBitMask = SstV5ProtocolConstants.SensorFrameImu,
+                            PayloadEncodingId = SstV5ProtocolConstants.EncodingTemperatureRawI16,
+                            PayloadRecordBytes = 2,
+                            PayloadValueCount = 1,
+                            PayloadValueWidthBits = 16,
+                            TemperatureLsbPerCelsius = 340,
+                            TemperatureCelsiusAtRawZero = 36.53f,
+                        },
+                    ],
+                },
+            ],
+        };
+        currentState = currentState with
+        {
+            SessionHeader = temperatureHeader,
+            SelectedStreamMask = LiveStreamMask.Travel | LiveStreamMask.Temperature,
+        };
+        states.OnNext(currentState);
+
+        frames.OnNext(CreateTravelBatchFrame());
+        frames.OnNext(new LiveTemperatureBatchFrame(
+            new LiveFrameMetadata(9),
+            new LiveBatchHeader(
+                temperatureHeader.SessionId,
+                LiveStreamMask.Temperature,
+                StreamSequence: 9,
+                FirstIndex: 0,
+                FirstMonotonicDeltaUs: 500_000,
+                FirstMonotonicUs: temperatureHeader.SessionStartMonotonicUs + 500_000,
+                SampleCount: 1,
+                ValidityMask: LiveSensorInstanceMask.FrameImu),
+            [
+                new LiveTemperatureRecord(
+                    0,
+                    500_000,
+                    LiveSensorInstanceMask.FrameImu,
+                    new TemperatureSample(
+                        temperatureHeader.SessionStartUtc.ToUnixTimeSeconds(),
+                        (byte)LiveImuLocation.Frame,
+                        21.5f)),
+            ]));
+
+        var capture = await service.PrepareCaptureForSaveAsync();
+        Assert.Equal(21.5f, Assert.Single(capture.TelemetryCapture.TemperatureData).TemperatureCelsius);
+        Assert.Null(capture.TelemetryCapture.ImuData);
+
+        await service.ResetCaptureAsync();
+        frames.OnNext(CreateTravelBatchFrame());
+        var resetCapture = await service.PrepareCaptureForSaveAsync();
+        Assert.Empty(resetCapture.TelemetryCapture.TemperatureData);
+    }
+
+    [Fact]
     public async Task V3Frames_PrepareCaptureForSave_MarksMissingFinalStatus_WhenClosedWithoutSessionResult()
     {
         var service = CreateService();

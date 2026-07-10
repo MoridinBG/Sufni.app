@@ -38,6 +38,7 @@ internal sealed class LiveSessionServiceFactory(
 internal sealed class LiveSessionService : ILiveSessionService
 {
     private const int GpsChunkSize = 256;
+    private const int TemperatureChunkSize = 64;
     private const int DisplayUpdateQueueCapacity = 8;
     private static readonly TimeSpan AnalysisPressureQuietPeriod = TimeSpan.FromMilliseconds(500);
 
@@ -50,6 +51,7 @@ internal sealed class LiveSessionService : ILiveSessionService
         FixedRateSegment<ushort>[] RearTravelSegments,
         IReadOnlyDictionary<LiveImuLocation, FixedRateSegment<ImuRecord>[]> ImuSegmentsByLocation,
         ChunkedBufferSnapshot<GpsRecord> GpsRecords,
+        ChunkedBufferSnapshot<TemperatureSample> TemperatureSamples,
         MarkerData[] Markers,
         RawStreamGap[] StreamGaps,
         SstFinalStatus? FinalStatus,
@@ -99,6 +101,7 @@ internal sealed class LiveSessionService : ILiveSessionService
         });
 
     private readonly AppendOnlyChunkBuffer<GpsRecord> gpsRecords = new(GpsChunkSize);
+    private readonly AppendOnlyChunkBuffer<TemperatureSample> temperatureSamples = new(TemperatureChunkSize);
     private readonly List<MarkerData> markers = [];
     private readonly List<RawStreamGap> streamGaps = [];
     private readonly FixedRateSegmentBuilder<ushort> frontTravelBuilder;
@@ -273,6 +276,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             }
 
             gpsRecords.Clear();
+            temperatureSamples.Clear();
             markers.Clear();
             streamGaps.Clear();
             finalStatus = null;
@@ -476,6 +480,11 @@ internal sealed class LiveSessionService : ILiveSessionService
 
                 case LiveImuBatchFrame imuBatchFrame:
                     displayUpdate = ApplyImuBatchLocked(imuBatchFrame);
+                    break;
+
+                case LiveTemperatureBatchFrame temperatureBatchFrame:
+                    ApplyTemperatureBatchLocked(temperatureBatchFrame);
+                    shouldQueueAnalysis = CanBuildAnalysisLocked();
                     break;
 
                 case LiveGpsBatchFrame gpsBatchFrame:
@@ -801,6 +810,21 @@ internal sealed class LiveSessionService : ILiveSessionService
             previousAcceptedGpsCoordinate = previousCoordinate;
         }
 
+        captureRevision++;
+    }
+
+    private void ApplyTemperatureBatchLocked(LiveTemperatureBatchFrame frame)
+    {
+        if (frame.Records.Count == 0)
+        {
+            return;
+        }
+
+        InitializeCaptureOriginLocked(frame.Batch.FirstMonotonicUs);
+        foreach (var record in frame.Records)
+        {
+            temperatureSamples.Append(record.Sample);
+        }
         captureRevision++;
     }
 
@@ -1202,6 +1226,7 @@ internal sealed class LiveSessionService : ILiveSessionService
                 entry => entry.Key,
                 entry => entry.Value.CreateSnapshot()),
             GpsRecords: gpsRecords.CreateSnapshot(),
+            TemperatureSamples: temperatureSamples.CreateSnapshot(),
             Markers: [.. markers],
             StreamGaps: [.. streamGaps],
             FinalStatus: finalStatus,
@@ -1222,7 +1247,10 @@ internal sealed class LiveSessionService : ILiveSessionService
             Markers: snapshot.Markers,
             StreamGaps: snapshot.StreamGaps,
             FinalStatus: snapshot.FinalStatus,
-            MissingFinalStatus: snapshot.MissingFinalStatus);
+            MissingFinalStatus: snapshot.MissingFinalStatus)
+        {
+            TemperatureData = snapshot.TemperatureSamples.ToArray(),
+        };
     }
 
     private static RawImuData? BuildImuCapture(LiveCaptureSnapshot snapshot)
@@ -1415,6 +1443,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             rearTravelBuilder.Count > 0 ||
             imuBuilders.Values.Any(builder => builder.Count > 0) ||
             gpsRecords.Count > 0 ||
+            temperatureSamples.Count > 0 ||
             markers.Count > 0;
     }
 

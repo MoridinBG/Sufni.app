@@ -1,10 +1,45 @@
 using Sufni.Telemetry;
-
 using Sufni.App.LiveDaq.Services.LiveStreaming;
+
 namespace Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
 
 public class LiveDaqSessionStateTests
 {
+    [Fact]
+    public void TemperatureFrame_UpdatesSeparateDiagnosticsReadings()
+    {
+        var context = new LiveV3SessionDecodeContext();
+        context.AcceptSession(42);
+        var headerFrame = Assert.IsType<LiveSessionHeaderFrame>(
+            LiveV3ProtocolReader.ParseFrame(
+                LiveV3ProtocolTestFrames.SessionHeaderAllStreams(),
+                context));
+        var temperatureFrame = Assert.IsType<LiveTemperatureBatchFrame>(
+            LiveV3ProtocolReader.ParseFrame(
+                LiveV3ProtocolTestFrames.TemperatureData(),
+                context));
+        var state = new LiveDaqSessionState();
+        state.ApplySharedSessionState(headerFrame.Payload, headerFrame.Payload.AcceptedStreamMask);
+
+        state.ApplyFrame(temperatureFrame);
+        var snapshot = state.CreateSnapshot(LiveConnectionState.Connected, null);
+
+        Assert.Collection(
+            snapshot.Temperatures,
+            temperature =>
+            {
+                Assert.Equal(LiveImuLocation.Frame, temperature.Location);
+                Assert.True(temperature.HasData);
+                Assert.Equal(37.53f, temperature.TemperatureCelsius!.Value, 2);
+            },
+            temperature =>
+            {
+                Assert.Equal(LiveImuLocation.Fork, temperature.Location);
+                Assert.True(temperature.HasData);
+                Assert.Equal(24f, temperature.TemperatureCelsius!.Value, 2);
+            });
+    }
+
     [Fact]
     public void CreateSnapshot_ProjectsAcceptedSessionAndLatestSensorValues()
     {

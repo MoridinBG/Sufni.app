@@ -722,6 +722,7 @@ public class TelemetryData
             Markers = capture.Markers,
             ImuData = capture.ImuData,
             GpsData = capture.GpsData,
+            TemperatureData = capture.TemperatureData,
         };
 
         if (rawData.FrontSegments.Length == 0 && rawData.Front.Length > 0)

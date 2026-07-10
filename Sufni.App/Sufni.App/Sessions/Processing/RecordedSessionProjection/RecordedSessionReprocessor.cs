@@ -137,7 +137,10 @@ internal sealed class RecordedSessionReprocessor(
             payload.Markers ?? [],
             hasSegmentPayload ? payload.StreamGaps ?? [] : [],
             hasSegmentPayload ? payload.FinalStatus : null,
-            hasSegmentPayload && payload.MissingFinalStatus == true);
+            hasSegmentPayload && payload.MissingFinalStatus == true)
+        {
+            TemperatureData = payload.TemperatureData,
+        };
         if (window is not null)
         {
             capture = capture.Slice(window.StartSeconds, window.EndSeconds);

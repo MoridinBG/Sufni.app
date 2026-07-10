@@ -42,6 +42,7 @@ public static class RecordedSessionSourceFactory
             RearSegments = capture.RearSegments,
             ImuData = capture.ImuData,
             GpsData = capture.GpsData,
+            TemperatureData = capture.TemperatureData,
             Markers = capture.Markers,
             StreamGaps = capture.StreamGaps,
             FinalStatus = capture.FinalStatus,
