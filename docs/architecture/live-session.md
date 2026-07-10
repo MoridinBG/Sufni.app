@@ -52,6 +52,7 @@ Shared stream emits LiveProtocolFrame
   -> LiveSessionService.HandleFrame
     -> LiveTravelBatchFrame  -> FixedRateSegmentBuilder<ushort> (front/rear) + LiveDisplayUpdate.Travel
     -> LiveImuBatchFrame     -> FixedRateSegmentBuilder<ImuRecord> per active location + LiveDisplayUpdate.Imu (vibration RMS + frame pitch/roll)
+    -> LiveTemperatureBatchFrame -> AppendOnlyChunkBuffer<TemperatureSample>
     -> LiveGpsBatchFrame     -> AppendOnlyChunkBuffer<GpsRecord> + projected TrackPoint[]
     -> LiveStatusFrame / LiveSessionStatsFrame -> latest queue/dropped counters
     -> LiveMarkerBatchFrame  -> marker list
@@ -78,7 +79,7 @@ Statistics loop (Task.Run)
 User presses Save
   -> LiveSessionDetailViewModel.SaveImplementation
     -> ILiveSessionService.PrepareCaptureForSaveAsync
-      -> snapshot travel/IMU segment builders, GPS buffer, markers, gaps, and final status under lock
+      -> snapshot travel/IMU segment builders, temperature/GPS buffers, markers, gaps, and final status under lock
         -> background BuildCapture -> LiveTelemetryCapture
     -> SessionCoordinator.SaveLiveCaptureAsync(session, capture, preferences)
       -> RecordedSessionSourceFactory.CreateLiveCapture
@@ -90,7 +91,7 @@ User presses Save
 
 User presses Reset
   -> ILiveSessionService.ResetCaptureAsync
-    -> clear segment builders, GPS buffer, markers, gaps, final status, bump captureRevision/displayEpoch
+    -> clear segment builders, temperature/GPS buffers, markers, gaps, final status, bump captureRevision/displayEpoch
       -> LiveSignalPipeline.Reset (clear pending + sliding window, emit empty batch)
         -> view model clears analysis pages and timeline
 ```
@@ -109,11 +110,11 @@ The live-session service holds a configuration lock on the shared stream for the
 
 `EnsureAttachedAsync` is idempotent and acquires resources in this order under the gate: observer lease, configuration-lock lease, `signalPipeline.Start()`, the display loop task, frame subscription, state subscription. Acquiring resources is followed by a non-locked `sharedStream.EnsureStartedAsync(...)` so connect work runs outside the gate; on failure the resources acquired during this attach are torn down again. `DisposeAsync` mirrors this: it stops subscriptions, completes the display channel, awaits the statistics and display loops, releases both leases, and disposes the signal pipeline.
 
-`ResetCaptureAsync` clears the travel and IMU segment builders, GPS buffer, markers, gaps, final status, analysis state, and track points, and bumps two monotonic counters: `captureRevision` (observed by the analysis loop to detect that older work is stale) and `displayEpoch` (observed by the display loop to discard older display updates that were already in flight). It then resets the signal pipeline so its sliding window and pending batch are cleared and a single empty `LiveSignalBatch` is published.
+`ResetCaptureAsync` clears the travel and IMU segment builders, temperature and GPS buffers, markers, gaps, final status, analysis state, and track points, and bumps two monotonic counters: `captureRevision` (observed by the analysis loop to detect that older work is stale) and `displayEpoch` (observed by the display loop to discard older display updates that were already in flight). It then resets the signal pipeline so its sliding window and pending batch are cleared and a single empty `LiveSignalBatch` is published.
 
 ### Frame Handlers
 
-`HandleFrame` dispatches by the data-bearing canonical frame types. Travel and IMU batches accumulate raw samples into fixed-rate segment builders under the gate, record invalid-validity and first-index gaps as `RawStreamGap`, build a `LiveDisplayUpdate.Travel` or `LiveDisplayUpdate.Imu` carrying the calibrated values for the live plots, and push that update onto a bounded `Channel<LiveDisplayUpdate>` (`DisplayUpdateQueueCapacity = 8`, `BoundedChannelFullMode.DropOldest`). IMU display values are derived by `LiveImuDisplaySignalProcessor`: firmware has already bias-corrected and rotated IMU readings into the bike frame, so per-location vibration RMS uses dynamic acceleration after low-pass gravity removal without waiting for a session-start rest window, and optional frame pitch/roll fuses frame accelerometer plus gyro data relative to the bike-frame calibration while accepting accelerometer correction only from gravity-like samples. Raw IMU segment records remain the saved source of truth; dense compatibility `RawImuData.Records` is populated only when all active locations have one aligned gap-free segment. Drops increment `signalBatchesCoalesced` / `signalSamplesDiscarded` on the published drop counters. GPS frames append raw records and project `TrackPoint`s incrementally, falling back to a full re-projection when an out-of-order timestamp is observed. `LiveStatusFrame` and legacy `LiveSessionStatsFrame` refresh the queue-depth and dropped-batch counters surfaced in `LiveSessionControlState`. `LiveMarkerBatchFrame` appends user markers, and `LiveSessionResultFrame` stores final SST stream status for v3 captures, including sink backlog batches.
+`HandleFrame` dispatches by the data-bearing canonical frame types. Travel and IMU batches accumulate raw samples into fixed-rate segment builders under the gate, record invalid-validity and first-index gaps as `RawStreamGap`, build a `LiveDisplayUpdate.Travel` or `LiveDisplayUpdate.Imu` carrying the calibrated values for the live plots, and push that update onto a bounded `Channel<LiveDisplayUpdate>` (`DisplayUpdateQueueCapacity = 8`, `BoundedChannelFullMode.DropOldest`). IMU display values are derived by `LiveImuDisplaySignalProcessor`: firmware has already bias-corrected and rotated IMU readings into the bike frame, so per-location vibration RMS uses dynamic acceleration after low-pass gravity removal without waiting for a session-start rest window, and optional frame pitch/roll fuses frame accelerometer plus gyro data relative to the bike-frame calibration while accepting accelerometer correction only from gravity-like samples. Raw IMU segment records remain the saved source of truth; dense compatibility `RawImuData.Records` is populated only when all active locations have one aligned gap-free segment. Temperature frames append low-rate `TemperatureSample` values to a separate buffer and never enter the high-rate IMU motion path. Drops increment `signalBatchesCoalesced` / `signalSamplesDiscarded` on the published drop counters. GPS frames append raw records and project `TrackPoint`s incrementally, falling back to a full re-projection when an out-of-order timestamp is observed. `LiveStatusFrame` and legacy `LiveSessionStatsFrame` refresh the queue-depth and dropped-batch counters surfaced in `LiveSessionControlState`. `LiveMarkerBatchFrame` appends user markers, and `LiveSessionResultFrame` stores final SST stream status for v3 captures, including sink backlog batches.
 
 The travel handler is also where `CanSave` flips from `false` to `true` (>= 5 samples on either travel channel) and where the first saveable-capture snapshot is published so the tab's save command becomes enabled.
 
@@ -218,7 +219,7 @@ The save lifecycle is split between the service (snapshotting capture state unde
 ```
 LiveSessionDetailViewModel.SaveImplementation
   -> liveSessionService.PrepareCaptureForSaveAsync
-       (snapshot segment builders, GPS buffer, markers, gaps, and final status under lock,
+       (snapshot segment builders, temperature/GPS buffers, markers, gaps, and final status under lock,
         flatten to LiveTelemetryCapture on the background runner)
   -> session = new Session(name, description, setup, capture timestamp)
        with fork/shock spring + damping settings copied from NotesPage
@@ -240,7 +241,7 @@ LiveSessionDetailViewModel.SaveImplementation
   -> on Failed: append to ErrorMessages
 ```
 
-`SaveLiveCaptureAsync` (`SessionCoordinator.cs`) always inserts a fresh recorded session row — there is no edit path for live captures and no `BaselineUpdated` to enforce. It creates the live-capture source through `RecordedSessionSourceFactory`, then delegates telemetry, generated-track, and fingerprint derivation to `IRecordedSessionReprocessor`. The recorded source payload stores capture metadata, raw front/rear segments, IMU data, GPS data, markers, stream gaps, final status with sink backlog counters, and missing-final-status flags; compatibility reading still accepts older flat front/rear measurement payloads. It does not store `BikeData`, so recorded recompute resolves calibration from the saved session's current setup and bike. `PutProcessedSessionAsync` persists the processed session, optional generated full track, and live-capture source in one transaction.
+`SaveLiveCaptureAsync` (`SessionCoordinator.cs`) always inserts a fresh recorded session row — there is no edit path for live captures and no `BaselineUpdated` to enforce. It creates the live-capture source through `RecordedSessionSourceFactory`, then delegates telemetry, generated-track, and fingerprint derivation to `IRecordedSessionReprocessor`. The recorded source payload stores capture metadata, raw front/rear segments, IMU data, temperature data, GPS data, markers, stream gaps, final status with sink backlog counters, and missing-final-status flags; compatibility reading still accepts older flat front/rear measurement payloads. It does not store `BikeData`, so recorded recompute resolves calibration from the saved session's current setup and bike. `PutProcessedSessionAsync` persists the processed session, optional generated full track, and live-capture source in one transaction.
 
 `SessionPreferences` (built from `PreferencesPage` plus the per-mode analysis pickers via `CreateCurrentSessionPreferences`) is persisted through `ISessionPreferences.UpdateRecordedAsync`, so when the user reopens the saved session in the recorded editor, their plot and analysis choices come back. After a successful save, the view model resets the live capture (so the same tab can immediately start a second one) and routes the user to the recorded editor for the new session via `sessionCoordinator.OpenEditAsync`.
 
