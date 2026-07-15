@@ -27,7 +27,7 @@ internal static class SessionInsightsPresenter
             SurfacePresentationState.Ready,
             BuildSteps(telemetryData, report.Front, report.Rear, context, presented),
             displayFindings.Where(finding => finding.Category == SessionInsightsCategory.DataQuality).ToArray(),
-            BuildVibrationPanel(telemetryData, report.Front, report.Rear, context),
+            BuildVibrationPanel(report.FrontVibration, report.RearVibration),
             displayFindings)
         {
             NextStep = BuildNextStep(presented),
@@ -386,14 +386,12 @@ internal static class SessionInsightsPresenter
     }
 
     private static SessionInsightsVibrationPanel? BuildVibrationPanel(
-        TelemetryData telemetryData,
-        SideSnapshot? front,
-        SideSnapshot? rear,
-        AnalysisContext context)
+        VibrationStats? frontVibration,
+        VibrationStats? rearVibration)
     {
         var metrics = new List<SessionInsightsMetric>();
-        AddVibrationMetrics(metrics, telemetryData, front, ImuLocation.Fork, SuspensionType.Front, context);
-        AddVibrationMetrics(metrics, telemetryData, rear, ImuLocation.Shock, SuspensionType.Rear, context);
+        AddVibrationMetrics(metrics, frontVibration, SuspensionType.Front);
+        AddVibrationMetrics(metrics, rearVibration, SuspensionType.Rear);
 
         return metrics.Count == 0
             ? null
@@ -404,18 +402,9 @@ internal static class SessionInsightsPresenter
 
     private static void AddVibrationMetrics(
         List<SessionInsightsMetric> metrics,
-        TelemetryData telemetryData,
-        SideSnapshot? side,
-        ImuLocation imuLocation,
-        SuspensionType suspensionType,
-        AnalysisContext context)
+        VibrationStats? vibration,
+        SuspensionType suspensionType)
     {
-        if (side?.HasStrokeData != true || !TelemetryStatistics.HasVibrationData(telemetryData, imuLocation))
-        {
-            return;
-        }
-
-        var vibration = TelemetryStatistics.CalculateVibration(telemetryData, imuLocation, suspensionType, context.Request.AnalysisRange);
         if (vibration is null)
         {
             return;

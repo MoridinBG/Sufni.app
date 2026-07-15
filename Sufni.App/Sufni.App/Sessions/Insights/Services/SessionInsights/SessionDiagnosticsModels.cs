@@ -81,4 +81,6 @@ internal sealed record DiagnosticFinding(
 internal sealed record SessionDiagnosticsReport(
     SideSnapshot? Front,
     SideSnapshot? Rear,
+    VibrationStats? FrontVibration,
+    VibrationStats? RearVibration,
     IReadOnlyList<DiagnosticFinding> Findings);

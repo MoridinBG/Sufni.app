@@ -47,9 +47,21 @@ internal static class SessionDiagnostics
         AddSideDampingFindings(rear, context, findings, packingSides);
 
         AddBalanceFindings(telemetryData, front, rear, context, findings);
-        AddVibrationFindings(telemetryData, front, rear, context, findings);
+        var frontVibration = CalculateVibration(
+            telemetryData,
+            front,
+            ImuLocation.Fork,
+            SuspensionType.Front,
+            context.Request.AnalysisRange);
+        var rearVibration = CalculateVibration(
+            telemetryData,
+            rear,
+            ImuLocation.Shock,
+            SuspensionType.Rear,
+            context.Request.AnalysisRange);
+        AddVibrationFindings(telemetryData, frontVibration, rearVibration, findings);
 
-        return new SessionDiagnosticsReport(front, rear, findings);
+        return new SessionDiagnosticsReport(front, rear, frontVibration, rearVibration, findings);
     }
 
     public static ProfileReferences GetProfileReferences(SessionInsightsTargetProfile profile)
@@ -508,32 +520,35 @@ internal static class SessionDiagnostics
         ];
     }
 
+    private static VibrationStats? CalculateVibration(
+        TelemetryData telemetryData,
+        SideSnapshot? side,
+        ImuLocation imuLocation,
+        SuspensionType suspensionType,
+        TelemetryTimeRange? range)
+    {
+        return side?.HasStrokeData == true && TelemetryStatistics.HasVibrationData(telemetryData, imuLocation)
+            ? TelemetryStatistics.CalculateVibration(telemetryData, imuLocation, suspensionType, range)
+            : null;
+    }
+
     private static void AddVibrationFindings(
         TelemetryData telemetryData,
-        SideSnapshot? front,
-        SideSnapshot? rear,
-        AnalysisContext context,
+        VibrationStats? frontVibration,
+        VibrationStats? rearVibration,
         List<DiagnosticFinding> findings)
     {
         var addedComparableVibration = false;
-        if (front?.HasStrokeData == true && TelemetryStatistics.HasVibrationData(telemetryData, ImuLocation.Fork))
+        if (frontVibration is not null)
         {
-            var vibration = TelemetryStatistics.CalculateVibration(telemetryData, ImuLocation.Fork, SuspensionType.Front, context.Request.AnalysisRange);
-            if (vibration is not null)
-            {
-                addedComparableVibration = true;
-                findings.Add(CreateVibrationContextFinding(SuspensionType.Front, vibration));
-            }
+            addedComparableVibration = true;
+            findings.Add(CreateVibrationContextFinding(SuspensionType.Front, frontVibration));
         }
 
-        if (rear?.HasStrokeData == true && TelemetryStatistics.HasVibrationData(telemetryData, ImuLocation.Shock))
+        if (rearVibration is not null)
         {
-            var vibration = TelemetryStatistics.CalculateVibration(telemetryData, ImuLocation.Shock, SuspensionType.Rear, context.Request.AnalysisRange);
-            if (vibration is not null)
-            {
-                addedComparableVibration = true;
-                findings.Add(CreateVibrationContextFinding(SuspensionType.Rear, vibration));
-            }
+            addedComparableVibration = true;
+            findings.Add(CreateVibrationContextFinding(SuspensionType.Rear, rearVibration));
         }
 
         if (!addedComparableVibration && telemetryData.ImuData?.HasSamples == true)

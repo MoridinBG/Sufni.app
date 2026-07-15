@@ -296,6 +296,20 @@ public class SessionDiagnosticsTests
         });
         Assert.Contains(vibrationFindings, finding => finding.Evidence.All(evidence => evidence.Side == SuspensionType.Front));
         Assert.Contains(vibrationFindings, finding => finding.Evidence.All(evidence => evidence.Side == SuspensionType.Rear));
+        Assert.NotNull(report.FrontVibration);
+        Assert.NotNull(report.RearVibration);
+        Assert.Equal(
+            report.FrontVibration!.MagicCarpet,
+            GetEvidenceValue(
+                Assert.Single(vibrationFindings, finding => finding.Evidence.All(evidence => evidence.Side == SuspensionType.Front)),
+                DiagnosticMeasurement.MagicCarpetRatio,
+                SuspensionType.Front));
+        Assert.Equal(
+            report.RearVibration!.MagicCarpet,
+            GetEvidenceValue(
+                Assert.Single(vibrationFindings, finding => finding.Evidence.All(evidence => evidence.Side == SuspensionType.Rear)),
+                DiagnosticMeasurement.MagicCarpetRatio,
+                SuspensionType.Rear));
     }
 
     [Fact]
