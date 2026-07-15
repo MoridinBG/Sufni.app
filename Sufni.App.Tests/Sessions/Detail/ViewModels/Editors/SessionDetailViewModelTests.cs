@@ -121,6 +121,57 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task SupersededLoadCompletion_DoesNotReplaceLatestTelemetry()
+    {
+        var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession(hasProcessedData: true);
+        var firstRefresh = new TaskCompletionSource<SessionDetailLoadResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var latestRefresh = new TaskCompletionSource<SessionDetailLoadResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var initialTelemetry = TestTelemetryData.CreateProcessed();
+        var staleTelemetry = TestTelemetryData.CreateProcessed();
+        var latestTelemetry = TestTelemetryData.CreateProcessed();
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        var loadCount = 0;
+        var editor = harness.CreateLoadedRecordedSession(
+            snapshot,
+            harness.CreateLoadedResult(initialTelemetry),
+            watch.AsObservable());
+        harness.SessionCoordinator.LoadDetailAsync(
+                snapshot.Id,
+                Arg.Any<SessionPresentationDimensions>(),
+                Arg.Any<IProgress<SessionDetailLoadProgress>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(_ => ++loadCount switch
+            {
+                1 => Task.FromResult<SessionDetailLoadResult>(harness.CreateLoadedResult(initialTelemetry)),
+                2 => firstRefresh.Task,
+                3 => latestRefresh.Task,
+                _ => throw new InvalidOperationException("Unexpected load request."),
+            });
+
+        await harness.LoadAsync(editor);
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        watch.OnNext(DomainFromSnapshot(
+            snapshot with { Updated = 2 },
+            DerivedChangeKind.FingerprintChanged));
+        await WaitForAsync(() => loadCount == 2);
+        watch.OnNext(DomainFromSnapshot(
+            snapshot with { Updated = 3 },
+            DerivedChangeKind.FingerprintChanged));
+        await WaitForAsync(() => loadCount == 3);
+
+        latestRefresh.SetResult(harness.CreateLoadedResult(latestTelemetry));
+        await WaitForAsync(() => ReferenceEquals(editor.CurrentTelemetryData, latestTelemetry));
+        firstRefresh.SetResult(harness.CreateLoadedResult(staleTelemetry));
+        await Task.Yield();
+
+        Assert.Same(latestTelemetry, editor.CurrentTelemetryData);
+        Assert.Equal(3, loadCount);
+    }
+
+    [AvaloniaFact]
     public async Task Loaded_WhenLocalDataIncomplete_EntersIncompleteScreenState()
     {
         var harness = new SessionDetailHarness();

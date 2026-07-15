@@ -155,6 +155,102 @@ public class TelemetryDataLiveCaptureTests
         Assert.False(result.MissingFinalStatus);
     }
 
+    [Fact]
+    public void FromLiveCapture_MatchesFinalBatchProcessingForTheSameSegmentedRecording()
+    {
+        RawCountSegment[] frontSegments =
+        [
+            new RawCountSegment
+            {
+                FirstIndex = 0,
+                FirstMonotonicDeltaUs = 0,
+                Counts = Enumerable.Range(0, 40).Select(index => (ushort)(1000 + index)).ToArray(),
+            },
+            new RawCountSegment
+            {
+                FirstIndex = 44,
+                FirstMonotonicDeltaUs = 440_000,
+                Counts = Enumerable.Range(0, 40).Select(index => (ushort)(1100 + index)).ToArray(),
+            },
+        ];
+        RawCountSegment[] rearSegments =
+        [
+            new RawCountSegment
+            {
+                FirstIndex = 0,
+                FirstMonotonicDeltaUs = 0,
+                Counts = Enumerable.Range(0, 84).Select(index => (ushort)(1200 + index % 9)).ToArray(),
+            },
+        ];
+        RawStreamGap[] streamGaps =
+        [
+            new RawStreamGap
+            {
+                StreamKind = SstV5ProtocolConstants.StreamTravel,
+                LocationId = (byte)SstV5ProtocolConstants.SensorForkTravel,
+                FirstMissingIndex = 40,
+                MissingCount = 4,
+                MissingTimeUs = 40_000,
+                Reason = "index_gap",
+            },
+        ];
+        MarkerData[] markers = [new MarkerData(0.25), new MarkerData(0.6)];
+        var finalStatus = new SstFinalStatus
+        {
+            SessionResultReason = 1,
+            StoppedMonotonicDeltaUs = 840_000,
+            Streams =
+            [
+                new SstStreamFinalStatus
+                {
+                    StreamKind = SstV5ProtocolConstants.StreamTravel,
+                    ProducerState = 1,
+                },
+            ],
+        };
+        var bikeData = CreateBikeData();
+        var metadata = new Metadata
+        {
+            SourceName = "parity-fixture",
+            Version = 5,
+            SampleRate = 100,
+            Timestamp = 1_704_164_646,
+            Duration = 0.84,
+        };
+        var capture = new LiveTelemetryCapture(
+            metadata,
+            bikeData,
+            frontSegments,
+            rearSegments,
+            ImuData: null,
+            GpsData: null,
+            markers,
+            streamGaps,
+            finalStatus,
+            MissingFinalStatus: false);
+        var raw = new RawTelemetryData
+        {
+            Version = 5,
+            SampleRate = 100,
+            Timestamp = metadata.Timestamp,
+            Front = frontSegments.SelectMany(segment => segment.Counts).ToArray(),
+            Rear = rearSegments.SelectMany(segment => segment.Counts).ToArray(),
+            FrontSegments = frontSegments,
+            RearSegments = rearSegments,
+            StreamGaps = streamGaps,
+            FinalStatus = finalStatus,
+            MissingFinalStatus = false,
+            SessionStartUtcMs = metadata.Timestamp * 1000,
+            RecordingDurationSeconds = metadata.Duration,
+            Markers = markers,
+        };
+
+        var live = TelemetryData.FromLiveCapture(capture);
+        var finalBatch = TelemetryData.FromRecording(raw, metadata, bikeData);
+
+        Assert.Equal(finalBatch.BinaryForm, live.BinaryForm);
+    }
+
     private static ushort[] BuildSignalWithSpike(ushort baseline, int length, int spikeIndex, ushort spikeValue)
     {
         var samples = new ushort[length];
