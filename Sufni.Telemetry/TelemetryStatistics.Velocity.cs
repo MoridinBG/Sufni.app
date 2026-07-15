@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using MathNet.Numerics;
 using MathNet.Numerics.Distributions;
 using MathNet.Numerics.Statistics;
@@ -36,28 +37,20 @@ public static partial class TelemetryStatistics
     {
         var suspension = GetSuspension(telemetryData, type);
         var step = suspension.VelocityBins[1] - suspension.VelocityBins[0];
-        var velocity = suspension.Velocity.ToList();
-
-        var strokeVelocity = new List<double>();
-        foreach (var stroke in GetIncludedCompressions(telemetryData, suspension, range))
-        {
-            strokeVelocity.AddRange(velocity.GetRange(stroke.Start, stroke.End - stroke.Start + 1));
-        }
-        foreach (var stroke in GetIncludedRebounds(telemetryData, suspension, range))
-        {
-            strokeVelocity.AddRange(velocity.GetRange(stroke.Start, stroke.End - stroke.Start + 1));
-        }
-
-        if (strokeVelocity.Count < 2)
+        var compressions = GetIncludedCompressions(telemetryData, suspension, range);
+        var rebounds = GetIncludedRebounds(telemetryData, suspension, range);
+        var statistics = new NormalDistributionStatistics();
+        AccumulateStrokeVelocity(suspension.Velocity, compressions, ref statistics);
+        AccumulateStrokeVelocity(suspension.Velocity, rebounds, ref statistics);
+        if (statistics.Count < 2)
         {
             return new NormalDistributionData([], []);
         }
 
-        var mu = strokeVelocity.Mean();
-        var std = strokeVelocity.StandardDeviation();
-
-        var min = strokeVelocity.Min();
-        var max = strokeVelocity.Max();
+        var mu = statistics.Mean;
+        var std = statistics.StandardDeviation;
+        var min = statistics.Minimum;
+        var max = statistics.Maximum;
         var velocityRange = max - min;
         var y = new double[100];
         for (var index = 0; index < 100; index++)
@@ -72,6 +65,62 @@ public static partial class TelemetryStatistics
         }
 
         return new NormalDistributionData([.. y], pdf);
+    }
+
+    private static void AccumulateStrokeVelocity(
+        double[] velocity,
+        Stroke[] strokes,
+        ref NormalDistributionStatistics statistics)
+    {
+        foreach (var stroke in strokes)
+        {
+            for (var index = stroke.Start; index <= stroke.End; index++)
+            {
+                statistics.Add(velocity[index]);
+            }
+        }
+    }
+
+    private struct NormalDistributionStatistics
+    {
+        private double varianceAccumulator;
+        private double varianceSum;
+
+        public long Count { get; private set; }
+        public double Mean { get; private set; }
+        public double Minimum { get; private set; }
+        public double Maximum { get; private set; }
+        public readonly double StandardDeviation => Math.Sqrt(varianceAccumulator / (Count - 1));
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Add(double value)
+        {
+            Count++;
+            Mean += (value - Mean) / Count;
+
+            if (Count == 1)
+            {
+                varianceSum = value;
+                Minimum = value;
+                Maximum = value;
+                return;
+            }
+
+            varianceSum += value;
+            var delta = Count * value - varianceSum;
+            varianceAccumulator += delta * delta / (Count * (Count - 1));
+
+            if (double.IsNaN(value))
+            {
+                Minimum = value;
+                Maximum = value;
+            }
+            else
+            {
+                Minimum = Math.Min(Minimum, value);
+                Maximum = Math.Max(Maximum, value);
+            }
+        }
     }
 
     public static VelocityStatistics CalculateVelocityStatistics(
