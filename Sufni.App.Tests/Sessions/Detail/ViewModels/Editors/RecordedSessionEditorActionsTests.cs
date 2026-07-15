@@ -2,6 +2,7 @@ using System.Reactive;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
@@ -13,6 +14,24 @@ namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 
 public class RecordedSessionEditorActionsTests
 {
+    [Fact]
+    public void LoadedAnalysisAvailability_DerivesFromTelemetryWithoutCachedPresentation()
+    {
+        using var driver = new RecordedSessionEditorStateControllerTestDriver();
+        var observed = new List<RecordedAnalysisPresentationState>();
+        using var subscription = driver.Controller.State
+            .Select(state => state.Presentation.Analysis)
+            .Subscribe(observed.Add);
+
+        driver.PublishTelemetry(TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: false));
+
+        var analysis = observed[^1];
+        Assert.Equal(SurfaceStateKind.Ready, analysis.FrontAnalysis.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, analysis.RearAnalysis.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, analysis.CompressionBalance.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, analysis.ReboundBalance.Kind);
+    }
+
     [Fact]
     public void AnalysisRangeBoundaries_NormalizeToTelemetryDuration()
     {

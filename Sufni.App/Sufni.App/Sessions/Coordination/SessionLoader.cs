@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using Serilog;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.Telemetry;
 
@@ -12,7 +11,6 @@ using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
-using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 namespace Sufni.App.Sessions.Coordination;
 
@@ -22,24 +20,18 @@ public sealed class SessionLoader
 
     private readonly ISessionStoreWriter sessionStore;
     private readonly ISessionProcessedTelemetryReader processedTelemetryReader;
-    private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ITrackCoordinator trackCoordinator;
-    private readonly ISessionPresentationService sessionPresentationService;
     private readonly IRecordedSessionDomainQuery recordedSessionDomainQuery;
 
     internal SessionLoader(
         ISessionStoreWriter sessionStore,
         ISessionProcessedTelemetryReader processedTelemetryReader,
-        IBackgroundTaskRunner backgroundTaskRunner,
         ITrackCoordinator trackCoordinator,
-        ISessionPresentationService sessionPresentationService,
         IRecordedSessionDomainQuery recordedSessionDomainQuery)
     {
         this.sessionStore = sessionStore;
         this.processedTelemetryReader = processedTelemetryReader;
-        this.backgroundTaskRunner = backgroundTaskRunner;
         this.trackCoordinator = trackCoordinator;
-        this.sessionPresentationService = sessionPresentationService;
         this.recordedSessionDomainQuery = recordedSessionDomainQuery;
     }
 
@@ -77,26 +69,13 @@ public sealed class SessionLoader
             var fullTrackId = sessionStore.Get(sessionId)?.FullTrackId;
             logger.Verbose("Resolving track data for session {SessionId}", sessionId);
             progress.Report(SessionDetailLoadProgress.LoadingMapData);
-            var trackTask = trackCoordinator.LoadSessionTrackAsync(
+            var trackData = await trackCoordinator.LoadSessionTrackAsync(
                 sessionId,
                 fullTrackId,
                 telemetryData,
                 cancellationToken);
 
-            logger.Verbose("Building session presentation data for {SessionId}", sessionId);
-            progress.Report(SessionDetailLoadProgress.BuildingSessionPresentation);
-            var presentationTask = backgroundTaskRunner.RunAsync(
-                () => sessionPresentationService.BuildCachePresentation(
-                    telemetryData,
-                    dimensions,
-                    cancellationToken,
-                    dampingSpeedCutoffContext.Cutoffs),
-                cancellationToken);
-
-            await Task.WhenAll(trackTask, presentationTask);
             progress.Report(SessionDetailLoadProgress.FinalizingSessionData);
-            var trackData = trackTask.Result;
-            var cachePresentation = presentationTask.Result with { DampingSpeedCutoffOwner = dampingSpeedCutoffContext.Owner };
 
             logger.Information("Session detail load completed for {SessionId}", sessionId);
             return new SessionDetailLoadResult.Loaded(
@@ -107,10 +86,8 @@ public sealed class SessionLoader
                         trackData.FullTrackPoints,
                         trackData.TrackPoints,
                         trackData.MediaColumnWidth,
-                        cachePresentation.DampingPercentages,
-                        cachePresentation.DampingSpeedCutoffs,
-                        cachePresentation.DampingSpeedCutoffOwner),
-                    cachePresentation));
+                        dampingSpeedCutoffContext.Cutoffs,
+                        dampingSpeedCutoffContext.Owner)));
         }
         catch (OperationCanceledException)
         {

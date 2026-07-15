@@ -537,24 +537,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
     }
 
-    internal void ApplyModeAwareDampingPercentages(SessionDampingPercentages sampleAveragedPercentages)
-    {
-        if (telemetryData is null)
-        {
-            ClearDampingPercentages();
-            return;
-        }
-
-        if (currentEditorState.Intent.AnalysisRange is null &&
-            currentEditorState.Intent.SelectedVelocityAverageMode == VelocityAverageMode.SampleAveraged)
-        {
-            ApplyDampingPercentages(sampleAveragedPercentages);
-            return;
-        }
-
-        editorActions.RequestDampingPercentages();
-    }
-
     internal void RecomputeSessionInsights()
     {
         editorActions.RequestSessionInsights();
@@ -841,7 +823,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         ApplyDampingSpeedCutoffContext(
             telemetryPresentation.DampingSpeedCutoffs,
             telemetryPresentation.DampingSpeedCutoffOwner);
-        ApplyModeAwareDampingPercentages(telemetryPresentation.DampingPercentages);
+        RequestCurrentDampingPercentages();
     }
 
     private async Task ApplyPersistedSnapshotAsync(SessionSnapshot snapshot)
@@ -1872,7 +1854,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             FullTrackPoints = fullTrackPoints,
             TrackPoints = trackPoints,
             MediaColumnWidth = currentEditorState.Presentation.MediaColumnWidth,
-            DampingPercentages = currentEditorState.Presentation.DampingPercentages,
         };
     }
 

@@ -51,7 +51,6 @@ public sealed record SessionTelemetryPresentationData(
     List<TrackPoint>? FullTrackPoints,
     List<TrackPoint>? TrackPoints,
     double? MediaColumnWidth,
-    SessionDampingPercentages DampingPercentages,
     DampingSpeedCutoffs DampingSpeedCutoffs,
     DampingSpeedCutoffOwner? DampingSpeedCutoffOwner)
 {
@@ -60,15 +59,13 @@ public sealed record SessionTelemetryPresentationData(
         Guid? FullTrackId,
         List<TrackPoint>? FullTrackPoints,
         List<TrackPoint>? TrackPoints,
-        double? MediaColumnWidth,
-        SessionDampingPercentages DampingPercentages)
+        double? MediaColumnWidth)
         : this(
             TelemetryData,
             FullTrackId,
             FullTrackPoints,
             TrackPoints,
             MediaColumnWidth,
-            DampingPercentages,
             DampingSpeedCutoffs.Default,
             null)
     {
@@ -131,9 +128,7 @@ public sealed record MissingSessionData(
     bool ProcessedTelemetryBlob,
     bool RecordedSourceMissingOrHashMismatch);
 
-public sealed record SessionDetailData(
-    SessionTelemetryPresentationData TelemetryPresentation,
-    SessionCachePresentationData CachePresentation);
+public sealed record SessionDetailData(SessionTelemetryPresentationData TelemetryPresentation);
 
 public abstract record SessionDetailLoadResult
 {

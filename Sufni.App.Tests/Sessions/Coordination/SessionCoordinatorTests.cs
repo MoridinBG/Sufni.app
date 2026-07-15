@@ -313,9 +313,7 @@ public class SessionCoordinatorTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
-        var percentages = new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8);
         var dimensions = new SessionPresentationDimensions(320, 180);
-        var cacheData = CachePresentation(percentages);
         var trackData = new SessionTrackPresentationData(
             Guid.NewGuid(),
             [new TrackPoint(1, 1, 1, 0)],
@@ -326,12 +324,6 @@ public class SessionCoordinatorTests
         SetLocalTelemetry(snapshot.Id, telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(trackData);
-        sessionPresentationService.BuildCachePresentation(
-                telemetry,
-                dimensions,
-                Arg.Any<CancellationToken>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(cacheData);
 
         var progress = new CapturingSessionDetailLoadProgress();
 
@@ -341,14 +333,18 @@ public class SessionCoordinatorTests
         Assert.Same(telemetry, loaded.Data.TelemetryPresentation.TelemetryData);
         Assert.Same(trackData.TrackPoints, loaded.Data.TelemetryPresentation.TrackPoints);
         Assert.Equal(400.0, loaded.Data.TelemetryPresentation.MediaColumnWidth);
-        Assert.Equal(percentages, loaded.Data.TelemetryPresentation.DampingPercentages);
-        Assert.Equal(cacheData, loaded.Data.CachePresentation with { DampingSpeedCutoffOwner = null });
+        Assert.Equal(DampingSpeedCutoffs.Default, loaded.Data.TelemetryPresentation.DampingSpeedCutoffs);
+        Assert.Null(loaded.Data.TelemetryPresentation.DampingSpeedCutoffOwner);
+        sessionPresentationService.DidNotReceive().BuildCachePresentation(
+            Arg.Any<TelemetryData>(),
+            Arg.Any<SessionPresentationDimensions>(),
+            Arg.Any<CancellationToken>(),
+            Arg.Any<DampingSpeedCutoffs?>());
         Assert.Equal(
             [
                 SessionDetailLoadStage.LoadingTelemetryData,
                 SessionDetailLoadStage.CheckingLocalData,
                 SessionDetailLoadStage.LoadingMapData,
-                SessionDetailLoadStage.BuildingSessionPresentation,
                 SessionDetailLoadStage.FinalizingSessionData,
             ],
             progress.Reports.Select(report => report.Stage));
@@ -426,21 +422,17 @@ public class SessionCoordinatorTests
             Arg.Any<CancellationToken>());
     }
 
-    private SessionLoader CreateLoader(IBackgroundTaskRunner? runner = null) =>
+    private SessionLoader CreateLoader() =>
         new(
             sessionStore,
             processedTelemetryReader,
-            runner ?? backgroundTaskRunner,
             trackCoordinator,
-            sessionPresentationService,
             domainQuery);
 
-    private SessionCoordinator CreateCoordinator(
-        UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace,
-        IBackgroundTaskRunner? backgroundTaskRunner = null) =>
+    private SessionCoordinator CreateCoordinator(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
         new(
             sessionStore,
-            CreateLoader(backgroundTaskRunner),
+            CreateLoader(),
             CreateCommandService(layoutProfile),
             () => editorFactory);
 
@@ -473,20 +465,6 @@ public class SessionCoordinatorTests
     {
         processedTelemetryReader.Set(sessionId, telemetry);
     }
-
-    private static SessionCachePresentationData CachePresentation(
-        SessionDampingPercentages? percentages = null,
-        DampingSpeedCutoffs? cutoffs = null) =>
-        new(
-            FrontTravelDistribution: "front-travel",
-            RearTravelDistribution: null,
-            FrontVelocityDistribution: "front-velocity",
-            RearVelocityDistribution: null,
-            CompressionBalance: null,
-            ReboundBalance: null,
-            DampingPercentages: percentages ?? SessionDampingPercentages.Empty,
-            DampingSpeedCutoffs: cutoffs ?? DampingSpeedCutoffs.Default,
-            BalanceAvailable: false);
 
     private static IAppEnvironment CreateEnvironment(UiLayoutProfile layoutProfile) =>
         new AppEnvironment(

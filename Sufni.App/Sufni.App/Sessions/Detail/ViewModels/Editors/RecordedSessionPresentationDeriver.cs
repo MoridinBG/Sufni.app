@@ -93,17 +93,14 @@ internal static class RecordedSessionPresentationDeriver
 
     public static RecordedAnalysisPresentationState CreateAnalysisPresentation(
         TelemetryData? telemetry,
-        TelemetryTimeRange? analysisRange,
-        bool frontAnalysisAvailable,
-        bool rearAnalysisAvailable,
-        bool balanceAvailable)
+        TelemetryTimeRange? analysisRange)
     {
         if (telemetry is null)
         {
             return CreateHiddenAnalysisPresentationState();
         }
 
-        var state = new RecordedAnalysisPresentationState(
+        return new RecordedAnalysisPresentationState(
             AnalysisSurfaceState.ForSuspension(telemetry, SuspensionType.Front, analysisRange),
             AnalysisSurfaceState.ForSuspension(telemetry, SuspensionType.Rear, analysisRange),
             AnalysisSurfaceState.ForBalance(telemetry, BalanceType.Compression, analysisRange),
@@ -112,37 +109,6 @@ internal static class RecordedSessionPresentationDeriver
             AnalysisSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Frame, analysisRange),
             AnalysisSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Fork, analysisRange),
             AnalysisSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Frame, analysisRange));
-
-        if (!frontAnalysisAvailable && state.FrontAnalysis.Kind != SurfaceStateKind.NoData)
-        {
-            state = state with
-            {
-                FrontAnalysis = SurfacePresentationState.Hidden,
-                FrontForkVibration = SurfacePresentationState.Hidden,
-                FrontFrameVibration = SurfacePresentationState.Hidden,
-            };
-        }
-
-        if (!rearAnalysisAvailable && state.RearAnalysis.Kind != SurfaceStateKind.NoData)
-        {
-            state = state with
-            {
-                RearAnalysis = SurfacePresentationState.Hidden,
-                RearForkVibration = SurfacePresentationState.Hidden,
-                RearFrameVibration = SurfacePresentationState.Hidden,
-            };
-        }
-
-        if (!balanceAvailable)
-        {
-            state = state with
-            {
-                CompressionBalance = SurfacePresentationState.Hidden,
-                ReboundBalance = SurfacePresentationState.Hidden,
-            };
-        }
-
-        return state;
     }
 
     public static SurfacePresentationState CreateMapState(

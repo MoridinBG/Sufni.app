@@ -33,8 +33,6 @@ namespace Sufni.App.Tests.Sessions.Detail.Views.Editors;
 
 internal sealed class SessionDetailViewTestContext
 {
-    private const string DefaultSvg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"12\"><rect width=\"16\" height=\"12\" fill=\"#8899AA\" /></svg>";
-
     private readonly ISessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
     private readonly ITrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
     private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
@@ -88,23 +86,11 @@ internal sealed class SessionDetailViewTestContext
         bool includeImu = false,
         bool includeBalance = true)
     {
-        var telemetry = TestTelemetryData.CreateProcessed();
+        var telemetry = TestTelemetryData.CreateProcessed(rearPresent: includeBalance);
         if (includeImu)
         {
             telemetry.ImuData = TestTelemetryData.CreateWithImu().ImuData;
         }
-
-        var percentages = new SessionDampingPercentages(10, 20, 30, 40, 50, 60, 70, 80);
-        var cachePresentation = new SessionCachePresentationData(
-            FrontTravelDistribution: DefaultSvg,
-            RearTravelDistribution: DefaultSvg,
-            FrontVelocityDistribution: DefaultSvg,
-            RearVelocityDistribution: DefaultSvg,
-            CompressionBalance: includeBalance ? DefaultSvg : null,
-            ReboundBalance: includeBalance ? DefaultSvg : null,
-            DampingPercentages: percentages,
-            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-            BalanceAvailable: includeBalance);
 
         return new SessionDetailLoadResult.Loaded(new SessionDetailData(
             new SessionTelemetryPresentationData(
@@ -113,10 +99,8 @@ internal sealed class SessionDetailViewTestContext
                 FullTrackPoints: null,
                 TrackPoints: null,
                 MediaColumnWidth: null,
-                DampingPercentages: percentages,
                 DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-                DampingSpeedCutoffOwner: null),
-            cachePresentation));
+                DampingSpeedCutoffOwner: null)));
     }
 
     public async Task<MountedSessionDetailView<SessionDetailView>> MountMobileAsync(

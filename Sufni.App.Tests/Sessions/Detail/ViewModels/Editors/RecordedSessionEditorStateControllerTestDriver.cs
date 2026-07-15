@@ -79,17 +79,7 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
                     session?.FullTrackId,
                     fullTrackPoints is List<TrackPoint> fullTrackList ? fullTrackList : fullTrackPoints?.ToList(),
                     trackPoints is List<TrackPoint> trackList ? trackList : trackPoints?.ToList(),
-                    mediaColumnWidth,
-                    SessionDampingPercentages.Empty),
-                new SessionCachePresentationData(
-                    FrontTravelDistribution: null,
-                    RearTravelDistribution: null,
-                    FrontVelocityDistribution: null,
-                    RearVelocityDistribution: null,
-                    CompressionBalance: null,
-                    ReboundBalance: null,
-                    DampingPercentages: SessionDampingPercentages.Empty,
-                    BalanceAvailable: false)),
+                    mediaColumnWidth)),
             session));
     }
 

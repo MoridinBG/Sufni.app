@@ -472,22 +472,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
 
         return RecordedSessionPresentationDeriver.CreateAnalysisPresentation(
             loaded.Data.TelemetryPresentation.TelemetryData,
-            analysisRange,
-            HasFrontCacheAnalysis(loaded.Data.CachePresentation),
-            HasRearCacheAnalysis(loaded.Data.CachePresentation),
-            loaded.Data.CachePresentation.BalanceAvailable);
-    }
-
-    private static bool HasFrontCacheAnalysis(SessionCachePresentationData data)
-    {
-        return !string.IsNullOrWhiteSpace(data.FrontTravelDistribution)
-               || !string.IsNullOrWhiteSpace(data.FrontVelocityDistribution);
-    }
-
-    private static bool HasRearCacheAnalysis(SessionCachePresentationData data)
-    {
-        return !string.IsNullOrWhiteSpace(data.RearTravelDistribution)
-               || !string.IsNullOrWhiteSpace(data.RearVelocityDistribution);
+            analysisRange);
     }
 
     private static string FormatIncompleteLocalDataMessage(MissingSessionData missing)

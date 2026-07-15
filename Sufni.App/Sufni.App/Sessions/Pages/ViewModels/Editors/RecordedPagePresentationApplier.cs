@@ -5,6 +5,7 @@ using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Insights.ViewModels.SessionPages;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Processing.SessionDetails;
+using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Pages.ViewModels.Editors;
 
@@ -62,7 +63,10 @@ internal sealed class RecordedPagePresentationApplier
         switch (result)
         {
             case SessionDetailLoadResult.Loaded loaded:
-                ApplyCachePresentation(loaded.Data.CachePresentation);
+                var telemetry = loaded.Data.TelemetryPresentation.TelemetryData;
+                EnsureBalancePage(
+                    TelemetryStatistics.HasBalanceData(telemetry, BalanceType.Compression) ||
+                    TelemetryStatistics.HasBalanceData(telemetry, BalanceType.Rebound));
                 break;
 
             case SessionDetailLoadResult.IncompleteLocalData:
@@ -73,45 +77,6 @@ internal sealed class RecordedPagePresentationApplier
                 ClearRecordedPresentation();
                 break;
         }
-    }
-
-    private void ApplyCachePresentation(SessionCachePresentationData data)
-    {
-        var hasFrontTravelDistribution = !string.IsNullOrWhiteSpace(data.FrontTravelDistribution);
-        var hasRearTravelDistribution = !string.IsNullOrWhiteSpace(data.RearTravelDistribution);
-        var hasFrontVelocityDistribution = !string.IsNullOrWhiteSpace(data.FrontVelocityDistribution);
-        var hasRearVelocityDistribution = !string.IsNullOrWhiteSpace(data.RearVelocityDistribution);
-        var hasCompressionBalance = !string.IsNullOrWhiteSpace(data.CompressionBalance);
-        var hasReboundBalance = !string.IsNullOrWhiteSpace(data.ReboundBalance);
-
-        springPage.FrontTravelDistribution = data.FrontTravelDistribution;
-        springPage.RearTravelDistribution = data.RearTravelDistribution;
-        springPage.FrontDistributionState = hasFrontTravelDistribution
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        springPage.RearDistributionState = hasRearTravelDistribution
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-
-        dampingPage.FrontVelocityDistribution = data.FrontVelocityDistribution;
-        dampingPage.RearVelocityDistribution = data.RearVelocityDistribution;
-        dampingPage.FrontDistributionState = hasFrontVelocityDistribution
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        dampingPage.RearDistributionState = hasRearVelocityDistribution
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-
-        dampingPage.ApplyDampingPercentages(data.DampingPercentages);
-        balancePage.CompressionBalance = data.CompressionBalance;
-        balancePage.ReboundBalance = data.ReboundBalance;
-        balancePage.CompressionBalanceState = hasCompressionBalance
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        balancePage.ReboundBalanceState = hasReboundBalance
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        EnsureBalancePage(data.BalanceAvailable);
     }
 
     private void EnsureBalancePage(bool balanceAvailable)

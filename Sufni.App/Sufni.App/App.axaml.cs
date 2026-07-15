@@ -234,9 +234,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<SessionLoader>(sp => new SessionLoader(
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<ISessionProcessedTelemetryReader>(),
-            sp.GetRequiredService<IBackgroundTaskRunner>(),
             sp.GetRequiredService<ITrackCoordinator>(),
-            sp.GetRequiredService<ISessionPresentationService>(),
             sp.GetRequiredService<IRecordedSessionDomainQuery>()));
         ServiceCollection.AddSingleton<ISessionRecomputeEngine>(sp => new SessionRecomputeEngine(
             sp.GetRequiredService<ISessionStoreWriter>(),

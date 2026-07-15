@@ -33,8 +33,6 @@ namespace Sufni.App.Tests.TestSupport.Sessions;
 
 internal sealed class SessionDetailHarness
 {
-    private const string DefaultSvg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"12\"><rect width=\"16\" height=\"12\" fill=\"#8899AA\" /></svg>";
-
     private readonly ITrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
 
@@ -129,8 +127,7 @@ internal sealed class SessionDetailHarness
         IReadOnlyList<TrackPoint>? trackPoints = null,
         double? mediaColumnWidth = null)
     {
-        var data = telemetry ?? TestTelemetryData.CreateProcessed();
-        var percentages = new SessionDampingPercentages(10, 20, 30, 40, 50, 60, 70, 80);
+        var data = telemetry ?? TestTelemetryData.CreateProcessed(rearPresent: includeBalance);
         return new SessionDetailLoadResult.Loaded(new SessionDetailData(
             new SessionTelemetryPresentationData(
                 data,
@@ -138,19 +135,8 @@ internal sealed class SessionDetailHarness
                 FullTrackPoints: null,
                 TrackPoints: trackPoints?.ToList(),
                 MediaColumnWidth: mediaColumnWidth,
-                DampingPercentages: percentages,
                 DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-                DampingSpeedCutoffOwner: null),
-            new SessionCachePresentationData(
-                FrontTravelDistribution: DefaultSvg,
-                RearTravelDistribution: DefaultSvg,
-                FrontVelocityDistribution: DefaultSvg,
-                RearVelocityDistribution: DefaultSvg,
-                CompressionBalance: includeBalance ? DefaultSvg : null,
-                ReboundBalance: includeBalance ? DefaultSvg : null,
-                DampingPercentages: percentages,
-                DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-                BalanceAvailable: includeBalance)));
+                DampingSpeedCutoffOwner: null)));
     }
 
     private SessionDetailViewModel CreateEditor(

@@ -174,6 +174,33 @@ public class RecordedSessionAnalysisResultStateTests
     }
 
     [Fact]
+    public async Task Invalidate_SuppressesCompletionFromStaleInputs_WhenWorkIgnoresCancellation()
+    {
+        var telemetry = new TelemetryData();
+        var computer = new BlockingAnalysisComputer();
+        using var state = new RecordedSessionAnalysisResultState(
+            computer,
+            new NonCancellingBackgroundTaskRunner(),
+            new InlineUiThreadDispatcher(),
+            () => telemetry);
+        var changes = new List<RecordedSessionAnalysisResultChanged>();
+        using var subscription = state.Connect().Subscribe(changes.Add);
+        var fullInputs = CreateInputs(range: null);
+        var rangedInputs = CreateInputs(new TelemetryTimeRange(0, 1));
+        var staleKey = fullInputs.DampingPercentagesKey;
+
+        state.Invalidate(fullInputs);
+        var staleRequest = state.RequestAsync(staleKey);
+        await computer.Started;
+        state.Invalidate(rangedInputs);
+        computer.Complete();
+        await staleRequest;
+
+        Assert.Empty(changes);
+        Assert.Null(state.Get(staleKey));
+    }
+
+    [Fact]
     public void Invalidate_PublishesInputChanges()
     {
         var telemetry = new TelemetryData();
@@ -246,6 +273,35 @@ public class RecordedSessionAnalysisResultStateTests
                 null,
                 null));
         }
+    }
+
+    private sealed class BlockingAnalysisComputer : IRecordedSessionAnalysisComputer
+    {
+        private readonly TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task Started => started.Task;
+
+        public RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry)
+        {
+            started.TrySetResult();
+            completion.Task.GetAwaiter().GetResult();
+            return new DampingPercentagesAnalysisResult(SessionDampingPercentages.Empty);
+        }
+
+        public void Complete() => completion.TrySetResult();
+    }
+
+    private sealed class NonCancellingBackgroundTaskRunner : IBackgroundTaskRunner
+    {
+        public Task RunAsync(Func<Task> work, CancellationToken cancellationToken = default) =>
+            Task.Run(work);
+
+        public Task<T> RunAsync<T>(Func<T> work, CancellationToken cancellationToken = default) =>
+            Task.Run(work);
+
+        public Task<T> RunAsync<T>(Func<Task<T>> work, CancellationToken cancellationToken = default) =>
+            Task.Run(work);
     }
 
     private sealed class DeferredBackgroundTaskRunner : IBackgroundTaskRunner
