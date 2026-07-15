@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 using Sufni.App.Infrastructure;
 namespace Sufni.App.Shared.Plots;
@@ -20,10 +21,10 @@ internal static class TelemetryDisplaySmoothing
             return samples;
         }
 
-        var forward = new double[samples.Length];
         var smoothed = new double[samples.Length];
-        ApplyForwardRegular(samples, samplePeriodSeconds, timeConstantSeconds, forward);
-        ApplyBackwardRegular(forward, samplePeriodSeconds, timeConstantSeconds, smoothed);
+        var alpha = CalculateAlpha(samplePeriodSeconds, timeConstantSeconds);
+        ApplyForwardRegular(samples, samplePeriodSeconds, alpha, smoothed);
+        ApplyBackwardRegular(smoothed, samplePeriodSeconds, alpha, smoothed);
         return smoothed;
     }
 
@@ -35,10 +36,9 @@ internal static class TelemetryDisplaySmoothing
             return samples;
         }
 
-        var forward = new double[samples.Length];
         var smoothed = new double[samples.Length];
-        ApplyForwardIrregular(xValues, samples, timeConstantSeconds, forward);
-        ApplyBackwardIrregular(xValues, forward, timeConstantSeconds, smoothed);
+        ApplyForwardIrregular(xValues, samples, timeConstantSeconds, smoothed);
+        ApplyBackwardIrregular(xValues, smoothed, timeConstantSeconds, smoothed);
         return smoothed;
     }
 
@@ -66,21 +66,71 @@ internal static class TelemetryDisplaySmoothing
     }
 
     private static void ApplyForwardRegular(
-        IReadOnlyList<double> samples,
+        double[] samples,
         double samplePeriodSeconds,
-        double timeConstantSeconds,
+        double alpha,
         double[] output)
     {
-        ApplyForward(samples, index => samplePeriodSeconds, timeConstantSeconds, output);
+        var smoothed = 0.0;
+        var hasSmoothed = false;
+        for (var index = 0; index < samples.Length; index++)
+        {
+            ApplyRegularSample(
+                samples[index],
+                samplePeriodSeconds,
+                alpha,
+                ref smoothed,
+                ref hasSmoothed,
+                out output[index]);
+        }
     }
 
     private static void ApplyBackwardRegular(
-        IReadOnlyList<double> samples,
+        double[] samples,
         double samplePeriodSeconds,
-        double timeConstantSeconds,
+        double alpha,
         double[] output)
     {
-        ApplyBackward(samples, index => samplePeriodSeconds, timeConstantSeconds, output);
+        var smoothed = 0.0;
+        var hasSmoothed = false;
+        for (var index = samples.Length - 1; index >= 0; index--)
+        {
+            ApplyRegularSample(
+                samples[index],
+                samplePeriodSeconds,
+                alpha,
+                ref smoothed,
+                ref hasSmoothed,
+                out output[index]);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void ApplyRegularSample(
+        double value,
+        double deltaSeconds,
+        double alpha,
+        ref double smoothed,
+        ref bool hasSmoothed,
+        out double output)
+    {
+        if (!double.IsFinite(value))
+        {
+            hasSmoothed = false;
+            output = value;
+            return;
+        }
+
+        if (!hasSmoothed || deltaSeconds < 0)
+        {
+            smoothed = value;
+            hasSmoothed = true;
+            output = value;
+            return;
+        }
+
+        smoothed += alpha * (value - smoothed);
+        output = smoothed;
     }
 
     private static void ApplyForwardIrregular(

@@ -67,6 +67,29 @@ public class TelemetryDisplaySmoothingTests
     }
 
     [Fact]
+    public void ApplyRegular_OneBufferMatchesTwoBufferOutputBitForBit()
+    {
+        double[] samples = [0, 1, 10, -5, double.NaN, 3, double.PositiveInfinity, 4, 4];
+
+        var expected = ApplyRegularTwoBuffer(samples, PlotSmoothingLevel.Strong, samplePeriodSeconds: 0.003);
+        var actual = TelemetryDisplaySmoothing.ApplyRegular(samples, PlotSmoothingLevel.Strong, samplePeriodSeconds: 0.003);
+
+        AssertBitExact(expected, actual);
+    }
+
+    [Fact]
+    public void ApplyIrregular_OneBufferMatchesTwoBufferOutputBitForBitAcrossTimeResets()
+    {
+        double[] xValues = [0, 0.01, 0.02, 0.015, 0.03, double.NaN, 0.05, 0.10];
+        double[] samples = [0, 10, 5, 7, double.NegativeInfinity, 3, 8, 9];
+
+        var expected = ApplyIrregularTwoBuffer(xValues, samples, PlotSmoothingLevel.Light);
+        var actual = TelemetryDisplaySmoothing.ApplyIrregular(xValues, samples, PlotSmoothingLevel.Light);
+
+        AssertBitExact(expected, actual);
+    }
+
+    [Fact]
     public void StreamingSmoother_CarriesTimeConstantAcrossBatches()
     {
         var smoother = new TelemetryDisplayStreamingSmoother
@@ -114,5 +137,113 @@ public class TelemetryDisplaySmoothingTests
         return Enumerable.Range(0, sampleCount)
             .Select(index => index * samplePeriodSeconds >= 0.5 ? 1.0 : 0.0)
             .ToArray();
+    }
+
+    private static double[] ApplyRegularTwoBuffer(
+        double[] samples,
+        PlotSmoothingLevel level,
+        double samplePeriodSeconds)
+    {
+        var timeConstantSeconds = TelemetryDisplaySmoothing.GetTimeConstantMilliseconds(level) / 1000.0;
+        if (timeConstantSeconds <= 0 ||
+            samples.Length <= 2 ||
+            !double.IsFinite(samplePeriodSeconds) ||
+            samplePeriodSeconds <= 0)
+        {
+            return samples;
+        }
+
+        var forward = new double[samples.Length];
+        var output = new double[samples.Length];
+        ApplyReferencePass(
+            samples,
+            forward,
+            Enumerable.Range(0, samples.Length),
+            _ => samplePeriodSeconds,
+            timeConstantSeconds);
+        ApplyReferencePass(
+            forward,
+            output,
+            Enumerable.Range(0, samples.Length).Reverse(),
+            _ => samplePeriodSeconds,
+            timeConstantSeconds);
+        return output;
+    }
+
+    private static double[] ApplyIrregularTwoBuffer(
+        double[] xValues,
+        double[] samples,
+        PlotSmoothingLevel level)
+    {
+        var timeConstantSeconds = TelemetryDisplaySmoothing.GetTimeConstantMilliseconds(level) / 1000.0;
+        if (timeConstantSeconds <= 0 || samples.Length <= 2 || xValues.Length != samples.Length)
+        {
+            return samples;
+        }
+
+        var forward = new double[samples.Length];
+        var output = new double[samples.Length];
+        ApplyReferencePass(
+            samples,
+            forward,
+            Enumerable.Range(0, samples.Length),
+            index => index == 0 ? 0 : xValues[index] - xValues[index - 1],
+            timeConstantSeconds,
+            xValues);
+        ApplyReferencePass(
+            forward,
+            output,
+            Enumerable.Range(0, samples.Length).Reverse(),
+            index => index == samples.Length - 1 ? 0 : xValues[index + 1] - xValues[index],
+            timeConstantSeconds,
+            xValues);
+        return output;
+    }
+
+    private static void ApplyReferencePass(
+        IReadOnlyList<double> samples,
+        double[] output,
+        IEnumerable<int> indexes,
+        Func<int, double> getDeltaSeconds,
+        double timeConstantSeconds,
+        IReadOnlyList<double>? xValues = null)
+    {
+        var smoothed = 0.0;
+        var hasSmoothed = false;
+        foreach (var index in indexes)
+        {
+            var value = samples[index];
+            if (!double.IsFinite(value) ||
+                xValues?[index] is { } timestamp && !double.IsFinite(timestamp))
+            {
+                hasSmoothed = false;
+                output[index] = value;
+                continue;
+            }
+
+            var deltaSeconds = getDeltaSeconds(index);
+            if (!hasSmoothed || deltaSeconds < 0)
+            {
+                smoothed = value;
+                hasSmoothed = true;
+                output[index] = value;
+                continue;
+            }
+
+            var alpha = TelemetryDisplaySmoothing.CalculateAlpha(deltaSeconds, timeConstantSeconds);
+            smoothed += alpha * (value - smoothed);
+            output[index] = smoothed;
+        }
+    }
+
+    private static void AssertBitExact(IReadOnlyList<double> expected, IReadOnlyList<double> actual)
+    {
+        Assert.Equal(expected.Count, actual.Count);
+        for (var index = 0; index < expected.Count; index++)
+        {
+            Assert.Equal(
+                BitConverter.DoubleToInt64Bits(expected[index]),
+                BitConverter.DoubleToInt64Bits(actual[index]));
+        }
     }
 }
