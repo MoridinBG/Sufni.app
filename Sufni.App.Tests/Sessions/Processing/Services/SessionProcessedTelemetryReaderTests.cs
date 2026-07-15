@@ -14,6 +14,27 @@ namespace Sufni.App.Tests.Sessions.Processing.Services;
 public class SessionProcessedTelemetryReaderTests
 {
     [Fact]
+    public async Task GetAsync_SourceLessLegacyGoldenBlob_DecodesWithoutCurrentWriter()
+    {
+        var sessionId = Guid.NewGuid();
+        var raw = GoldenTelemetryCompatibilityFixtures.ProcessedSourceLess.GetBytes();
+        var sessionRepository = Substitute.For<ISessionRepository>();
+        var telemetryProcessor = new TestSessionTelemetryProcessor();
+        var reader = CreateReader(sessionRepository, telemetryProcessor);
+        sessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId).Returns(
+            PsstMetadata(sessionId, fingerprintJson: null));
+        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
+
+        var telemetry = await reader.GetAsync(sessionId);
+
+        Assert.NotNull(telemetry);
+        Assert.Equal("legacy-source-less.sst", telemetry.Metadata.SourceName);
+        Assert.Equal(0.02, telemetry.Metadata.Duration);
+        Assert.Equal([10, 20], telemetry.Front.Travel);
+        Assert.Equal(1, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
+    }
+
+    [Fact]
     public async Task GetAsync_RetainedSession_ReusesDecodedTelemetryForSameBlob()
     {
         var sessionId = Guid.NewGuid();

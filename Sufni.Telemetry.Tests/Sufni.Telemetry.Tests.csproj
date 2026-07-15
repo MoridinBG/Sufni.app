@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\Sufni.App.ExtensionHost.TestSupport\Fixtures\GoldenTelemetryCompatibilityFixtures.cs"
+             Link="TestSupport\GoldenTelemetryCompatibilityFixtures.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 
