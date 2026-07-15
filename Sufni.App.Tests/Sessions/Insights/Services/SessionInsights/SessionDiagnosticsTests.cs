@@ -313,6 +313,32 @@ public class SessionDiagnosticsTests
     }
 
     [Fact]
+    public void Run_ComputesVibrationOncePerInstrumentedLocationAndSide()
+    {
+        var telemetry = CreateTelemetry(
+            front: BuildSide(),
+            rear: BuildSide(),
+            imuLocations: [(byte)ImuLocation.Fork, (byte)ImuLocation.Shock]);
+        var calls = new List<(ImuLocation Location, SuspensionType Side)>();
+
+        var report = Run(
+            telemetry,
+            CreateRequest(telemetry, SelectedRange),
+            (data, location, side, range) =>
+            {
+                calls.Add((location, side));
+                return TelemetryStatistics.CalculateVibration(data, location, side, range);
+            });
+
+        Assert.Collection(
+            calls,
+            call => Assert.Equal((ImuLocation.Fork, SuspensionType.Front), call),
+            call => Assert.Equal((ImuLocation.Shock, SuspensionType.Rear), call));
+        Assert.NotNull(report.FrontVibration);
+        Assert.NotNull(report.RearVibration);
+    }
+
+    [Fact]
     public void Run_FallsBackToVibrationNotice_WhenImuPairingIsNotComparable()
     {
         var telemetry = CreateTelemetry(front: null, rear: BuildSide(), imuLocations: [(byte)ImuLocation.Fork]);
@@ -336,7 +362,10 @@ public class SessionDiagnosticsTests
         return evidence.Value!.Value;
     }
 
-    private static SessionDiagnosticsReport Run(TelemetryData telemetry, SessionInsightsRequest request)
+    private static SessionDiagnosticsReport Run(
+        TelemetryData telemetry,
+        SessionInsightsRequest request,
+        Func<TelemetryData, ImuLocation, SuspensionType, TelemetryTimeRange?, VibrationStats?>? calculateVibration = null)
     {
         var travelOptions = new TravelStatisticsOptions(request.AnalysisRange, request.TravelDistributionMode);
         var velocityOptions = new VelocityStatisticsOptions(request.AnalysisRange, request.VelocityAverageMode);
@@ -355,6 +384,8 @@ public class SessionDiagnosticsTests
             balanceOptions,
             SessionDiagnostics.GetProfileReferences(request.TargetProfile));
 
-        return SessionDiagnostics.Run(telemetry, context);
+        return calculateVibration is null
+            ? SessionDiagnostics.Run(telemetry, context)
+            : SessionDiagnostics.Run(telemetry, context, calculateVibration);
     }
 }

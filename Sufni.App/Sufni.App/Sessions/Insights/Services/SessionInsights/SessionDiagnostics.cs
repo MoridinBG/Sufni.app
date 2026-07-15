@@ -26,7 +26,13 @@ internal static class SessionDiagnostics
     public const double ReboundBalanceSlopeWatchPercent = 20.0;
     public const double VeryFastMultiplier = 1.25;
 
-    public static SessionDiagnosticsReport Run(TelemetryData telemetryData, AnalysisContext context)
+    public static SessionDiagnosticsReport Run(TelemetryData telemetryData, AnalysisContext context) =>
+        Run(telemetryData, context, TelemetryStatistics.CalculateVibration);
+
+    internal static SessionDiagnosticsReport Run(
+        TelemetryData telemetryData,
+        AnalysisContext context,
+        Func<TelemetryData, ImuLocation, SuspensionType, TelemetryTimeRange?, VibrationStats?> calculateVibration)
     {
         var findings = new List<DiagnosticFinding>();
 
@@ -52,13 +58,15 @@ internal static class SessionDiagnostics
             front,
             ImuLocation.Fork,
             SuspensionType.Front,
-            context.Request.AnalysisRange);
+            context.Request.AnalysisRange,
+            calculateVibration);
         var rearVibration = CalculateVibration(
             telemetryData,
             rear,
             ImuLocation.Shock,
             SuspensionType.Rear,
-            context.Request.AnalysisRange);
+            context.Request.AnalysisRange,
+            calculateVibration);
         AddVibrationFindings(telemetryData, frontVibration, rearVibration, findings);
 
         return new SessionDiagnosticsReport(front, rear, frontVibration, rearVibration, findings);
@@ -525,10 +533,11 @@ internal static class SessionDiagnostics
         SideSnapshot? side,
         ImuLocation imuLocation,
         SuspensionType suspensionType,
-        TelemetryTimeRange? range)
+        TelemetryTimeRange? range,
+        Func<TelemetryData, ImuLocation, SuspensionType, TelemetryTimeRange?, VibrationStats?> calculateVibration)
     {
         return side?.HasStrokeData == true && TelemetryStatistics.HasVibrationData(telemetryData, imuLocation)
-            ? TelemetryStatistics.CalculateVibration(telemetryData, imuLocation, suspensionType, range)
+            ? calculateVibration(telemetryData, imuLocation, suspensionType, range)
             : null;
     }
 
