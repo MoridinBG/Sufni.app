@@ -393,6 +393,146 @@ public class SstV5ParserTests
     }
 
     [Fact]
+    public void Inspect_MalformedEnvelope_PreservesFullParserFirstError()
+    {
+        var invalidFileFlags = SstV5TestFiles.Create(
+            chunks:
+            [
+                SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream()),
+                SstV5TestFiles.Chunk(999, [], flags: 1)
+            ]);
+        invalidFileFlags[6] = 1;
+
+        var cases = new (byte[] Bytes, string ExpectedMessage)[]
+        {
+            (invalidFileFlags, "SST v5 file flags are invalid."),
+            (
+                SstV5TestFiles.Create(
+                    chunks:
+                    [
+                        SstV5TestFiles.TravelData(
+                            0,
+                            0,
+                            SstV5TestFiles.ForkTravel | SstV5TestFiles.ShockTravel,
+                            (1000, 2000))
+                    ]),
+                "SST v5 data chunk appears before session metadata."),
+            (
+                SstV5TestFiles.Create(
+                    chunks:
+                    [
+                        SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream()),
+                        SstV5TestFiles.Chunk(999, [], flags: 1)
+                    ]),
+                "SST v5 chunk flags are invalid."),
+            (
+                SstV5TestFiles.Create(
+                    chunks:
+                    [
+                        SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream()),
+                        SstV5TestFiles.FinalStatus(SstV5TestFiles.OkStatus()),
+                        SstV5TestFiles.TravelData(
+                            0,
+                            0,
+                            SstV5TestFiles.ForkTravel | SstV5TestFiles.ShockTravel,
+                            (1000, 2000))
+                    ]),
+                "SST v5 final status must be the last chunk."),
+            (
+                SstV5TestFiles.Create(
+                    chunks:
+                    [
+                        SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream(), SstV5TestFiles.MarkerStream()),
+                        SstV5TestFiles.TravelData(
+                            0,
+                            0,
+                            SstV5TestFiles.ForkTravel | SstV5TestFiles.ShockTravel,
+                            (1000, 2000)),
+                        SstV5TestFiles.MarkerData(0, 1_000_000, 1, 1)
+                    ]),
+                "SST v5 marker sample count is invalid."),
+        };
+
+        foreach (var (bytes, expectedMessage) in cases)
+        {
+            AssertMalformedInspectionMatchesFullParser(bytes, expectedMessage);
+        }
+    }
+
+    [Fact]
+    public void Inspect_TruncatedPayloadAfterCompleteTravel_MatchesFullParserWarning()
+    {
+        var bytes = SstV5TestFiles.Create(
+            chunks:
+            [
+                SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream()),
+                SstV5TestFiles.TravelData(
+                    0,
+                    0,
+                    SstV5TestFiles.ForkTravel | SstV5TestFiles.ShockTravel,
+                    (1000, 2000)),
+                SstV5TestFiles.Chunk(SstV5TestFiles.ChunkImuData, [1], declaredLength: 128)
+            ]);
+
+        var inspection = Assert.IsType<ValidSstFileInspection>(RawTelemetryData.InspectByteArray(bytes));
+        var parsed = RawTelemetryData.FromByteArray(bytes);
+
+        const string warning = "SST v5 chunk extends past end of file; incomplete trailing chunk data was trimmed.";
+        Assert.Equal(warning, inspection.MalformedMessage);
+        Assert.Equal(parsed.MalformedMessage, inspection.MalformedMessage);
+        Assert.Equal(TimeSpan.FromSeconds(parsed.RecordingDurationSeconds!.Value), inspection.Duration);
+        Assert.Equal(parsed.SampleRate, inspection.TelemetrySampleRate);
+        Assert.Equal(
+            DateTimeOffset.FromUnixTimeMilliseconds(parsed.SessionStartUtcMs).LocalDateTime,
+            inspection.StartTime);
+    }
+
+    [Fact]
+    public void Inspect_TruncatedPayloadAfterOnlyInvalidTravel_RemainsUnsupported()
+    {
+        var bytes = SstV5TestFiles.Create(
+            chunks:
+            [
+                SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream()),
+                SstV5TestFiles.TravelData(0, 0, 0, (1000, 2000)),
+                SstV5TestFiles.Chunk(SstV5TestFiles.ChunkImuData, [1], declaredLength: 128)
+            ]);
+
+        AssertMalformedInspectionMatchesFullParser(
+            bytes,
+            "SST v5 travel data is missing or unsupported by this app.");
+    }
+
+    [Fact]
+    public void Inspect_IncompleteTailBeforeCompleteTravel_AndIncompleteHeaderRemainMalformed()
+    {
+        var incompleteTravelPayload = SstV5TestFiles.Create(
+            chunks:
+            [
+                SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream()),
+                SstV5TestFiles.Chunk(SstV5TestFiles.ChunkTravelData, [1], declaredLength: 128)
+            ]);
+        AssertMalformedInspectionMatchesFullParser(
+            incompleteTravelPayload,
+            "SST v5 chunk extends past end of file.");
+
+        var completeTravel = SstV5TestFiles.Create(
+            chunks:
+            [
+                SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream()),
+                SstV5TestFiles.TravelData(
+                    0,
+                    0,
+                    SstV5TestFiles.ForkTravel | SstV5TestFiles.ShockTravel,
+                    (1000, 2000))
+            ]);
+        byte[] incompleteHeader = [.. completeTravel, 1, 2, 3, 4];
+        AssertMalformedInspectionMatchesFullParser(
+            incompleteHeader,
+            "SST v5 file ends with an incomplete chunk header.");
+    }
+
+    [Fact]
     public void Parse_GpsRecordWithUnknownFixMode_IsSkippedWhileFileImports()
     {
         using var stream = SstV5TestFiles.CreateStream(
@@ -488,5 +628,14 @@ public class SstV5ParserTests
         Assert.NotNull(result.FinalStatus);
         var streamStatus = Assert.Single(result.FinalStatus.Streams);
         Assert.Equal((ushort)12, streamStatus.SinkBacklogBatches);
+    }
+
+    private static void AssertMalformedInspectionMatchesFullParser(byte[] bytes, string expectedMessage)
+    {
+        var inspection = Assert.IsType<MalformedSstFileInspection>(RawTelemetryData.InspectByteArray(bytes));
+        var parseError = Assert.Throws<FormatException>(() => RawTelemetryData.FromByteArray(bytes));
+
+        Assert.Equal(expectedMessage, inspection.Message);
+        Assert.Equal(parseError.Message, inspection.Message);
     }
 }

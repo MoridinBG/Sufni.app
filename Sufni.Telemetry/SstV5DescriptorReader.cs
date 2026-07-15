@@ -139,12 +139,20 @@ public static class SstV5DescriptorReader
         ReadOnlySpan<byte> payload,
         SstV5StreamDescriptor descriptor)
     {
-        if (payload.Length < SstV5ProtocolConstants.DataHeaderSize)
+        return ReadDataHeader(payload, (ulong)payload.Length, descriptor);
+    }
+
+    public static SstV5DataHeader ReadDataHeader(
+        ReadOnlySpan<byte> headerBytes,
+        ulong payloadLength,
+        SstV5StreamDescriptor descriptor)
+    {
+        if (headerBytes.Length < SstV5ProtocolConstants.DataHeaderSize)
         {
             throw new FormatException("SST v5 data payload is truncated.");
         }
 
-        var reader = new SstByteReader(payload);
+        var reader = new SstByteReader(headerBytes);
         var firstIndex = reader.ReadUInt64();
         var firstMonotonicDeltaUs = reader.ReadUInt64();
         var sampleCount = reader.ReadUInt32();
@@ -157,7 +165,7 @@ public static class SstV5DescriptorReader
         }
 
         var expectedLength = SstV5ProtocolConstants.DataHeaderSize + (ulong)sampleCount * descriptor.CompactPayloadRecordBytes;
-        if (expectedLength != (ulong)payload.Length)
+        if (expectedLength != payloadLength)
         {
             throw new FormatException("SST v5 data payload length is invalid.");
         }
