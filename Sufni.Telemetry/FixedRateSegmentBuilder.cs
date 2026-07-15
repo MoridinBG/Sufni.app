@@ -18,6 +18,8 @@ public sealed class FixedRateSegmentBuilder<T>(
 
     public ulong Count { get; private set; }
 
+    public ulong? LatestEndMonotonicDeltaUs { get; private set; }
+
     public FixedRateSegment<T>[] CreateSnapshot()
     {
         if (currentValues.Count == 0)
@@ -45,6 +47,7 @@ public sealed class FixedRateSegmentBuilder<T>(
         currentFirstIndex = 0;
         currentFirstMonotonicDeltaUs = 0;
         Count = 0;
+        LatestEndMonotonicDeltaUs = null;
         hasTimeline = false;
         lastIndex = 0;
     }
@@ -70,6 +73,11 @@ public sealed class FixedRateSegmentBuilder<T>(
         }
 
         currentValues.Add(value);
+        var currentEndMonotonicDeltaUs = currentFirstMonotonicDeltaUs +
+            SstV5CompactPayloadDecoder.RoundDurationUs((ulong)currentValues.Count, rateMhz);
+        LatestEndMonotonicDeltaUs = LatestEndMonotonicDeltaUs is ulong latestEndMonotonicDeltaUs
+            ? Math.Max(latestEndMonotonicDeltaUs, currentEndMonotonicDeltaUs)
+            : currentEndMonotonicDeltaUs;
         Count++;
         hasTimeline = true;
         lastIndex = index;

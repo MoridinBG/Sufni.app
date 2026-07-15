@@ -606,6 +606,24 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
+    public async Task TravelFrames_PublishDurationThroughLatestValidTravelEnd()
+    {
+        var service = CreateService();
+        await service.EnsureAttachedAsync();
+
+        frames.OnNext(CreateTravelBatchFrame());
+
+        var expectedDurationUs = SstV5CompactPayloadDecoder.RoundDurationUs(
+            5,
+            sessionHeader.AcceptedTravelRateMhz);
+        Assert.Equal(
+            TimeSpan.FromMilliseconds(expectedDurationUs / 1000.0),
+            service.Current.Controls.CaptureDuration);
+
+        await service.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Frames_TwoTravelFramesBeforeFlush_ProduceSingleMergedBatchWithIndependentSignalRevision()
     {
         var pipeline = new LiveSignalPipeline(TimeSpan.FromMilliseconds(200), Logger.None);

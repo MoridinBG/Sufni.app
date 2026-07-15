@@ -1392,25 +1392,14 @@ internal sealed class LiveSessionService : ILiveSessionService
             return null;
         }
 
-        ulong? latestEndUs = null;
-        AddLatestEnd(frontTravelBuilder.CreateSnapshot());
-        AddLatestEnd(rearTravelBuilder.CreateSnapshot());
-        return latestEndUs;
-
-        void AddLatestEnd(FixedRateSegment<ushort>[] segments)
+        var latestEndMonotonicDeltaUs = frontTravelBuilder.LatestEndMonotonicDeltaUs;
+        if (rearTravelBuilder.LatestEndMonotonicDeltaUs is ulong rearEndMonotonicDeltaUs &&
+            (latestEndMonotonicDeltaUs is null || rearEndMonotonicDeltaUs > latestEndMonotonicDeltaUs.Value))
         {
-            foreach (var segment in segments)
-            {
-                if (segment.Values.Length == 0)
-                {
-                    continue;
-                }
-
-                var endUs = segment.FirstMonotonicDeltaUs +
-                    SstV5CompactPayloadDecoder.RoundDurationUs((ulong)segment.Values.Length, sessionHeader.AcceptedTravelRateMhz);
-                latestEndUs = latestEndUs is null ? endUs : Math.Max(latestEndUs.Value, endUs);
-            }
+            latestEndMonotonicDeltaUs = rearEndMonotonicDeltaUs;
         }
+
+        return latestEndMonotonicDeltaUs;
     }
 
     private void InitializeCaptureOriginLocked(ulong sampleMonotonicUs)
