@@ -1,15 +1,98 @@
+using System.Security.Cryptography;
+using System.Text.Json;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.TestSupport.Async;
 using Sufni.App.Sessions.Analysis.Services;
+using Sufni.App.Sessions.Insights.Services.SessionInsights;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Sessions.Analysis.Services;
 
 public class RecordedSessionAnalysisResultStateTests
 {
+    [Fact]
+    public async Task RequestAsync_ReusesOneTypedVelocityResult_ForIdenticalSemanticKey()
+    {
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var computer = new CountingAnalysisComputer(
+            new RecordedSessionAnalysisComputer(new SessionInsightsService()));
+        var backgroundTaskRunner = new ControllableBackgroundTaskRunner();
+        using var state = new RecordedSessionAnalysisResultState(
+            computer,
+            backgroundTaskRunner,
+            new InlineUiThreadDispatcher(),
+            () => telemetry);
+        var changes = new List<RecordedSessionAnalysisResultChanged>();
+        using var subscription = state.Connect().Subscribe(changes.Add);
+        var inputs = CreateInputs(range: null);
+        var key = inputs.CreateKey(
+            RecordedSessionAnalysisFamily.VelocityDistribution,
+            SuspensionType.Front);
+        state.Invalidate(inputs);
+
+        var firstRequest = state.RequestAsync(key);
+        var secondRequest = state.RequestAsync(key);
+        Assert.Same(firstRequest, secondRequest);
+        Assert.Equal(1, backgroundTaskRunner.RunCount);
+
+        await backgroundTaskRunner.CompleteNextAsync();
+        await Task.WhenAll(firstRequest, secondRequest);
+
+        Assert.Equal(1, computer.ComputeCount);
+        var cached = Assert.IsType<VelocityDistributionAnalysisResult>(state.Get(key));
+        var initialChange = Assert.Single(changes);
+        Assert.Same(cached, initialChange.Result);
+
+        await state.RequestAsync(key);
+
+        Assert.Equal(1, computer.ComputeCount);
+        Assert.Equal(2, changes.Count);
+        Assert.Same(cached, changes[^1].Result);
+        var direct = RecordedSessionAnalysisComputer.CalculateVelocityDistribution(key, telemetry);
+        Assert.Equal(Fingerprint(direct), Fingerprint(cached));
+    }
+
+    [Fact]
+    public async Task RequestAsync_KeepsVelocitySideKeysDistinct_AndDisposeReleasesOwner()
+    {
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var computer = new CountingAnalysisComputer(
+            new RecordedSessionAnalysisComputer(new SessionInsightsService()));
+        var state = new RecordedSessionAnalysisResultState(
+            computer,
+            new InlineBackgroundTaskRunner(),
+            new InlineUiThreadDispatcher(),
+            () => telemetry);
+        var inputs = CreateInputs(range: null);
+        var frontKey = inputs.CreateKey(
+            RecordedSessionAnalysisFamily.VelocityDistribution,
+            SuspensionType.Front);
+        var rearKey = inputs.CreateKey(
+            RecordedSessionAnalysisFamily.VelocityDistribution,
+            SuspensionType.Rear);
+        state.Invalidate(inputs);
+
+        await state.RequestAsync(frontKey);
+        await state.RequestAsync(rearKey);
+
+        Assert.Equal(2, computer.ComputeCount);
+        Assert.IsType<VelocityDistributionAnalysisResult>(state.Get(frontKey));
+        Assert.IsType<VelocityDistributionAnalysisResult>(state.Get(rearKey));
+        Assert.NotSame(state.Get(frontKey), state.Get(rearKey));
+
+        state.Dispose();
+        await state.RequestAsync(frontKey);
+
+        Assert.Null(state.CurrentInputs);
+        Assert.Null(state.Get(frontKey));
+        Assert.Null(state.Get(rearKey));
+        Assert.Equal(2, computer.ComputeCount);
+    }
+
     [Fact]
     public async Task RequestAsync_PublishesAgain_WhenSynchronousRequestReusesPreviousKey()
     {
@@ -255,6 +338,24 @@ public class RecordedSessionAnalysisResultStateTests
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             DampingPercentages: SessionDampingPercentages.Empty,
             SessionInsightsTargetProfile: SessionInsightsTargetProfile.Trail);
+
+    private static string Fingerprint(VelocityDistributionAnalysisResult value)
+    {
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(value);
+        return Convert.ToHexStringLower(SHA256.HashData(bytes));
+    }
+
+    private sealed class CountingAnalysisComputer(IRecordedSessionAnalysisComputer inner)
+        : IRecordedSessionAnalysisComputer
+    {
+        public int ComputeCount { get; private set; }
+
+        public RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry)
+        {
+            ComputeCount++;
+            return inner.Compute(key, telemetry);
+        }
+    }
 
     private sealed class TestAnalysisComputer : IRecordedSessionAnalysisComputer
     {
