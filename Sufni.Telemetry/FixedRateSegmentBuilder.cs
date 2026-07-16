@@ -3,10 +3,17 @@ namespace Sufni.Telemetry;
 public sealed class FixedRateSegmentBuilder<T>(
     byte streamKind,
     byte? locationId,
-    Action<RawStreamGap> addGap)
+    Action<RawStreamGap> addGap,
+    int storageChunkSize = 1024)
 {
-    private readonly List<T> currentValues = [];
-    private readonly List<FixedRateSegment<T>> segments = [];
+    private readonly int storageChunkSize = storageChunkSize > 0
+        ? storageChunkSize
+        : throw new ArgumentOutOfRangeException(nameof(storageChunkSize));
+    private List<T[]> currentSealedChunks = [];
+    private T[] currentTail = [];
+    private int currentTailCount;
+    private int currentValueCount;
+    private List<FixedRateSegment<T>> segments = [];
     private ulong currentFirstIndex;
     private ulong currentFirstMonotonicDeltaUs;
     private bool hasTimeline;
@@ -22,7 +29,7 @@ public sealed class FixedRateSegmentBuilder<T>(
 
     public FixedRateSegment<T>[] CreateSnapshot()
     {
-        if (currentValues.Count == 0)
+        if (currentValueCount == 0)
         {
             return [.. segments];
         }
@@ -36,14 +43,14 @@ public sealed class FixedRateSegmentBuilder<T>(
         snapshot[^1] = new FixedRateSegment<T>(
             currentFirstIndex,
             currentFirstMonotonicDeltaUs,
-            [.. currentValues]);
+            CreateCurrentValuesSnapshot());
         return snapshot;
     }
 
     public void Clear()
     {
-        currentValues.Clear();
-        segments.Clear();
+        ResetCurrentStorage();
+        segments = [];
         currentFirstIndex = 0;
         currentFirstMonotonicDeltaUs = 0;
         Count = 0;
@@ -54,7 +61,7 @@ public sealed class FixedRateSegmentBuilder<T>(
 
     public void AddValidSample(ulong index, ulong monotonicDeltaUs, T value, uint rateMhz)
     {
-        var startsNewSegment = currentValues.Count == 0;
+        var startsNewSegment = currentValueCount == 0;
 
         // Contiguous logical indices define the segment. Batch timestamps can jitter
         // around the nominal fixed-rate grid, so they must not split a valid run.
@@ -72,9 +79,9 @@ public sealed class FixedRateSegmentBuilder<T>(
             currentFirstMonotonicDeltaUs = monotonicDeltaUs;
         }
 
-        currentValues.Add(value);
+        AppendCurrentValue(value);
         var currentEndMonotonicDeltaUs = currentFirstMonotonicDeltaUs +
-            SstV5CompactPayloadDecoder.RoundDurationUs((ulong)currentValues.Count, rateMhz);
+            SstV5CompactPayloadDecoder.RoundDurationUs((ulong)currentValueCount, rateMhz);
         LatestEndMonotonicDeltaUs = LatestEndMonotonicDeltaUs is ulong latestEndMonotonicDeltaUs
             ? Math.Max(latestEndMonotonicDeltaUs, currentEndMonotonicDeltaUs)
             : currentEndMonotonicDeltaUs;
@@ -116,7 +123,7 @@ public sealed class FixedRateSegmentBuilder<T>(
 
     private void Flush()
     {
-        if (currentValues.Count == 0)
+        if (currentValueCount == 0)
         {
             return;
         }
@@ -124,12 +131,153 @@ public sealed class FixedRateSegmentBuilder<T>(
         segments.Add(new FixedRateSegment<T>(
             currentFirstIndex,
             currentFirstMonotonicDeltaUs,
-            [.. currentValues]));
-        currentValues.Clear();
+            TransferCurrentValues()));
+        ResetCurrentStorage();
+    }
+
+    private void AppendCurrentValue(T value)
+    {
+        if (currentTailCount == currentTail.Length)
+        {
+            if (currentTail.Length > 0)
+            {
+                currentSealedChunks.Add(currentTail);
+            }
+
+            currentTail = new T[storageChunkSize];
+            currentTailCount = 0;
+        }
+
+        currentTail[currentTailCount++] = value;
+        currentValueCount++;
+    }
+
+    private FixedRateSegmentValues<T> CreateCurrentValuesSnapshot()
+    {
+        var sealedChunks = currentSealedChunks.Count == 0
+            ? []
+            : currentSealedChunks.ToArray();
+        if (currentTailCount == currentTail.Length)
+        {
+            return new FixedRateSegmentValues<T>(
+                sealedChunks,
+                currentTail,
+                currentTailCount,
+                currentValueCount,
+                storageChunkSize);
+        }
+
+        var tail = new T[currentTailCount];
+        Array.Copy(currentTail, tail, currentTailCount);
+        return new FixedRateSegmentValues<T>(
+            sealedChunks,
+            tail,
+            currentTailCount,
+            currentValueCount,
+            storageChunkSize);
+    }
+
+    private FixedRateSegmentValues<T> TransferCurrentValues()
+    {
+        return new FixedRateSegmentValues<T>(
+            currentSealedChunks.Count == 0 ? [] : currentSealedChunks.ToArray(),
+            currentTail,
+            currentTailCount,
+            currentValueCount,
+            storageChunkSize);
+    }
+
+    private void ResetCurrentStorage()
+    {
+        currentSealedChunks = [];
+        currentTail = [];
+        currentTailCount = 0;
+        currentValueCount = 0;
     }
 }
 
 public sealed record FixedRateSegment<T>(
     ulong FirstIndex,
     ulong FirstMonotonicDeltaUs,
-    T[] Values);
+    FixedRateSegmentValues<T> Values);
+
+public sealed class FixedRateSegmentValues<T> : IReadOnlyList<T>
+{
+    private readonly T[][] sealedChunks;
+    private readonly T[] tail;
+    private readonly int tailCount;
+    private readonly int storageChunkSize;
+
+    internal FixedRateSegmentValues(
+        T[][] sealedChunks,
+        T[] tail,
+        int tailCount,
+        int count,
+        int storageChunkSize)
+    {
+        this.sealedChunks = sealedChunks;
+        this.tail = tail;
+        this.tailCount = tailCount;
+        this.storageChunkSize = storageChunkSize;
+        Count = count;
+    }
+
+    public int Count { get; }
+
+    public T this[int index]
+    {
+        get
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(index);
+            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, Count);
+            var sealedValueCount = sealedChunks.Length * storageChunkSize;
+            if (index < sealedValueCount)
+            {
+                return sealedChunks[index / storageChunkSize][index % storageChunkSize];
+            }
+
+            return tail[index - sealedValueCount];
+        }
+    }
+
+    public T[] ToArray()
+    {
+        if (Count == 0)
+        {
+            return [];
+        }
+
+        var result = new T[Count];
+        var offset = 0;
+        foreach (var chunk in sealedChunks)
+        {
+            Array.Copy(chunk, 0, result, offset, chunk.Length);
+            offset += chunk.Length;
+        }
+
+        if (tailCount > 0)
+        {
+            Array.Copy(tail, 0, result, offset, tailCount);
+        }
+
+        return result;
+    }
+
+    public IEnumerator<T> GetEnumerator()
+    {
+        foreach (var chunk in sealedChunks)
+        {
+            for (var index = 0; index < chunk.Length; index++)
+            {
+                yield return chunk[index];
+            }
+        }
+
+        for (var index = 0; index < tailCount; index++)
+        {
+            yield return tail[index];
+        }
+    }
+
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+}
