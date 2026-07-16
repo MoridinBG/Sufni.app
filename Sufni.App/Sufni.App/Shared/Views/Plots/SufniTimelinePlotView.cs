@@ -67,7 +67,7 @@ public abstract class SufniTimelinePlotView : SufniPlotView
             plot.SetCursorPosition(double.NaN);
         }
 
-        RefreshPlot();
+        RefreshPlot(PlotInvalidation.Cursor);
     }
 
     protected void UpdateTimelineRange()
@@ -101,7 +101,7 @@ public abstract class SufniTimelinePlotView : SufniPlotView
         try
         {
             PlotControl.Plot.Axes.SetLimitsX(Timeline.VisibleRangeStart * duration, Timeline.VisibleRangeEnd * duration);
-            RefreshPlot();
+            RefreshPlot(PlotInvalidation.Viewport);
         }
         finally
         {

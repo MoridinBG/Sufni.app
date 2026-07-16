@@ -18,6 +18,7 @@ public abstract class SufniPlotView : TemplatedControl
     private SufniAvaPlot? avaPlot;
     private AxisLimits? pinchStartLimits;
     private Coordinates? pinchOrigin;
+    private PlotInvalidation pendingInvalidation;
     private bool viewportChangeQueued;
     private bool refreshQueued;
     private IDisposable? themeVariantSubscription;
@@ -48,9 +49,15 @@ public abstract class SufniPlotView : TemplatedControl
         set => SetValue(PlotDataBackgroundProperty, value);
     }
 
-    public void RefreshPlot()
+    public void RefreshPlot(PlotInvalidation invalidation = PlotInvalidation.All)
     {
-        if (avaPlot is null || refreshQueued)
+        if (avaPlot is null || invalidation == PlotInvalidation.None)
+        {
+            return;
+        }
+
+        pendingInvalidation |= invalidation;
+        if (refreshQueued)
         {
             return;
         }
@@ -59,9 +66,13 @@ public abstract class SufniPlotView : TemplatedControl
         Dispatcher.UIThread.Post(() =>
         {
             refreshQueued = false;
-            avaPlot?.Refresh();
+            var invalidation = pendingInvalidation;
+            pendingInvalidation = PlotInvalidation.None;
+            RefreshPlotCore(invalidation);
         }, DispatcherPriority.Render);
     }
+
+    protected virtual void RefreshPlotCore(PlotInvalidation invalidation) => avaPlot?.Refresh();
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
@@ -97,7 +108,7 @@ public abstract class SufniPlotView : TemplatedControl
             .Subscribe(_ =>
             {
                 OnThemeChanged(CurrentTheme);
-                RefreshPlot();
+                RefreshPlot(PlotInvalidation.Theme);
             });
     }
 
