@@ -26,6 +26,7 @@ internal sealed class TestRecordedSessionExtensionScope : IRecordedSessionExtens
 {
     public bool Initialized { get; private set; }
     public bool Disposed { get; private set; }
+    public Action? OnDisposing { get; set; }
     public RecordedSessionExtensionSlots Slots { get; } = new();
     public List<RecordedSessionHostState> UpdatedStates { get; } = [];
 
@@ -42,6 +43,7 @@ internal sealed class TestRecordedSessionExtensionScope : IRecordedSessionExtens
 
     public ValueTask DisposeAsync()
     {
+        OnDisposing?.Invoke();
         Disposed = true;
         return ValueTask.CompletedTask;
     }

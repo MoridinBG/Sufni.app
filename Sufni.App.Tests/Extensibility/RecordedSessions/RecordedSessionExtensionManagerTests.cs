@@ -184,6 +184,36 @@ public class RecordedSessionExtensionManagerTests
     }
 
     [Fact]
+    public async Task DisposeScopesAsync_DetachesHostedViewsBeforeDisposingTheirScope()
+    {
+        RecordedSessionExtensionManager? manager = null;
+        var factory = new TestRecordedSessionExtensionFactory(
+            "owner",
+            scope => scope.OnDisposing = () =>
+            {
+                Assert.Empty(manager!.ExtensionSlots.HostedSignalRows);
+                Assert.Single(scope.Slots.HostedSignalRows);
+            });
+        manager = CreateManager([factory]);
+        await manager.InitializeAsync(CreateState(isLoaded: true));
+        factory.Scope!.Slots.HostedSignalRows.Add(new RecordedSessionHostedSignalRowContribution(
+            "owner",
+            "neutral-signal",
+            Order: 1,
+            RecordedSessionBuiltInSignalRow.Travel,
+            RecordedSessionSignalRowTarget.Extension("owner", "neutral-signal"),
+            "Matched travel",
+            SurfacePresentationState.Ready,
+            new TestContributionViewModel(),
+            IsInitiallyExpanded: false));
+
+        await manager.DisposeScopesAsync();
+
+        Assert.True(factory.Scope.Disposed);
+        Assert.Empty(manager.ExtensionSlots.HostedSignalRows);
+    }
+
+    [Fact]
     public void Constructor_RejectsDuplicateRecordedSessionFactoryExtensionIds()
     {
         var exception = Assert.Throws<InvalidOperationException>(() =>
