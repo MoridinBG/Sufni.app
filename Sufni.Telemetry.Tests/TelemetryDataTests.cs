@@ -1503,6 +1503,155 @@ public class TelemetryDataTests
     }
 
     [Fact]
+    public void CalculateVibration_WithSegmentedData_PreservesInclusiveStrokeEndsAndCompressionPrecedence()
+    {
+        var compression = CreateStroke(0, 2);
+        compression.StartSeconds = 0.0;
+        compression.EndSeconds = 0.2;
+        var rebound = CreateStroke(1, 3);
+        rebound.StartSeconds = 0.1;
+        rebound.EndSeconds = 0.3;
+        var imuData = CreateImuData(ImuLocation.Fork, sampleRate: 10, sampleCount: 4, vibrationG: 1);
+        imuData.Segments =
+        [
+            new RawImuSegment
+            {
+                LocationId = (byte)ImuLocation.Fork,
+                FirstMonotonicDeltaUs = 0,
+                Records = imuData.Records.ToArray(),
+            },
+        ];
+        imuData.HasGaps = true;
+        var telemetry = CreateTelemetry(
+            travel: [10, 20, 30, 40],
+            maxTravel: 100,
+            sampleRate: 10,
+            compressions: [compression],
+            rebounds: [rebound],
+            imuData: imuData);
+        telemetry.Front.Segments =
+        [
+            new ProcessedSuspensionSegment
+            {
+                FirstDenseIndex = 0,
+                StartSeconds = 0,
+                SampleCount = 4,
+            },
+        ];
+        telemetry.Front.HasGaps = true;
+
+        var stats = TelemetryStatistics.CalculateVibration(
+            telemetry,
+            ImuLocation.Fork,
+            SuspensionType.Front);
+
+        Assert.NotNull(stats);
+        Assert.Equal(75, stats.CompressionPercent, 6);
+        Assert.Equal(25, stats.ReboundPercent, 6);
+        Assert.Equal(0, stats.OtherPercent, 6);
+    }
+
+    [Fact]
+    public void CalculateVibration_WithLegacyUnorderedSegmentsAndStrokes_MatchesOrderedResult()
+    {
+        static Stroke TimedStroke(int start, int end, double startSeconds, double endSeconds)
+        {
+            var stroke = CreateStroke(start, end);
+            stroke.StartSeconds = startSeconds;
+            stroke.EndSeconds = endSeconds;
+            return stroke;
+        }
+
+        static TelemetryData CreateSegmentedTelemetry(bool unordered)
+        {
+            var firstImu = new RawImuSegment
+            {
+                LocationId = (byte)ImuLocation.Fork,
+                FirstIndex = 0,
+                FirstMonotonicDeltaUs = 0,
+                Records =
+                [
+                    new ImuRecord(0, 0, 1800, 0, 0, 0),
+                    new ImuRecord(0, 0, 1900, 0, 0, 0),
+                    new ImuRecord(0, 0, 2000, 0, 0, 0),
+                ],
+            };
+            var secondImu = new RawImuSegment
+            {
+                LocationId = (byte)ImuLocation.Fork,
+                FirstIndex = 10,
+                FirstMonotonicDeltaUs = 1_000_000,
+                Records =
+                [
+                    new ImuRecord(0, 0, 2100, 0, 0, 0),
+                    new ImuRecord(0, 0, 2200, 0, 0, 0),
+                    new ImuRecord(0, 0, 2300, 0, 0, 0),
+                ],
+            };
+            var firstTravel = new ProcessedSuspensionSegment
+            {
+                FirstDenseIndex = 0,
+                FirstSourceIndex = 0,
+                StartSeconds = 0,
+                SampleCount = 3,
+            };
+            var secondTravel = new ProcessedSuspensionSegment
+            {
+                FirstDenseIndex = 3,
+                FirstSourceIndex = 10,
+                StartSeconds = 1,
+                SampleCount = 3,
+            };
+            var firstCompression = TimedStroke(0, 1, 0, 0.1);
+            var secondCompression = TimedStroke(3, 4, 1, 1.1);
+            var firstRebound = TimedStroke(1, 2, 0.1, 0.2);
+            var secondRebound = TimedStroke(4, 5, 1.1, 1.2);
+            return new TelemetryData
+            {
+                Metadata = new Metadata { SampleRate = 10, Duration = 1.3 },
+                Front = new Suspension
+                {
+                    Present = true,
+                    MaxTravel = 100,
+                    Travel = [10, 20, 30, 70, 80, 90],
+                    Velocity = new double[6],
+                    HasGaps = true,
+                    Segments = unordered ? [secondTravel, firstTravel] : [firstTravel, secondTravel],
+                    Strokes = Strokes.FromCategorized(
+                        unordered ? [secondCompression, firstCompression] : [firstCompression, secondCompression],
+                        unordered ? [secondRebound, firstRebound] : [firstRebound, secondRebound],
+                        []),
+                    TravelBins = CreateTravelBins(100),
+                    VelocityBins = [-100, 0, 100],
+                    FineVelocityBins = [-100, 0, 100],
+                },
+                Rear = CreateSuspension([], 100, [], []),
+                Airtimes = [],
+                ImuData = new RawImuData
+                {
+                    SampleRate = 10,
+                    ActiveLocations = [(byte)ImuLocation.Fork],
+                    Meta = [new ImuMetaEntry((byte)ImuLocation.Fork, 1000, 1)],
+                    HasGaps = true,
+                    Segments = unordered ? [secondImu, firstImu] : [firstImu, secondImu],
+                },
+            };
+        }
+
+        var ordered = TelemetryStatistics.CalculateVibration(
+            CreateSegmentedTelemetry(unordered: false),
+            ImuLocation.Fork,
+            SuspensionType.Front);
+        var unordered = TelemetryStatistics.CalculateVibration(
+            CreateSegmentedTelemetry(unordered: true),
+            ImuLocation.Fork,
+            SuspensionType.Front);
+
+        Assert.NotNull(ordered);
+        Assert.Equal(ordered, unordered);
+    }
+
+    [Fact]
     public void CalculateVibration_SplitsCompressionVibrationByTravelThirds()
     {
         var telemetry = CreateTelemetry(
