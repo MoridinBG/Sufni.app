@@ -38,11 +38,13 @@ public class ImportSessionsCoordinatorTests
         var harness = new ImportWorkflowHarness();
         var (setup, _) = harness.SeedSetupAndBike();
         var startTime = new DateTime(2025, 6, 1, 12, 34, 56, DateTimeKind.Utc);
+        var telemetrySource = new TelemetryFileSource("ride-01.SST", [1, 2, 3]);
         var file = CreateTelemetryFile(
             name: "ride-01",
             description: "morning lap",
             startTime: startTime,
-            shouldBeImported: true);
+            shouldBeImported: true,
+            source: telemetrySource);
         var sessionsPublished = false;
         var sourcesPublished = false;
         harness.SessionStore.PublishSessionsChangedAsync(
@@ -65,6 +67,8 @@ public class ImportSessionsCoordinatorTests
         {
             Assert.True(sessionsPublished);
             Assert.True(sourcesPublished);
+            Assert.Equal(0, telemetrySource.AllocatedCapacity);
+            Assert.Throws<ObjectDisposedException>(() => telemetrySource.SstBytes);
             return Task.CompletedTask;
         });
         var progressEvents = new List<SessionImportEvent>();
@@ -149,15 +153,19 @@ public class ImportSessionsCoordinatorTests
     {
         var harness = new ImportWorkflowHarness();
         var (setup, _) = harness.SeedSetupAndBike();
+        var rejectedSource = new TelemetryFileSource("bad.SST", [1, 2, 3]);
+        var importableSource = new TelemetryFileSource("trimmed.SST", [4, 5, 6]);
         var rejected = CreateTelemetryFile(
             name: "bad",
             shouldBeImported: true,
-            malformedMessage: "invalid telemetry payload");
+            malformedMessage: "invalid telemetry payload",
+            source: rejectedSource);
         var importable = CreateTelemetryFile(
             name: "trimmed",
             shouldBeImported: true,
             malformedMessage: "trailing chunk was trimmed",
-            canImport: true);
+            canImport: true,
+            source: importableSource);
         var progressEvents = new List<SessionImportEvent>();
 
         var result = await harness.CreateCoordinator().ImportAsync(
@@ -176,24 +184,31 @@ public class ImportSessionsCoordinatorTests
             Arg.Is<RecordedSessionDomainSnapshot>(domain => domain.Session.Name == "trimmed"),
             Arg.Any<RecordedSessionSource>(),
             Arg.Any<CancellationToken>());
+        Assert.Equal(0, rejectedSource.AllocatedCapacity);
+        Assert.Equal(0, importableSource.AllocatedCapacity);
         Assert.Contains(progressEvents, e => e is SessionImportEvent.ImportFailed failed && failed.FileName == "bad");
     }
 
     [Theory]
     [InlineData(ImportFailurePoint.ReadSource)]
     [InlineData(ImportFailurePoint.Reprocess)]
-    public async Task ImportAsync_ContinuesAfterPerFileReadOrReprocessFailure(ImportFailurePoint failurePoint)
+    [InlineData(ImportFailurePoint.Persistence)]
+    public async Task ImportAsync_ContinuesAfterPerFileReadReprocessOrPersistenceFailure(ImportFailurePoint failurePoint)
     {
         var harness = new ImportWorkflowHarness();
         var (setup, _) = harness.SeedSetupAndBike();
-        var broken = CreateTelemetryFile(name: "broken", shouldBeImported: true);
-        var good = CreateTelemetryFile(name: "ok", shouldBeImported: true);
+        var brokenSource = failurePoint is ImportFailurePoint.ReadSource
+            ? null
+            : new TelemetryFileSource("broken.SST", [1, 2, 3]);
+        var goodSource = new TelemetryFileSource("ok.SST", [4, 5, 6]);
+        var broken = CreateTelemetryFile(name: "broken", shouldBeImported: true, source: brokenSource);
+        var good = CreateTelemetryFile(name: "ok", shouldBeImported: true, source: goodSource);
         if (failurePoint is ImportFailurePoint.ReadSource)
         {
             broken.ReadSourceAsync(Arg.Any<CancellationToken>())
                 .ThrowsAsync(new InvalidOperationException("read"));
         }
-        else
+        else if (failurePoint is ImportFailurePoint.Reprocess)
         {
             harness.Reprocessor
                 .ReprocessAsync(
@@ -209,6 +224,16 @@ public class ImportSessionsCoordinatorTests
                         : Task.FromResult(ImportWorkflowHarness.CreateReprocessResult(domain, source));
                 });
         }
+        else
+        {
+            harness.SessionTelemetryWriter
+                .PutProcessedSessionAsync(
+                    Arg.Is<Session>(session => session.Name == "broken"),
+                    Arg.Any<ProcessedTelemetryPayload>(),
+                    Arg.Any<Track?>(),
+                    Arg.Any<RecordedSessionSource?>())
+                .ThrowsAsync(new InvalidOperationException("persistence"));
+        }
 
         var result = await harness.CreateCoordinator().ImportAsync([broken, good], setup.Id);
 
@@ -221,6 +246,12 @@ public class ImportSessionsCoordinatorTests
             Arg.Any<ProcessedTelemetryPayload>(),
             Arg.Any<Track?>(),
             Arg.Any<RecordedSessionSource?>());
+        Assert.Equal(0, goodSource.AllocatedCapacity);
+        if (brokenSource is not null)
+        {
+            Assert.Equal(0, brokenSource.AllocatedCapacity);
+            Assert.Throws<ObjectDisposedException>(() => brokenSource.SstBytes);
+        }
     }
 
     [Fact]
@@ -318,6 +349,7 @@ public class ImportSessionsCoordinatorTests
     public enum ImportFailurePoint
     {
         ReadSource,
-        Reprocess
+        Reprocess,
+        Persistence
     }
 }
