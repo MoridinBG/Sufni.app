@@ -58,7 +58,12 @@ public abstract class LiveStreamingPlotBase : TelemetryPlot
     private void ApplyFrame()
     {
         ConfigureTimeSeriesFrame(title, coordinate => $"{CoordinateToTime(coordinate):0.###}");
-        ConfigureSymmetricValueTicks(20);
+        var valueTicks = new ReusableTickGenerator(new ScottPlot.TickGenerators.NumericAutomatic
+        {
+            MinimumTickSpacing = 20
+        });
+        Plot.Axes.Left.TickGenerator = valueTicks;
+        Plot.Axes.Right.TickGenerator = valueTicks;
         Plot.Axes.SetLimitsX(0, Capacity);
         SetMirroredValueRange(configuredMinimumY, configuredMaximumY);
     }
@@ -66,12 +71,13 @@ public abstract class LiveStreamingPlotBase : TelemetryPlot
     protected LivePlotChannel CreateChannel(Color color, string legendText)
     {
         var streamer = Plot.Add.DataStreamer(Capacity);
-        streamer.ViewScrollLeft();
+        var renderer = new ReusableScrollLeftView(streamer);
+        streamer.ViewCustom(renderer);
         streamer.ManageAxisLimits = false;
         streamer.Color = color;
         streamer.LineWidth = 2;
         streamer.LegendText = legendText;
-        return new LivePlotChannel(streamer);
+        return new LivePlotChannel(streamer, renderer.Reset);
     }
 
     protected void EnableInteractiveSourceLegendForChannels(
@@ -225,7 +231,9 @@ public abstract class LiveStreamingPlotBase : TelemetryPlot
         ? Math.Min(latestTimeSeconds, visibleWindowDurationMilliseconds / 1000.0)
         : 0;
 
-    protected sealed class LivePlotChannel(DataStreamer streamer)
+    protected sealed class LivePlotChannel(
+        DataStreamer streamer,
+        Action resetRenderer)
     {
         private readonly TelemetryDisplayStreamingSmoother smoother = new();
         private double[] smoothingScratch = [];
@@ -249,6 +257,7 @@ public abstract class LiveStreamingPlotBase : TelemetryPlot
         public void Reset()
         {
             smoother.Reset();
+            resetRenderer();
             streamer.Clear(double.NaN);
         }
     }
