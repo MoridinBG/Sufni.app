@@ -182,6 +182,9 @@ internal sealed class TestPersistenceHarness
     public Task<List<Track>> GetTracksByIdsAsync(IReadOnlyCollection<Guid> trackIds) =>
         trackRepository.GetTracksByIdsAsync(trackIds);
 
+    public Task<List<TrackPayloadMetadata>> GetTrackPayloadMetadataByIdsAsync(IReadOnlyCollection<Guid> trackIds) =>
+        trackRepository.GetTrackPayloadMetadataByIdsAsync(trackIds);
+
     public Task<TrackPayloadMetadata?> GetTrackPayloadMetadataAsync(Guid trackId) =>
         trackRepository.GetTrackPayloadMetadataAsync(trackId);
 

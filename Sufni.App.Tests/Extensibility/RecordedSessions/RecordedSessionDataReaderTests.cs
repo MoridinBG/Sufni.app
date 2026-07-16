@@ -15,11 +15,85 @@ public class RecordedSessionDataReaderTests
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
     private readonly ISessionTrackReader sessionTrackReader = Substitute.For<ISessionTrackReader>();
     private readonly IFullTrackPointReader fullTrackPointReader = Substitute.For<IFullTrackPointReader>();
+    private readonly ITrackRepository trackRepository = Substitute.For<ITrackRepository>();
     private readonly TestSessionTelemetryProcessor telemetryProcessor = new();
     private readonly TestSessionProcessedTelemetryReader processedTelemetryReader = new();
 
     private RecordedSessionDataReader CreateReader() =>
-        new(sessionRepository, sessionTrackReader, fullTrackPointReader, telemetryProcessor, processedTelemetryReader);
+        new(
+            sessionRepository,
+            sessionTrackReader,
+            fullTrackPointReader,
+            trackRepository,
+            telemetryProcessor,
+            processedTelemetryReader);
+
+    [Fact]
+    public async Task GetSessionsAsync_ProvidesNeutralTrackContentVersionsWithoutLoadingPayloads()
+    {
+        var linkedSessionId = Guid.NewGuid();
+        var unlinkedSessionId = Guid.NewGuid();
+        var fullTrackId = Guid.NewGuid();
+        sessionRepository.GetSessionsAsync().Returns([
+            new Session(linkedSessionId, "Linked", "", setup: null, timestamp: 1000)
+            {
+                FullTrack = fullTrackId,
+                Updated = 12,
+            },
+            new Session(unlinkedSessionId, "Unlinked", "", setup: null, timestamp: 2000)
+            {
+                Updated = 34,
+            },
+        ]);
+        trackRepository.GetTrackPayloadMetadataByIdsAsync(Arg.Any<IReadOnlyCollection<Guid>>())
+            .Returns([new TrackPayloadMetadata(fullTrackId, Updated: 56)]);
+
+        var result = await CreateReader().GetSessionsAsync(TestContext.Current.CancellationToken);
+
+        var linked = Assert.Single(result, item => item.Id == linkedSessionId);
+        Assert.Equal(12, linked.TrackContentVersion?.SessionUpdated);
+        Assert.Equal(fullTrackId, linked.TrackContentVersion?.FullTrackId);
+        Assert.Equal(56, linked.TrackContentVersion?.FullTrackUpdated);
+
+        var unlinked = Assert.Single(result, item => item.Id == unlinkedSessionId);
+        Assert.Equal(34, unlinked.TrackContentVersion?.SessionUpdated);
+        Assert.Null(unlinked.TrackContentVersion?.FullTrackId);
+        Assert.Null(unlinked.TrackContentVersion?.FullTrackUpdated);
+
+        await trackRepository.Received(1).GetTrackPayloadMetadataByIdsAsync(
+            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(fullTrackId)));
+        await trackRepository.DidNotReceive().GetTrackPayloadAsync(Arg.Any<Guid>(), Arg.Any<long>());
+        await fullTrackPointReader.DidNotReceive().GetTrackPointsAsync(
+            Arg.Any<Guid>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetSessionAsync_IncludesLinkedTrackUpdateInContentVersion()
+    {
+        var sessionId = Guid.NewGuid();
+        var fullTrackId = Guid.NewGuid();
+        sessionRepository.GetSessionAsync(sessionId).Returns(new Session(
+            sessionId,
+            "Session",
+            "",
+            setup: null,
+            timestamp: 1000)
+        {
+            FullTrack = fullTrackId,
+            Updated = 12,
+        });
+        trackRepository.GetTrackPayloadMetadataAsync(fullTrackId)
+            .Returns(new TrackPayloadMetadata(fullTrackId, Updated: 56));
+
+        var result = await CreateReader().GetSessionAsync(sessionId, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(result);
+        Assert.Equal(12, result.TrackContentVersion?.SessionUpdated);
+        Assert.Equal(fullTrackId, result.TrackContentVersion?.FullTrackId);
+        Assert.Equal(56, result.TrackContentVersion?.FullTrackUpdated);
+        await trackRepository.DidNotReceive().GetTrackPayloadAsync(Arg.Any<Guid>(), Arg.Any<long>());
+    }
 
     [Fact]
     public async Task GetProcessedTelemetryAsync_UsesProcessedTelemetryReader()

@@ -208,4 +208,50 @@ public class TrackRepositoryTests
         Assert.Null(await database.GetTrackPayloadMetadataAsync(track.Id));
         Assert.Null(await database.GetTrackPayloadAsync(track.Id, track.Updated));
     }
+
+    [Fact]
+    public async Task GetTrackPayloadMetadataByIdsAsync_ReturnsOnlyActiveRequestedRows()
+    {
+        using var tempDatabase = new TempDatabase("track-payload-metadata-by-id.db");
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var active = new Track
+        {
+            Id = Guid.NewGuid(),
+            Points =
+            [
+                new TrackPoint(100, 1, 1, 10),
+                new TrackPoint(101, 2, 2, 11),
+            ],
+        };
+        var deleted = new Track
+        {
+            Id = Guid.NewGuid(),
+            Points =
+            [
+                new TrackPoint(200, 1, 1, 10),
+                new TrackPoint(201, 2, 2, 11),
+            ],
+        };
+        await database.PutAsync(active);
+        await database.PutAsync(deleted);
+        await database.DeleteAsync(deleted);
+
+        var metadata = await database.GetTrackPayloadMetadataByIdsAsync(
+            [active.Id, deleted.Id, Guid.NewGuid()]);
+
+        var item = Assert.Single(metadata);
+        Assert.Equal(active.Id, item.Id);
+        Assert.Equal(active.Updated, item.Updated);
+    }
+
+    [Fact]
+    public async Task GetTrackPayloadMetadataByIdsAsync_ReturnsEmptyForEmptyInput()
+    {
+        using var tempDatabase = new TempDatabase("track-payload-metadata-empty.db");
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+
+        var metadata = await database.GetTrackPayloadMetadataByIdsAsync([]);
+
+        Assert.Empty(metadata);
+    }
 }

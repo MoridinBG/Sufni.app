@@ -6,4 +6,5 @@ public sealed record RecordedSessionCatalogItem(
     Guid Id,
     string Name,
     long? Timestamp,
-    double? DurationSeconds = null);
+    double? DurationSeconds = null,
+    RecordedSessionTrackContentVersion? TrackContentVersion = null);

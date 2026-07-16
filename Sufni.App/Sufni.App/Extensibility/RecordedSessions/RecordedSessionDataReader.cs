@@ -18,6 +18,7 @@ internal sealed class RecordedSessionDataReader(
     ISessionRepository sessionRepository,
     ISessionTrackReader sessionTrackReader,
     IFullTrackPointReader fullTrackPointReader,
+    ITrackRepository trackRepository,
     ISessionTelemetryProcessor sessionTelemetryProcessor,
     ISessionProcessedTelemetryReader processedTelemetryReader) : IRecordedSessionDataReader
 {
@@ -27,12 +28,22 @@ internal sealed class RecordedSessionDataReader(
         cancellationToken.ThrowIfCancellationRequested();
         var sessions = await sessionRepository.GetSessionsAsync();
         cancellationToken.ThrowIfCancellationRequested();
+
+        var fullTrackIds = sessions
+            .Where(session => session.FullTrack.HasValue)
+            .Select(session => session.FullTrack!.Value)
+            .Distinct()
+            .ToArray();
+        var fullTrackMetadata = await trackRepository.GetTrackPayloadMetadataByIdsAsync(fullTrackIds);
+        cancellationToken.ThrowIfCancellationRequested();
+        var fullTrackVersions = fullTrackMetadata.ToDictionary(item => item.Id, item => item.Updated);
+
         return sessions
-            .Select(session => new RecordedSessionCatalogItem(
-                session.Id,
-                session.Name,
-                session.Timestamp,
-                session.DurationSeconds))
+            .Select(session => CreateCatalogItem(
+                session,
+                session.FullTrack is { } fullTrackId && fullTrackVersions.TryGetValue(fullTrackId, out var updated)
+                    ? updated
+                    : null))
             .ToArray();
     }
 
@@ -43,13 +54,19 @@ internal sealed class RecordedSessionDataReader(
         cancellationToken.ThrowIfCancellationRequested();
         var session = await sessionRepository.GetSessionAsync(sessionId);
         cancellationToken.ThrowIfCancellationRequested();
-        return session is null
-            ? null
-            : new RecordedSessionCatalogItem(
-                session.Id,
-                session.Name,
-                session.Timestamp,
-                session.DurationSeconds);
+        if (session is null)
+        {
+            return null;
+        }
+
+        TrackPayloadMetadata? fullTrackMetadata = null;
+        if (session.FullTrack is { } fullTrackId)
+        {
+            fullTrackMetadata = await trackRepository.GetTrackPayloadMetadataAsync(fullTrackId);
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        return CreateCatalogItem(session, fullTrackMetadata?.Updated);
     }
 
     public async Task<TelemetryData?> GetProcessedTelemetryAsync(
@@ -104,5 +121,20 @@ internal sealed class RecordedSessionDataReader(
             session.Timestamp,
             session.DurationSeconds,
             session.GpsOffsetSeconds) ?? track;
+    }
+
+    private static RecordedSessionCatalogItem CreateCatalogItem(
+        Session session,
+        long? fullTrackUpdated)
+    {
+        return new RecordedSessionCatalogItem(
+            session.Id,
+            session.Name,
+            session.Timestamp,
+            session.DurationSeconds,
+            new RecordedSessionTrackContentVersion(
+                session.Updated,
+                session.FullTrack,
+                fullTrackUpdated));
     }
 }

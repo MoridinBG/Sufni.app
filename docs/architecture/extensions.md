@@ -234,6 +234,14 @@ generates the cache from — so the read path never deserializes the processed
 telemetry blob per session (matching enumerates every session, where a per-session
 blob decode dominated the scan). The read path does not persist regenerated points.
 
+`RecordedSessionCatalogItem.TrackContentVersion` is the neutral invalidation key
+for consumers that retain derived track projections. It combines the session
+row's `Updated` value with the linked full-track id and that track row's `Updated`
+value. Catalog enumeration resolves linked-track metadata in a batch without
+loading track payloads. Consumers must still key any projection-specific state
+by their own value parameters; the content version is not list/object identity
+and carries no extension-specific meaning.
+
 Operation leases reject stale progress and cancel superseded work, so extension tasks share the existing editor busy surface without controlling the editor lifecycle. Extension work reports percent values on a `0..100` scale. The recorded-session host projects those reports through `SessionOperationPresentationState` and renders the standard nonblocking busy overlay above the current session content. Extension operation progress does not set the session detail `ScreenState`; that state remains reserved for loading and error state of the session detail itself.
 
 ## Derivation Windows & Editing Operations
