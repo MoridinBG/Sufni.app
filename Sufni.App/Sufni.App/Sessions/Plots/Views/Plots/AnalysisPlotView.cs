@@ -246,7 +246,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             if (e.Property.Name is nameof(ActiveAnalysisSelection) && PlotModel is ISelectableAnalysisPlot selectablePlot)
             {
                 selectablePlot.SetActiveAnalysisSelection(ActiveAnalysisSelection);
-                RefreshPlot();
+                RefreshPlot(PlotInvalidation.Overlay);
             }
         };
     }
@@ -521,7 +521,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         PlotModel.ApplyAnalysisOverlayDescriptor(CreateAnalysisOverlayDescriptor());
         if (refresh)
         {
-            RefreshPlot();
+            RefreshPlot(PlotInvalidation.Overlay);
         }
     }
 
@@ -619,7 +619,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         PlotControl.PointerExited += (_, _) =>
         {
             PlotModel.HideCursorReadout();
-            RefreshPlot();
+            RefreshPlot(PlotInvalidation.Cursor);
         };
     }
 
@@ -634,13 +634,13 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         if (!PlotControl.IsPointInDataArea(point))
         {
             PlotModel.HideCursorReadout();
-            RefreshPlot();
+            RefreshPlot(PlotInvalidation.Cursor);
             return;
         }
 
         var coordinates = PlotControl.Plot.GetCoordinates((float)point.X, (float)point.Y);
         PlotModel.SetPointerPositionWithReadout(coordinates.X, coordinates.Y);
-        RefreshPlot();
+        RefreshPlot(PlotInvalidation.Cursor);
     }
 
     private void SelectRangeFromPointer(PointerEventArgs args)

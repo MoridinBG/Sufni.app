@@ -45,7 +45,7 @@ public class LeverageRatioPlotView : SufniPlotView
                 plot.Reset();
             }
 
-            RefreshPlot();
+            RefreshPlot(PlotInvalidation.Data);
         };
     }
 

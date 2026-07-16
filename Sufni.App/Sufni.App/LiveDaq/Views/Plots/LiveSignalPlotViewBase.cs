@@ -147,14 +147,14 @@ public abstract class LiveSignalPlotViewBase : SufniPlotView
 
                 case nameof(HideRightAxis):
                     Plot?.SetHideRightAxis(HideRightAxis);
-                    RefreshPlot();
+                    RefreshPlot(PlotInvalidation.Layout);
                     break;
 
                 case nameof(SourceVisibility):
                     if (Plot is not null)
                     {
                         Plot.SourceVisibility = SourceVisibility;
-                        RefreshPlot();
+                        RefreshPlot(PlotInvalidation.Data);
                     }
                     break;
 
@@ -208,7 +208,7 @@ public abstract class LiveSignalPlotViewBase : SufniPlotView
 
             Timeline?.SetCursorPosition(normalizedTime);
             Plot.SetCursorFromNormalized(normalizedTime);
-            RefreshPlot();
+            RefreshPlot(PlotInvalidation.Cursor);
         }
 
         plotControl.PointerPressed += (_, args) =>
@@ -254,7 +254,7 @@ public abstract class LiveSignalPlotViewBase : SufniPlotView
         Plot.HideCursorReadout();
         suppressLegendTogglePointerRelease = true;
         args.Handled = true;
-        RefreshPlot();
+        RefreshPlot(PlotInvalidation.Data | PlotInvalidation.Cursor);
         return true;
     }
 
@@ -294,7 +294,7 @@ public abstract class LiveSignalPlotViewBase : SufniPlotView
         }
 
         Plot.Reset();
-        RefreshPlot();
+        RefreshPlot(PlotInvalidation.Data | PlotInvalidation.Viewport);
         UpdateTimelineRange();
     }
 
@@ -315,7 +315,7 @@ public abstract class LiveSignalPlotViewBase : SufniPlotView
         Plot.SetBackgroundColors(figure, data);
         if (refresh)
         {
-            RefreshPlot();
+            RefreshPlot(PlotInvalidation.Theme);
         }
     }
 
@@ -390,7 +390,12 @@ public abstract class LiveSignalPlotViewBase : SufniPlotView
         }
 
         Plot.SetCursorFromNormalized(Timeline?.NormalizedCursorPosition);
-        RefreshPlot();
+        var invalidation = PlotInvalidation.Data | PlotInvalidation.Cursor;
+        if (didReset)
+        {
+            invalidation |= PlotInvalidation.Viewport;
+        }
+        RefreshPlot(invalidation);
         if (didReset)
         {
             UpdateTimelineRange();
@@ -440,7 +445,7 @@ public abstract class LiveSignalPlotViewBase : SufniPlotView
         {
             case nameof(SessionTimelineLinkViewModel.NormalizedCursorPosition):
                 Plot.SetCursorFromNormalized(Timeline?.NormalizedCursorPosition);
-                RefreshPlot();
+                RefreshPlot(PlotInvalidation.Cursor);
                 break;
         }
     }
@@ -479,7 +484,7 @@ public abstract class LiveSignalPlotViewBase : SufniPlotView
         try
         {
             Plot.ApplyVisibleRange(Timeline.VisibleRangeStart, Timeline.VisibleRangeEnd);
-            RefreshPlot();
+            RefreshPlot(PlotInvalidation.Viewport);
         }
         finally
         {

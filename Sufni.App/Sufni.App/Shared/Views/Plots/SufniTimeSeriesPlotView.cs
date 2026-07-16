@@ -279,7 +279,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         }
 
         plot!.SetCursorPosition(position);
-        RefreshPlot();
+        RefreshPlot(PlotInvalidation.Cursor);
     }
 
     public void SetCursorPositionWithReadout(double position)
@@ -290,7 +290,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         }
 
         plot!.SetCursorPositionWithReadout(position);
-        RefreshPlot();
+        RefreshPlot(PlotInvalidation.Cursor);
     }
 
     public void HideCursorReadout()
@@ -301,7 +301,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         }
 
         plot!.HideCursorReadout();
-        RefreshPlot();
+        RefreshPlot(PlotInvalidation.Cursor);
     }
 
     protected void InitializeCursorReadoutInteractions()
@@ -372,7 +372,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                     PlotControl.Cursor = new Cursor(StandardCursorType.Cross);
                     args.Pointer.Capture(PlotControl);
                     args.Handled = true;
-                    RefreshPlot();
+                    RefreshPlot(PlotInvalidation.Overlay);
                     return;
                 }
 
@@ -403,7 +403,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                 selectionEndSeconds = GetClampedTimeSeconds(args);
                 SetPreviewRange(selectionStartSeconds, selectionEndSeconds);
                 args.Handled = true;
-                RefreshPlot();
+                RefreshPlot(PlotInvalidation.Overlay);
                 return;
             }
 
@@ -472,7 +472,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             CancelTouchContextMenuLongPress();
             PlotControl.Cursor = Cursor.Default;
             SetPreviewRange(null, null);
-            RefreshPlot();
+            RefreshPlot(PlotInvalidation.Overlay);
         };
     }
 
@@ -500,7 +500,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         }
 
         plot!.SetCursorPositionWithReadout(seconds);
-        RefreshPlot();
+        RefreshPlot(PlotInvalidation.Cursor);
     }
 
     protected bool TryGetTimelineSeconds(PointerEventArgs args, out double seconds)
@@ -535,7 +535,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
         var (figure, data) = ResolvePlotBackgrounds();
         plot!.SetBackgroundColors(figure, data);
-        RefreshPlot();
+        RefreshPlot(PlotInvalidation.Theme);
     }
 
     private (ScottPlot.Color Figure, ScottPlot.Color Data) ResolvePlotBackgrounds()
@@ -571,17 +571,21 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         if (plot is RecordedTimeSeriesPlot recordedPlot && IsPlotReady)
         {
             ApplyAnalysisRange(recordedPlot);
-            RefreshPlot();
+            RefreshPlot(PlotInvalidation.Overlay);
         }
     }
 
     protected override void OnViewportChanged()
     {
         base.OnViewportChanged();
-        ApplyAirtimeVisibility(refresh: true);
+        ApplyAirtimeVisibility(
+            refresh: true,
+            PlotInvalidation.Viewport | PlotInvalidation.Overlay);
     }
 
-    private void ApplyAirtimeVisibility(bool refresh)
+    private void ApplyAirtimeVisibility(
+        bool refresh,
+        PlotInvalidation invalidation = PlotInvalidation.Overlay)
     {
         if (plot is not RecordedTimeSeriesPlot recordedPlot || !IsPlotReady)
         {
@@ -604,7 +608,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             dataAreaWidthPixels);
         if (refresh)
         {
-            RefreshPlot();
+            RefreshPlot(invalidation);
         }
     }
 
@@ -618,7 +622,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         recordedPlot.SetRangeOverlayVisibility(RecordedTimeRangeOverlayIds.AnalysisSelection, ShowAnalysisSelection);
         if (refresh)
         {
-            RefreshPlot();
+            RefreshPlot(PlotInvalidation.Overlay);
         }
     }
 
@@ -646,7 +650,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
         if (refresh)
         {
-            RefreshPlot();
+            RefreshPlot(PlotInvalidation.Overlay);
         }
     }
 
@@ -715,7 +719,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                         if (IsPlotReady)
                         {
                             plot!.SetCursorPositionWithReadout(cursorSeconds);
-                            RefreshPlot();
+                            RefreshPlot(PlotInvalidation.Cursor);
                         }
                     }
                 }
@@ -876,7 +880,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         plot!.HideCursorReadout();
         args.Pointer.Capture(null);
         args.Handled = true;
-        RefreshPlot();
+        RefreshPlot(PlotInvalidation.Data | PlotInvalidation.Cursor | PlotInvalidation.Overlay);
         return true;
     }
 
@@ -972,7 +976,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             SignalsWorkspace.SetAnalysisRange(range.StartSeconds, range.EndSeconds);
         }
 
-        RefreshPlot();
+        RefreshPlot(PlotInvalidation.Overlay);
     }
 
     private bool CanLoadNow()
@@ -1039,7 +1043,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         if (!CanLoadPlotData)
         {
             plotModel.Clear();
-            RefreshPlot();
+            RefreshPlot(PlotInvalidation.Data);
             return;
         }
 
@@ -1049,7 +1053,11 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         ApplyTimelineCursor();
         ApplyTimelineRange();
         OnPlotDataLoaded();
-        RefreshPlot();
+        RefreshPlot(
+            PlotInvalidation.Data |
+            PlotInvalidation.Cursor |
+            PlotInvalidation.Overlay |
+            PlotInvalidation.Viewport);
     }
 
     protected virtual void OnPlotDataLoaded()
@@ -1105,7 +1113,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
         if (refresh)
         {
-            RefreshPlot();
+            RefreshPlot(PlotInvalidation.Overlay);
         }
     }
 }
