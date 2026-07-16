@@ -131,10 +131,12 @@ internal sealed class RecordedSessionDataReader(
             session.Id,
             session.Name,
             session.Timestamp,
-            session.DurationSeconds,
-            new RecordedSessionTrackContentVersion(
+            session.DurationSeconds)
+        {
+            TrackContentVersion = new RecordedSessionTrackContentVersion(
                 session.Updated,
                 session.FullTrack,
-                fullTrackUpdated));
+                fullTrackUpdated),
+        };
     }
 }

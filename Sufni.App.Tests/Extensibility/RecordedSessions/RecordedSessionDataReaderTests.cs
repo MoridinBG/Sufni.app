@@ -1,5 +1,6 @@
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
 using Sufni.App.Extensibility.RecordedSessions;
 using Sufni.App.MapsAndTracks.Models;
@@ -27,6 +28,23 @@ public class RecordedSessionDataReaderTests
             trackRepository,
             telemetryProcessor,
             processedTelemetryReader);
+
+    [Fact]
+    public void RecordedSessionCatalogItem_PreservesFourValueConstructionAndDeconstruction()
+    {
+        var id = Guid.NewGuid();
+        var item = new RecordedSessionCatalogItem(id, "Session", Timestamp: 1000, DurationSeconds: 20)
+        {
+            TrackContentVersion = new RecordedSessionTrackContentVersion(1, null, null),
+        };
+
+        var (actualId, name, timestamp, durationSeconds) = item;
+
+        Assert.Equal(id, actualId);
+        Assert.Equal("Session", name);
+        Assert.Equal(1000, timestamp);
+        Assert.Equal(20, durationSeconds);
+    }
 
     [Fact]
     public async Task GetSessionsAsync_ProvidesNeutralTrackContentVersionsWithoutLoadingPayloads()
