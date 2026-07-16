@@ -272,10 +272,7 @@ public class ImportSessionsCoordinator(
 
                             var domain = CreateImportDomain(session, setupSnapshot, bikeSnapshot, source);
                             logger.Verbose("Reprocessing imported source for {FileName}", telemetryFile.Name);
-                            var reprocessResult = await reprocessor.ProcessImportedSstAsync(
-                                domain,
-                                source,
-                                telemetrySource.SstBytes);
+                            var reprocessResult = await reprocessor.ReprocessAsync(domain, source);
 
                             logger.Verbose("Persisting imported session for {FileName}", telemetryFile.Name);
                             var persisted = await sessionTelemetryWriter.PutProcessedSessionAsync(

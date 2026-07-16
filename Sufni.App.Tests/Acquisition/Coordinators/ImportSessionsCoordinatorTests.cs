@@ -180,10 +180,9 @@ public class ImportSessionsCoordinatorTests
         await rejected.Received(1).ReadSourceAsync(Arg.Any<CancellationToken>());
         await rejected.DidNotReceive().OnImported();
         await importable.Received(1).OnImported();
-        await harness.Reprocessor.Received(1).ProcessImportedSstAsync(
+        await harness.Reprocessor.Received(1).ReprocessAsync(
             Arg.Is<RecordedSessionDomainSnapshot>(domain => domain.Session.Name == "trimmed"),
             Arg.Any<RecordedSessionSource>(),
-            Arg.Any<ReadOnlyMemory<byte>>(),
             Arg.Any<CancellationToken>());
         Assert.Equal(0, rejectedSource.AllocatedCapacity);
         Assert.Equal(0, importableSource.AllocatedCapacity);
@@ -212,10 +211,9 @@ public class ImportSessionsCoordinatorTests
         else if (failurePoint is ImportFailurePoint.Reprocess)
         {
             harness.Reprocessor
-                .ProcessImportedSstAsync(
+                .ReprocessAsync(
                     Arg.Any<RecordedSessionDomainSnapshot>(),
                     Arg.Any<RecordedSessionSource>(),
-                    Arg.Any<ReadOnlyMemory<byte>>(),
                     Arg.Any<CancellationToken>())
                 .Returns(callInfo =>
                 {
@@ -309,10 +307,9 @@ public class ImportSessionsCoordinatorTests
                 return Task.FromResult(new TelemetryFileSource("second.SST", [1, 2, 3]));
             });
         harness.Reprocessor
-            .ProcessImportedSstAsync(
+            .ReprocessAsync(
                 Arg.Any<RecordedSessionDomainSnapshot>(),
                 Arg.Any<RecordedSessionSource>(),
-                Arg.Any<ReadOnlyMemory<byte>>(),
                 Arg.Any<CancellationToken>())
             .Returns(async callInfo =>
             {

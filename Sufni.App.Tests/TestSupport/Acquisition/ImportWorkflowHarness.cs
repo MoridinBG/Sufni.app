@@ -127,10 +127,9 @@ internal sealed class ImportWorkflowHarness
     private void ConfigureDefaultReprocessor()
     {
         Reprocessor
-            .ProcessImportedSstAsync(
+            .ReprocessAsync(
                 Arg.Any<RecordedSessionDomainSnapshot>(),
                 Arg.Any<RecordedSessionSource>(),
-                Arg.Any<ReadOnlyMemory<byte>>(),
                 Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
