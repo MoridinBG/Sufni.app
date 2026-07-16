@@ -160,9 +160,14 @@ public class SstV5Parser : ISstParser
     public RawTelemetryData Parse(BinaryReader reader, byte version)
     {
         var bytes = SstParserBytes.ReadRemainingBytes(reader);
+        return Parse(bytes, version);
+    }
+
+    internal RawTelemetryData Parse(ReadOnlyMemory<byte> bytes, byte version)
+    {
         try
         {
-            return ParseBytes(bytes, version);
+            return ParseBytes(bytes.Span, version);
         }
         catch (SstV5MalformedException ex)
         {
@@ -170,7 +175,7 @@ public class SstV5Parser : ISstParser
         }
     }
 
-    private static RawTelemetryData ParseBytes(byte[] bytes, byte version)
+    private static RawTelemetryData ParseBytes(ReadOnlySpan<byte> bytes, byte version)
     {
         var context = new V5ParseContext(version);
         if (bytes.Length < SstV5ProtocolConstants.HeaderRemainderSize)
@@ -207,7 +212,7 @@ public class SstV5Parser : ISstParser
             }
 
             var payloadLength = checked((int)declaredLength);
-            var payload = bytes.AsSpan(payloadStart, payloadLength);
+            var payload = bytes.Slice(payloadStart, payloadLength);
             cursor.MoveTo((int)declaredEnd);
             ValidateChunkEnvelope(envelope, context);
 

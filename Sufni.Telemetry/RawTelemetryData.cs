@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text;
 using Serilog;
 
@@ -60,7 +61,18 @@ public class RawTelemetryData
 
     public static RawTelemetryData FromByteArray(byte[] bytes)
     {
-        return FromStream(new MemoryStream(bytes));
+        return FromMemory(bytes);
+    }
+
+    public static RawTelemetryData FromMemory(ReadOnlyMemory<byte> bytes)
+    {
+        if (bytes.Span.StartsWith("SST5"u8))
+        {
+            return new SstV5Parser().Parse(bytes[4..], SstV5Constants.Version);
+        }
+
+        using var stream = CreateReadOnlyMemoryStream(bytes);
+        return FromStream(stream);
     }
 
     public RawTelemetryData Slice(double startSeconds, double? endSeconds)
@@ -101,6 +113,21 @@ public class RawTelemetryData
         logger.Verbose("Selected SST parser version {Version}", version);
 
         return (parser, version);
+    }
+
+    private static MemoryStream CreateReadOnlyMemoryStream(ReadOnlyMemory<byte> bytes)
+    {
+        if (MemoryMarshal.TryGetArray(bytes, out var segment) && segment.Array is not null)
+        {
+            return new MemoryStream(
+                segment.Array,
+                segment.Offset,
+                segment.Count,
+                writable: false,
+                publiclyVisible: false);
+        }
+
+        return new MemoryStream(bytes.ToArray(), writable: false);
     }
 
     #endregion Initializers

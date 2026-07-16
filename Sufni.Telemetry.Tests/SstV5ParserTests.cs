@@ -37,6 +37,32 @@ public class SstV5ParserTests
     }
 
     [Fact]
+    public void FromMemory_ArraySlice_ParsesOnlyTheLogicalV5Bytes()
+    {
+        using var stream = SstV5TestFiles.CreateStream(
+            1_700_000_000_123,
+            SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream()),
+            SstV5TestFiles.TravelData(
+                0,
+                0,
+                SstV5TestFiles.ForkTravel | SstV5TestFiles.ShockTravel,
+                (1000, 2000),
+                (1001, 2001)),
+            SstV5TestFiles.FinalStatus(SstV5TestFiles.OkStatus()));
+        var bytes = stream.ToArray();
+        var backing = new byte[bytes.Length + 17];
+        bytes.CopyTo(backing, 7);
+
+        var result = RawTelemetryData.FromMemory(backing.AsMemory(7, bytes.Length));
+
+        Assert.Equal(5, result.Version);
+        Assert.Equal([1000, 1001], result.Front);
+        Assert.Equal([2000, 2001], result.Rear);
+        Assert.False(result.Malformed);
+        Assert.False(result.MissingFinalStatus);
+    }
+
+    [Fact]
     public void Inspect_MissingFinalStatus_IsImportableWithWarning()
     {
         using var stream = SstV5TestFiles.CreateStream(
