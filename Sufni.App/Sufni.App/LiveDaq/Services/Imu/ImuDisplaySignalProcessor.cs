@@ -355,21 +355,20 @@ public static class ImuDisplaySignalProcessor
 
     private static Dictionary<byte, List<List<TimedImuSample>>> BuildSampleSegmentsByLocation(RawImuData imuData)
     {
-        if (imuData.Segments.Count == 0)
-        {
-            return DeinterleaveSamples(imuData)
-                .ToDictionary(
-                    entry => entry.Key,
-                    entry => new List<List<TimedImuSample>> { entry.Value });
-        }
-
         var samplesByLocation = new Dictionary<byte, List<List<TimedImuSample>>>();
         foreach (var location in imuData.ActiveLocations)
         {
             samplesByLocation.TryAdd(location, []);
         }
 
-        foreach (var segment in imuData.Segments.OrderBy(segment => segment.FirstMonotonicDeltaUs))
+        var sampleSegments = imuData.SampleSegments;
+        var orderedSegments = new List<ImuSampleSegment>(sampleSegments.Count);
+        for (var index = 0; index < sampleSegments.Count; index++)
+        {
+            orderedSegments.Add(sampleSegments[index]);
+        }
+
+        foreach (var segment in orderedSegments.OrderBy(segment => segment.FirstMonotonicDeltaUs))
         {
             if (!samplesByLocation.TryGetValue(segment.LocationId, out var segments))
             {
@@ -378,40 +377,15 @@ public static class ImuDisplaySignalProcessor
             }
 
             var startSeconds = segment.FirstMonotonicDeltaUs / 1_000_000.0;
-            var samples = new List<TimedImuSample>(segment.Records.Length);
-            for (var index = 0; index < segment.Records.Length; index++)
+            var samples = new List<TimedImuSample>(segment.Count);
+            for (var index = 0; index < segment.Count; index++)
             {
                 samples.Add(new TimedImuSample(
                     startSeconds + index / (double)imuData.SampleRate,
-                    segment.Records[index]));
+                    segment[index]));
             }
 
             segments.Add(samples);
-        }
-
-        return samplesByLocation;
-    }
-
-    private static Dictionary<byte, List<TimedImuSample>> DeinterleaveSamples(RawImuData imuData)
-    {
-        var samplesByLocation = new Dictionary<byte, List<TimedImuSample>>();
-        foreach (var location in imuData.ActiveLocations)
-        {
-            samplesByLocation.TryAdd(location, []);
-        }
-
-        var locationCount = imuData.ActiveLocations.Count;
-        for (var recordIndex = 0; recordIndex < imuData.Records.Count; recordIndex++)
-        {
-            var location = imuData.ActiveLocations[recordIndex % locationCount];
-            if (!samplesByLocation.TryGetValue(location, out var samples))
-            {
-                samples = [];
-                samplesByLocation[location] = samples;
-            }
-
-            var time = samples.Count / (double)imuData.SampleRate;
-            samples.Add(new TimedImuSample(time, imuData.Records[recordIndex]));
         }
 
         return samplesByLocation;

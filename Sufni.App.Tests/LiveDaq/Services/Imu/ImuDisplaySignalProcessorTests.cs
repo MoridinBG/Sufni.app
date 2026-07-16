@@ -211,6 +211,62 @@ public class ImuDisplaySignalProcessorTests
     }
 
     [Fact]
+    public void ProcessRecorded_WithEquivalentDenseAndSegmentOnlyData_ProducesSameSeries()
+    {
+        var frameRecords = new[] { FramePitch10Degrees(), FrameLevel() };
+        var forkRecords = new[] { ForkLevel(), ForkLevel() };
+        var meta = new[]
+        {
+            new ImuMetaEntry((byte)ImuLocation.Frame, 1000, 100),
+            new ImuMetaEntry((byte)ImuLocation.Fork, 1000, 100),
+        };
+        var dense = CreateRawImuData(
+            activeLocations: [(byte)ImuLocation.Frame, (byte)ImuLocation.Fork],
+            meta: meta,
+            records: [frameRecords[0], forkRecords[0], frameRecords[1], forkRecords[1]]);
+        var segmented = new RawImuData
+        {
+            SampleRate = 10,
+            ActiveLocations = [(byte)ImuLocation.Frame, (byte)ImuLocation.Fork],
+            Meta = [.. meta],
+            Segments =
+            [
+                new RawImuSegment
+                {
+                    LocationId = (byte)ImuLocation.Frame,
+                    FirstMonotonicDeltaUs = 0,
+                    Records = frameRecords,
+                },
+                new RawImuSegment
+                {
+                    LocationId = (byte)ImuLocation.Fork,
+                    FirstMonotonicDeltaUs = 0,
+                    Records = forkRecords,
+                },
+            ],
+        };
+
+        var denseResult = ImuDisplaySignalProcessor.ProcessRecorded(dense);
+        var segmentedResult = ImuDisplaySignalProcessor.ProcessRecorded(segmented);
+
+        Assert.Equal(
+            denseResult.VibrationSeries.Select(series => series.LocationId),
+            segmentedResult.VibrationSeries.Select(series => series.LocationId));
+        foreach (var (denseSeries, segmentedSeries) in denseResult.VibrationSeries.Zip(segmentedResult.VibrationSeries))
+        {
+            Assert.Equal(denseSeries.Times, segmentedSeries.Times);
+            Assert.Equal(denseSeries.RmsG, segmentedSeries.RmsG);
+            Assert.Equal(denseSeries.Segments.Count, segmentedSeries.Segments.Count);
+        }
+
+        Assert.NotNull(denseResult.FramePitchRoll);
+        Assert.NotNull(segmentedResult.FramePitchRoll);
+        Assert.Equal(denseResult.FramePitchRoll!.Times, segmentedResult.FramePitchRoll!.Times);
+        Assert.Equal(denseResult.FramePitchRoll.PitchDegrees, segmentedResult.FramePitchRoll.PitchDegrees);
+        Assert.Equal(denseResult.FramePitchRoll.RollDegrees, segmentedResult.FramePitchRoll.RollDegrees);
+    }
+
+    [Fact]
     public void LiveProcessor_EmitsImmediatelyWithoutRestCalibration()
     {
         var sut = new LiveImuDisplaySignalProcessor();
