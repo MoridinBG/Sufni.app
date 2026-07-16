@@ -35,6 +35,7 @@ public class RearTravelCalibrationBuilderTests
         Assert.NotNull(calibration);
         Assert.Equal(50, calibration!.MaxTravel, 6);
         Assert.False(calibration.MeasurementWraps);
+        Assert.IsType<AdcTravelLookupTable>(calibration.MeasurementToTravel.Target);
         Assert.Equal(12, calibration.MeasurementToTravel(3), 6);
         Assert.Equal(20, calibration.MeasurementToTravel(5), 6);
         Assert.Equal(calibration.MaxTravel, calibration.MeasurementToTravel(15), 6);
@@ -140,6 +141,7 @@ public class RearTravelCalibrationBuilderTests
         Assert.NotNull(calibration);
         Assert.Equal(0, calibration!.MeasurementToTravel(0), 6);
         Assert.False(calibration.MeasurementWraps);
+        Assert.IsType<AdcTravelLookupTable>(calibration.MeasurementToTravel.Target);
         Assert.True(calibration.MeasurementToTravel(5) > 0);
         Assert.Equal(calibration.MaxTravel, calibration.MeasurementToTravel(15), 6);
         Assert.Equal(1, kinematicSolutionCache.GetOrSolveCount);
@@ -243,6 +245,7 @@ public class RearTravelCalibrationBuilderTests
         Assert.Null(errorMessage);
         Assert.NotNull(calibration);
         Assert.True(calibration!.MeasurementWraps);
+        Assert.IsType<AdcTravelLookupTable>(calibration.MeasurementToTravel.Target);
         Assert.True(calibration!.MaxTravel > 0);
         Assert.True(double.IsFinite(calibration.MeasurementToTravel(0)));
         Assert.True(double.IsFinite(calibration.MeasurementToTravel(128)));
@@ -271,6 +274,42 @@ public class RearTravelCalibrationBuilderTests
         Assert.False(success);
         Assert.Null(calibration);
         Assert.False(string.IsNullOrWhiteSpace(errorMessage));
+    }
+
+    [Theory]
+    [InlineData(201, true)]
+    [InlineData(202, false)]
+    public void TryBuild_AdmitsLookupOnlyThroughTheMaximumLeverageCurveSize(
+        int pointCount,
+        bool expectsLookup)
+    {
+        var points = Enumerable.Range(0, pointCount)
+            .Select(index =>
+            {
+                var fraction = index / (double)(pointCount - 1);
+                return new LeverageRatioPoint(60 * fraction, 160 * fraction);
+            })
+            .ToArray();
+        var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
+            LeverageRatioSpec.FromPoints(points),
+            shockStroke: 60));
+        var setup = new Setup(Guid.NewGuid(), "curve admission setup")
+        {
+            BikeId = bike.Id,
+            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
+            {
+                Length = 60,
+                Resolution = 12,
+                Type = SensorType.LinearShockStroke,
+            })
+        };
+
+        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
+
+        Assert.True(success);
+        Assert.Null(errorMessage);
+        Assert.NotNull(calibration);
+        Assert.Equal(expectsLookup, calibration!.MeasurementToTravel.Target is AdcTravelLookupTable);
     }
 
     [Fact]

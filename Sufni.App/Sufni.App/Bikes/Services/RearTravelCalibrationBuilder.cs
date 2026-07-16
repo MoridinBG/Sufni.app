@@ -22,6 +22,7 @@ internal sealed record RearTravelCalibrationBuildResult(
 internal sealed class RearTravelCalibrationBuilder(IKinematicSolutionCache kinematicSolutionCache) : IRearTravelCalibrationBuilder
 {
     private const double MeasurementToAngle = 2.0 * Math.PI / 4096;
+    private const int MaximumLookupLeveragePointCount = 201;
 
     public RearTravelCalibrationBuildResult TryBuild(SetupSnapshot setup, BikeSnapshot bike)
     {
@@ -117,12 +118,20 @@ internal sealed class RearTravelCalibrationBuilder(IKinematicSolutionCache kinem
             _ => throw new ArgumentOutOfRangeException(nameof(rearSuspension)),
         };
 
-        return BuildTravelCalibration(
+        var calibration = BuildTravelCalibration(
             rearSuspension,
             linkageCharacteristics,
             maxShockStroke,
             measurement => measurement * measurementToStroke,
             measurementWraps: false);
+        return rearSuspension switch
+        {
+            RearSuspensionSpec.Linkage => AddLookupTable(calibration),
+            RearSuspensionSpec.LeverageRatio leverageRatio
+                when leverageRatio.Spec.Points.Count <= MaximumLookupLeveragePointCount =>
+                    AddLookupTable(calibration),
+            _ => calibration,
+        };
     }
 
     private static RearTravelCalibration BuildRotationalCalibration(
@@ -152,20 +161,21 @@ internal sealed class RearTravelCalibrationBuilder(IKinematicSolutionCache kinem
         var anglesIncreasing = dataset.X[^1] > dataset.X[0];
         var polynomial = Polynomial.Fit([.. dataset.X], [.. dataset.Y], 3);
 
-        return BuildLinkageTravelCalibration(
-            characteristics,
-            dataset.Y[^1],
-            measurement =>
-            {
-                var measuredAngle = measurement * MeasurementToAngle;
-                if (!anglesIncreasing)
+        return AddLookupTable(
+            BuildLinkageTravelCalibration(
+                characteristics,
+                dataset.Y[^1],
+                measurement =>
                 {
-                    measuredAngle = -measuredAngle;
-                }
+                    var measuredAngle = measurement * MeasurementToAngle;
+                    if (!anglesIncreasing)
+                    {
+                        measuredAngle = -measuredAngle;
+                    }
 
-                return polynomial.Evaluate(startAngle + measuredAngle);
-            },
-            measurementWraps: true);
+                    return polynomial.Evaluate(startAngle + measuredAngle);
+                },
+                measurementWraps: true));
     }
 
     private static RearTravelCalibration BuildTravelCalibration(
@@ -207,6 +217,12 @@ internal sealed class RearTravelCalibrationBuilder(IKinematicSolutionCache kinem
     {
         var solution = kinematicSolutionCache.GetOrSolve(linkage);
         return new BikeCharacteristics(solution);
+    }
+
+    private static RearTravelCalibration AddLookupTable(RearTravelCalibration calibration)
+    {
+        var table = new AdcTravelLookupTable(calibration.MeasurementToTravel);
+        return calibration with { MeasurementToTravel = table.MeasurementToTravel };
     }
 
     private static RearTravelCalibrationBuildResult Success(RearTravelCalibration? calibration) =>

@@ -26,7 +26,24 @@ public class TelemetryBikeProcessingContextFactoryTests
         Assert.Equal(1, rearCalibrationBuilder.Calls);
         Assert.NotNull(first.FrontSensorConfiguration);
         Assert.NotNull(first.BikeData.FrontMeasurementToTravel);
+        Assert.False(first.BikeData.FrontMeasurementToTravel.Target is AdcTravelLookupTable);
         Assert.Equal(first.FrontSensorConfiguration!.MaxTravel, first.BikeData.FrontMaxTravel);
+    }
+
+    [Fact]
+    public void Create_DoesNotAddLookupToRotationalFrontCalibration()
+    {
+        var factory = CreateFactory(out _);
+        var bike = CreateBike();
+        var setup = CreateSetup(
+            bike.Id,
+            frontSensorConfigurationJson: RotationalForkJson());
+
+        var context = factory.Create(setup, bike);
+
+        Assert.IsType<RotationalForkSensorConfiguration>(context.FrontSensorConfiguration);
+        Assert.NotNull(context.BikeData.FrontMeasurementToTravel);
+        Assert.False(context.BikeData.FrontMeasurementToTravel.Target is AdcTravelLookupTable);
     }
 
     [Fact]
@@ -217,6 +234,13 @@ public class TelemetryBikeProcessingContextFactoryTests
         {
             Length = length,
             Resolution = resolution,
+        });
+
+    private static string RotationalForkJson() =>
+        SensorConfiguration.ToJson(new RotationalForkSensorConfiguration
+        {
+            MaxLength = 100,
+            ArmLength = 60,
         });
 
     private sealed class CountingRearTravelCalibrationBuilder(
