@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Threading;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -21,7 +20,6 @@ public abstract class SufniPlotView : TemplatedControl
     private AxisLimits? pinchStartLimits;
     private Coordinates? pinchOrigin;
     private PlotInvalidation pendingInvalidation;
-    private int cursorOverlayRefreshQueued;
     private bool viewportChangeQueued;
     private bool refreshQueued;
     private IDisposable? themeVariantSubscription;
@@ -112,7 +110,7 @@ public abstract class SufniPlotView : TemplatedControl
         avaPlot.AddHandler(InputElement.PinchEndedEvent, OnPlotPinchEnded);
 
         CreatePlot();
-        avaPlot.Plot.RenderManager.RenderFinished += (_, _) => InvalidateCursorOverlay();
+        avaPlot.Plot.RenderManager.RenderFinished += (_, _) => cursorOverlay?.InvalidateVisual();
         avaPlot.Plot.RenderManager.AxisLimitsChanged += (_, _) => NotifyViewportChanged();
     }
 
@@ -207,7 +205,7 @@ public abstract class SufniPlotView : TemplatedControl
 
         avaPlot.Plot.Axes.SetLimits(left, right, bottom, top);
         avaPlot.Refresh();
-        InvalidateCursorOverlay();
+        cursorOverlay?.InvalidateVisual();
     }
 
     private void OnPlotPinchEnded(object? sender, PinchEndedEventArgs e)
@@ -236,25 +234,5 @@ public abstract class SufniPlotView : TemplatedControl
             viewportChangeQueued = false;
             OnViewportChanged();
         }, DispatcherPriority.Background);
-    }
-
-    private void InvalidateCursorOverlay()
-    {
-        if (Dispatcher.UIThread.CheckAccess())
-        {
-            cursorOverlay?.InvalidateVisual();
-            return;
-        }
-
-        if (Interlocked.Exchange(ref cursorOverlayRefreshQueued, 1) != 0)
-        {
-            return;
-        }
-
-        Dispatcher.UIThread.Post(() =>
-        {
-            Volatile.Write(ref cursorOverlayRefreshQueued, 0);
-            cursorOverlay?.InvalidateVisual();
-        }, DispatcherPriority.Render);
     }
 }
