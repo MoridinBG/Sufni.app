@@ -21,7 +21,7 @@ public class ReusableScrollLeftViewTests
         plot.RenderInMemory(320, 180);
 
         using var surface = SKSurface.Create(new SKImageInfo(320, 180));
-        var renderPack = new RenderPack(plot, new PixelRect(0, 0, 320, 180), surface.Canvas);
+        var renderPack = new RenderPack(plot, new PixelRect(0, 320, 180, 0), surface.Canvas);
         var sut = new ReusableScrollLeftView(streamer);
 
         AssertSegmentsEqual(control.GetSegments(renderPack), sut.GetSegments(renderPack));
@@ -80,7 +80,7 @@ public class ReusableScrollLeftViewTests
     private static byte[] RenderPng(Plot plot)
     {
         using var surface = SKSurface.Create(new SKImageInfo(320, 180));
-        plot.Render(surface.Canvas, new PixelRect(0, 0, 320, 180));
+        plot.Render(surface.Canvas, 320, 180);
         using var image = surface.Snapshot();
         using var data = image.Encode(SKEncodedImageFormat.Png, 100);
         return data.ToArray();

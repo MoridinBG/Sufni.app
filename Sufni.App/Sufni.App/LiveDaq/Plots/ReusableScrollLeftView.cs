@@ -15,12 +15,8 @@ internal sealed class ReusableScrollLeftView(DataStreamer streamer) : IDataStrea
     private SKPath? linePath;
     private TransformKey cachedTransform;
     private bool hasCachedTransform;
-    private bool rebuildLinePath = true;
-    private bool linePathEndsWithFinitePoint;
     private int lastCountTotal = -1;
     private int lastNextIndex = -1;
-    private int linePathBaseCountTotal;
-    private int linePathCountTotal = -1;
 
     public DataStreamer Streamer { get; } = streamer;
 
@@ -35,11 +31,7 @@ internal sealed class ReusableScrollLeftView(DataStreamer streamer) : IDataStrea
         UpdateLinePath();
         if (linePath is not null)
         {
-            var xOffset = -(Streamer.Data.CountTotal - linePathBaseCountTotal) * GetPixelStep();
-            renderPack.Canvas.Save();
-            renderPack.Canvas.Translate(xOffset, 0);
             Drawing.DrawLines(renderPack.Canvas, renderPack.Paint, linePath, Streamer.LineStyle);
-            renderPack.Canvas.Restore();
         }
 
         foreach (var segment in currentSegments)
@@ -73,7 +65,6 @@ internal sealed class ReusableScrollLeftView(DataStreamer streamer) : IDataStrea
         if (!canShiftCachedPixels)
         {
             RebuildPixels(sampleCount, capacity, nextIndex, wrapped, transform);
-            rebuildLinePath = true;
         }
         else if (countDelta > 0)
         {
@@ -141,54 +132,9 @@ internal sealed class ReusableScrollLeftView(DataStreamer streamer) : IDataStrea
 
     private void UpdateLinePath()
     {
-        var countDelta = Streamer.Data.CountTotal - linePathCountTotal;
-        var pathOffset = Streamer.Data.CountTotal - linePathBaseCountTotal;
-        if (rebuildLinePath ||
-            linePath is null ||
-            countDelta < 0 ||
-            countDelta > pixels.Length ||
-            pathOffset > Streamer.Data.Length)
-        {
-            RebuildLinePath();
-            return;
-        }
-
-        if (countDelta == 0)
-        {
-            return;
-        }
-
-        var xOffset = pathOffset * GetPixelStep();
-        for (var index = pixels.Length - countDelta; index < pixels.Length; index++)
-        {
-            var pixel = pixels[index];
-            if (!IsFinite(pixel))
-            {
-                linePathEndsWithFinitePoint = false;
-                continue;
-            }
-
-            var point = new SKPoint(pixel.X + xOffset, pixel.Y);
-            if (linePathEndsWithFinitePoint)
-            {
-                linePath.LineTo(point);
-            }
-            else
-            {
-                linePath.MoveTo(point);
-            }
-
-            linePathEndsWithFinitePoint = true;
-        }
-
-        linePathCountTotal = Streamer.Data.CountTotal;
-    }
-
-    private void RebuildLinePath()
-    {
-        linePath?.Dispose();
-        linePath = new SKPath();
-        linePathEndsWithFinitePoint = false;
+        linePath ??= new SKPath();
+        linePath.Rewind();
+        var linePathEndsWithFinitePoint = false;
         foreach (var pixel in pixels)
         {
             if (!IsFinite(pixel))
@@ -208,20 +154,12 @@ internal sealed class ReusableScrollLeftView(DataStreamer streamer) : IDataStrea
 
             linePathEndsWithFinitePoint = true;
         }
-
-        linePathBaseCountTotal = Streamer.Data.CountTotal;
-        linePathCountTotal = Streamer.Data.CountTotal;
-        rebuildLinePath = false;
     }
 
     private void ResetLinePath()
     {
         linePath?.Dispose();
         linePath = null;
-        linePathEndsWithFinitePoint = false;
-        linePathBaseCountTotal = 0;
-        linePathCountTotal = -1;
-        rebuildLinePath = true;
     }
 
     private TransformKey GetTransformKey(int capacity)
@@ -242,11 +180,6 @@ internal sealed class ReusableScrollLeftView(DataStreamer streamer) : IDataStrea
     private float GetPixelY(double value)
     {
         return Streamer.Axes.GetPixelY(value + Streamer.Data.OffsetY);
-    }
-
-    private float GetPixelStep()
-    {
-        return xPixels.Length > 1 ? xPixels[1] - xPixels[0] : 0;
     }
 
     private void EnsureCapacity(int sampleCount)
