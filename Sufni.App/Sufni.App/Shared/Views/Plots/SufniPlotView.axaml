@@ -11,12 +11,7 @@
         <!--  Set Defaults  -->
         <Setter Property="Template">
             <ControlTemplate>
-                <Grid>
-                    <plots:SufniAvaPlot Name="Plot" />
-                    <plots:SufniPlotCursorOverlay
-                        Name="CursorOverlay"
-                        IsHitTestVisible="False" />
-                </Grid>
+                <plots:SufniAvaPlot Name="Plot" />
             </ControlTemplate>
         </Setter>
     </Style>

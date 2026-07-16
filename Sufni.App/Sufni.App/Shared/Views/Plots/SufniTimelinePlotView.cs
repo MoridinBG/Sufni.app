@@ -4,7 +4,6 @@ using Avalonia;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 
-using Sufni.App.Sessions.Plots;
 using Sufni.App.Shared.Plots;
 namespace Sufni.App.Shared.Views.Plots;
 
@@ -51,51 +50,12 @@ public abstract class SufniTimelinePlotView : SufniPlotView
 
     protected override void OnViewportChanged() => UpdateTimelineRange();
 
-    protected override void RefreshPlotCore(PlotInvalidation invalidation)
-    {
-        if (TimelinePlot is not RecordedTimeSeriesPlot recordedPlot)
-        {
-            ClearCursorOverlay();
-            base.RefreshPlotCore(invalidation);
-            return;
-        }
-
-        var renderCursorExternally = !recordedPlot.IsCursorReadoutVisible;
-        if (!recordedPlot.TryConfigureCursorRendering(renderCursorExternally, out var cursorPosition))
-        {
-            ClearCursorOverlay();
-            base.RefreshPlotCore(invalidation);
-            return;
-        }
-
-        if (!renderCursorExternally)
-        {
-            ClearCursorOverlay();
-            base.RefreshPlotCore(invalidation);
-            return;
-        }
-
-        var cursorReady = UpdateCursorOverlay(cursorPosition, CurrentTheme.Plot.Cursor.Line);
-        if (invalidation == PlotInvalidation.Cursor && cursorReady)
-        {
-            return;
-        }
-
-        base.RefreshPlotCore(invalidation);
-    }
-
     protected void ApplyTimelineCursor()
     {
         var plot = TimelinePlot;
         if (plot is null || Timeline is null || TimelineDurationSeconds is not { } duration || duration <= 0)
         {
             return;
-        }
-
-        var invalidation = PlotInvalidation.Cursor;
-        if (plot.IsCursorReadoutVisible)
-        {
-            invalidation |= PlotInvalidation.Overlay;
         }
 
         if (Timeline.NormalizedCursorPosition is { } normalizedCursorPosition)
@@ -107,7 +67,7 @@ public abstract class SufniTimelinePlotView : SufniPlotView
             plot.SetCursorPosition(double.NaN);
         }
 
-        RefreshPlot(invalidation);
+        RefreshPlot(PlotInvalidation.Cursor);
     }
 
     protected void UpdateTimelineRange()

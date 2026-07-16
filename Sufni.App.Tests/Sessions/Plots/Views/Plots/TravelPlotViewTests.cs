@@ -5,7 +5,6 @@ using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
-using Avalonia.VisualTree;
 using NSubstitute;
 using ScottPlot;
 using ScottPlot.Plottables;
@@ -24,7 +23,6 @@ using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Sessions.Plots.Views.Plots;
-using Sufni.App.Shared.Views.Plots;
 using Sufni.App.Shell.Behaviors;
 using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.Sessions.Plots.Views.Plots;
@@ -32,73 +30,6 @@ namespace Sufni.App.Tests.Sessions.Plots.Views.Plots;
 [Collection("Ui")]
 public class TravelPlotViewTests
 {
-    [AvaloniaFact]
-    public async Task TravelPlotView_TimelineCursorUpdate_UsesOverlayWithoutRerenderingPlot()
-    {
-        var timeline = new SessionTimelineLinkViewModel();
-        var view = new CursorTrackingTravelPlotView
-        {
-            Timeline = timeline,
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-        view.Telemetry = CreateMinimal(duration: 10);
-        await ViewTestHelpers.FlushDispatcherAsync();
-        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var plot = Assert.IsType<SufniAvaPlot>(PlotViewTestSupport.GetRenderedPlot(mounted.View));
-        RenderPlotInMemory(plot);
-        await ViewTestHelpers.FlushDispatcherAsync();
-        var cursorLine = Assert.Single(plot.Plot.PlottableList.OfType<VerticalLine>());
-        var overlay = Assert.Single(mounted.View.GetVisualDescendants().OfType<SufniPlotCursorOverlay>());
-        var fullRefreshCount = view.FullRefreshCount;
-
-        timeline.SetCursorPosition(0.25);
-        await ViewTestHelpers.FlushDispatcherAsync();
-        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Equal(fullRefreshCount, view.FullRefreshCount);
-        Assert.Equal(2.5, cursorLine.Position, precision: 6);
-        Assert.False(cursorLine.IsVisible);
-        Assert.Equal(2.5, overlay.CursorPosition, precision: 6);
-    }
-
-    [AvaloniaFact]
-    public async Task TravelPlotView_CursorReadoutUpdate_RerendersPlotAndKeepsReadoutVisible()
-    {
-        var view = new CursorTrackingTravelPlotView();
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-        view.Telemetry = CreateMinimal(duration: 10);
-        await ViewTestHelpers.FlushDispatcherAsync();
-        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var plot = Assert.IsType<SufniAvaPlot>(PlotViewTestSupport.GetRenderedPlot(mounted.View));
-        var fullRefreshCount = view.FullRefreshCount;
-
-        view.SetCursorPositionWithReadout(2.5);
-        await ViewTestHelpers.FlushDispatcherAsync();
-        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.True(view.FullRefreshCount > fullRefreshCount);
-        var tooltip = Assert.Single(plot.Plot.PlottableList.OfType<Tooltip>());
-        var cursorLine = Assert.Single(plot.Plot.PlottableList.OfType<VerticalLine>());
-        Assert.True(tooltip.IsVisible);
-        Assert.True(cursorLine.IsVisible);
-
-        var readoutRefreshCount = view.FullRefreshCount;
-        view.HideCursorReadout();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.True(view.FullRefreshCount > readoutRefreshCount);
-        Assert.False(tooltip.IsVisible);
-        Assert.False(cursorLine.IsVisible);
-    }
-
     [AvaloniaFact]
     public async Task TravelPlotView_StartsEmpty_BeforeTelemetryIsAssigned()
     {
@@ -541,17 +472,6 @@ public class TravelPlotViewTests
         public void UpdateTimelineRangeForTest()
         {
             UpdateTimelineRange();
-        }
-    }
-
-    private sealed class CursorTrackingTravelPlotView : TravelPlotView
-    {
-        public int FullRefreshCount { get; private set; }
-
-        protected override void RefreshFullPlot()
-        {
-            FullRefreshCount++;
-            base.RefreshFullPlot();
         }
     }
 
