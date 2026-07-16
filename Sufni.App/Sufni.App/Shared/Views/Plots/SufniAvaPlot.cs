@@ -47,7 +47,7 @@ public class SufniAvaPlot : AvaPlot
         return new ScottPlot.PixelSize((float)Math.Max(1, Bounds.Width), (float)Math.Max(1, Bounds.Height));
     }
 
-    private (double X, double Y) GetRenderScale()
+    internal (double X, double Y) GetRenderScale()
     {
         var figureRect = Plot.LastRender.FigureRect;
         if (!figureRect.HasArea || Bounds.Width <= 0 || Bounds.Height <= 0)

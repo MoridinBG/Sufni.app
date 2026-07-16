@@ -278,8 +278,11 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             return;
         }
 
-        plot!.SetCursorPosition(position);
-        RefreshPlot(PlotInvalidation.Cursor);
+        var invalidation = plot!.IsCursorReadoutVisible
+            ? PlotInvalidation.Cursor | PlotInvalidation.Overlay
+            : PlotInvalidation.Cursor;
+        plot.SetCursorPosition(position);
+        RefreshPlot(invalidation);
     }
 
     public void SetCursorPositionWithReadout(double position)
@@ -290,7 +293,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         }
 
         plot!.SetCursorPositionWithReadout(position);
-        RefreshPlot(PlotInvalidation.Cursor);
+        RefreshPlot(PlotInvalidation.Cursor | PlotInvalidation.Overlay);
     }
 
     public void HideCursorReadout()
@@ -300,8 +303,11 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             return;
         }
 
-        plot!.HideCursorReadout();
-        RefreshPlot(PlotInvalidation.Cursor);
+        var invalidation = plot!.IsCursorReadoutVisible
+            ? PlotInvalidation.Cursor | PlotInvalidation.Overlay
+            : PlotInvalidation.Cursor;
+        plot.HideCursorReadout();
+        RefreshPlot(invalidation);
     }
 
     protected void InitializeCursorReadoutInteractions()
@@ -500,7 +506,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         }
 
         plot!.SetCursorPositionWithReadout(seconds);
-        RefreshPlot(PlotInvalidation.Cursor);
+        RefreshPlot(PlotInvalidation.Cursor | PlotInvalidation.Overlay);
     }
 
     protected bool TryGetTimelineSeconds(PointerEventArgs args, out double seconds)
@@ -719,7 +725,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                         if (IsPlotReady)
                         {
                             plot!.SetCursorPositionWithReadout(cursorSeconds);
-                            RefreshPlot(PlotInvalidation.Cursor);
+                            RefreshPlot(PlotInvalidation.Cursor | PlotInvalidation.Overlay);
                         }
                     }
                 }

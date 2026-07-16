@@ -126,6 +126,7 @@ public class TelemetryPlot : SufniPlot
         }
     }
     public bool HideRightAxis { get; set; }
+    public bool IsCursorReadoutVisible => cursorTooltip?.IsVisible == true;
 
     protected void ConfigureTimeSeriesFrame(string title, Func<double, string>? timeLabelFormatter = null)
     {

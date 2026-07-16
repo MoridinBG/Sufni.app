@@ -53,8 +53,23 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
     private readonly List<PlottableCursorReadoutSeries> cursorSeries = [];
     private readonly Dictionary<string, RangeOverlayRenderState> rangeOverlayStates = [];
     private double cursorDurationSeconds;
+    private bool rendersCursorExternally;
 
     public VerticalLine? CursorLine { get; protected set; }
+
+    internal bool TryConfigureCursorRendering(bool renderExternally, out double position)
+    {
+        rendersCursorExternally = renderExternally;
+        if (CursorLine is null)
+        {
+            position = double.NaN;
+            return false;
+        }
+
+        CursorLine.IsVisible = !renderExternally;
+        position = CursorLine.Position;
+        return true;
+    }
 
     public override void Clear()
     {
@@ -244,7 +259,7 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
             AddMarkerLines(data.MarkerSource);
         }
 
-        CursorLine = AddTimeSeriesCursorLine();
+        CursorLine = AddTimeSeriesCursorLine(isVisible: !rendersCursorExternally);
     }
 
     protected static double GetAirtimeLabelY(RecordedTimeSeriesValueRange? valueRange)

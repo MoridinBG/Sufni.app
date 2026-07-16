@@ -16,6 +16,7 @@ public abstract class SufniPlotView : TemplatedControl
 {
     private readonly HashSet<IPointer> pointersStartedInDataArea = [];
     private SufniAvaPlot? avaPlot;
+    private SufniPlotCursorOverlay? cursorOverlay;
     private AxisLimits? pinchStartLimits;
     private Coordinates? pinchOrigin;
     private PlotInvalidation pendingInvalidation;
@@ -72,7 +73,18 @@ public abstract class SufniPlotView : TemplatedControl
         }, DispatcherPriority.Render);
     }
 
-    protected virtual void RefreshPlotCore(PlotInvalidation invalidation) => avaPlot?.Refresh();
+    protected virtual void RefreshPlotCore(PlotInvalidation invalidation) => RefreshFullPlot();
+
+    protected virtual void RefreshFullPlot() => avaPlot?.Refresh();
+
+    protected bool UpdateCursorOverlay(double position, AvaloniaColor color)
+    {
+        return avaPlot is not null &&
+               cursorOverlay is not null &&
+               cursorOverlay.Update(avaPlot, position, color);
+    }
+
+    protected void ClearCursorOverlay() => cursorOverlay?.Clear();
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
@@ -80,6 +92,7 @@ public abstract class SufniPlotView : TemplatedControl
 
         avaPlot = e.NameScope.Find<SufniAvaPlot>("Plot");
         Debug.Assert(avaPlot != null, nameof(avaPlot) + " != null");
+        cursorOverlay = e.NameScope.Find<SufniPlotCursorOverlay>("CursorOverlay");
         pointersStartedInDataArea.Clear();
 
         // Stop ancestor gesture recognizers (e.g. the mobile session shell's
@@ -97,6 +110,7 @@ public abstract class SufniPlotView : TemplatedControl
         avaPlot.AddHandler(InputElement.PinchEndedEvent, OnPlotPinchEnded);
 
         CreatePlot();
+        avaPlot.Plot.RenderManager.RenderFinished += (_, _) => cursorOverlay?.InvalidateVisual();
         avaPlot.Plot.RenderManager.AxisLimitsChanged += (_, _) => NotifyViewportChanged();
     }
 
@@ -191,6 +205,7 @@ public abstract class SufniPlotView : TemplatedControl
 
         avaPlot.Plot.Axes.SetLimits(left, right, bottom, top);
         avaPlot.Refresh();
+        cursorOverlay?.InvalidateVisual();
     }
 
     private void OnPlotPinchEnded(object? sender, PinchEndedEventArgs e)
