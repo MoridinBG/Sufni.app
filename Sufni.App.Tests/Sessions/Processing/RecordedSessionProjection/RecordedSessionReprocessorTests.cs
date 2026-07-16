@@ -5,6 +5,7 @@ using Sufni.App.Infrastructure;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
+using Sufni.App.Acquisition.Models;
 using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Models;
@@ -65,6 +66,46 @@ public class RecordedSessionReprocessorTests
         Assert.NotEmpty(telemetryData.Front.Travel);
         Assert.Equal(telemetryData.BinaryForm, result.ProcessedTelemetry.Data);
         Assert.Equal(AppJson.Serialize(result.Fingerprint), result.ProcessedTelemetry.FingerprintJson);
+    }
+
+    [Fact]
+    public async Task ProcessImportedSstAsync_UsesDirectBytesAndMatchesPersistedSourceRecompute()
+    {
+        var session = TestSnapshots.Session(id: Guid.NewGuid(), setupId: Guid.NewGuid());
+        var bike = TestSnapshots.Bike(id: Guid.NewGuid());
+        var setup = TestSnapshots.Setup(id: session.SetupId!.Value, bikeId: bike.Id) with
+        {
+            FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
+            {
+                Length = 10,
+                Resolution = 12
+            })
+        };
+        var sstBytes = TestSstFiles.CreateV3WithFrontOnly();
+        using var telemetrySource = new TelemetryFileSource("direct-source.SST", sstBytes);
+        var source = RecordedSessionSourceFactory.CreateImportedSst(session.Id, telemetrySource);
+        var originalPayload = source.Payload.ToArray();
+        var domain = new RecordedSessionDomainSnapshot(
+            session,
+            setup,
+            bike,
+            null,
+            null,
+            RecordedSessionSourceSnapshot.From(source),
+            null,
+            new SessionStaleness.MissingProcessedData(),
+            DerivedChangeKind.None);
+        var reprocessor = CreateReprocessor();
+
+        var initial = await reprocessor.ProcessImportedSstAsync(domain, source, telemetrySource.SstBytes);
+        var recomputed = await reprocessor.ReprocessAsync(domain, source);
+
+        Assert.Equal(originalPayload, source.Payload);
+        Assert.True(RecordedSessionSourceHash.Matches(source));
+        Assert.Equal(recomputed.ProcessedTelemetry.Data, initial.ProcessedTelemetry.Data);
+        Assert.Equal(recomputed.ProcessedTelemetry.FingerprintJson, initial.ProcessedTelemetry.FingerprintJson);
+        Assert.Equal(recomputed.Fingerprint, initial.Fingerprint);
+        Assert.Equal(recomputed.GeneratedFullTrack, initial.GeneratedFullTrack);
     }
 
     [Fact]

@@ -23,6 +23,31 @@ internal sealed class RecordedSessionReprocessor(
     ITelemetryBikeProcessingContextFactory bikeProcessingContextFactory)
     : IRecordedSessionReprocessor
 {
+    public Task<RecordedSessionReprocessResult> ProcessImportedSstAsync(
+        RecordedSessionDomainSnapshot domain,
+        RecordedSessionSource source,
+        ReadOnlyMemory<byte> sstBytes,
+        CancellationToken cancellationToken = default)
+    {
+        var bikeData = ValidateAndCreateBikeData(
+            domain,
+            source,
+            TelemetryProcessingOptions.Default,
+            cancellationToken);
+        if (source.SourceKind != RecordedSessionSourceKind.ImportedSst)
+        {
+            throw new ArgumentException("Initial imported SST processing requires an imported SST source.", nameof(source));
+        }
+
+        var telemetryData = ProcessImportedSst(
+            source.SourceName,
+            sstBytes,
+            bikeData,
+            TelemetryProcessingOptions.Default,
+            domain.DerivationWindow);
+        return Task.FromResult(CreateResult(domain, telemetryData, TelemetryProcessingOptions.Default));
+    }
+
     public Task<RecordedSessionReprocessResult> ReprocessAsync(
         RecordedSessionDomainSnapshot domain,
         RecordedSessionSource source,
@@ -36,6 +61,24 @@ internal sealed class RecordedSessionReprocessor(
         RecordedSessionSource source,
         TelemetryProcessingOptions processingOptions,
         CancellationToken cancellationToken = default)
+    {
+        var bikeData = ValidateAndCreateBikeData(domain, source, processingOptions, cancellationToken);
+
+        var telemetryData = source.SourceKind switch
+        {
+            RecordedSessionSourceKind.ImportedSst => ReprocessImportedSst(source, bikeData, processingOptions, domain.DerivationWindow),
+            RecordedSessionSourceKind.LiveCapture => ReprocessLiveCapture(source, bikeData, processingOptions, domain.DerivationWindow),
+            _ => throw new ArgumentOutOfRangeException(nameof(source.SourceKind), source.SourceKind, "Unknown recorded source kind.")
+        };
+
+        return Task.FromResult(CreateResult(domain, telemetryData, processingOptions));
+    }
+
+    private BikeData ValidateAndCreateBikeData(
+        RecordedSessionDomainSnapshot domain,
+        RecordedSessionSource source,
+        TelemetryProcessingOptions processingOptions,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(processingOptions);
         cancellationToken.ThrowIfCancellationRequested();
@@ -53,16 +96,17 @@ internal sealed class RecordedSessionReprocessor(
             throw new InvalidOperationException("Recorded source does not match the domain session.");
         }
 
-        var bikeProcessingContext = bikeProcessingContextFactory.Create(domain.Setup, domain.Bike);
-        var bikeData = bikeProcessingContext.BikeData;
+        return bikeProcessingContextFactory.Create(domain.Setup, domain.Bike).BikeData;
+    }
 
-        var telemetryData = source.SourceKind switch
-        {
-            RecordedSessionSourceKind.ImportedSst => ReprocessImportedSst(source, bikeData, processingOptions, domain.DerivationWindow),
-            RecordedSessionSourceKind.LiveCapture => ReprocessLiveCapture(source, bikeData, processingOptions, domain.DerivationWindow),
-            _ => throw new ArgumentOutOfRangeException(nameof(source.SourceKind), source.SourceKind, "Unknown recorded source kind.")
-        };
-
+    private RecordedSessionReprocessResult CreateResult(
+        RecordedSessionDomainSnapshot domain,
+        TelemetryData telemetryData,
+        TelemetryProcessingOptions processingOptions)
+    {
+        var setup = domain.Setup!;
+        var bike = domain.Bike!;
+        var source = domain.Source!;
         var fullTrack = telemetryData.GpsData is { Length: > 0 }
             ? Track.FromGpsRecords(telemetryData.GpsData)
             : null;
@@ -71,17 +115,17 @@ internal sealed class RecordedSessionReprocessor(
             : domain.DependencyHash is { } dependencyHash
                 ? fingerprintService.CreateCurrent(
                     domain.Session,
-                    domain.Setup,
-                    domain.Bike,
-                    domain.Source,
+                    setup,
+                    bike,
+                    source,
                     dependencyHash,
                     processingOptions,
                     domain.DerivationWindow)
                 : fingerprintService.CreateCurrent(
                     domain.Session,
-                    domain.Setup,
-                    domain.Bike,
-                    domain.Source,
+                    setup,
+                    bike,
+                    source,
                     processingOptions,
                     domain.DerivationWindow);
         var fingerprintJson = AppJson.Serialize(fingerprint);
@@ -90,7 +134,7 @@ internal sealed class RecordedSessionReprocessor(
             telemetryData.BinaryForm,
             fingerprintJson);
 
-        return Task.FromResult(new RecordedSessionReprocessResult(processedTelemetry, fullTrack, fingerprint));
+        return new RecordedSessionReprocessResult(processedTelemetry, fullTrack, fingerprint);
     }
 
     private static bool CanReuseCurrentFingerprint(
@@ -108,13 +152,23 @@ internal sealed class RecordedSessionReprocessor(
         RecordedSessionDerivationWindow? window)
     {
         var sstBytes = RecordedSessionSourcePayloadCodec.DecompressImportedSst(source.Payload);
-        var rawTelemetryData = RawTelemetryData.FromByteArray(sstBytes);
+        return ProcessImportedSst(source.SourceName, sstBytes, bikeData, processingOptions, window);
+    }
+
+    private static TelemetryData ProcessImportedSst(
+        string sourceName,
+        ReadOnlyMemory<byte> sstBytes,
+        BikeData bikeData,
+        TelemetryProcessingOptions processingOptions,
+        RecordedSessionDerivationWindow? window)
+    {
+        var rawTelemetryData = RawTelemetryData.FromMemory(sstBytes);
         if (window is not null)
         {
             rawTelemetryData = rawTelemetryData.Slice(window.StartSeconds, window.EndSeconds);
         }
 
-        var metadata = MetadataFromRaw(source.SourceName, rawTelemetryData);
+        var metadata = MetadataFromRaw(sourceName, rawTelemetryData);
         return TelemetryData.FromRecording(rawTelemetryData, metadata, bikeData, processingOptions);
     }
 

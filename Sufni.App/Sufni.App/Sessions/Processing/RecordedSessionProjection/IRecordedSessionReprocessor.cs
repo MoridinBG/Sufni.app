@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.Telemetry;
@@ -10,6 +11,12 @@ namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 // supplies the setup/bike context, while processing options choose the pipeline.
 public interface IRecordedSessionReprocessor
 {
+    Task<RecordedSessionReprocessResult> ProcessImportedSstAsync(
+        RecordedSessionDomainSnapshot domain,
+        RecordedSessionSource source,
+        ReadOnlyMemory<byte> sstBytes,
+        CancellationToken cancellationToken = default);
+
     Task<RecordedSessionReprocessResult> ReprocessAsync(
         RecordedSessionDomainSnapshot domain,
         RecordedSessionSource source,
