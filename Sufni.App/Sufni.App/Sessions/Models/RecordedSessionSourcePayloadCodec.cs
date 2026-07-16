@@ -1,3 +1,4 @@
+using System;
 using ZstdSharp;
 
 namespace Sufni.App.Sessions.Models;
@@ -11,10 +12,13 @@ public static class RecordedSessionSourcePayloadCodec
 {
     private const int ImportedSstCompressionLevel = 3;
 
-    public static byte[] CompressImportedSst(byte[] sstBytes)
+    public static byte[] CompressImportedSst(byte[] sstBytes) =>
+        CompressImportedSst((ReadOnlyMemory<byte>)sstBytes);
+
+    public static byte[] CompressImportedSst(ReadOnlyMemory<byte> sstBytes)
     {
         using var compressor = new Compressor(ImportedSstCompressionLevel);
-        return compressor.Wrap(sstBytes).ToArray();
+        return compressor.Wrap(sstBytes.Span).ToArray();
     }
 
     public static byte[] DecompressImportedSst(byte[] payload)

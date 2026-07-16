@@ -20,7 +20,7 @@ public class MassStorageTelemetryDataStoreTests
 
         var dataStore = await MassStorageTelemetryDataStore.CreateAsync(driveInfo);
         var files = await dataStore.GetFiles();
-        var source = await files[0].ReadSourceAsync();
+        using var source = await files[0].ReadSourceAsync();
 
         Assert.Equal(UuidUtil.CreateDeviceUuid("abcdef1234567890"), dataStore.BoardId);
         Assert.True(Directory.Exists(Path.Combine(tempDirectory.Path, "uploaded")));
@@ -31,6 +31,6 @@ public class MassStorageTelemetryDataStoreTests
             first => Assert.Equal("newer.SST", first.FileName),
             second => Assert.Equal("older.SST", second.FileName));
         Assert.Equal("newer.SST", source.FileName);
-        Assert.Equal(newerBytes, source.SstBytes);
+        Assert.Equal(newerBytes, source.SstBytes.ToArray());
     }
 }

@@ -49,9 +49,9 @@ public class StorageProviderTelemetryFile : ITelemetryFile
     public async Task<TelemetryFileSource> ReadSourceAsync(CancellationToken cancellationToken = default)
     {
         await using var stream = await storageFile.OpenReadAsync();
-        using var memory = new MemoryStream();
+        using var memory = new MemoryStream(GetInitialCapacity(stream));
         await stream.CopyToAsync(memory, cancellationToken);
-        return new TelemetryFileSource(FileName, memory.ToArray());
+        return TelemetryFileSource.TakeOwnership(FileName, memory);
     }
 
     public async Task OnImported()
@@ -105,5 +105,16 @@ public class StorageProviderTelemetryFile : ITelemetryFile
         }
 
         return DateTimeOffset.UnixEpoch.LocalDateTime;
+    }
+
+    private static int GetInitialCapacity(Stream stream)
+    {
+        if (!stream.CanSeek)
+        {
+            return 0;
+        }
+
+        var remainingLength = stream.Length - stream.Position;
+        return remainingLength is > 0 and <= int.MaxValue ? (int)remainingLength : 0;
     }
 }

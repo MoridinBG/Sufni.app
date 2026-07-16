@@ -51,6 +51,21 @@ public class StorageProviderTelemetryDataStoreTests
         Assert.False(dataStore.IsAvailable());
     }
 
+    [Fact]
+    public async Task TelemetryFile_ReadSourceOwnsTheExactLogicalBytes()
+    {
+        var bytes = TestSstFiles.CreateValidV3();
+        var storageFile = CreateStorageFile("ride.SST", bytes);
+        var telemetryFile = await StorageProviderTelemetryFile.CreateAsync(storageFile);
+
+        using var source = await telemetryFile.ReadSourceAsync();
+
+        Assert.Equal("ride.SST", source.FileName);
+        Assert.Equal(bytes.Length, source.LogicalLength);
+        Assert.Equal(bytes.Length, source.AllocatedCapacity);
+        Assert.Equal(bytes, source.SstBytes.ToArray());
+    }
+
     private static IStorageFolder CreateFolder(string name)
     {
         var folder = Substitute.For<IStorageFolder>();

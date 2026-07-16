@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NSubstitute;
@@ -166,6 +167,7 @@ public class NetworkTelemetryDataStoreTests
         NetworkTelemetryFileOperation operation)
     {
         Stream? capturedDestination = null;
+        byte[]? capturedDestinationBuffer = null;
         var daqManagementService = Substitute.For<IDaqManagementService>();
         var sourceBytes = TestSstFiles.CreateValidV3();
         daqManagementService
@@ -175,6 +177,7 @@ public class NetworkTelemetryDataStoreTests
                 var destination = callInfo.ArgAt<Stream>(4);
                 capturedDestination = destination;
                 destination.Write(sourceBytes);
+                capturedDestinationBuffer = ((MemoryStream)destination).GetBuffer();
                 return Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Downloaded("DEVICE.SST", (ulong)sourceBytes.Length));
             });
         daqManagementService
@@ -188,13 +191,19 @@ public class NetworkTelemetryDataStoreTests
         switch (operation)
         {
             case NetworkTelemetryFileOperation.ReadSource:
-                var source = await file.ReadSourceAsync();
+            {
+                using var source = await file.ReadSourceAsync();
                 Assert.Equal("DEVICE.SST", source.FileName);
-                Assert.Equal(sourceBytes, source.SstBytes);
+                Assert.Equal(sourceBytes, source.SstBytes.ToArray());
+                Assert.Equal(sourceBytes.Length, source.LogicalLength);
+                Assert.True(source.AllocatedCapacity >= source.LogicalLength);
+                Assert.True(MemoryMarshal.TryGetArray(source.SstBytes, out var sourceBuffer));
+                Assert.Same(capturedDestinationBuffer, sourceBuffer.Array);
                 Assert.IsType<MemoryStream>(capturedDestination);
                 await daqManagementService.Received(1)
                     .GetFileAsync(IPAddress.Loopback.ToString(), 5555, DaqFileClass.RootSst, 42, Arg.Any<Stream>(), Arg.Any<CancellationToken>());
                 break;
+            }
             case NetworkTelemetryFileOperation.MarkImported:
                 await file.OnImported();
                 Assert.True(file.Imported);

@@ -61,7 +61,7 @@ public class NetworkTelemetryFile : ITelemetryFile
         };
 
         var sourceName = string.IsNullOrWhiteSpace(loadedFile.Name) ? FileName : loadedFile.Name;
-        return new TelemetryFileSource(sourceName, destination.ToArray());
+        return TelemetryFileSource.TakeOwnership(sourceName, destination);
     }
 
     public async Task OnImported()

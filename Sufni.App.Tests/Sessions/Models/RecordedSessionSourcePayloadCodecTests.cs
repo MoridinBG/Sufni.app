@@ -17,4 +17,16 @@ public class RecordedSessionSourcePayloadCodecTests
         Assert.True(compressed.Length < source.Length);
         Assert.Equal(source, decompressed);
     }
+
+    [Fact]
+    public void ImportedSstPayload_CompressesOnlyTheLogicalMemoryRange()
+    {
+        var backingBytes = new byte[] { 99, 1, 2, 3, 88 };
+
+        var compressed = RecordedSessionSourcePayloadCodec.CompressImportedSst(
+            backingBytes.AsMemory(1, 3));
+        var decompressed = RecordedSessionSourcePayloadCodec.DecompressImportedSst(compressed);
+
+        Assert.Equal(new byte[] { 1, 2, 3 }, decompressed);
+    }
 }
