@@ -17,12 +17,14 @@ internal sealed class AdcTravelLookupTable
         {
             values[measurement] = fallback((ushort)measurement);
         }
+
+        MeasurementToTravel = measurement =>
+            measurement < this.values.Length ? this.values[measurement] : this.fallback(measurement);
     }
 
     internal int Count => values.Length;
 
     internal long RetainedValueBytes => values.LongLength * sizeof(double);
 
-    public double MeasurementToTravel(ushort measurement) =>
-        measurement < values.Length ? values[measurement] : fallback(measurement);
+    public Func<ushort, double> MeasurementToTravel { get; }
 }
