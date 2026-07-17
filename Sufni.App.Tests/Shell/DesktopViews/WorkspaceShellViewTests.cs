@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Themes.Fluent;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -157,6 +158,68 @@ public class WorkspaceShellViewTests
         GC.KeepAlive(root);
     }
 
+    [AvaloniaFact]
+    public async Task WorkspaceShellView_TabClose_ClearsTabOnceActiveElement_FromClosedContent()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        EnsureFluentTheme();
+
+        var root = CreateRoot();
+        var closed = new TestTabPage("Closed");
+        var remaining = new TestTabPage("Remaining");
+        root.Workspace.OpenOrFocus(closed);
+        root.Workspace.OpenOrFocus(remaining);
+        var view = new WorkspaceShellView
+        {
+            DataContext = root,
+        };
+
+        await using var mounted = await MountAsync(view);
+
+        var tabContentHost = view.FindControl<ItemsControl>("TabContentHost")!;
+        var closedContainer = FindTabContentContainer(tabContentHost, closed);
+        var cachedElement = Assert.IsAssignableFrom<InputElement>(
+            closedContainer.GetVisualDescendants().OfType<Control>().First());
+        KeyboardNavigation.SetTabOnceActiveElement(tabContentHost, cachedElement);
+
+        root.Workspace.CloseTab(closed, rememberForRestore: false);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Null(KeyboardNavigation.GetTabOnceActiveElement(tabContentHost));
+    }
+
+    [AvaloniaFact]
+    public async Task WorkspaceShellView_TabClose_PreservesTabOnceActiveElement_FromRemainingContent()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        EnsureFluentTheme();
+
+        var root = CreateRoot();
+        var closed = new TestTabPage("Closed");
+        var remaining = new TestTabPage("Remaining");
+        root.Workspace.OpenOrFocus(closed);
+        root.Workspace.OpenOrFocus(remaining);
+        var view = new WorkspaceShellView
+        {
+            DataContext = root,
+        };
+
+        await using var mounted = await MountAsync(view);
+
+        var tabContentHost = view.FindControl<ItemsControl>("TabContentHost")!;
+        var remainingContainer = FindTabContentContainer(tabContentHost, remaining);
+        var cachedElement = Assert.IsAssignableFrom<InputElement>(
+            remainingContainer.GetVisualDescendants().OfType<Control>().First());
+        KeyboardNavigation.SetTabOnceActiveElement(tabContentHost, cachedElement);
+
+        root.Workspace.CloseTab(closed, rememberForRestore: false);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Same(cachedElement, KeyboardNavigation.GetTabOnceActiveElement(tabContentHost));
+    }
+
     private static void OpenTabsMaterializePanelPeersAndCloseTarget(
         WorkspaceShellView view,
         ShellWorkspaceViewModel workspace)
@@ -195,6 +258,16 @@ public class WorkspaceShellViewTests
         tabStripPanelPeer.GetChildren();
 
         workspace.CloseTab(target, rememberForRestore: false);
+    }
+
+    private static ContentPresenter FindTabContentContainer(
+        ItemsControl tabContentHost,
+        TabPageViewModelBase tab)
+    {
+        return Assert.Single(
+            tabContentHost.GetVisualDescendants().OfType<ContentPresenter>(),
+            presenter => ReferenceEquals(presenter.DataContext, tab) &&
+                         presenter.GetVisualParent() is Panel);
     }
 
     private static void FlushDispatcherSynchronously()

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Linq;
 using Avalonia;
@@ -57,6 +58,8 @@ public partial class WorkspaceShellView : UserControl
     private double draggedTabOriginalOpacity = 1;
     private bool isTabDragInProgress;
     private bool isTabDragFeedbackVisible;
+    private bool isAttached;
+    private ShellWorkspaceViewModel? subscribedWorkspace;
 
     public WorkspaceShellView()
     {
@@ -82,6 +85,85 @@ public partial class WorkspaceShellView : UserControl
         // Force the panel peer to recompute on removal so the dead subtree is released.
         TabControl.ContainerClearing += OnTabContainerClearing;
         TabContentHost.ContainerClearing += OnTabContainerClearing;
+        AttachedToVisualTree += OnAttachedToVisualTree;
+        DetachedFromVisualTree += OnDetachedFromVisualTree;
+        DataContextChanged += OnDataContextChanged;
+    }
+
+    private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        isAttached = true;
+        SubscribeToWorkspace(Workspace);
+    }
+
+    private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        isAttached = false;
+        SubscribeToWorkspace(null);
+    }
+
+    private void OnDataContextChanged(object? sender, EventArgs e)
+    {
+        if (isAttached)
+        {
+            SubscribeToWorkspace(Workspace);
+        }
+    }
+
+    private void SubscribeToWorkspace(ShellWorkspaceViewModel? workspace)
+    {
+        if (ReferenceEquals(subscribedWorkspace, workspace))
+        {
+            return;
+        }
+
+        if (subscribedWorkspace is not null)
+        {
+            subscribedWorkspace.Tabs.CollectionChanged -= OnWorkspaceTabsChanged;
+        }
+
+        subscribedWorkspace = workspace;
+        if (subscribedWorkspace is not null)
+        {
+            subscribedWorkspace.Tabs.CollectionChanged += OnWorkspaceTabsChanged;
+        }
+    }
+
+    private void OnWorkspaceTabsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action is not (NotifyCollectionChangedAction.Remove or
+            NotifyCollectionChangedAction.Replace or
+            NotifyCollectionChangedAction.Reset))
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(ClearDetachedTabOnceActiveElement, DispatcherPriority.Background);
+    }
+
+    private void ClearDetachedTabOnceActiveElement()
+    {
+        if (!isAttached ||
+            KeyboardNavigation.GetTabOnceActiveElement(TabContentHost) is not { } activeElement ||
+            IsInsideTabContentHost(activeElement))
+        {
+            return;
+        }
+
+        KeyboardNavigation.SetTabOnceActiveElement(TabContentHost, null);
+    }
+
+    private bool IsInsideTabContentHost(IInputElement element)
+    {
+        for (var visual = element as Visual; visual is not null; visual = visual.GetVisualParent())
+        {
+            if (ReferenceEquals(visual, TabContentHost))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void OnTabContainerClearing(object? sender, ContainerClearingEventArgs e)
