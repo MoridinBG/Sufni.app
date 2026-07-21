@@ -9,10 +9,13 @@ internal sealed class SingleFlightLruCache<TKey, TValue>
     where TKey : notnull
 {
     private readonly int capacity;
+    private readonly long? maximumWeight;
+    private readonly Func<TValue, long>? valueWeight;
     private readonly Func<TKey, TValue>? factory;
     private readonly System.Threading.Lock gate = new();
     private readonly Dictionary<EntryKey, LinkedListNode<Entry>> entries = new();
     private readonly LinkedList<Entry> lru = new();
+    private long retainedWeight;
 
     public SingleFlightLruCache(int capacity)
     {
@@ -25,6 +28,15 @@ internal sealed class SingleFlightLruCache<TKey, TValue>
         : this(capacity)
     {
         this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
+    }
+
+    public SingleFlightLruCache(int capacity, long maximumWeight, Func<TValue, long> valueWeight)
+        : this(capacity)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumWeight);
+
+        this.maximumWeight = maximumWeight;
+        this.valueWeight = valueWeight ?? throw new ArgumentNullException(nameof(valueWeight));
     }
 
     public TValue GetOrAdd(TKey key)
@@ -67,7 +79,9 @@ internal sealed class SingleFlightLruCache<TKey, TValue>
 
         try
         {
-            return lazy.Value;
+            var value = lazy.Value;
+            CompleteValue(entryKey, lazy, value);
+            return value;
         }
         catch
         {
@@ -172,8 +186,7 @@ internal sealed class SingleFlightLruCache<TKey, TValue>
                 var next = node.Next;
                 if (predicate(node.Value.Key))
                 {
-                    lru.Remove(node);
-                    entries.Remove(node.Value.CacheKey);
+                    RemoveNodeLocked(node);
                 }
 
                 node = next;
@@ -187,6 +200,7 @@ internal sealed class SingleFlightLruCache<TKey, TValue>
         {
             entries.Clear();
             lru.Clear();
+            retainedWeight = 0;
         }
     }
 
@@ -194,17 +208,124 @@ internal sealed class SingleFlightLruCache<TKey, TValue>
     {
         while (entries.Count > capacity && lru.Last is { } tail)
         {
-            lru.RemoveLast();
-            entries.Remove(tail.Value.CacheKey);
+            RemoveNodeLocked(tail);
+        }
+
+        while (maximumWeight is { } weightLimit && retainedWeight > weightLimit)
+        {
+            var weightedTail = lru.Last;
+            while (weightedTail is not null && !weightedTail.Value.WeightApplied)
+            {
+                weightedTail = weightedTail.Previous;
+            }
+
+            if (weightedTail is null)
+            {
+                break;
+            }
+
+            RemoveNodeLocked(weightedTail);
         }
     }
 
     private void RemoveLocked(EntryKey entryKey)
     {
-        if (entries.Remove(entryKey, out var node))
+        if (entries.TryGetValue(entryKey, out var node))
         {
-            lru.Remove(node);
+            RemoveNodeLocked(node);
         }
+    }
+
+    private void RemoveNodeLocked(LinkedListNode<Entry> node)
+    {
+        lru.Remove(node);
+        entries.Remove(node.Value.CacheKey);
+        if (node.Value.WeightApplied)
+        {
+            retainedWeight -= node.Value.Weight;
+        }
+    }
+
+    private void CompleteValue(EntryKey entryKey, Lazy<TValue> lazy, TValue value)
+    {
+        if (valueWeight is null)
+        {
+            return;
+        }
+
+        lock (gate)
+        {
+            if (!entries.TryGetValue(entryKey, out var node) || !ReferenceEquals(node.Value.SyncValue, lazy))
+            {
+                return;
+            }
+
+            try
+            {
+                ApplyWeightLocked(node, GetValueWeight(value));
+            }
+            catch
+            {
+                RemoveNodeLocked(node);
+                throw;
+            }
+        }
+    }
+
+    private void CompleteAsyncValue(EntryKey entryKey, Lazy<Task<TValue>> lazy, TValue value)
+    {
+        if (valueWeight is null)
+        {
+            return;
+        }
+
+        lock (gate)
+        {
+            if (!entries.TryGetValue(entryKey, out var node) || !ReferenceEquals(node.Value.AsyncValue, lazy))
+            {
+                return;
+            }
+
+            try
+            {
+                ApplyWeightLocked(node, GetValueWeight(value));
+            }
+            catch
+            {
+                RemoveNodeLocked(node);
+                throw;
+            }
+        }
+    }
+
+    private long GetValueWeight(TValue value)
+    {
+        var weight = valueWeight!(value);
+        if (weight < 0)
+        {
+            throw new InvalidOperationException("A cache value weight cannot be negative.");
+        }
+
+        return weight;
+    }
+
+    private void ApplyWeightLocked(LinkedListNode<Entry> node, long weight)
+    {
+        if (node.Value.WeightApplied)
+        {
+            return;
+        }
+
+        if (maximumWeight is { } weightLimit && weight > weightLimit)
+        {
+            RemoveNodeLocked(node);
+            return;
+        }
+
+        node.Value.Weight = weight;
+        node.Value.WeightApplied = true;
+        retainedWeight += weight;
+        EvictOverflow();
     }
 
     private void RemoveFailedValue(EntryKey entryKey, Lazy<TValue> lazy)
@@ -213,8 +334,7 @@ internal sealed class SingleFlightLruCache<TKey, TValue>
         {
             if (entries.TryGetValue(entryKey, out var node) && ReferenceEquals(node.Value.SyncValue, lazy))
             {
-                lru.Remove(node);
-                entries.Remove(entryKey);
+                RemoveNodeLocked(node);
             }
         }
     }
@@ -225,8 +345,7 @@ internal sealed class SingleFlightLruCache<TKey, TValue>
         {
             if (entries.TryGetValue(entryKey, out var node) && ReferenceEquals(node.Value.AsyncValue, lazy))
             {
-                lru.Remove(node);
-                entries.Remove(entryKey);
+                RemoveNodeLocked(node);
             }
         }
     }
@@ -249,22 +368,25 @@ internal sealed class SingleFlightLruCache<TKey, TValue>
     {
         var task = valueFactory(entryKey.Key, CancellationToken.None) ??
                    throw new InvalidOperationException("The value factory returned a null task.");
-        _ = task.ContinueWith(
-            static (completedTask, state) =>
-            {
-                if (!completedTask.IsCanceled && !completedTask.IsFaulted)
-                {
-                    return;
-                }
+        return ObserveAsyncValue(entryKey, lazy, task);
+    }
 
-                var failure = (AsyncFailureState)state!;
-                failure.Cache.RemoveFailedAsyncValue(failure.EntryKey, failure.Lazy);
-            },
-            new AsyncFailureState(this, entryKey, lazy),
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
-        return task;
+    private async Task<TValue> ObserveAsyncValue(
+        EntryKey entryKey,
+        Lazy<Task<TValue>> lazy,
+        Task<TValue> task)
+    {
+        try
+        {
+            var value = await task.ConfigureAwait(false);
+            CompleteAsyncValue(entryKey, lazy, value);
+            return value;
+        }
+        catch
+        {
+            RemoveFailedAsyncValue(entryKey, lazy);
+            throw;
+        }
     }
 
     private enum EntryKind
@@ -275,21 +397,23 @@ internal sealed class SingleFlightLruCache<TKey, TValue>
 
     private readonly record struct EntryKey(EntryKind Kind, TKey Key);
 
-    private sealed record Entry(
-        EntryKey CacheKey,
-        TKey Key,
-        Lazy<TValue>? SyncValue,
-        Lazy<Task<TValue>>? AsyncValue)
+    private sealed class Entry(
+        EntryKey cacheKey,
+        TKey key,
+        Lazy<TValue>? syncValue,
+        Lazy<Task<TValue>>? asyncValue)
     {
+        public EntryKey CacheKey { get; } = cacheKey;
+        public TKey Key { get; } = key;
+        public Lazy<TValue>? SyncValue { get; } = syncValue;
+        public Lazy<Task<TValue>>? AsyncValue { get; } = asyncValue;
+        public long Weight { get; set; }
+        public bool WeightApplied { get; set; }
+
         public static Entry CreateSync(EntryKey cacheKey, Lazy<TValue> value) =>
-            new(cacheKey, cacheKey.Key, value, AsyncValue: null);
+            new(cacheKey, cacheKey.Key, value, asyncValue: null);
 
         public static Entry CreateAsync(EntryKey cacheKey, Lazy<Task<TValue>> value) =>
-            new(cacheKey, cacheKey.Key, SyncValue: null, value);
+            new(cacheKey, cacheKey.Key, syncValue: null, asyncValue: value);
     }
-
-    private sealed record AsyncFailureState(
-        SingleFlightLruCache<TKey, TValue> Cache,
-        EntryKey EntryKey,
-        Lazy<Task<TValue>> Lazy);
 }

@@ -28,6 +28,29 @@ public class FullTrackPointReaderTests
     }
 
     [Fact]
+    public async Task GetTrackPointsAsync_DoesNotRetainPayloadOverPointBudget()
+    {
+        var trackId = Guid.NewGuid();
+        var first = Points(1);
+        var second = Points(2);
+        var trackRepository = Substitute.For<ITrackRepository>();
+        trackRepository.GetTrackPayloadMetadataAsync(trackId)
+            .Returns(new TrackPayloadMetadata(trackId, Updated: 5));
+        trackRepository.GetTrackPayloadAsync(trackId, updated: 5)
+            .Returns(
+                new TrackPayload(trackId, Updated: 5, first),
+                new TrackPayload(trackId, Updated: 5, second));
+        var reader = new FullTrackPointReader(trackRepository, capacity: 8, pointBudget: 1);
+
+        var firstRead = await reader.GetTrackPointsAsync(trackId);
+        var secondRead = await reader.GetTrackPointsAsync(trackId);
+
+        Assert.Same(first, firstRead);
+        Assert.Same(second, secondRead);
+        await trackRepository.Received(2).GetTrackPayloadAsync(trackId, updated: 5);
+    }
+
+    [Fact]
     public async Task GetTrackPointsAsync_LoadsNewPayloadWhenUpdatedTimestampChanges()
     {
         var trackId = Guid.NewGuid();

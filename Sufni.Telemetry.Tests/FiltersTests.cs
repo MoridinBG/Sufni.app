@@ -44,6 +44,68 @@ public class FiltersTests
     }
 
     [Fact]
+    public void Create_EvictsLeastRecentlyUsedFilter_ToStayWithinCoefficientBudget()
+    {
+        var mostRecent = SavitzkyGolay.Create(1001, 0, 0);
+        var leastRecent = SavitzkyGolay.Create(1001, 0, 1);
+        Assert.Same(mostRecent, SavitzkyGolay.Create(1001, 0, 0));
+
+        _ = SavitzkyGolay.Create(307, 0, 0);
+
+        Assert.Same(mostRecent, SavitzkyGolay.Create(1001, 0, 0));
+        Assert.NotSame(leastRecent, SavitzkyGolay.Create(1001, 0, 1));
+    }
+
+    [Fact]
+    public void Create_DoesNotRetainFilterLargerThanCoefficientBudget()
+    {
+        var first = SavitzkyGolay.Create(1449, 0, 0);
+        var second = SavitzkyGolay.Create(1449, 0, 0);
+
+        Assert.NotSame(first, second);
+    }
+
+    [Fact]
+    public async Task Create_JoinsConcurrentOversizeRequests_WithoutRetainingResult()
+    {
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var tasks = Enumerable.Range(0, 16)
+            .Select(_ => Task.Run(async () =>
+            {
+                await start.Task;
+                return SavitzkyGolay.Create(1449, 0, 1);
+            }))
+            .ToArray();
+
+        start.SetResult();
+        var filters = await Task.WhenAll(tasks);
+        var afterCompletion = SavitzkyGolay.Create(1449, 0, 1);
+
+        Assert.True(
+            filters.Distinct(ReferenceEqualityComparer.Instance).Count() < filters.Length,
+            "Concurrent oversize requests should share in-flight construction.");
+        Assert.NotSame(filters[0], afterCompletion);
+    }
+
+    [Fact]
+    public async Task Create_JoinsConcurrentSameKeyRequests()
+    {
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var tasks = Enumerable.Range(0, 8)
+            .Select(_ => Task.Run(async () =>
+            {
+                await start.Task;
+                return SavitzkyGolay.Create(225, 0, 1);
+            }))
+            .ToArray();
+
+        start.SetResult();
+        var filters = await Task.WhenAll(tasks);
+
+        Assert.All(filters, filter => Assert.Same(filters[0], filter));
+    }
+
+    [Fact]
     public void Process_WithDataShorterThanWindow_ThrowsArgumentException()
     {
         var filter = SavitzkyGolay.Create(11, 0, 2);

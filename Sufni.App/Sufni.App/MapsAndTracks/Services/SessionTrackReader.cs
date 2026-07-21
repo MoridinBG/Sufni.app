@@ -21,6 +21,7 @@ public interface ISessionTrackReader
 internal sealed class SessionTrackReader : ISessionTrackReader, IDisposable
 {
     private const int DefaultCapacity = 64;
+    private const long DefaultPointBudget = 145_000;
 
     private readonly ISessionRepository sessionRepository;
     private readonly SingleFlightLruCache<SessionTrackCacheKey, IReadOnlyList<TrackPoint>?> cache;
@@ -28,17 +29,21 @@ internal sealed class SessionTrackReader : ISessionTrackReader, IDisposable
     private bool disposed;
 
     public SessionTrackReader(ISessionRepository sessionRepository, ISessionStore sessionStore)
-        : this(sessionRepository, sessionStore, DefaultCapacity)
+        : this(sessionRepository, sessionStore, DefaultCapacity, DefaultPointBudget)
     {
     }
 
     internal SessionTrackReader(
         ISessionRepository sessionRepository,
         ISessionStore sessionStore,
-        int capacity)
+        int capacity,
+        long pointBudget = DefaultPointBudget)
     {
         this.sessionRepository = sessionRepository;
-        cache = new SingleFlightLruCache<SessionTrackCacheKey, IReadOnlyList<TrackPoint>?>(capacity);
+        cache = new SingleFlightLruCache<SessionTrackCacheKey, IReadOnlyList<TrackPoint>?>(
+            capacity,
+            pointBudget,
+            static points => points?.Count ?? 0);
         sessionSubscription = sessionStore.Connect().Subscribe(ApplySessionChanges);
     }
 

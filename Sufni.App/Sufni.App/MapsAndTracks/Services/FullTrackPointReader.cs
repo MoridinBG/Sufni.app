@@ -17,19 +17,26 @@ public interface IFullTrackPointReader
 internal sealed class FullTrackPointReader : IFullTrackPointReader
 {
     private const int DefaultCapacity = 64;
+    private const long DefaultPointBudget = 145_000;
 
     private readonly ITrackRepository trackRepository;
     private readonly SingleFlightLruCache<FullTrackPointCacheKey, IReadOnlyList<TrackPoint>?> cache;
 
     public FullTrackPointReader(ITrackRepository trackRepository)
-        : this(trackRepository, DefaultCapacity)
+        : this(trackRepository, DefaultCapacity, DefaultPointBudget)
     {
     }
 
-    internal FullTrackPointReader(ITrackRepository trackRepository, int capacity)
+    internal FullTrackPointReader(
+        ITrackRepository trackRepository,
+        int capacity,
+        long pointBudget = DefaultPointBudget)
     {
         this.trackRepository = trackRepository;
-        cache = new SingleFlightLruCache<FullTrackPointCacheKey, IReadOnlyList<TrackPoint>?>(capacity);
+        cache = new SingleFlightLruCache<FullTrackPointCacheKey, IReadOnlyList<TrackPoint>?>(
+            capacity,
+            pointBudget,
+            static points => points?.Count ?? 0);
     }
 
     public async Task<IReadOnlyList<TrackPoint>?> GetTrackPointsAsync(

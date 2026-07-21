@@ -26,6 +26,158 @@ public class SingleFlightLruCacheTests
     }
 
     [Fact]
+    public void GetOrAdd_EvictsByWeight_AndPreservesRecentEntry()
+    {
+        var calls = new Dictionary<int, int>();
+        var cache = new SingleFlightLruCache<int, int>(
+            capacity: 8,
+            maximumWeight: 6,
+            valueWeight: static value => value);
+
+        int Create(int key)
+        {
+            calls[key] = calls.GetValueOrDefault(key) + 1;
+            return key;
+        }
+
+        var first = cache.GetOrAdd(2, Create);
+        var leastRecent = cache.GetOrAdd(3, Create);
+        Assert.Equal(first, cache.GetOrAdd(2, Create));
+        _ = cache.GetOrAdd(4, Create);
+        var firstAgain = cache.GetOrAdd(2, Create);
+        var reloaded = cache.GetOrAdd(3, Create);
+
+        Assert.Equal(first, firstAgain);
+        Assert.Equal(leastRecent, reloaded);
+        Assert.Equal(1, calls[2]);
+        Assert.Equal(2, calls[3]);
+    }
+
+    [Fact]
+    public void GetOrAdd_ZeroWeightValuesRemainEntryBounded()
+    {
+        var calls = 0;
+        var cache = new SingleFlightLruCache<int, int>(
+            capacity: 2,
+            maximumWeight: 10,
+            valueWeight: static _ => 0);
+
+        int Create(int _) => Interlocked.Increment(ref calls);
+
+        _ = cache.GetOrAdd(1, Create);
+        _ = cache.GetOrAdd(2, Create);
+        _ = cache.GetOrAdd(3, Create);
+        _ = cache.GetOrAdd(1, Create);
+
+        Assert.Equal(4, calls);
+    }
+
+    [Fact]
+    public async Task GetOrAddAsync_SharesOversizeValueWithCurrentWaiters_WithoutRetainingIt()
+    {
+        var factoryEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFactory = new TaskCompletionSource<List<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        var cache = new SingleFlightLruCache<int, List<int>>(
+            capacity: 8,
+            maximumWeight: 3,
+            valueWeight: static value => value.Count);
+
+        Task<List<int>> Factory(int _, CancellationToken __)
+        {
+            Interlocked.Increment(ref calls);
+            factoryEntered.TrySetResult();
+            return releaseFactory.Task;
+        }
+
+        var firstRead = cache.GetOrAddAsync(1, Factory);
+        var secondRead = cache.GetOrAddAsync(1, Factory);
+        await factoryEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var oversize = new List<int> { 1, 2, 3, 4 };
+        releaseFactory.SetResult(oversize);
+        var shared = await Task.WhenAll(firstRead, secondRead);
+        var rebuilt = await cache.GetOrAddAsync(
+            1,
+            (_, _) =>
+            {
+                Interlocked.Increment(ref calls);
+                return Task.FromResult(new List<int> { 5, 6, 7, 8 });
+            });
+
+        Assert.All(shared, value => Assert.Same(oversize, value));
+        Assert.NotSame(oversize, rebuilt);
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public async Task GetOrAddAsync_WeightEvictionSkipsInFlightEntries()
+    {
+        var slowEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseSlow = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var slowCalls = 0;
+        var heavyCalls = 0;
+        var cache = new SingleFlightLruCache<int, int>(
+            capacity: 8,
+            maximumWeight: 10,
+            valueWeight: static value => value);
+
+        var slow = cache.GetOrAddAsync(
+            2,
+            (_, _) =>
+            {
+                Interlocked.Increment(ref slowCalls);
+                slowEntered.TrySetResult();
+                return releaseSlow.Task;
+            });
+        await slowEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        _ = await cache.GetOrAddAsync(
+            1,
+            (_, _) =>
+            {
+                Interlocked.Increment(ref heavyCalls);
+                return Task.FromResult(10);
+            });
+        _ = await cache.GetOrAddAsync(3, (_, _) => Task.FromResult(1));
+
+        releaseSlow.SetResult(1);
+        var slowValue = await slow;
+        var slowAgain = await cache.GetOrAddAsync(2, (_, _) => Task.FromResult(99));
+        _ = await cache.GetOrAddAsync(
+            1,
+            (_, _) =>
+            {
+                Interlocked.Increment(ref heavyCalls);
+                return Task.FromResult(10);
+            });
+
+        Assert.Equal(1, slowValue);
+        Assert.Equal(slowValue, slowAgain);
+        Assert.Equal(1, slowCalls);
+        Assert.Equal(2, heavyCalls);
+    }
+
+    [Fact]
+    public async Task GetOrAddAsync_DoesNotRetainValue_WhenWeightCalculationFails()
+    {
+        var calls = 0;
+        var cache = new SingleFlightLruCache<int, int>(
+            capacity: 8,
+            maximumWeight: 10,
+            valueWeight: static _ => throw new InvalidOperationException("weight"));
+
+        Task<int> Factory(int _, CancellationToken __)
+        {
+            Interlocked.Increment(ref calls);
+            return Task.FromResult(1);
+        }
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => cache.GetOrAddAsync(1, Factory));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => cache.GetOrAddAsync(1, Factory));
+
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
     public async Task GetOrAdd_JoinsConcurrentSameKeyMisses()
     {
         var factoryEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

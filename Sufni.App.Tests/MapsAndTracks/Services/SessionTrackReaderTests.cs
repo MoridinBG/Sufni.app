@@ -32,6 +32,28 @@ public class SessionTrackReaderTests
     }
 
     [Fact]
+    public async Task GetSessionTrackAsync_EvictsByPointWeight()
+    {
+        var sessionId = Guid.NewGuid();
+        var first = Points(1);
+        var second = Points(2);
+        var reloaded = Points(3);
+        var sessionRepository = Substitute.For<ISessionRepository>();
+        sessionRepository.GetSessionTrackAsync(sessionId).Returns(first, second, reloaded);
+        using var source = new SourceCache<SessionSnapshot, Guid>(snapshot => snapshot.Id);
+        var sessionStore = CreateSessionStore(source);
+        using var reader = new SessionTrackReader(sessionRepository, sessionStore, capacity: 8, pointBudget: 3);
+
+        var firstRead = await reader.GetSessionTrackAsync(sessionId, sessionUpdated: 10);
+        _ = await reader.GetSessionTrackAsync(sessionId, sessionUpdated: 11);
+        var repeatedRead = await reader.GetSessionTrackAsync(sessionId, sessionUpdated: 10);
+
+        Assert.Same(first, firstRead);
+        Assert.Same(reloaded, repeatedRead);
+        await sessionRepository.Received(3).GetSessionTrackAsync(sessionId);
+    }
+
+    [Fact]
     public async Task StoreChanges_EvictOnlyWhenTrackRelevantFieldsChange()
     {
         var sessionId = Guid.NewGuid();
