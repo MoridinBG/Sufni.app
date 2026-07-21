@@ -5,5 +5,16 @@
     <SufniPrivateExtensionsProps>$(SufniPrivateExtensionsRoot)Directory.Private.props</SufniPrivateExtensionsProps>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(SufniEnableProfilingDiagnostics)' == 'true'">
+    <DefineConstants>$(DefineConstants);SUFNI_PROFILING_DIAGNOSTICS</DefineConstants>
+    <SufniProfilingProject Condition="'$(SufniProfilingProject)' == ''">$(MSBuildThisFileDirectory)../profiling/Sufni.Profiling/Sufni.Profiling.csproj</SufniProfilingProject>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(SufniEnableProfilingDiagnostics)' == 'true' and
+                        ('$(MSBuildProjectName)' == 'Sufni.App' or
+                         '$(MSBuildProjectName)' == 'Sufni.App.macOS')">
+    <ProjectReference Include="$(SufniProfilingProject)" />
+  </ItemGroup>
+
   <Import Project="$(SufniPrivateExtensionsProps)" Condition="Exists('$(SufniPrivateExtensionsProps)')" />
 </Project>

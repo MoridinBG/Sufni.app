@@ -6,15 +6,30 @@ namespace Sufni.App.Infrastructure;
 
 public static class AppPaths
 {
-    public static string AppDataDirectory { get; } = Path.Combine(
+    private static string appDataDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Sufni.App");
 
-    public static string DatabasePath { get; } = Path.Combine(AppDataDirectory, "sst.db");
+    public static string AppDataDirectory => appDataDirectory;
 
-    public static string LogsDirectory { get; } = Path.Combine(AppDataDirectory, "logs");
+    public static string DatabasePath => Path.Combine(AppDataDirectory, "sst.db");
 
-    public static string CertificatePath { get; } = Path.Combine(AppDataDirectory, "certificate.pfx");
+    public static string LogsDirectory => Path.Combine(AppDataDirectory, "logs");
+
+    public static string CertificatePath => Path.Combine(AppDataDirectory, "certificate.pfx");
+
+#if SUFNI_PROFILING_DIAGNOSTICS
+    public static void UseProfilingAppDataDirectory(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        if (!Path.IsPathFullyQualified(path))
+        {
+            throw new ArgumentException("Profiling app-data path must be absolute.", nameof(path));
+        }
+
+        appDataDirectory = Path.GetFullPath(path);
+    }
+#endif
 
     public static void CreateRequiredDirectories()
     {

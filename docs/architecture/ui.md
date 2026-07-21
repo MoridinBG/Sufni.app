@@ -126,6 +126,18 @@ Thread ownership is explicit:
   calls `MapViewModel.InitializeAsync()` only the first time the map state
   reserves layout (`SurfacePresentationState.ReservesLayout`); `Hidden` map
   state does not initialize the map.
+- On macOS, `MainWindow` returns an inert window automation peer
+  (`InertWindowAutomationPeer`): it has no automation children and stops
+  advertising `IRootProvider`. The native bridge otherwise materializes peers
+  through two root-provider paths that bypass tree descent —
+  `RootProvider_GetFocus` (every focus change once an AX client has touched the
+  window) and `RootProvider_GetPeerFromPoint` (AX hit-testing) — and every
+  materialized peer is permanently retained by an element/node ownership cycle
+  in `Avalonia.Native`. Hiding `IRootProvider` fails the bridge's
+  `IsRootProvider()` guards on both paths, so no Avalonia control below the
+  window can be materialized. This intentionally makes the application
+  inaccessible to macOS accessibility clients; remove the workaround once the
+  upstream lifecycle is fixed.
 
 ### Cancellation & Result Coherence
 

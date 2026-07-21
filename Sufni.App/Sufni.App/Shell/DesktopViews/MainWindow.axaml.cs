@@ -1,4 +1,6 @@
+using System;
 using System.Linq;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
@@ -25,6 +27,20 @@ public partial class MainWindow : Window
             RoutingStrategies.Bubble,
             handledEventsToo: true);
     }
+
+    // WARNING: This intentionally disables the entire Avalonia accessibility tree on macOS.
+    // VoiceOver, Accessibility Inspector, and accessibility-driven UI automation cannot inspect
+    // any Sufni control while this workaround is active. Remove it as soon as Avalonia.Native
+    // provides a safe peer/node detach lifecycle.
+    //
+    // The macOS accessibility bridge permanently retains every automation peer it
+    // materializes (element/node ownership cycle in Avalonia.Native), which keeps
+    // closed session content alive. An inert peer keeps AX clients from reaching
+    // any descendant peer through tree descent, focus queries, or hit-testing.
+    protected override AutomationPeer OnCreateAutomationPeer() =>
+        OperatingSystem.IsMacOS()
+            ? new InertWindowAutomationPeer(this)
+            : base.OnCreateAutomationPeer();
 
     private void DisposeRawTabShortcutHandling()
     {

@@ -1,4 +1,6 @@
 using Avalonia;
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
@@ -226,6 +228,34 @@ public class MainWindowTests
             bracketShortcut.Key,
             bracketShortcut.KeyModifiers));
         Assert.Same(first, root.Workspace.CurrentTab);
+    }
+
+    [AvaloniaFact]
+    public async Task MainWindow_AutomationPeer_BlocksDescentFocusAndHitTest_OnMacOS()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+
+        await using var mounted = await MountAsync(new MainWindow
+        {
+            DataContext = CreateRoot(),
+            Width = 900,
+            Height = 700,
+        });
+
+        var peer = ControlAutomationPeer.CreatePeerForElement(mounted.Window);
+
+        if (OperatingSystem.IsMacOS())
+        {
+            Assert.IsType<InertWindowAutomationPeer>(peer);
+            Assert.Empty(peer.GetChildren());
+            Assert.Null(peer.GetProvider<IRootProvider>());
+        }
+        else
+        {
+            Assert.IsNotType<InertWindowAutomationPeer>(peer);
+            Assert.NotNull(peer.GetProvider<IRootProvider>());
+        }
     }
 
     private static async Task<MountedMainWindow> MountAsync(MainWindow window)
