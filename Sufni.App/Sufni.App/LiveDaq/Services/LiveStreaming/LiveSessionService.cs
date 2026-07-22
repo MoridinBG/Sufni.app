@@ -1295,7 +1295,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             return null;
         }
 
-        RawImuDataSegmentHelper.PopulateDenseRecordsFromAlignedSegments(imuData, snapshot.StreamGaps);
+        RawImuDataSegmentHelper.FinalizeCanonicalSegments(imuData, snapshot.StreamGaps);
         return imuData;
     }
 

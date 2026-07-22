@@ -266,7 +266,7 @@ public class SstV5ParserTests
     }
 
     [Fact]
-    public void Parse_DenseImu_CreatesMetaSegmentsActiveLocationsAndCompatibilityRecords()
+    public void Parse_DenseImu_CreatesCanonicalSegmentsWithoutDenseDuplicate()
     {
         using var stream = SstV5TestFiles.CreateStream(
             chunks:
@@ -295,10 +295,10 @@ public class SstV5ParserTests
         Assert.Equal([0, 1], result.ImuData.ActiveLocations);
         Assert.Equal(2, result.ImuData.Meta.Count);
         Assert.Equal(2, result.ImuData.Segments.Count);
-        Assert.Equal(2, result.ImuData.Records.Count);
+        Assert.Empty(result.ImuData.Records);
         Assert.False(result.ImuData.HasGaps);
-        Assert.Equal(1, result.ImuData.Records[0].Ax);
-        Assert.Equal(7, result.ImuData.Records[1].Ax);
+        Assert.Equal(1, result.ImuData.Segments[0].Records[0].Ax);
+        Assert.Equal(7, result.ImuData.Segments[1].Records[0].Ax);
     }
 
     [Fact]

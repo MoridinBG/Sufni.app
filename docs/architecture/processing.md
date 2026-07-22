@@ -89,9 +89,9 @@ TelemetryData
 │   └── Segments[] (FirstDenseIndex, FirstSourceIndex, StartSeconds, SampleCount), HasGaps
 ├── Rear: Suspension (same structure)
 ├── Airtimes[] (Start, End in seconds)
-├── ImuData: RawImuData? (V4 only)
-├── GpsData: GpsRecord[]? (V4 only)
-├── Markers: MarkerData[] (V4 only)
+├── ImuData: RawImuData? (v4/v5/live capture)
+├── GpsData: GpsRecord[]? (v4/v5/live capture)
+├── Markers: MarkerData[] (v4/v5/live capture)
 ├── TemperatureAverages: TemperatureAverage[] (V4 temperature TLVs, averaged by location)
 ├── StreamGaps[] (stream/location/index/count/time/reason gap metadata)
 ├── FinalStatus: SstFinalStatus? (V5 stream/session stop status)
@@ -100,13 +100,15 @@ TelemetryData
 
 Suspension `Travel[]` and `Velocity[]` are always the flat dense processed arrays for that side. `ProcessedSuspensionSegment` stores a range over those arrays (`FirstDenseIndex`, `SampleCount`) plus the source timeline anchor (`FirstSourceIndex`, `StartSeconds`); per-segment travel/velocity arrays are no longer serialized. `SuspensionTimeSeriesSampler` samples segment-aware data by combining the segment range with the flat arrays. `TelemetryData.FromBinary(...)` normalizes old blobs whose segments predate `SampleCount`, inferring counts from the next segment's `FirstDenseIndex` or the flat array length so legacy dense and gapped data still samples correctly.
 
+`RawImuData` is written as compact encoding version 1: a six-field indexed array containing the version, sample rate, indexed metadata entries, binary active-location IDs, indexed per-location segments with six-value sample arrays, and `HasGaps`. New processed data serializes one segment/sample graph and never serializes the dense compatibility `Records` list. `RawImuDataFormatter` permanently reads both this compact shape and the legacy named-map dense-only, segment-only, and dense-plus-segment shapes; dense-only values are adapted through `SampleSegments` when rewritten.
+
 The serialized form is accessed via `TelemetryData.BinaryForm` and stored as a derived BLOB in the `session.data` column. The original recording source is persisted separately so the BLOB can be regenerated when processing inputs change.
 
 ### Recorded Session Derivation
 
 Recorded sessions have two durable data layers:
 
-- **Recording source** — `RecordedSessionSource` in `session_recording_source`, keyed by `session_id`. Imported SST sessions store compressed original SST bytes (`SourceKind = ImportedSst`). Saved live captures store a schema-versioned JSON payload (`SourceKind = LiveCapture`) containing capture metadata, raw front/rear measurements, IMU data, GPS data, and markers. The live-capture source deliberately excludes `BikeData`; calibration is resolved again from the current setup and bike when the source is processed.
+- **Recording source** — `RecordedSessionSource` in `session_recording_source`, keyed by `session_id`. Imported SST sessions store compressed original SST bytes (`SourceKind = ImportedSst`). Saved live captures keep source schema version 1 and store a JSON payload (`SourceKind = LiveCapture`) containing capture metadata, raw front/rear segments, segment-only IMU data, GPS data, and markers. Old schema-v1 payloads with flat travel or dense IMU records remain readable. The live-capture source deliberately excludes `BikeData`; calibration is resolved again from the current setup and bike when the source is processed.
 - **Processed telemetry** — MessagePack `TelemetryData` in `session.data`, derived from the recording source plus the current setup/bike calibration and the current `TelemetryProcessingVersion`.
 - **Derivation window** — optional extension-owned state saying that a
   session derives from `[StartSeconds, EndSeconds)` of `SourceSessionId`'s

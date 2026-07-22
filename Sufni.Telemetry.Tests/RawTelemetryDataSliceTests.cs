@@ -273,7 +273,7 @@ public class RawTelemetryDataSliceTests
     }
 
     [Fact]
-    public void Slice_SegmentedImu_RebasesSegmentsAndDenseRecords()
+    public void Slice_SegmentedImu_RebasesCanonicalSegmentsWithoutDenseDuplicate()
     {
         var raw = CreateRaw(sampleRate: 10, durationSeconds: 4);
         raw.ImuData = new RawImuData
@@ -304,9 +304,7 @@ public class RawTelemetryDataSliceTests
         });
         Assert.Equal(CreateImuRecord(5), result.ImuData.Segments[0].Records[0]);
         Assert.Equal(CreateImuRecord(105), result.ImuData.Segments[1].Records[0]);
-        Assert.Equal(20, result.ImuData.Records.Count);
-        Assert.Equal(CreateImuRecord(5), result.ImuData.Records[0]);
-        Assert.Equal(CreateImuRecord(105), result.ImuData.Records[1]);
+        Assert.Empty(result.ImuData.Records);
     }
 
     [Fact]

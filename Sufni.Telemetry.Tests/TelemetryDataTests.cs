@@ -342,8 +342,11 @@ public class TelemetryDataTests
         Assert.NotNull(result.ImuData);
         Assert.Equal(100, result.ImuData.SampleRate);
         Assert.Single(result.ImuData.Meta);
-        Assert.Single(result.ImuData.Records);
-        Assert.Equal(3, result.ImuData.Records[0].Az);
+        Assert.Empty(result.ImuData.Records);
+        Assert.Equal(1, result.ImuData.SampleSegments.Count);
+        var imuSegment = result.ImuData.SampleSegments[0];
+        Assert.Single(result.ImuData.Segments);
+        Assert.Equal(3, imuSegment[0].Az);
         Assert.Equal(2, result.TemperatureAverages.Length);
         Assert.Equal(0, result.TemperatureAverages[0].LocationId);
         Assert.Equal(22.5, result.TemperatureAverages[0].TemperatureCelsius);

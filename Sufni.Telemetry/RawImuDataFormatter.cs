@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Runtime.InteropServices;
 using MessagePack;
 using MessagePack.Formatters;
 
@@ -19,29 +20,77 @@ public sealed class RawImuDataFormatter : IMessagePackFormatter<RawImuData?>
             return;
         }
 
-        writer.WriteMapHeader(6);
-
-        writer.Write(nameof(RawImuData.Meta));
-        options.Resolver.GetFormatterWithVerify<List<ImuMetaEntry>>()
-            .Serialize(ref writer, value.Meta, options);
-
-        writer.Write(nameof(RawImuData.SampleRate));
+        writer.WriteArrayHeader(6);
+        writer.Write(CompactEncodingVersion);
         writer.Write(value.SampleRate);
-
-        writer.Write(nameof(RawImuData.Records));
-        options.Resolver.GetFormatterWithVerify<List<ImuRecord>>()
-            .Serialize(ref writer, value.Records, options);
-
-        writer.Write(nameof(RawImuData.ActiveLocations));
-        options.Resolver.GetFormatterWithVerify<List<byte>>()
-            .Serialize(ref writer, value.ActiveLocations, options);
-
-        writer.Write(nameof(RawImuData.Segments));
-        options.Resolver.GetFormatterWithVerify<List<RawImuSegment>>()
-            .Serialize(ref writer, value.Segments, options);
-
-        writer.Write(nameof(RawImuData.HasGaps));
+        WriteCompactMeta(ref writer, value.Meta);
+        var segments = value.SampleSegments;
+        WriteCompactActiveLocations(ref writer, value.ActiveLocations, segments);
+        WriteCompactSegments(ref writer, segments);
         writer.Write(value.HasGaps);
+    }
+
+    private static void WriteCompactMeta(
+        ref MessagePackWriter writer,
+        List<ImuMetaEntry> meta)
+    {
+        writer.WriteArrayHeader(meta.Count);
+        foreach (var entry in meta)
+        {
+            writer.WriteArrayHeader(3);
+            writer.Write(entry.LocationId);
+            writer.Write(entry.AccelLsbPerG);
+            writer.Write(entry.GyroLsbPerDps);
+        }
+    }
+
+    private static void WriteCompactActiveLocations(
+        ref MessagePackWriter writer,
+        List<byte> activeLocations,
+        ImuSampleSegmentCollection segments)
+    {
+        if (activeLocations.Count > 0)
+        {
+            writer.Write(CollectionsMarshal.AsSpan(activeLocations));
+            return;
+        }
+
+        Span<byte> derivedLocations = stackalloc byte[byte.MaxValue + 1];
+        var count = 0;
+        foreach (var segment in segments)
+        {
+            if (!derivedLocations[..count].Contains(segment.LocationId))
+            {
+                derivedLocations[count++] = segment.LocationId;
+            }
+        }
+
+        writer.Write(derivedLocations[..count]);
+    }
+
+    private static void WriteCompactSegments(
+        ref MessagePackWriter writer,
+        ImuSampleSegmentCollection segments)
+    {
+        writer.WriteArrayHeader(segments.Count);
+        foreach (var segment in segments)
+        {
+            writer.WriteArrayHeader(4);
+            writer.Write(segment.LocationId);
+            writer.Write(segment.FirstIndex);
+            writer.Write(segment.FirstMonotonicDeltaUs);
+            writer.WriteArrayHeader(segment.Count);
+            foreach (var sample in segment)
+            {
+                writer.WriteArrayHeader(6);
+                writer.Write(sample.Ax);
+                writer.Write(sample.Ay);
+                writer.Write(sample.Az);
+                writer.Write(sample.Gx);
+                writer.Write(sample.Gy);
+                writer.Write(sample.Gz);
+            }
+        }
     }
 
     public RawImuData? Deserialize(

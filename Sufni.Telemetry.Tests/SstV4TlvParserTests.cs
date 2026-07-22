@@ -31,8 +31,9 @@ public class SstV4TlvParserTests
         Assert.Equal(2.0 / 1000.0, result.Markers[0].TimestampOffset);
         Assert.NotNull(result.ImuData);
         Assert.Single(result.ImuData.Meta);
-        Assert.Single(result.ImuData.Records);
-        Assert.Equal(100, result.ImuData.Records[0].Ax);
+        Assert.Empty(result.ImuData.Records);
+        var segment = Assert.Single(result.ImuData.Segments);
+        Assert.Equal(100, segment.Records[0].Ax);
     }
 
     [Fact]

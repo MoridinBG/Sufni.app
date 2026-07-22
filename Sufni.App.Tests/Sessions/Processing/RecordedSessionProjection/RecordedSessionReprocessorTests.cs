@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using NSubstitute;
 using Sufni.App.Infrastructure;
@@ -353,7 +354,22 @@ public class RecordedSessionReprocessorTests
                 }
             ],
             RearSegments: [],
-            ImuData: null,
+            ImuData: new RawImuData
+            {
+                SampleRate = 100,
+                Meta = [new ImuMetaEntry(0, 16_384, 131)],
+                ActiveLocations = [0],
+                Segments =
+                [
+                    new RawImuSegment
+                    {
+                        LocationId = 0,
+                        FirstIndex = 0,
+                        FirstMonotonicDeltaUs = 0,
+                        Records = [new ImuRecord(1, 2, 3, 4, 5, 6)],
+                    }
+                ],
+            },
             GpsData: null,
             Markers: [],
             StreamGaps:
@@ -379,11 +395,21 @@ public class RecordedSessionReprocessorTests
 
         Assert.Contains("\"front_segments\"", sourceJson);
         Assert.DoesNotContain("\"front_measurements\"", sourceJson);
+        using var sourceDocument = JsonDocument.Parse(source.Payload);
+        var sourceImuRecords = sourceDocument.RootElement
+            .GetProperty("imu_data")
+            .GetProperty(nameof(RawImuData.Records));
+        Assert.Equal(0, sourceImuRecords.GetArrayLength());
         var telemetryData = result.ProcessedTelemetry.TelemetryData;
         Assert.Equal(5, telemetryData.Metadata.Version);
         Assert.True(telemetryData.Front.HasGaps);
         Assert.Single(telemetryData.StreamGaps);
         Assert.True(telemetryData.MissingFinalStatus);
+        var persistedTelemetry = TelemetryData.FromBinary(result.ProcessedTelemetry.Data);
+        Assert.NotNull(persistedTelemetry.ImuData);
+        Assert.Empty(persistedTelemetry.ImuData.Records);
+        Assert.Single(persistedTelemetry.ImuData.Segments);
+        Assert.Equal(1, persistedTelemetry.ImuData.Segments[0].Records[0].Ax);
     }
 
     [Fact]
@@ -403,7 +429,13 @@ public class RecordedSessionReprocessorTests
             },
             FrontMeasurements = Enumerable.Range(0, 64).Select(sample => (ushort)(1200 + sample)).ToArray(),
             RearMeasurements = [],
-            ImuData = null,
+            ImuData = new RawImuData
+            {
+                SampleRate = 100,
+                Meta = [new ImuMetaEntry(0, 16_384, 131)],
+                ActiveLocations = [0],
+                Records = [new ImuRecord(10, 20, 30, 40, 50, 60)],
+            },
             GpsData = null,
             Markers = []
         };
@@ -418,6 +450,11 @@ public class RecordedSessionReprocessorTests
         Assert.NotEmpty(telemetryData.Front.Travel);
         Assert.False(telemetryData.Front.HasGaps);
         Assert.Empty(telemetryData.StreamGaps);
+        var persistedTelemetry = TelemetryData.FromBinary(result.ProcessedTelemetry.Data);
+        Assert.NotNull(persistedTelemetry.ImuData);
+        Assert.Empty(persistedTelemetry.ImuData.Records);
+        var segment = Assert.Single(persistedTelemetry.ImuData.Segments);
+        Assert.Equal(10, segment.Records[0].Ax);
     }
 
     [Fact]

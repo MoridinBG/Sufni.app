@@ -218,6 +218,7 @@ public class SstV4TlvParser : ISstParser
         var rearList = new List<ushort>();
         var markers = new List<MarkerData>();
         RawImuData? imuData = null;
+        var imuRecords = new List<ImuRecord>();
         var gpsRecords = new List<GpsRecord>();
         var temperatureSamples = new List<TemperatureSample>();
         var rates = new Dictionary<TlvChunkType, ushort>();
@@ -331,7 +332,7 @@ public class SstV4TlvParser : ISstParser
                         var gx = payloadReader.ReadInt16();
                         var gy = payloadReader.ReadInt16();
                         var gz = payloadReader.ReadInt16();
-                        imuData.Records.Add(new ImuRecord(ax, ay, az, gx, gy, gz));
+                        imuRecords.Add(new ImuRecord(ax, ay, az, gx, gy, gz));
                     }
                     break;
 
@@ -383,7 +384,7 @@ public class SstV4TlvParser : ISstParser
 
         if (imuData is { Meta.Count: > 0 })
         {
-            PopulateDenseImuSegments(imuData);
+            PopulateImuSegments(imuData, imuRecords);
         }
 
         var rtd = new RawTelemetryData
@@ -424,12 +425,12 @@ public class SstV4TlvParser : ISstParser
         Counts = counts,
     };
 
-    private static void PopulateDenseImuSegments(RawImuData imuData)
+    private static void PopulateImuSegments(RawImuData imuData, IReadOnlyList<ImuRecord> interleavedRecords)
     {
         imuData.Segments.Clear();
         imuData.HasGaps = false;
 
-        if (imuData.ActiveLocations.Count == 0 || imuData.Records.Count == 0)
+        if (imuData.ActiveLocations.Count == 0 || interleavedRecords.Count == 0)
         {
             return;
         }
@@ -437,9 +438,9 @@ public class SstV4TlvParser : ISstParser
         for (var locationIndex = 0; locationIndex < imuData.ActiveLocations.Count; locationIndex++)
         {
             var records = new List<ImuRecord>();
-            for (var recordIndex = locationIndex; recordIndex < imuData.Records.Count; recordIndex += imuData.ActiveLocations.Count)
+            for (var recordIndex = locationIndex; recordIndex < interleavedRecords.Count; recordIndex += imuData.ActiveLocations.Count)
             {
-                records.Add(imuData.Records[recordIndex]);
+                records.Add(interleavedRecords[recordIndex]);
             }
 
             imuData.Segments.Add(new RawImuSegment

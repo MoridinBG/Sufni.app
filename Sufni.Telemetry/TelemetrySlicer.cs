@@ -273,7 +273,7 @@ internal static class TelemetrySlicer
         if (imuData.Segments.Count > 0 && imuData.SampleRate > 0)
         {
             result.Segments = SliceImuSegments(imuData.Segments, window, imuData.SampleRate);
-            RawImuDataSegmentHelper.PopulateDenseRecordsFromAlignedSegments(result, streamGaps);
+            RawImuDataSegmentHelper.FinalizeCanonicalSegments(result, streamGaps);
             return result;
         }
 

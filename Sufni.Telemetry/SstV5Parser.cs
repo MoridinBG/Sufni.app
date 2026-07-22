@@ -617,7 +617,7 @@ public class SstV5Parser : ISstParser
             }));
         }
 
-        RawImuDataSegmentHelper.PopulateDenseRecordsFromAlignedSegments(context.ImuData, context.Gaps);
+        RawImuDataSegmentHelper.FinalizeCanonicalSegments(context.ImuData, context.Gaps);
         return context.ImuData;
     }
 

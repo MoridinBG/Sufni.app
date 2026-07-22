@@ -11,7 +11,7 @@ public class GoldenTelemetryCompatibilityFixtureTests
         "lgHMyJKTAcpGgAAAykMDMzOTAspGAAAAykKDMzPEAgECkpQBCs4AAYagkpbRgAD/AAHNf/8qlgcICQoLDJQCKM4ABhqAkZZkzMjNASzQnNH/ONH+1MM=";
 
     [Fact]
-    public void CurrentImuWriter_UsesFrozenLegacyNamedMapShape()
+    public void CurrentImuWriter_UsesFrozenCompactVersionedShape()
     {
         var imu = CreatePerf04GoldenImu();
 
@@ -19,7 +19,7 @@ public class GoldenTelemetryCompatibilityFixtureTests
             imu,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.Equal(FrozenLegacyImuBase64, Convert.ToBase64String(bytes));
+        Assert.Equal(FrozenCompactImuBase64, Convert.ToBase64String(bytes));
     }
 
     [Theory]
@@ -41,6 +41,22 @@ public class GoldenTelemetryCompatibilityFixtureTests
         Assert.Equal(1, segment.LocationId);
         Assert.Equal(expectedSampleCount, segment.Count);
         Assert.Equal([1, 7], ReadSamples(segment).Select(sample => (int)sample.Ax));
+    }
+
+    [Fact]
+    public void LegacyDenseOnlyImu_RewritePreservesEffectiveActiveLocations()
+    {
+        var legacy = TelemetryData.FromBinary(
+            GoldenTelemetryCompatibilityFixtures.ProcessedImuDenseOnly.GetBytes());
+
+        var rewritten = TelemetryData.FromBinary(legacy.BinaryForm);
+
+        Assert.NotNull(rewritten.ImuData);
+        Assert.Equal([1], rewritten.ImuData.ActiveLocations);
+        Assert.Empty(rewritten.ImuData.Records);
+        var segment = Assert.Single(rewritten.ImuData.Segments);
+        Assert.Equal(1, segment.LocationId);
+        Assert.Equal([1, 7], segment.Records.Select(sample => (int)sample.Ax));
     }
 
     [Fact]
@@ -66,6 +82,53 @@ public class GoldenTelemetryCompatibilityFixtureTests
         Assert.Equal(2, imu.SampleSegments[1].LocationId);
         Assert.Equal([20, 21], ReadSamples(imu.SampleSegments[1]).Select(sample => (int)sample.Ax));
         Assert.False(imu.SampleSegments[1].TryGetContiguousRecords(out _));
+    }
+
+    [Fact]
+    public void CurrentImuWriter_ConvertsLegacyDenseOnlyDataToCompactSegments()
+    {
+        var imu = new RawImuData
+        {
+            SampleRate = 100,
+            ActiveLocations = [1, 2],
+            Records =
+            [
+                new ImuRecord(10, 0, 0, 0, 0, 0),
+                new ImuRecord(20, 0, 0, 0, 0, 0),
+                new ImuRecord(11, 0, 0, 0, 0, 0),
+                new ImuRecord(21, 0, 0, 0, 0, 0),
+            ],
+        };
+
+        var bytes = MessagePackSerializer.Serialize(
+            imu,
+            cancellationToken: TestContext.Current.CancellationToken);
+        var decoded = MessagePackSerializer.Deserialize<RawImuData>(
+            bytes,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Empty(decoded.Records);
+        Assert.Equal(2, decoded.Segments.Count);
+        Assert.Equal([10, 11], decoded.Segments[0].Records.Select(sample => (int)sample.Ax));
+        Assert.Equal([20, 21], decoded.Segments[1].Records.Select(sample => (int)sample.Ax));
+    }
+
+    [Fact]
+    public void CurrentImuWriter_PrefersCanonicalSegmentsOverDenseCompatibilityData()
+    {
+        var imu = CreatePerf04GoldenImu();
+        imu.Records = [new ImuRecord(999, 0, 0, 0, 0, 0)];
+
+        var bytes = MessagePackSerializer.Serialize(
+            imu,
+            cancellationToken: TestContext.Current.CancellationToken);
+        var decoded = MessagePackSerializer.Deserialize<RawImuData>(
+            bytes,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Empty(decoded.Records);
+        Assert.Equal(2, decoded.Segments.Count);
+        Assert.Equal(short.MinValue, decoded.Segments[0].Records[0].Ax);
     }
 
     [Fact]
@@ -165,26 +228,26 @@ public class GoldenTelemetryCompatibilityFixtureTests
     }
 
     [Fact]
-    public void V4SstFixture_Parse_PreservesDenseImuAndMarker()
+    public void V4SstFixture_Parse_UsesCanonicalImuSegmentAndPreservesMarker()
     {
         var telemetry = RawTelemetryData.FromByteArray(GoldenTelemetryCompatibilityFixtures.SstV4.GetBytes());
 
         Assert.Single(telemetry.Markers);
         Assert.NotNull(telemetry.ImuData);
-        Assert.Single(telemetry.ImuData.Records);
+        Assert.Empty(telemetry.ImuData.Records);
         var segment = Assert.Single(telemetry.ImuData.Segments);
         Assert.Equal(1, segment.LocationId);
         Assert.Single(segment.Records);
-        Assert.Equal(3, telemetry.ImuData.Records[0].Az);
+        Assert.Equal(3, segment.Records[0].Az);
     }
 
     [Fact]
-    public void V5SstFixture_Parse_PreservesSegmentAndCompatibilityImuShapes()
+    public void V5SstFixture_Parse_PreservesCanonicalImuSegments()
     {
         var telemetry = RawTelemetryData.FromByteArray(GoldenTelemetryCompatibilityFixtures.SstV5.GetBytes());
 
         Assert.NotNull(telemetry.ImuData);
-        Assert.Equal(2, telemetry.ImuData.Records.Count);
+        Assert.Empty(telemetry.ImuData.Records);
         Assert.Equal(2, telemetry.ImuData.Segments.Count);
         Assert.False(telemetry.ImuData.HasGaps);
         Assert.NotNull(telemetry.FinalStatus);

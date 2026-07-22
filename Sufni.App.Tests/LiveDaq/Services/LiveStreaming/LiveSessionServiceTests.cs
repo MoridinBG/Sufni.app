@@ -304,7 +304,7 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
-    public async Task V3ImuFrames_PrepareCaptureForSave_PopulatesDenseRecordsFromAlignedSegments()
+    public async Task V3ImuFrames_PrepareCaptureForSave_UsesCanonicalSegmentsWithoutDenseDuplicate()
     {
         var service = CreateService();
         await service.EnsureAttachedAsync();
@@ -328,13 +328,19 @@ public class LiveSessionServiceTests
         Assert.NotNull(imuData);
         Assert.Equal(new byte[] { (byte)LiveImuLocation.Frame, (byte)LiveImuLocation.Fork }, imuData!.ActiveLocations);
         Assert.False(imuData.HasGaps);
-        Assert.Equal([frame0, fork0, frame1, fork1], imuData.Records);
+        Assert.Empty(imuData.Records);
         Assert.Equal(2, imuData.Segments.Count);
         Assert.All(imuData.Segments, segment =>
         {
             Assert.Equal((ulong)0, segment.FirstIndex);
             Assert.Equal(2, segment.Records.Length);
         });
+        Assert.Equal(
+            [frame0, frame1],
+            imuData.Segments.Single(segment => segment.LocationId == (byte)LiveImuLocation.Frame).Records);
+        Assert.Equal(
+            [fork0, fork1],
+            imuData.Segments.Single(segment => segment.LocationId == (byte)LiveImuLocation.Fork).Records);
         Assert.DoesNotContain(package.TelemetryCapture.StreamGaps, gap =>
             gap.StreamKind == SstV5ProtocolConstants.StreamImu);
     }
