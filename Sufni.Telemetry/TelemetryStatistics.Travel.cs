@@ -22,7 +22,11 @@ public static partial class TelemetryStatistics
         return options.HistogramMode switch
         {
             TravelDistributionMode.DynamicSag => CalculateDynamicSagTravelHistogram(telemetryData, suspension, options.Range),
-            TravelDistributionMode.ActiveSuspension => CalculateActiveSuspensionTravelHistogram(telemetryData, suspension, options.Range),
+            TravelDistributionMode.ActiveSuspension => CalculateActiveSuspensionTravelHistogram(
+                telemetryData,
+                suspension,
+                options.Range,
+                telemetryData.CoarseStrokeIndexes),
             _ => throw new ArgumentOutOfRangeException(nameof(options), options.HistogramMode, null),
         };
     }
@@ -139,7 +143,8 @@ public static partial class TelemetryStatistics
     private static HistogramData CalculateActiveSuspensionTravelHistogram(
         TelemetryData telemetryData,
         Suspension suspension,
-        TelemetryTimeRange? range)
+        TelemetryTimeRange? range,
+        StrokeCoarseIndexes coarseIndexes)
     {
         var histogram = new double[suspension.TravelBins.Length - 1];
         var totalCount = 0;
@@ -147,7 +152,7 @@ public static partial class TelemetryStatistics
         foreach (var stroke in GetIncludedCompressions(telemetryData, suspension, range).Concat(GetIncludedRebounds(telemetryData, suspension, range)))
         {
             totalCount += stroke.Stat.Count;
-            foreach (var digitizedTravel in stroke.DigitizedTravel)
+            foreach (var digitizedTravel in coarseIndexes.Get(suspension, stroke).Travel.Span)
             {
                 histogram[digitizedTravel] += 1;
             }

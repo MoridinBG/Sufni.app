@@ -1,3 +1,4 @@
+using System.Text;
 using MessagePack;
 using Sufni.App.ExtensionHost.TestSupport.Fixtures;
 
@@ -273,6 +274,50 @@ public class GoldenTelemetryCompatibilityFixtureTests
     }
 
     [Fact]
+    public void CurrentStrokeWriter_OmitsAllDigitizationFields()
+    {
+        var stroke = new Stroke
+        {
+            Start = 1,
+            End = 2,
+            Stat = new StrokeStat { Count = 2 },
+            DigitizedTravel = [3, 4],
+            DigitizedVelocity = [5, 6],
+            FineDigitizedVelocity = [7, 8],
+            StartSeconds = 0.1,
+            EndSeconds = 0.2,
+        };
+
+        var bytes = MessagePackSerializer.Serialize(
+            stroke,
+            cancellationToken: TestContext.Current.CancellationToken);
+        var reader = new MessagePackReader(bytes);
+        var fieldCount = reader.ReadMapHeader();
+        var fields = new List<string>(fieldCount);
+        for (var fieldIndex = 0; fieldIndex < fieldCount; fieldIndex++)
+        {
+            fields.Add(reader.ReadString()!);
+            reader.Skip();
+        }
+        var rewritten = MessagePackSerializer.Deserialize<Stroke>(
+            bytes,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            [
+                nameof(Stroke.Start),
+                nameof(Stroke.End),
+                nameof(Stroke.Stat),
+                nameof(Stroke.StartSeconds),
+                nameof(Stroke.EndSeconds),
+            ],
+            fields);
+        Assert.Empty(rewritten.DigitizedTravel);
+        Assert.Empty(rewritten.DigitizedVelocity);
+        Assert.Empty(rewritten.FineDigitizedVelocity);
+    }
+
+    [Fact]
     public void OldStrokeDigitizationFixture_FromBinary_PreservesAllPersistedIndexes()
     {
         var telemetry = TelemetryData.FromBinary(
@@ -282,6 +327,30 @@ public class GoldenTelemetryCompatibilityFixtureTests
         Assert.Equal([2, 4], stroke.DigitizedTravel);
         Assert.Equal([5, 6], stroke.DigitizedVelocity);
         Assert.Equal([7, 8], stroke.FineDigitizedVelocity);
+    }
+
+    [Fact]
+    public void OldStrokeDigitizationFixture_RewriteOmitsAllDigitizationFields()
+    {
+        var telemetry = TelemetryData.FromBinary(
+            GoldenTelemetryCompatibilityFixtures.ProcessedOldStrokeDigitization.GetBytes());
+
+        var rewrittenBytes = telemetry.BinaryForm;
+        var rewritten = TelemetryData.FromBinary(rewrittenBytes);
+
+        Assert.Equal(
+            -1,
+            rewrittenBytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes(nameof(Stroke.DigitizedTravel))));
+        Assert.Equal(
+            -1,
+            rewrittenBytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes(nameof(Stroke.DigitizedVelocity))));
+        Assert.Equal(
+            -1,
+            rewrittenBytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes(nameof(Stroke.FineDigitizedVelocity))));
+        var stroke = Assert.Single(rewritten.Front.Strokes.Compressions);
+        Assert.Empty(stroke.DigitizedTravel);
+        Assert.Empty(stroke.DigitizedVelocity);
+        Assert.Empty(stroke.FineDigitizedVelocity);
     }
 
     [Fact]

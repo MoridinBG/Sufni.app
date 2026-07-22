@@ -17,6 +17,7 @@ public class StrokeStat
 };
 
 [MessagePackObject(keyAsPropertyName: true)]
+[MessagePackFormatter(typeof(StrokeFormatter))]
 public class Stroke
 {
     #region Public properties
@@ -24,9 +25,9 @@ public class Stroke
     public int Start { get; set; }
     public int End { get; set; }
     public StrokeStat Stat { get; set; }
-    public int[] DigitizedTravel { get; set; }
-    public int[] DigitizedVelocity { get; set; }
-    public int[] FineDigitizedVelocity { get; set; }
+    public int[] DigitizedTravel { get; set; } = [];
+    public int[] DigitizedVelocity { get; set; } = [];
+    public int[] FineDigitizedVelocity { get; set; } = [];
     public double StartSeconds { get; set; }
     public double EndSeconds { get; set; }
 
@@ -154,23 +155,6 @@ public class Strokes
         Compressions = [.. compressions];
         Rebounds = [.. rebounds];
         Idlings = [.. idlings];
-    }
-
-    public void Digitize(int[] dt, int[] dv, int[] dvFine)
-    {
-        foreach (var s in Compressions)
-        {
-            s.DigitizedTravel = dt[s.Start..(s.End + 1)];
-            s.DigitizedVelocity = dv[s.Start..(s.End + 1)];
-            s.FineDigitizedVelocity = dvFine[s.Start..(s.End + 1)];
-        }
-
-        foreach (var s in Rebounds)
-        {
-            s.DigitizedTravel = dt[s.Start..(s.End + 1)];
-            s.DigitizedVelocity = dv[s.Start..(s.End + 1)];
-            s.FineDigitizedVelocity = dvFine[s.Start..(s.End + 1)];
-        }
     }
 
     public static Strokes FromCategorized(Stroke[] compressions, Stroke[] rebounds, Stroke[] idlings) => new()

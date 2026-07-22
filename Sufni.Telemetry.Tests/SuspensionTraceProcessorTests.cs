@@ -51,6 +51,14 @@ public class SuspensionTraceProcessorTests
         Assert.NotEmpty(result.FineVelocityBins);
         Assert.NotEmpty(result.Strokes.Compressions);
         Assert.NotEmpty(result.Strokes.Rebounds);
+        Assert.All(
+            result.Strokes.Compressions.Concat(result.Strokes.Rebounds),
+            stroke =>
+            {
+                Assert.Empty(stroke.DigitizedTravel);
+                Assert.Empty(stroke.DigitizedVelocity);
+                Assert.Empty(stroke.FineDigitizedVelocity);
+            });
     }
 
     [Fact]

@@ -11,6 +11,7 @@ namespace Sufni.Telemetry;
 public class TelemetryData
 {
     private static readonly ILogger logger = Log.ForContext<TelemetryData>();
+    private readonly Lazy<StrokeCoarseIndexes> strokeCoarseIndexes;
 
     public const int TravelBinsForVelocityHistogram = 10;
 
@@ -28,14 +29,21 @@ public class TelemetryData
     public SstFinalStatus? FinalStatus { get; set; }
     public bool MissingFinalStatus { get; set; }
     [IgnoreMember] public byte[] BinaryForm => MessagePackSerializer.Serialize(this);
+    [IgnoreMember] internal StrokeCoarseIndexes CoarseStrokeIndexes => strokeCoarseIndexes.Value;
 
     #endregion
 
     #region Constructors / Initializers
 
-    public TelemetryData() { }
+    public TelemetryData()
+    {
+        strokeCoarseIndexes = new Lazy<StrokeCoarseIndexes>(
+            () => new StrokeCoarseIndexes(this),
+            LazyThreadSafetyMode.ExecutionAndPublication);
+    }
 
     private TelemetryData(Metadata metadata, double? frontMaxTravel, double? rearMaxTravel)
+        : this()
     {
         Metadata = metadata;
 
@@ -402,8 +410,12 @@ public class TelemetryData
             ? HistogramBuilder.Linspace(0, suspension.MaxTravel.Value, Parameters.TravelHistBins + 1)
             : [];
         var velocityForBins = suspension.Velocity.Length == 0 ? [0.0] : suspension.Velocity;
-        suspension.VelocityBins = HistogramBuilder.DigitizeVelocity(velocityForBins, Parameters.VelocityHistStep).Bins;
-        suspension.FineVelocityBins = HistogramBuilder.DigitizeVelocity(velocityForBins, Parameters.VelocityHistStepFine).Bins;
+        suspension.VelocityBins = HistogramBuilder.CreateVelocityBins(
+            velocityForBins,
+            Parameters.VelocityHistStep);
+        suspension.FineVelocityBins = HistogramBuilder.CreateVelocityBins(
+            velocityForBins,
+            Parameters.VelocityHistStepFine);
         suspension.Segments = [.. processedSegments];
         suspension.HasGaps = processedSegments.Count > 1;
         suspension.AnomalyRate = CalculateAnomalyRate(anomalyCount, sampleCount, sampleRate);

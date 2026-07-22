@@ -24,7 +24,11 @@ public static partial class TelemetryStatistics
 
         return options.VelocityAverageMode switch
         {
-            VelocityAverageMode.SampleAveraged => CalculateSampleVelocityHistogram(telemetryData, suspension, options.Range),
+            VelocityAverageMode.SampleAveraged => CalculateSampleVelocityHistogram(
+                telemetryData,
+                suspension,
+                options.Range,
+                telemetryData.CoarseStrokeIndexes),
             VelocityAverageMode.StrokePeakAveraged => CalculateStrokePeakVelocityHistogram(telemetryData, suspension, options.Range),
             _ => throw new ArgumentOutOfRangeException(nameof(options), options.VelocityAverageMode, null),
         };
@@ -310,7 +314,8 @@ public static partial class TelemetryStatistics
                 telemetryData,
                 suspension,
                 dampingSelection,
-                range),
+                range,
+                telemetryData.CoarseStrokeIndexes),
             StrokeLengthRangeSelection strokeLengthSelection => CalculateStrokeLengthHighlightRanges(
                 telemetryData,
                 suspension,
@@ -378,7 +383,8 @@ public static partial class TelemetryStatistics
     private static StackedHistogramData CalculateSampleVelocityHistogram(
         TelemetryData telemetryData,
         Suspension suspension,
-        TelemetryTimeRange? range)
+        TelemetryTimeRange? range,
+        StrokeCoarseIndexes coarseIndexes)
     {
         var divider = GetVelocityHistogramTravelDivider(suspension);
         var histogram = new double[suspension.VelocityBins.Length - 1][];
@@ -391,10 +397,13 @@ public static partial class TelemetryStatistics
         foreach (var stroke in GetIncludedCompressions(telemetryData, suspension, range).Concat(GetIncludedRebounds(telemetryData, suspension, range)))
         {
             totalCount += stroke.Stat.Count;
+            var indexes = coarseIndexes.Get(suspension, stroke);
+            var digitizedVelocity = indexes.Velocity.Span;
+            var digitizedTravel = indexes.Travel.Span;
             for (var index = 0; index < stroke.Stat.Count; index++)
             {
-                var velocityBin = stroke.DigitizedVelocity[index];
-                var travelBin = stroke.DigitizedTravel[index] / divider;
+                var velocityBin = digitizedVelocity[index];
+                var travelBin = digitizedTravel[index] / divider;
                 histogram[velocityBin][travelBin] += 1;
             }
         }
@@ -465,7 +474,8 @@ public static partial class TelemetryStatistics
         TelemetryData telemetryData,
         Suspension suspension,
         DampingRangeSelection selection,
-        TelemetryTimeRange? range)
+        TelemetryTimeRange? range,
+        StrokeCoarseIndexes coarseIndexes)
     {
         if (!IsValidVelocityStatisticsSelection(suspension, selection))
         {
@@ -480,9 +490,11 @@ public static partial class TelemetryStatistics
         {
             VelocityAverageMode.SampleAveraged => CalculateSampleVelocityStatisticsHighlightRanges(
                 strokes,
+                suspension,
                 telemetryData.Metadata.SampleRate,
                 selection,
-                divider),
+                divider,
+                coarseIndexes),
             VelocityAverageMode.StrokePeakAveraged => CalculateStrokePeakVelocityStatisticsHighlightRanges(
                 strokes,
                 suspension,
@@ -615,19 +627,24 @@ public static partial class TelemetryStatistics
 
     private static List<TelemetryHighlightRange> CalculateSampleVelocityStatisticsHighlightRanges(
         IEnumerable<Stroke> strokes,
+        Suspension suspension,
         int sampleRate,
         DampingRangeSelection selection,
-        int divider)
+        int divider,
+        StrokeCoarseIndexes coarseIndexes)
     {
         var ranges = new List<TelemetryHighlightRange>();
         foreach (var stroke in strokes)
         {
             var matchingStart = -1;
-            var sampleCount = Math.Min(stroke.Stat.Count, Math.Min(stroke.DigitizedVelocity.Length, stroke.DigitizedTravel.Length));
+            var indexes = coarseIndexes.Get(suspension, stroke);
+            var digitizedVelocity = indexes.Velocity.Span;
+            var digitizedTravel = indexes.Travel.Span;
+            var sampleCount = Math.Min(stroke.Stat.Count, Math.Min(digitizedVelocity.Length, digitizedTravel.Length));
             for (var index = 0; index < sampleCount; index++)
             {
-                var travelBin = stroke.DigitizedTravel[index] / divider;
-                var matches = stroke.DigitizedVelocity[index] == selection.VelocityBinIndex &&
+                var travelBin = digitizedTravel[index] / divider;
+                var matches = digitizedVelocity[index] == selection.VelocityBinIndex &&
                     travelBin >= selection.TravelBinStartIndex &&
                     travelBin <= selection.TravelBinEndIndex;
 

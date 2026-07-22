@@ -20,23 +20,19 @@ public static class SuspensionTraceProcessor
     {
         var travel = CalculateTravel(measurements, maxTravel, measurementToTravel);
         var travelBins = HistogramBuilder.Linspace(0, maxTravel, Parameters.TravelHistBins + 1);
-        var digitizedTravel = HistogramBuilder.Digitize(travel, travelBins);
         var dt = 1.0 / sampleRate;
 
         var velocity = velocityFilter is null
             ? CalculateUnfilteredVelocity(travel, dt)
             : velocityFilter.Process(travel, dt);
-        var velocityBins = HistogramBuilder.DigitizeVelocity(velocity, Parameters.VelocityHistStep);
-        var fineVelocityBins = HistogramBuilder.DigitizeVelocity(velocity, Parameters.VelocityHistStepFine);
+        var velocityBins = HistogramBuilder.CreateVelocityBins(velocity, Parameters.VelocityHistStep);
+        var fineVelocityBins = HistogramBuilder.CreateVelocityBins(velocity, Parameters.VelocityHistStepFine);
 
         var strokeAnalysis = StrokeAnalyzer.Analyze(
             velocity,
             travel,
             maxTravel,
-            sampleRate,
-            digitizedTravel,
-            velocityBins.Values,
-            fineVelocityBins.Values);
+            sampleRate);
 
         return new ProcessedSuspensionTrace(
             strokeAnalysis.HasActiveStrokes,
@@ -44,8 +40,8 @@ public static class SuspensionTraceProcessor
             velocity,
             strokeAnalysis.Strokes,
             travelBins,
-            velocityBins.Bins,
-            fineVelocityBins.Bins);
+            velocityBins,
+            fineVelocityBins);
     }
 
     private static double[] CalculateTravel(

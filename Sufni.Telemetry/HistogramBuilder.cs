@@ -56,10 +56,28 @@ public static class HistogramBuilder
 
     public static DigitizedSeries DigitizeVelocity(double[] velocity, double step)
     {
-        var min = (Math.Floor(velocity.Min() / step) - 0.5) * step;
-        var max = (Math.Floor(velocity.Max() / step) + 1.5) * step;
-        var bins = Linspace(min, max, (int)((max - min) / step) + 1);
+        var bins = CreateVelocityBins(velocity, step);
         return new DigitizedSeries(bins, Digitize(velocity, bins));
+    }
+
+    internal static double[] CreateVelocityBins(ReadOnlySpan<double> velocity, double step)
+    {
+        if (velocity.IsEmpty)
+        {
+            throw new InvalidOperationException("Velocity samples are required.");
+        }
+
+        var minimum = velocity[0];
+        var maximum = velocity[0];
+        for (var index = 1; index < velocity.Length; index++)
+        {
+            minimum = Math.Min(minimum, velocity[index]);
+            maximum = Math.Max(maximum, velocity[index]);
+        }
+
+        var min = (Math.Floor(minimum / step) - 0.5) * step;
+        var max = (Math.Floor(maximum / step) + 1.5) * step;
+        return Linspace(min, max, (int)((max - min) / step) + 1);
     }
 
     private static int DigitizeValue(double value, ReadOnlySpan<double> bins, int maxBinIndex)
