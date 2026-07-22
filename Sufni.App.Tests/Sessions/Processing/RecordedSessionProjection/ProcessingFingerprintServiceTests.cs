@@ -60,13 +60,15 @@ public class ProcessingFingerprintServiceTests
     }
 
     [Fact]
-    public void CreateCurrent_IncludesTrackProjectionVersion()
+    public void CreateCurrent_IncludesCurrentProcessingAndTrackProjectionVersions()
     {
         var context = CreateContext();
 
         var current = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
 
         Assert.Equal(3, current.SchemaVersion);
+        Assert.Equal(6, TelemetryProcessingVersion.Current);
+        Assert.Equal(6, current.ProcessingVersion);
         Assert.Equal(1, current.TrackProjectionVersion);
     }
 
