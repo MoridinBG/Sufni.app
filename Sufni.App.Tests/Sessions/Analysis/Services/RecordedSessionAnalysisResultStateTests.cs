@@ -4,6 +4,7 @@ using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.TestSupport.Async;
+using Sufni.App.LiveDaq.Services.Imu;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Insights.Services.SessionInsights;
 using Sufni.App.Sessions.Models;
@@ -54,6 +55,81 @@ public class RecordedSessionAnalysisResultStateTests
         Assert.Same(cached, changes[^1].Result);
         var direct = RecordedSessionAnalysisComputer.CalculateVelocityDistribution(key, telemetry);
         Assert.Equal(Fingerprint(direct), Fingerprint(cached));
+    }
+
+    [Fact]
+    public async Task RequestAsync_ReusesOneImuDisplayProjection_AcrossUnrelatedInputChanges()
+    {
+        var telemetry = TestTelemetryData.CreateWithImu();
+        var computer = new CountingAnalysisComputer(
+            new RecordedSessionAnalysisComputer(new SessionInsightsService()));
+        var backgroundTaskRunner = new ControllableBackgroundTaskRunner();
+        using var state = new RecordedSessionAnalysisResultState(
+            computer,
+            backgroundTaskRunner,
+            new InlineUiThreadDispatcher(),
+            () => telemetry);
+        var inputs = CreateInputs(range: null);
+        var key = inputs.ImuDisplayProjectionKey;
+        state.Invalidate(inputs);
+
+        var firstRequest = state.RequestAsync(key);
+        var secondRequest = state.RequestAsync(key);
+
+        Assert.Same(firstRequest, secondRequest);
+        Assert.Equal(1, backgroundTaskRunner.RunCount);
+
+        await backgroundTaskRunner.CompleteNextAsync();
+        await Task.WhenAll(firstRequest, secondRequest);
+
+        var cached = Assert.IsType<ImuDisplayProjectionAnalysisResult>(state.Get(key));
+        Assert.Equal(1, computer.ComputeCount);
+        Assert.Equal(
+            Fingerprint(ImuDisplaySignalProcessor.ProcessRecorded(telemetry)),
+            Fingerprint(cached.Projection));
+
+        var updatedInputs = inputs with
+        {
+            AnalysisRange = new TelemetryTimeRange(0, 1),
+            TravelDistributionMode = TravelDistributionMode.DynamicSag,
+            VelocityAverageMode = VelocityAverageMode.StrokePeakAveraged,
+        };
+        state.Invalidate(updatedInputs);
+        await state.RequestAsync(updatedInputs.ImuDisplayProjectionKey);
+
+        Assert.Equal(key, updatedInputs.ImuDisplayProjectionKey);
+        Assert.Equal(1, computer.ComputeCount);
+        Assert.Same(cached, state.Get(updatedInputs.ImuDisplayProjectionKey));
+    }
+
+    [Fact]
+    public async Task Invalidate_ReplacesImuDisplayProjection_WhenTelemetryGenerationChanges()
+    {
+        var telemetry = TestTelemetryData.CreateWithImu();
+        var computer = new CountingAnalysisComputer(
+            new RecordedSessionAnalysisComputer(new SessionInsightsService()));
+        using var state = new RecordedSessionAnalysisResultState(
+            computer,
+            new InlineBackgroundTaskRunner(),
+            new InlineUiThreadDispatcher(),
+            () => telemetry);
+        var firstInputs = CreateInputs(range: null);
+        var firstKey = firstInputs.ImuDisplayProjectionKey;
+        state.Invalidate(firstInputs);
+        await state.RequestAsync(firstKey);
+        var firstResult = Assert.IsType<ImuDisplayProjectionAnalysisResult>(state.Get(firstKey));
+
+        var nextInputs = firstInputs with { TelemetryGeneration = firstInputs.TelemetryGeneration + 1 };
+        var nextKey = nextInputs.ImuDisplayProjectionKey;
+        state.Invalidate(nextInputs);
+
+        Assert.Null(state.Get(firstKey));
+
+        await state.RequestAsync(nextKey);
+
+        Assert.Equal(2, computer.ComputeCount);
+        Assert.NotEqual(firstKey, nextKey);
+        Assert.NotSame(firstResult, state.Get(nextKey));
     }
 
     [Fact]
@@ -339,7 +415,7 @@ public class RecordedSessionAnalysisResultStateTests
             DampingPercentages: SessionDampingPercentages.Empty,
             SessionInsightsTargetProfile: SessionInsightsTargetProfile.Trail);
 
-    private static string Fingerprint(VelocityDistributionAnalysisResult value)
+    private static string Fingerprint<T>(T value)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(value);
         return Convert.ToHexStringLower(SHA256.HashData(bytes));

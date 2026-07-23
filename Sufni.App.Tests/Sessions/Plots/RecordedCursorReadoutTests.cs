@@ -6,6 +6,7 @@ using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Plots;
+using Sufni.App.LiveDaq.Services.Imu;
 using Sufni.App.MapsAndTracks.Plots;
 using Sufni.App.Sessions.Plots;
 namespace Sufni.App.Tests.Sessions.Plots;
@@ -83,7 +84,8 @@ public class RecordedCursorReadoutTests
     {
         var plot = new Plot();
         var sut = new ImuPlot(plot);
-        sut.LoadTelemetryData(CreateWithImu());
+        var telemetry = CreateWithImu();
+        sut.LoadProjection(telemetry, ImuDisplaySignalProcessor.ProcessRecorded(telemetry));
 
         sut.SetCursorPositionWithReadout(0);
 
@@ -206,7 +208,8 @@ public class RecordedCursorReadoutTests
     {
         var plot = new Plot();
         var sut = new ImuPlot(plot);
-        sut.LoadTelemetryData(CreateMinimal());
+        var telemetry = CreateMinimal();
+        sut.LoadProjection(telemetry, ImuDisplaySignalProcessor.ProcessRecorded(telemetry));
 
         sut.SetCursorPositionWithReadout(0.5);
 

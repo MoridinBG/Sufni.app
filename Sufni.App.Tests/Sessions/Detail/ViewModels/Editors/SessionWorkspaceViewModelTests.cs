@@ -41,8 +41,10 @@ public class SessionWorkspaceViewModelTests
         using var actions = new RecordedSessionEditorActions();
         var intents = Subscribe(actions);
         using var state = new Subject<RecordedSessionEditorState>();
+        var analysisResultState = Substitute.For<IRecordedSessionAnalysisResultState>();
         var workspace = new RecordedSessionSignalsWorkspaceViewModel(
             state,
+            analysisResultState,
             sourceVisibility,
             timeline,
             () => extensionSlots,
@@ -50,6 +52,7 @@ public class SessionWorkspaceViewModelTests
         var changes = TrackPropertyChanges(workspace);
         state.OnNext(CreateState());
 
+        Assert.Same(analysisResultState, workspace.AnalysisResultState);
         workspace.SignalLayoutPreferences = SessionPreferences.Default.SignalLayout;
         workspace.SetAnalysisRange(1.25, 3.5);
         workspace.ClearAnalysisRange();
@@ -339,8 +342,10 @@ public class SessionWorkspaceViewModelTests
         var extensionSlots = new RecordedSessionExtensionSlots();
         using var actions = new RecordedSessionEditorActions();
         using var state = new Subject<RecordedSessionEditorState>();
+        var analysisResultState = Substitute.For<IRecordedSessionAnalysisResultState>();
         var workspace = new RecordedSessionSignalsWorkspaceViewModel(
             state,
+            analysisResultState,
             sourceVisibility,
             timeline,
             () => extensionSlots,

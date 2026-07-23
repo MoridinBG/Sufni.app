@@ -10,6 +10,7 @@ using Sufni.Telemetry;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 namespace Sufni.App.Sessions.Signals.ViewModels.Editors;
 
@@ -54,17 +55,20 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
 
     public RecordedSessionSignalsWorkspaceViewModel(
         IObservable<RecordedSessionEditorState> state,
+        IRecordedSessionAnalysisResultState analysisResultState,
         TelemetrySourceVisibilityStore sourceVisibility,
         SessionTimelineLinkViewModel timeline,
         Func<RecordedSessionExtensionSlots> extensionSlots,
         RecordedSessionEditorActions actions)
     {
         ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(analysisResultState);
         ArgumentNullException.ThrowIfNull(sourceVisibility);
         ArgumentNullException.ThrowIfNull(timeline);
         ArgumentNullException.ThrowIfNull(extensionSlots);
         ArgumentNullException.ThrowIfNull(actions);
 
+        AnalysisResultState = analysisResultState;
         SourceVisibility = sourceVisibility;
         Timeline = timeline;
         this.extensionSlots = extensionSlots;
@@ -73,6 +77,8 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
     }
 
     public TelemetryData? TelemetryData => telemetryData;
+
+    public IRecordedSessionAnalysisResultState AnalysisResultState { get; }
 
     public TelemetryTimeRange? AnalysisRange => analysisRange;
 
@@ -176,6 +182,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
     internal static readonly HashSet<string> ForwardedProperties =
     [
         nameof(TelemetryData),
+        nameof(AnalysisResultState),
         nameof(AnalysisRange),
         nameof(TrackPoints),
         nameof(TrackTimelineContext),

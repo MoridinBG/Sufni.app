@@ -5,17 +5,19 @@ using Sufni.Telemetry;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
 
 using Sufni.App.LiveDaq.Plots;
+using Sufni.App.LiveDaq.Services.Imu;
 namespace Sufni.App.Tests.LiveDaq.Plots;
 
 public class FramePitchRollPlotTests
 {
     [Fact]
-    public void LoadTelemetryData_AddsPitchAndRollSeries_WhenFrameImuHasGyroMetadata()
+    public void LoadProjection_AddsPitchAndRollSeries_WhenFrameImuHasGyroMetadata()
     {
         var plot = new Plot();
         var sut = new FramePitchRollPlot(plot);
+        var telemetry = CreateTelemetryDataWithFramePitchRoll();
 
-        sut.LoadTelemetryData(CreateTelemetryDataWithFramePitchRoll());
+        sut.LoadProjection(telemetry, ImuDisplaySignalProcessor.ProcessRecorded(telemetry));
 
         Assert.NotNull(sut.CursorLine);
         Assert.Empty(plot.Axes.Title.Label.Text);
@@ -29,7 +31,7 @@ public class FramePitchRollPlotTests
     }
 
     [Fact]
-    public void LoadTelemetryData_WithGappedFrameImu_RendersPitchAndRollAsSegmentedScatters()
+    public void LoadProjection_WithGappedFrameImu_RendersPitchAndRollAsSegmentedScatters()
     {
         var plot = new Plot();
         var sut = new FramePitchRollPlot(plot);
@@ -57,7 +59,7 @@ public class FramePitchRollPlotTests
             ],
         };
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadProjection(telemetry, ImuDisplaySignalProcessor.ProcessRecorded(telemetry));
 
         var scatters = plot.PlottableList.OfType<Scatter>().ToArray();
         Assert.Equal(4, scatters.Length);
@@ -66,12 +68,11 @@ public class FramePitchRollPlotTests
     }
 
     [Fact]
-    public void LoadTelemetryData_ShowsEmptyState_WhenFramePitchRollIsUnavailable()
+    public void LoadProjection_ShowsEmptyState_WhenFramePitchRollIsUnavailable()
     {
         var plot = new Plot();
         var sut = new FramePitchRollPlot(plot);
-
-        sut.LoadTelemetryData(CreateWithImu(
+        var telemetry = CreateWithImu(
             activeLocations: [(byte)ImuLocation.Fork],
             meta: [new ImuMetaEntry((byte)ImuLocation.Fork, 10, 100)],
             records:
@@ -83,7 +84,9 @@ public class FramePitchRollPlotTests
                 Rest(),
                 new ImuRecord(2, 0, 10, 0, 30, 0),
             ],
-            sampleRate: 10));
+            sampleRate: 10);
+
+        sut.LoadProjection(telemetry, ImuDisplaySignalProcessor.ProcessRecorded(telemetry));
 
         Assert.Null(sut.CursorLine);
         Assert.Empty(plot.Axes.Title.Label.Text);

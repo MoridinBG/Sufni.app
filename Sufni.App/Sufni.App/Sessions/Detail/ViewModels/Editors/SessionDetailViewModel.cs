@@ -1515,6 +1515,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             editorActions);
         SignalsWorkspace = new RecordedSessionSignalsWorkspaceViewModel(
             editorStateController.State,
+            analysisResultState,
             SourceVisibility,
             Timeline,
             () => ExtensionSlots,

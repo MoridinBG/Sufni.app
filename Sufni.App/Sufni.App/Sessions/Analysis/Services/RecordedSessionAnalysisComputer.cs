@@ -1,6 +1,7 @@
 using System;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.LiveDaq.Services.Imu;
 using Sufni.App.Sessions.Insights.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.Telemetry;
@@ -29,6 +30,8 @@ internal sealed class RecordedSessionAnalysisComputer(
             RecordedSessionAnalysisFamily.StrokeSpeedDistribution => CalculateStrokeSpeedDistribution(key, telemetry),
             RecordedSessionAnalysisFamily.DeepTravelDistribution => CalculateDeepTravelDistribution(key, telemetry),
             RecordedSessionAnalysisFamily.VibrationDistribution => CalculateVibrationDistribution(key, telemetry),
+            RecordedSessionAnalysisFamily.ImuDisplayProjection => new ImuDisplayProjectionAnalysisResult(
+                ImuDisplaySignalProcessor.ProcessRecorded(telemetry)),
             _ => throw new ArgumentOutOfRangeException(nameof(key), key.Family, null),
         };
 

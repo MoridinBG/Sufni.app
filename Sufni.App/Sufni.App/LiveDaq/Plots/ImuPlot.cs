@@ -18,7 +18,7 @@ public class ImuPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPl
 
     public static readonly Color FrameColor = SufniThemes.SignalSeries.ImuFrame.ToScottPlotColor();
 
-    public override void LoadTelemetryData(TelemetryData telemetryData)
+    public void LoadProjection(TelemetryData telemetryData, RecordedImuDisplaySeries displaySeries)
     {
         if (telemetryData.ImuData == null || !telemetryData.ImuData.HasSamples || telemetryData.ImuData.ActiveLocations.Count == 0)
         {
@@ -26,7 +26,6 @@ public class ImuPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPl
             return;
         }
 
-        var displaySeries = ImuDisplaySignalProcessor.ProcessRecorded(telemetryData.ImuData);
         var maxVal = 0.0;
         var hasData = false;
         var series = new List<RecordedTimeSeries>();

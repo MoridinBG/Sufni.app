@@ -140,9 +140,11 @@ internal sealed class TestRecordedSessionSignalsWorkspace : IRecordedSessionSign
         SurfacePresentationState? pitchRollSignalState = null,
         SurfacePresentationState? speedSignalState = null,
         SurfacePresentationState? elevationSignalState = null,
-        RecordedSessionExtensionSlots? extensionSlots = null)
+        RecordedSessionExtensionSlots? extensionSlots = null,
+        IRecordedSessionAnalysisResultState? analysisResultState = null)
     {
         TelemetryData = telemetryData;
+        AnalysisResultState = analysisResultState ?? Substitute.For<IRecordedSessionAnalysisResultState>();
         TravelSignalState = travelSignalState ?? StateForTravel(telemetryData);
         VelocitySignalState = velocitySignalState ?? TravelSignalState;
         ImuSignalState = imuSignalState ?? StateForImu(telemetryData);
@@ -153,6 +155,7 @@ internal sealed class TestRecordedSessionSignalsWorkspace : IRecordedSessionSign
     }
 
     public TelemetryData? TelemetryData { get; }
+    public IRecordedSessionAnalysisResultState AnalysisResultState { get; }
     public TelemetryTimeRange? AnalysisRange
     {
         get => analysisRange;

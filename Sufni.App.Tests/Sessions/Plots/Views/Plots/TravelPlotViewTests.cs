@@ -21,6 +21,7 @@ using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Sessions.Plots.Views.Plots;
@@ -629,6 +630,8 @@ public class TravelPlotViewTests
         : IRecordedSessionSignalsWorkspace
     {
         public TelemetryData? TelemetryData { get; } = telemetryData;
+        public IRecordedSessionAnalysisResultState AnalysisResultState { get; } =
+            Substitute.For<IRecordedSessionAnalysisResultState>();
         public TelemetryTimeRange? AnalysisRange { get; private set; }
         public bool ShowAirtime => true;
         public bool ShowVelocityAirtime => false;

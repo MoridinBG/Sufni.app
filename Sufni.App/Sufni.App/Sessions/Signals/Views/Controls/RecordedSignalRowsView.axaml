@@ -88,6 +88,7 @@ mc:Ignorable="d">
                     <plots:ImuPlotView
                     Name="Imu"
                     AnalysisRange="{Binding AnalysisRange}"
+                    AnalysisResultState="{Binding AnalysisResultState}"
                     SignalsWorkspace="{Binding}"
                     HideRightAxis="{Binding #Root.HideRightAxis}"
                     MaximumDisplayHz="{Binding #Root.MaximumDisplayHz}"
@@ -115,6 +116,7 @@ mc:Ignorable="d">
                             <plots:FramePitchRollPlotView
                             Name="PitchRoll"
                             AnalysisRange="{Binding AnalysisRange}"
+                            AnalysisResultState="{Binding AnalysisResultState}"
                             SignalsWorkspace="{Binding}"
                             HideRightAxis="{Binding #Root.HideRightAxis}"
                             MaximumDisplayHz="{Binding #Root.MaximumDisplayHz}"

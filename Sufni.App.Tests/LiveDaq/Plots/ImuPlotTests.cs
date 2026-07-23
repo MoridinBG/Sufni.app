@@ -5,17 +5,19 @@ using Sufni.Telemetry;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
 
 using Sufni.App.LiveDaq.Plots;
+using Sufni.App.LiveDaq.Services.Imu;
 namespace Sufni.App.Tests.LiveDaq.Plots;
 
 public class ImuPlotTests
 {
     [Fact]
-    public void LoadTelemetryData_AddsOneVibrationSeriesPerActiveLocationWithMetadata()
+    public void LoadProjection_AddsOneVibrationSeriesPerActiveLocationWithMetadata()
     {
         var plot = new Plot();
         var sut = new ImuPlot(plot);
+        var telemetry = CreateWithImu();
 
-        sut.LoadTelemetryData(CreateWithImu());
+        sut.LoadProjection(telemetry, ImuDisplaySignalProcessor.ProcessRecorded(telemetry));
 
         Assert.NotNull(sut.CursorLine);
         Assert.Empty(plot.Axes.Title.Label.Text);
@@ -28,7 +30,7 @@ public class ImuPlotTests
     }
 
     [Fact]
-    public void LoadTelemetryData_SkipsLocationsWithoutMetadata()
+    public void LoadProjection_SkipsLocationsWithoutMetadata()
     {
         var plot = new Plot();
         var sut = new ImuPlot(plot);
@@ -44,13 +46,13 @@ public class ImuPlotTests
                 new ImuRecord(4, 0, 1, 0, 0, 0)
             ]);
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadProjection(telemetry, ImuDisplaySignalProcessor.ProcessRecorded(telemetry));
 
         Assert.Single(plot.PlottableList.OfType<Signal>());
     }
 
     [Fact]
-    public void LoadTelemetryData_WithGappedImuData_RendersSegmentedScatterSeries()
+    public void LoadProjection_WithGappedImuData_RendersSegmentedScatterSeries()
     {
         var plot = new Plot();
         var sut = new ImuPlot(plot);
@@ -86,7 +88,7 @@ public class ImuPlotTests
             ],
         };
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadProjection(telemetry, ImuDisplaySignalProcessor.ProcessRecorded(telemetry));
 
         var scatters = plot.PlottableList.OfType<Scatter>().ToArray();
         Assert.Equal(2, scatters.Length);
@@ -96,12 +98,13 @@ public class ImuPlotTests
     }
 
     [Fact]
-    public void LoadTelemetryData_ShowsEmptyState_WhenImuDataIsMissing()
+    public void LoadProjection_ShowsEmptyState_WhenImuDataIsMissing()
     {
         var plot = new Plot();
         var sut = new ImuPlot(plot);
+        var telemetry = CreateMinimal();
 
-        sut.LoadTelemetryData(CreateMinimal());
+        sut.LoadProjection(telemetry, ImuDisplaySignalProcessor.ProcessRecorded(telemetry));
 
         Assert.Null(sut.CursorLine);
         Assert.Empty(plot.Axes.Title.Label.Text);

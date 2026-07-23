@@ -49,6 +49,7 @@ public interface ISessionShellMobileWorkspace
 public interface IRecordedSessionSignalsWorkspace
 {
     TelemetryData? TelemetryData { get; }
+    IRecordedSessionAnalysisResultState AnalysisResultState { get; }
     TelemetryTimeRange? AnalysisRange { get; }
     IReadOnlyList<TrackPoint>? TrackPoints { get; }
     TrackTimeRange? TrackTimelineContext { get; }

@@ -15,7 +15,7 @@ public sealed class FramePitchRollPlot(Plot plot, SufniTheme? theme = null) : Re
     private const double AxisFloorDegrees = 5.0;
     private const double AxisPadding = 1.1;
 
-    public override void LoadTelemetryData(TelemetryData telemetryData)
+    public void LoadProjection(TelemetryData telemetryData, RecordedImuDisplaySeries displaySeries)
     {
         if (telemetryData.ImuData is null)
         {
@@ -23,7 +23,6 @@ public sealed class FramePitchRollPlot(Plot plot, SufniTheme? theme = null) : Re
             return;
         }
 
-        var displaySeries = ImuDisplaySignalProcessor.ProcessRecorded(telemetryData);
         if (displaySeries.FramePitchRoll is not { } pitchRoll || pitchRoll.Times.Length == 0)
         {
             ShowEmptyState(telemetryData.Metadata.Duration);
