@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Windows.Input;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -278,15 +279,16 @@ public class TravelPlotViewTests
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotView_ClearsAndReloadsTelemetryWhileHidden()
+    public async Task TravelPlotView_DefersLatestTelemetryReloadUntilEffectivelyVisible()
     {
         var view = new TravelPlotView();
+        var container = new Border { Child = view };
         var oldTelemetry = CreateMinimal();
         oldTelemetry.Markers = [new MarkerData(0.5)];
         var freshTelemetry = CreateMinimal();
         freshTelemetry.Markers = [new MarkerData(0.25), new MarkerData(1.5)];
 
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+        await using var mounted = await PlotViewTestSupport.MountAsync(container);
 
         view.Telemetry = oldTelemetry;
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -294,13 +296,14 @@ public class TravelPlotViewTests
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
         Assert.Equal(2, plot.Plot.PlottableList.OfType<VerticalLine>().Count());
 
-        view.IsVisible = false;
+        container.IsVisible = false;
         view.Telemetry = null;
+        view.Telemetry = freshTelemetry;
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        Assert.Empty(plot.Plot.PlottableList);
+        Assert.Equal(2, plot.Plot.PlottableList.OfType<VerticalLine>().Count());
 
-        view.Telemetry = freshTelemetry;
+        container.IsVisible = true;
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(3, plot.Plot.PlottableList.OfType<VerticalLine>().Count());

@@ -38,7 +38,7 @@ public class TrackSignalPlotViewTests
     }
 
     [AvaloniaFact]
-    public async Task TrackSignalPlotView_ReloadsTelemetryMarkersWhileHidden()
+    public async Task TrackSignalPlotView_DefersLatestTelemetryMarkersUntilVisible()
     {
         var view = CreateTrackSignalView();
         var oldTelemetry = CreateMinimal();
@@ -56,6 +56,11 @@ public class TrackSignalPlotViewTests
 
         view.IsVisible = false;
         view.Telemetry = freshTelemetry;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(2, plot.Plot.PlottableList.OfType<VerticalLine>().Count());
+
+        view.IsVisible = true;
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(3, plot.Plot.PlottableList.OfType<VerticalLine>().Count());

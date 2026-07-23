@@ -19,6 +19,7 @@ using Sufni.App.Shared.Plots;
 using Sufni.App.Theming;
 using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Shared.Common;
+using Sufni.App.Shared.Views;
 using Sufni.App.Shared.Views.Input;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Shared.Views.Plots;
@@ -36,6 +37,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     private bool isPlaybackStopClickCandidate;
     private bool suppressLegendTogglePointerRelease;
     private bool isAttachedToVisualTree;
+    private readonly EffectiveVisibilityObserver effectiveVisibilityObserver;
     private Point plotClickStartPoint;
     private Point playbackStopClickStartPoint;
     private double selectionStartSeconds;
@@ -157,6 +159,15 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     protected SufniTimeSeriesPlotView()
     {
+        effectiveVisibilityObserver = new EffectiveVisibilityObserver(
+            this,
+            isVisible =>
+            {
+                if (isVisible)
+                {
+                    TryApplyPendingLoad();
+                }
+            });
         PropertyChanged += (_, e) =>
         {
             switch (e.Property.Name)
@@ -192,13 +203,8 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                     ApplyTimeRangeOverlays(refresh: true);
                     break;
 
-                case nameof(IsVisible):
-                    TryApplyPendingLoad();
-                    break;
             }
         };
-
-        EffectiveViewportChanged += (_, _) => TryApplyPendingLoad();
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -211,11 +217,13 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             KeyDownEvent,
             OnTopLevelKeyDown,
             RoutingStrategies.Bubble);
+        effectiveVisibilityObserver.Attach();
         TryApplyPendingLoad();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        effectiveVisibilityObserver.Detach();
         isAttachedToVisualTree = false;
         keyDownTopLevel?.RemoveHandler(KeyDownEvent, OnTopLevelKeyDown);
         keyDownTopLevel = null;
@@ -981,7 +989,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private bool CanLoadNow()
     {
-        return IsPlotReady;
+        return IsPlotReady && effectiveVisibilityObserver.IsEffectivelyVisible;
     }
 
     private void TryApplyPendingLoad()

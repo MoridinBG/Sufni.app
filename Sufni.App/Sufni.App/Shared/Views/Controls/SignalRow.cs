@@ -14,6 +14,7 @@ using Avalonia.VisualTree;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 
+using Sufni.App.Shared.Views;
 using Sufni.App.Shared.Views.Overlays;
 using Sufni.App.Theming;
 using Sufni.App.Shared.Views.Plots;
@@ -31,6 +32,7 @@ public sealed class SignalRow : UserControl
     private IBrush dropTargetHeaderBackground = SufniThemes.Fallback.DragDrop.DropTargetHeader.ToBrush();
     private IBrush headerConnectorBrush = SufniThemes.Fallback.SignalRow.Connector.ToBrush();
     private IDisposable? themeVariantSubscription;
+    private readonly EffectiveVisibilityObserver effectiveVisibilityObserver;
     private readonly Border rowBorder;
     private readonly Button headerButton;
     private readonly Grid headerContentGrid;
@@ -241,6 +243,7 @@ public sealed class SignalRow : UserControl
 
     public SignalRow()
     {
+        effectiveVisibilityObserver = new EffectiveVisibilityObserver(this, _ => UpdateVisualState());
         HorizontalAlignment = HorizontalAlignment.Stretch;
         ClipToBounds = true;
 
@@ -388,12 +391,16 @@ public sealed class SignalRow : UserControl
     {
         base.OnAttachedToVisualTree(e);
 
+        effectiveVisibilityObserver.Attach();
         themeVariantSubscription = this.GetObservable(ThemeVariantScope.ActualThemeVariantProperty)
             .Subscribe(_ => OnThemeVariantChanged());
+        UpdateVisualState();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        effectiveVisibilityObserver.Detach();
+        UpdateVisualState();
         themeVariantSubscription?.Dispose();
         themeVariantSubscription = null;
 
@@ -691,11 +698,15 @@ public sealed class SignalRow : UserControl
             : isDragFeedbackVisible
                 ? dragHeaderBackground
                 : HeaderBackground;
+        var shouldAttachPlotContent =
+            effectiveVisibilityObserver.IsEffectivelyVisible &&
+            IsExpanded &&
+            PresentationState.IsReady;
         expandedGrid.IsVisible = IsExpanded && ReservesLayout;
         plotHost.PresentationState = PresentationState;
         plotHost.Height = HasOwnPlotSlot ? AllocatedPlotHeight : 0;
         plotHost.IsVisible = HasOwnPlotSlot && IsExpanded;
-        plotContentHost.Content = PlotContent;
+        plotContentHost.Content = shouldAttachPlotContent ? PlotContent : null;
         placeholderContentHost.Content = PlaceholderContent;
         ApplyPlotBackgrounds(PlotContent);
         childRowsHost.Spacing = ChildRowGap;

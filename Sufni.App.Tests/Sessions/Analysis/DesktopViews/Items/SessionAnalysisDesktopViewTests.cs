@@ -1,8 +1,10 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.Sessions.Analysis.DesktopViews.Items;
+using Sufni.App.Sessions.Analysis.Views.Controls;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Harness;
@@ -65,6 +67,30 @@ public class SessionAnalysisDesktopViewTests
         Assert.Equal(1, viewModel.DisposeCount);
     }
 
+    [AvaloniaFact]
+    public async Task SessionAnalysisDesktopView_SuspendsSelectedTabDemand_WhenOuterViewHidden()
+    {
+        var workspace = CreateWorkspace();
+        await using var mounted = await MountAsync(workspace);
+        var selectedHosts = mounted.View.FindControl<Grid>("SpringRate")!
+            .GetVisualDescendants()
+            .OfType<AnalysisHostBase>()
+            .ToArray();
+
+        Assert.NotEmpty(selectedHosts);
+        Assert.All(selectedHosts, host => Assert.True(host.IsAnalysisDemandActive));
+
+        mounted.Container.IsVisible = false;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.All(selectedHosts, host => Assert.False(host.IsAnalysisDemandActive));
+
+        mounted.Container.IsVisible = true;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.All(selectedHosts, host => Assert.True(host.IsAnalysisDemandActive));
+    }
+
     private static TestSessionAnalysisWorkspace CreateWorkspace() =>
         new(
             telemetryData: TestTelemetryData.CreateProcessed(),
@@ -82,8 +108,9 @@ public class SessionAnalysisDesktopViewTests
             DataContext = workspace,
         };
 
-        var host = await ViewTestHelpers.ShowViewAsync(view);
-        return new MountedSessionAnalysisDesktopView(host, view);
+        var container = new Border { Child = view };
+        var host = await ViewTestHelpers.ShowViewAsync(container);
+        return new MountedSessionAnalysisDesktopView(host, container, view);
     }
 
     private static RecordedSessionAnalysisTabContribution CreateAnalysisTabContribution()
@@ -132,9 +159,13 @@ public class SessionAnalysisDesktopViewTests
     }
 }
 
-internal sealed class MountedSessionAnalysisDesktopView(Window host, SessionAnalysisDesktopView view) : IAsyncDisposable
+internal sealed class MountedSessionAnalysisDesktopView(
+    Window host,
+    Border container,
+    SessionAnalysisDesktopView view) : IAsyncDisposable
 {
     public Window Host { get; } = host;
+    public Border Container { get; } = container;
     public SessionAnalysisDesktopView View { get; } = view;
 
     public async ValueTask DisposeAsync()

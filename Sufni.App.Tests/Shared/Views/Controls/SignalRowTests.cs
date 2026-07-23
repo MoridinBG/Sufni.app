@@ -48,6 +48,29 @@ public class SignalRowTests
     }
 
     [AvaloniaFact]
+    public async Task SignalRow_CollapseDetachesPlotContent_AndExpandReattaches()
+    {
+        var plotContent = new Border();
+        var row = CreateRow("Travel");
+        row.PlotContent = plotContent;
+        await using var mounted = await MountAsync(row);
+
+        Measure(row, 400, row.GetPreferredGroupHeight());
+        Assert.Contains(plotContent, row.GetVisualDescendants());
+
+        var header = Assert.Single(row.GetVisualDescendants().OfType<Button>());
+        await ClickHeaderAsync(mounted, header);
+        Measure(row, 400, row.GetPreferredGroupHeight());
+
+        Assert.DoesNotContain(plotContent, row.GetVisualDescendants());
+
+        await ClickHeaderAsync(mounted, header);
+        Measure(row, 400, row.GetPreferredGroupHeight());
+
+        Assert.Contains(plotContent, row.GetVisualDescendants());
+    }
+
+    [AvaloniaFact]
     public async Task SignalRow_HiddenPresentation_RemovesRowFromLayout()
     {
         var row = CreateRow("Velocity");

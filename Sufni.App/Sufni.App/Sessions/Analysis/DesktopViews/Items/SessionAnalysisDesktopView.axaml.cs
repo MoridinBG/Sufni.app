@@ -11,6 +11,7 @@ using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
 using Sufni.App.Sessions.Analysis.Views.Controls;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Shared.Views;
 namespace Sufni.App.Sessions.Analysis.DesktopViews.Items;
 
 public partial class SessionAnalysisDesktopView : UserControl
@@ -26,11 +27,13 @@ public partial class SessionAnalysisDesktopView : UserControl
     private INotifyCollectionChanged? subscribedAnalysisTabs;
     private string selectedTabKey = DefaultTabKey;
     private bool suppressSelectionChanged;
+    private readonly EffectiveVisibilityObserver effectiveVisibilityObserver;
 
     public SessionAnalysisDesktopView()
     {
         InitializeComponent();
 
+        effectiveVisibilityObserver = new EffectiveVisibilityObserver(this, _ => ApplySelectedTabVisibility());
         DataContextChanged += (_, _) => SetWorkspace(DataContext as ISessionAnalysisWorkspace);
         TabControl.Loaded += (_, _) => RebuildTabs();
         TabControl.SelectionChanged += (_, _) => OnTabSelectionChanged();
@@ -42,11 +45,15 @@ public partial class SessionAnalysisDesktopView : UserControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        effectiveVisibilityObserver.Attach();
         SetWorkspace(DataContext as ISessionAnalysisWorkspace);
+        ApplySelectedTabVisibility();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        effectiveVisibilityObserver.Detach();
+        ApplySelectedTabVisibility();
         SetWorkspace(null);
         base.OnDetachedFromVisualTree(e);
     }
@@ -220,13 +227,14 @@ public partial class SessionAnalysisDesktopView : UserControl
         foreach (var entry in currentTabEntries)
         {
             var isSelected = ReferenceEquals(entry, selectedEntry);
+            var isDemandActive = isSelected && effectiveVisibilityObserver.IsEffectivelyVisible;
             if (entry.IsExtension)
             {
                 if (isSelected && entry.ExtensionContribution is { } contribution)
                 {
                     var control = GetExtensionContentControl(contribution);
                     control.IsVisible = true;
-                    SetAnalysisDemandActive(control, true);
+                    SetAnalysisDemandActive(control, isDemandActive);
                 }
                 else if (extensionContentControls.TryGetValue(entry.Key, out var content))
                 {
@@ -240,8 +248,8 @@ public partial class SessionAnalysisDesktopView : UserControl
             if (entry.Content is not null)
             {
                 entry.Content.IsVisible = isSelected;
-                SetAnalysisDemandActive(entry.Content, isSelected);
-                if (isSelected && StringComparer.Ordinal.Equals(entry.Key, InsightsTabKey))
+                SetAnalysisDemandActive(entry.Content, isDemandActive);
+                if (isDemandActive && StringComparer.Ordinal.Equals(entry.Key, InsightsTabKey))
                 {
                     workspace?.RequestSessionInsights();
                 }
