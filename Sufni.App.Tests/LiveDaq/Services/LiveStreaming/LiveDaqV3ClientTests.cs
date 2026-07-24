@@ -4,6 +4,9 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Reactive.Linq;
+#if SUFNI_PROFILING_DIAGNOSTICS
+using Sufni.App.LiveDaq.Services;
+#endif
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.Shared.Common;
 using Sufni.App.Tests.TestSupport.LiveDaq;
@@ -255,6 +258,89 @@ public class LiveDaqV3ClientTests
         await client.DisconnectAsync();
         await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
     }
+
+#if SUFNI_PROFILING_DIAGNOSTICS
+    [Fact]
+    public async Task StartPreviewAsync_ExpandsReplayRequestFromCapabilities_AndAcceptsMatchingHeader()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+
+        var serverTask = Task.Run(async () =>
+        {
+            using var serverClient = await listener.AcceptTcpClientAsync();
+            await using var stream = serverClient.GetStream();
+            Assert.Equal(
+                LiveV3ProtocolReader.CreateHandshake(),
+                await ReadExactAsync(stream, LiveV3ProtocolConstants.HandshakeSize));
+            await stream.WriteAsync(LiveV3ProtocolTestFrames.ServerHello(
+                uniqueBoardId: 0x5934dcc01ee18f70UL));
+            await stream.FlushAsync();
+
+            Assert.IsType<LiveV3CapabilitiesRequestFrame>(
+                LiveV3ProtocolReader.ParseFrame(
+                    await ReadFrameAsync(stream),
+                    new LiveV3SessionDecodeContext()));
+            await stream.WriteAsync(LiveV3ProtocolTestFrames.CapabilitiesResponse());
+            await stream.FlushAsync();
+
+            var start = Assert.IsType<LiveV3StartRequestFrame>(
+                LiveV3ProtocolReader.ParseFrame(
+                    await ReadFrameAsync(stream),
+                    new LiveV3SessionDecodeContext()));
+            Assert.Equal(
+                [
+                    SstV5ProtocolConstants.StreamTravel,
+                    SstV5ProtocolConstants.StreamImu,
+                    SstV5ProtocolConstants.StreamTemperature,
+                    SstV5ProtocolConstants.StreamGps,
+                    SstV5ProtocolConstants.StreamBattery,
+                    SstV5ProtocolConstants.StreamMarker,
+                ],
+                start.Payload.StreamRequests.Select(record => record.StreamKind).ToArray());
+            Assert.All(start.Payload.StreamRequests, record =>
+            {
+                Assert.Equal(0, record.RecordFlags);
+                Assert.Equal(0u, record.RateMhz);
+                Assert.Equal(0u, record.BatchDurationMs);
+            });
+            Assert.Equal(
+                SstV5ProtocolConstants.ExtensionGpsDiagPublicV1,
+                start.Payload.StreamRequests.Single(
+                    record => record.StreamKind == SstV5ProtocolConstants.StreamGps).ExtensionMask);
+
+            await stream.WriteAsync(LiveV3ProtocolTestFrames.StartResultPending());
+            await stream.WriteAsync(LiveV3ProtocolTestFrames.SessionHeaderAllStreams());
+            await stream.WriteAsync(LiveV3ProtocolTestFrames.SessionResultAllStreams());
+            await stream.FlushAsync();
+        });
+
+        await using var client = new LiveDaqV3Client(ProfilingLiveDaqReplay.BoardId);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        var started = Assert.IsType<LivePreviewStartResult.Started>(
+            await client.StartPreviewAsync(new LiveStartRequest(
+                    RequestedSensorMask: LiveSensorInstanceMask.Travel,
+                    TravelRateMhz: 200_000,
+                    ImuRateMhz: 0,
+                    GpsRateMhz: 0,
+                    RequestedStreamMask: LiveStreamMask.Travel))
+                .WaitAsync(TimeSpan.FromSeconds(2)));
+
+        const LiveStreamMask allStreams =
+            LiveStreamMask.Travel |
+            LiveStreamMask.Imu |
+            LiveStreamMask.Temperature |
+            LiveStreamMask.Gps |
+            LiveStreamMask.Battery |
+            LiveStreamMask.Marker;
+        Assert.Equal(allStreams, started.Header.RequestedStreamMask);
+        Assert.Equal(allStreams, started.Header.AcceptedStreamMask);
+
+        await client.DisconnectAsync();
+        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+#endif
 
     [Fact]
     public async Task RequestDeviceStateAsync_SendsRequestAndReturnsResponse_BeforeSession()

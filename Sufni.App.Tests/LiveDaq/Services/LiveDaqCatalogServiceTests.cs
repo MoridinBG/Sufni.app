@@ -1,5 +1,8 @@
 using System.Net;
 using System.Net.Sockets;
+#if SUFNI_PROFILING_DIAGNOSTICS
+using System.Reactive.Subjects;
+#endif
 using NSubstitute;
 using Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
 
@@ -7,8 +10,14 @@ using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Services;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.Shared.Common;
+#if SUFNI_PROFILING_DIAGNOSTICS
+using Sufni.Profiling;
+#endif
 namespace Sufni.App.Tests.LiveDaq.Services;
 
+#if SUFNI_PROFILING_DIAGNOSTICS
+[Collection("ProfilingRuntime")]
+#endif
 public class LiveDaqCatalogServiceTests
 {
     private readonly IServiceDiscovery serviceDiscovery = Substitute.For<IServiceDiscovery>();
@@ -17,6 +26,54 @@ public class LiveDaqCatalogServiceTests
 
     private LiveDaqCatalogService CreateCatalogService(IDaqBrowseOwner? browseOwner = null) =>
         new(serviceDiscovery, browseOwner ?? CreateBrowseOwner());
+
+#if SUFNI_PROFILING_DIAGNOSTICS
+    [Fact]
+    public void ProfilingCatalog_AppendsExactlyOneReplayEntry_WhenLiveLongIsActive()
+    {
+        ProfilingRuntime.Shutdown();
+        ProfilingRuntime.Initialize(new ProfilingOptions(
+            ProfilingMode.EventPipe,
+            RunId: "catalog-test",
+            OutputPath: null,
+            Corpus: ProfilingLiveDaqReplay.Corpus,
+            AppDataPath: "catalog-test-app-data"));
+        try
+        {
+            var ordinary = new LiveDaqCatalogEntry(
+                IdentityKey: "ordinary",
+                DisplayName: "Ordinary DAQ",
+                BoardId: null,
+                Host: "192.168.1.20",
+                Port: 1557,
+                ProtocolVersion: LiveProtocolVersion.V3);
+            var duplicate = ProfilingLiveDaqReplay.CatalogEntry with
+            {
+                DisplayName = "stale replay",
+                Host = "192.168.1.21",
+            };
+            using var entries = new BehaviorSubject<IReadOnlyList<LiveDaqCatalogEntry>>(
+                [ordinary, duplicate]);
+            var inner = Substitute.For<ILiveDaqCatalogService>();
+            inner.Observe().Returns(entries);
+            var service = new ProfilingLiveDaqCatalogService(inner);
+            IReadOnlyList<LiveDaqCatalogEntry>? observed = null;
+
+            using var subscription = service.Observe().Subscribe(value => observed = value);
+
+            Assert.NotNull(observed);
+            Assert.Equal(2, observed.Count);
+            Assert.Contains(ordinary, observed);
+            Assert.Equal(
+                ProfilingLiveDaqReplay.CatalogEntry,
+                Assert.Single(observed, entry => ProfilingLiveDaqReplay.Matches(entry.IdentityKey)));
+        }
+        finally
+        {
+            ProfilingRuntime.Shutdown();
+        }
+    }
+#endif
 
     [Fact]
     public void AcquireBrowse_StartsUnderlyingBrowseOnFirstLease_AndStopsOnLastLease()

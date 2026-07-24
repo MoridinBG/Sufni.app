@@ -5,6 +5,10 @@ using System.Reactive.Subjects;
 using System.Reactive.Threading.Tasks;
 using System.Threading;
 using System.Threading.Tasks;
+#if SUFNI_PROFILING_DIAGNOSTICS
+using System.IO;
+using System.Text.Json;
+#endif
 using NSubstitute;
 using Serilog.Core;
 using Sufni.Telemetry;
@@ -13,11 +17,18 @@ using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 using Sufni.App.LiveDaq.Queries;
+#if SUFNI_PROFILING_DIAGNOSTICS
+using Sufni.App.LiveDaq.Services;
+using Sufni.Profiling;
+#endif
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Processing.SessionDetails;
 namespace Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
 
+#if SUFNI_PROFILING_DIAGNOSTICS
+[Collection("ProfilingRuntime")]
+#endif
 public class LiveSessionServiceTests
 {
     private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
@@ -102,6 +113,91 @@ public class LiveSessionServiceTests
         await observerLease.Received(1).DisposeAsync();
         await configurationLockLease.Received(1).DisposeAsync();
     }
+
+#if SUFNI_PROFILING_DIAGNOSTICS
+    [Fact]
+    public async Task ProfilingCapture_EmitsTimeResourceAndSaveBoundaries()
+    {
+        ProfilingRuntime.Shutdown();
+        var outputPath = Path.Combine(
+            Path.GetTempPath(),
+            $"sufni-bench01-{Guid.NewGuid():N}.jsonl");
+        ProfilingRuntime.Initialize(new ProfilingOptions(
+            ProfilingMode.Timing,
+            RunId: "capture-boundaries-test",
+            OutputPath: outputPath,
+            Corpus: ProfilingLiveDaqReplay.Corpus,
+            AppDataPath: Path.Combine(Path.GetTempPath(), $"sufni-bench01-state-{Guid.NewGuid():N}")));
+        ILiveSessionService? service = null;
+        try
+        {
+            service = CreateService();
+            await service.EnsureAttachedAsync();
+            var records = Enumerable.Range(0, 24_001)
+                .Select(index => new LiveTravelRecord(
+                    ForkAngle: (ushort)(1000 + index % 100),
+                    ShockAngle: (ushort)(1100 + index % 100)))
+                .ToArray();
+            frames.OnNext(new LiveTravelBatchFrame(
+                Header: new LiveFrameMetadata(1),
+                Batch: new LiveBatchHeader(
+                    sessionHeader.SessionId,
+                    LiveStreamMask.Travel,
+                    StreamSequence: 0,
+                    FirstIndex: 0,
+                    FirstMonotonicDeltaUs: 0,
+                    FirstMonotonicUs: sessionHeader.SessionStartMonotonicUs,
+                    SampleCount: (uint)records.Length,
+                    ValidityMask: LiveSensorInstanceMask.Travel),
+                Records: records));
+            frames.OnNext(CreateV3ImuBatch(
+                sessionHeader,
+                firstIndex: 5,
+                sampleCount: 12_000,
+                validityMask: LiveSensorInstanceMask.FrameImu,
+                records: Enumerable.Range(0, 12_000)
+                    .Select(index => CreateImuRecord((short)index))
+                    .ToArray()));
+            frames.OnNext(CreateGpsBatchFrame());
+
+            _ = await service.PrepareCaptureForSaveAsync();
+            await service.ResetCaptureAsync();
+            await service.DisposeAsync();
+            service = null;
+            ProfilingRuntime.Shutdown();
+
+            var timing = await File.ReadAllTextAsync(outputPath);
+            Assert.Contains("\"name\":\"CaptureStart\"", timing);
+            Assert.Contains("\"name\":\"Capture.t15\"", timing);
+            Assert.Contains("\"name\":\"Capture.t30\"", timing);
+            Assert.Contains("\"name\":\"Capture.t60\"", timing);
+            Assert.Contains("\"name\":\"Capture.t90\"", timing);
+            Assert.Contains("\"name\":\"Capture.t120\"", timing);
+            using (var t120 = JsonDocument.Parse(
+                       timing.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                           .Single(line => line.Contains("\"name\":\"Capture.t120\"", StringComparison.Ordinal))))
+            {
+                Assert.Equal(59_996, t120.RootElement.GetProperty("payload").GetProperty("itemCount").GetInt64());
+            }
+            Assert.Contains("checkpoint=t120;durationSeconds=120.000000;observedDurationSeconds=120.005000;overrunItems=7", timing);
+            Assert.Contains("imu=Frame:11995", timing);
+            Assert.Contains("\"name\":\"Capture.save\"", timing);
+            Assert.Contains("\"name\":\"Capture.Resources\"", timing);
+            Assert.Contains("\"name\":\"Capture.FrontTravel.Samples\"", timing);
+            Assert.Contains("\"stage\":\"LiveCapture.BuildCapture\"", timing);
+        }
+        finally
+        {
+            if (service is not null)
+            {
+                await service.DisposeAsync();
+            }
+
+            ProfilingRuntime.Shutdown();
+            File.Delete(outputPath);
+        }
+    }
+#endif
 
     [Fact]
     public async Task Frames_AccumulateSignalTrackAndAnalysis_AndRemainSaveableAfterTerminalClose()

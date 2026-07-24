@@ -126,6 +126,23 @@ public class LiveDaqDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task ReactivatingClosedTab_DoesNotSubscribeToDisposedSharedStream()
+    {
+        var harness = new LiveDaqDetailHarness();
+        var editor = harness.CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+        editor.SetTabActive(true);
+        editor.SetTabActive(false);
+        harness.PublishStreamState(LiveDaqSharedStreamState.Empty with { IsClosed = true });
+        harness.Frames.Dispose();
+        harness.StreamStates.Dispose();
+
+        var exception = Record.Exception(() => editor.SetTabActive(true));
+
+        Assert.Null(exception);
+    }
+
+    [AvaloniaFact]
     public async Task ManagementCommands_DoNotRun_AfterStoreRemovesRow()
     {
         var harness = new LiveDaqDetailHarness();

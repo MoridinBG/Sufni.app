@@ -13,6 +13,9 @@ using Sufni.App.Acquisition.Services.Management;
 using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Coordinators;
 using Sufni.App.LiveDaq.Queries;
+#if SUFNI_PROFILING_DIAGNOSTICS
+using Sufni.App.LiveDaq.Services;
+#endif
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.LiveDaq.Stores;
 using Sufni.App.Shared.Base;
@@ -557,10 +560,18 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             IdentityKey,
             BoardId,
             Endpoint);
+#if SUFNI_PROFILING_DIAGNOSTICS
+        var profilingStopStatus = "unknown";
+#endif
 
         try
         {
             await sharedStream.StopAsync();
+#if SUFNI_PROFILING_DIAGNOSTICS
+            profilingStopStatus = string.IsNullOrWhiteSpace(sharedStream.CurrentState.LastError)
+                ? "disconnected"
+                : "failed";
+#endif
             logger.Information(
                 "Live DAQ preview disconnected for {IdentityKey} {BoardId} {Endpoint}",
                 IdentityKey,
@@ -569,6 +580,9 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         }
         catch (Exception ex)
         {
+#if SUFNI_PROFILING_DIAGNOSTICS
+            profilingStopStatus = "exception";
+#endif
             logger.Error(
                 ex,
                 "Live DAQ preview disconnect failed for {IdentityKey} {BoardId} {Endpoint}",
@@ -578,6 +592,9 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         }
 
         RefreshSharedStreamState();
+#if SUFNI_PROFILING_DIAGNOSTICS
+        ProfilingBench01.FinalizeAfterStop(profilingStopStatus);
+#endif
     }
 
     private void HandleFrame(LiveProtocolFrame frame)
@@ -852,6 +869,13 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     private void StartForegroundUpdates()
     {
+        if (sharedStream.CurrentState.IsClosed)
+        {
+            RefreshSharedStreamState();
+            RefreshSnapshot();
+            return;
+        }
+
         // Frames arrive far faster than the UI needs to repaint. The session state
         // accumulates every frame, and this timer snapshots it at a fixed cadence.
         uiRefreshTimer ??= PeriodicUiTimer.SchedulePeriodic(TimeSpan.FromMilliseconds(100), RefreshSnapshot);

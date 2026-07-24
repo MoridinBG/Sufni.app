@@ -10,6 +10,9 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Serilog;
+#if SUFNI_PROFILING_DIAGNOSTICS
+using Sufni.App.LiveDaq.Services;
+#endif
 using Sufni.App.Shared.Common;
 using Sufni.Telemetry;
 
@@ -76,6 +79,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
     private byte? activeSessionId;
     private byte? startResultAwaitingHeaderSessionId;
     private LiveStartRequest? pendingStartRequest;
+    private LiveStreamMask pendingRequestedStreamMask;
     private uint? pendingPingNonce;
     private byte? pendingPingSessionId;
     private uint nextSequence;
@@ -382,13 +386,15 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
             }
 
             var tcs = new TaskCompletionSource<LivePreviewStartResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var protocolRequest = CreateStartRequest(request, loadedCapabilities);
             pendingStartResult = tcs;
             startResultAwaitingHeaderSessionId = null;
             pendingStartRequest = request;
+            pendingRequestedStreamMask = CreateRequestedStreamMask(protocolRequest);
             lifecyclePhase = LifecyclePhase.StartPending;
             var frame = LiveV3ProtocolReader.CreateStartRequestFrame(
                 GetNextSequence(),
-                CreateStartRequest(request, loadedCapabilities));
+                protocolRequest);
             await sendBytesAsync(stream, frame, cancellationToken);
             task = tcs.Task;
         }
@@ -397,6 +403,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
             pendingStartResult = null;
             startResultAwaitingHeaderSessionId = null;
             pendingStartRequest = null;
+            pendingRequestedStreamMask = LiveStreamMask.None;
             lifecyclePhase = LifecyclePhase.Ready;
             logger.Warning(ex, "Failed to send LIVE v3 START_REQ");
             return new LivePreviewStartResult.Failed(ex.Message);
@@ -899,11 +906,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
                         LifecyclePhase.AwaitingSessionHeader);
                     var requestedSensorMask = pendingStartRequest?.RequestedSensorMask ??
                                               LiveSensorInstanceMask.None;
-                    var requestedStreamMask = pendingStartRequest is { } startRequest
-                        ? startRequest.RequestedStreamMask == LiveStreamMask.None
-                            ? CreateLegacyRequestedStreamMask(startRequest)
-                            : startRequest.RequestedStreamMask
-                        : LiveStreamMask.None;
+                    var requestedStreamMask = pendingRequestedStreamMask;
                     ValidateSessionHeaderAgainstPendingStart(
                         sessionHeaderFrame.Payload,
                         requestedStreamMask);
@@ -925,6 +928,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
                     pendingStartResult = null;
                     startResultAwaitingHeaderSessionId = null;
                     pendingStartRequest = null;
+                    pendingRequestedStreamMask = LiveStreamMask.None;
                     break;
 
                 case LiveStopResultFrame stopResultFrame:
@@ -959,6 +963,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
                         pendingStartResult = null;
                         startResultAwaitingHeaderSessionId = null;
                         pendingStartRequest = null;
+                        pendingRequestedStreamMask = LiveStreamMask.None;
                     }
 
                     pendingSessionResult?.TrySetResult(sessionResultFrame.Payload);
@@ -1036,6 +1041,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
             pendingStartResult = null;
             startResultAwaitingHeaderSessionId = null;
             pendingStartRequest = null;
+            pendingRequestedStreamMask = LiveStreamMask.None;
             activeSessionId = null;
             lifecyclePhase = LifecyclePhase.Ready;
             protocolReader.ResetSessionContext();
@@ -1081,6 +1087,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
             pendingStartResult = null;
             startResultAwaitingHeaderSessionId = null;
             pendingStartRequest = null;
+            pendingRequestedStreamMask = LiveStreamMask.None;
         }
 
         _ = Task.Run(() => HandleDisconnectAsync(message));
@@ -1157,6 +1164,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
         pendingSessionResult = null;
         startResultAwaitingHeaderSessionId = null;
         pendingStartRequest = null;
+        pendingRequestedStreamMask = LiveStreamMask.None;
     }
 
     private void RequireLifecyclePhase(
@@ -1245,10 +1253,17 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
 
     private uint GetNextSequence() => unchecked(nextSequence++);
 
-    private static LiveV3StartRequest CreateStartRequest(
+    private LiveV3StartRequest CreateStartRequest(
         LiveStartRequest request,
         LiveV3Capabilities capabilities)
     {
+#if SUFNI_PROFILING_DIAGNOSTICS
+        if (expectedBoardId is not null && ProfilingLiveDaqReplay.Matches(expectedBoardId))
+        {
+            return ProfilingLiveDaqReplay.CreateStartRequest(capabilities);
+        }
+#endif
+
         var requestedStreams = request.RequestedStreamMask == LiveStreamMask.None
             ? CreateLegacyRequestedStreamMask(request)
             : request.RequestedStreamMask;
@@ -1358,6 +1373,18 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
                                   (request.NoGpsHeaderWait ? LiveV3ProtocolConstants.StartFlagNoGpsHeaderWait : 0)),
             StreamRequests = records,
         };
+    }
+
+    private static LiveStreamMask CreateRequestedStreamMask(LiveV3StartRequest request)
+    {
+        var streams = LiveStreamMask.None;
+        foreach (var streamRequest in request.StreamRequests)
+        {
+            streams |= (LiveStreamMask)SstV5ProtocolConstants.StreamMaskForKind(
+                streamRequest.StreamKind);
+        }
+
+        return streams;
     }
 
     private static LiveStreamMask CreateLegacyRequestedStreamMask(LiveStartRequest request)

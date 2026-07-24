@@ -8,6 +8,10 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Serilog;
 
+#if SUFNI_PROFILING_DIAGNOSTICS
+using Sufni.App.LiveDaq.Services;
+using Sufni.Profiling;
+#endif
 using Sufni.App.LiveDaq.Stores;
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 
@@ -45,6 +49,12 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         this.snapshot = snapshot;
         this.liveDaqClientFactory = liveDaqClientFactory;
         this.evictAsync = evictAsync;
+#if SUFNI_PROFILING_DIAGNOSTICS
+        if (ProfilingLiveDaqReplay.Matches(snapshot.IdentityKey))
+        {
+            requestedConfiguration = ProfilingLiveDaqReplay.Configuration;
+        }
+#endif
         currentState = LiveDaqSharedStreamState.Empty with
         {
             ProtocolVersion = snapshot.ProtocolVersion,
@@ -202,12 +212,23 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
+#if SUFNI_PROFILING_DIAGNOSTICS
+        using var profilingStage = ProfilingBench01.IsActive
+            ? ProfilingRuntime.BeginStage(
+                ProfilingBench01.Scenario,
+                "LiveStream.Stop",
+                IdentityKey)
+            : null;
+#endif
         await gate.WaitAsync(cancellationToken);
         try
         {
             ThrowIfDisposed();
             if (currentState.IsClosed)
             {
+#if SUFNI_PROFILING_DIAGNOSTICS
+                profilingStage?.SetResult(0, 0, "already_closed");
+#endif
                 return;
             }
 
@@ -220,6 +241,9 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     SessionHeader = null,
                     SelectedStreamMask = LiveStreamMask.None,
                 });
+#if SUFNI_PROFILING_DIAGNOSTICS
+                profilingStage?.SetResult(0, 0, "no_client");
+#endif
                 return;
             }
 
@@ -231,6 +255,9 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     SessionHeader = null,
                     SelectedStreamMask = LiveStreamMask.None,
                 });
+#if SUFNI_PROFILING_DIAGNOSTICS
+                profilingStage?.SetResult(0, 0, "already_disconnected");
+#endif
                 return;
             }
 
@@ -245,8 +272,15 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 LastError = null,
             });
 
-            BeginDeliberateDisconnect();
-            await liveDaqClient.DisconnectAsync(cancellationToken);
+            try
+            {
+                await liveDaqClient.StopPreviewAsync(cancellationToken);
+            }
+            finally
+            {
+                BeginDeliberateDisconnect();
+                await liveDaqClient.DisconnectAsync(cancellationToken);
+            }
             PublishState(currentState with
             {
                 ConnectionState = LiveConnectionState.Disconnected,
@@ -254,12 +288,21 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 SessionHeader = null,
                 SelectedStreamMask = LiveStreamMask.None,
             });
+#if SUFNI_PROFILING_DIAGNOSTICS
+            profilingStage?.SetResult(0, 0, "disconnected");
+#endif
         }
         catch (OperationCanceledException)
         {
+#if SUFNI_PROFILING_DIAGNOSTICS
+            profilingStage?.SetResult(0, 0, "canceled");
+#endif
         }
         catch (Exception ex)
         {
+#if SUFNI_PROFILING_DIAGNOSTICS
+            profilingStage?.SetResult(0, 0, "failed");
+#endif
             logger.Error(
                 ex,
                 "Stopping shared live DAQ stream failed for {IdentityKey} at {Endpoint}",

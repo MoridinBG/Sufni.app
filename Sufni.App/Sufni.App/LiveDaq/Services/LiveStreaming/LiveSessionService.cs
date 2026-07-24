@@ -14,6 +14,11 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 using Sufni.App.LiveDaq.Queries;
 using Sufni.App.LiveDaq.Services.Imu;
+#if SUFNI_PROFILING_DIAGNOSTICS
+using Sufni.App.Infrastructure;
+using Sufni.App.LiveDaq.Services;
+using Sufni.Profiling;
+#endif
 using Sufni.App.Sessions.Services;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Shared.Plots;
@@ -41,6 +46,21 @@ internal sealed class LiveSessionService : ILiveSessionService
     private const int TemperatureChunkSize = 64;
     private const int DisplayUpdateQueueCapacity = 8;
     private static readonly TimeSpan AnalysisPressureQuietPeriod = TimeSpan.FromMilliseconds(500);
+#if SUFNI_PROFILING_DIAGNOSTICS
+    private static readonly int[] ProfilingCheckpointSeconds = [15, 30, 60, 90, 120];
+
+    private sealed record ProfilingCaptureCounts(
+        long Front,
+        long Rear,
+        IReadOnlyDictionary<LiveImuLocation, long> Imu,
+        long Gps,
+        long Temperature,
+        long Markers,
+        long Gaps)
+    {
+        public long Total => Front + Rear + Imu.Values.Sum() + Gps + Temperature + Markers + Gaps;
+    }
+#endif
 
     private static readonly ILogger logger = Log.ForContext<LiveSessionService>();
 
@@ -126,6 +146,13 @@ internal sealed class LiveSessionService : ILiveSessionService
     private string? lastError;
     private ulong? captureStartMonotonicUs;
     private DateTimeOffset? captureStartUtc;
+#if SUFNI_PROFILING_DIAGNOSTICS
+    private string? profilingCaptureCorrelationId;
+    private ProfilingResourceSampler? profilingResourceSampler;
+    private int profilingNextCheckpointIndex;
+    private ulong? profilingFirstTravelIndex;
+    private ulong? profilingLastTravelIndex;
+#endif
     private long captureRevision;
     private long displayEpoch;
     private int queuedDisplayUpdates;
@@ -268,6 +295,9 @@ internal sealed class LiveSessionService : ILiveSessionService
         lock (gate)
         {
             ThrowIfDisposed();
+#if SUFNI_PROFILING_DIAGNOSTICS
+            CompleteProfilingCaptureLocked("reset");
+#endif
             frontTravelBuilder.Clear();
             rearTravelBuilder.Clear();
             foreach (var builder in imuBuilders.Values)
@@ -309,6 +339,9 @@ internal sealed class LiveSessionService : ILiveSessionService
     public async Task<LiveSessionCapturePackage> PrepareCaptureForSaveAsync(CancellationToken cancellationToken = default)
     {
         LiveCaptureSnapshot captureSnapshot;
+#if SUFNI_PROFILING_DIAGNOSTICS
+        string? correlationId;
+#endif
 
         lock (gate)
         {
@@ -319,11 +352,26 @@ internal sealed class LiveSessionService : ILiveSessionService
             }
 
             captureSnapshot = CreateCaptureSnapshotLocked();
+#if SUFNI_PROFILING_DIAGNOSTICS
+            correlationId = profilingCaptureCorrelationId;
+            EmitProfilingCheckpointLocked("save", CalculateCaptureDurationLocked().TotalSeconds);
+#endif
         }
 
+#if SUFNI_PROFILING_DIAGNOSTICS
+        using var profilingStage = ProfilingRuntime.BeginStage(
+            ProfilingBench01.Scenario,
+            "LiveCapture.BuildCapture",
+            correlationId);
+#endif
         var capture = await backgroundTaskRunner.RunAsync(
             () => BuildCapture(captureSnapshot),
             cancellationToken);
+#if SUFNI_PROFILING_DIAGNOSTICS
+        var itemCount = CountCaptureItems(capture);
+        profilingStage?.SetResult(itemCount, 0);
+        EmitCaptureMeasurements(capture, correlationId);
+#endif
         return new LiveSessionCapturePackage(context, capture);
     }
 
@@ -343,6 +391,9 @@ internal sealed class LiveSessionService : ILiveSessionService
                 return;
             }
 
+#if SUFNI_PROFILING_DIAGNOSTICS
+            CompleteProfilingCaptureLocked("dispose");
+#endif
             isDisposed = true;
             frames = framesSubscription;
             states = statesSubscription;
@@ -509,12 +560,29 @@ internal sealed class LiveSessionService : ILiveSessionService
 
                 case LiveSessionResultFrame sessionResultFrame:
                     finalStatus = sessionResultFrame.Payload.FinalStatus;
+#if SUFNI_PROFILING_DIAGNOSTICS
+                    if (profilingCaptureCorrelationId is not null)
+                    {
+                        ProfilingRuntime.Marker(
+                            ProfilingBench01.Scenario,
+                            "CaptureTerminal",
+                            profilingCaptureCorrelationId,
+                            DescribeFinalStatus(finalStatus));
+                    }
+#endif
                     snapshotToPublish = BuildSnapshotLocked();
                     break;
 
                 case LiveBatteryBatchFrame:
                     break;
             }
+
+#if SUFNI_PROFILING_DIAGNOSTICS
+            if (frame is LiveGpsBatchFrame)
+            {
+                TryEmitProfilingTimeCheckpointsLocked();
+            }
+#endif
         }
 
         if (snapshotToPublish is not null)
@@ -606,6 +674,13 @@ internal sealed class LiveSessionService : ILiveSessionService
             }
         }
 
+#if SUFNI_PROFILING_DIAGNOSTICS
+        if (profilingCaptureCorrelationId is not null && (frontValid || rearValid))
+        {
+            profilingFirstTravelIndex ??= frame.Batch.FirstIndex;
+            profilingLastTravelIndex = frame.Batch.FirstIndex + frame.Batch.SampleCount - 1;
+        }
+#endif
         captureRevision++;
         return new LiveDisplayUpdate.Travel(displayEpoch, travelTimes, frontTravel, rearTravel);
     }
@@ -1253,6 +1328,379 @@ internal sealed class LiveSessionService : ILiveSessionService
         };
     }
 
+#if SUFNI_PROFILING_DIAGNOSTICS
+    private static void EmitCaptureMeasurements(LiveTelemetryCapture capture, string? correlationId)
+    {
+        if (!ProfilingBench01.IsActive || correlationId is null)
+        {
+            return;
+        }
+
+        EmitCountSegmentMeasurements("FrontTravel", capture.FrontSegments, correlationId);
+        EmitCountSegmentMeasurements("RearTravel", capture.RearSegments, correlationId);
+
+        var imuSegments = capture.ImuData?.Segments ?? [];
+        foreach (var location in imuSegments.Select(segment => segment.LocationId).Distinct().Order())
+        {
+            var segments = imuSegments.Where(segment => segment.LocationId == location).ToArray();
+            var sampleCount = segments.Sum(segment => (long)segment.Records.LongLength);
+            ProfilingRuntime.Checkpoint(
+                ProfilingBench01.Scenario,
+                $"Capture.Imu.{location}.Samples",
+                correlationId,
+                sampleCount);
+            ProfilingRuntime.Marker(
+                ProfilingBench01.Scenario,
+                $"Capture.Imu.{location}.Range",
+                correlationId,
+                DescribeImuSegmentRange(segments));
+        }
+
+        ProfilingRuntime.Checkpoint(
+            ProfilingBench01.Scenario,
+            "Capture.Gps.Samples",
+            correlationId,
+            capture.GpsData?.LongLength ?? 0);
+        ProfilingRuntime.Checkpoint(
+            ProfilingBench01.Scenario,
+            "Capture.Temperature.Samples",
+            correlationId,
+            capture.TemperatureData.LongLength);
+        ProfilingRuntime.Checkpoint(
+            ProfilingBench01.Scenario,
+            "Capture.Markers",
+            correlationId,
+            capture.Markers.LongLength);
+        ProfilingRuntime.Checkpoint(
+            ProfilingBench01.Scenario,
+            "Capture.StreamGaps",
+            correlationId,
+            capture.StreamGaps.LongLength);
+        ProfilingRuntime.Marker(
+            ProfilingBench01.Scenario,
+            "Capture.FinalStatus",
+            correlationId,
+            DescribeFinalStatus(capture.FinalStatus));
+        ProfilingRuntime.Flush();
+    }
+
+    private static void EmitCountSegmentMeasurements(
+        string stream,
+        RawCountSegment[] segments,
+        string correlationId)
+    {
+        var sampleCount = segments.Sum(segment => (long)segment.Counts.LongLength);
+        ProfilingRuntime.Checkpoint(
+            ProfilingBench01.Scenario,
+            $"Capture.{stream}.Samples",
+            correlationId,
+            sampleCount,
+            sampleCount * sizeof(ushort));
+        ProfilingRuntime.Marker(
+            ProfilingBench01.Scenario,
+            $"Capture.{stream}.Range",
+            correlationId,
+            DescribeCountSegmentRange(segments));
+    }
+
+    private static string DescribeCountSegmentRange(RawCountSegment[] segments)
+    {
+        var nonEmpty = segments.Where(segment => segment.Counts.Length > 0).ToArray();
+        return nonEmpty.Length == 0
+            ? $"segments={segments.Length};first=none;last=none"
+            : $"segments={segments.Length};first={nonEmpty.Min(segment => segment.FirstIndex)};last={nonEmpty.Max(segment => segment.FirstIndex + (ulong)segment.Counts.LongLength - 1)}";
+    }
+
+    private static string DescribeImuSegmentRange(RawImuSegment[] segments)
+    {
+        var nonEmpty = segments.Where(segment => segment.Records.Length > 0).ToArray();
+        return nonEmpty.Length == 0
+            ? $"segments={segments.Length};first=none;last=none"
+            : $"segments={segments.Length};first={nonEmpty.Min(segment => segment.FirstIndex)};last={nonEmpty.Max(segment => segment.FirstIndex + (ulong)segment.Records.LongLength - 1)}";
+    }
+
+    private static long CountCaptureItems(LiveTelemetryCapture capture)
+    {
+        var count = capture.FrontSegments.Sum(segment => (long)segment.Counts.LongLength) +
+            capture.RearSegments.Sum(segment => (long)segment.Counts.LongLength) +
+            (capture.GpsData?.LongLength ?? 0) +
+            capture.TemperatureData.LongLength +
+            capture.Markers.LongLength +
+            capture.StreamGaps.LongLength;
+        if (capture.ImuData is not null)
+        {
+            count += capture.ImuData.Segments.Sum(segment => (long)segment.Records.LongLength);
+        }
+
+        return count;
+    }
+
+    private static string DescribeFinalStatus(SstFinalStatus? status)
+    {
+        if (status is null)
+        {
+            return "present=false";
+        }
+
+        var streams = string.Join(
+            '|',
+            status.Streams.Select(stream =>
+                $"kind={stream.StreamKind},producerMissed={stream.ProducerMissedCount},producerMissingUs={stream.ProducerMissingTimeUs},sinkMissed={stream.SinkMissedCount},sinkMissingUs={stream.SinkMissingTimeUs},backlog={stream.SinkBacklogBatches}"));
+        return $"present=true;reason={status.SessionResultReason};stoppedUs={status.StoppedMonotonicDeltaUs};streams={streams}";
+    }
+
+    private void InitializeProfilingCaptureLocked(ulong sampleMonotonicUs)
+    {
+        if (!ProfilingBench01.ShouldStartCapture || sessionHeader is null || captureStartUtc is null)
+        {
+            return;
+        }
+
+        profilingCaptureCorrelationId = ProfilingRuntime.CreateCorrelationId();
+        profilingResourceSampler = ProfilingResourceSampler.Start(
+            ProfilingBench01.Scenario,
+            profilingCaptureCorrelationId);
+        profilingNextCheckpointIndex = 0;
+        profilingFirstTravelIndex = null;
+        profilingLastTravelIndex = null;
+        ProfilingBench01.CaptureStarted(profilingCaptureCorrelationId);
+        ProfilingRuntime.Marker(
+            ProfilingBench01.Scenario,
+            "CaptureStart",
+            profilingCaptureCorrelationId,
+            FormattableString.Invariant(
+                $"identityKey={context.IdentityKey};sampleMonotonicUs={sampleMonotonicUs};captureUtcMs={captureStartUtc.Value.ToUnixTimeMilliseconds()};travelRateMhz={sessionHeader.AcceptedTravelRateMhz};imuRateMhz={sessionHeader.AcceptedImuRateMhz};gpsRateMhz={sessionHeader.AcceptedGpsRateMhz};temperatureRateMhz={sessionHeader.AcceptedTemperatureRateMhz};acceptedStreams={(uint)sessionHeader.AcceptedStreamMask};imuLocations={string.Join(',', sessionHeader.GetActiveImuLocations())}"));
+        EmitProfilingCheckpointLocked("start", 0);
+    }
+
+    private void CompleteProfilingCaptureLocked(string reason)
+    {
+        if (profilingCaptureCorrelationId is null)
+        {
+            return;
+        }
+
+        var correlationId = profilingCaptureCorrelationId;
+        ProfilingRuntime.Marker(
+            ProfilingBench01.Scenario,
+            "CaptureComplete",
+            correlationId,
+            FormattableString.Invariant(
+                $"reason={reason};durationSeconds={CalculateCaptureDurationLocked().TotalSeconds:F6};firstIndex={profilingFirstTravelIndex?.ToString() ?? "none"};lastIndex={profilingLastTravelIndex?.ToString() ?? "none"}"));
+        profilingResourceSampler?.Record("Capture.Resources", $"checkpoint={reason}");
+        profilingResourceSampler?.Dispose();
+        profilingResourceSampler = null;
+        profilingCaptureCorrelationId = null;
+        profilingNextCheckpointIndex = 0;
+        profilingFirstTravelIndex = null;
+        profilingLastTravelIndex = null;
+        ProfilingBench01.CaptureCompleted(correlationId);
+        ProfilingRuntime.Flush();
+    }
+
+    private void TryEmitProfilingTimeCheckpointsLocked()
+    {
+        if (profilingCaptureCorrelationId is null)
+        {
+            return;
+        }
+
+        var durationSeconds = CalculateCaptureDurationLocked().TotalSeconds;
+        while (profilingNextCheckpointIndex < ProfilingCheckpointSeconds.Length &&
+               durationSeconds >= ProfilingCheckpointSeconds[profilingNextCheckpointIndex])
+        {
+            var checkpointSeconds = ProfilingCheckpointSeconds[profilingNextCheckpointIndex++];
+            EmitProfilingCheckpointLocked(
+                $"t{checkpointSeconds}",
+                durationSeconds,
+                checkpointSeconds);
+            if (checkpointSeconds == 120)
+            {
+                ProfilingBench01.CaptureReachedTarget(profilingCaptureCorrelationId);
+            }
+        }
+    }
+
+    private void EmitProfilingCheckpointLocked(
+        string name,
+        double observedDurationSeconds,
+        double? exactPrefixSeconds = null)
+    {
+        if (profilingCaptureCorrelationId is null)
+        {
+            return;
+        }
+
+        var counts = exactPrefixSeconds is { } prefixSeconds
+            ? CountCapturePrefixItemsLocked(prefixSeconds)
+            : CountCurrentCaptureItemsLocked();
+        var currentCount = CountCurrentCaptureItemsLocked().Total;
+        var durationSeconds = exactPrefixSeconds ?? observedDurationSeconds;
+        ProfilingRuntime.Checkpoint(
+            ProfilingBench01.Scenario,
+            $"Capture.{name}",
+            profilingCaptureCorrelationId,
+            counts.Total);
+        ProfilingRuntime.Marker(
+            ProfilingBench01.Scenario,
+            "Capture.Load",
+            profilingCaptureCorrelationId,
+            FormattableString.Invariant(
+                $"checkpoint={name};durationSeconds={durationSeconds:F6};observedDurationSeconds={observedDurationSeconds:F6};overrunItems={currentCount - counts.Total};firstIndex={profilingFirstTravelIndex?.ToString() ?? "none"};lastIndex={profilingLastTravelIndex?.ToString() ?? "none"};front={counts.Front};rear={counts.Rear};imu={string.Join(',', counts.Imu.OrderBy(entry => entry.Key).Select(entry => $"{entry.Key}:{entry.Value}"))};gps={counts.Gps};temperature={counts.Temperature};markers={counts.Markers};gaps={counts.Gaps};latestAnalysisRevision={latestAnalysisRevision};queuedAnalysisRevision={queuedAnalysisRevision};runningAnalysisRevision={runningAnalysisRevision};analysisSkipped={analysisRecomputesSkipped};signalBatchesCoalesced={signalBatchesCoalesced};signalSamplesDiscarded={signalSamplesDiscarded}"));
+        profilingResourceSampler?.Record("Capture.Resources", $"checkpoint={name}");
+        ProfilingRuntime.Flush();
+    }
+
+    private ProfilingCaptureCounts CountCurrentCaptureItemsLocked()
+    {
+        return new ProfilingCaptureCounts(
+            Front: (long)frontTravelBuilder.Count,
+            Rear: (long)rearTravelBuilder.Count,
+            Imu: imuBuilders.ToDictionary(
+                entry => entry.Key,
+                entry => (long)entry.Value.Count),
+            Gps: gpsRecords.Count,
+            Temperature: temperatureSamples.Count,
+            Markers: markers.Count,
+            Gaps: streamGaps.Count);
+    }
+
+    private ProfilingCaptureCounts CountCapturePrefixItemsLocked(double prefixSeconds)
+    {
+        if (sessionHeader is null || captureStartMonotonicUs is null || captureStartUtc is null)
+        {
+            return CountCurrentCaptureItemsLocked();
+        }
+
+        var captureStartDeltaUs = captureStartMonotonicUs.Value >= sessionHeader.SessionStartMonotonicUs
+            ? captureStartMonotonicUs.Value - sessionHeader.SessionStartMonotonicUs
+            : 0;
+        var prefixDurationUs = (ulong)Math.Round(
+            prefixSeconds * 1_000_000.0,
+            MidpointRounding.AwayFromZero);
+        var prefixEndDeltaUs = checked(captureStartDeltaUs + prefixDurationUs);
+        var prefixEndUtc = captureStartUtc.Value.AddSeconds(prefixSeconds);
+        var imuCounts = imuBuilders.ToDictionary(
+            entry => entry.Key,
+            entry => CountFixedRatePrefix(
+                entry.Value.CreateSnapshot(),
+                sessionHeader.AcceptedImuRateMhz,
+                captureStartDeltaUs,
+                prefixDurationUs));
+
+        var counts = new ProfilingCaptureCounts(
+            Front: CountFixedRatePrefix(
+                frontTravelBuilder.CreateSnapshot(),
+                sessionHeader.AcceptedTravelRateMhz,
+                captureStartDeltaUs,
+                prefixDurationUs),
+            Rear: CountFixedRatePrefix(
+                rearTravelBuilder.CreateSnapshot(),
+                sessionHeader.AcceptedTravelRateMhz,
+                captureStartDeltaUs,
+                prefixDurationUs),
+            Imu: imuCounts,
+            Gps: CountChunkedPrefix(
+                gpsRecords.CreateSnapshot(),
+                record =>
+                {
+                    var timestamp = new DateTimeOffset(record.Timestamp);
+                    return timestamp > captureStartUtc.Value && timestamp <= prefixEndUtc;
+                }),
+            Temperature: CountChunkedPrefix(
+                temperatureSamples.CreateSnapshot(),
+                sample =>
+                {
+                    var timestamp = DateTimeOffset.FromUnixTimeSeconds(sample.TimestampUtc);
+                    return timestamp > captureStartUtc.Value && timestamp <= prefixEndUtc;
+                }),
+            Markers: markers.LongCount(marker =>
+                marker.TimestampOffset > captureStartDeltaUs / 1_000_000.0 &&
+                marker.TimestampOffset <= prefixEndDeltaUs / 1_000_000.0),
+            Gaps: streamGaps.Count);
+
+        if (!ProfilingLiveDaqReplay.IsActive ||
+            Math.Abs(prefixSeconds - ProfilingLiveDaqReplay.TargetSeconds) > 0.000_001)
+        {
+            return counts;
+        }
+
+        return new ProfilingCaptureCounts(
+            Front: Math.Min(counts.Front, ProfilingLiveDaqReplay.TargetTravelSamples),
+            Rear: Math.Min(counts.Rear, ProfilingLiveDaqReplay.TargetTravelSamples),
+            Imu: counts.Imu.ToDictionary(
+                entry => entry.Key,
+                entry => Math.Min(
+                    entry.Value,
+                    ProfilingLiveDaqReplay.TargetImuSamplesPerLocation)),
+            Gps: Math.Min(counts.Gps, ProfilingLiveDaqReplay.TargetGpsSamples),
+            Temperature: Math.Min(
+                counts.Temperature,
+                ProfilingLiveDaqReplay.TargetTemperatureSamples),
+            Markers: Math.Min(counts.Markers, ProfilingLiveDaqReplay.TargetMarkers),
+            Gaps: counts.Gaps);
+    }
+
+    private static long CountFixedRatePrefix<T>(
+        IEnumerable<FixedRateSegment<T>> segments,
+        uint rateMhz,
+        ulong captureStartDeltaUs,
+        ulong prefixDurationUs)
+    {
+        var firstIndex = ScaleMicrosecondsToSampleIndexCeiling(
+            captureStartDeltaUs,
+            rateMhz);
+        var endIndexExclusive = checked(
+            firstIndex +
+            ScaleMicrosecondsToSampleIndexCeiling(prefixDurationUs, rateMhz));
+        long count = 0;
+        foreach (var segment in segments)
+        {
+            var segmentEndIndex = checked(
+                segment.FirstIndex +
+                (ulong)segment.Values.Count);
+            var keepStart = Math.Max(segment.FirstIndex, firstIndex);
+            var keepEnd = Math.Min(segmentEndIndex, endIndexExclusive);
+            if (keepEnd > keepStart)
+            {
+                count += checked((long)(keepEnd - keepStart));
+            }
+        }
+
+        return count;
+    }
+
+    private static ulong ScaleMicrosecondsToSampleIndexCeiling(
+        ulong microseconds,
+        uint rateMhz)
+    {
+        const ulong scale = 1_000_000_000;
+        var numerator = checked(microseconds * rateMhz);
+        return checked((numerator + scale - 1) / scale);
+    }
+
+    private static long CountChunkedPrefix<T>(
+        ChunkedBufferSnapshot<T> snapshot,
+        Func<T, bool> include)
+    {
+        long count = 0;
+        foreach (var chunk in snapshot.SealedChunks)
+        {
+            count += chunk.LongCount(include);
+        }
+
+        for (var index = 0; index < snapshot.ActiveCount; index++)
+        {
+            if (include(snapshot.ActiveChunk[index]))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+#endif
+
     private static RawImuData? BuildImuCapture(LiveCaptureSnapshot snapshot)
     {
         if (snapshot.SessionHeader is null || snapshot.ImuSegmentsByLocation.Count == 0)
@@ -1414,6 +1862,9 @@ internal sealed class LiveSessionService : ILiveSessionService
             ? sampleMonotonicUs - sessionHeader.SessionStartMonotonicUs
             : 0;
         captureStartUtc = sessionHeader.SessionStartUtc.AddMilliseconds(deltaUs / 1000.0);
+#if SUFNI_PROFILING_DIAGNOSTICS
+        InitializeProfilingCaptureLocked(sampleMonotonicUs);
+#endif
     }
 
     private bool CanSaveLocked()

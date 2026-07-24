@@ -247,6 +247,23 @@ public class LiveDaqSharedStreamTests
         Assert.Equal(LiveConnectionState.Connected, stream.CurrentState.ConnectionState);
     }
 
+    [Fact]
+    public async Task StopAsync_StopsPreviewBeforeDisconnecting()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+        var stream = registry.GetOrCreate(snapshot);
+        await using var lease = stream.AcquireLease();
+        await stream.EnsureStartedAsync();
+        var client = clientFactory.CreatedClients.Single();
+
+        await stream.StopAsync();
+
+        Assert.Equal(["stop", "disconnect"], client.StopLifecycleCalls);
+        Assert.Equal(LiveConnectionState.Disconnected, stream.CurrentState.ConnectionState);
+    }
+
     [Theory]
     [InlineData(CanceledOperation.Connect)]
     [InlineData(CanceledOperation.Stop)]
@@ -580,6 +597,8 @@ public class LiveDaqSharedStreamTests
 
         public int DisconnectCalls { get; private set; }
 
+        public List<string> StopLifecycleCalls { get; } = [];
+
         public int DisposeCalls { get; private set; }
 
         public IObservable<LiveDaqClientEvent> Events => events;
@@ -639,11 +658,13 @@ public class LiveDaqSharedStreamTests
 
         public Task StopPreviewAsync(CancellationToken cancellationToken = default)
         {
+            StopLifecycleCalls.Add("stop");
             return Task.CompletedTask;
         }
 
         public Task DisconnectAsync(CancellationToken cancellationToken = default)
         {
+            StopLifecycleCalls.Add("disconnect");
             DisconnectCalls++;
             if (ThrowCanceledOnDisconnect)
             {

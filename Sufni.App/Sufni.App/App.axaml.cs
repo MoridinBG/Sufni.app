@@ -288,7 +288,15 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ILiveDaqStoreWriter>(sp => sp.GetRequiredService<LiveDaqStore>());
         ServiceCollection.AddSingleton<IDaqBrowseOwner, DaqBrowseOwner>();
         ServiceCollection.AddSingleton<ILiveDaqBoardIdInspector, LiveDaqBoardIdInspector>();
-        ServiceCollection.AddSingleton<ILiveDaqCatalogService, LiveDaqCatalogService>();
+        ServiceCollection.AddSingleton<LiveDaqCatalogService>();
+#if SUFNI_PROFILING_DIAGNOSTICS
+        ServiceCollection.AddSingleton<ILiveDaqCatalogService>(sp =>
+            new ProfilingLiveDaqCatalogService(
+                sp.GetRequiredService<LiveDaqCatalogService>()));
+#else
+        ServiceCollection.AddSingleton<ILiveDaqCatalogService>(sp =>
+            sp.GetRequiredService<LiveDaqCatalogService>());
+#endif
         ServiceCollection.AddSingleton<ILiveDaqClientFactory, LiveDaqClientFactory>();
         ServiceCollection.AddSingleton<ILiveDaqSharedStreamRegistry, LiveDaqSharedStreamRegistry>();
         ServiceCollection.AddSingleton<LiveSignalPipelineFactory>();
