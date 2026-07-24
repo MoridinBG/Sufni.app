@@ -682,6 +682,35 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             PublishLoadResultPresentation(loadPresentation);
             ApplyLoadedStateInputs(result);
             presentationApplier.ApplyLoadResult(result);
+
+            if (result is not SessionDetailLoadResult.Loaded loaded)
+            {
+                return;
+            }
+
+            var trackResult = await sessionCoordinator.LoadTrackAsync(
+                Id,
+                loaded.Data.TelemetryPresentation.TelemetryData,
+                progress,
+                token);
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            var settledResult = CreateSettledLoadResult(loaded, trackResult);
+            await PublishSessionLoadProgressAsync(
+                SessionDetailLoadProgress.ApplyingSessionData,
+                mapExpected,
+                sessionStore.Get(Id) ?? currentSnapshot,
+                token);
+            PublishLoadResultPresentation(CreateLoadPresentation(
+                settledResult,
+                sessionStore.Get(Id) ?? currentSnapshot));
+            if (settledResult is not SessionDetailLoadResult.Loaded)
+            {
+                presentationApplier.ApplyLoadResult(settledResult);
+            }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -765,7 +794,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SessionSnapshot? fallbackSnapshot,
         CancellationToken token)
     {
-        if (token.IsCancellationRequested || !viewLoaded)
+        if (token.IsCancellationRequested ||
+            !viewLoaded ||
+            currentEditorState.Load is RecordedSessionLoadPresentation.Loaded)
         {
             return;
         }
@@ -789,6 +820,28 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             onReport(value);
         }
+    }
+
+    private static SessionDetailLoadResult CreateSettledLoadResult(
+        SessionDetailLoadResult.Loaded initialResult,
+        SessionDetailTrackLoadResult trackResult)
+    {
+        return trackResult switch
+        {
+            SessionDetailTrackLoadResult.Loaded loaded =>
+                new SessionDetailLoadResult.Loaded(
+                    new SessionDetailData(
+                        initialResult.Data.TelemetryPresentation with
+                        {
+                            FullTrackId = loaded.Data.FullTrackId,
+                            FullTrackPoints = loaded.Data.FullTrackPoints,
+                            TrackPoints = loaded.Data.TrackPoints,
+                            MediaColumnWidth = loaded.Data.MediaColumnWidth,
+                        })),
+            SessionDetailTrackLoadResult.Failed failed =>
+                new SessionDetailLoadResult.Failed(failed.ErrorMessage),
+            _ => throw new InvalidOperationException("Unsupported session track load result."),
+        };
     }
 
     private static RecordedSessionLoadPresentation CreateLoadPresentation(

@@ -6,6 +6,7 @@ using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.SessionDetails;
+using Sufni.Telemetry;
 namespace Sufni.App.Sessions.Coordination;
 
 public interface ISessionCoordinator
@@ -15,6 +16,12 @@ public interface ISessionCoordinator
     Task<SessionDetailLoadResult> LoadDetailAsync(
         Guid sessionId,
         SessionPresentationDimensions dimensions,
+        IProgress<SessionDetailLoadProgress> progress,
+        CancellationToken cancellationToken = default);
+
+    Task<SessionDetailTrackLoadResult> LoadTrackAsync(
+        Guid sessionId,
+        TelemetryData telemetryData,
         IProgress<SessionDetailLoadProgress> progress,
         CancellationToken cancellationToken = default);
 

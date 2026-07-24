@@ -10,6 +10,7 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Shell.Coordinators;
+using Sufni.Telemetry;
 namespace Sufni.App.Sessions.Coordination;
 
 /// <summary>
@@ -51,6 +52,13 @@ public class SessionCoordinator : ISessionCoordinator
         IProgress<SessionDetailLoadProgress> progress,
         CancellationToken cancellationToken = default)
         => sessionLoader.LoadDetailAsync(sessionId, dimensions, progress, cancellationToken);
+
+    public Task<SessionDetailTrackLoadResult> LoadTrackAsync(
+        Guid sessionId,
+        TelemetryData telemetryData,
+        IProgress<SessionDetailLoadProgress> progress,
+        CancellationToken cancellationToken = default)
+        => sessionLoader.LoadTrackAsync(sessionId, telemetryData, progress, cancellationToken);
 
     public Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated) =>
         commandService.SaveAsync(session, baselineUpdated);

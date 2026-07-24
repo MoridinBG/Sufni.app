@@ -201,13 +201,18 @@ There are five kinds of view model in the presentation layer:
   by `EditorFactory` as workspace/profile policy. Collaborators reach the
   editor through the `ISessionOperationGateway` contract rather than delegate
   bundles.
-  Recorded-session loading carries stage-based progress through the
-  `SessionCoordinator.LoadDetailAsync` / `SessionLoader.LoadDetailAsync` path as
-  `SessionDetailLoadProgress`. `SessionDetailViewModel` owns the UI-only
-  preparing and applying stages, ignores progress from canceled or superseded
-  load tokens, and publishes loading progress through the same
-  `RecordedSessionLoadPresentation` stream as the final load result.
-  `RecordedSessionEditorStateController` maps that progress into
+  Recorded-session loading publishes decoded telemetry first through
+  `SessionCoordinator.LoadDetailAsync` / `SessionLoader.LoadDetailAsync`, then
+  awaits `LoadTrackAsync` under the same active load token and augments the
+  loaded state only if that generation is still current. This lets built-in
+  telemetry Signals become ready while the map and track-backed rows are still
+  waiting, without introducing a second telemetry owner or restarting the
+  telemetry generation when track data arrives. Both stages carry
+  `SessionDetailLoadProgress`; `SessionDetailViewModel` owns the UI-only
+  preparing and applying stages, ignores progress and completions from canceled
+  or superseded load tokens, and does not replace already-published first
+  content with a later loading presentation. `RecordedSessionEditorStateController`
+  maps pre-content progress into
   `SessionScreenPresentationState`, whose loading states always expose a
   concrete message, normalized `0..1` progress fraction, and progress-visible
   flag for both workspace and compact session shells.

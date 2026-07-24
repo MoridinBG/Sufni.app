@@ -43,6 +43,103 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Loaded_PublishesTelemetryBeforeTrackCompletes()
+    {
+        var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession();
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var trackPoints = new List<TrackPoint> { new(2, 2, 2, 0) };
+        var pendingTrack = new TaskCompletionSource<SessionDetailTrackLoadResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var editor = harness.CreateLoadedRecordedSession(
+            snapshot,
+            harness.CreateLoadedResult(telemetry));
+        harness.SessionCoordinator.LoadTrackAsync(
+                snapshot.Id,
+                telemetry,
+                Arg.Any<IProgress<SessionDetailLoadProgress>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(pendingTrack.Task);
+
+        var loadTask = harness.LoadAsync(editor);
+        await WaitForAsync(() => ReferenceEquals(editor.CurrentTelemetryData, telemetry));
+
+        Assert.False(loadTask.IsCompleted);
+        Assert.Same(telemetry, editor.SignalsWorkspace.TelemetryData);
+        Assert.Equal(SurfaceStateKind.Ready, editor.SignalsWorkspace.TravelSignalState.Kind);
+        Assert.Null(editor.CurrentTrackPoints);
+
+        pendingTrack.SetResult(new SessionDetailTrackLoadResult.Loaded(
+            new SessionTrackPresentationData(
+                Guid.NewGuid(),
+                [new TrackPoint(1, 1, 1, 0)],
+                trackPoints,
+                400.0)));
+        await loadTask;
+
+        Assert.Equal(trackPoints, editor.CurrentTrackPoints);
+        Assert.Same(telemetry, editor.CurrentTelemetryData);
+    }
+
+    [AvaloniaFact]
+    public async Task Unloaded_DropsTrackCompletion_FromCanceledLoad()
+    {
+        var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession();
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var pendingTrack = new TaskCompletionSource<SessionDetailTrackLoadResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var editor = harness.CreateLoadedRecordedSession(
+            snapshot,
+            harness.CreateLoadedResult(telemetry));
+        harness.SessionCoordinator.LoadTrackAsync(
+                snapshot.Id,
+                telemetry,
+                Arg.Any<IProgress<SessionDetailLoadProgress>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(pendingTrack.Task);
+
+        var loadTask = harness.LoadAsync(editor);
+        await WaitForAsync(() => ReferenceEquals(editor.CurrentTelemetryData, telemetry));
+
+        await harness.UnloadAsync(editor);
+        pendingTrack.SetResult(new SessionDetailTrackLoadResult.Loaded(
+            new SessionTrackPresentationData(
+                Guid.NewGuid(),
+                [new TrackPoint(1, 1, 1, 0)],
+                [new TrackPoint(2, 2, 2, 0)],
+                400.0)));
+        await loadTask;
+
+        Assert.Same(telemetry, editor.CurrentTelemetryData);
+        Assert.Null(editor.CurrentTrackPoints);
+    }
+
+    [AvaloniaFact]
+    public async Task TrackFailure_ReplacesFirstContentWithFailedState()
+    {
+        var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession();
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var editor = harness.CreateLoadedRecordedSession(
+            snapshot,
+            harness.CreateLoadedResult(telemetry));
+        harness.SessionCoordinator.LoadTrackAsync(
+                snapshot.Id,
+                telemetry,
+                Arg.Any<IProgress<SessionDetailLoadProgress>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new SessionDetailTrackLoadResult.Failed("track failed"));
+
+        await harness.LoadAsync(editor);
+
+        Assert.Null(editor.CurrentTelemetryData);
+        Assert.Null(editor.CurrentTrackPoints);
+        Assert.Equal(SessionScreenStateKind.Error, editor.ScreenState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.SignalsWorkspace.TravelSignalState.Kind);
+    }
+
+    [AvaloniaFact]
     public async Task Save_OnConflict_PromptsUser_AndReloadsWhenAccepted()
     {
         var harness = new SessionDetailHarness();
@@ -118,6 +215,67 @@ public class SessionDetailViewModelTests
 
         Assert.Null(editor.CurrentTelemetryData);
         Assert.False(editor.IsComplete);
+    }
+
+    [AvaloniaFact]
+    public async Task SupersededTrackCompletion_DoesNotReplaceLatestGeneration()
+    {
+        var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession(hasProcessedData: true);
+        var firstTelemetry = TestTelemetryData.CreateProcessed();
+        var latestTelemetry = TestTelemetryData.CreateProcessed();
+        var staleTrack = new List<TrackPoint> { new(1, 1, 1, 0) };
+        var latestTrack = new List<TrackPoint> { new(2, 2, 2, 0) };
+        var pendingTrack = new TaskCompletionSource<SessionDetailTrackLoadResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var watch = new Subject<RecordedSessionDomainSnapshot>();
+        var loadCount = 0;
+        var trackLoadCount = 0;
+        var editor = harness.CreateLoadedRecordedSession(
+            snapshot,
+            harness.CreateLoadedResult(firstTelemetry),
+            watch.AsObservable());
+        harness.SessionCoordinator.LoadDetailAsync(
+                snapshot.Id,
+                Arg.Any<SessionPresentationDimensions>(),
+                Arg.Any<IProgress<SessionDetailLoadProgress>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(_ => ++loadCount switch
+            {
+                1 => Task.FromResult<SessionDetailLoadResult>(harness.CreateLoadedResult(firstTelemetry)),
+                2 => Task.FromResult<SessionDetailLoadResult>(harness.CreateLoadedResult(latestTelemetry)),
+                _ => throw new InvalidOperationException("Unexpected load request."),
+            });
+        harness.SessionCoordinator.LoadTrackAsync(
+                snapshot.Id,
+                Arg.Any<TelemetryData>(),
+                Arg.Any<IProgress<SessionDetailLoadProgress>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(_ => ++trackLoadCount switch
+            {
+                1 => pendingTrack.Task,
+                2 => Task.FromResult<SessionDetailTrackLoadResult>(
+                    new SessionDetailTrackLoadResult.Loaded(
+                        new SessionTrackPresentationData(Guid.NewGuid(), null, latestTrack, null))),
+                _ => throw new InvalidOperationException("Unexpected track load request."),
+            });
+
+        var firstLoadTask = harness.LoadAsync(editor);
+        await WaitForAsync(() => trackLoadCount == 1);
+        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        watch.OnNext(DomainFromSnapshot(
+            snapshot with { Updated = 2 },
+            DerivedChangeKind.FingerprintChanged));
+        await WaitForAsync(() => trackLoadCount == 2);
+        await WaitForAsync(() => ReferenceEquals(editor.CurrentTelemetryData, latestTelemetry));
+        await WaitForAsync(() => editor.CurrentTrackPoints?.SequenceEqual(latestTrack) == true);
+
+        pendingTrack.SetResult(new SessionDetailTrackLoadResult.Loaded(
+            new SessionTrackPresentationData(Guid.NewGuid(), null, staleTrack, null)));
+        await firstLoadTask;
+
+        Assert.Same(latestTelemetry, editor.CurrentTelemetryData);
+        Assert.Equal(latestTrack, editor.CurrentTrackPoints);
     }
 
     [AvaloniaFact]

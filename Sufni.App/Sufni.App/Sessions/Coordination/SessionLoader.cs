@@ -66,26 +66,15 @@ public sealed class SessionLoader
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            var fullTrackId = sessionStore.Get(sessionId)?.FullTrackId;
-            logger.Verbose("Resolving track data for session {SessionId}", sessionId);
-            progress.Report(SessionDetailLoadProgress.LoadingMapData);
-            var trackData = await trackCoordinator.LoadSessionTrackAsync(
-                sessionId,
-                fullTrackId,
-                telemetryData,
-                cancellationToken);
-
-            progress.Report(SessionDetailLoadProgress.FinalizingSessionData);
-
-            logger.Information("Session detail load completed for {SessionId}", sessionId);
+            logger.Information("Session telemetry load completed for {SessionId}", sessionId);
             return new SessionDetailLoadResult.Loaded(
                 new SessionDetailData(
                     new SessionTelemetryPresentationData(
                         telemetryData,
-                        trackData.FullTrackId,
-                        trackData.FullTrackPoints,
-                        trackData.TrackPoints,
-                        trackData.MediaColumnWidth,
+                        sessionStore.Get(sessionId)?.FullTrackId,
+                        FullTrackPoints: null,
+                        TrackPoints: null,
+                        MediaColumnWidth: null,
                         dampingSpeedCutoffContext.Cutoffs,
                         dampingSpeedCutoffContext.Owner)));
         }
@@ -97,6 +86,40 @@ public sealed class SessionLoader
         {
             logger.Error(e, "Session detail load failed for {SessionId}", sessionId);
             return new SessionDetailLoadResult.Failed(e.Message);
+        }
+    }
+
+    public async Task<SessionDetailTrackLoadResult> LoadTrackAsync(
+        Guid sessionId,
+        TelemetryData telemetryData,
+        IProgress<SessionDetailLoadProgress> progress,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(progress);
+
+        try
+        {
+            var fullTrackId = sessionStore.Get(sessionId)?.FullTrackId;
+            logger.Verbose("Resolving track data for session {SessionId}", sessionId);
+            progress.Report(SessionDetailLoadProgress.LoadingMapData);
+            var trackData = await trackCoordinator.LoadSessionTrackAsync(
+                sessionId,
+                fullTrackId,
+                telemetryData,
+                cancellationToken);
+
+            progress.Report(SessionDetailLoadProgress.FinalizingSessionData);
+            logger.Information("Session detail load completed for {SessionId}", sessionId);
+            return new SessionDetailTrackLoadResult.Loaded(trackData);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            logger.Error(e, "Session track load failed for {SessionId}", sessionId);
+            return new SessionDetailTrackLoadResult.Failed(e.Message);
         }
     }
 

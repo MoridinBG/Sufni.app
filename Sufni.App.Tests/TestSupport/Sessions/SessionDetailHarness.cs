@@ -113,13 +113,40 @@ internal sealed class SessionDetailHarness
         SessionStore.Get(snapshot.Id).Returns(snapshot);
     }
 
-    public void ConfigureLoad(SessionSnapshot snapshot, SessionDetailLoadResult result) =>
+    public void ConfigureLoad(SessionSnapshot snapshot, SessionDetailLoadResult result)
+    {
+        var firstContentResult = result;
+        if (result is SessionDetailLoadResult.Loaded loaded)
+        {
+            var presentation = loaded.Data.TelemetryPresentation;
+            firstContentResult = new SessionDetailLoadResult.Loaded(
+                new SessionDetailData(
+                    presentation with
+                    {
+                        FullTrackPoints = null,
+                        TrackPoints = null,
+                        MediaColumnWidth = null,
+                    }));
+            SessionCoordinator.LoadTrackAsync(
+                    snapshot.Id,
+                    presentation.TelemetryData,
+                    Arg.Any<IProgress<SessionDetailLoadProgress>>(),
+                    Arg.Any<CancellationToken>())
+                .Returns(new SessionDetailTrackLoadResult.Loaded(
+                    new SessionTrackPresentationData(
+                        presentation.FullTrackId,
+                        presentation.FullTrackPoints,
+                        presentation.TrackPoints,
+                        presentation.MediaColumnWidth)));
+        }
+
         SessionCoordinator.LoadDetailAsync(
                 snapshot.Id,
                 Arg.Any<SessionPresentationDimensions>(),
                 Arg.Any<IProgress<SessionDetailLoadProgress>>(),
                 Arg.Any<CancellationToken>())
-            .Returns(result);
+            .Returns(firstContentResult);
+    }
 
     public SessionDetailLoadResult.Loaded CreateLoadedResult(
         TelemetryData? telemetry = null,

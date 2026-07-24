@@ -6,12 +6,14 @@ using System.Threading.Tasks;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.Kinematics;
+using Sufni.Telemetry;
 
 using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.LiveDaq.Coordinators;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.Sessions.Coordination;
+using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Setups.Coordinators;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.Bikes.Models;
@@ -72,6 +74,13 @@ internal static class TestCoordinatorSubstitutes
         var coordinator = Substitute.For<ISessionCoordinator>();
 
         coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
+        coordinator.LoadTrackAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<TelemetryData>(),
+                Arg.Any<IProgress<SessionDetailLoadProgress>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new SessionDetailTrackLoadResult.Loaded(
+                new SessionTrackPresentationData(null, null, null, null)));
         coordinator.RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>())
             .Returns(new SessionRecomputeResult.NotRecomputable(new SessionStaleness.MissingRawSource()));
 

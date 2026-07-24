@@ -138,3 +138,11 @@ public abstract record SessionDetailLoadResult
     public sealed record IncompleteLocalData(Guid SessionId, MissingSessionData Missing) : SessionDetailLoadResult;
     public sealed record Failed(string ErrorMessage) : SessionDetailLoadResult;
 }
+
+public abstract record SessionDetailTrackLoadResult
+{
+    private SessionDetailTrackLoadResult() { }
+
+    public sealed record Loaded(SessionTrackPresentationData Data) : SessionDetailTrackLoadResult;
+    public sealed record Failed(string ErrorMessage) : SessionDetailTrackLoadResult;
+}

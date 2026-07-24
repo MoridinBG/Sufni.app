@@ -45,7 +45,6 @@ public class SessionCoordinatorTests
     private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
     private readonly ISessionPersistenceTransactionRunner sessionPersistenceTransactions = Substitute.For<ISessionPersistenceTransactionRunner>();
     private readonly ITrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
-    private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly ISessionPreferences sessionPreferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
@@ -309,11 +308,44 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
-    public async Task LoadDetailAsync_ReturnsLoaded_WhenTelemetryPresent()
+    public async Task LoadDetailAsync_ReturnsTelemetryBeforeTrackLoad()
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
         var dimensions = new SessionPresentationDimensions(320, 180);
+
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        SetLocalTelemetry(snapshot.Id, telemetry);
+        var progress = new CapturingSessionDetailLoadProgress();
+
+        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, dimensions, progress);
+
+        var loaded = Assert.IsType<SessionDetailLoadResult.Loaded>(result);
+        Assert.Same(telemetry, loaded.Data.TelemetryPresentation.TelemetryData);
+        Assert.Equal(snapshot.FullTrackId, loaded.Data.TelemetryPresentation.FullTrackId);
+        Assert.Null(loaded.Data.TelemetryPresentation.FullTrackPoints);
+        Assert.Null(loaded.Data.TelemetryPresentation.TrackPoints);
+        Assert.Null(loaded.Data.TelemetryPresentation.MediaColumnWidth);
+        Assert.Equal(DampingSpeedCutoffs.Default, loaded.Data.TelemetryPresentation.DampingSpeedCutoffs);
+        Assert.Null(loaded.Data.TelemetryPresentation.DampingSpeedCutoffOwner);
+        await trackCoordinator.DidNotReceive().LoadSessionTrackAsync(
+            Arg.Any<Guid>(),
+            Arg.Any<Guid?>(),
+            Arg.Any<TelemetryData>(),
+            Arg.Any<CancellationToken>());
+        Assert.Equal(
+            [
+                SessionDetailLoadStage.LoadingTelemetryData,
+                SessionDetailLoadStage.CheckingLocalData,
+            ],
+            progress.Reports.Select(report => report.Stage));
+    }
+
+    [Fact]
+    public async Task LoadTrackAsync_ReturnsTrackData()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
         var trackData = new SessionTrackPresentationData(
             Guid.NewGuid(),
             [new TrackPoint(1, 1, 1, 0)],
@@ -321,32 +353,57 @@ public class SessionCoordinatorTests
             400.0);
 
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        SetLocalTelemetry(snapshot.Id, telemetry);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(trackData);
-
         var progress = new CapturingSessionDetailLoadProgress();
 
-        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, dimensions, progress);
+        var result = await CreateCoordinator().LoadTrackAsync(snapshot.Id, telemetry, progress);
 
-        var loaded = Assert.IsType<SessionDetailLoadResult.Loaded>(result);
-        Assert.Same(telemetry, loaded.Data.TelemetryPresentation.TelemetryData);
-        Assert.Same(trackData.TrackPoints, loaded.Data.TelemetryPresentation.TrackPoints);
-        Assert.Equal(400.0, loaded.Data.TelemetryPresentation.MediaColumnWidth);
-        Assert.Equal(DampingSpeedCutoffs.Default, loaded.Data.TelemetryPresentation.DampingSpeedCutoffs);
-        Assert.Null(loaded.Data.TelemetryPresentation.DampingSpeedCutoffOwner);
-        sessionPresentationService.DidNotReceive().BuildCachePresentation(
-            Arg.Any<TelemetryData>(),
-            Arg.Any<SessionPresentationDimensions>(),
-            Arg.Any<CancellationToken>(),
-            Arg.Any<DampingSpeedCutoffs?>());
+        var loaded = Assert.IsType<SessionDetailTrackLoadResult.Loaded>(result);
+        Assert.Same(trackData, loaded.Data);
         Assert.Equal(
             [
-                SessionDetailLoadStage.LoadingTelemetryData,
-                SessionDetailLoadStage.CheckingLocalData,
                 SessionDetailLoadStage.LoadingMapData,
                 SessionDetailLoadStage.FinalizingSessionData,
             ],
+            progress.Reports.Select(report => report.Stage));
+    }
+
+    [Fact]
+    public async Task LoadTrackAsync_ReturnsFailed_WhenTrackLoadThrows()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("track failed"));
+        var progress = new CapturingSessionDetailLoadProgress();
+
+        var result = await CreateCoordinator().LoadTrackAsync(snapshot.Id, telemetry, progress);
+
+        Assert.IsType<SessionDetailTrackLoadResult.Failed>(result);
+        Assert.Equal(
+            [SessionDetailLoadStage.LoadingMapData],
+            progress.Reports.Select(report => report.Stage));
+    }
+
+    [Fact]
+    public async Task LoadTrackAsync_PropagatesCancellation()
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, cancellation.Token)
+            .Returns(Task.FromCanceled<SessionTrackPresentationData>(cancellation.Token));
+        var progress = new CapturingSessionDetailLoadProgress();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            CreateCoordinator().LoadTrackAsync(snapshot.Id, telemetry, progress, cancellation.Token));
+
+        Assert.Equal(
+            [SessionDetailLoadStage.LoadingMapData],
             progress.Reports.Select(report => report.Stage));
     }
 
