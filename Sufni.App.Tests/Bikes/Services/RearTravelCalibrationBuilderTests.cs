@@ -277,8 +277,8 @@ public class RearTravelCalibrationBuilderTests
     }
 
     [Theory]
-    [InlineData(201, true)]
-    [InlineData(202, false)]
+    [InlineData(1601, true)]
+    [InlineData(1602, false)]
     public void TryBuild_AdmitsLookupOnlyThroughTheMaximumLeverageCurveSize(
         int pointCount,
         bool expectsLookup)

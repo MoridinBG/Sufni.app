@@ -41,10 +41,12 @@ public static partial class TelemetryStatistics
         Fourier.Forward(complexSignal, FourierOptions.Matlab);
 
         var halfCount = count / 2 + 1;
-        var frequencies = new List<double>(halfCount);
-        var spectrum = new List<double>(halfCount);
-
         var tick = 1.0 / telemetryData.Metadata.SampleRate;
+        var retainedCapacity = (int)Math.Min(
+            halfCount,
+            Math.Floor(10 * count * tick) + 1);
+        var frequencies = new List<double>(retainedCapacity);
+        var spectrum = new List<double>(retainedCapacity);
 
         for (var index = 0; index < halfCount; index++)
         {

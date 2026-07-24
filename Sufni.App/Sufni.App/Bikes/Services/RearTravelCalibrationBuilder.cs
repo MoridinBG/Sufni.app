@@ -22,7 +22,7 @@ internal sealed record RearTravelCalibrationBuildResult(
 internal sealed class RearTravelCalibrationBuilder(IKinematicSolutionCache kinematicSolutionCache) : IRearTravelCalibrationBuilder
 {
     private const double MeasurementToAngle = 2.0 * Math.PI / 4096;
-    private const int MaximumLookupLeveragePointCount = 201;
+    private const int MaximumLookupLeveragePointCount = 1601;
 
     public RearTravelCalibrationBuildResult TryBuild(SetupSnapshot setup, BikeSnapshot bike)
     {

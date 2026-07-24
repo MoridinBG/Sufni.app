@@ -44,10 +44,16 @@ mc:Ignorable="d">
                         AnalysisRange="{Binding #Root.AnalysisRange}"
                         AnalysisResultState="{Binding #Root.AnalysisResultState}"
                         ExtensionSlots="{Binding #Root.ExtensionSlots}"
-                        IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
                         AnalysisPlotKind="TravelFrequencyDistribution"
                         SuspensionType="{Binding #Root.SuspensionType}"
-                        Telemetry="{Binding #Root.Telemetry}" />
+                        Telemetry="{Binding #Root.Telemetry}">
+                            <plots:AnalysisPlotView.IsAnalysisDemandActive>
+                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding ElementName="Root" Path="IsAnalysisDemandActive" />
+                                    <Binding ElementName="Root" Path="ShowFrequencyDistribution" />
+                                </MultiBinding>
+                            </plots:AnalysisPlotView.IsAnalysisDemandActive>
+                        </plots:AnalysisPlotView>
                     </zoom:PlotZoomContainer>
                 </Grid>
 
