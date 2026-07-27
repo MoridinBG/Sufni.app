@@ -40,6 +40,16 @@ internal sealed class SessionBlobSwapRequestStore(SqliteConnectionContext connec
     public async Task<List<Guid>> GetRequestedSessionIdsAsync()
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
+        await connection.ExecuteAsync(
+            $"""
+            DELETE FROM {TableName}
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM session
+                WHERE session.id = {TableName}.session_id
+                  AND session.deleted IS NULL
+            )
+            """);
         var rows = await connection.QueryAsync<SwapRequestRow>($"SELECT session_id, target_fingerprint FROM {TableName}");
         return rows.Select(row => row.SessionId).ToList();
     }

@@ -879,6 +879,16 @@ public class DatabaseMigrationRunnerTests
             0,
             verificationConnection.ExecuteScalar<int>(
                 $"SELECT COUNT(*) FROM {SessionBlobSwapRequestStore.TableName}"));
+
+        verificationConnection.Execute(
+            $"INSERT INTO {SessionBlobSwapRequestStore.TableName} (session_id, target_fingerprint) VALUES (?, ?)",
+            Guid.NewGuid(),
+            "orphan");
+        Assert.Empty(await database.GetRequestedSessionBlobSwapIdsAsync());
+        Assert.Equal(
+            0,
+            verificationConnection.ExecuteScalar<int>(
+                $"SELECT COUNT(*) FROM {SessionBlobSwapRequestStore.TableName}"));
     }
 
     [Fact]
