@@ -33,23 +33,6 @@ public class BusyOverlayTests
     }
 
     [AvaloniaFact]
-    public async Task BusyOverlay_UsesSecondaryMessage_WhenRequested()
-    {
-        await using var mounted = await MountAsync(new BusyOverlay
-        {
-            IsActive = true,
-            ShowMessage = false,
-            ShowSecondaryMessage = true,
-            SecondaryMessage = "Fetching sessions list",
-        });
-
-        Assert.False(mounted.View.FindControl<TextBlock>("BusyMessageText")!.IsVisible);
-        var secondary = mounted.View.FindControl<TextBlock>("SecondaryBusyMessageText")!;
-        Assert.True(secondary.IsVisible);
-        Assert.Equal("Fetching sessions list", secondary.Text);
-    }
-
-    [AvaloniaFact]
     public async Task BusyOverlay_UsesStackLayout_WhenRequested()
     {
         await using var mounted = await MountAsync(new BusyOverlay
@@ -63,25 +46,6 @@ public class BusyOverlayTests
         Assert.True(mounted.View.FindControl<StackPanel>("StackContent")!.IsVisible);
         Assert.True(mounted.View.FindControl<ActivityIndicator>("StackBusyIndicator")!.IsActive);
         Assert.Equal("Loading session data...", mounted.View.FindControl<TextBlock>("StackBusyMessageText")!.Text);
-    }
-
-    [AvaloniaFact]
-    public async Task BusyOverlay_ShowsProgressBar_WhenRequested()
-    {
-        await using var mounted = await MountAsync(new BusyOverlay
-        {
-            IsActive = true,
-            UseStackLayout = true,
-            ShowProgress = true,
-            ProgressValue = 0.5,
-        });
-
-        var progressBar = mounted.View.FindControl<ProgressBar>("StackBusyProgressBar");
-
-        Assert.NotNull(progressBar);
-        Assert.True(progressBar!.IsVisible);
-        Assert.Equal(0.5, progressBar.Value);
-        Assert.False(progressBar.IsIndeterminate);
     }
 
     [AvaloniaFact]

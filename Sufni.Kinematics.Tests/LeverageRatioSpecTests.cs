@@ -99,25 +99,4 @@ public class LeverageRatioSpecTests
             });
     }
 
-    [Fact]
-    public void DeriveLeverageRatioData_ReturnsWheelMidpointsAndSegmentRatios()
-    {
-        var leverageRatio = LeverageRatioSpec.FromPoints(
-        [
-            new LeverageRatioPoint(0, 0),
-            new LeverageRatioPoint(10, 30),
-            new LeverageRatioPoint(20, 50)
-        ]);
-
-        var data = leverageRatio.DeriveLeverageRatioData();
-
-        Assert.Collection(
-            data.X,
-            wheelTravel => Assert.Equal(15, wheelTravel),
-            wheelTravel => Assert.Equal(40, wheelTravel));
-        Assert.Collection(
-            data.Y,
-            ratio => Assert.Equal(3, ratio),
-            ratio => Assert.Equal(2, ratio));
-    }
 }

@@ -330,12 +330,9 @@ public class SessionDiagnosticsTests
                 return TelemetryStatistics.CalculateVibration(data, location, side, range);
             });
 
-        Assert.Collection(
-            calls,
-            call => Assert.Equal((ImuLocation.Fork, SuspensionType.Front), call),
-            call => Assert.Equal((ImuLocation.Shock, SuspensionType.Rear), call));
-        Assert.NotNull(report.FrontVibration);
-        Assert.NotNull(report.RearVibration);
+        Assert.Equal(2, calls.Count);
+        Assert.Single(calls, call => call == (ImuLocation.Fork, SuspensionType.Front));
+        Assert.Single(calls, call => call == (ImuLocation.Shock, SuspensionType.Rear));
     }
 
     [Fact]

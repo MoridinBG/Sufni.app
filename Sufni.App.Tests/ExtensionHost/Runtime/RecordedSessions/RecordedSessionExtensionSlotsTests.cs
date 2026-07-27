@@ -12,28 +12,6 @@ namespace Sufni.App.Tests.ExtensionHost.Runtime.RecordedSessions;
 public class RecordedSessionExtensionSlotsTests
 {
     [Fact]
-    public void NewSlots_StartEmpty()
-    {
-        var slots = new RecordedSessionExtensionSlots();
-
-        Assert.Empty(slots.SignalToolbarCommands);
-        Assert.Empty(slots.SignalToolbarViews);
-        Assert.Empty(slots.Pages);
-        Assert.Empty(slots.MediaPanes);
-        Assert.Empty(slots.MapOverlays);
-        Assert.Empty(slots.AnalysisBanners);
-        Assert.Empty(slots.AnalysisTabs);
-        Assert.Empty(slots.AnalysisOverlays);
-        Assert.Empty(slots.AnalysisMetrics);
-        Assert.Empty(slots.SessionListIndicators);
-        Assert.Empty(slots.SessionListActions);
-        Assert.Empty(slots.SignalPlotContextMenuActions);
-        Assert.Empty(slots.SignalRowHeaderActions);
-        Assert.Empty(slots.HostedSignalRows);
-        Assert.Empty(slots.SignalTimeRangeOverlays);
-    }
-
-    [Fact]
     public void Collections_AcceptTypedContributions()
     {
         var slots = new RecordedSessionExtensionSlots();

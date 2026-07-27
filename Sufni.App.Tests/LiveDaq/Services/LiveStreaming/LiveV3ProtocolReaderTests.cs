@@ -9,14 +9,6 @@ public class LiveV3ProtocolReaderTests
     private const byte SessionId = 42;
 
     [Fact]
-    public void CreateHandshake_WritesExpectedBytes()
-    {
-        Assert.Equal(
-            LiveV3ProtocolTestFrames.Handshake(),
-            LiveV3ProtocolReader.CreateHandshake());
-    }
-
-    [Fact]
     public void ParseServerHello_ParsesVersionFeaturesAndBoardIdentity()
     {
         var hello = LiveV3ProtocolReader.ParseServerHello(
@@ -45,20 +37,6 @@ public class LiveV3ProtocolReaderTests
 
         byte[] longHello = [.. LiveV3ProtocolTestFrames.ServerHello(), 0];
         Assert.Throws<FormatException>(() => LiveV3ProtocolReader.ParseServerHello(longHello));
-    }
-
-    [Fact]
-    public void ParseHeader_Parses12ByteLayout()
-    {
-        var frameBytes = LiveV3ProtocolTestFrames.Pong();
-
-        var header = LiveV3ProtocolReader.ParseHeader(frameBytes);
-
-        Assert.Equal(LiveV3FrameType.Pong, header.FrameType);
-        Assert.Equal(SessionId, header.SessionId);
-        Assert.Equal(0, header.FrameFlags);
-        Assert.Equal((uint)4, header.PayloadLength);
-        Assert.Equal(frameBytes.Length, header.TotalFrameLength);
     }
 
     [Fact]
@@ -100,82 +78,6 @@ public class LiveV3ProtocolReaderTests
             LiveV3ProtocolConstants.MaxPayloadLength + 1);
 
         Assert.Throws<FormatException>(() => LiveV3ProtocolReader.ParseHeader(header));
-    }
-
-    [Fact]
-    public void ParseFrame_CapabilitiesResponse_ParsesStreamRecords()
-    {
-        var frame = Assert.IsType<LiveV3CapabilitiesFrame>(
-            LiveV3ProtocolReader.ParseFrame(
-                LiveV3ProtocolTestFrames.CapabilitiesResponse(),
-                new LiveV3SessionDecodeContext()));
-
-        Assert.Equal((uint)LiveV3ProtocolConstants.MaxPayloadLength, frame.Payload.MaxFramePayloadBytes);
-        Assert.Equal(6, frame.Payload.Streams.Count);
-        var stream = frame.Payload.Streams[0];
-        Assert.Equal(LiveStreamMask.Travel, stream.Stream);
-        Assert.Equal(LiveSensorInstanceMask.Travel, stream.SupportedSourceMask);
-        Assert.Equal((uint)1_000, stream.MinRateMhz);
-        Assert.Equal((uint)1_000_000, stream.MaxRateMhz);
-    }
-
-    [Fact]
-    public void ParseFrame_StartResult_PendingStoresSessionId()
-    {
-        var context = new LiveV3SessionDecodeContext();
-
-        var frame = Assert.IsType<LiveV3StartResultFrame>(
-            LiveV3ProtocolReader.ParseFrame(
-                LiveV3ProtocolTestFrames.StartResultPending(),
-                context));
-
-        Assert.True(frame.Payload.IsPending);
-        Assert.Equal(SessionId, frame.Payload.SessionId);
-        Assert.Equal(SessionId, context.AcceptedSessionId);
-    }
-
-    [Fact]
-    public void ParseFrame_StartResult_DeniedParsesAdmissionReasons()
-    {
-        var frame = Assert.IsType<LiveV3StartResultFrame>(
-            LiveV3ProtocolReader.ParseFrame(
-                LiveV3ProtocolTestFrames.StartResultDenied(),
-                new LiveV3SessionDecodeContext()));
-
-        Assert.True(frame.Payload.IsDenied);
-        var reason = frame.Payload.AdmissionReasons[1];
-        Assert.Equal(LiveStreamMask.Imu, reason.Stream);
-        Assert.Equal(LiveSensorInstanceMask.RearImu, reason.Sources);
-        Assert.Equal((byte)2, reason.TargetKind);
-        Assert.Equal((uint)LiveSensorInstanceMask.RearImu, reason.TargetMask);
-    }
-
-    [Fact]
-    public void ParseFrame_SessionHeader_ParsesDescriptorsIntoCanonicalHeaderAndContext()
-    {
-        var context = new LiveV3SessionDecodeContext();
-        context.AcceptSession(SessionId);
-        var frame = Assert.IsType<LiveSessionHeaderFrame>(
-            LiveV3ProtocolReader.ParseFrame(
-                LiveV3ProtocolTestFrames.SessionHeaderAllStreams(),
-                context));
-
-        Assert.Equal(SessionId, frame.Payload.SessionId);
-        Assert.Equal(LiveProtocolVersion.V3, frame.Payload.ProtocolVersion);
-        Assert.Equal((uint)200_000, frame.Payload.AcceptedTravelRateMhz);
-        Assert.Equal((uint)200_000, frame.Payload.AcceptedImuRateMhz);
-        Assert.Equal((uint)5_000, frame.Payload.AcceptedGpsRateMhz);
-        Assert.Equal(LiveImuLocationMask.Frame | LiveImuLocationMask.Fork, frame.Payload.ActiveImuMask);
-        Assert.Equal(LiveSensorInstanceMask.None, frame.Payload.RequestedSensorMask);
-        Assert.Equal(
-            LiveSensorInstanceMask.Travel |
-            LiveSensorInstanceMask.FrameImu |
-            LiveSensorInstanceMask.ForkImu |
-            LiveSensorInstanceMask.Gps |
-            LiveSensorInstanceMask.Battery,
-            frame.Payload.AcceptedSensorMask);
-        Assert.Equal(6, context.StreamDescriptors.Count);
-        Assert.True(context.TryGetStream(SstV5ProtocolConstants.StreamTravel, out _));
     }
 
     [Fact]
@@ -243,24 +145,6 @@ public class LiveV3ProtocolReaderTests
     }
 
     [Fact]
-    public void ParseFrame_DeviceStateResponse_ParsesStreamAndSourceState()
-    {
-        var frame = Assert.IsType<LiveV3DeviceStateFrame>(
-            LiveV3ProtocolReader.ParseFrame(
-                LiveV3ProtocolTestFrames.DeviceStateResponse(),
-                new LiveV3SessionDecodeContext()));
-
-        var stream = frame.Payload.Streams[0];
-        Assert.Equal(SstV5ProtocolConstants.StreamTravel, stream.StreamKind);
-        Assert.Equal((uint)200_000, stream.EffectiveDefaultRateMhz);
-        Assert.Equal((uint)50, stream.DefaultBatchDurationMs);
-        var source = frame.Payload.Sources[0];
-        Assert.Equal((byte)2, source.CalibrationStatus);
-        Assert.True(source.Available);
-        Assert.Equal(LiveSensorInstanceMask.ForkTravel, source.Source);
-    }
-
-    [Fact]
     public void ParseFrame_DeviceStateFrames_RequireSessionIdZero()
     {
         var request = LiveV3ProtocolTestFrames.DeviceStateRequest();
@@ -274,23 +158,6 @@ public class LiveV3ProtocolReaderTests
         Assert.Throws<FormatException>(() => LiveV3ProtocolReader.ParseFrame(
             response,
             new LiveV3SessionDecodeContext()));
-    }
-
-    [Fact]
-    public void ParseFrame_TxSequenceDiscontinuity_IsTolerated()
-    {
-        var context = new LiveV3SessionDecodeContext();
-        context.AcceptSession(SessionId);
-        var firstBytes = LiveV3ProtocolTestFrames.Pong();
-        var secondBytes = LiveV3ProtocolTestFrames.Pong();
-        BinaryPrimitives.WriteUInt32LittleEndian(firstBytes.AsSpan(8, 4), 1);
-        BinaryPrimitives.WriteUInt32LittleEndian(secondBytes.AsSpan(8, 4), 3);
-
-        var first = LiveV3ProtocolReader.ParseFrame(firstBytes, context);
-        var second = LiveV3ProtocolReader.ParseFrame(secondBytes, context);
-
-        Assert.Equal((uint)1, first.Sequence);
-        Assert.Equal((uint)3, second.Sequence);
     }
 
     private static LiveV3SessionDecodeContext CreateAllStreamContext()

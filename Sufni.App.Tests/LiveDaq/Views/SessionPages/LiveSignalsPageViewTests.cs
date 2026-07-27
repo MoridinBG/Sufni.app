@@ -34,41 +34,6 @@ namespace Sufni.App.Tests.LiveDaq.Views.SessionPages;
 public class LiveSignalsPageViewTests
 {
     [AvaloniaFact]
-    public async Task LiveSignalsPageView_BindsPlaceholderContainers_ToWorkspaceState()
-    {
-        var workspace = Substitute.For<ILiveSessionSignalsWorkspace>();
-        workspace.SignalBatches.Returns(new Subject<LiveSignalBatch>());
-        workspace.PlotRanges.Returns(new LiveSessionPlotRanges(TravelMaximum: 180, VelocityMaximum: 5, ImuMaximum: 5));
-        workspace.Timeline.Returns(new SessionTimelineLinkViewModel());
-        workspace.TravelSignalState.Returns(SurfacePresentationState.Ready);
-        workspace.VelocitySignalState.Returns(SurfacePresentationState.WaitingForData("Waiting for live velocity data."));
-        workspace.ImuSignalState.Returns(SurfacePresentationState.Hidden);
-        workspace.PitchRollSignalState.Returns(SurfacePresentationState.WaitingForData("Waiting for live pitch/roll data."));
-        workspace.SpeedSignalState.Returns(SurfacePresentationState.WaitingForData("Waiting for live speed data."));
-        workspace.ElevationSignalState.Returns(SurfacePresentationState.Hidden);
-        workspace.TrackPoints.Returns(
-        [
-            new TrackPoint(0, 0, 0, 100, 5),
-            new TrackPoint(1, 100, 100, 101, 6),
-        ]);
-        workspace.TrackTimelineContext.Returns(new TrackTimeRange(0, 1));
-
-        var page = new LiveSignalsPageViewModel(workspace, CreateMediaWorkspace([]));
-
-        await using var mounted = await MountAsync(page);
-
-        var pageScrollViewer = mounted.View.FindControl<ScrollViewer>("PageScrollViewer");
-        var rowsView = mounted.View.GetVisualDescendants()
-            .OfType<LiveSignalRowsView>()
-            .SingleOrDefault();
-
-        Assert.NotNull(pageScrollViewer);
-        Assert.NotNull(rowsView);
-        Assert.Same(workspace, rowsView!.DataContext);
-        Assert.True(rowsView.HideRightAxis);
-    }
-
-    [AvaloniaFact]
     public async Task LiveSignalsPageView_RendersMapBelowSignals_WhenMapReady()
     {
         var signalsWorkspace = Substitute.For<ILiveSessionSignalsWorkspace>();

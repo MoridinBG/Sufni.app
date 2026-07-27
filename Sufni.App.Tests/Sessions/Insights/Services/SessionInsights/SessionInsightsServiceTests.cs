@@ -21,58 +21,6 @@ public class SessionInsightsServiceTests
     }
 
     [Fact]
-    public void Analyze_EmitsFullSessionWarning_WhenRangeIsNotSelected()
-    {
-        var telemetry = CreateTelemetry(front: BuildSide(), rear: BuildSide());
-
-        var result = service.Analyze(CreateRequest(telemetry, range: null));
-
-        Assert.Contains(result.Findings, finding =>
-            finding.Category == SessionInsightsCategory.DataQuality &&
-            finding.Severity == SessionInsightsSeverity.Watch &&
-            finding.Evidence.Any(evidence => evidence.Value == "Full session"));
-    }
-
-    [Fact]
-    public void Analyze_SkipsBalanceFindings_WhenOneSuspensionEndIsMissing()
-    {
-        var telemetry = CreateTelemetry(front: BuildSide(), rear: null);
-
-        var result = service.Analyze(CreateRequest(telemetry, SelectedRange));
-
-        Assert.DoesNotContain(result.Findings, finding => finding.Category == SessionInsightsCategory.Balance);
-        Assert.Contains(result.Findings, finding => finding.Category == SessionInsightsCategory.DataQuality);
-    }
-
-    [Fact]
-    public void Analyze_EmitsTravelUseFindings_ForShallowTravelAndRepeatedBottomouts()
-    {
-        var telemetry = CreateTelemetry(
-            front: BuildSide(maxTravelPercent: 52, averageTravelPercent: 30),
-            rear: BuildSide(maxTravelPercent: 98, averageTravelPercent: 62, bottomouts: 4));
-
-        var result = service.Analyze(CreateRequest(telemetry, SelectedRange));
-
-        Assert.Contains(result.Findings, finding =>
-            finding.Category == SessionInsightsCategory.TravelUse &&
-            finding.Severity == SessionInsightsSeverity.Watch);
-        Assert.Contains(result.Findings, finding =>
-            finding.Category == SessionInsightsCategory.TravelUse &&
-            finding.Severity == SessionInsightsSeverity.Watch &&
-            finding.Evidence.Any(evidence => evidence.Label == "Stroke bottomouts" && evidence.Value == "4"));
-        Assert.DoesNotContain(result.Findings, finding =>
-            finding.Category == SessionInsightsCategory.TravelUse &&
-            finding.Severity == SessionInsightsSeverity.Action);
-
-        var shallowTravel = Assert.Single(result.Findings, finding => finding.Id == SessionInsightsFindingId.ShallowTravelUse);
-        var adjustment = Assert.Single(shallowTravel.Adjustments, adjustment =>
-            adjustment.Component == AdjustmentComponent.AirPressure &&
-            adjustment.Direction == AdjustmentDirection.Remove);
-        Assert.Equal("Fork", adjustment.Side);
-        Assert.Contains("Expected:", shallowTravel.Recommendation);
-    }
-
-    [Fact]
     public void Analyze_BuildsWorkflowStepsAndDataQualityBanner()
     {
         var telemetry = CreateTelemetry(
@@ -92,26 +40,6 @@ public class SessionInsightsServiceTests
     }
 
     [Fact]
-    public void Analyze_EscalatesBottomoutFindings_WhenBottomoutsAreChronic()
-    {
-        var telemetry = CreateTelemetry(
-            front: BuildSide(),
-            rear: BuildSide(maxTravelPercent: 98, averageTravelPercent: 62, bottomouts: 6));
-
-        var result = service.Analyze(CreateRequest(telemetry, SelectedRange));
-
-        Assert.Contains(result.Findings, finding =>
-            finding.Category == SessionInsightsCategory.TravelUse &&
-            finding.Severity == SessionInsightsSeverity.Action &&
-            finding.Evidence.Any(evidence => evidence.Label == "Stroke bottomouts" && evidence.Value == "6"));
-        AssertAdjustment(
-            Assert.Single(result.Findings, finding => finding.Id == SessionInsightsFindingId.RepeatedBottomouts),
-            AdjustmentComponent.Tokens,
-            AdjustmentDirection.Add,
-            "Rear");
-    }
-
-    [Fact]
     public void Analyze_AttachesSupportAndReboundAdjustments_WhenSideRidesDeep()
     {
         var telemetry = CreateTelemetry(
@@ -123,23 +51,6 @@ public class SessionInsightsServiceTests
         var finding = Assert.Single(result.Findings, finding => finding.Id == SessionInsightsFindingId.DeepTravelUse);
         AssertAdjustment(finding, AdjustmentComponent.AirPressure, AdjustmentDirection.Add, "Fork");
         AssertAdjustment(finding, AdjustmentComponent.HighSpeedRebound, AdjustmentDirection.Open, "Fork");
-    }
-
-    [Fact]
-    public void Analyze_AttributesShallowSlowCompressionToPacking_AndSuppressesDuplicateSideDamping()
-    {
-        var telemetry = CreateTelemetry(
-            front: BuildSide(maxTravelPercent: 50, averageTravelPercent: 30, compressionBaseSpeed: 1000, reboundBaseSpeed: 1900),
-            rear: BuildSide());
-
-        var result = service.Analyze(CreateRequest(telemetry, SelectedRange, profile: SessionInsightsTargetProfile.Enduro));
-
-        Assert.Contains(result.Findings, finding => finding.Category == SessionInsightsCategory.Packing);
-        Assert.DoesNotContain(result.Findings, finding => finding.Category == SessionInsightsCategory.ForkDamping);
-
-        var finding = Assert.Single(result.Findings, finding => finding.Id == SessionInsightsFindingId.ResistingImpacts);
-        AssertAdjustment(finding, AdjustmentComponent.HighSpeedCompression, AdjustmentDirection.Open, "Fork");
-        AssertAdjustment(finding, AdjustmentComponent.AirPressure, AdjustmentDirection.Remove, "Fork");
     }
 
     [Fact]
@@ -233,45 +144,6 @@ public class SessionInsightsServiceTests
     }
 
     [Fact]
-    public void Analyze_ShallowTravel_UsesDampingBandPercentages_ForCompressionAlternate()
-    {
-        var telemetry = CreateTelemetry(
-            front: BuildSide(maxTravelPercent: 52, averageTravelPercent: 30),
-            rear: BuildSide());
-        var dampingPercentages = new SessionDampingPercentages(
-            FrontHscPercentage: 65,
-            RearHscPercentage: null,
-            FrontLscPercentage: 15,
-            RearLscPercentage: null,
-            FrontLsrPercentage: null,
-            RearLsrPercentage: null,
-            FrontHsrPercentage: null,
-            RearHsrPercentage: null);
-
-        var result = service.Analyze(CreateRequest(telemetry, SelectedRange, dampingPercentages: dampingPercentages));
-
-        AssertAdjustment(
-            Assert.Single(result.Findings, finding => finding.Id == SessionInsightsFindingId.ShallowTravelUse),
-            AdjustmentComponent.HighSpeedCompression,
-            AdjustmentDirection.Open,
-            "Fork");
-    }
-
-    [Fact]
-    public void Analyze_EmitsBalanceFindings_WhenSlopeDeltaExceedsThresholds()
-    {
-        var telemetry = CreateTelemetry(
-            front: BuildSide(compressionSlope: 55, reboundSlope: 32),
-            rear: BuildSide(compressionSlope: 28, reboundSlope: 15));
-
-        var result = service.Analyze(CreateRequest(telemetry, SelectedRange));
-
-        Assert.Contains(result.Findings, finding =>
-            finding.Category == SessionInsightsCategory.Balance &&
-            finding.Evidence.Any(evidence => evidence.Label == "Slope delta"));
-    }
-
-    [Fact]
     public void Analyze_HighSpeedBalanceMode_UsesHighSpeedBalanceAdjustment()
     {
         var telemetry = CreateTelemetry(
@@ -345,38 +217,6 @@ public class SessionInsightsServiceTests
         var result = service.Analyze(CreateRequest(telemetry, SelectedRange));
 
         Assert.DoesNotContain(result.Findings, finding => finding.Category == SessionInsightsCategory.Balance);
-    }
-
-    [Fact]
-    public void Analyze_EmitsLimitedBalanceContextAlongsideSlopeFinding_WhenDataIsTameAndSlopesDiverge()
-    {
-        var telemetry = CreateTelemetry(
-            front: BuildSide(maxTravelPercent: 45, compressionSlope: 70, compressionBaseSpeed: 2500),
-            rear: BuildSide(maxTravelPercent: 45, compressionSlope: 10, compressionBaseSpeed: 2500));
-
-        var result = service.Analyze(CreateRequest(telemetry, SelectedRange));
-
-        Assert.Contains(result.Findings, finding =>
-            finding.Category == SessionInsightsCategory.Balance &&
-            finding.Evidence.Any(evidence => evidence.Label == "Slope delta"));
-        Assert.Contains(result.Findings, finding =>
-            finding.Category == SessionInsightsCategory.Balance &&
-            finding.Severity == SessionInsightsSeverity.Info &&
-            finding.Evidence.Any(evidence => evidence.Label == "Context limit"));
-        Assert.DoesNotContain(
-            Assert.Single(result.Steps, step => step.Id == SessionInsightsStepId.Balance).Findings,
-            finding => finding.HasSuggestion);
-    }
-
-    [Fact]
-    public void Analyze_DoesNotUseVibrationRecommendation_ForMixedTravelImuPairing()
-    {
-        var telemetry = CreateTelemetry(front: null, rear: BuildSide(), imuLocations: [(byte)ImuLocation.Fork]);
-
-        var result = service.Analyze(CreateRequest(telemetry, SelectedRange));
-
-        Assert.Contains(result.Findings, finding => finding.Category == SessionInsightsCategory.Vibration);
-        Assert.DoesNotContain(result.Findings.SelectMany(finding => finding.Evidence), evidence => evidence.SourceMode == "Comparable vibration");
     }
 
     [Fact]

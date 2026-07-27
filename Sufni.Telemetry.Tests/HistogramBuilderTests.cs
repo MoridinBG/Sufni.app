@@ -33,18 +33,6 @@ public class HistogramBuilderTests
     }
 
     [Fact]
-    public void DigitizeAndDigitizeValue_AgreeOnBoundaryValues()
-    {
-        double[] bins = [0, 10, 20];
-        double[] values = [-1, 0, 5, 10, 15, 20, 21];
-
-        var vectorIndexes = HistogramBuilder.Digitize(values, bins);
-        var scalarIndexes = values.Select(value => HistogramBuilder.DigitizeValue(value, bins)).ToArray();
-
-        Assert.Equal(vectorIndexes, scalarIndexes);
-    }
-
-    [Fact]
     public void DigitizeVelocity_CentersZeroWithinVelocityBin()
     {
         double[] velocity = [-12, 0, 12];

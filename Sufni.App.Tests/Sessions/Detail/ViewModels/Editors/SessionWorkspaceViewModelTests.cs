@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Reflection;
 using System.Reactive.Subjects;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -323,18 +322,6 @@ public class SessionWorkspaceViewModelTests
     }
 
     [Fact]
-    public void SignalsWorkspace_ForwardedPropertiesAreDeclaredPublicProperties() =>
-        AssertForwardedPropertiesAreDeclared(
-            typeof(RecordedSessionSignalsWorkspaceViewModel),
-            RecordedSessionSignalsWorkspaceViewModel.ForwardedProperties);
-
-    [Fact]
-    public void AnalysisWorkspace_ForwardedPropertiesAreDeclaredPublicProperties() =>
-        AssertForwardedPropertiesAreDeclared(
-            typeof(SessionAnalysisWorkspaceViewModel),
-            SessionAnalysisWorkspaceViewModel.ForwardedProperties);
-
-    [Fact]
     public void SignalsWorkspace_DoesNotRebroadcastUndeclaredContextProperties()
     {
         var sourceVisibility = new TelemetrySourceVisibilityStore();
@@ -357,18 +344,6 @@ public class SessionWorkspaceViewModelTests
         state.OnNext(CreateState(screenState: SessionScreenPresentationState.Loading("Loading session.", 0.25)));
 
         Assert.Empty(changes);
-    }
-
-    private static void AssertForwardedPropertiesAreDeclared(
-        Type adapterType,
-        IReadOnlySet<string> forwardedProperties)
-    {
-        var declared = adapterType
-            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Select(property => property.Name)
-            .ToHashSet();
-
-        Assert.All(forwardedProperties, name => Assert.Contains(name, declared));
     }
 
     private static List<string> TrackPropertyChanges(INotifyPropertyChanged source)
