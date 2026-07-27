@@ -4,7 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using DynamicData;
 using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.Infrastructure.Caching;
+using Sufni.Telemetry.Caching;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 
@@ -14,7 +14,12 @@ public interface ISessionTrackReader
 {
     Task<IReadOnlyList<TrackPoint>?> GetSessionTrackAsync(
         Guid sessionId,
-        long sessionUpdated,
+        long trackProjectionRevision,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<TrackPoint>?> GetSessionTrackExactAsync(
+        Guid sessionId,
+        long trackProjectionRevision,
         CancellationToken cancellationToken = default);
 }
 
@@ -43,13 +48,14 @@ internal sealed class SessionTrackReader : ISessionTrackReader, IDisposable
         cache = new SingleFlightLruCache<SessionTrackCacheKey, IReadOnlyList<TrackPoint>?>(
             capacity,
             pointBudget,
-            static points => points?.Count ?? 0);
+            static points => points?.Count ?? 0,
+            static points => points is not null);
         sessionSubscription = sessionStore.Connect().Subscribe(ApplySessionChanges);
     }
 
     public Task<IReadOnlyList<TrackPoint>?> GetSessionTrackAsync(
         Guid sessionId,
-        long sessionUpdated,
+        long trackProjectionRevision,
         CancellationToken cancellationToken = default)
     {
         if (disposed)
@@ -59,8 +65,50 @@ internal sealed class SessionTrackReader : ISessionTrackReader, IDisposable
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var key = new SessionTrackCacheKey(sessionId, sessionUpdated);
+        return GetSessionTrackCoreAsync(sessionId, trackProjectionRevision, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<TrackPoint>?> GetSessionTrackExactAsync(
+        Guid sessionId,
+        long trackProjectionRevision,
+        CancellationToken cancellationToken = default)
+    {
+        if (disposed)
+        {
+            throw new ObjectDisposedException(nameof(SessionTrackReader));
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var key = new SessionTrackCacheKey(sessionId, trackProjectionRevision);
         return cache.GetOrAddAsync(key, LoadTrackPointsAsync, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<TrackPoint>?> GetSessionTrackCoreAsync(
+        Guid sessionId,
+        long trackProjectionRevision,
+        CancellationToken cancellationToken)
+    {
+        var revision = trackProjectionRevision;
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var key = new SessionTrackCacheKey(sessionId, revision);
+            var points = await cache.GetOrAddAsync(key, LoadTrackPointsAsync, cancellationToken);
+            if (points is not null || attempt == 1)
+            {
+                return points;
+            }
+
+            cache.Remove(key);
+            var current = await sessionRepository.GetSessionAsync(sessionId).ConfigureAwait(false);
+            if (current is null || current.TrackProjectionRevision == revision)
+            {
+                return null;
+            }
+
+            revision = current.TrackProjectionRevision;
+        }
+
+        return null;
     }
 
     public void Dispose()
@@ -103,9 +151,7 @@ internal sealed class SessionTrackReader : ISessionTrackReader, IDisposable
 
     private static bool ShouldEvict(SessionSnapshot previous, SessionSnapshot current)
     {
-        return previous.Updated != current.Updated ||
-               previous.FullTrackId != current.FullTrackId ||
-               previous.GpsOffsetSeconds != current.GpsOffsetSeconds;
+        return previous.TrackProjectionRevision != current.TrackProjectionRevision;
     }
 
     private async Task<IReadOnlyList<TrackPoint>?> LoadTrackPointsAsync(
@@ -113,8 +159,8 @@ internal sealed class SessionTrackReader : ISessionTrackReader, IDisposable
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return await sessionRepository.GetSessionTrackAsync(key.SessionId).ConfigureAwait(false);
+        return await sessionRepository.GetSessionTrackAsync(key.SessionId, key.TrackProjectionRevision).ConfigureAwait(false);
     }
 
-    private readonly record struct SessionTrackCacheKey(Guid SessionId, long SessionUpdated);
+    private readonly record struct SessionTrackCacheKey(Guid SessionId, long TrackProjectionRevision);
 }

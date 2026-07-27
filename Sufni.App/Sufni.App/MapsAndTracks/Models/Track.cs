@@ -41,6 +41,10 @@ public class Track : Synchronizable
     }
 
     [JsonIgnore]
+    [Column("points_revision")]
+    public long PointsRevision { get; set; }
+
+    [JsonIgnore]
     [Column("start_time")]
     public long StartTime
     {

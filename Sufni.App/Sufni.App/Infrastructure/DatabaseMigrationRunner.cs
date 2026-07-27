@@ -37,6 +37,7 @@ internal sealed class DatabaseMigrationRunner(
             await EnsureSessionProcessingFingerprintColumnAsync();
             await EnsureSessionSummaryMetricColumnsAsync();
             await EnsureSessionGpsOffsetColumnAsync();
+            await EnsureLocalContentRevisionColumnsAndTriggersAsync();
             await EnsureBikeDampingSpeedCutoffColumnsAsync();
             await EnsureBikeRearSuspensionColumnAsync();
             await DropSessionCacheTableAsync();
@@ -87,56 +88,157 @@ internal sealed class DatabaseMigrationRunner(
         }
     }
 
-    private async Task EnsureSessionProcessingFingerprintColumnAsync()
-    {
-        var columns = await connection.QueryAsync<TableColumnInfo>("PRAGMA table_info(session)");
-        if (columns.Any(column => column.Name == "session_processing_fingerprint"))
-        {
-            return;
-        }
+    private Task EnsureSessionProcessingFingerprintColumnAsync() =>
+        EnsureColumnsAsync("session", ("session_processing_fingerprint", "TEXT"));
 
-        await connection.ExecuteAsync("ALTER TABLE session ADD COLUMN session_processing_fingerprint TEXT");
-    }
-
-    private async Task EnsureSessionSummaryMetricColumnsAsync()
-    {
-        var columns = await connection.QueryAsync<TableColumnInfo>("PRAGMA table_info(session)");
-        var columnNames = columns.Select(column => column.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var columnName in SessionSummaryMetricColumnNames)
-        {
-            if (!columnNames.Contains(columnName))
-            {
-                await connection.ExecuteAsync($"ALTER TABLE session ADD COLUMN {columnName} REAL");
-            }
-        }
-    }
+    private Task EnsureSessionSummaryMetricColumnsAsync() =>
+        EnsureColumnsAsync(
+            "session",
+            SessionSummaryMetricColumnNames
+                .Select(static columnName => (columnName, "REAL"))
+                .ToArray());
 
     private async Task EnsureSessionGpsOffsetColumnAsync()
     {
-        var columns = await connection.QueryAsync<TableColumnInfo>("PRAGMA table_info(session)");
-        var columnNames = columns.Select(column => column.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        await EnsureColumnsAsync("session", ("gps_offset_seconds", "REAL"));
+        await connection.ExecuteAsync("UPDATE session SET gps_offset_seconds = 0 WHERE gps_offset_seconds IS NULL");
+    }
 
-        if (!columnNames.Contains("gps_offset_seconds"))
+    private async Task EnsureLocalContentRevisionColumnsAndTriggersAsync()
+    {
+        await EnsureColumnsAsync(
+            "session",
+            ("processed_telemetry_revision", "INTEGER NOT NULL DEFAULT 0"),
+            ("track_projection_revision", "INTEGER NOT NULL DEFAULT 0"));
+        await EnsureColumnsAsync("track", ("points_revision", "INTEGER NOT NULL DEFAULT 0"));
+
+        await connection.ExecuteAsync(
+            "UPDATE session SET processed_telemetry_revision = 1 WHERE processed_telemetry_revision = 0 AND data IS NOT NULL");
+        await connection.ExecuteAsync(
+            "UPDATE session SET track_projection_revision = 1 WHERE track_projection_revision = 0 AND track IS NOT NULL");
+        await connection.ExecuteAsync(
+            "UPDATE track SET points_revision = 1 WHERE points_revision = 0 AND points IS NOT NULL");
+
+        foreach (var triggerName in new[]
+                 {
+                     "session_local_revisions_after_insert",
+                     "session_processed_revision_after_update",
+                     "session_track_projection_revision_after_update",
+                     "track_points_revision_after_insert",
+                     "track_points_revision_after_update",
+                 })
         {
-            await connection.ExecuteAsync("ALTER TABLE session ADD COLUMN gps_offset_seconds REAL");
+            await connection.ExecuteAsync($"DROP TRIGGER IF EXISTS {triggerName}");
         }
 
-        await connection.ExecuteAsync("UPDATE session SET gps_offset_seconds = 0 WHERE gps_offset_seconds IS NULL");
+        await connection.ExecuteAsync(
+            """
+            CREATE TRIGGER session_local_revisions_after_insert
+            AFTER INSERT ON session
+            WHEN NEW.processed_telemetry_revision IS NOT (CASE WHEN NEW.data IS NOT NULL THEN 1 ELSE 0 END)
+              OR NEW.track_projection_revision IS NOT (CASE WHEN NEW.track IS NOT NULL THEN 1 ELSE 0 END)
+            BEGIN
+                UPDATE session
+                SET processed_telemetry_revision = CASE WHEN NEW.data IS NOT NULL THEN 1 ELSE 0 END,
+                    track_projection_revision = CASE WHEN NEW.track IS NOT NULL THEN 1 ELSE 0 END
+                WHERE id = NEW.id;
+            END
+            """);
+        await connection.ExecuteAsync(
+            """
+            CREATE TRIGGER session_processed_revision_after_update
+            AFTER UPDATE OF data, session_processing_fingerprint ON session
+            WHEN NEW.data IS NOT OLD.data
+              OR NEW.session_processing_fingerprint IS NOT OLD.session_processing_fingerprint
+              OR NEW.processed_telemetry_revision IS NOT OLD.processed_telemetry_revision
+            BEGIN
+                UPDATE session
+                SET processed_telemetry_revision = CASE
+                    WHEN NEW.data IS NOT OLD.data
+                      OR NEW.session_processing_fingerprint IS NOT OLD.session_processing_fingerprint
+                    THEN OLD.processed_telemetry_revision + 1
+                    ELSE OLD.processed_telemetry_revision
+                END
+                WHERE id = NEW.id;
+            END
+            """);
+        await connection.ExecuteAsync(
+            """
+            CREATE TRIGGER session_track_projection_revision_after_update
+            AFTER UPDATE OF track, timestamp, duration_seconds, gps_offset_seconds, full_track_id ON session
+            WHEN NEW.track IS NOT OLD.track
+              OR NEW.timestamp IS NOT OLD.timestamp
+              OR NEW.duration_seconds IS NOT OLD.duration_seconds
+              OR NEW.gps_offset_seconds IS NOT OLD.gps_offset_seconds
+              OR NEW.full_track_id IS NOT OLD.full_track_id
+              OR NEW.track_projection_revision IS NOT OLD.track_projection_revision
+            BEGIN
+                UPDATE session
+                SET track_projection_revision = CASE
+                    WHEN NEW.track IS NOT OLD.track
+                      OR NEW.timestamp IS NOT OLD.timestamp
+                      OR NEW.duration_seconds IS NOT OLD.duration_seconds
+                      OR NEW.gps_offset_seconds IS NOT OLD.gps_offset_seconds
+                      OR NEW.full_track_id IS NOT OLD.full_track_id
+                    THEN OLD.track_projection_revision + 1
+                    ELSE OLD.track_projection_revision
+                END
+                WHERE id = NEW.id;
+            END
+            """);
+        await connection.ExecuteAsync(
+            """
+            CREATE TRIGGER track_points_revision_after_insert
+            AFTER INSERT ON track
+            WHEN NEW.points_revision IS NOT (CASE WHEN NEW.points IS NOT NULL THEN 1 ELSE 0 END)
+            BEGIN
+                UPDATE track
+                SET points_revision = CASE WHEN NEW.points IS NOT NULL THEN 1 ELSE 0 END
+                WHERE id = NEW.id;
+            END
+            """);
+        await connection.ExecuteAsync(
+            """
+            CREATE TRIGGER track_points_revision_after_update
+            AFTER UPDATE OF points ON track
+            WHEN NEW.points IS NOT OLD.points
+              OR NEW.points_revision IS NOT OLD.points_revision
+            BEGIN
+                UPDATE track
+                SET points_revision = CASE
+                    WHEN NEW.points IS NOT OLD.points THEN OLD.points_revision + 1
+                    ELSE OLD.points_revision
+                END
+                WHERE id = NEW.id;
+            END
+            """);
+    }
+
+    private async Task EnsureColumnsAsync(
+        string table,
+        params (string Name, string Declaration)[] requiredColumns)
+    {
+        var columns = await connection.QueryAsync<TableColumnInfo>($"PRAGMA table_info({table})");
+        var columnNames = columns.Select(column => column.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, declaration) in requiredColumns)
+        {
+            if (columnNames.Add(name))
+            {
+                await connection.ExecuteAsync($"ALTER TABLE {table} ADD COLUMN {name} {declaration}");
+            }
+        }
     }
 
     private async Task EnsureBikeDampingSpeedCutoffColumnsAsync()
     {
-        var columns = await connection.QueryAsync<TableColumnInfo>("PRAGMA table_info(bike)");
-        var columnNames = columns.Select(column => column.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        await EnsureColumnsAsync(
+            "bike",
+            BikeDampingSpeedCutoffColumnNames
+                .Select(static columnName => (columnName, "REAL"))
+                .ToArray());
 
         foreach (var columnName in BikeDampingSpeedCutoffColumnNames)
         {
-            if (!columnNames.Contains(columnName))
-            {
-                await connection.ExecuteAsync($"ALTER TABLE bike ADD COLUMN {columnName} REAL");
-            }
-
             await connection.ExecuteAsync(
                 $"UPDATE bike SET {columnName} = ? WHERE {columnName} IS NULL",
                 DampingSpeedCutoffs.DefaultMmPerSecond);

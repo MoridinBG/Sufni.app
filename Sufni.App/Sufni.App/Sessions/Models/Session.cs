@@ -84,6 +84,14 @@ public class Session : Synchronizable
     }
 
     [JsonIgnore]
+    [Column("processed_telemetry_revision")]
+    public long ProcessedTelemetryRevision { get; set; }
+
+    [JsonIgnore]
+    [Column("track_projection_revision")]
+    public long TrackProjectionRevision { get; set; }
+
+    [JsonIgnore]
     [Column("data")]
     // Local processed-cache blob. When the blob is loaded on this model,
     // availability is derived from it so a stale has_data column cannot hide

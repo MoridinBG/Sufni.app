@@ -122,6 +122,7 @@ public class TrackCoordinatorTests
         {
             FullTrack = fullTrackId,
             Updated = 99,
+            TrackProjectionRevision = 99,
         });
         fullTrackPointReader.GetTrackPointsAsync(fullTrackId, Arg.Any<CancellationToken>())
             .Returns(fullTrack.Points);

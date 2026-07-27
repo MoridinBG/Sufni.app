@@ -32,10 +32,14 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     private ILiveDaqClient? liveDaqClient;
     private IDisposable? liveDaqClientSubscription;
     private LiveDaqStreamConfiguration requestedConfiguration = LiveDaqStreamConfiguration.Default;
+    private LiveDaqStreamConfiguration? activeConfiguration;
     private LiveDaqSharedStreamState currentState;
+    private LifecycleOperation? pendingLifecycleOperation;
+    private long activeClientGeneration;
+    private long nextClientGeneration;
     private int observerCount;
     private int configurationLockCount;
-    private int pendingDeliberateDisconnectCount;
+    private bool desiredRunning;
     private bool isEvictionPending;
     private bool isDisposed;
     private bool isEvicted;
@@ -87,127 +91,48 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     public async Task<LivePreviewStartResult?> EnsureStartedAsync(CancellationToken cancellationToken = default)
     {
-        LivePreviewStartResult? startResult = null;
+        Task<LivePreviewStartResult?> waitTask;
+        LifecycleOperation? operationToStart = null;
 
-        await gate.WaitAsync(cancellationToken);
+        await gate.WaitAsync(CancellationToken.None);
         try
         {
             ThrowIfDisposed();
-            if (currentState.IsClosed || currentState.ConnectionState is LiveConnectionState.Connecting or LiveConnectionState.Connected)
+            if (currentState.IsClosed || currentState.ConnectionState is LiveConnectionState.Connected)
             {
                 return null;
             }
 
-            if (!TryGetEndpoint(out var host, out var port))
+            desiredRunning = true;
+            if (pendingLifecycleOperation is null)
             {
-                PublishState(currentState with
+                if (!TryGetEndpoint(out _, out _))
                 {
-                    ConnectionState = LiveConnectionState.Disconnected,
-                    LastError = "DAQ is offline.",
-                    SessionHeader = null,
-                    SelectedStreamMask = LiveStreamMask.None,
-                });
-                return new LivePreviewStartResult.Failed("DAQ is offline.");
+                    var failed = new LivePreviewStartResult.Failed("DAQ is offline.");
+                    PublishDisconnectedStateLocked(failed.ErrorMessage);
+                    return failed;
+                }
+
+                operationToStart = liveDaqClient is null
+                    ? CreateLifecycleOperationLocked(requestedConfiguration)
+                    : CreateLifecycleOperationForCurrentClientLocked();
+                pendingLifecycleOperation = operationToStart;
+                PublishConnectingStateLocked();
             }
 
-            logger.Information(
-                "Starting shared live DAQ stream for {IdentityKey} at {Endpoint}",
-                IdentityKey,
-                snapshot.Endpoint);
-
-            PublishState(currentState with
-            {
-                ConnectionState = LiveConnectionState.Connecting,
-                LastError = null,
-                SessionHeader = null,
-                SelectedStreamMask = LiveStreamMask.None,
-            });
-
-            var client = EnsureClientCreated();
-            if (!client.IsConnected)
-            {
-                await client.ConnectAsync(host, port, cancellationToken);
-            }
-
-            startResult = await client.StartPreviewAsync(requestedConfiguration.ToStartRequest(), cancellationToken);
-            switch (startResult)
-            {
-                case LivePreviewStartResult.Started started:
-                    logger.Information(
-                        "Shared live DAQ stream connected for {IdentityKey} at {Endpoint} with session {SessionId}",
-                        IdentityKey,
-                        snapshot.Endpoint,
-                        started.Header.SessionId);
-                    PublishState(currentState with
-                    {
-                        ConnectionState = LiveConnectionState.Connected,
-                        LastError = null,
-                        SessionHeader = started.Header,
-                        SelectedStreamMask = started.Header.AcceptedSensorMask.StreamMask,
-                        ClientDropCounters = LiveDaqClientDropCounters.Empty,
-                    });
-                    break;
-
-                case LivePreviewStartResult.Rejected rejected:
-                    logger.Warning(
-                        "Shared live DAQ stream rejected for {IdentityKey} at {Endpoint}: {ErrorCode} {ErrorMessage}",
-                        IdentityKey,
-                        snapshot.Endpoint,
-                        rejected.ErrorCode,
-                        rejected.UserMessage);
-                    PublishState(currentState with
-                    {
-                        ConnectionState = LiveConnectionState.Disconnected,
-                        LastError = rejected.UserMessage,
-                        SessionHeader = null,
-                        SelectedStreamMask = LiveStreamMask.None,
-                    });
-                    BeginDeliberateDisconnect();
-                    await client.DisconnectAsync(cancellationToken);
-                    break;
-
-                case LivePreviewStartResult.Failed failed:
-                    logger.Error(
-                        "Shared live DAQ stream failed for {IdentityKey} at {Endpoint}: {ErrorMessage}",
-                        IdentityKey,
-                        snapshot.Endpoint,
-                        failed.ErrorMessage);
-                    PublishState(currentState with
-                    {
-                        ConnectionState = LiveConnectionState.Disconnected,
-                        LastError = failed.ErrorMessage,
-                        SessionHeader = null,
-                        SelectedStreamMask = LiveStreamMask.None,
-                    });
-                    break;
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            return null;
-        }
-        catch (Exception ex)
-        {
-            logger.Error(
-                ex,
-                "Starting shared live DAQ stream failed for {IdentityKey} at {Endpoint}",
-                IdentityKey,
-                snapshot.Endpoint);
-            PublishState(currentState with
-            {
-                ConnectionState = LiveConnectionState.Disconnected,
-                LastError = ex.Message,
-                SessionHeader = null,
-                SelectedStreamMask = LiveStreamMask.None,
-            });
-            startResult = new LivePreviewStartResult.Failed(ex.Message);
+            waitTask = pendingLifecycleOperation.Completion.Task;
         }
         finally
         {
             gate.Release();
         }
 
-        return startResult;
+        if (operationToStart is not null)
+        {
+            _ = RunLifecycleOperationAsync(operationToStart);
+        }
+
+        return await WaitForLifecycleResultAsync(waitTask, cancellationToken);
     }
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
@@ -220,7 +145,10 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 IdentityKey)
             : null;
 #endif
-        await gate.WaitAsync(cancellationToken);
+        Task<LivePreviewStartResult?>? waitTask = null;
+        LifecycleOperation? operationToStart = null;
+
+        await gate.WaitAsync(CancellationToken.None);
         try
         {
             ThrowIfDisposed();
@@ -232,218 +160,97 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 return;
             }
 
-            if (liveDaqClient is null)
+            desiredRunning = false;
+            if (pendingLifecycleOperation is null && liveDaqClient is null)
             {
-                PublishState(currentState with
-                {
-                    ConnectionState = LiveConnectionState.Disconnected,
-                    LastError = null,
-                    SessionHeader = null,
-                    SelectedStreamMask = LiveStreamMask.None,
-                });
+                PublishDisconnectedStateLocked(null);
 #if SUFNI_PROFILING_DIAGNOSTICS
                 profilingStage?.SetResult(0, 0, "no_client");
 #endif
                 return;
             }
 
-            if (!liveDaqClient.IsConnected && currentState.ConnectionState is LiveConnectionState.Disconnected)
+            if (pendingLifecycleOperation is null)
             {
-                PublishState(currentState with
-                {
-                    LastError = null,
-                    SessionHeader = null,
-                    SelectedStreamMask = LiveStreamMask.None,
-                });
-#if SUFNI_PROFILING_DIAGNOSTICS
-                profilingStage?.SetResult(0, 0, "already_disconnected");
-#endif
-                return;
+                operationToStart = CreateLifecycleOperationForCurrentClientLocked();
+                pendingLifecycleOperation = operationToStart;
             }
-
-            logger.Information(
-                "Stopping shared live DAQ stream for {IdentityKey} at {Endpoint}",
-                IdentityKey,
-                snapshot.Endpoint);
 
             PublishState(currentState with
             {
                 ConnectionState = LiveConnectionState.Disconnecting,
                 LastError = null,
             });
-
-            try
-            {
-                await liveDaqClient.StopPreviewAsync(cancellationToken);
-            }
-            finally
-            {
-                BeginDeliberateDisconnect();
-                await liveDaqClient.DisconnectAsync(cancellationToken);
-            }
-            PublishState(currentState with
-            {
-                ConnectionState = LiveConnectionState.Disconnected,
-                LastError = null,
-                SessionHeader = null,
-                SelectedStreamMask = LiveStreamMask.None,
-            });
-#if SUFNI_PROFILING_DIAGNOSTICS
-            profilingStage?.SetResult(0, 0, "disconnected");
-#endif
-        }
-        catch (OperationCanceledException)
-        {
-#if SUFNI_PROFILING_DIAGNOSTICS
-            profilingStage?.SetResult(0, 0, "canceled");
-#endif
-        }
-        catch (Exception ex)
-        {
-#if SUFNI_PROFILING_DIAGNOSTICS
-            profilingStage?.SetResult(0, 0, "failed");
-#endif
-            logger.Error(
-                ex,
-                "Stopping shared live DAQ stream failed for {IdentityKey} at {Endpoint}",
-                IdentityKey,
-                snapshot.Endpoint);
-            PublishState(currentState with
-            {
-                ConnectionState = LiveConnectionState.Disconnected,
-                LastError = ex.Message,
-                SessionHeader = null,
-                SelectedStreamMask = LiveStreamMask.None,
-            });
+            waitTask = pendingLifecycleOperation.Completion.Task;
         }
         finally
         {
             gate.Release();
         }
+
+        if (operationToStart is not null)
+        {
+            _ = RunLifecycleOperationAsync(operationToStart);
+        }
+
+        if (waitTask is not null)
+        {
+            await WaitForLifecycleResultAsync(waitTask, cancellationToken);
+        }
+#if SUFNI_PROFILING_DIAGNOSTICS
+        profilingStage?.SetResult(0, 0, "disconnected");
+#endif
     }
 
     public async Task ApplyConfigurationAsync(LiveDaqStreamConfiguration configuration, CancellationToken cancellationToken = default)
     {
-        await gate.WaitAsync(cancellationToken);
+        Task<LivePreviewStartResult?>? waitTask = null;
+        LifecycleOperation? operationToStart = null;
+
+        await gate.WaitAsync(CancellationToken.None);
         try
         {
             ThrowIfDisposed();
-            if (currentState.IsClosed || currentState.IsConfigurationLocked)
-            {
-                return;
-            }
-
-            if (requestedConfiguration == configuration)
+            if (currentState.IsClosed || currentState.IsConfigurationLocked || requestedConfiguration == configuration)
             {
                 return;
             }
 
             requestedConfiguration = configuration;
-            if (currentState.ConnectionState is not LiveConnectionState.Connected)
+            if (!desiredRunning && currentState.ConnectionState is LiveConnectionState.Disconnected)
             {
                 return;
             }
 
-            logger.Information(
-                "Reconfiguring shared live DAQ stream for {IdentityKey} at {Endpoint}",
-                IdentityKey,
-                snapshot.Endpoint);
+            desiredRunning = true;
+            if (pendingLifecycleOperation is null)
+            {
+                operationToStart = liveDaqClient is null
+                    ? CreateLifecycleOperationLocked(configuration)
+                    : CreateLifecycleOperationForCurrentClientLocked();
+                pendingLifecycleOperation = operationToStart;
+            }
 
             PublishState(currentState with
             {
                 ConnectionState = LiveConnectionState.Disconnecting,
                 LastError = null,
             });
-
-            BeginDeliberateDisconnect();
-            await liveDaqClient!.DisconnectAsync(cancellationToken);
-            PublishState(currentState with
-            {
-                ConnectionState = LiveConnectionState.Disconnected,
-                LastError = null,
-                SessionHeader = null,
-                SelectedStreamMask = LiveStreamMask.None,
-            });
-
-            if (!TryGetEndpoint(out var host, out var port))
-            {
-                PublishState(currentState with
-                {
-                    LastError = "DAQ is offline.",
-                });
-                return;
-            }
-
-            var client = EnsureClientCreated();
-            if (!client.IsConnected)
-            {
-                await client.ConnectAsync(host, port, cancellationToken);
-            }
-
-            PublishState(currentState with
-            {
-                ConnectionState = LiveConnectionState.Connecting,
-                LastError = null,
-            });
-
-            var result = await client.StartPreviewAsync(requestedConfiguration.ToStartRequest(), cancellationToken);
-            switch (result)
-            {
-                case LivePreviewStartResult.Started started:
-                    PublishState(currentState with
-                    {
-                        ConnectionState = LiveConnectionState.Connected,
-                        LastError = null,
-                        SessionHeader = started.Header,
-                        SelectedStreamMask = started.Header.AcceptedSensorMask.StreamMask,
-                        ClientDropCounters = LiveDaqClientDropCounters.Empty,
-                    });
-                    break;
-
-                case LivePreviewStartResult.Rejected rejected:
-                    PublishState(currentState with
-                    {
-                        ConnectionState = LiveConnectionState.Disconnected,
-                        LastError = rejected.UserMessage,
-                        SessionHeader = null,
-                        SelectedStreamMask = LiveStreamMask.None,
-                    });
-                    BeginDeliberateDisconnect();
-                    await client.DisconnectAsync(cancellationToken);
-                    break;
-
-                case LivePreviewStartResult.Failed failed:
-                    PublishState(currentState with
-                    {
-                        ConnectionState = LiveConnectionState.Disconnected,
-                        LastError = failed.ErrorMessage,
-                        SessionHeader = null,
-                        SelectedStreamMask = LiveStreamMask.None,
-                    });
-                    break;
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception ex)
-        {
-            logger.Error(
-                ex,
-                "Reconfiguring shared live DAQ stream failed for {IdentityKey} at {Endpoint}",
-                IdentityKey,
-                snapshot.Endpoint);
-            PublishState(currentState with
-            {
-                ConnectionState = LiveConnectionState.Disconnected,
-                LastError = ex.Message,
-                SessionHeader = null,
-                SelectedStreamMask = LiveStreamMask.None,
-            });
+            waitTask = pendingLifecycleOperation.Completion.Task;
         }
         finally
         {
             gate.Release();
+        }
+
+        if (operationToStart is not null)
+        {
+            _ = RunLifecycleOperationAsync(operationToStart);
+        }
+
+        if (waitTask is not null)
+        {
+            await WaitForLifecycleResultAsync(waitTask, cancellationToken);
         }
     }
 
@@ -478,9 +285,9 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     public async Task CloseAsync(string errorMessage, CancellationToken cancellationToken = default)
     {
-        var shouldEvict = false;
+        DetachedClient? detachedClient;
 
-        await gate.WaitAsync(cancellationToken);
+        await gate.WaitAsync(CancellationToken.None);
         try
         {
             if (isDisposed || currentState.IsClosed)
@@ -494,37 +301,42 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 snapshot.Endpoint,
                 errorMessage);
 
+            desiredRunning = false;
+            CompletePendingLifecycleLocked(null);
+            detachedClient = DetachCurrentClientLocked();
             PublishState(currentState with
             {
                 ConnectionState = LiveConnectionState.Disconnected,
                 LastError = errorMessage,
+                SessionHeader = null,
+                SelectedStreamMask = LiveStreamMask.None,
                 IsClosed = true,
             });
-
             isEvictionPending = true;
-            await DisposeClientAsync(cancellationToken);
-            shouldEvict = true;
         }
         finally
         {
             gate.Release();
         }
 
-        if (shouldEvict)
-        {
-            await EvictAsync();
-            await DisposeAsync();
-        }
+        await DisposeDetachedClientAsync(detachedClient);
+        await EvictAsync();
+        await DisposeAsync();
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (isDisposed)
+        DetachedClient? detachedClient;
+
+        try
+        {
+            await gate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException)
         {
             return;
         }
 
-        await gate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
             if (isDisposed)
@@ -533,15 +345,505 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             }
 
             isDisposed = true;
-            await DisposeClientAsync(CancellationToken.None).ConfigureAwait(false);
-            statesSubject.OnCompleted();
-            frames.Complete();
-            statesSubject.Dispose();
-            clientEventScheduler.Dispose();
+            desiredRunning = false;
+            CompletePendingLifecycleLocked(null);
+            detachedClient = DetachCurrentClientLocked();
         }
         finally
         {
             gate.Release();
+        }
+
+        await DisposeDetachedClientAsync(detachedClient).ConfigureAwait(false);
+
+        statesSubject.OnCompleted();
+        frames.Complete();
+        statesSubject.Dispose();
+        clientEventScheduler.Dispose();
+        gate.Dispose();
+    }
+
+    private async Task RunLifecycleOperationAsync(LifecycleOperation operation)
+    {
+        while (true)
+        {
+            string host;
+            int port;
+            bool shouldRun;
+            bool replaceAfterCleanup = false;
+            LiveDaqStreamConfiguration configuration;
+
+            try
+            {
+                await gate.WaitAsync(CancellationToken.None);
+            }
+            catch (ObjectDisposedException)
+            {
+                operation.Completion.TrySetResult(null);
+                return;
+            }
+
+            try
+            {
+                if (!IsCurrentOperationLocked(operation))
+                {
+                    operation.Completion.TrySetResult(null);
+                    return;
+                }
+
+                shouldRun = desiredRunning;
+                configuration = requestedConfiguration;
+                if (!shouldRun)
+                {
+                    PublishState(currentState with
+                    {
+                        ConnectionState = LiveConnectionState.Disconnecting,
+                        LastError = null,
+                    });
+                    operation.DetachedClient = DetachCurrentClientLocked(operation.Client, operation.Generation);
+                }
+                else if (activeConfiguration is not null && activeConfiguration != configuration)
+                {
+                    PublishState(currentState with
+                    {
+                        ConnectionState = LiveConnectionState.Disconnecting,
+                        LastError = null,
+                    });
+                    operation.DetachedClient = DetachCurrentClientLocked(operation.Client, operation.Generation);
+                    replaceAfterCleanup = true;
+                }
+                else if (!TryGetEndpoint(out host, out port))
+                {
+                    var failed = new LivePreviewStartResult.Failed("DAQ is offline.");
+                    operation.DetachedClient = DetachCurrentClientLocked(operation.Client, operation.Generation);
+                    PublishDisconnectedStateLocked(failed.ErrorMessage);
+                    pendingLifecycleOperation = null;
+                    operation.Completion.TrySetResult(failed);
+                    shouldRun = false;
+                }
+                else
+                {
+                    operation.Configuration = configuration;
+                    PublishConnectingStateLocked();
+                    goto RunTransport;
+                }
+            }
+            finally
+            {
+                gate.Release();
+            }
+
+            await StopDisconnectAndDisposeAsync(operation.DetachedClient, stopPreview: true);
+            operation.DetachedClient = null;
+
+            if (!shouldRun)
+            {
+                if (await CompleteStoppedOperationAsync(operation))
+                {
+                    continue;
+                }
+
+                return;
+            }
+
+            if (replaceAfterCleanup)
+            {
+                try
+                {
+                    await gate.WaitAsync(CancellationToken.None);
+                }
+                catch (ObjectDisposedException)
+                {
+                    operation.Completion.TrySetResult(null);
+                    return;
+                }
+
+                try
+                {
+                    if (!ReferenceEquals(pendingLifecycleOperation, operation) || isDisposed || currentState.IsClosed)
+                    {
+                        operation.Completion.TrySetResult(null);
+                        return;
+                    }
+
+                    if (!desiredRunning)
+                    {
+                        PublishDisconnectedStateLocked(null);
+                        pendingLifecycleOperation = null;
+                        operation.Completion.TrySetResult(null);
+                        return;
+                    }
+
+                    var replacement = CreateClientBindingLocked();
+                    operation.Client = replacement.Client;
+                    operation.Generation = replacement.Generation;
+                    operation.Configuration = requestedConfiguration;
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            }
+
+            continue;
+
+        RunTransport:
+            LivePreviewStartResult result;
+            try
+            {
+                if (!operation.Client.IsConnected)
+                {
+                    await operation.Client.ConnectAsync(host, port, CancellationToken.None).ConfigureAwait(false);
+                }
+
+                result = await operation.Client.StartPreviewAsync(
+                        operation.Configuration.ToStartRequest(),
+                        CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                await CompleteCanceledOperationAsync(operation);
+                return;
+            }
+            catch (Exception ex)
+            {
+                result = new LivePreviewStartResult.Failed(ex.Message);
+            }
+
+            bool shouldConverge;
+            DetachedClient? detachedForConvergence = null;
+            var completeAfterCleanup = false;
+
+            try
+            {
+                await gate.WaitAsync(CancellationToken.None);
+            }
+            catch (ObjectDisposedException)
+            {
+                operation.Completion.TrySetResult(null);
+                return;
+            }
+
+            try
+            {
+                if (!IsCurrentOperationLocked(operation))
+                {
+                    operation.Completion.TrySetResult(null);
+                    return;
+                }
+
+                shouldConverge = !desiredRunning || requestedConfiguration != operation.Configuration;
+                if (shouldConverge)
+                {
+                    detachedForConvergence = DetachCurrentClientLocked(operation.Client, operation.Generation);
+                    PublishState(currentState with
+                    {
+                        ConnectionState = LiveConnectionState.Disconnecting,
+                        LastError = null,
+                    });
+                }
+                else
+                {
+                    switch (result)
+                    {
+                        case LivePreviewStartResult.Started started:
+                            PublishSuccessfulStartLocked(started, operation.Configuration);
+                            pendingLifecycleOperation = null;
+                            operation.Completion.TrySetResult(started);
+                            return;
+
+                        case LivePreviewStartResult.Rejected rejected:
+                            detachedForConvergence = DetachCurrentClientLocked(operation.Client, operation.Generation);
+                            PublishDisconnectedStateLocked(rejected.UserMessage);
+                            completeAfterCleanup = true;
+                            break;
+
+                        case LivePreviewStartResult.Failed failed:
+                            PublishDisconnectedStateLocked(failed.ErrorMessage);
+                            pendingLifecycleOperation = null;
+                            operation.Completion.TrySetResult(failed);
+                            return;
+                    }
+                }
+            }
+            finally
+            {
+                gate.Release();
+            }
+
+            await StopDisconnectAndDisposeAsync(
+                detachedForConvergence,
+                stopPreview: result is LivePreviewStartResult.Started);
+
+            if (completeAfterCleanup)
+            {
+                await CompleteOperationAfterCleanupAsync(operation, result);
+                return;
+            }
+
+            try
+            {
+                await gate.WaitAsync(CancellationToken.None);
+            }
+            catch (ObjectDisposedException)
+            {
+                operation.Completion.TrySetResult(null);
+                return;
+            }
+
+            try
+            {
+                if (!ReferenceEquals(pendingLifecycleOperation, operation) || isDisposed || currentState.IsClosed)
+                {
+                    operation.Completion.TrySetResult(null);
+                    return;
+                }
+
+                if (!desiredRunning)
+                {
+                    PublishDisconnectedStateLocked(null);
+                    pendingLifecycleOperation = null;
+                    operation.Completion.TrySetResult(null);
+                    return;
+                }
+
+                var replacement = CreateClientBindingLocked();
+                operation.Client = replacement.Client;
+                operation.Generation = replacement.Generation;
+                operation.Configuration = requestedConfiguration;
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+    }
+
+    private async Task<bool> CompleteStoppedOperationAsync(LifecycleOperation operation)
+    {
+        try
+        {
+            await gate.WaitAsync(CancellationToken.None);
+        }
+        catch (ObjectDisposedException)
+        {
+            operation.Completion.TrySetResult(null);
+            return false;
+        }
+
+        try
+        {
+            if (!ReferenceEquals(pendingLifecycleOperation, operation) || isDisposed || currentState.IsClosed)
+            {
+                operation.Completion.TrySetResult(null);
+                return false;
+            }
+
+            if (desiredRunning)
+            {
+                var replacement = CreateClientBindingLocked();
+                operation.Client = replacement.Client;
+                operation.Generation = replacement.Generation;
+                operation.Configuration = requestedConfiguration;
+                return true;
+            }
+
+            PublishDisconnectedStateLocked(null);
+            pendingLifecycleOperation = null;
+            operation.Completion.TrySetResult(null);
+            return false;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private async Task CompleteCanceledOperationAsync(LifecycleOperation operation)
+    {
+        DetachedClient? detachedClient = null;
+        try
+        {
+            await gate.WaitAsync(CancellationToken.None);
+        }
+        catch (ObjectDisposedException)
+        {
+            operation.Completion.TrySetResult(null);
+            return;
+        }
+
+        try
+        {
+            if (IsCurrentOperationLocked(operation))
+            {
+                detachedClient = DetachCurrentClientLocked(operation.Client, operation.Generation);
+                PublishDisconnectedStateLocked(null);
+                pendingLifecycleOperation = null;
+            }
+
+            operation.Completion.TrySetResult(null);
+        }
+        finally
+        {
+            gate.Release();
+        }
+
+        await StopDisconnectAndDisposeAsync(detachedClient, stopPreview: false);
+    }
+
+    private async Task CompleteOperationAfterCleanupAsync(
+        LifecycleOperation operation,
+        LivePreviewStartResult result)
+    {
+        try
+        {
+            await gate.WaitAsync(CancellationToken.None);
+        }
+        catch (ObjectDisposedException)
+        {
+            operation.Completion.TrySetResult(null);
+            return;
+        }
+
+        try
+        {
+            if (!ReferenceEquals(pendingLifecycleOperation, operation))
+            {
+                operation.Completion.TrySetResult(null);
+                return;
+            }
+
+            pendingLifecycleOperation = null;
+            operation.Completion.TrySetResult(result);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private static async Task<LivePreviewStartResult?> WaitForLifecycleResultAsync(
+        Task<LivePreviewStartResult?> task,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await task.WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+    }
+
+    private LifecycleOperation CreateLifecycleOperationLocked(LiveDaqStreamConfiguration configuration)
+    {
+        var binding = CreateClientBindingLocked();
+        return new LifecycleOperation(binding.Client, binding.Generation, configuration);
+    }
+
+    private LifecycleOperation CreateLifecycleOperationForCurrentClientLocked()
+    {
+        if (liveDaqClient is null)
+        {
+            return CreateLifecycleOperationLocked(requestedConfiguration);
+        }
+
+        return new LifecycleOperation(liveDaqClient, activeClientGeneration, requestedConfiguration);
+    }
+
+    private ClientBinding CreateClientBindingLocked()
+    {
+        var client = liveDaqClientFactory.Create(snapshot);
+        var generation = ++nextClientGeneration;
+        liveDaqClient = client;
+        activeClientGeneration = generation;
+        liveDaqClientSubscription = client.Events
+            .ObserveOn(clientEventScheduler)
+            .Subscribe(clientEvent => _ = HandleClientEventAsync(client, generation, clientEvent));
+        return new ClientBinding(client, generation);
+    }
+
+    private bool IsCurrentOperationLocked(LifecycleOperation operation) =>
+        ReferenceEquals(pendingLifecycleOperation, operation)
+        && ReferenceEquals(liveDaqClient, operation.Client)
+        && activeClientGeneration == operation.Generation
+        && !isDisposed
+        && !currentState.IsClosed;
+
+    private DetachedClient? DetachCurrentClientLocked(
+        ILiveDaqClient? expectedClient = null,
+        long? expectedGeneration = null)
+    {
+        if (liveDaqClient is null
+            || (expectedClient is not null && !ReferenceEquals(liveDaqClient, expectedClient))
+            || (expectedGeneration is not null && activeClientGeneration != expectedGeneration))
+        {
+            return null;
+        }
+
+        var detached = new DetachedClient(liveDaqClient, liveDaqClientSubscription);
+        liveDaqClient = null;
+        liveDaqClientSubscription = null;
+        activeClientGeneration = 0;
+        activeConfiguration = null;
+        detached.Subscription?.Dispose();
+        return detached;
+    }
+
+    private void CompletePendingLifecycleLocked(LivePreviewStartResult? result)
+    {
+        var pending = pendingLifecycleOperation;
+        pendingLifecycleOperation = null;
+        pending?.Completion.TrySetResult(result);
+    }
+
+    private static async Task StopDisconnectAndDisposeAsync(DetachedClient? detachedClient, bool stopPreview)
+    {
+        if (detachedClient is null)
+        {
+            return;
+        }
+
+        if (stopPreview)
+        {
+            try
+            {
+                await detachedClient.Client.StopPreviewAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                logger.Debug(ex, "Stopping detached shared live DAQ client failed");
+            }
+        }
+
+        try
+        {
+            await detachedClient.Client.DisconnectAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger.Debug(ex, "Disconnecting detached shared live DAQ client failed");
+        }
+
+        await DisposeDetachedClientAsync(detachedClient).ConfigureAwait(false);
+    }
+
+    private static async Task DisposeDetachedClientAsync(DetachedClient? detachedClient)
+    {
+        if (detachedClient is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await detachedClient.Client.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger.Debug(ex, "Disposing detached shared live DAQ client failed");
         }
     }
 
@@ -594,54 +896,10 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         }
     }
 
-    private ILiveDaqClient EnsureClientCreated()
-    {
-        if (liveDaqClient is not null)
-        {
-            return liveDaqClient;
-        }
-
-        liveDaqClient = liveDaqClientFactory.Create(snapshot);
-        liveDaqClientSubscription = liveDaqClient.Events
-            .ObserveOn(clientEventScheduler)
-            .Subscribe(clientEvent => _ = HandleClientEventAsync(clientEvent));
-        return liveDaqClient;
-    }
-
-    private async Task DisposeClientAsync(CancellationToken cancellationToken)
-    {
-        if (liveDaqClient is null)
-        {
-            return;
-        }
-
-        var client = liveDaqClient;
-        try
-        {
-            if (client.IsConnected)
-            {
-                BeginDeliberateDisconnect();
-            }
-
-            await client.DisposeAsync().ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            logger.Debug(
-                ex,
-                "Disposing shared live DAQ client failed for {IdentityKey} at {Endpoint}",
-                IdentityKey,
-                snapshot.Endpoint);
-        }
-        finally
-        {
-            liveDaqClientSubscription?.Dispose();
-            liveDaqClientSubscription = null;
-            liveDaqClient = null;
-        }
-    }
-
-    private async Task HandleClientEventAsync(LiveDaqClientEvent clientEvent)
+    private async Task HandleClientEventAsync(
+        ILiveDaqClient client,
+        long generation,
+        LiveDaqClientEvent clientEvent)
     {
         string? closeError = null;
         try
@@ -655,7 +913,9 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
         try
         {
-            if (isDisposed)
+            if (isDisposed
+                || !ReferenceEquals(liveDaqClient, client)
+                || activeClientGeneration != generation)
             {
                 return;
             }
@@ -665,18 +925,11 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 case LiveDaqClientEvent.FrameReceived frameReceived:
                     if (frameReceived.Frame is LiveErrorFrame errorFrame)
                     {
-                        PublishState(currentState with
-                        {
-                            ConnectionState = LiveConnectionState.Disconnected,
-                            LastError = errorFrame.Payload.ErrorCode.UserMessage,
-                            SessionHeader = null,
-                            SelectedStreamMask = LiveStreamMask.None,
-                        });
+                        PublishDisconnectedStateLocked(errorFrame.Payload.ErrorCode.UserMessage);
                     }
 
                     var subscriberDroppedFrameCount = frames.Publish(frameReceived.Frame);
                     NoteSubscriberFrameDropsLocked(subscriberDroppedFrameCount);
-
                     break;
 
                 case LiveDaqClientEvent.DropCountersChanged countersChanged:
@@ -691,11 +944,6 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     break;
 
                 case LiveDaqClientEvent.Disconnected disconnected:
-                    if (TryConsumeDeliberateDisconnect())
-                    {
-                        break;
-                    }
-
                     closeError = disconnected.ErrorMessage ?? "Live preview disconnected unexpectedly.";
                     break;
             }
@@ -709,6 +957,49 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         {
             await CloseAsync(closeError, CancellationToken.None);
         }
+    }
+
+    private void PublishSuccessfulStartLocked(
+        LivePreviewStartResult.Started started,
+        LiveDaqStreamConfiguration configuration)
+    {
+        logger.Information(
+            "Shared live DAQ stream connected for {IdentityKey} at {Endpoint} with session {SessionId}",
+            IdentityKey,
+            snapshot.Endpoint,
+            started.Header.SessionId);
+        activeConfiguration = configuration;
+        PublishState(currentState with
+        {
+            ConnectionState = LiveConnectionState.Connected,
+            LastError = null,
+            SessionHeader = started.Header,
+            SelectedStreamMask = started.Header.AcceptedStreamMask,
+            ClientDropCounters = LiveDaqClientDropCounters.Empty,
+        });
+    }
+
+    private void PublishConnectingStateLocked()
+    {
+        PublishState(currentState with
+        {
+            ConnectionState = LiveConnectionState.Connecting,
+            LastError = null,
+            SessionHeader = null,
+            SelectedStreamMask = LiveStreamMask.None,
+        });
+    }
+
+    private void PublishDisconnectedStateLocked(string? errorMessage)
+    {
+        activeConfiguration = null;
+        PublishState(currentState with
+        {
+            ConnectionState = LiveConnectionState.Disconnected,
+            LastError = errorMessage,
+            SessionHeader = null,
+            SelectedStreamMask = LiveStreamMask.None,
+        });
     }
 
     private void PublishState(LiveDaqSharedStreamState nextState)
@@ -748,6 +1039,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     private async ValueTask ReleaseLeaseAsync(bool releaseConfigurationLock)
     {
+        DetachedClient? detachedClient = null;
         var shouldBeginEviction = false;
         long currentEvictionSequence = 0;
 
@@ -780,6 +1072,9 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 return;
             }
 
+            desiredRunning = false;
+            CompletePendingLifecycleLocked(null);
+            detachedClient = DetachCurrentClientLocked();
             isEvictionPending = true;
             currentEvictionSequence = ++evictionSequence;
             shouldBeginEviction = true;
@@ -794,7 +1089,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             return;
         }
 
-        await DisposeClientAsync(CancellationToken.None);
+        await DisposeDetachedClientAsync(detachedClient);
 
         var shouldEvict = false;
 
@@ -854,21 +1149,22 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         ObjectDisposedException.ThrowIf(isDisposed, this);
     }
 
-    private void BeginDeliberateDisconnect()
+    private sealed class LifecycleOperation(
+        ILiveDaqClient client,
+        long generation,
+        LiveDaqStreamConfiguration configuration)
     {
-        pendingDeliberateDisconnectCount++;
+        public ILiveDaqClient Client { get; set; } = client;
+        public long Generation { get; set; } = generation;
+        public LiveDaqStreamConfiguration Configuration { get; set; } = configuration;
+        public TaskCompletionSource<LivePreviewStartResult?> Completion { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public DetachedClient? DetachedClient { get; set; }
     }
 
-    private bool TryConsumeDeliberateDisconnect()
-    {
-        if (pendingDeliberateDisconnectCount == 0)
-        {
-            return false;
-        }
+    private readonly record struct ClientBinding(ILiveDaqClient Client, long Generation);
 
-        pendingDeliberateDisconnectCount--;
-        return true;
-    }
+    private sealed record DetachedClient(ILiveDaqClient Client, IDisposable? Subscription);
 
     private sealed class BufferedFrameStream : IObservable<LiveProtocolFrame>
     {

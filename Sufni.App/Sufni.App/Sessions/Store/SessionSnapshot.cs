@@ -36,7 +36,9 @@ public sealed record SessionSnapshot(
     double? DistanceMeters = null,
     double? AscentMeters = null,
     double? DescentMeters = null,
-    double GpsOffsetSeconds = 0)
+    double GpsOffsetSeconds = 0,
+    long ProcessedTelemetryRevision = 0,
+    long TrackProjectionRevision = 0)
 {
     public static SessionSnapshot From(Session session) => new(
         session.Id,
@@ -62,7 +64,9 @@ public sealed record SessionSnapshot(
         session.DistanceMeters,
         session.AscentMeters,
         session.DescentMeters,
-        session.GpsOffsetSeconds);
+        session.GpsOffsetSeconds,
+        session.ProcessedTelemetryRevision,
+        session.TrackProjectionRevision);
 }
 
 public static class SessionSnapshotExtensions
@@ -86,6 +90,8 @@ public static class SessionSnapshotExtensions
             HasProcessedData = snapshot.HasProcessedData,
             ProcessingFingerprintJson = snapshot.ProcessingFingerprintJson,
             GpsOffsetSeconds = snapshot.GpsOffsetSeconds,
+            ProcessedTelemetryRevision = snapshot.ProcessedTelemetryRevision,
+            TrackProjectionRevision = snapshot.TrackProjectionRevision,
             FrontSpringRate = snapshot.FrontSpringRate,
             FrontHighSpeedCompression = snapshot.FrontHighSpeedCompression,
             FrontLowSpeedCompression = snapshot.FrontLowSpeedCompression,

@@ -13,9 +13,9 @@ public class FullTrackPointReaderTests
         var points = Points(1);
         var trackRepository = Substitute.For<ITrackRepository>();
         trackRepository.GetTrackPayloadMetadataAsync(trackId)
-            .Returns(new TrackPayloadMetadata(trackId, Updated: 5));
-        trackRepository.GetTrackPayloadAsync(trackId, updated: 5)
-            .Returns(new TrackPayload(trackId, Updated: 5, points));
+            .Returns(new TrackPayloadMetadata(trackId, PointsRevision: 5));
+        trackRepository.GetTrackPayloadAsync(trackId, pointsRevision: 5)
+            .Returns(new TrackPayload(trackId, PointsRevision: 5, points));
         var reader = new FullTrackPointReader(trackRepository, capacity: 8);
 
         var firstRead = await reader.GetTrackPointsAsync(trackId);
@@ -24,7 +24,7 @@ public class FullTrackPointReaderTests
         Assert.Same(points, firstRead);
         Assert.Same(points, cachedRead);
         await trackRepository.Received(2).GetTrackPayloadMetadataAsync(trackId);
-        await trackRepository.Received(1).GetTrackPayloadAsync(trackId, updated: 5);
+        await trackRepository.Received(1).GetTrackPayloadAsync(trackId, pointsRevision: 5);
     }
 
     [Fact]
@@ -35,11 +35,11 @@ public class FullTrackPointReaderTests
         var second = Points(2);
         var trackRepository = Substitute.For<ITrackRepository>();
         trackRepository.GetTrackPayloadMetadataAsync(trackId)
-            .Returns(new TrackPayloadMetadata(trackId, Updated: 5));
-        trackRepository.GetTrackPayloadAsync(trackId, updated: 5)
+            .Returns(new TrackPayloadMetadata(trackId, PointsRevision: 5));
+        trackRepository.GetTrackPayloadAsync(trackId, pointsRevision: 5)
             .Returns(
-                new TrackPayload(trackId, Updated: 5, first),
-                new TrackPayload(trackId, Updated: 5, second));
+                new TrackPayload(trackId, PointsRevision: 5, first),
+                new TrackPayload(trackId, PointsRevision: 5, second));
         var reader = new FullTrackPointReader(trackRepository, capacity: 8, pointBudget: 1);
 
         var firstRead = await reader.GetTrackPointsAsync(trackId);
@@ -47,7 +47,7 @@ public class FullTrackPointReaderTests
 
         Assert.Same(first, firstRead);
         Assert.Same(second, secondRead);
-        await trackRepository.Received(2).GetTrackPayloadAsync(trackId, updated: 5);
+        await trackRepository.Received(2).GetTrackPayloadAsync(trackId, pointsRevision: 5);
     }
 
     [Fact]
@@ -59,12 +59,12 @@ public class FullTrackPointReaderTests
         var trackRepository = Substitute.For<ITrackRepository>();
         trackRepository.GetTrackPayloadMetadataAsync(trackId)
             .Returns(
-                new TrackPayloadMetadata(trackId, Updated: 5),
-                new TrackPayloadMetadata(trackId, Updated: 6));
-        trackRepository.GetTrackPayloadAsync(trackId, updated: 5)
-            .Returns(new TrackPayload(trackId, Updated: 5, first));
-        trackRepository.GetTrackPayloadAsync(trackId, updated: 6)
-            .Returns(new TrackPayload(trackId, Updated: 6, second));
+                new TrackPayloadMetadata(trackId, PointsRevision: 5),
+                new TrackPayloadMetadata(trackId, PointsRevision: 6));
+        trackRepository.GetTrackPayloadAsync(trackId, pointsRevision: 5)
+            .Returns(new TrackPayload(trackId, PointsRevision: 5, first));
+        trackRepository.GetTrackPayloadAsync(trackId, pointsRevision: 6)
+            .Returns(new TrackPayload(trackId, PointsRevision: 6, second));
         var reader = new FullTrackPointReader(trackRepository, capacity: 8);
 
         var firstRead = await reader.GetTrackPointsAsync(trackId);
@@ -72,8 +72,8 @@ public class FullTrackPointReaderTests
 
         Assert.Same(first, firstRead);
         Assert.Same(second, updatedRead);
-        await trackRepository.Received(1).GetTrackPayloadAsync(trackId, updated: 5);
-        await trackRepository.Received(1).GetTrackPayloadAsync(trackId, updated: 6);
+        await trackRepository.Received(1).GetTrackPayloadAsync(trackId, pointsRevision: 5);
+        await trackRepository.Received(1).GetTrackPayloadAsync(trackId, pointsRevision: 6);
     }
 
     [Fact]
@@ -84,19 +84,38 @@ public class FullTrackPointReaderTests
         var trackRepository = Substitute.For<ITrackRepository>();
         trackRepository.GetTrackPayloadMetadataAsync(trackId)
             .Returns(
-                new TrackPayloadMetadata(trackId, Updated: 5),
-                new TrackPayloadMetadata(trackId, Updated: 6));
-        trackRepository.GetTrackPayloadAsync(trackId, updated: 5)
+                new TrackPayloadMetadata(trackId, PointsRevision: 5),
+                new TrackPayloadMetadata(trackId, PointsRevision: 6));
+        trackRepository.GetTrackPayloadAsync(trackId, pointsRevision: 5)
             .Returns((TrackPayload?)null);
-        trackRepository.GetTrackPayloadAsync(trackId, updated: 6)
-            .Returns(new TrackPayload(trackId, Updated: 6, points));
+        trackRepository.GetTrackPayloadAsync(trackId, pointsRevision: 6)
+            .Returns(new TrackPayload(trackId, PointsRevision: 6, points));
         var reader = new FullTrackPointReader(trackRepository, capacity: 8);
 
         var result = await reader.GetTrackPointsAsync(trackId);
 
         Assert.Same(points, result);
-        await trackRepository.Received(1).GetTrackPayloadAsync(trackId, updated: 5);
-        await trackRepository.Received(1).GetTrackPayloadAsync(trackId, updated: 6);
+        await trackRepository.Received(1).GetTrackPayloadAsync(trackId, pointsRevision: 5);
+        await trackRepository.Received(1).GetTrackPayloadAsync(trackId, pointsRevision: 6);
+    }
+
+    [Fact]
+    public async Task GetTrackPointsExactAsync_UsesExpectedRevisionWithoutMetadataRetry_AndReusesIt()
+    {
+        var trackId = Guid.NewGuid();
+        var points = Points(1);
+        var trackRepository = Substitute.For<ITrackRepository>();
+        trackRepository.GetTrackPayloadAsync(trackId, pointsRevision: 5)
+            .Returns(new TrackPayload(trackId, PointsRevision: 5, points));
+        var reader = new FullTrackPointReader(trackRepository, capacity: 8);
+
+        var first = await reader.GetTrackPointsExactAsync(trackId, pointsRevision: 5);
+        var second = await reader.GetTrackPointsExactAsync(trackId, pointsRevision: 5);
+
+        Assert.Same(points, first);
+        Assert.Same(points, second);
+        await trackRepository.Received(1).GetTrackPayloadAsync(trackId, pointsRevision: 5);
+        await trackRepository.DidNotReceive().GetTrackPayloadMetadataAsync(trackId);
     }
 
     [Fact]
@@ -108,8 +127,8 @@ public class FullTrackPointReaderTests
         var payloadCompletion = new TaskCompletionSource<TrackPayload?>(TaskCreationOptions.RunContinuationsAsynchronously);
         var trackRepository = Substitute.For<ITrackRepository>();
         trackRepository.GetTrackPayloadMetadataAsync(trackId)
-            .Returns(new TrackPayloadMetadata(trackId, Updated: 5));
-        trackRepository.GetTrackPayloadAsync(trackId, updated: 5)
+            .Returns(new TrackPayloadMetadata(trackId, PointsRevision: 5));
+        trackRepository.GetTrackPayloadAsync(trackId, pointsRevision: 5)
             .Returns(_ =>
             {
                 payloadRequested.TrySetResult();
@@ -124,11 +143,11 @@ public class FullTrackPointReaderTests
         await firstCancellation.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => firstRead);
-        payloadCompletion.SetResult(new TrackPayload(trackId, Updated: 5, points));
+        payloadCompletion.SetResult(new TrackPayload(trackId, PointsRevision: 5, points));
         var secondResult = await secondRead;
 
         Assert.Same(points, secondResult);
-        await trackRepository.Received(1).GetTrackPayloadAsync(trackId, updated: 5);
+        await trackRepository.Received(1).GetTrackPayloadAsync(trackId, pointsRevision: 5);
     }
 
     private static List<TrackPoint> Points(double startTime) =>

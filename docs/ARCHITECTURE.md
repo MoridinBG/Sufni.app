@@ -190,7 +190,7 @@ Presentation-layer topics:
 
 ## Extension Host
 
-The public extension host lets build-time modules register services, view templates, database migrations, cascade rules, sync envelopes, app-level toolbar actions, and recorded-session UI contributions without adding capability-specific dependencies to the shared app. Public builds have no modules by default; non-public builds opt in through private MSBuild imports and a generated partial startup hook.
+The public extension host lets build-time modules register services, view templates, database migrations, cascade rules, sync envelopes, app-level toolbar actions, and recorded-session UI contributions without adding capability-specific dependencies to the shared app. Dependency-lower `Sufni.Telemetry.Caching` provides the shared single-flight LRU primitive. Recorded-session contracts require revision-backed content tokens and classify exact multi-family reads as `Available`, `Stale`, or `Missing`. Neutral signal rows may publish separate consecutive runs so unavailable gaps are not connected. Public builds have no modules by default; non-public builds opt in through private MSBuild imports and a generated partial startup hook.
 
 Topics in [architecture/extensions.md](architecture/extensions.md):
 
@@ -199,6 +199,7 @@ Topics in [architecture/extensions.md](architecture/extensions.md):
 - [Build Imports](architecture/extensions.md#build-imports) — conditional private import flow
 - [View Resolution](architecture/extensions.md#view-resolution) — extension view registry before built-in fallback
 - [Host Services](architecture/extensions.md#host-services) — neutral DI services available to extensions
+- [Shared Caching](architecture/extensions.md#shared-caching) — dependency-lower single-flight production, independent waiter cancellation, bounded LRU retention, and clear-generation semantics
 - [Database Hooks](architecture/extensions.md#database-hooks) — schema versions, migrators, constrained extension sessions
 - [Cascade Rules](architecture/extensions.md#cascade-rules) — declared extension-owned row cleanup
 - [Sync Envelopes](architecture/extensions.md#sync-envelopes) — opaque payload routing
@@ -211,7 +212,7 @@ Topics in [architecture/extensions.md](architecture/extensions.md):
 
 ## Plot Rendering
 
-ScottPlot-based plot classes (shared bases in `Shared/Plots/`, concrete plots in each slice's `Plots/` folder), wrapped by Avalonia plot views in the slices' `Views/Plots/` folders (e.g. `Shared/Views/Plots/`, `Sessions/Plots/Views/Plots/`). Recorded telemetry plots inherit from `TelemetryPlot`, recorded time-series rows add `RecordedTimeSeriesPlot`, live plots derive through `LiveStreamingPlotBase` and apply incremental batches via ScottPlot's `DataStreamer`, and GPS speed/elevation rows use `TrackSignalPlot` over `TrackPoint` data. `TelemetryDisplaySmoothing` and `TelemetryDisplayDownsampling` shape the displayed signal at load time. Signal row titles, drag/drop hierarchy changes, and base/hosted row plot backgrounds are owned by the Avalonia row controls, while ScottPlot keeps axes, legends, data rendering, readouts, and overlays.
+ScottPlot-based plot classes (shared bases in `Shared/Plots/`, concrete plots in each slice's `Plots/` folder), wrapped by Avalonia plot views in the slices' `Views/Plots/` folders (e.g. `Shared/Views/Plots/`, `Sessions/Plots/Views/Plots/`). Recorded telemetry plots inherit from `TelemetryPlot`, recorded time-series rows add `RecordedTimeSeriesPlot`, live plots derive through `LiveStreamingPlotBase` and apply incremental batches via ScottPlot's `DataStreamer`, and GPS speed/elevation rows use `TrackSignalPlot` over `TrackPoint` data. Neutral extension signal series can carry segmented runs for real data gaps; every run contributes to value limits, and unsupported future value forms fail loudly. Extension-owned custom plot controls retain deterministic disposal ownership for their ScottPlot plottables and native drawing resources when rerendered or detached. `TelemetryDisplaySmoothing` and `TelemetryDisplayDownsampling` shape the displayed signal at load time. Signal row titles, drag/drop hierarchy changes, and base/hosted row plot backgrounds are owned by the Avalonia row controls, while ScottPlot keeps axes, legends, data rendering, readouts, and overlays.
 
 Topics in [architecture/plot-rendering.md](architecture/plot-rendering.md):
 
@@ -226,7 +227,7 @@ Topics in [architecture/plot-rendering.md](architecture/plot-rendering.md):
 
 ## Maps & GPS Tracks
 
-GPS records from V4 SST files or live captures are projected into a `Track` row on session save and rendered on a Mapsui-backed map alongside the recorded session view and the live-session media workspace. Generated tracks are persisted atomically with the processed session and recorded source, and the same projected points feed nullable session summary distance/ascent/descent metrics for the grouped session list. `TileLayerService` provides the tile source; `MapViewModel` owns map state; `IMapPreferences` persists and syncs the user's tile choice and custom layers.
+GPS records from V4 SST files or live captures are projected into a `Track` row on session save and rendered on a Mapsui-backed map alongside the recorded session view and the live-session media workspace. Generated tracks are persisted atomically with the processed session and recorded source, and the same projected points feed nullable session summary distance/ascent/descent metrics for the grouped session list. Local `points_revision` and `track_projection_revision` values key cached and exact point readers independently of sync timestamps; exact reads fail closed instead of advancing to newer content. `TileLayerService` provides the tile source; `MapViewModel` owns map state; `IMapPreferences` persists and syncs the user's tile choice and custom layers.
 
 Topics in [architecture/maps-and-tracks.md](architecture/maps-and-tracks.md):
 
@@ -243,7 +244,7 @@ Topics in [architecture/maps-and-tracks.md](architecture/maps-and-tracks.md):
 
 ## Live DAQ Streaming
 
-The live preview feature streams real-time telemetry from a connected DAQ over framed TCP protocols. It owns the transport: discovery catalog, browse ownership, runtime-only store, per-identity shared stream, protocol-specific v2/v3 clients behind `ILiveDaqClientFactory`, and the diagnostics tab. V3 connections validate the server hello against the discovered board ID when one is available, then use descriptor-based SST v5 stream metadata for telemetry and final-status reporting. The feature activates only when the user selects the Live primary page; diagnostics and live-session tabs for the same DAQ attach to the shared stream through leases. The recording / capture / save side that turns a live stream into a recorded session with source data lives in [Live Session Recording](#live-session-recording).
+The live preview feature streams real-time telemetry from a connected DAQ over framed TCP protocols. It owns the transport: discovery catalog, browse ownership, runtime-only store, per-identity shared stream, protocol-specific v2/v3 clients behind `ILiveDaqClientFactory`, and the diagnostics tab. The shared stream owns one convergent lifecycle operation per identity: caller cancellation stops only that caller's wait, client generations reject stale events and completions from replaced transports, and stop cleanup rechecks the desired state so a concurrent restart continues on a fresh binding rather than publishing a terminal disconnect. V2 start results publish the ACK's accepted stream-family mask as the canonical mask after matching the session header id, retain transport session identity after direct waiter cancellation, and complete a pending start before clearing it on stop acknowledgment. V3 connections validate the server hello against the discovered board ID when one is available, then use descriptor-based SST v5 stream metadata for telemetry and final-status reporting. The feature activates only when the user selects the Live primary page; diagnostics and live-session tabs for the same DAQ attach to the shared stream through leases. The recording / capture / save side that turns a live stream into a recorded session with source data lives in [Live Session Recording](#live-session-recording).
 
 ```
 mDNS announcement
@@ -309,7 +310,7 @@ Topics in [architecture/live-session.md](architecture/live-session.md):
 
 ## Persistence & Serialization
 
-SQLite via the sqlite-net API (`sqlite-net-e` package) with WAL mode. All sync-enabled entities inherit from `Synchronizable`, carrying `Updated` / `ClientUpdated` / `Deleted` timestamps for soft delete and conflict resolution. Session metadata includes nullable summary metrics (`duration_seconds`, `distance_meters`, `ascent_meters`, `descent_meters`), while processed telemetry, processing fingerprints, generated tracks, and raw recorded sources have distinct persistence paths; processed-session writes that derive data from a source use one transaction for the session, optional generated track, and source row.
+SQLite via the sqlite-net API (`sqlite-net-e` package) with WAL mode. All sync-enabled entities inherit from `Synchronizable`, carrying `Updated` / `ClientUpdated` / `Deleted` timestamps for soft delete and conflict resolution. Separate local-only revisions identify processed telemetry, cached session-track projections, and full-track point payloads; replaceable SQLite triggers advance them only on effective content changes, and revision-constrained readers return no value when the requested generation is gone. Metadata-only session saves do not name the processed BLOB or cached track columns. Session metadata includes nullable summary metrics (`duration_seconds`, `distance_meters`, `ascent_meters`, `descent_meters`), while processed telemetry, processing fingerprints, generated tracks, and raw recorded sources have distinct persistence paths; processed-session writes that derive data from a source use one transaction for the session, optional generated track, and source row.
 
 Topics in [architecture/persistence.md](architecture/persistence.md):
 

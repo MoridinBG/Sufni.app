@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using NSubstitute;
 using Sufni.App.Infrastructure;
@@ -458,6 +459,45 @@ public class RecordedSessionReprocessorTests
     }
 
     [Fact]
+    public async Task ReprocessAsync_LiveCaptureSource_WithNullTemperatureData_TreatsTemperatureAsAbsent()
+    {
+        var sessionId = Guid.NewGuid();
+        var payload = CreateTemperatureCompatibilityPayload(temperatureData: null);
+        var source = CreateLiveCaptureSource(sessionId, "null-temperature", payload);
+        using var sourceDocument = JsonDocument.Parse(source.Payload);
+        var domain = CreateLiveCaptureDomain(source);
+        var reprocessor = CreateReprocessor();
+
+        var result = await reprocessor.ReprocessAsync(domain, source);
+
+        Assert.Equal(JsonValueKind.Null, sourceDocument.RootElement.GetProperty("temperature_data").ValueKind);
+        Assert.NotEmpty(result.ProcessedTelemetry.TelemetryData.Front.Travel);
+        Assert.Empty(result.ProcessedTelemetry.TelemetryData.TemperatureAverages);
+        Assert.Empty(TelemetryData.FromBinary(result.ProcessedTelemetry.Data).TemperatureAverages);
+    }
+
+    [Fact]
+    public async Task ReprocessAsync_LiveCaptureSource_WithoutTemperatureData_TreatsTemperatureAsAbsent()
+    {
+        var sessionId = Guid.NewGuid();
+        var payload = CreateTemperatureCompatibilityPayload([]);
+        var payloadJson = JsonNode.Parse(AppJson.Serialize(payload))!.AsObject();
+        Assert.True(payloadJson.Remove("temperature_data"));
+        var source = CreateLiveCaptureSource(
+            sessionId,
+            "missing-temperature",
+            Encoding.UTF8.GetBytes(payloadJson.ToJsonString()));
+        var domain = CreateLiveCaptureDomain(source);
+        var reprocessor = CreateReprocessor();
+
+        var result = await reprocessor.ReprocessAsync(domain, source);
+
+        Assert.NotEmpty(result.ProcessedTelemetry.TelemetryData.Front.Travel);
+        Assert.Empty(result.ProcessedTelemetry.TelemetryData.TemperatureAverages);
+        Assert.Empty(TelemetryData.FromBinary(result.ProcessedTelemetry.Data).TemperatureAverages);
+    }
+
+    [Fact]
     public void MetadataFromRaw_UsesRecordingDurationSecondsWhenPresent()
     {
         var raw = new RawTelemetryData
@@ -565,13 +605,39 @@ public class RecordedSessionReprocessorTests
                 new RearTravelCalibrationBuilder(
                     new KinematicSolutionCache())));
 
+    private static RecordedLiveCaptureSourcePayload CreateTemperatureCompatibilityPayload(
+        TemperatureSample[]? temperatureData) =>
+        new()
+        {
+            SchemaVersion = 1,
+            Metadata = new Metadata
+            {
+                SourceName = "temperature-compatibility",
+                Version = 4,
+                SampleRate = 100,
+                Timestamp = 1_700_000_000,
+                Duration = 0.64,
+            },
+            FrontMeasurements = Enumerable.Range(0, 64).Select(sample => (ushort)(1200 + sample)).ToArray(),
+            RearMeasurements = [],
+            TemperatureData = temperatureData,
+            Markers = [],
+        };
+
     private static RecordedSessionSource CreateLiveCaptureSource(
         Guid sessionId,
         string sourceName,
-        RecordedLiveCaptureSourcePayload payload)
-    {
-        var payloadBytes = Encoding.UTF8.GetBytes(AppJson.Serialize(payload));
-        return new RecordedSessionSource
+        RecordedLiveCaptureSourcePayload payload) =>
+        CreateLiveCaptureSource(
+            sessionId,
+            sourceName,
+            Encoding.UTF8.GetBytes(AppJson.Serialize(payload)));
+
+    private static RecordedSessionSource CreateLiveCaptureSource(
+        Guid sessionId,
+        string sourceName,
+        byte[] payloadBytes) =>
+        new()
         {
             SessionId = sessionId,
             SourceKind = RecordedSessionSourceKind.LiveCapture,
@@ -582,7 +648,6 @@ public class RecordedSessionReprocessorTests
                 sourceName,
                 1,
                 payloadBytes),
-            Payload = payloadBytes
+            Payload = payloadBytes,
         };
-    }
 }

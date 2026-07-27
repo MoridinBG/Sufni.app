@@ -6,7 +6,5 @@ public sealed record RecordedSessionCatalogItem(
     Guid Id,
     string Name,
     long? Timestamp,
-    double? DurationSeconds = null)
-{
-    public RecordedSessionTrackContentVersion? TrackContentVersion { get; init; }
-}
+    double? DurationSeconds,
+    RecordedSessionContentToken ContentToken);

@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.Theming;
@@ -7,9 +5,11 @@ using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
 using Sufni.App.Extensibility.Views;
+using Sufni.App.Infrastructure;
 using Sufni.App.Infrastructure.Theming;
 using Sufni.App.LiveDaq.Plots;
 using Sufni.App.Shared.Plots;
+using Sufni.App.Sessions.Plots;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Extensibility.Views;
 
@@ -107,6 +107,128 @@ public class ExtensionSignalPlotTests
     }
 
     [Fact]
+    public void LoadSeries_SegmentedRuns_DoNotConnectOrExposeCursorValuesAcrossGap()
+    {
+        var plot = new Plot();
+        var sut = new ExtensionSignalPlot(plot)
+        {
+            MaximumDisplayHz = 30,
+            SmoothingLevel = PlotSmoothingLevel.Strong,
+        };
+        var runs = new[]
+        {
+            new RecordedSessionSignalRun(
+                Enumerable.Range(0, 11).Select(value => value / 100.0).ToArray(),
+                Enumerable.Range(0, 11).Select(value => (double)value).ToArray()),
+            new RecordedSessionSignalRun(
+                Enumerable.Range(0, 11).Select(value => 1.0 + value / 100.0).ToArray(),
+                Enumerable.Range(100, 11).Select(value => (double)value).ToArray()),
+        };
+
+        sut.LoadSeries(CreateViewModel(
+        [
+            new RecordedSessionSignalSeries(
+                RecordedSessionSignalSeriesRole.FrameImu,
+                "Frame",
+                "g",
+                [],
+                [],
+                "0.#",
+                runs),
+        ]));
+
+        Assert.Equal(2, plot.PlottableList.OfType<Scatter>().Count());
+
+        sut.SetCursorPositionWithReadout(1.05);
+
+        var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
+        Assert.True(tooltip.IsVisible);
+        Assert.Contains("Frame:", tooltip.LabelText);
+
+        sut.SetCursorPositionWithReadout(0.6);
+
+        Assert.False(tooltip.IsVisible);
+    }
+
+    [Fact]
+    public void LoadSeries_SegmentedRuns_UseAllRunsForValueLimits()
+    {
+        var plot = new Plot();
+        var sut = new ExtensionSignalPlot(plot);
+
+        sut.LoadSeries(CreateViewModel(
+        [
+            new RecordedSessionSignalSeries(
+                RecordedSessionSignalSeriesRole.FrameImu,
+                "Frame",
+                "g",
+                [],
+                [],
+                "0.###",
+                [
+                    new RecordedSessionSignalRun([0, 0.1], [-10, -5]),
+                    new RecordedSessionSignalRun([1, 1.1], [100, 110]),
+                ]),
+        ]));
+
+        var limits = plot.Axes.GetLimits();
+        Assert.Equal(-19.6, limits.Bottom, precision: 6);
+        Assert.Equal(119.6, limits.Top, precision: 6);
+    }
+
+    [Fact]
+    public void GetYValues_HandlesAllKnownValueForms()
+    {
+        Assert.Equal(
+            [1, 2],
+            ExtensionSignalPlot.GetYValues(TimeSeries(new SampledValues([1, 2], 100))));
+        Assert.Equal(
+            [3, 4],
+            ExtensionSignalPlot.GetYValues(TimeSeries(new ExplicitValues([0, 1], [3, 4]))));
+        Assert.Equal(
+            [5, 6, 7, 8],
+            ExtensionSignalPlot.GetYValues(TimeSeries(new SegmentedValues(
+            [
+                new ExplicitValues([0, 1], [5, 6]),
+                new ExplicitValues([2, 3], [7, 8]),
+            ]))));
+    }
+
+    [Fact]
+    public void GetYValues_ThrowsForUnsupportedValueForm()
+    {
+        var exception = Assert.Throws<NotSupportedException>(() =>
+            ExtensionSignalPlot.GetYValues(TimeSeries(new UnsupportedValues())).ToArray());
+
+        Assert.Contains(nameof(UnsupportedValues), exception.Message);
+    }
+
+    [Fact]
+    public void LoadSeries_SegmentedRuns_PreserveMeasuredZero()
+    {
+        var plot = new Plot();
+        var sut = new ExtensionSignalPlot(plot);
+
+        sut.LoadSeries(CreateViewModel(
+        [
+            new RecordedSessionSignalSeries(
+                RecordedSessionSignalSeriesRole.FrameImu,
+                "Frame",
+                "g",
+                [],
+                [],
+                "0.###",
+                [new RecordedSessionSignalRun([0, 0.1], [0, 1])]),
+        ]));
+
+        sut.SetCursorPositionWithReadout(0);
+
+        var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
+        Assert.True(tooltip.IsVisible);
+        Assert.Contains("Frame: 0 g", tooltip.LabelText);
+    }
+
+    [Fact]
     public void LoadSeries_HidesLegend_ForSingleSeries()
     {
         var plot = new Plot();
@@ -131,6 +253,9 @@ public class ExtensionSignalPlotTests
 
     private static (byte, byte, byte, byte) Argb(Color color) => (color.R, color.G, color.B, color.A);
 
+    private static RecordedTimeSeries TimeSeries(RecordedTimeSeriesValues values) =>
+        new("Series", "unit", Colors.Black, values);
+
     private static RecordedSessionSignalSeries Series(RecordedSessionSignalSeriesRole role, params double[] values)
     {
         var seconds = new double[values.Length];
@@ -147,4 +272,6 @@ public class ExtensionSignalPlotTests
         bool invertValueAxis = false,
         IReadOnlyList<RecordedSessionSignalSpan>? airtimeSpans = null) =>
         new(series, invertValueAxis, durationSeconds: 100, emptyMessage: "No matched data", airtimeSpans ?? []);
+
+    private sealed record UnsupportedValues : RecordedTimeSeriesValues;
 }

@@ -23,11 +23,9 @@ public sealed class ExtensionSignalPlot(Plot plot, SufniTheme? theme = null)
     public void LoadSeries(RecordedSessionSignalPlotViewModel vm)
     {
         var series = vm.Series
-            .Where(s => s.Values.Length >= 2 && s.SecondsX.Length == s.Values.Length)
-            .Select(s => new RecordedTimeSeries(
-                s.Label, s.Unit, ColorFor(s.Role),
-                new ExplicitValues(s.SecondsX, s.Values),
-                s.Format, LineWidth: 1.6f, SourceKey: s.Role.ToString()))
+            .Select(MapSeries)
+            .Where(series => series is not null)
+            .Cast<RecordedTimeSeries>()
             .ToArray();
 
         var valueRange = ComputeRange(series, vm.InvertValueAxis);
@@ -56,11 +54,47 @@ public sealed class ExtensionSignalPlot(Plot plot, SufniTheme? theme = null)
     public override void LoadTelemetryData(TelemetryData telemetryData) =>
         throw new NotSupportedException("ExtensionSignalPlot renders neutral series only.");
 
+    private static RecordedTimeSeries? MapSeries(RecordedSessionSignalSeries series)
+    {
+        RecordedTimeSeriesValues values;
+        if (series.Runs is { Count: > 0 })
+        {
+            var runs = series.Runs
+                .Where(run => run.SecondsX.Length >= 2 && run.SecondsX.Length == run.Values.Length)
+                .Select(run => new ExplicitValues(run.SecondsX, run.Values))
+                .ToArray();
+            if (runs.Length == 0)
+            {
+                return null;
+            }
+
+            values = new SegmentedValues(runs);
+        }
+        else
+        {
+            if (series.Values.Length < 2 || series.SecondsX.Length != series.Values.Length)
+            {
+                return null;
+            }
+
+            values = new ExplicitValues(series.SecondsX, series.Values);
+        }
+
+        return new RecordedTimeSeries(
+            series.Label,
+            series.Unit,
+            ColorFor(series.Role),
+            values,
+            series.Format,
+            LineWidth: 1.6f,
+            SourceKey: series.Role.ToString());
+    }
+
     private static RecordedTimeSeriesValueRange ComputeRange(
         IReadOnlyList<RecordedTimeSeries> series, bool invert)
     {
         var ys = series
-            .SelectMany(s => ((ExplicitValues)s.Values).YValues)
+            .SelectMany(GetYValues)
             .Where(double.IsFinite)
             .ToArray();
         double min, max;
@@ -75,6 +109,15 @@ public sealed class ExtensionSignalPlot(Plot plot, SufniTheme? theme = null)
             ? new RecordedTimeSeriesValueRange(max, min)
             : new RecordedTimeSeriesValueRange(min, max);
     }
+
+    internal static IEnumerable<double> GetYValues(RecordedTimeSeries series) => series.Values switch
+    {
+        SampledValues values => values.Samples,
+        ExplicitValues values => values.YValues,
+        SegmentedValues values => values.Segments.SelectMany(segment => segment.YValues),
+        _ => throw new NotSupportedException(
+            $"Unsupported recorded time-series values type '{series.Values.GetType().FullName}'."),
+    };
 
     private static Color ColorFor(RecordedSessionSignalSeriesRole role) => role switch
     {

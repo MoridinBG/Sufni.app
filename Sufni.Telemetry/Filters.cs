@@ -1,4 +1,5 @@
 using System.Numerics.Tensors;
+using Sufni.Telemetry.Caching;
 
 namespace Sufni.Telemetry;
 
@@ -8,11 +9,10 @@ public class SavitzkyGolay
 
     private const int CacheCapacity = 64;
     private const long CacheCoefficientBudgetBytes = 16 * 1024 * 1024;
-    private static readonly System.Threading.Lock cacheGate = new();
-    private static readonly Dictionary<CacheKey, CacheEntry> cache = [];
-    private static readonly LinkedList<CacheKey> cacheRecency = [];
-    private static readonly Dictionary<CacheKey, Lazy<SavitzkyGolay>> oversizeInFlight = [];
-    private static long cachedCoefficientBytes;
+    private static readonly SingleFlightLruCache<CacheKey, SavitzkyGolay> cache = new(
+        CacheCapacity,
+        CacheCoefficientBudgetBytes,
+        static filter => filter.CoefficientBytes);
 
     private readonly int windowSize;
     private readonly int derivative;
@@ -33,17 +33,7 @@ public class SavitzkyGolay
 
     private readonly record struct CacheKey(int WindowSize, int Derivative, int Polynomial);
 
-    private sealed class CacheEntry(
-        SavitzkyGolay filter,
-        LinkedListNode<CacheKey> recencyNode,
-        long coefficientBytes)
-    {
-        public SavitzkyGolay Filter { get; } = filter;
-
-        public LinkedListNode<CacheKey> RecencyNode { get; } = recencyNode;
-
-        public long CoefficientBytes { get; } = coefficientBytes;
-    }
+    private long CoefficientBytes => checked((long)windowSize * windowSize * sizeof(double));
 
     public static SavitzkyGolay Create(int windowSize, int derivative, int polynomial)
     {
@@ -56,85 +46,17 @@ public class SavitzkyGolay
 
         ArgumentOutOfRangeException.ThrowIfNegative(polynomial);
 
-        var key = new CacheKey(windowSize, derivative, polynomial);
-        var coefficientBytes = checked((long)windowSize * windowSize * sizeof(double));
-        if (coefficientBytes > CacheCoefficientBudgetBytes)
-        {
-            return CreateOversize(key, windowSize, derivative, polynomial);
-        }
-
-        lock (cacheGate)
-        {
-            if (cache.TryGetValue(key, out var entry))
-            {
-                cacheRecency.Remove(entry.RecencyNode);
-                cacheRecency.AddFirst(entry.RecencyNode);
-                return entry.Filter;
-            }
-
-            var filter = new SavitzkyGolay(windowSize, derivative, polynomial);
-            while ((cache.Count >= CacheCapacity ||
-                    cachedCoefficientBytes + coefficientBytes > CacheCoefficientBudgetBytes) &&
-                   cacheRecency.Last is { } leastRecent)
-            {
-                RemoveCachedEntry(leastRecent);
-            }
-
-            var node = new LinkedListNode<CacheKey>(key);
-            cacheRecency.AddFirst(node);
-            cache[key] = new CacheEntry(filter, node, coefficientBytes);
-            cachedCoefficientBytes += coefficientBytes;
-
-            return filter;
-        }
+        return cache.GetOrAdd(
+            new CacheKey(windowSize, derivative, polynomial),
+            static key => new SavitzkyGolay(
+                key.WindowSize,
+                key.Derivative,
+                key.Polynomial));
     }
 
     #endregion Constructors / Initializers
 
     #region Private methods
-
-    private static SavitzkyGolay CreateOversize(
-        CacheKey key,
-        int windowSize,
-        int derivative,
-        int polynomial)
-    {
-        Lazy<SavitzkyGolay> lazy;
-        lock (cacheGate)
-        {
-            if (!oversizeInFlight.TryGetValue(key, out lazy!))
-            {
-                lazy = new Lazy<SavitzkyGolay>(
-                    () => new SavitzkyGolay(windowSize, derivative, polynomial),
-                    LazyThreadSafetyMode.ExecutionAndPublication);
-                oversizeInFlight.Add(key, lazy);
-            }
-        }
-
-        try
-        {
-            return lazy.Value;
-        }
-        finally
-        {
-            lock (cacheGate)
-            {
-                if (oversizeInFlight.TryGetValue(key, out var current) && ReferenceEquals(current, lazy))
-                {
-                    oversizeInFlight.Remove(key);
-                }
-            }
-        }
-    }
-
-    private static void RemoveCachedEntry(LinkedListNode<CacheKey> node)
-    {
-        cacheRecency.Remove(node);
-        if (cache.Remove(node.Value, out var entry))
-        {
-            cachedCoefficientBytes -= entry.CoefficientBytes;
-        }
-    }
 
     private double GetHs(double[] h, int center, int half)
     {

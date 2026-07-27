@@ -145,7 +145,7 @@ internal sealed class LiveDaqDetailHarness
                 ConnectionState = LiveConnectionState.Connected,
                 LastError = null,
                 SessionHeader = started.Header,
-                SelectedStreamMask = started.Header.AcceptedSensorMask.StreamMask,
+                SelectedStreamMask = started.Header.AcceptedStreamMask,
             });
             return;
         }

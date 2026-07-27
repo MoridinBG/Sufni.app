@@ -210,8 +210,7 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
         }
         catch (Exception ex)
         {
-            pendingStartResult = null;
-            startAckAwaitingHeader = null;
+            ClearPendingStartContextLocked();
             logger.Warning(ex, "Failed to send live preview start request");
             return new LivePreviewStartResult.Failed(ex.Message);
         }
@@ -231,8 +230,7 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
             {
                 if (pendingStartResult?.Task == task)
                 {
-                    pendingStartResult = null;
-                    startAckAwaitingHeader = null;
+                    ClearPendingStartContextLocked();
                 }
             }
             finally
@@ -350,10 +348,9 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
             rawTelemetryFrames = null;
             parsedTelemetryFrames = null;
             pendingStartResult?.TrySetResult(new LivePreviewStartResult.Failed("Live preview disconnected before startup completed."));
-            pendingStartResult = null;
+            ClearPendingStartContextLocked();
             pendingStopAck?.TrySetException(new IOException("Disconnected before STOP_LIVE_ACK was received."));
             pendingStopAck = null;
-            startAckAwaitingHeader = null;
         }
         finally
         {
@@ -733,6 +730,9 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
 
     private async Task HandleFrameAsync(LiveProtocolFrame frame)
     {
+        var emittedFrame = frame;
+        var shouldEmitFrame = true;
+
         await lifecycleGate.WaitAsync(CancellationToken.None);
         try
         {
@@ -750,7 +750,7 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
                     if (startAckFrame.Payload.Result == LiveStartErrorCode.Ok)
                     {
                         logger.Debug(
-                            "Received live DAQ preview start ACK for session {SessionId} with sensors {SelectedStreamMask}",
+                            "Received live DAQ preview start ACK for session {SessionId} with streams {SelectedStreamMask}",
                             startAckFrame.Payload.SessionId,
                             startAckFrame.Payload.SelectedStreamMask);
                         startAckAwaitingHeader = startAckFrame.Payload;
@@ -764,8 +764,7 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
                             new LivePreviewStartResult.Rejected(
                                 startAckFrame.Payload.Result,
                                 startAckFrame.Payload.Result.UserMessage));
-                        pendingStartResult = null;
-                        startAckAwaitingHeader = null;
+                        ClearPendingStartContextLocked();
                     }
                     break;
 
@@ -774,12 +773,28 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
                         "Received live DAQ session header for session {SessionId}",
                         sessionHeaderFrame.Payload.SessionId);
                     activeSessionId = sessionHeaderFrame.Payload.SessionId;
-                    if (pendingStartResult is not null && startAckAwaitingHeader is not null)
+                    if (pendingStartResult is null || startAckAwaitingHeader is null)
                     {
-                        pendingStartResult.TrySetResult(new LivePreviewStartResult.Started(sessionHeaderFrame.Payload));
-                        pendingStartResult = null;
-                        startAckAwaitingHeader = null;
+                        shouldEmitFrame = false;
+                        break;
                     }
+
+                    if (sessionHeaderFrame.Payload.SessionId != startAckAwaitingHeader.Value.SessionId)
+                    {
+                        pendingStartResult.TrySetResult(new LivePreviewStartResult.Failed(
+                            "Live session header did not match the accepted session."));
+                        ClearPendingStartContextLocked();
+                        shouldEmitFrame = false;
+                        break;
+                    }
+
+                    var enrichedHeader = sessionHeaderFrame.Payload with
+                    {
+                        AcceptedStreamMask = startAckAwaitingHeader.Value.SelectedStreamMask,
+                    };
+                    emittedFrame = new LiveSessionHeaderFrame(sessionHeaderFrame.Header, enrichedHeader);
+                    pendingStartResult.TrySetResult(new LivePreviewStartResult.Started(enrichedHeader));
+                    ClearPendingStartContextLocked();
                     break;
 
                 case LiveErrorFrame errorFrame:
@@ -792,8 +807,7 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
                             new LivePreviewStartResult.Rejected(
                                 errorFrame.Payload.ErrorCode,
                                 errorFrame.Payload.ErrorCode.UserMessage));
-                        pendingStartResult = null;
-                        startAckAwaitingHeader = null;
+                        ClearPendingStartContextLocked();
                     }
                     break;
 
@@ -804,6 +818,9 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
                     activeSessionId = null;
                     pendingStopAck?.TrySetResult(stopAckFrame.Payload.SessionId);
                     pendingStopAck = null;
+                    pendingStartResult?.TrySetResult(new LivePreviewStartResult.Failed(
+                        "Live preview stopped before startup completed."));
+                    ClearPendingStartContextLocked();
                     break;
             }
         }
@@ -812,7 +829,10 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
             lifecycleGate.Release();
         }
 
-        EmitEvent(new LiveDaqClientEvent.FrameReceived(frame));
+        if (shouldEmitFrame)
+        {
+            EmitEvent(new LiveDaqClientEvent.FrameReceived(emittedFrame));
+        }
     }
 
     private async Task HandleDisconnectAsync(string? errorMessage, Exception? exception = null)
@@ -840,16 +860,14 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
             {
                 pendingStartResult.TrySetResult(new LivePreviewStartResult.Failed(
                     errorMessage ?? "Live preview disconnected before startup completed."));
-                pendingStartResult = null;
             }
+            ClearPendingStartContextLocked();
 
             if (pendingStopAck is not null)
             {
                 pendingStopAck.TrySetException(new IOException(errorMessage ?? "Disconnected before STOP_LIVE_ACK was received."));
                 pendingStopAck = null;
             }
-
-            startAckAwaitingHeader = null;
         }
         finally
         {
@@ -880,6 +898,12 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
             EmitEvent(new LiveDaqClientEvent.Faulted(errorMessage));
             EmitEvent(new LiveDaqClientEvent.Disconnected(errorMessage));
         }
+    }
+
+    private void ClearPendingStartContextLocked()
+    {
+        pendingStartResult = null;
+        startAckAwaitingHeader = null;
     }
 
     private uint GetNextSequence() => unchecked(++nextSequence);

@@ -102,7 +102,11 @@ without the app knowing the extension's concrete view type. The pinned
 context; inputs supplied through the original name scope, such as `#Root` or
 `ElementName` bindings, are not carried with the borrowed child. While borrowed,
 the extension still owns its control state and rendering; the host owns only the
-modal placement and close gestures.
+modal placement and close gestures. The same ownership rule applies to custom
+plot internals: an extension that creates disposable ScottPlot plottables or
+native drawing resources must dispose them when replacing/clearing the plot and
+when its control detaches. Host removal of the contribution or plot contents does
+not transfer ownership of those extension-created resources.
 
 ## Runtime Stores
 
@@ -114,6 +118,20 @@ stores can reuse it while keeping their own neutral read/write interfaces,
 persistence services, and domain-specific lookup methods. Public app code still
 does not name extension-specific store types; extensions opt into the shared
 runtime base from their own projects.
+
+## Shared Caching
+
+`Sufni.Telemetry.Caching.SingleFlightLruCache<TKey, TValue>` is the
+dependency-lower shared primitive for bounded reusable computations. It
+keeps pending producers separate from retained LRU values, so count and weight
+limits apply only after successful completion. Callers may use count-only,
+weight-only, or combined limits and may reject successful values from retention
+with a predicate while still sharing that producer result with current waiters.
+Waiter cancellation is independent: producers run with their own non-cancelable
+lifetime, and faulted or canceled producers remain retryable. Oversize values
+are shared but not retained. `Clear()` detaches pending generations without
+canceling their existing waiters, and detached late completions cannot populate
+the current retained state.
 
 ## Database Hooks
 
@@ -221,26 +239,28 @@ without a long positional constructor. It exposes constrained host operations:
 `IRecordedSessionDataReader.GetProcessedTelemetryAsync` delegates to
 `ISessionProcessedTelemetryReader`. While the recorded-session editor is loaded,
 the session is retained so extension readers, plots, and mobile detail generation
-share one decoded `TelemetryData` instance for the current `(sessionId, Updated,
-ProcessingFingerprintJson)` processed-payload key. That instance is shared
+share one decoded `TelemetryData` instance for the current
+`(sessionId, ProcessedTelemetryRevision)` payload key. That instance is shared
 infrastructure state and must be treated as read-only by extensions.
 
-`IRecordedSessionDataReader.GetTrackAsync` returns the session-window track
+`IRecordedSessionDataReader.GetTrackAsync` returns the latest session-window track
 projection used by the recorded-session view: cached points when the cache is
 current, or a read-only projection from the linked full track when the cache is
 missing or aligned to an older GPS offset. Alignment and regeneration use the
 session row's own timestamp and duration — the values the processed-write path
 generates the cache from — so the read path never deserializes the processed
-telemetry blob per session (matching enumerates every session, where a per-session
-blob decode dominated the scan). The read path does not persist regenerated points.
+telemetry blob per session. The read path does not persist regenerated points.
 
-`RecordedSessionCatalogItem.TrackContentVersion` is the neutral invalidation key
-for consumers that retain derived track projections. It combines the session
-row's `Updated` value with the linked full-track id and that track row's `Updated`
-value. Catalog enumeration resolves linked-track metadata in a batch without
-loading track payloads. Consumers must still key any projection-specific state
-by their own value parameters; the content version is not list/object identity
-and carries no extension-specific meaning.
+Every `RecordedSessionCatalogItem` carries a neutral `RecordedSessionContentToken`
+containing the processed-telemetry revision, session-track projection revision,
+linked full-track id and points revision, timestamp, duration, and GPS offset.
+Catalog enumeration batches linked-track metadata and does not load telemetry or
+track payloads. `GetExactSnapshotAsync` accepts that token plus selected content
+families, constrains each selected payload read to the token's revisions, and
+revalidates all metadata after loading. Its result explicitly distinguishes
+`Available(snapshot)`, `Stale` metadata, and `Missing` sessions or payloads; it
+never substitutes newer content. The existing telemetry and track methods remain
+latest-content convenience reads.
 
 Operation leases reject stale progress and cancel superseded work, so extension tasks share the existing editor busy surface without controlling the editor lifecycle. Extension work reports percent values on a `0..100` scale. The recorded-session host projects those reports through `SessionOperationPresentationState` and renders the standard nonblocking busy overlay above the current session content. Extension operation progress does not set the session detail `ScreenState`; that state remains reserved for loading and error state of the session detail itself.
 
@@ -353,7 +373,12 @@ spans, and observable `ShowAirtime` / `Timeline`. The host recognizes this view
 model type and renders it with the app's `ExtensionSignalPlotView` (a
 `SufniTimeSeriesPlotView`), so the row gets app theming, the shared cursor and
 visible-range link, and the inherited airtime overlay without the extension
-drawing on a raw plot. Extensions that need rendering the app cannot express
+drawing on a raw plot. Each neutral `RecordedSessionSignalSeries` keeps the
+flat `SecondsX` / `Values` form for continuous data and may instead provide
+`RecordedSessionSignalRun` values for consecutive available runs. The host
+renders runs as separate segments and never draws a line across unavailable
+gaps; invalid runs are ignored, and when runs are present they take precedence
+over the flat arrays. Extensions that need rendering the app cannot express
 generically still supply their own view through the view registry.
 
 Recorded-session signal toolbar command and view contributions both carry

@@ -21,12 +21,12 @@ public interface ITrackRepository
 
     Task<TrackPayloadMetadata?> GetTrackPayloadMetadataAsync(Guid trackId);
 
-    Task<TrackPayload?> GetTrackPayloadAsync(Guid trackId, long updated);
+    Task<TrackPayload?> GetTrackPayloadAsync(Guid trackId, long pointsRevision);
 }
 
-public sealed record TrackPayloadMetadata(Guid Id, long Updated);
+public sealed record TrackPayloadMetadata(Guid Id, long PointsRevision);
 
-public sealed record TrackPayload(Guid Id, long Updated, IReadOnlyList<TrackPoint> Points);
+public sealed record TrackPayload(Guid Id, long PointsRevision, IReadOnlyList<TrackPoint> Points);
 
 internal sealed class TrackRepository(SqliteConnectionContext connectionContext) : ITrackRepository
 {
@@ -93,7 +93,7 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext)
         var connection = await connectionContext.GetInitializedConnectionAsync();
         var rows = await connection.QueryAsync<TrackPayloadMetadataRow>(
             """
-            SELECT id, updated
+            SELECT id, points_revision
             FROM track
             WHERE deleted IS NULL AND id = ?
             """,
@@ -112,7 +112,7 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext)
             var placeholders = string.Join(", ", chunk.Select(_ => "?"));
             var args = chunk.Select(id => (object)id.ToString("D")).ToArray();
             var rows = await connection.QueryAsync<TrackPayloadMetadataRow>(
-                $"SELECT id, updated FROM track WHERE deleted IS NULL AND id IN ({placeholders})",
+                $"SELECT id, points_revision FROM track WHERE deleted IS NULL AND id IN ({placeholders})",
                 args);
             metadata.AddRange(rows.Select(row => row.ToMetadata()));
         }
@@ -120,17 +120,17 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext)
         return metadata;
     }
 
-    public async Task<TrackPayload?> GetTrackPayloadAsync(Guid trackId, long updated)
+    public async Task<TrackPayload?> GetTrackPayloadAsync(Guid trackId, long pointsRevision)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
         var rows = await connection.QueryAsync<TrackPayloadRow>(
             """
-            SELECT id, updated, points
+            SELECT id, points_revision, points
             FROM track
-            WHERE deleted IS NULL AND id = ? AND updated = ?
+            WHERE deleted IS NULL AND id = ? AND points_revision = ?
             """,
             trackId,
-            updated);
+            pointsRevision);
         return rows.Count == 1 ? rows[0].ToPayload() : null;
     }
 
@@ -145,10 +145,10 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext)
         [Column("id")]
         public Guid Id { get; set; }
 
-        [Column("updated")]
-        public long Updated { get; set; }
+        [Column("points_revision")]
+        public long PointsRevision { get; set; }
 
-        public TrackPayloadMetadata ToMetadata() => new(Id, Updated);
+        public TrackPayloadMetadata ToMetadata() => new(Id, PointsRevision);
     }
 
     private sealed class TrackPayloadRow
@@ -156,8 +156,8 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext)
         [Column("id")]
         public Guid Id { get; set; }
 
-        [Column("updated")]
-        public long Updated { get; set; }
+        [Column("points_revision")]
+        public long PointsRevision { get; set; }
 
         [Column("points")]
         public string PointsJson { get; set; } = null!;
@@ -165,7 +165,7 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext)
         public TrackPayload? ToPayload()
         {
             var points = AppJson.Deserialize<List<TrackPoint>>(PointsJson);
-            return points is null ? null : new TrackPayload(Id, Updated, points);
+            return points is null ? null : new TrackPayload(Id, PointsRevision, points);
         }
     }
 }

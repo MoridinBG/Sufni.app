@@ -132,7 +132,7 @@ public class TrackCoordinator(
         var fullTrackPointList = AsList(fullTrackPoints);
         var trackPoints = await sessionTrackReader.GetSessionTrackAsync(
             sessionId,
-            session?.Updated ?? 0,
+            session?.TrackProjectionRevision ?? 0,
             cancellationToken);
 
         // When the cached session-window polyline is missing or no longer aligned

@@ -23,4 +23,10 @@ public interface IRecordedSessionDataReader
     Task<IReadOnlyList<TrackPoint>?> GetTrackAsync(
         Guid sessionId,
         CancellationToken cancellationToken = default);
+
+    Task<RecordedSessionContentSnapshotResult> GetExactSnapshotAsync(
+        Guid sessionId,
+        RecordedSessionContentToken expectedToken,
+        RecordedSessionContentSelection selection,
+        CancellationToken cancellationToken = default);
 }

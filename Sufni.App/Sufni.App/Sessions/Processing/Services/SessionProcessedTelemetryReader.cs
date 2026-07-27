@@ -19,6 +19,11 @@ internal interface ISessionProcessedTelemetryReader
     IDisposable Retain(Guid sessionId);
 
     Task<TelemetryData?> GetAsync(Guid sessionId, CancellationToken cancellationToken = default);
+
+    Task<TelemetryData?> GetExactAsync(
+        Guid sessionId,
+        long processedTelemetryRevision,
+        CancellationToken cancellationToken = default);
 }
 
 internal sealed class SessionProcessedTelemetryReader(
@@ -47,19 +52,55 @@ internal sealed class SessionProcessedTelemetryReader(
 
     public async Task<TelemetryData?> GetAsync(Guid sessionId, CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        var metadata = await sessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId);
-        cancellationToken.ThrowIfCancellationRequested();
-        if (metadata is null || !metadata.HasData)
+        for (var attempt = 0; attempt < 2; attempt++)
         {
-            ClearRetainedValue(sessionId);
-            return null;
+            cancellationToken.ThrowIfCancellationRequested();
+            var metadata = await sessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (metadata is null || !metadata.HasData)
+            {
+                ClearRetainedValue(sessionId);
+                return null;
+            }
+
+            var key = new SessionPsstCacheKey(sessionId, metadata.ProcessedTelemetryRevision);
+            var lazy = GetOrCreateLazy(sessionId, key);
+            try
+            {
+                var telemetry = await lazy.Value.WaitAsync(cancellationToken);
+                if (telemetry is not null || attempt == 1)
+                {
+                    if (telemetry is null)
+                    {
+                        ClearRetainedValue(sessionId, key, lazy);
+                    }
+
+                    return telemetry;
+                }
+
+                ClearRetainedValue(sessionId, key, lazy);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                ClearRetainedValue(sessionId, key, lazy);
+                throw;
+            }
         }
 
-        var key = new SessionPsstCacheKey(
-            sessionId,
-            metadata.Updated,
-            metadata.ProcessingFingerprintJson);
+        return null;
+    }
+
+    public async Task<TelemetryData?> GetExactAsync(
+        Guid sessionId,
+        long processedTelemetryRevision,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var key = new SessionPsstCacheKey(sessionId, processedTelemetryRevision);
         var lazy = GetOrCreateLazy(sessionId, key);
         try
         {
@@ -88,7 +129,7 @@ internal sealed class SessionProcessedTelemetryReader(
         {
             if (!retained.TryGetValue(sessionId, out var entry))
             {
-                return CreateLazy(sessionId);
+                return CreateLazy(key);
             }
 
             if (entry.Lazy is not null && entry.Key == key)
@@ -97,19 +138,19 @@ internal sealed class SessionProcessedTelemetryReader(
             }
 
             entry.Key = key;
-            entry.Lazy = CreateLazy(sessionId);
+            entry.Lazy = CreateLazy(key);
             return entry.Lazy;
         }
     }
 
-    private Lazy<Task<TelemetryData?>> CreateLazy(Guid sessionId) =>
+    private Lazy<Task<TelemetryData?>> CreateLazy(SessionPsstCacheKey key) =>
         new(
-            () => LoadAndDecodeAsync(sessionId),
+            () => LoadAndDecodeAsync(key),
             LazyThreadSafetyMode.ExecutionAndPublication);
 
-    private async Task<TelemetryData?> LoadAndDecodeAsync(Guid sessionId)
+    private async Task<TelemetryData?> LoadAndDecodeAsync(SessionPsstCacheKey key)
     {
-        var raw = await sessionRepository.GetSessionRawPsstAsync(sessionId);
+        var raw = await sessionRepository.GetSessionRawPsstAsync(key.SessionId, key.ProcessedTelemetryRevision);
         if (raw is null)
         {
             return null;
@@ -167,8 +208,7 @@ internal sealed class SessionProcessedTelemetryReader(
 
     private readonly record struct SessionPsstCacheKey(
         Guid SessionId,
-        long Updated,
-        string? ProcessingFingerprintJson);
+        long ProcessedTelemetryRevision);
 
     private sealed class RetainedTelemetry
     {

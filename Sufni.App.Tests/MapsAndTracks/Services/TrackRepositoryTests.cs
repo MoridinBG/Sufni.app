@@ -178,12 +178,12 @@ public class TrackRepositoryTests
         var metadata = await database.GetTrackPayloadMetadataAsync(trackId);
         Assert.NotNull(metadata);
 
-        var payload = await database.GetTrackPayloadAsync(trackId, metadata!.Updated);
-        var stalePayload = await database.GetTrackPayloadAsync(trackId, metadata.Updated + 1);
+        var payload = await database.GetTrackPayloadAsync(trackId, metadata!.PointsRevision);
+        var stalePayload = await database.GetTrackPayloadAsync(trackId, metadata.PointsRevision + 1);
 
         Assert.NotNull(payload);
         Assert.Equal(trackId, payload!.Id);
-        Assert.Equal(metadata.Updated, payload.Updated);
+        Assert.Equal(metadata.PointsRevision, payload.PointsRevision);
         Assert.Equal(points.Select(point => point.Time), payload.Points.Select(point => point.Time));
         Assert.Null(stalePayload);
     }
@@ -241,7 +241,7 @@ public class TrackRepositoryTests
 
         var item = Assert.Single(metadata);
         Assert.Equal(active.Id, item.Id);
-        Assert.Equal(active.Updated, item.Updated);
+        Assert.Equal(1, item.PointsRevision);
     }
 
     [Fact]

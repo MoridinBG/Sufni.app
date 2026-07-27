@@ -1,7 +1,7 @@
 using System;
 using Sufni.Kinematics;
 using Serilog;
-using Sufni.App.Infrastructure.Caching;
+using Sufni.Telemetry.Caching;
 
 namespace Sufni.App.Bikes.Services;
 

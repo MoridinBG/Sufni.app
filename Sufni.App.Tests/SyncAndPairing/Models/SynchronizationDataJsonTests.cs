@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Sufni.App.Infrastructure;
 using Sufni.App.Bikes.Models;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Tests.TestSupport.Fixtures;
@@ -42,6 +43,40 @@ public class SynchronizationDataJsonTests
             suspension => Assert.IsType<RearSuspensionSpec.LeverageRatioDraft>(suspension),
             suspension => Assert.Equal(linkage, Assert.IsType<RearSuspensionSpec.Linkage>(suspension).Spec),
             suspension => Assert.Equal(leverageRatio, Assert.IsType<RearSuspensionSpec.LeverageRatio>(suspension).Spec));
+    }
+
+    [Fact]
+    public void SynchronizationData_OmitsLocalContentRevisions_FromBothJsonProfiles()
+    {
+        var data = new SynchronizationData
+        {
+            Sessions =
+            [
+                new Session(Guid.NewGuid(), "session", string.Empty, null)
+                {
+                    ProcessedTelemetryRevision = 12,
+                    TrackProjectionRevision = 34,
+                },
+            ],
+            Tracks =
+            [
+                new Track
+                {
+                    Id = Guid.NewGuid(),
+                    PointsRevision = 56,
+                },
+            ],
+        };
+
+        var lenientJson = AppJson.Serialize(data);
+        var hardenedJson = JsonSerializer.Serialize(data, AppJson.InboundContext.SynchronizationData);
+
+        foreach (var json in new[] { lenientJson, hardenedJson })
+        {
+            Assert.DoesNotContain("processed_telemetry_revision", json, StringComparison.Ordinal);
+            Assert.DoesNotContain("track_projection_revision", json, StringComparison.Ordinal);
+            Assert.DoesNotContain("points_revision", json, StringComparison.Ordinal);
+        }
     }
 
     [Fact]

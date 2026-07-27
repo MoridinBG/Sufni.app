@@ -192,8 +192,7 @@ public class LiveDaqSharedStreamTests
         await using var lease = stream.AcquireLease();
         await stream.EnsureStartedAsync();
 
-        var client = clientFactory.CreatedClients.Single();
-        client.FailNextStartPreview = true;
+        clientFactory.ConfigureBeforeReturn = client => client.FailNextStartPreview = true;
 
         await stream.ApplyConfigurationAsync(LiveDaqStreamConfiguration.FromRequestedRates(100, 0, 5));
 
@@ -210,40 +209,283 @@ public class LiveDaqSharedStreamTests
     }
 
     [Fact]
-    public async Task ReconfigureRejection_DoesNotCloseStream_WhenTwoDeliberateDisconnectsArePending()
+    public async Task EnsureStartedAsync_SharesPendingStart_AndCallerCancellationDoesNotCancelTransport()
     {
         using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+        var pendingStart = new TaskCompletionSource<LivePreviewStartResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        clientFactory.ConfigureBeforeReturn = client => client.PendingStartCompletion = pendingStart;
+
+        var stream = registry.GetOrCreate(snapshot);
+        await using var lease = stream.AcquireLease();
+        using var canceledWaiter = new CancellationTokenSource();
+
+        var firstWait = stream.EnsureStartedAsync(canceledWaiter.Token);
+        var client = clientFactory.CreatedClients.Single();
+        await client.StartEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var secondWait = stream.EnsureStartedAsync();
+
+        canceledWaiter.Cancel();
+        Assert.Null(await firstWait);
+        Assert.False(secondWait.IsCompleted);
+        Assert.Equal(1, client.StartCalls);
+
+        var acceptedMask = LiveStreamMask.Temperature | LiveStreamMask.Marker;
+        pendingStart.SetResult(CreateStartedResult(901, acceptedMask));
+
+        var started = Assert.IsType<LivePreviewStartResult.Started>(await secondWait);
+        Assert.Equal(acceptedMask, started.Header.AcceptedStreamMask);
+        Assert.Equal(acceptedMask, stream.CurrentState.SelectedStreamMask);
+        Assert.Equal(1, client.StartCalls);
+    }
+
+    [Fact]
+    public async Task ApplyConfigurationAsync_DuringPendingStart_ConvergesToLatestConfiguration()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+        var pendingStart = new TaskCompletionSource<LivePreviewStartResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        clientFactory.ConfigureBeforeReturn = client =>
+        {
+            if (clientFactory.CreatedClients.Count == 0)
+            {
+                client.PendingStartCompletion = pendingStart;
+            }
+            else
+            {
+                client.AcceptedStreamMask = LiveStreamMask.Temperature | LiveStreamMask.Marker;
+            }
+        };
+
+        var stream = registry.GetOrCreate(snapshot);
+        await using var lease = stream.AcquireLease();
+        var initialStart = stream.EnsureStartedAsync();
+        var firstClient = clientFactory.CreatedClients.Single();
+        await firstClient.StartEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var latestConfiguration = new LiveDaqStreamConfiguration(
+            RequestedStreamMask: LiveStreamMask.Temperature | LiveStreamMask.Marker,
+            RequestedSensorMask: LiveSensorInstanceMask.None,
+            TravelRateMhz: 0,
+            ImuRateMhz: 0,
+            GpsRateMhz: 0,
+            TemperatureRateMhz: 5_000);
+        var reconfigure = stream.ApplyConfigurationAsync(latestConfiguration);
+
+        pendingStart.SetResult(CreateStartedResult(902, LiveStreamMask.Travel));
+        await initialStart.WaitAsync(TimeSpan.FromSeconds(2));
+        await reconfigure.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(2, clientFactory.CreatedClients.Count);
+        var replacement = clientFactory.CreatedClients[1];
+        var request = Assert.Single(replacement.StartRequests);
+        Assert.Equal(latestConfiguration.RequestedStreamMask, request.RequestedStreamMask);
+        Assert.Equal(latestConfiguration.TemperatureRateMhz, request.TemperatureRateMhz);
+        Assert.Equal(LiveStreamMask.Temperature | LiveStreamMask.Marker, stream.CurrentState.SelectedStreamMask);
+    }
+
+    [Fact(Timeout = DeadlockProneTestTimeoutMs)]
+    public async Task LifecycleTransportWaits_DoNotHoldSharedGate()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+        var connectRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        clientFactory.ConfigureBeforeReturn = client => client.PendingConnectCompletion = connectRelease;
+
+        var stream = registry.GetOrCreate(snapshot);
+        await using var lease = stream.AcquireLease();
+        var start = stream.EnsureStartedAsync();
+        var client = clientFactory.CreatedClients.Single();
+        await client.ConnectEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var nextConfiguration = LiveDaqStreamConfiguration.FromRequestedRates(100, 20, 5);
+        var reconfigure = stream.ApplyConfigurationAsync(nextConfiguration);
+        Assert.Equal(nextConfiguration, stream.RequestedConfiguration);
+        await using var concurrentLease = stream.AcquireLease();
+
+        connectRelease.SetResult();
+        await start.WaitAsync(TimeSpan.FromSeconds(2));
+        await reconfigure.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task StopAsync_DuringPendingStart_InvalidatesLateCompletion_AndPermitsRestart()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+        var pendingStart = new TaskCompletionSource<LivePreviewStartResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        clientFactory.ConfigureBeforeReturn = client =>
+        {
+            if (clientFactory.CreatedClients.Count == 0)
+            {
+                client.PendingStartCompletion = pendingStart;
+            }
+        };
+
+        var stream = registry.GetOrCreate(snapshot);
+        await using var lease = stream.AcquireLease();
+        var start = stream.EnsureStartedAsync();
+        var oldClient = clientFactory.CreatedClients.Single();
+        await oldClient.StartEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var stop = stream.StopAsync();
+        pendingStart.SetResult(CreateStartedResult(903, LiveStreamMask.Temperature | LiveStreamMask.Marker));
+        await start.WaitAsync(TimeSpan.FromSeconds(2));
+        await stop.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(LiveConnectionState.Disconnected, stream.CurrentState.ConnectionState);
+        Assert.Equal(LiveStreamMask.None, stream.CurrentState.SelectedStreamMask);
+
+        var restarted = await stream.EnsureStartedAsync();
+        Assert.IsType<LivePreviewStartResult.Started>(restarted);
+        Assert.Equal(LiveConnectionState.Connected, stream.CurrentState.ConnectionState);
+    }
+
+    [Fact]
+    public async Task CloseAsync_DuringPendingStart_RemainsTerminalAfterLateCompletion()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+        var pendingStart = new TaskCompletionSource<LivePreviewStartResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        clientFactory.ConfigureBeforeReturn = client => client.PendingStartCompletion = pendingStart;
+
+        var stream = Assert.IsType<LiveDaqSharedStream>(registry.GetOrCreate(snapshot));
+        await using var lease = stream.AcquireLease();
+        var start = stream.EnsureStartedAsync();
+        await clientFactory.CreatedClients.Single().StartEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        await stream.CloseAsync("terminal");
+        pendingStart.SetResult(CreateStartedResult(904, LiveStreamMask.Temperature | LiveStreamMask.Marker));
+        Assert.Null(await start);
+
+        Assert.True(stream.CurrentState.IsClosed);
+        Assert.Equal("terminal", stream.CurrentState.LastError);
+        Assert.Equal(LiveStreamMask.None, stream.CurrentState.SelectedStreamMask);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_DuringPendingStart_IgnoresLateCompletion()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+        var pendingStart = new TaskCompletionSource<LivePreviewStartResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        clientFactory.ConfigureBeforeReturn = client => client.PendingStartCompletion = pendingStart;
+
+        var stream = registry.GetOrCreate(snapshot);
+        var lease = stream.AcquireLease();
+        var start = stream.EnsureStartedAsync();
+        await clientFactory.CreatedClients.Single().StartEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        await stream.DisposeAsync();
+        pendingStart.SetResult(CreateStartedResult(905, LiveStreamMask.Temperature | LiveStreamMask.Marker));
+        Assert.Null(await start);
+        Assert.Throws<ObjectDisposedException>(() => stream.AcquireLease());
+
+        await lease.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task OldGenerationEvents_CannotMutateReplacementStateOrPublishFrames()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+        clientFactory.ConfigureBeforeReturn = client =>
+            client.AcceptedStreamMask = clientFactory.CreatedClients.Count == 0
+                ? LiveStreamMask.Travel
+                : LiveStreamMask.Temperature | LiveStreamMask.Marker;
 
         var stream = registry.GetOrCreate(snapshot);
         await using var lease = stream.AcquireLease();
         await stream.EnsureStartedAsync();
+        var oldClient = clientFactory.CreatedClients.Single();
+        var observedFrames = new List<LiveProtocolFrame>();
+        using var subscription = stream.Frames.Subscribe(observedFrames.Add);
 
-        var client = clientFactory.CreatedClients.Single();
-        client.DelayDisconnectEvents = true;
-        client.RejectNextStartPreview = true;
+        var configuration = new LiveDaqStreamConfiguration(
+            RequestedStreamMask: LiveStreamMask.Temperature | LiveStreamMask.Marker,
+            RequestedSensorMask: LiveSensorInstanceMask.None,
+            TravelRateMhz: 0,
+            ImuRateMhz: 0,
+            GpsRateMhz: 0,
+            TemperatureRateMhz: 5_000);
+        await stream.ApplyConfigurationAsync(configuration);
 
-        var markerObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var subscription = stream.Frames.Subscribe(frame =>
-        {
-            if (frame is LiveStartAckFrame startAck && startAck.Payload.SessionId == FakeLiveDaqClient.DisconnectFlushMarkerSessionId)
-            {
-                markerObserved.TrySetResult();
-            }
-        });
-
-        await stream.ApplyConfigurationAsync(LiveDaqStreamConfiguration.FromRequestedRates(100, 0, 5));
-
-        client.ReleasePendingDisconnectEvents();
-        await markerObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        oldClient.PublishFrame(CreateTravelBatchFrame(77));
+        oldClient.PublishFault("stale fault");
+        oldClient.PublishDisconnectedEvent("stale disconnect");
+        await Task.Yield();
 
         Assert.False(stream.CurrentState.IsClosed);
-        Assert.Equal(LiveConnectionState.Disconnected, stream.CurrentState.ConnectionState);
+        Assert.Equal(LiveConnectionState.Connected, stream.CurrentState.ConnectionState);
+        Assert.Equal(LiveStreamMask.Temperature | LiveStreamMask.Marker, stream.CurrentState.SelectedStreamMask);
+        Assert.DoesNotContain(observedFrames, frame => frame is LiveTravelBatchFrame travel && travel.Batch.FirstMonotonicUs == 77);
+    }
 
+    [Fact(Timeout = DeadlockProneTestTimeoutMs)]
+    public async Task StopAsync_DoesNotHoldGate_WhileStopOrDisconnectIsPending()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+        var stream = registry.GetOrCreate(snapshot);
+        await using var lease = stream.AcquireLease();
         await stream.EnsureStartedAsync();
+        var client = clientFactory.CreatedClients.Single();
+        var stopRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var disconnectRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.PendingStopCompletion = stopRelease;
+        client.PendingDisconnectCompletion = disconnectRelease;
 
-        Assert.False(stream.CurrentState.IsClosed);
+        var stop = stream.StopAsync();
+        await client.StopEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await using var leaseWhileStopping = stream.AcquireLease();
+
+        stopRelease.SetResult();
+        await client.DisconnectEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await using var leaseWhileDisconnecting = stream.AcquireLease();
+
+        disconnectRelease.SetResult();
+        await stop.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(LiveConnectionState.Disconnected, stream.CurrentState.ConnectionState);
+    }
+
+    [Fact(Timeout = DeadlockProneTestTimeoutMs)]
+    public async Task EnsureStartedAsync_DuringPendingStop_ReconvergesToRunning()
+    {
+        using var registry = CreateRegistry();
+        var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
+        var stream = registry.GetOrCreate(snapshot);
+        await using var lease = stream.AcquireLease();
+        await stream.EnsureStartedAsync();
+        var oldClient = clientFactory.CreatedClients.Single();
+        var stopRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var disconnectRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        oldClient.PendingStopCompletion = stopRelease;
+        oldClient.PendingDisconnectCompletion = disconnectRelease;
+
+        var stop = stream.StopAsync();
+        await oldClient.StopEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var restart = stream.EnsureStartedAsync();
+        Assert.False(restart.IsCompleted);
+
+        stopRelease.SetResult();
+        await oldClient.DisconnectEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        disconnectRelease.SetResult();
+
+        var restarted = await restart.WaitAsync(TimeSpan.FromSeconds(2));
+        await stop.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.IsType<LivePreviewStartResult.Started>(restarted);
+        Assert.Equal(2, clientFactory.CreatedClients.Count);
+        Assert.Single(clientFactory.CreatedClients[1].StartRequests);
         Assert.Equal(LiveConnectionState.Connected, stream.CurrentState.ConnectionState);
     }
 
@@ -531,6 +773,12 @@ public class LiveDaqSharedStreamTests
             snapshot.Port!.Value,
             snapshot.ProtocolVersion);
 
+    private static LivePreviewStartResult.Started CreateStartedResult(uint sessionId, LiveStreamMask acceptedStreamMask) =>
+        new(LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: sessionId) with
+        {
+            AcceptedStreamMask = acceptedStreamMask,
+        });
+
     private static LiveTravelBatchFrame CreateTravelBatchFrame(ulong firstMonotonicUs) =>
         new(
             new LiveFrameMetadata(0),
@@ -575,11 +823,33 @@ public class LiveDaqSharedStreamTests
 
         public bool FailNextStartPreview { get; set; }
 
+        public TaskCompletionSource<LivePreviewStartResult>? PendingStartCompletion { get; set; }
+
+        public TaskCompletionSource? PendingConnectCompletion { get; set; }
+
+        public TaskCompletionSource? PendingStopCompletion { get; set; }
+
+        public TaskCompletionSource? PendingDisconnectCompletion { get; set; }
+
+        public TaskCompletionSource StartEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource ConnectEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource StopEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource DisconnectEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public List<LiveStartRequest> StartRequests { get; } = [];
+
+        public int StartCalls { get; private set; }
+
         public bool RejectNextStartPreview { get; set; }
 
         public LiveStartErrorCode RejectErrorCode { get; set; } = LiveStartErrorCode.Busy;
 
         public LiveSensorInstanceMask? AcceptedSensorMask { get; set; }
+
+        public LiveStreamMask? AcceptedStreamMask { get; set; }
 
         public bool DelayDisconnectEvents { get; set; }
 
@@ -605,66 +875,87 @@ public class LiveDaqSharedStreamTests
 
         public Task DisposeStarted => disposeStarted.Task;
 
-        public Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
+        public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
         {
             ConnectCalls++;
+            ConnectEntered.TrySetResult();
             if (ThrowCanceledOnConnect)
             {
                 ThrowCanceledOnConnect = false;
                 throw new OperationCanceledException();
             }
 
+            if (PendingConnectCompletion is not null)
+            {
+                await PendingConnectCompletion.Task;
+            }
+
             IsConnected = true;
-            return Task.CompletedTask;
         }
 
-        public Task<LivePreviewStartResult> StartPreviewAsync(LiveStartRequest request, CancellationToken cancellationToken = default)
+        public async Task<LivePreviewStartResult> StartPreviewAsync(LiveStartRequest request, CancellationToken cancellationToken = default)
         {
+            StartCalls++;
+            StartRequests.Add(request);
+            StartEntered.TrySetResult();
             if (ThrowCanceledOnStartPreview)
             {
                 ThrowCanceledOnStartPreview = false;
                 throw new OperationCanceledException();
             }
 
+            if (PendingStartCompletion is not null)
+            {
+                return await PendingStartCompletion.Task;
+            }
+
             if (FailNextStartPreview)
             {
                 FailNextStartPreview = false;
-                return Task.FromResult<LivePreviewStartResult>(new LivePreviewStartResult.Failed("preview start failed"));
+                return new LivePreviewStartResult.Failed("preview start failed");
             }
 
             if (RejectNextStartPreview)
             {
                 RejectNextStartPreview = false;
-                return Task.FromResult<LivePreviewStartResult>(
-                    new LivePreviewStartResult.Rejected(RejectErrorCode, RejectErrorCode.UserMessage));
+                return new LivePreviewStartResult.Rejected(RejectErrorCode, RejectErrorCode.UserMessage);
             }
 
             var acceptedSensorMask = AcceptedSensorMask ?? request.RequestedSensorMask;
+            var acceptedStreamMask = AcceptedStreamMask ?? acceptedSensorMask.StreamMask;
             var header = LiveProtocolTestFrames.CreateSessionHeaderModel(
                 sessionId: (uint)(900 + ConnectCalls),
                 requestedSensorMask: request.RequestedSensorMask,
-                acceptedSensorMask: acceptedSensorMask);
+                acceptedSensorMask: acceptedSensorMask) with
+            {
+                AcceptedStreamMask = acceptedStreamMask,
+            };
             events.OnNext(new LiveDaqClientEvent.FrameReceived(
                 new LiveStartAckFrame(
                     new LiveFrameMetadata(0),
-                    new LiveStartAck(LiveStartErrorCode.Ok, header.SessionId, acceptedSensorMask.StreamMask))));
+                    new LiveStartAck(LiveStartErrorCode.Ok, header.SessionId, acceptedStreamMask))));
             events.OnNext(new LiveDaqClientEvent.FrameReceived(
                 new LiveSessionHeaderFrame(
                     new LiveFrameMetadata(0),
                     header)));
 
-            return Task.FromResult<LivePreviewStartResult>(new LivePreviewStartResult.Started(header));
+            return new LivePreviewStartResult.Started(header);
         }
 
-        public Task StopPreviewAsync(CancellationToken cancellationToken = default)
+        public async Task StopPreviewAsync(CancellationToken cancellationToken = default)
         {
             StopLifecycleCalls.Add("stop");
-            return Task.CompletedTask;
+            StopEntered.TrySetResult();
+            if (PendingStopCompletion is not null)
+            {
+                await PendingStopCompletion.Task;
+            }
         }
 
-        public Task DisconnectAsync(CancellationToken cancellationToken = default)
+        public async Task DisconnectAsync(CancellationToken cancellationToken = default)
         {
             StopLifecycleCalls.Add("disconnect");
+            DisconnectEntered.TrySetResult();
             DisconnectCalls++;
             if (ThrowCanceledOnDisconnect)
             {
@@ -672,14 +963,28 @@ public class LiveDaqSharedStreamTests
                 throw new OperationCanceledException();
             }
 
+            if (PendingDisconnectCompletion is not null)
+            {
+                await PendingDisconnectCompletion.Task;
+            }
+
             IsConnected = false;
             PublishDisconnected();
-            return Task.CompletedTask;
         }
 
         public void PublishFrame(LiveProtocolFrame frame)
         {
             events.OnNext(new LiveDaqClientEvent.FrameReceived(frame));
+        }
+
+        public void PublishFault(string errorMessage)
+        {
+            events.OnNext(new LiveDaqClientEvent.Faulted(errorMessage));
+        }
+
+        public void PublishDisconnectedEvent(string? errorMessage)
+        {
+            events.OnNext(new LiveDaqClientEvent.Disconnected(errorMessage));
         }
 
         public ValueTask DisposeAsync()

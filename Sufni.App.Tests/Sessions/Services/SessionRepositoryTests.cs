@@ -405,7 +405,7 @@ public class SessionRepositoryTests
         Assert.NotNull(missing);
         Assert.Equal(sessionId, missing!.Id);
         Assert.False(missing.HasData);
-        Assert.Equal(before!.Updated, missing.Updated);
+        Assert.Equal(0, missing.ProcessedTelemetryRevision);
         Assert.Null(missing.ProcessingFingerprintJson);
 
         await database.SessionRepository.UpdateSessionPsstAsync(
@@ -419,7 +419,8 @@ public class SessionRepositoryTests
         Assert.NotNull(present);
         Assert.Equal(sessionId, present!.Id);
         Assert.True(present.HasData);
-        Assert.Equal(before.Updated, present.Updated);
+        Assert.Equal(1, present.ProcessedTelemetryRevision);
+        Assert.Equal(before!.Updated, (await database.GetSessionAsync(sessionId))!.Updated);
         Assert.Equal(fingerprintJson, present.ProcessingFingerprintJson);
     }
 
@@ -433,6 +434,7 @@ public class SessionRepositoryTests
         var database = new TestPersistenceHarness(databasePath);
         await database.PutSessionAsync(new Session(sessionId, "session", "desc", null, 100));
         var before = await database.GetSessionAsync(sessionId);
+        var beforeRevision = before!.ProcessedTelemetryRevision;
 
         var data = PersistenceTestData.CreateTelemetryBlob(65);
         await database.SessionRepository.UpdateSessionPsstAsync(
@@ -449,7 +451,9 @@ public class SessionRepositoryTests
         Assert.Equal(4, after.AscentMeters);
         Assert.Equal(2, after.DescentMeters);
         Assert.Equal(before!.Updated, after.Updated);
-        Assert.Equal(data, await database.GetSessionRawPsstAsync(sessionId));
+        Assert.Equal(beforeRevision + 1, after.ProcessedTelemetryRevision);
+        Assert.Null(await database.SessionRepository.GetSessionRawPsstAsync(sessionId, beforeRevision));
+        Assert.Equal(data, await database.SessionRepository.GetSessionRawPsstAsync(sessionId, after.ProcessedTelemetryRevision));
 
     }
 
@@ -555,9 +559,9 @@ public class SessionRepositoryTests
         }
 
         // The metadata save carries only user-authored metadata. Any derived
-        // columns set on the incoming model are ignored: PutSessionAsync writes
-        // metadata, COALESCE-preserves track/data, and never touches the
-        // full-track linkage or fingerprint owned by the processed-write pipeline.
+        // columns set on the incoming model are ignored: PutSessionAsync does not
+        // name track/data and never touches the full-track linkage or fingerprint
+        // owned by the processed-write pipeline.
         await database.PutSessionAsync(new Session(sessionId, "new", "new desc", setupId, 1234)
         {
             FullTrack = Guid.NewGuid(),
@@ -579,6 +583,8 @@ public class SessionRepositoryTests
         Assert.Equal(existingFullTrackId, session.FullTrack);
         Assert.Equal("""{"existing":true}""", session.ProcessingFingerprintJson);
         Assert.True(session.HasProcessedData);
+        Assert.Equal(1, session.ProcessedTelemetryRevision);
+        Assert.Equal(2, session.TrackProjectionRevision);
         Assert.Equal(originalPsst, rawPsst);
         Assert.NotNull(sessionTrack);
         Assert.Equal(2, sessionTrack!.Count);

@@ -1,7 +1,7 @@
 using System;
 using Sufni.Telemetry;
 using Sufni.App.Bikes.Stores;
-using Sufni.App.Infrastructure.Caching;
+using Sufni.Telemetry.Caching;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Setups.Models.SensorConfigurations;
 using Sufni.App.Setups.Stores;

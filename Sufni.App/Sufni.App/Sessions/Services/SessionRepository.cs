@@ -41,6 +41,8 @@ public interface ISessionRepository
 
     Task<byte[]?> GetSessionRawPsstAsync(Guid id);
 
+    Task<byte[]?> GetSessionRawPsstAsync(Guid id, long processedTelemetryRevision);
+
     Task<SessionPsstPayloadMetadata?> GetSessionPsstPayloadMetadataAsync(Guid id);
 
     /// <summary>
@@ -51,6 +53,8 @@ public interface ISessionRepository
     Task<(byte[] Data, string? Fingerprint)?> GetSessionRawPsstWithFingerprintAsync(Guid id);
 
     Task<List<TrackPoint>?> GetSessionTrackAsync(Guid id);
+
+    Task<List<TrackPoint>?> GetSessionTrackAsync(Guid id, long trackProjectionRevision);
 
     Task<Guid> PutSessionAsync(Session session);
 
@@ -83,7 +87,7 @@ public interface ISessionRepository
 public sealed record SessionPsstPayloadMetadata(
     Guid Id,
     bool HasData,
-    long Updated,
+    long ProcessedTelemetryRevision,
     string? ProcessingFingerprintJson);
 
 internal sealed class SessionRepository(
@@ -106,6 +110,8 @@ internal sealed class SessionRepository(
                                                                       descent_meters,
                                                                       full_track_id,
                                                                       gps_offset_seconds,
+                                                                      processed_telemetry_revision,
+                                                                      track_projection_revision,
                                                                       {SessionSqlProjection.ProcessingFingerprintColumn},
                                                                      front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
                                                                      rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
@@ -143,8 +149,6 @@ internal sealed class SessionRepository(
                                                                 description=?,
                                                                 timestamp=?,
                                                                 gps_offset_seconds=?,
-                                                                track=COALESCE(?, track),
-                                                                data=COALESCE(?, data),
                                                                 front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
                                                                 rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
                                                                 updated=?,
@@ -317,6 +321,16 @@ internal sealed class SessionRepository(
         return sessions.Count == 1 ? sessions[0].ProcessedData : null;
     }
 
+    public async Task<byte[]?> GetSessionRawPsstAsync(Guid id, long processedTelemetryRevision)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        var sessions = await connection.QueryAsync<Session>(
+            "SELECT data FROM session WHERE deleted IS null AND id = ? AND processed_telemetry_revision = ?",
+            id,
+            processedTelemetryRevision);
+        return sessions.Count == 1 ? sessions[0].ProcessedData : null;
+    }
+
     public async Task<SessionPsstPayloadMetadata?> GetSessionPsstPayloadMetadataAsync(Guid id)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
@@ -325,7 +339,7 @@ internal sealed class SessionRepository(
              SELECT
                 id,
                 {SessionSqlProjection.HasDataProjection},
-                updated,
+                processed_telemetry_revision,
                 {SessionSqlProjection.ProcessingFingerprintColumn}
              FROM session
              WHERE deleted IS null AND id = ?
@@ -354,6 +368,16 @@ internal sealed class SessionRepository(
         var connection = await connectionContext.GetInitializedConnectionAsync();
         var sessions = await connection.QueryAsync<Session>(
             "SELECT track FROM session WHERE deleted IS null AND id = ?", id);
+        return sessions.Count == 1 ? sessions[0].Track : null;
+    }
+
+    public async Task<List<TrackPoint>?> GetSessionTrackAsync(Guid id, long trackProjectionRevision)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        var sessions = await connection.QueryAsync<Session>(
+            "SELECT track FROM session WHERE deleted IS null AND id = ? AND track_projection_revision = ?",
+            id,
+            trackProjectionRevision);
         return sessions.Count == 1 ? sessions[0].Track : null;
     }
 
@@ -681,8 +705,6 @@ internal sealed class SessionRepository(
         session.Description,
         session.Timestamp,
         NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
-        SerializeTrack(session),
-        session.ProcessedData,
         session.FrontSpringRate,
         session.FrontHighSpeedCompression,
         session.FrontLowSpeedCompression,
@@ -714,8 +736,8 @@ internal sealed class SessionRepository(
         [Column("has_data")]
         public bool HasData { get; set; }
 
-        [Column("updated")]
-        public long Updated { get; set; }
+        [Column("processed_telemetry_revision")]
+        public long ProcessedTelemetryRevision { get; set; }
 
         [Column("session_processing_fingerprint")]
         public string? ProcessingFingerprintJson { get; set; }
@@ -723,7 +745,7 @@ internal sealed class SessionRepository(
         public SessionPsstPayloadMetadata ToMetadata() => new(
             Id,
             HasData,
-            Updated,
+            ProcessedTelemetryRevision,
             ProcessingFingerprintJson);
     }
 

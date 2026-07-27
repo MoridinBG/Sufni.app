@@ -139,7 +139,7 @@ internal sealed class RecordedSessionReprocessor(
             hasSegmentPayload ? payload.FinalStatus : null,
             hasSegmentPayload && payload.MissingFinalStatus == true)
         {
-            TemperatureData = payload.TemperatureData,
+            TemperatureData = payload.TemperatureData ?? [],
         };
         if (window is not null)
         {

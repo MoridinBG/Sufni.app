@@ -1,9 +1,25 @@
-using Sufni.App.Infrastructure.Caching;
+#pragma warning disable xUnit1051 // Cache tests exercise independent waiter cancellation and bound shared-producer waits explicitly.
 
-namespace Sufni.App.Tests.Infrastructure;
+using Sufni.Telemetry.Caching;
+
+namespace Sufni.Telemetry.Tests.Caching;
 
 public class SingleFlightLruCacheTests
 {
+    [Fact]
+    public void Constructor_RejectsNullFactory()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            new SingleFlightLruCache<int, int>(capacity: 2, factory: null!));
+    }
+
+    [Fact]
+    public void Constructor_RejectsNullWeightCallback()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            new SingleFlightLruCache<int, int>(maximumWeight: 2, valueWeight: null!));
+    }
+
     [Fact]
     public void GetOrAdd_EvictsLeastRecentlyUsedEntry_WhenCapacityIsExceeded()
     {
@@ -389,5 +405,109 @@ public class SingleFlightLruCacheTests
 
         Assert.NotEqual(first, firstReloaded);
         Assert.NotEqual(second, secondReloaded);
+    }
+
+    [Fact]
+    public async Task GetOrAddAsync_WeightOnlyLimit_EvictsLeastRecentlyUsedValue()
+    {
+        var cache = new SingleFlightLruCache<string, string>(
+            maximumWeight: 8,
+            valueWeight: static value => value.Length);
+        var calls = new Dictionary<string, int>();
+
+        Task<string> Create(string key, CancellationToken _)
+        {
+            calls[key] = calls.GetValueOrDefault(key) + 1;
+            return Task.FromResult(key);
+        }
+
+        _ = await cache.GetOrAddAsync("aaaa", Create);
+        _ = await cache.GetOrAddAsync("bbbb", Create);
+        _ = await cache.GetOrAddAsync("aaaa", Create);
+        _ = await cache.GetOrAddAsync("cccc", Create);
+        _ = await cache.GetOrAddAsync("bbbb", Create);
+
+        Assert.Equal(1, calls["aaaa"]);
+        Assert.Equal(2, calls["bbbb"]);
+        Assert.Equal(2, cache.Count);
+        Assert.Equal(8, cache.RetainedWeight);
+    }
+
+    [Fact]
+    public async Task GetOrAddAsync_NonRetainedValue_IsSharedWithCurrentWaiters()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        var cache = new SingleFlightLruCache<int, string?>(
+            maximumWeight: 100,
+            valueWeight: static value => value?.Length ?? 0,
+            shouldRetain: static value => value is not null);
+
+        Task<string?> Create(int _, CancellationToken __)
+        {
+            Interlocked.Increment(ref calls);
+            started.TrySetResult();
+            return release.Task;
+        }
+
+        var first = cache.GetOrAddAsync(1, Create);
+        await started.Task;
+        var second = cache.GetOrAddAsync(1, Create);
+        release.SetResult(null);
+
+        Assert.Null(await first);
+        Assert.Null(await second);
+        Assert.Equal(1, calls);
+        Assert.Equal(0, cache.Count);
+
+        Assert.Equal("retry", await cache.GetOrAddAsync(1, (_, _) => Task.FromResult<string?>("retry")));
+    }
+
+    [Fact]
+    public async Task GetOrAddAsync_RetriesAfterProducerCancellation()
+    {
+        var calls = 0;
+        var cache = new SingleFlightLruCache<int, int>(capacity: 4);
+
+        Task<int> Create(int key, CancellationToken _)
+        {
+            return Interlocked.Increment(ref calls) == 1
+                ? Task.FromCanceled<int>(new CancellationToken(canceled: true))
+                : Task.FromResult(key * 10);
+        }
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cache.GetOrAddAsync(3, Create));
+
+        Assert.Equal(30, await cache.GetOrAddAsync(3, Create));
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public async Task Clear_DetachesPendingGeneration_WithoutCancelingExistingWaiters()
+    {
+        var oldStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseOld = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cache = new SingleFlightLruCache<int, string>(capacity: 4);
+
+        var oldWaiter = cache.GetOrAddAsync(
+            1,
+            (_, cancellationToken) =>
+            {
+                Assert.Equal(CancellationToken.None, cancellationToken);
+                oldStarted.SetResult();
+                return releaseOld.Task;
+            });
+        await oldStarted.Task;
+
+        cache.Clear();
+        var current = await cache.GetOrAddAsync(1, (_, _) => Task.FromResult("current"));
+        releaseOld.SetResult("old");
+
+        Assert.Equal("old", await oldWaiter);
+        Assert.Equal("current", current);
+        Assert.Equal("current", await cache.GetOrAddAsync(
+            1,
+            (_, _) => throw new InvalidOperationException("The current generation should remain retained.")));
     }
 }

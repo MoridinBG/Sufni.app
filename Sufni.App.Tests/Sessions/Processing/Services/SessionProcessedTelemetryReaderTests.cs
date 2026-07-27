@@ -23,7 +23,7 @@ public class SessionProcessedTelemetryReaderTests
         var reader = CreateReader(sessionRepository, telemetryProcessor);
         sessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId).Returns(
             PsstMetadata(sessionId, fingerprintJson: null));
-        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
+        sessionRepository.GetSessionRawPsstAsync(sessionId, Arg.Any<long>()).Returns(raw);
 
         var telemetry = await reader.GetAsync(sessionId);
 
@@ -43,7 +43,7 @@ public class SessionProcessedTelemetryReaderTests
         var telemetryProcessor = new TestSessionTelemetryProcessor();
         var reader = CreateReader(sessionRepository, telemetryProcessor);
         sessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId).Returns(PsstMetadata(sessionId));
-        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
+        sessionRepository.GetSessionRawPsstAsync(sessionId, Arg.Any<long>()).Returns(raw);
         using var retention = reader.Retain(sessionId);
 
         var first = await reader.GetAsync(sessionId);
@@ -53,7 +53,48 @@ public class SessionProcessedTelemetryReaderTests
         Assert.Same(first, second);
         Assert.Equal(1, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
         await sessionRepository.Received(2).GetSessionPsstPayloadMetadataAsync(sessionId);
-        await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId);
+        await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId, Arg.Any<long>());
+    }
+
+    [Fact]
+    public async Task GetExactAsync_UsesExpectedRevisionWithoutMetadataRetry_AndReusesRetainedDecode()
+    {
+        var sessionId = Guid.NewGuid();
+        var raw = Blob(duration: 65);
+        var sessionRepository = Substitute.For<ISessionRepository>();
+        var telemetryProcessor = new TestSessionTelemetryProcessor();
+        var reader = CreateReader(sessionRepository, telemetryProcessor);
+        sessionRepository.GetSessionRawPsstAsync(sessionId, 5).Returns(raw);
+        using var retention = reader.Retain(sessionId);
+
+        var first = await reader.GetExactAsync(sessionId, processedTelemetryRevision: 5);
+        var second = await reader.GetExactAsync(sessionId, processedTelemetryRevision: 5);
+
+        Assert.NotNull(first);
+        Assert.Same(first, second);
+        Assert.Equal(1, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
+        await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId, 5);
+        await sessionRepository.DidNotReceive().GetSessionPsstPayloadMetadataAsync(sessionId);
+    }
+
+    [Fact]
+    public async Task GetExactAsync_ReturnsNullWithoutAdvancingToNewerRevision()
+    {
+        var sessionId = Guid.NewGuid();
+        var sessionRepository = Substitute.For<ISessionRepository>();
+        var telemetryProcessor = new TestSessionTelemetryProcessor();
+        var reader = CreateReader(sessionRepository, telemetryProcessor);
+        sessionRepository.GetSessionRawPsstAsync(sessionId, 5).Returns((byte[]?)null);
+        sessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId).Returns(
+            PsstMetadata(sessionId, processedTelemetryRevision: 6));
+        sessionRepository.GetSessionRawPsstAsync(sessionId, 6).Returns(Blob(duration: 66));
+
+        var result = await reader.GetExactAsync(sessionId, processedTelemetryRevision: 5);
+
+        Assert.Null(result);
+        await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId, 5);
+        await sessionRepository.DidNotReceive().GetSessionRawPsstAsync(sessionId, 6);
+        await sessionRepository.DidNotReceive().GetSessionPsstPayloadMetadataAsync(sessionId);
     }
 
     [Fact]
@@ -65,7 +106,7 @@ public class SessionProcessedTelemetryReaderTests
         var telemetryProcessor = new BlockingTelemetryProcessor(TestTelemetryData.CreateMinimal(duration: 65));
         var reader = CreateReader(sessionRepository, telemetryProcessor);
         sessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId).Returns(PsstMetadata(sessionId));
-        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
+        sessionRepository.GetSessionRawPsstAsync(sessionId, Arg.Any<long>()).Returns(raw);
         using var retention = reader.Retain(sessionId);
 
         var firstTask = Task.Run(() => reader.GetAsync(sessionId));
@@ -78,7 +119,7 @@ public class SessionProcessedTelemetryReaderTests
         Assert.Same(results[0], results[1]);
         Assert.Equal(1, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
         await sessionRepository.Received(2).GetSessionPsstPayloadMetadataAsync(sessionId);
-        await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId);
+        await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId, Arg.Any<long>());
     }
 
     [Fact]
@@ -90,7 +131,7 @@ public class SessionProcessedTelemetryReaderTests
         var telemetryProcessor = new TestSessionTelemetryProcessor();
         var reader = CreateReader(sessionRepository, telemetryProcessor);
         sessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId).Returns(PsstMetadata(sessionId));
-        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
+        sessionRepository.GetSessionRawPsstAsync(sessionId, Arg.Any<long>()).Returns(raw);
 
         var first = await reader.GetAsync(sessionId);
         var second = await reader.GetAsync(sessionId);
@@ -100,7 +141,7 @@ public class SessionProcessedTelemetryReaderTests
         Assert.NotSame(first, second);
         Assert.Equal(2, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
         await sessionRepository.Received(2).GetSessionPsstPayloadMetadataAsync(sessionId);
-        await sessionRepository.Received(2).GetSessionRawPsstAsync(sessionId);
+        await sessionRepository.Received(2).GetSessionRawPsstAsync(sessionId, Arg.Any<long>());
     }
 
     [Fact]
@@ -113,9 +154,9 @@ public class SessionProcessedTelemetryReaderTests
         var telemetryProcessor = new TestSessionTelemetryProcessor();
         var reader = CreateReader(sessionRepository, telemetryProcessor);
         sessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId).Returns(
-            PsstMetadata(sessionId, fingerprintJson: """{"fingerprint":"a"}"""),
-            PsstMetadata(sessionId, fingerprintJson: """{"fingerprint":"b"}"""));
-        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(firstRaw, secondRaw);
+            PsstMetadata(sessionId, processedTelemetryRevision: 1, fingerprintJson: """{"fingerprint":"a"}"""),
+            PsstMetadata(sessionId, processedTelemetryRevision: 2, fingerprintJson: """{"fingerprint":"b"}"""));
+        sessionRepository.GetSessionRawPsstAsync(sessionId, Arg.Any<long>()).Returns(firstRaw, secondRaw);
         using var retention = reader.Retain(sessionId);
 
         var first = await reader.GetAsync(sessionId);
@@ -128,7 +169,7 @@ public class SessionProcessedTelemetryReaderTests
         Assert.Equal(66, second.Metadata.Duration);
         Assert.Equal(2, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
         await sessionRepository.Received(2).GetSessionPsstPayloadMetadataAsync(sessionId);
-        await sessionRepository.Received(2).GetSessionRawPsstAsync(sessionId);
+        await sessionRepository.Received(2).GetSessionRawPsstAsync(sessionId, Arg.Any<long>());
     }
 
     [Fact]
@@ -141,9 +182,9 @@ public class SessionProcessedTelemetryReaderTests
         var telemetryProcessor = new TestSessionTelemetryProcessor();
         var reader = CreateReader(sessionRepository, telemetryProcessor);
         sessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId).Returns(
-            PsstMetadata(sessionId, updated: 1, fingerprintJson: null),
-            PsstMetadata(sessionId, updated: 2, fingerprintJson: null));
-        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(firstRaw, secondRaw);
+            PsstMetadata(sessionId, processedTelemetryRevision: 1, fingerprintJson: null),
+            PsstMetadata(sessionId, processedTelemetryRevision: 2, fingerprintJson: null));
+        sessionRepository.GetSessionRawPsstAsync(sessionId, Arg.Any<long>()).Returns(firstRaw, secondRaw);
         using var retention = reader.Retain(sessionId);
 
         var first = await reader.GetAsync(sessionId);
@@ -156,7 +197,29 @@ public class SessionProcessedTelemetryReaderTests
         Assert.Equal(66, second.Metadata.Duration);
         Assert.Equal(2, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
         await sessionRepository.Received(2).GetSessionPsstPayloadMetadataAsync(sessionId);
-        await sessionRepository.Received(2).GetSessionRawPsstAsync(sessionId);
+        await sessionRepository.Received(2).GetSessionRawPsstAsync(sessionId, Arg.Any<long>());
+    }
+
+    [Fact]
+    public async Task GetAsync_RetriesOnce_WhenRevisionChangesBetweenMetadataAndPayloadRead()
+    {
+        var sessionId = Guid.NewGuid();
+        var raw = Blob(duration: 66);
+        var sessionRepository = Substitute.For<ISessionRepository>();
+        var telemetryProcessor = new TestSessionTelemetryProcessor();
+        var reader = CreateReader(sessionRepository, telemetryProcessor);
+        sessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId).Returns(
+            PsstMetadata(sessionId, processedTelemetryRevision: 1),
+            PsstMetadata(sessionId, processedTelemetryRevision: 2));
+        sessionRepository.GetSessionRawPsstAsync(sessionId, 1).Returns((byte[]?)null);
+        sessionRepository.GetSessionRawPsstAsync(sessionId, 2).Returns(raw);
+
+        var telemetry = await reader.GetAsync(sessionId);
+
+        Assert.NotNull(telemetry);
+        Assert.Equal(66, telemetry!.Metadata.Duration);
+        await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId, 1);
+        await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId, 2);
     }
 
     [Fact]
@@ -168,7 +231,7 @@ public class SessionProcessedTelemetryReaderTests
         var telemetryProcessor = new TestSessionTelemetryProcessor();
         var reader = CreateReader(sessionRepository, telemetryProcessor);
         sessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId).Returns(PsstMetadata(sessionId));
-        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
+        sessionRepository.GetSessionRawPsstAsync(sessionId, Arg.Any<long>()).Returns(raw);
         var firstRetention = reader.Retain(sessionId);
         var first = await reader.GetAsync(sessionId);
 
@@ -181,7 +244,7 @@ public class SessionProcessedTelemetryReaderTests
         Assert.NotSame(first, second);
         Assert.Equal(2, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
         await sessionRepository.Received(2).GetSessionPsstPayloadMetadataAsync(sessionId);
-        await sessionRepository.Received(2).GetSessionRawPsstAsync(sessionId);
+        await sessionRepository.Received(2).GetSessionRawPsstAsync(sessionId, Arg.Any<long>());
     }
 
     [Fact]
@@ -193,7 +256,7 @@ public class SessionProcessedTelemetryReaderTests
         var telemetryProcessor = new TestSessionTelemetryProcessor();
         var reader = CreateReader(sessionRepository, telemetryProcessor);
         sessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId).Returns(PsstMetadata(sessionId));
-        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
+        sessionRepository.GetSessionRawPsstAsync(sessionId, Arg.Any<long>()).Returns(raw);
         var firstRetention = reader.Retain(sessionId);
         var secondRetention = reader.Retain(sessionId);
 
@@ -213,7 +276,7 @@ public class SessionProcessedTelemetryReaderTests
             Assert.NotSame(first, third);
             Assert.Equal(2, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
             await sessionRepository.Received(3).GetSessionPsstPayloadMetadataAsync(sessionId);
-            await sessionRepository.Received(2).GetSessionRawPsstAsync(sessionId);
+            await sessionRepository.Received(2).GetSessionRawPsstAsync(sessionId, Arg.Any<long>());
         }
         finally
         {
@@ -234,7 +297,7 @@ public class SessionProcessedTelemetryReaderTests
             PsstMetadata(sessionId),
             PsstMetadata(sessionId, hasData: false),
             PsstMetadata(sessionId));
-        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
+        sessionRepository.GetSessionRawPsstAsync(sessionId, Arg.Any<long>()).Returns(raw);
         using var retention = reader.Retain(sessionId);
 
         var first = await reader.GetAsync(sessionId);
@@ -247,7 +310,7 @@ public class SessionProcessedTelemetryReaderTests
         Assert.NotSame(first, second);
         Assert.Equal(2, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
         await sessionRepository.Received(3).GetSessionPsstPayloadMetadataAsync(sessionId);
-        await sessionRepository.Received(2).GetSessionRawPsstAsync(sessionId);
+        await sessionRepository.Received(2).GetSessionRawPsstAsync(sessionId, Arg.Any<long>());
     }
 
     [Fact]
@@ -259,7 +322,7 @@ public class SessionProcessedTelemetryReaderTests
         var telemetryProcessor = new FailingThenSuccessfulTelemetryProcessor(TestTelemetryData.CreateMinimal(duration: 65));
         var reader = CreateReader(sessionRepository, telemetryProcessor);
         sessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId).Returns(PsstMetadata(sessionId));
-        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
+        sessionRepository.GetSessionRawPsstAsync(sessionId, Arg.Any<long>()).Returns(raw);
         using var retention = reader.Retain(sessionId);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => reader.GetAsync(sessionId));
@@ -268,7 +331,7 @@ public class SessionProcessedTelemetryReaderTests
         Assert.NotNull(second);
         Assert.Equal(2, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
         await sessionRepository.Received(2).GetSessionPsstPayloadMetadataAsync(sessionId);
-        await sessionRepository.Received(2).GetSessionRawPsstAsync(sessionId);
+        await sessionRepository.Received(2).GetSessionRawPsstAsync(sessionId, Arg.Any<long>());
     }
 
     private static SessionProcessedTelemetryReader CreateReader(
@@ -285,9 +348,9 @@ public class SessionProcessedTelemetryReaderTests
     private static SessionPsstPayloadMetadata PsstMetadata(
         Guid sessionId,
         bool hasData = true,
-        long updated = 1,
+        long processedTelemetryRevision = 1,
         string? fingerprintJson = """{"fingerprint":"same"}""") =>
-        new(sessionId, hasData, updated, fingerprintJson);
+        new(sessionId, hasData, processedTelemetryRevision, fingerprintJson);
 
     private sealed class BlockingTelemetryProcessor(TelemetryData telemetryData) : ISessionTelemetryProcessor
     {

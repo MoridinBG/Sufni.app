@@ -212,8 +212,11 @@ public class SynchronizationMergeEngineTests
         Assert.NotNull(sessionTrack);
         Assert.Equal(2, sessionTrack!.Count);
         Assert.Equal(originalPsst, rawPsst);
+        Assert.Equal(beforeMerge.ProcessedTelemetryRevision, session.ProcessedTelemetryRevision);
+        Assert.True(session.TrackProjectionRevision > beforeMerge.TrackProjectionRevision);
         Assert.NotNull(fullTrack);
         Assert.Equal(2, fullTrack!.Points.Count);
+        Assert.Equal(1, fullTrack.PointsRevision);
 
     }
 
