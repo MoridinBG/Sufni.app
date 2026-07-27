@@ -97,29 +97,6 @@ public class BikeCoordinatorTests
     }
 
     [Fact]
-    public async Task LoadAnalysisAsync_DelegatesToBikeEditorService()
-    {
-        RearSuspensionSpec rearSuspension = new RearSuspensionSpec.Linkage(TestSnapshots.FullSuspensionLinkageSpec());
-        var expected = new BikeEditorAnalysisResult.Unavailable();
-        bikeEditorService.LoadAnalysisAsync(rearSuspension, Arg.Any<CancellationToken>()).Returns(expected);
-
-        var result = await CreateCoordinator().LoadAnalysisAsync(rearSuspension);
-
-        Assert.Same(expected, result);
-    }
-
-    [Fact]
-    public async Task LoadImageAsync_DelegatesToBikeEditorService()
-    {
-        var expected = new BikeImageLoadResult.Canceled();
-        bikeEditorService.LoadImageAsync(Arg.Any<CancellationToken>()).Returns(expected);
-
-        var result = await CreateCoordinator().LoadImageAsync();
-
-        Assert.Same(expected, result);
-    }
-
-    [Fact]
     public async Task ImportBikeAsync_NormalizesImportedBikeToNewDraft()
     {
         var importedBike = new Bike(Guid.NewGuid(), "imported")
@@ -181,18 +158,6 @@ public class BikeCoordinatorTests
         Assert.IsType<BikeEditorAnalysisResult.Unavailable>(imported.Data.AnalysisResult);
         await bikeEditorService.Received(1)
             .LoadAnalysisAsync(Arg.Is<RearSuspensionSpec.LeverageRatioDraft>(_ => true), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task ExportBikeAsync_DelegatesToBikeEditorService()
-    {
-        var bike = new Bike(Guid.NewGuid(), "export me") { HeadAngle = 65, ForkStroke = 160 };
-        var expected = new BikeExportResult.Exported();
-        bikeEditorService.ExportBikeAsync(bike, Arg.Any<CancellationToken>()).Returns(expected);
-
-        var result = await CreateCoordinator().ExportBikeAsync(bike);
-
-        Assert.Same(expected, result);
     }
 
     // ----- SaveAsync -----

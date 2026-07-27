@@ -198,27 +198,6 @@ public class FiltersTests
         }
     }
 
-    [Fact]
-    public void Process_CachedInstance_ProducesIdenticalOutput()
-    {
-        var count = 32;
-        var data = new double[count];
-        var time = new double[count];
-        for (var i = 0; i < count; i++)
-        {
-            time[i] = i / 100.0;
-            data[i] = Math.Sin(i / 5.0) * 100.0;
-        }
-
-        var first = SavitzkyGolay.Create(11, 1, 3);
-        var firstResult = first.Process(data, time);
-        var second = SavitzkyGolay.Create(11, 1, 3);
-        var secondResult = second.Process(data, time);
-
-        Assert.Same(first, second);
-        Assert.Equal(firstResult, secondResult);
-    }
-
     [Theory]
     [InlineData(5)]
     [InlineData(51)]

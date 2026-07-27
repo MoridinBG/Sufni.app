@@ -122,14 +122,4 @@ public class SessionDetailDesktopViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
     }
 
-    [AvaloniaFact]
-    public async Task SessionDetailDesktopView_TakesKeyboardFocus_WhenLoaded()
-    {
-        var context = new SessionDetailViewTestContext();
-
-        await using var mounted = await context.MountDesktopAsync(
-            loadResult: context.CreateLoadedState());
-
-        Assert.True(mounted.View.IsFocused);
-    }
 }

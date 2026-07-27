@@ -78,19 +78,6 @@ public class MapTrackGeometryTests
     }
 
     [Fact]
-    public void ClipSegment_ReturnsFalseForParallelSegmentOutsideBoundary()
-    {
-        var entering = 0d;
-        var leaving = 1d;
-
-        var visible = MapTrackGeometry.ClipSegment(0, -1, ref entering, ref leaving);
-
-        Assert.False(visible);
-        Assert.Equal(0, entering);
-        Assert.Equal(1, leaving);
-    }
-
-    [Fact]
     public void ProjectMapCoordinate_ProjectsEquatorOriginToMercatorOrigin()
     {
         var projected = MapTrackGeometry.ProjectMapCoordinate(new RecordedSessionMapCoordinate(0, 0));

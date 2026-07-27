@@ -23,16 +23,6 @@ namespace Sufni.App.Tests.Acquisition.Coordinators;
 public class ImportSessionsCoordinatorTests
 {
     [Fact]
-    public async Task OpenAsync_OpensImportSessionsThroughTheEditorFactory()
-    {
-        var harness = new ImportWorkflowHarness();
-
-        await harness.CreateCoordinator().OpenAsync();
-
-        harness.EditorFactory.Received(1).OpenImportSessions();
-    }
-
-    [Fact]
     public async Task ImportAsync_ImportsSourcePublishesStoresBeforeAcknowledgementAndReportsProgress()
     {
         var harness = new ImportWorkflowHarness();

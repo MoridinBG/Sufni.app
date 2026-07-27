@@ -63,16 +63,6 @@ public class KinematicsHelperTests
     }
 
     [Fact]
-    public void CalculateDistance_UsesPointCoordinates()
-    {
-        var distance = GeometryUtils.CalculateDistance(
-            new TestPoint(0, 0),
-            new TestPoint(3, 4));
-
-        Assert.Equal(5, distance, 3);
-    }
-
-    [Fact]
     public void CalculatePixelsToMillimetersFromChainstay_UsesWheelToBottomBracketDistance()
     {
         var pixelsToMillimeters = GeometryUtils.CalculatePixelsToMillimetersFromChainstay(

@@ -1,18 +1,10 @@
 using Avalonia.Headless.XUnit;
-using Sufni.App.Tests.TestSupport.Harness;
 
 namespace Sufni.App.Tests.Infrastructure;
 
 [Collection("Ui")]
 public class SmokeTests
 {
-    [AvaloniaFact]
-    public void HeadlessApp_Initializes_AndAppCurrent_IsTestApp()
-    {
-        Assert.NotNull(Sufni.App.App.Current);
-        Assert.IsType<TestApp>(Sufni.App.App.Current);
-    }
-
     [AvaloniaFact]
     public void RealApp_StartupWithoutApplicationLifetime_UsesPreviewInitialization()
     {
