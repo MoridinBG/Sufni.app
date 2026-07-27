@@ -103,6 +103,7 @@ internal static class AppJson
 [JsonSerializable(typeof(Setup))]
 [JsonSerializable(typeof(SetupExportModel))]
 [JsonSerializable(typeof(SynchronizationData))]
+[JsonSerializable(typeof(SessionProcessedGeneration))]
 [JsonSerializable(typeof(AppPreferencesSyncData))]
 [JsonSerializable(typeof(MapPreferencesSyncData))]
 [JsonSerializable(typeof(SessionPreferencesSyncData))]
