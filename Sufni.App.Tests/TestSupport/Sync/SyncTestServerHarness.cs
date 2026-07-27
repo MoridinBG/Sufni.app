@@ -30,7 +30,7 @@ internal sealed class SyncTestServerHarness
         HttpApiService.GetIncompleteSessionSourceIdsAsync().Returns([]);
         RecordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync().Returns([]);
         RecordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([]);
-        AppPreferences.GetSyncDataAsync(Arg.Any<long>()).Returns((AppPreferencesSyncData?)null);
+        AppPreferences.GetSyncDataAsync(Arg.Any<long>(), Arg.Any<long>()).Returns((AppPreferencesSyncData?)null);
         AppPreferences.ApplySyncDataAsync(Arg.Any<AppPreferencesSyncData?>()).Returns(Task.CompletedTask);
     }
 

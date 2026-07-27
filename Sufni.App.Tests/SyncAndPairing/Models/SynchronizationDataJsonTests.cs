@@ -12,6 +12,23 @@ namespace Sufni.App.Tests.SyncAndPairing.Models;
 public class SynchronizationDataJsonTests
 {
     [Fact]
+    public void SynchronizationData_RequiresUpperBound()
+    {
+        Assert.Throws<JsonException>(() => AppJson.Deserialize<SynchronizationData>("{}"));
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize("{}", AppJson.InboundContext.SynchronizationData));
+    }
+
+    [Fact]
+    public void SynchronizationData_RoundTripsUpperBound()
+    {
+        var roundTrip = AppJson.Deserialize<SynchronizationData>(AppJson.Serialize(
+            new SynchronizationData { UpperBound = 42 }));
+
+        Assert.Equal(42, roundTrip!.UpperBound);
+    }
+
+    [Fact]
     public void SynchronizationData_RoundTripsBikeRearSuspensionUnionCases()
     {
         var linkage = TestSnapshots.FullSuspensionLinkageSpec();

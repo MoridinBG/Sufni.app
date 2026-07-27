@@ -76,7 +76,7 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    public async Task<AppPreferencesSyncData?> GetSyncDataAsync(long since)
+    public async Task<AppPreferencesSyncData?> GetSyncDataAsync(long sinceExclusive, long upperInclusive)
     {
         await gate.WaitAsync();
         try
@@ -89,7 +89,7 @@ public sealed class AppPreferences : IAppPreferences
                 document = next;
             }
 
-            return document.Updated > since
+            return document.Updated > sinceExclusive && document.Updated <= upperInclusive
                 ? document.ToSyncData()
                 : null;
         }

@@ -309,7 +309,7 @@ public class AppPreferencesTests
         Assert.Equal(PreferenceChangeOrigin.LocalNoSyncClockWrite, local.Origin);
         Assert.False(local.AdvancesSyncClock);
         Assert.Equal(UiLayoutProfile.Workspace, local.Value.LayoutProfile);
-        Assert.Null(await preferences.GetSyncDataAsync(0));
+        Assert.Null(await preferences.GetSyncDataAsync(0, long.MaxValue));
     }
 
     [Fact]
@@ -850,13 +850,15 @@ public class AppPreferencesTests
             SignalDisplay = current.SignalDisplay with { Velocity = false },
         });
 
-        var snapshot = await preferences.GetSyncDataAsync(0);
+        var snapshot = await preferences.GetSyncDataAsync(0, long.MaxValue);
 
         Assert.NotNull(snapshot);
         Assert.True(snapshot!.Updated > 0);
         Assert.Equal(layer.Id, snapshot.Maps.SelectedLayerId);
         Assert.Single(snapshot.Maps.CustomLayers);
         Assert.False(snapshot.Session.Sessions[sessionId].SignalDisplay.Velocity);
+        Assert.Null(await preferences.GetSyncDataAsync(0, snapshot.Updated - 1));
+        Assert.NotNull(await preferences.GetSyncDataAsync(snapshot.Updated - 1, snapshot.Updated));
     }
 
     [Fact]
@@ -879,7 +881,7 @@ public class AppPreferencesTests
             """);
         var preferences = new AppPreferences(preferencesPath);
 
-        var snapshot = await preferences.GetSyncDataAsync(1);
+        var snapshot = await preferences.GetSyncDataAsync(1, long.MaxValue);
 
         Assert.NotNull(snapshot);
         Assert.True(snapshot!.Updated > 1);

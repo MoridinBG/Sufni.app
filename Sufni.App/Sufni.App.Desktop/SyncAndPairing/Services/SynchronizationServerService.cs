@@ -772,16 +772,25 @@ public class SynchronizationServerService : ISynchronizationServerService
                     SyncActivity(SynchronizationPhase.ServingChanges, "Serving remote changes"),
                     async () =>
                     {
-                        var data = await syncDataStore.GetSynchronizationDataAsync(since);
-                        data.AppPreferences = await appPreferences.GetSyncDataAsync(since);
+                        var upperInclusive = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                        var data = await syncDataStore.GetSynchronizationDataAsync(
+                            since,
+                            upperInclusive);
+                        data.UpperBound = upperInclusive;
+                        data.AppPreferences = await appPreferences.GetSyncDataAsync(
+                            since,
+                            upperInclusive);
                         if (extensionSyncService is not null)
                         {
-                            data.ExtensionBatches.AddRange(await extensionSyncService.CreateBatchesAsync(since));
+                            data.ExtensionBatches.AddRange(await extensionSyncService.CreateBatchesAsync(
+                                since,
+                                upperInclusive));
                         }
 
                         logger.Verbose(
-                            "Synchronization pull since {Since} returned {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, {ExtensionBatchCount} extension batches, and app preferences present {HasAppPreferences}",
+                            "Synchronization pull in ({SinceExclusive}, {UpperInclusive}] returned {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, {ExtensionBatchCount} extension batches, and app preferences present {HasAppPreferences}",
                             since,
+                            upperInclusive,
                             data.Boards.Count,
                             data.Bikes.Count,
                             data.Setups.Count,

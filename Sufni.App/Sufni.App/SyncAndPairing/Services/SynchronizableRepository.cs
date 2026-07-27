@@ -23,7 +23,7 @@ public interface ISynchronizableRepository<
 {
     Task<List<T>> GetAllAsync();
 
-    Task<List<T>> GetChangedAsync(long since);
+    Task<List<T>> GetChangedAsync(long sinceExclusive, long upperInclusive);
 
     Task<T?> GetAsync(Guid id);
 
@@ -49,11 +49,15 @@ internal sealed class SynchronizableRepository<
             .ToListAsync();
     }
 
-    public async Task<List<T>> GetChangedAsync(long since)
+    public async Task<List<T>> GetChangedAsync(long sinceExclusive, long upperInclusive)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
         return await connection.Table<T>()
-            .Where(entity => entity.Updated > since || (entity.Deleted != null && entity.Deleted > since))
+            .Where(entity =>
+                (entity.Updated > sinceExclusive && entity.Updated <= upperInclusive) ||
+                (entity.Deleted != null &&
+                    entity.Deleted > sinceExclusive &&
+                    entity.Deleted <= upperInclusive))
             .ToListAsync();
     }
 

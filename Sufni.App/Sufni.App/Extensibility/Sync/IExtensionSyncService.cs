@@ -8,7 +8,10 @@ namespace Sufni.App.Extensibility.Sync;
 
 internal interface IExtensionSyncService
 {
-    Task<List<ExtensionSyncEnvelope>> CreateBatchesAsync(long since, CancellationToken cancellationToken = default);
+    Task<List<ExtensionSyncEnvelope>> CreateBatchesAsync(
+        long sinceExclusive,
+        long upperInclusive,
+        CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<SynchronizationProgressSnapshot>> ApplyBatchesAsync(
         IEnumerable<ExtensionSyncEnvelope> envelopes,

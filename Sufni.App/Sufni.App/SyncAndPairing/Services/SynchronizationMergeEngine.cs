@@ -24,11 +24,17 @@ namespace Sufni.App.SyncAndPairing.Services;
 
 public interface ISyncDataStore
 {
-    Task<long> GetLastSyncTimeAsync(string? serverUrl);
+    Task<long> GetLastPushTimeAsync(string? serverUrl);
 
-    Task UpdateLastSyncTimeAsync(string? serverUrl);
+    Task<long> GetLastPullTimeAsync(string? serverUrl);
 
-    Task<SynchronizationData> GetSynchronizationDataAsync(long since);
+    Task UpdateLastPushTimeAsync(string? serverUrl, long upperBound);
+
+    Task UpdateLastPullTimeAsync(string? serverUrl, long upperBound);
+
+    Task<SynchronizationData> GetSynchronizationDataAsync(
+        long sinceExclusive,
+        long upperInclusive);
 
     /// <summary>
     /// Applies a pulled remote delta and returns the processed-BLOB swaps it
@@ -128,15 +134,17 @@ internal sealed class SynchronizationMergeEngine(
                                                                          id=?
                                                                      """;
 
-    public async Task<SynchronizationData> GetSynchronizationDataAsync(long since)
+    public async Task<SynchronizationData> GetSynchronizationDataAsync(
+        long sinceExclusive,
+        long upperInclusive)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
 
-        var boards = await GetChangedAsync<Board>(connection, since);
-        var bikes = await GetChangedAsync<Bike>(connection, since);
-        var setups = await GetChangedAsync<Setup>(connection, since);
-        var sessions = await GetChangedAsync<Session>(connection, since);
-        var tracks = await GetChangedAsync<Track>(connection, since);
+        var boards = await GetChangedAsync<Board>(connection, sinceExclusive, upperInclusive);
+        var bikes = await GetChangedAsync<Bike>(connection, sinceExclusive, upperInclusive);
+        var setups = await GetChangedAsync<Setup>(connection, sinceExclusive, upperInclusive);
+        var sessions = await GetChangedAsync<Session>(connection, sinceExclusive, upperInclusive);
+        var tracks = await GetChangedAsync<Track>(connection, sinceExclusive, upperInclusive);
 
         var changedTrackIds = tracks.Select(track => track.Id).ToHashSet();
         var relatedTrackIds = sessions
@@ -148,11 +156,14 @@ internal sealed class SynchronizationMergeEngine(
 
         if (relatedTrackIds.Count > 0)
         {
-            tracks.AddRange(await trackRepository.GetTracksByIdsAsync(relatedTrackIds));
+            tracks.AddRange(await trackRepository.GetTracksByIdsForSynchronizationAsync(
+                relatedTrackIds,
+                upperInclusive));
         }
 
         return new SynchronizationData
         {
+            UpperBound = upperInclusive,
             Boards = boards,
             Bikes = bikes,
             Setups = setups,
@@ -184,36 +195,52 @@ internal sealed class SynchronizationMergeEngine(
         });
     }
 
-    public async Task<long> GetLastSyncTimeAsync(string? serverUrl)
+    public async Task<long> GetLastPushTimeAsync(string? serverUrl)
     {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-
-        var synchronization = await connection.Table<Synchronization>()
-            .Where(sync => sync.ServerUrl == serverUrl)
-            .FirstOrDefaultAsync();
-        return synchronization?.LastSyncTime ?? 0;
+        var synchronization = await GetSynchronizationAsync(serverUrl);
+        return synchronization?.LastPushTime ?? 0;
     }
 
-    public async Task UpdateLastSyncTimeAsync(string? serverUrl)
+    public async Task<long> GetLastPullTimeAsync(string? serverUrl)
+    {
+        var synchronization = await GetSynchronizationAsync(serverUrl);
+        return synchronization?.LastPullTime ?? 0;
+    }
+
+    public Task UpdateLastPushTimeAsync(string? serverUrl, long upperBound) =>
+        UpdateSynchronizationAsync(serverUrl, synchronization =>
+            synchronization.LastPushTime = upperBound);
+
+    public Task UpdateLastPullTimeAsync(string? serverUrl, long upperBound) =>
+        UpdateSynchronizationAsync(serverUrl, synchronization =>
+            synchronization.LastPullTime = upperBound);
+
+    private async Task<Synchronization?> GetSynchronizationAsync(string? serverUrl)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
+        return await connection.Table<Synchronization>()
+            .Where(sync => sync.ServerUrl == serverUrl)
+            .FirstOrDefaultAsync();
+    }
 
-        var lastSyncTime = DateTimeOffset.Now.ToUnixTimeSeconds();
+    private async Task UpdateSynchronizationAsync(
+        string? serverUrl,
+        Action<Synchronization> update)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
         var synchronization = await connection.Table<Synchronization>()
             .Where(sync => sync.ServerUrl == serverUrl)
             .FirstOrDefaultAsync();
 
         if (synchronization is null)
         {
-            await connection.InsertAsync(new Synchronization
-            {
-                ServerUrl = serverUrl,
-                LastSyncTime = lastSyncTime
-            });
+            synchronization = new Synchronization { ServerUrl = serverUrl };
+            update(synchronization);
+            await connection.InsertAsync(synchronization);
             return;
         }
 
-        synchronization.LastSyncTime = lastSyncTime;
+        update(synchronization);
         await connection.UpdateAsync(synchronization);
     }
 
@@ -232,19 +259,30 @@ internal sealed class SynchronizationMergeEngine(
     private static async Task<List<T>> GetChangedAsync<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
         SQLiteAsyncConnection connection,
-        long since) where T : Synchronizable, new()
+        long sinceExclusive,
+        long upperInclusive) where T : Synchronizable, new()
     {
         if (typeof(T) == typeof(Session))
         {
-            return (List<T>)(object)await GetChangedSessionsAsync(connection, since);
+            return (List<T>)(object)await GetChangedSessionsAsync(
+                connection,
+                sinceExclusive,
+                upperInclusive);
         }
 
         return await connection.Table<T>()
-            .Where(entity => entity.Updated > since || (entity.Deleted != null && entity.Deleted > since))
+            .Where(entity =>
+                (entity.Updated > sinceExclusive && entity.Updated <= upperInclusive) ||
+                (entity.Deleted != null &&
+                    entity.Deleted > sinceExclusive &&
+                    entity.Deleted <= upperInclusive))
             .ToListAsync();
     }
 
-    private static Task<List<Session>> GetChangedSessionsAsync(SQLiteAsyncConnection connection, long since)
+    private static Task<List<Session>> GetChangedSessionsAsync(
+        SQLiteAsyncConnection connection,
+        long sinceExclusive,
+        long upperInclusive)
     {
         var query = $"""
                      SELECT
@@ -252,9 +290,15 @@ internal sealed class SynchronizationMergeEngine(
                      FROM
                          session
                      WHERE
-                         updated > ? OR (deleted IS NOT NULL AND deleted > ?)
+                         (updated > ? AND updated <= ?)
+                         OR (deleted IS NOT NULL AND deleted > ? AND deleted <= ?)
                      """;
-        return connection.QueryAsync<Session>(query, since, since);
+        return connection.QueryAsync<Session>(
+            query,
+            sinceExclusive,
+            upperInclusive,
+            sinceExclusive,
+            upperInclusive);
     }
 
     private static void ApplyRemoteEntity<

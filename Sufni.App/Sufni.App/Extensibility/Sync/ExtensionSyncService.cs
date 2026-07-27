@@ -21,14 +21,18 @@ internal sealed class ExtensionSyncService : IExtensionSyncService
     }
 
     public async Task<List<ExtensionSyncEnvelope>> CreateBatchesAsync(
-        long since,
+        long sinceExclusive,
+        long upperInclusive,
         CancellationToken cancellationToken = default)
     {
         var envelopes = new List<ExtensionSyncEnvelope>();
         foreach (var participant in participants)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var envelope = await participant.CreateBatchAsync(since, cancellationToken);
+            var envelope = await participant.CreateBatchAsync(
+                sinceExclusive,
+                upperInclusive,
+                cancellationToken);
             if (envelope is not null)
             {
                 envelopes.Add(envelope);

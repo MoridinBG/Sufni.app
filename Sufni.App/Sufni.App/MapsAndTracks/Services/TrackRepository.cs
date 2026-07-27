@@ -17,6 +17,10 @@ public interface ITrackRepository
 
     Task<List<Track>> GetTracksByIdsAsync(IReadOnlyCollection<Guid> trackIds);
 
+    Task<List<Track>> GetTracksByIdsForSynchronizationAsync(
+        IReadOnlyCollection<Guid> trackIds,
+        long upperInclusive);
+
     Task<List<TrackPayloadMetadata>> GetTrackPayloadMetadataByIdsAsync(IReadOnlyCollection<Guid> trackIds);
 
     Task<TrackPayloadMetadata?> GetTrackPayloadMetadataAsync(Guid trackId);
@@ -81,6 +85,28 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext)
             var args = chunk.Select(id => (object)id.ToString("D")).ToArray();
             var chunkTracks = await connection.QueryAsync<Track>(
                 $"SELECT * FROM track WHERE deleted IS NULL AND id IN ({placeholders})",
+                args);
+            tracks.AddRange(chunkTracks);
+        }
+
+        return tracks;
+    }
+
+    public async Task<List<Track>> GetTracksByIdsForSynchronizationAsync(
+        IReadOnlyCollection<Guid> trackIds,
+        long upperInclusive)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        var tracks = new List<Track>(trackIds.Count);
+
+        foreach (var chunk in trackIds.Chunk(TrackLookupChunkSize))
+        {
+            var placeholders = string.Join(", ", chunk.Select(_ => "?"));
+            var args = new object[] { upperInclusive }
+                .Concat(chunk.Select(id => (object)id.ToString("D")))
+                .ToArray();
+            var chunkTracks = await connection.QueryAsync<Track>(
+                $"SELECT * FROM track WHERE deleted IS NULL AND updated <= ? AND id IN ({placeholders})",
                 args);
             tracks.AddRange(chunkTracks);
         }

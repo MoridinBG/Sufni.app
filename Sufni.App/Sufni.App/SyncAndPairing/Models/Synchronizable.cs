@@ -44,12 +44,19 @@ public class Synchronization
     [PrimaryKey]
     public string? ServerUrl { get; set; }
     
-    [Column("last_sync_time")]
-    public long LastSyncTime { get; set; }
+    [Column("last_push_time")]
+    public long LastPushTime { get; set; }
+
+    [Column("last_pull_time")]
+    public long LastPullTime { get; set; }
 }
 
 public class SynchronizationData
 {
+    [JsonPropertyName("upper_bound")]
+    [JsonRequired]
+    public long UpperBound { get; set; }
+
     // Wire bundle for one sync exchange. Session blobs and recorded sources
     // travel through separate endpoints so this stays focused on entity deltas.
     [JsonPropertyName("board")] public List<Board> Boards { get; set; } = [];

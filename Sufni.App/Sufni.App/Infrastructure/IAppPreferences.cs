@@ -28,7 +28,7 @@ public interface IAppPreferences
     ISessionPreferences Session { get; }
     IThemePreferences Theme { get; }
     IUiPreferences Ui { get; }
-    Task<AppPreferencesSyncData?> GetSyncDataAsync(long since);
+    Task<AppPreferencesSyncData?> GetSyncDataAsync(long sinceExclusive, long upperInclusive);
     Task ApplySyncDataAsync(AppPreferencesSyncData? preferences);
 }
 

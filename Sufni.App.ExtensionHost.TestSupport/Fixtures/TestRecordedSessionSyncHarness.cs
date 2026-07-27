@@ -167,8 +167,10 @@ public sealed class TestRecordedSessionSyncHarness : IAsyncDisposable
             Payload = transfer.Payload
         });
 
-    public Task<SynchronizationData> GetSynchronizationDataAsync(long since) =>
-        syncDataStore.GetSynchronizationDataAsync(since);
+    public Task<SynchronizationData> GetSynchronizationDataAsync(
+        long sinceExclusive,
+        long upperInclusive) =>
+        syncDataStore.GetSynchronizationDataAsync(sinceExclusive, upperInclusive);
 
     public Task ApplyRemoteSynchronizationDataAsync(SynchronizationData data) =>
         syncDataStore.ApplyRemoteSynchronizationDataAsync(data);

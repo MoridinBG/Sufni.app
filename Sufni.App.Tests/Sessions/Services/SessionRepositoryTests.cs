@@ -490,7 +490,7 @@ public class SessionRepositoryTests
         var patchedPsst = PersistenceTestData.CreateTelemetryBlob(65);
         await database.PatchSessionPsstAsync(sessionId, patchedPsst);
 
-        var changedSession = Assert.Single(await database.GetChangedAsync<Session>(0));
+        var changedSession = Assert.Single(await database.GetChangedAsync<Session>(0, long.MaxValue));
 
         Assert.True(changedSession.HasProcessedData);
         Assert.Equal(patchedPsst, await database.GetSessionRawPsstAsync(sessionId));
@@ -517,7 +517,7 @@ public class SessionRepositoryTests
             connection.Execute("UPDATE session SET has_data = 0 WHERE id = ?", sessionId);
         }
 
-        var changedSession = Assert.Single(await database.GetChangedAsync<Session>(0));
+        var changedSession = Assert.Single(await database.GetChangedAsync<Session>(0, long.MaxValue));
 
         Assert.True(changedSession.HasProcessedData);
         Assert.Null(changedSession.ProcessedData);

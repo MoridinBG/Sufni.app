@@ -15,6 +15,7 @@ using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
 using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Tests.TestSupport.Persistence;
 namespace Sufni.App.Tests.SyncAndPairing.Services;
 
@@ -23,33 +24,89 @@ public class SynchronizationMergeEngineTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task UpdateLastSyncTimeAsync_InsertsOrUpdatesSingleRow(bool seedExistingRow)
+    public async Task DirectionalCursorUpdates_InsertOrUpdateSingleRow(bool seedExistingRow)
     {
         using var tempDatabase = new TempDatabase("sync.db");
         var databasePath = tempDatabase.DatabasePath;
 
         var database = new TestPersistenceHarness(databasePath);
+        _ = await database.GetLastPushTimeAsync("https://sync.test");
         if (seedExistingRow)
         {
-            _ = await database.GetLastSyncTimeAsync("https://sync.test");
             using var connection = new SQLiteConnection(databasePath);
             connection.Insert(new Synchronization
             {
                 ServerUrl = "https://sync.test",
-                LastSyncTime = 1
+                LastPushTime = 1,
+                LastPullTime = 2,
             });
         }
 
-        await database.UpdateLastSyncTimeAsync("https://sync.test");
+        await database.UpdateLastPushTimeAsync("https://sync.test", 11);
+        await database.UpdateLastPullTimeAsync("https://sync.test", 12);
 
-        var lastSyncTime = await database.GetLastSyncTimeAsync("https://sync.test");
-        Assert.True(lastSyncTime > (seedExistingRow ? 1 : 0));
+        Assert.Equal(11, await database.GetLastPushTimeAsync("https://sync.test"));
+        Assert.Equal(12, await database.GetLastPullTimeAsync("https://sync.test"));
 
         using var verificationConnection = new SQLiteConnection(databasePath);
         var rows = verificationConnection.Table<Synchronization>()
             .Where(s => s.ServerUrl == "https://sync.test")
             .ToList();
         Assert.Single(rows);
+    }
+
+    [Fact]
+    public async Task LegacySingleCursor_IsResetForProtocolV3Replay()
+    {
+        using var tempDatabase = new TempDatabase("legacy-sync.db");
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.Execute(
+                "CREATE TABLE sync (server_url TEXT PRIMARY KEY, last_sync_time INTEGER NOT NULL)");
+            connection.Execute(
+                "INSERT INTO sync (server_url, last_sync_time) VALUES (?, ?)",
+                "https://sync.test",
+                123);
+        }
+
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+
+        Assert.Equal(0, await database.GetLastPushTimeAsync("https://sync.test"));
+        Assert.Equal(0, await database.GetLastPullTimeAsync("https://sync.test"));
+    }
+
+    [Fact]
+    public async Task GetChangedAsync_ReplaysCursorSecondAndExcludesFutureRows()
+    {
+        using var tempDatabase = new TempDatabase("bounded-sync-window.db");
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        _ = await database.GetSessionsAsync();
+
+        var boundaryTrack = new Track
+        {
+            Id = Guid.NewGuid(),
+            Points = [new TrackPoint(100, 1, 1, 10)],
+            Updated = 5,
+            ClientUpdated = 5,
+        };
+        var futureTrack = new Track
+        {
+            Id = Guid.NewGuid(),
+            Points = [new TrackPoint(101, 2, 2, 11)],
+            Updated = 6,
+            ClientUpdated = 6,
+        };
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.Insert(boundaryTrack);
+            connection.Insert(futureTrack);
+        }
+
+        var sinceExclusive = SynchronizationProtocol.GetSinceExclusive(cursor: 5);
+        var changed = await database.GetChangedAsync<Track>(sinceExclusive, upperInclusive: 5);
+
+        Assert.Equal(4, sinceExclusive);
+        Assert.Equal(boundaryTrack.Id, Assert.Single(changed).Id);
     }
 
     [Fact]
@@ -85,12 +142,45 @@ public class SynchronizationMergeEngineTests
             });
         }
 
-        var syncData = await database.GetSynchronizationDataAsync(100);
+        var syncData = await database.GetSynchronizationDataAsync(100, 150);
 
+        Assert.Equal(150, syncData.UpperBound);
         Assert.Single(syncData.Sessions);
         Assert.Single(syncData.Tracks);
         Assert.Equal(trackId, syncData.Tracks[0].Id);
 
+    }
+
+    [Fact]
+    public async Task GetSynchronizationDataAsync_DoesNotLeakFutureRelatedTrackVersion()
+    {
+        using var tempDatabase = new TempDatabase("bounded-related-track.db");
+        var sessionId = Guid.NewGuid();
+        var trackId = Guid.NewGuid();
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        _ = await database.GetSessionsAsync();
+
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.Insert(new Track
+            {
+                Id = trackId,
+                Points = [new TrackPoint(100, 1, 1, 10)],
+                Updated = 151,
+                ClientUpdated = 151,
+            });
+            connection.Insert(new Session(sessionId, "session", "desc", null, 100)
+            {
+                FullTrack = trackId,
+                Updated = 150,
+                ClientUpdated = 150,
+            });
+        }
+
+        var syncData = await database.GetSynchronizationDataAsync(100, 150);
+
+        Assert.Single(syncData.Sessions);
+        Assert.Empty(syncData.Tracks);
     }
 
     [Fact]
@@ -271,7 +361,7 @@ public class SynchronizationMergeEngineTests
         });
 
         var session = await database.GetSessionAsync(sessionId);
-        var changedSession = Assert.Single(await database.GetChangedAsync<Session>(0));
+        var changedSession = Assert.Single(await database.GetChangedAsync<Session>(0, long.MaxValue));
         var sessionTrack = await database.GetSessionTrackAsync(sessionId);
         var rawPsst = await database.GetSessionRawPsstAsync(sessionId);
 

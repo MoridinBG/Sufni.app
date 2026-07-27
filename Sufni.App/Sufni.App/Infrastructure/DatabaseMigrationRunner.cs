@@ -33,6 +33,7 @@ internal sealed class DatabaseMigrationRunner(
         {
             await connection.EnableWriteAheadLoggingAsync();
             await CreateTablesAsync();
+            await EnsureSyncCursorColumnsAsync();
             await EnsureSyncIndexesAsync();
             await EnsureSessionProcessingFingerprintColumnAsync();
             await EnsureSessionSummaryMetricColumnsAsync();
@@ -78,6 +79,12 @@ internal sealed class DatabaseMigrationRunner(
             typeof(Track)
         ]);
     }
+
+    private Task EnsureSyncCursorColumnsAsync() =>
+        EnsureColumnsAsync(
+            "sync",
+            ("last_push_time", "INTEGER NOT NULL DEFAULT 0"),
+            ("last_pull_time", "INTEGER NOT NULL DEFAULT 0"));
 
     private async Task EnsureSyncIndexesAsync()
     {

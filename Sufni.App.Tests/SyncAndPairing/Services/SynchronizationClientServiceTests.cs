@@ -60,14 +60,65 @@ public class SynchronizationClientServiceTests
             ]
         };
 
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(localChanges);
-        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(localChanges);
+        httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
 
         await CreateService().SyncAll();
 
-        await httpApiService.Received(1).PushSyncAsync(Arg.Is<SynchronizationData>(data => ReferenceEquals(data, localChanges)));
-        await syncDataStore.Received(1).UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
+        await httpApiService.Received(1).PushSyncAsync(Arg.Is<SynchronizationData>(data =>
+            ReferenceEquals(data, localChanges) && data.UpperBound > 0));
+        await syncDataStore.Received(1).UpdateLastPushTimeAsync(
+            SynchronizationClientService.SyncStateKey,
+            localChanges.UpperBound);
+        await syncDataStore.Received(1).UpdateLastPullTimeAsync(
+            SynchronizationClientService.SyncStateKey,
+            12);
+    }
+
+    [Fact]
+    public async Task SyncAll_UsesIndependentOverlappedPushAndPullWindows()
+    {
+        var localChanges = new SynchronizationData();
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(8);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(40);
+        syncDataStore.GetSynchronizationDataAsync(7, Arg.Any<long>()).Returns(localChanges);
+        httpApiService.PullSyncAsync(39).Returns(new SynchronizationData { UpperBound = 45 });
+
+        await CreateService().SyncAll();
+
+        await syncDataStore.Received(1).GetSynchronizationDataAsync(
+            7,
+            Arg.Is<long>(upper => upper == localChanges.UpperBound && upper > 0));
+        await appPreferences.Received(1).GetSyncDataAsync(7, localChanges.UpperBound);
+        await httpApiService.Received(1).PullSyncAsync(39);
+        await syncDataStore.Received(1).UpdateLastPushTimeAsync(
+            SynchronizationClientService.SyncStateKey,
+            localChanges.UpperBound);
+        await syncDataStore.Received(1).UpdateLastPullTimeAsync(
+            SynchronizationClientService.SyncStateKey,
+            45);
+    }
+
+    [Fact]
+    public async Task SyncAll_DoesNotAdvanceEitherCursor_WhenPushFails()
+    {
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
+        httpApiService.PushSyncAsync(Arg.Any<SynchronizationData>())
+            .Returns(Task.FromException(new InvalidOperationException("push failed")));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().SyncAll());
+
+        await syncDataStore.DidNotReceive().UpdateLastPushTimeAsync(
+            Arg.Any<string?>(),
+            Arg.Any<long>());
+        await syncDataStore.DidNotReceive().UpdateLastPullTimeAsync(
+            Arg.Any<string?>(),
+            Arg.Any<long>());
+        await httpApiService.DidNotReceive().PullSyncAsync(Arg.Any<long>());
     }
 
     [Fact]
@@ -108,9 +159,10 @@ public class SynchronizationClientServiceTests
             AppPreferences = remotePreferences,
         };
 
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5).Returns(remoteChanges);
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(4).Returns(remoteChanges);
 
         await CreateService().SyncAll();
 
@@ -134,10 +186,11 @@ public class SynchronizationClientServiceTests
             },
         };
 
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        appPreferences.GetSyncDataAsync(5).Returns(localPreferences);
-        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
+        appPreferences.GetSyncDataAsync(4, Arg.Any<long>()).Returns(localPreferences);
+        httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
 
         await CreateService().SyncAll();
 
@@ -154,9 +207,10 @@ public class SynchronizationClientServiceTests
             CreateBatchesResult = [envelope]
         };
 
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
 
         await CreateService(extensionSync).SyncAll();
 
@@ -187,8 +241,9 @@ public class SynchronizationClientServiceTests
             },
         };
 
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
         syncDataStore.ApplyRemoteSynchronizationDataAsync(remoteChanges)
             .Returns(_ =>
             {
@@ -201,21 +256,23 @@ public class SynchronizationClientServiceTests
                 calls.Add("preferences");
                 return Task.CompletedTask;
             });
-        syncDataStore.UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey)
+        syncDataStore.UpdateLastPullTimeAsync(
+                SynchronizationClientService.SyncStateKey,
+                Arg.Any<long>())
             .Returns(_ =>
             {
-                calls.Add("last-sync");
+                calls.Add("pull-cursor");
                 return Task.CompletedTask;
             });
-        httpApiService.PullSyncAsync(5).Returns(remoteChanges);
+        httpApiService.PullSyncAsync(4).Returns(remoteChanges);
 
         await CreateService(extensionSync).SyncAll();
 
-        Assert.Equal(["core", "preferences", "extension", "last-sync"], calls);
+        Assert.Equal(["core", "preferences", "extension", "pull-cursor"], calls);
     }
 
     [Fact]
-    public async Task SyncAll_DoesNotAdvanceLastSync_WhenExtensionApplyFails()
+    public async Task SyncAll_AdvancesPushButNotPullCursor_WhenExtensionApplyFails()
     {
         var extensionSync = new FakeExtensionSyncService
         {
@@ -228,22 +285,29 @@ public class SynchronizationClientServiceTests
             ExtensionBatches = [CreateExtensionEnvelope("test")],
         };
 
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5).Returns(remoteChanges);
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(4).Returns(remoteChanges);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(extensionSync).SyncAll());
 
-        await syncDataStore.DidNotReceive().UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
+        await syncDataStore.Received(1).UpdateLastPushTimeAsync(
+            SynchronizationClientService.SyncStateKey,
+            Arg.Any<long>());
+        await syncDataStore.DidNotReceive().UpdateLastPullTimeAsync(
+            SynchronizationClientService.SyncStateKey,
+            Arg.Any<long>());
     }
 
     [Fact]
-    public async Task SyncAll_HoldsWatermark_WhenSwapDoesNotResolve()
+    public async Task SyncAll_HoldsPullCursor_WhenSwapDoesNotResolve()
     {
         var sessionId = Guid.NewGuid();
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
         syncDataStore.ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>())
             .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(sessionId, """{"target":true}""")]);
         // The peer does not yet hold the target BLOB, so the swap cannot commit.
@@ -251,7 +315,7 @@ public class SynchronizationClientServiceTests
 
         var result = await CreateService().SyncAll();
 
-        // The watermark stays back so the next run re-derives and retries the swap;
+        // The pull cursor stays back so the next run re-derives and retries the swap;
         // advancing it would strand the swap permanently (BLOB writes do not bump updated).
         Assert.IsType<SynchronizationRunResult.Completed>(result);
         await sessionStore.DidNotReceive().CommitPsstSwapAsync(
@@ -259,17 +323,23 @@ public class SynchronizationClientServiceTests
             Arg.Any<byte[]>(),
             Arg.Any<string?>(),
             Arg.Any<CancellationToken>());
-        await syncDataStore.DidNotReceive().UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
+        await syncDataStore.Received(1).UpdateLastPushTimeAsync(
+            SynchronizationClientService.SyncStateKey,
+            Arg.Any<long>());
+        await syncDataStore.DidNotReceive().UpdateLastPullTimeAsync(
+            SynchronizationClientService.SyncStateKey,
+            Arg.Any<long>());
     }
 
     [Fact]
-    public async Task SyncAll_CommitsSwapAndAdvancesWatermark_WhenDownloadedFingerprintMatchesTarget()
+    public async Task SyncAll_CommitsSwapAndAdvancesPullCursor_WhenDownloadedFingerprintMatchesTarget()
     {
         var sessionId = Guid.NewGuid();
         const string target = """{"target":true}""";
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
         syncDataStore.ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>())
             .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(sessionId, target)]);
         httpApiService.GetSessionPsstAsync(sessionId).Returns(new SessionBlobPayload(target, [1, 2, 3]));
@@ -285,7 +355,12 @@ public class SynchronizationClientServiceTests
             Arg.Any<byte[]>(),
             target,
             Arg.Any<CancellationToken>());
-        await syncDataStore.Received(1).UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
+        await syncDataStore.Received(1).UpdateLastPushTimeAsync(
+            SynchronizationClientService.SyncStateKey,
+            Arg.Any<long>());
+        await syncDataStore.Received(1).UpdateLastPullTimeAsync(
+            SynchronizationClientService.SyncStateKey,
+            12);
     }
 
     [Fact]
@@ -295,9 +370,10 @@ public class SynchronizationClientServiceTests
         var swapId = Guid.NewGuid();
         const string fillFingerprint = """{"fill":true}""";
         const string swapTarget = """{"target":true}""";
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
         syncDataStore.ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>())
             .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(swapId, swapTarget)]);
         sessionRepository.GetIncompleteSessionIdsWithFingerprintAsync()
@@ -331,9 +407,10 @@ public class SynchronizationClientServiceTests
     [Fact]
     public async Task SyncAll_ReturnsCompleted_WhenCompletenessVerificationPasses()
     {
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
 
         var result = await CreateService().SyncAll();
 
@@ -343,9 +420,10 @@ public class SynchronizationClientServiceTests
     [Fact]
     public async Task SyncAll_ReturnsIncompleteLocalData_WhenCompletenessVerificationFindsMissingData()
     {
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
         sessionRepository.GetIncompleteSessionIdsAsync().Returns([Guid.NewGuid(), Guid.NewGuid()]);
         recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync().Returns([Guid.NewGuid()]);
 
@@ -354,16 +432,22 @@ public class SynchronizationClientServiceTests
         var incomplete = Assert.IsType<SynchronizationRunResult.IncompleteLocalData>(result);
         Assert.Equal(2, incomplete.MissingProcessedSessionCount);
         Assert.Equal(1, incomplete.IncompleteRecordedSourceCount);
-        await syncDataStore.Received(1).UpdateLastSyncTimeAsync(SynchronizationClientService.SyncStateKey);
+        await syncDataStore.Received(1).UpdateLastPushTimeAsync(
+            SynchronizationClientService.SyncStateKey,
+            Arg.Any<long>());
+        await syncDataStore.Received(1).UpdateLastPullTimeAsync(
+            SynchronizationClientService.SyncStateKey,
+            12);
     }
 
     [Fact]
     public async Task SyncAll_VerifiesCompletenessAfterPullingRecordedSources()
     {
         var calls = new List<string>();
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
         recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync()
             .Returns(_ =>
             {
@@ -407,9 +491,10 @@ public class SynchronizationClientServiceTests
         };
         var events = new List<SynchronizationProgressSnapshot>();
 
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5).Returns(remoteChanges);
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(4).Returns(remoteChanges);
 
         await CreateService(extensionSync).SyncAll(new ProgressCapture(events));
 
@@ -419,9 +504,10 @@ public class SynchronizationClientServiceTests
     [Fact]
     public async Task SyncAll_ReportsSixServicePhaseProgress_WhenProgressIsProvided()
     {
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
         var events = new List<SynchronizationProgressSnapshot>();
 
         await CreateService().SyncAll(new ProgressCapture(events));
@@ -452,9 +538,10 @@ public class SynchronizationClientServiceTests
             source.SourceHash = storedHash;
         }
 
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
         httpApiService.GetIncompleteSessionSourceIdsAsync().Returns([source.SessionId]);
         recordedSessionSourceRepository.GetRecordedSessionSourceAsync(source.SessionId).Returns(source);
 
@@ -486,9 +573,10 @@ public class SynchronizationClientServiceTests
                 source.Payload)
             : SyncTestServerHarness.ToPayload(source);
 
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
         recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([source.SessionId]);
         httpApiService.GetRecordedSessionSourceAsync(source.SessionId).Returns(transfer);
         if (outcome == PulledRecordedSourceOutcome.RepositoryFailure)
@@ -501,8 +589,12 @@ public class SynchronizationClientServiceTests
             await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
                 Arg.Any<IReadOnlyCollection<Guid>>(),
                 Arg.Any<CancellationToken>());
-            await syncDataStore.DidNotReceive().UpdateLastSyncTimeAsync(
-                SynchronizationClientService.SyncStateKey);
+            await syncDataStore.Received(1).UpdateLastPushTimeAsync(
+                SynchronizationClientService.SyncStateKey,
+                Arg.Any<long>());
+            await syncDataStore.Received(1).UpdateLastPullTimeAsync(
+                SynchronizationClientService.SyncStateKey,
+                12);
             return;
         }
 
@@ -538,9 +630,10 @@ public class SynchronizationClientServiceTests
         var firstTransfer = SyncTestServerHarness.ToPayload(first);
         var secondTransfer = SyncTestServerHarness.ToPayload(second);
 
-        syncDataStore.GetLastSyncTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(5).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5).Returns(new SynchronizationData());
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
         recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([first.SessionId, second.SessionId]);
         httpApiService.GetRecordedSessionSourceAsync(first.SessionId).Returns(firstTransfer);
         httpApiService.GetRecordedSessionSourceAsync(second.SessionId).Returns(secondTransfer);
@@ -596,7 +689,8 @@ public class SynchronizationClientServiceTests
             Task<IReadOnlyList<SynchronizationProgressSnapshot>>>? ApplyBatchesAsyncOverride { get; init; }
 
         public Task<List<ExtensionSyncEnvelope>> CreateBatchesAsync(
-            long since,
+            long sinceExclusive,
+            long upperInclusive,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(CreateBatchesResult);
 

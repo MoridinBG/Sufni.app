@@ -16,12 +16,14 @@ public class ExtensionSyncServiceTests
         var third = new TestSyncParticipant("third") { CreateResult = thirdEnvelope };
         var service = new ExtensionSyncService([first, second, third]);
 
-        var batches = await service.CreateBatchesAsync(since: 5);
+        var batches = await service.CreateBatchesAsync(
+            sinceExclusive: 5,
+            upperInclusive: 10);
 
         Assert.Equal([firstEnvelope, thirdEnvelope], batches);
-        Assert.Equal(5, first.CreateSince);
-        Assert.Equal(5, second.CreateSince);
-        Assert.Equal(5, third.CreateSince);
+        Assert.Equal((5, 10), first.CreateWindow);
+        Assert.Equal((5, 10), second.CreateWindow);
+        Assert.Equal((5, 10), third.CreateWindow);
     }
 
     [Fact]
@@ -113,14 +115,17 @@ public class ExtensionSyncServiceTests
     private sealed class TestSyncParticipant(string extensionId) : IExtensionSyncParticipant
     {
         public string ExtensionId { get; } = extensionId;
-        public long? CreateSince { get; private set; }
+        public (long SinceExclusive, long UpperInclusive)? CreateWindow { get; private set; }
         public ExtensionSyncEnvelope? CreateResult { get; init; }
         public ExtensionSyncApplyResult ApplyResult { get; init; } = new ExtensionSyncApplyResult.Applied([]);
         public List<ExtensionSyncEnvelope> AppliedEnvelopes { get; } = [];
 
-        public Task<ExtensionSyncEnvelope?> CreateBatchAsync(long since, CancellationToken cancellationToken)
+        public Task<ExtensionSyncEnvelope?> CreateBatchAsync(
+            long sinceExclusive,
+            long upperInclusive,
+            CancellationToken cancellationToken)
         {
-            CreateSince = since;
+            CreateWindow = (sinceExclusive, upperInclusive);
             return Task.FromResult(CreateResult);
         }
 

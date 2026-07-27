@@ -5,7 +5,7 @@ public static class SynchronizationProtocol
     public const string ServiceType = "_sstsync._tcp";
     public const string CertificateSubjectName = "cn=com.sghctoma.sst-api";
     public const int PinTtlSeconds = 30;
-    public const int SyncProtocolVersion = 2;
+    public const int SyncProtocolVersion = 3;
     public const string SyncProtocolHeader = "X-Sufni-Sync-Protocol";
     public const string FingerprintHeader = "X-Sufni-Processing-Fingerprint";
     public const string SourceKindHeader = "X-Sufni-Source-Kind";
@@ -23,4 +23,6 @@ public static class SynchronizationProtocol
     public const string EndpointSessionData = "/session/data/";
     public const string EndpointSessionSourceIncomplete = "/session/source/incomplete";
     public const string EndpointSessionSourceData = "/session/source/data/";
+
+    public static long GetSinceExclusive(long cursor) => cursor > 0 ? cursor - 1 : 0;
 }

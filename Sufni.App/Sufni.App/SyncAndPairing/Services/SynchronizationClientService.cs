@@ -70,18 +70,27 @@ public class SynchronizationClientService : ISynchronizationClientService
         this.extensionSyncService = extensionSyncService;
     }
 
-    private async Task PushLocalChanges(long lastSyncTime)
+    private async Task PushLocalChanges(long sinceExclusive)
     {
-        var changes = await syncDataStore.GetSynchronizationDataAsync(lastSyncTime);
-        changes.AppPreferences = await appPreferences.GetSyncDataAsync(lastSyncTime);
+        var upperInclusive = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var changes = await syncDataStore.GetSynchronizationDataAsync(
+            sinceExclusive,
+            upperInclusive);
+        changes.UpperBound = upperInclusive;
+        changes.AppPreferences = await appPreferences.GetSyncDataAsync(
+            sinceExclusive,
+            upperInclusive);
         if (extensionSyncService is not null)
         {
-            changes.ExtensionBatches.AddRange(await extensionSyncService.CreateBatchesAsync(lastSyncTime));
+            changes.ExtensionBatches.AddRange(await extensionSyncService.CreateBatchesAsync(
+                sinceExclusive,
+                upperInclusive));
         }
 
         logger.Verbose(
-            "Pushing local changes since {LastSyncTime} with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, {ExtensionBatchCount} extension batches, and app preferences present {HasAppPreferences}",
-            lastSyncTime,
+            "Pushing local changes in ({SinceExclusive}, {UpperInclusive}] with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, {ExtensionBatchCount} extension batches, and app preferences present {HasAppPreferences}",
+            sinceExclusive,
+            upperInclusive,
             changes.Boards.Count,
             changes.Bikes.Count,
             changes.Setups.Count,
@@ -91,6 +100,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             changes.AppPreferences is not null);
 
         await httpApiService.PushSyncAsync(changes);
+        await syncDataStore.UpdateLastPushTimeAsync(SyncStateKey, upperInclusive);
     }
 
     private async Task PushIncompleteSessions()
@@ -116,11 +126,11 @@ public class SynchronizationClientService : ISynchronizationClientService
             incompleteSessions.Count);
     }
 
-    private async Task<IReadOnlyList<SessionBlobSwap>> PullRemoteChanges(
-        long lastSyncTime,
+    private async Task<(IReadOnlyList<SessionBlobSwap> Swaps, long UpperBound)> PullRemoteChanges(
+        long sinceExclusive,
         IProgress<SynchronizationProgressSnapshot>? progress)
     {
-        var syncData = await httpApiService.PullSyncAsync(lastSyncTime);
+        var syncData = await httpApiService.PullSyncAsync(sinceExclusive);
         var swaps = await syncDataStore.ApplyRemoteSynchronizationDataAsync(syncData);
         await appPreferences.ApplySyncDataAsync(syncData.AppPreferences);
         if (extensionSyncService is not null)
@@ -151,7 +161,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             syncData.ExtensionBatches.Count,
             syncData.AppPreferences is not null);
 
-        return swaps;
+        return (swaps, syncData.UpperBound);
     }
 
     private async Task<int> PullIncompleteSessions(IReadOnlyList<SessionBlobSwap> swaps)
@@ -203,11 +213,9 @@ public class SynchronizationClientService : ISynchronizationClientService
         return unresolvedSwaps;
     }
 
-    // Downloads a processed BLOB and commits it only when its fingerprint matches
-    // the target. A 404 (null) or a fingerprint mismatch is "resolved for now": the
-    // run may still advance its single last-sync watermark and re-detect later. A
-    // network error propagates, so the watermark does NOT advance and the transient
-    // swap set is re-derived from the same metadata delta next run.
+    // Downloads a processed BLOB and commits it only when its fingerprint matches.
+    // A 404 (null), fingerprint mismatch, or network error leaves the pull cursor
+    // behind so the transient swap is re-derived from the same metadata delta.
     private async Task<bool> TryDownloadAndCommitAsync(Guid id, string? targetFingerprint)
     {
         if (string.IsNullOrEmpty(targetFingerprint))
@@ -314,40 +322,47 @@ public class SynchronizationClientService : ISynchronizationClientService
     {
         try
         {
-            var lastSyncTime = await syncDataStore.GetLastSyncTimeAsync(SyncStateKey);
+            var lastPushTime = await syncDataStore.GetLastPushTimeAsync(SyncStateKey);
+            var lastPullTime = await syncDataStore.GetLastPullTimeAsync(SyncStateKey);
+            var pushSinceExclusive = SynchronizationProtocol.GetSinceExclusive(lastPushTime);
+            var pullSinceExclusive = SynchronizationProtocol.GetSinceExclusive(lastPullTime);
 
-            logger.Verbose("Starting synchronization client run with last sync time {LastSyncTime}", lastSyncTime);
+            logger.Verbose(
+                "Starting synchronization client run with push cursor {LastPushTime} and pull cursor {LastPullTime}",
+                lastPushTime,
+                lastPullTime);
 
             // Built by the phase-2 metadata merge and consumed by the phase-4
-            // session-data pull. Transient: if any phase throws, the watermark below
+            // session-data pull. Transient: if any phase throws, the pull cursor below
             // is not advanced and the next run re-derives this set.
             IReadOnlyList<SessionBlobSwap> swaps = [];
+            var pullUpperBound = lastPullTime;
             var unresolvedSwaps = 0;
 
-            await RunPhaseAsync(progress, SynchronizationPhase.PushingLocalChanges, "Pushing local changes", 1, () => PushLocalChanges(lastSyncTime));
-            await RunPhaseAsync(progress, SynchronizationPhase.PullingRemoteChanges, "Pulling remote changes", 2, async () => swaps = await PullRemoteChanges(lastSyncTime, progress));
+            await RunPhaseAsync(progress, SynchronizationPhase.PushingLocalChanges, "Pushing local changes", 1, () => PushLocalChanges(pushSinceExclusive));
+            await RunPhaseAsync(progress, SynchronizationPhase.PullingRemoteChanges, "Pulling remote changes", 2, async () =>
+            {
+                (swaps, pullUpperBound) = await PullRemoteChanges(pullSinceExclusive, progress);
+            });
             await RunPhaseAsync(progress, SynchronizationPhase.PushingIncompleteSessions, "Uploading session data", 3, PushIncompleteSessions);
             await RunPhaseAsync(progress, SynchronizationPhase.PullingIncompleteSessions, "Downloading session data", 4, async () => unresolvedSwaps = await PullIncompleteSessions(swaps));
-            await RunPhaseAsync(progress, SynchronizationPhase.PushingIncompleteSessionSources, "Uploading recorded sources", 5, PushIncompleteSessionSources);
-            await RunPhaseAsync(progress, SynchronizationPhase.PullingIncompleteSessionSources, "Downloading recorded sources", 6, PullIncompleteSessionSources);
-            var result = await VerifyLocalCompleteness();
 
-            // Only advance the single sync watermark when every swap committed. A swap is
-            // derived from the pulled-metadata delta and BLOB writes do not bump `updated`,
-            // so advancing past an unresolved swap would strand it permanently. Holding the
-            // watermark re-pulls the same delta next run, re-derives the swap, and retries.
             if (unresolvedSwaps == 0)
             {
-                await syncDataStore.UpdateLastSyncTimeAsync(SyncStateKey);
-                logger.Verbose("Synchronization client run completed");
+                await syncDataStore.UpdateLastPullTimeAsync(SyncStateKey, pullUpperBound);
             }
             else
             {
                 logger.Information(
-                    "Holding sync watermark: {UnresolvedSwapCount} session-blob swap(s) did not resolve this run and will be retried next sync",
+                    "Holding pull cursor: {UnresolvedSwapCount} session-blob swap(s) did not resolve this run and will be retried next sync",
                     unresolvedSwaps);
             }
 
+            await RunPhaseAsync(progress, SynchronizationPhase.PushingIncompleteSessionSources, "Uploading recorded sources", 5, PushIncompleteSessionSources);
+            await RunPhaseAsync(progress, SynchronizationPhase.PullingIncompleteSessionSources, "Downloading recorded sources", 6, PullIncompleteSessionSources);
+            var result = await VerifyLocalCompleteness();
+
+            logger.Verbose("Synchronization client run completed");
             return result;
         }
         catch (System.Exception exception)
