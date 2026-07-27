@@ -44,6 +44,7 @@ internal sealed class DatabaseMigrationRunner(
             await DropSessionCacheTableAsync();
             await coreMigrations.EnsureTableAsync();
             await connection.ExecuteAsync(SessionBlobSwapRequestStore.CreateTableSql);
+            await EnsureSessionBlobSwapRequestIntegrityAsync();
             await extensionMigratorRunner.RunAsync(connection);
 
             var cleanupSummary = await Cleanup();
@@ -85,6 +86,42 @@ internal sealed class DatabaseMigrationRunner(
             "sync",
             ("last_push_time", "INTEGER NOT NULL DEFAULT 0"),
             ("last_pull_time", "INTEGER NOT NULL DEFAULT 0"));
+
+    private async Task EnsureSessionBlobSwapRequestIntegrityAsync()
+    {
+        await connection.ExecuteAsync(
+            $"""
+            DELETE FROM {SessionBlobSwapRequestStore.TableName}
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM session
+                WHERE session.id = {SessionBlobSwapRequestStore.TableName}.session_id
+                  AND session.deleted IS NULL
+            )
+            """);
+
+        await connection.ExecuteAsync("DROP TRIGGER IF EXISTS session_blob_swap_request_after_session_delete");
+        await connection.ExecuteAsync("DROP TRIGGER IF EXISTS session_blob_swap_request_after_session_soft_delete");
+        await connection.ExecuteAsync(
+            $"""
+            CREATE TRIGGER session_blob_swap_request_after_session_delete
+            AFTER DELETE ON session
+            BEGIN
+                DELETE FROM {SessionBlobSwapRequestStore.TableName}
+                WHERE session_id = OLD.id;
+            END
+            """);
+        await connection.ExecuteAsync(
+            $"""
+            CREATE TRIGGER session_blob_swap_request_after_session_soft_delete
+            AFTER UPDATE OF deleted ON session
+            WHEN NEW.deleted IS NOT NULL
+            BEGIN
+                DELETE FROM {SessionBlobSwapRequestStore.TableName}
+                WHERE session_id = NEW.id;
+            END
+            """);
+    }
 
     private async Task EnsureSyncIndexesAsync()
     {

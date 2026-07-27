@@ -10,6 +10,7 @@ using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
+using Sufni.App.Sessions.Services;
 using Sufni.App.Setups.Models;
 using Sufni.App.Extensibility.Database;
 using Sufni.App.Infrastructure;
@@ -812,6 +813,72 @@ public class DatabaseMigrationRunnerTests
             RecordedSessionSourceSnapshot.From(seed.Source));
 
         AssertProcessedSessionFingerprintCase(fingerprintCase, evaluation, staleFingerprint);
+    }
+
+    [Fact]
+    public async Task Initialization_RepairsAndMaintainsSessionBlobSwapRequestOwnership()
+    {
+        using var tempDatabase = new TempDatabase("session-blob-swap-request-integrity.db");
+        var activeSessionId = Guid.NewGuid();
+        var deletedSessionId = Guid.NewGuid();
+        var hardDeletedSessionId = Guid.NewGuid();
+
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.CreateTable<Session>();
+            connection.Execute(SessionBlobSwapRequestStore.CreateTableSql);
+            connection.Insert(new Session(activeSessionId, "active", string.Empty, null)
+            {
+                Updated = 10,
+                ClientUpdated = 10,
+            });
+            connection.Insert(new Session(deletedSessionId, "deleted", string.Empty, null)
+            {
+                Updated = 10,
+                ClientUpdated = 10,
+                Deleted = 11,
+            });
+            connection.Insert(new Session(hardDeletedSessionId, "hard delete", string.Empty, null)
+            {
+                Updated = 10,
+                ClientUpdated = 10,
+            });
+            foreach (var sessionId in new[] { activeSessionId, deletedSessionId, Guid.NewGuid() })
+            {
+                connection.Execute(
+                    $"INSERT INTO {SessionBlobSwapRequestStore.TableName} (session_id, target_fingerprint) VALUES (?, ?)",
+                    sessionId,
+                    "target");
+            }
+        }
+
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        _ = await database.GetSessionAsync(activeSessionId);
+
+        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
+        Assert.Equal(
+            activeSessionId.ToString("D"),
+            verificationConnection.ExecuteScalar<string>(
+                $"SELECT session_id FROM {SessionBlobSwapRequestStore.TableName}"));
+
+        verificationConnection.Execute(
+            "UPDATE session SET deleted = ? WHERE id = ?",
+            12,
+            activeSessionId);
+        Assert.Equal(
+            0,
+            verificationConnection.ExecuteScalar<int>(
+                $"SELECT COUNT(*) FROM {SessionBlobSwapRequestStore.TableName}"));
+
+        verificationConnection.Execute(
+            $"INSERT INTO {SessionBlobSwapRequestStore.TableName} (session_id, target_fingerprint) VALUES (?, ?)",
+            hardDeletedSessionId,
+            "target");
+        verificationConnection.Execute("DELETE FROM session WHERE id = ?", hardDeletedSessionId);
+        Assert.Equal(
+            0,
+            verificationConnection.ExecuteScalar<int>(
+                $"SELECT COUNT(*) FROM {SessionBlobSwapRequestStore.TableName}"));
     }
 
     [Fact]
