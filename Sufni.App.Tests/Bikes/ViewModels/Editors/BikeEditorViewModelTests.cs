@@ -1014,6 +1014,64 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task OpenImage_DecodesSelectedBytes_AndPreservesRotation()
+    {
+        var snapshot = TestSnapshots.Bike();
+        var editor = CreateEditor(snapshot);
+        var imageBytes = TestImages.SmallPngBytes();
+        editor.ImageCanvas.ImageRotationDegrees = 12.5;
+        bikeCoordinator.LoadImageAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<BikeImageLoadResult>(
+                new BikeImageLoadResult.Loaded(imageBytes, "bike.png")));
+
+        await editor.OpenImageCommand.ExecuteAsync(null);
+
+        Assert.Equal(imageBytes, editor.ImageCanvas.ImageBytes);
+        Assert.NotNull(editor.ImageCanvas.Image);
+        Assert.Equal(1, editor.ImageCanvas.Image.Size.Width);
+        Assert.Equal(1, editor.ImageCanvas.Image.Size.Height);
+        Assert.Equal(12.5, editor.ImageCanvas.ImageRotationDegrees);
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public async Task OpenImage_DropsPendingResult_WhenEditorIsUnloaded()
+    {
+        var editor = CreateEditor(TestSnapshots.Bike());
+        var pendingImage = new TaskCompletionSource<BikeImageLoadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        bikeCoordinator.LoadImageAsync(Arg.Any<CancellationToken>())
+            .Returns(pendingImage.Task);
+
+        var openImageTask = editor.OpenImageCommand.ExecuteAsync(null);
+        editor.UnloadedCommand.Execute(null);
+        pendingImage.SetResult(new BikeImageLoadResult.Loaded(TestImages.SmallPngBytes(), "bike.png"));
+        await openImageTask;
+
+        Assert.Null(editor.ImageCanvas.Image);
+        Assert.Empty(editor.ImageCanvas.ImageBytes);
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public async Task OpenImage_PreservesCurrentImage_AndSurfacesFailure_WhenBytesAreInvalid()
+    {
+        var snapshot = FullSuspensionSnapshot(imageRotationDegrees: 12.5);
+        var editor = CreateEditor(snapshot);
+        var currentImage = editor.ImageCanvas.Image;
+        var currentImageBytes = editor.ImageCanvas.ImageBytes.ToArray();
+        bikeCoordinator.LoadImageAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<BikeImageLoadResult>(
+                new BikeImageLoadResult.Loaded([], "invalid.png")));
+
+        await editor.OpenImageCommand.ExecuteAsync(null);
+
+        Assert.Same(currentImage, editor.ImageCanvas.Image);
+        Assert.Equal(currentImageBytes, editor.ImageCanvas.ImageBytes);
+        Assert.Equal(12.5, editor.ImageCanvas.ImageRotationDegrees);
+        Assert.NotEmpty(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
     public async Task Import_AppliesImportedBike_AndResetsBaselineToDraft()
     {
         var snapshot = TestSnapshots.Bike(updated: 5, name: "old bike");

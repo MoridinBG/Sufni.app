@@ -86,8 +86,9 @@ public partial class BikeImageCanvasViewModel : ObservableObject
         ImageRotationDegrees = imageRotationDegrees;
     }
 
-    public void ApplyLoadedImage(byte[] imageBytes, Bitmap image)
+    public void ApplyLoadedImage(byte[] imageBytes)
     {
+        var image = BikeImageData.Decode(imageBytes) ?? throw new InvalidOperationException("Bike image could not be decoded.");
         this.imageBytes = imageBytes;
         Image = image;
     }

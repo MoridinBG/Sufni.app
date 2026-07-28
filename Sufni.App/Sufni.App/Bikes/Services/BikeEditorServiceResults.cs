@@ -1,4 +1,3 @@
-using Avalonia.Media.Imaging;
 using Sufni.App.Bikes.Models;
 using Sufni.Kinematics;
 
@@ -21,7 +20,7 @@ public abstract record BikeImageLoadResult
 {
     private BikeImageLoadResult() { }
 
-    public sealed record Loaded(byte[] ImageBytes, Bitmap Bitmap) : BikeImageLoadResult;
+    public sealed record Loaded(byte[] ImageBytes, string FileName) : BikeImageLoadResult;
     public sealed record Canceled : BikeImageLoadResult;
     public sealed record Failed(string ErrorMessage) : BikeImageLoadResult;
 }

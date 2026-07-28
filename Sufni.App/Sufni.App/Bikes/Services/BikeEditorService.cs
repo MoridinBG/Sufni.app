@@ -5,14 +5,12 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia.Media.Imaging;
 using Sufni.Kinematics;
 using Serilog;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Infrastructure;
-using Sufni.App.Bikes.ViewModels.Editors.BikeEditorParts;
 namespace Sufni.App.Bikes.Services;
 
 internal sealed class BikeEditorService(
@@ -128,15 +126,13 @@ internal sealed class BikeEditorService(
                 await using var stream = await file.OpenReadAsync();
                 using var buffer = new MemoryStream();
                 await stream.CopyToAsync(buffer, cancellationToken);
-                var imageBytes = buffer.ToArray();
-                var bitmap = BikeImageData.Decode(imageBytes) ?? throw new InvalidOperationException("Bike image could not be decoded.");
-                return new BikeImageLoadResult.Loaded(imageBytes, bitmap);
+                return new BikeImageLoadResult.Loaded(buffer.ToArray(), file.Name);
             }, cancellationToken);
 
             logger.Verbose(
-                "Bike image loaded with width {PixelWidth} and height {PixelHeight}",
-                loadedImage.Bitmap.PixelSize.Width,
-                loadedImage.Bitmap.PixelSize.Height);
+                "Bike image {FileName} loaded with {ByteCount} bytes",
+                loadedImage.FileName,
+                loadedImage.ImageBytes.Length);
 
             return loadedImage;
         }

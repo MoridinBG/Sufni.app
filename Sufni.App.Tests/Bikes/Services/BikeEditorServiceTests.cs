@@ -1,6 +1,5 @@
 using System.IO;
 using System.Text;
-using Avalonia.Headless.XUnit;
 using Avalonia.Platform.Storage;
 using NSubstitute;
 using Sufni.Kinematics;
@@ -12,7 +11,6 @@ using Sufni.App.Bikes.Models;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Bikes.Services;
 
-[Collection("Ui")]
 public class BikeEditorServiceTests
 {
     private readonly IFilesService filesService = Substitute.For<IFilesService>();
@@ -21,12 +19,13 @@ public class BikeEditorServiceTests
     private BikeEditorService CreateService(IKinematicSolutionCache? kinematicSolutionCache = null) =>
         new(filesService, backgroundTaskRunner, kinematicSolutionCache ?? new KinematicSolutionCache());
 
-    [AvaloniaFact]
-    public async Task LoadImageAsync_DecodesBitmapFromStreamWithoutUsingPath()
+    [Fact]
+    public async Task LoadImageAsync_LoadsBytesAndFileNameWithoutUsingPath()
     {
         var imageBytes = TestImages.SmallPngBytes();
 
         var file = Substitute.For<IStorageFile>();
+        file.Name.Returns("bike.png");
         file.Path.Returns(_ => throw new InvalidOperationException("Path should not be used for image loading."));
         file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(imageBytes)));
         filesService.OpenBikeImageFileAsync().Returns(file);
@@ -35,8 +34,7 @@ public class BikeEditorServiceTests
 
         var loaded = Assert.IsType<BikeImageLoadResult.Loaded>(result);
         Assert.Equal(imageBytes, loaded.ImageBytes);
-        Assert.Equal(1, loaded.Bitmap.Size.Width);
-        Assert.Equal(1, loaded.Bitmap.Size.Height);
+        Assert.Equal("bike.png", loaded.FileName);
     }
 
     [Fact]

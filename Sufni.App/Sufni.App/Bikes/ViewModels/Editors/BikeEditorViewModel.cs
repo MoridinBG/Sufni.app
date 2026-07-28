@@ -1023,7 +1023,14 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
             switch (result)
             {
                 case BikeImageLoadResult.Loaded loaded:
-                    ImageCanvas.ApplyLoadedImage(loaded.ImageBytes, loaded.Bitmap);
+                    try
+                    {
+                        ImageCanvas.ApplyLoadedImage(loaded.ImageBytes);
+                    }
+                    catch (Exception e)
+                    {
+                        ErrorMessages.Add($"Bike image could not be loaded: {e.Message}");
+                    }
                     break;
                 case BikeImageLoadResult.Failed failed:
                     ErrorMessages.Add($"Bike image could not be loaded: {failed.ErrorMessage}");
