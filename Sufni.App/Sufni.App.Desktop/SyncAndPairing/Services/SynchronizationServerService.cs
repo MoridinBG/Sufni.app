@@ -553,6 +553,49 @@ public class SynchronizationServerService : ISynchronizationServerService
         string message) =>
         new(phase, message, CurrentStep: 0, TotalSteps: 0, IsDeterminate: false);
 
+    internal static async Task<IResult> ApplySynchronizationPushAsync(
+        SynchronizationData data,
+        ISyncDataStore syncDataStore,
+        IAppPreferences appPreferences,
+        IExtensionSyncService? extensionSyncService,
+        Action<SynchronizationData> synchronizationDataArrived)
+    {
+        var extensionPlan = extensionSyncService is null
+            ? null
+            : await extensionSyncService.PrepareBatchesAsync(data.ExtensionBatches);
+
+        await syncDataStore.MergeAllAsync(data);
+        await appPreferences.ApplySyncDataAsync(data.AppPreferences);
+
+        if (extensionSyncService is not null && extensionPlan is not null)
+        {
+            try
+            {
+                await extensionSyncService.ApplyPreparedBatchesAsync(
+                    extensionPlan,
+                    SynchronizationPhase.ReceivingChanges,
+                    currentStep: 0,
+                    totalSteps: 0);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                logger.Error(exception, "Extension synchronization failed after pushed core data was persisted");
+                synchronizationDataArrived(data);
+                return Results.Problem(
+                    statusCode: StatusCodes.Status500InternalServerError,
+                    title: "Synchronization partially applied",
+                    detail: "Core synchronization data was applied, but extension synchronization failed.");
+            }
+        }
+
+        synchronizationDataArrived(data);
+        return Results.NoContent();
+    }
+
     internal static async Task<IResult> ApplySessionDataPatchAsync(
         Guid id,
         SessionBlobPayload payload,
@@ -832,19 +875,14 @@ public class SynchronizationServerService : ISynchronizationServerService
                             data.ExtensionBatches.Count,
                             data.AppPreferences is not null);
 
-                        await syncDataStore.MergeAllAsync(data);
-                        await appPreferences.ApplySyncDataAsync(data.AppPreferences);
-                        if (extensionSyncService is not null)
-                        {
-                            await extensionSyncService.ApplyBatchesAsync(
-                                data.ExtensionBatches,
-                                SynchronizationPhase.ReceivingChanges,
-                                currentStep: 0,
-                                totalSteps: 0);
-                        }
-
-                        SynchronizationDataArrived?.Invoke(this, new SynchronizationDataArrivedEventArgs(data));
-                        return Results.NoContent();
+                        return await ApplySynchronizationPushAsync(
+                            data,
+                            syncDataStore,
+                            appPreferences,
+                            extensionSyncService,
+                            arrived => SynchronizationDataArrived?.Invoke(
+                                this,
+                                new SynchronizationDataArrivedEventArgs(arrived)));
                     });
             });
 
