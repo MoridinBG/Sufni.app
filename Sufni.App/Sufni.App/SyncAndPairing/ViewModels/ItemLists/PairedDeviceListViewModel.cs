@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Reactive.Disposables;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using DynamicData;
+using DynamicData.Binding;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Shared.Base;
@@ -22,6 +24,7 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
 
     private readonly IPairedDeviceStore pairedDeviceStore;
     private readonly IPairedDeviceCoordinator pairedDeviceCoordinator;
+    private readonly ObservableCollectionExtended<PairedDeviceRowViewModel> pairedDeviceRowsSource = [];
     private readonly ReadOnlyObservableCollection<PairedDeviceRowViewModel> pairedDeviceRows;
     private readonly BehaviorSubject<Func<PairedDeviceSnapshot, bool>> filterSubject = new(_ => true);
     private readonly HashSet<string> pendingDeleteIds = [];
@@ -45,19 +48,31 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
     {
         this.pairedDeviceStore = pairedDeviceStore;
         this.pairedDeviceCoordinator = pairedDeviceCoordinator;
-
-        pairedDeviceStore.Connect()
-            .Filter(filterSubject)
-            .TransformWithInlineUpdate(
-                snapshot => new PairedDeviceRowViewModel(snapshot, RequestRowDelete),
-                (row, snapshot) => row.Update(snapshot))
-            .Bind(out pairedDeviceRows)
-            .Subscribe();
+        pairedDeviceRows = new ReadOnlyObservableCollection<PairedDeviceRowViewModel>(pairedDeviceRowsSource);
     }
 
     #endregion Constructors
 
     #region ItemListViewModelBase overrides
+
+    protected override void AttachSubscriptions(CompositeDisposable subscriptions)
+    {
+        pairedDeviceRowsSource.Clear();
+        RebuildFilter();
+
+        subscriptions.Add(pairedDeviceStore.Connect()
+            .Filter(filterSubject)
+            .TransformWithInlineUpdate(
+                snapshot => new PairedDeviceRowViewModel(snapshot, RequestRowDelete),
+                (row, snapshot) => row.Update(snapshot))
+            .Bind(pairedDeviceRowsSource)
+            .Subscribe());
+    }
+
+    protected override void OnSubscriptionsDetached()
+    {
+        pairedDeviceRowsSource.Clear();
+    }
 
     protected override void RebuildFilter()
     {

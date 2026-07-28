@@ -16,6 +16,7 @@ public class LiveDaqListViewModelTests
         var store = new LiveDaqStore();
         var coordinator = TestCoordinatorSubstitutes.LiveDaq();
         var viewModel = new LiveDaqListViewModel(store, coordinator, UiThreadDispatcher);
+        viewModel.LoadedCommand.Execute(null);
 
         store.Upsert(new LiveDaqSnapshot(
             IdentityKey: "board-alpha",
@@ -49,6 +50,46 @@ public class LiveDaqListViewModelTests
 
         viewModel.SearchText = null;
         Assert.Equal(2, viewModel.Items.Count);
+    }
+
+    [Fact]
+    public void Items_UpdateOnlyWhileLoaded_AndReloadCurrentStoreState()
+    {
+        var store = new LiveDaqStore();
+        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
+        store.Upsert(new LiveDaqSnapshot(
+            IdentityKey: "board-1",
+            DisplayName: "Board 1",
+            BoardId: "board-1",
+            Host: "192.168.0.10",
+            Port: 1557,
+            IsOnline: true,
+            SetupName: "Setup",
+            BikeName: "Bike"));
+        var viewModel = new LiveDaqListViewModel(store, coordinator, UiThreadDispatcher);
+
+        Assert.Empty(viewModel.Items);
+
+        viewModel.LoadedCommand.Execute(null);
+        Assert.Single(viewModel.Items);
+        coordinator.DidNotReceive().Activate();
+
+        viewModel.UnloadedCommand.Execute(null);
+        store.Upsert(new LiveDaqSnapshot(
+            IdentityKey: "board-2",
+            DisplayName: "Board 2",
+            BoardId: "board-2",
+            Host: null,
+            Port: null,
+            IsOnline: false,
+            SetupName: "Setup",
+            BikeName: "Bike"));
+        Assert.Empty(viewModel.Items);
+
+        viewModel.LoadedCommand.Execute(null);
+        viewModel.LoadedCommand.Execute(null);
+        Assert.Equal(2, viewModel.Items.Count);
+        coordinator.DidNotReceive().Activate();
     }
 
     [Fact]

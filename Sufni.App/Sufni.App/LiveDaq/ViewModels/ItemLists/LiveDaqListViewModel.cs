@@ -1,5 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Reactive.Disposables;
 using System.Reactive.Subjects;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -19,6 +21,7 @@ public partial class LiveDaqListViewModel : ItemListViewModelBase
 {
     private readonly ILiveDaqStore liveDaqStore;
     private readonly ILiveDaqCoordinator liveDaqCoordinator;
+    private readonly ObservableCollectionExtended<LiveDaqRowViewModel> liveDaqRowsSource = [];
     private readonly ReadOnlyObservableCollection<LiveDaqRowViewModel> liveDaqRows;
     private readonly BehaviorSubject<Func<LiveDaqSnapshot, bool>> filterSubject = new(_ => true);
 
@@ -34,23 +37,33 @@ public partial class LiveDaqListViewModel : ItemListViewModelBase
     {
         this.liveDaqStore = liveDaqStore;
         this.liveDaqCoordinator = liveDaqCoordinator;
+        liveDaqRows = new ReadOnlyObservableCollection<LiveDaqRowViewModel>(liveDaqRowsSource);
+    }
 
-        liveDaqStore.Connect()
+    protected override void AttachSubscriptions(CompositeDisposable subscriptions)
+    {
+        liveDaqRowsSource.Clear();
+        RebuildFilter();
+
+        subscriptions.Add(liveDaqStore.Connect()
             .Filter(filterSubject)
             .TransformWithInlineUpdate(
                 snapshot => new LiveDaqRowViewModel(snapshot),
                 (row, snapshot) => row.Update(snapshot))
             .SortAndBind(
-                out liveDaqRows,
+                liveDaqRowsSource,
                 SortExpressionComparer<LiveDaqRowViewModel>
                     .Descending(r => r.IsOnline)
                     .ThenByAscending(r => r.DisplayName))
-            .Subscribe();
+            .Subscribe());
 
-        PropertyChanged += (_, args) =>
-        {
-            if (args.PropertyName == nameof(SearchText)) RebuildFilter();
-        };
+        PropertyChanged += OnListPropertyChanged;
+        subscriptions.Add(Disposable.Create(() => PropertyChanged -= OnListPropertyChanged));
+    }
+
+    protected override void OnSubscriptionsDetached()
+    {
+        liveDaqRowsSource.Clear();
     }
 
     protected override void RebuildFilter()
@@ -64,6 +77,11 @@ public partial class LiveDaqListViewModel : ItemListViewModelBase
             (snapshot.Endpoint?.Contains(current, StringComparison.CurrentCultureIgnoreCase) ?? false) ||
             (snapshot.SetupName?.Contains(current, StringComparison.CurrentCultureIgnoreCase) ?? false) ||
             (snapshot.BikeName?.Contains(current, StringComparison.CurrentCultureIgnoreCase) ?? false));
+    }
+
+    private void OnListPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(SearchText)) RebuildFilter();
     }
 
     public void Activate()

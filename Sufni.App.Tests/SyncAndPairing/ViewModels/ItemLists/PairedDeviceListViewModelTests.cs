@@ -33,6 +33,7 @@ public class PairedDeviceListViewModelTests
 
         var coordinator = new PairedDeviceCoordinator(storeWriter);
         var viewModel = new PairedDeviceListViewModel(pairedDeviceStore, coordinator, UiThreadDispatcher);
+        viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 
         viewModel.Items[0].UndoableDeleteCommand.Execute(null);
@@ -53,6 +54,39 @@ public class PairedDeviceListViewModelTests
             pairedDeviceCache.RemoveKey(snapshot.DeviceId);
             return new StoreDeleteResult<PairedDeviceSnapshot>.Deleted(snapshot);
         }
+    }
+
+    [Fact]
+    public void Items_UpdateOnlyWhileLoaded_AndReloadCurrentStoreState()
+    {
+        using var pairedDeviceCache = new SourceCache<PairedDeviceSnapshot, string>(snapshot => snapshot.DeviceId);
+        var pairedDeviceStore = Substitute.For<IPairedDeviceStore>();
+        pairedDeviceStore.Connect().Returns(pairedDeviceCache.Connect());
+        pairedDeviceCache.AddOrUpdate(new PairedDeviceSnapshot(
+            DeviceId: "device-1",
+            DisplayName: "Phone",
+            Expires: new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc)));
+
+        var viewModel = new PairedDeviceListViewModel(
+            pairedDeviceStore,
+            Substitute.For<IPairedDeviceCoordinator>(),
+            UiThreadDispatcher);
+
+        Assert.Empty(viewModel.Items);
+
+        viewModel.LoadedCommand.Execute(null);
+        Assert.Single(viewModel.Items);
+
+        viewModel.UnloadedCommand.Execute(null);
+        pairedDeviceCache.AddOrUpdate(new PairedDeviceSnapshot(
+            DeviceId: "device-2",
+            DisplayName: "Tablet",
+            Expires: new DateTime(2025, 1, 2, 12, 0, 0, DateTimeKind.Utc)));
+        Assert.Empty(viewModel.Items);
+
+        viewModel.LoadedCommand.Execute(null);
+        viewModel.LoadedCommand.Execute(null);
+        Assert.Equal(2, viewModel.Items.Count);
     }
 
     [Fact]
@@ -77,6 +111,7 @@ public class PairedDeviceListViewModelTests
 
         var coordinator = new PairedDeviceCoordinator(storeWriter);
         var viewModel = new PairedDeviceListViewModel(pairedDeviceStore, coordinator, UiThreadDispatcher);
+        viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 
         viewModel.Items[0].UndoableDeleteCommand.Execute(null);
