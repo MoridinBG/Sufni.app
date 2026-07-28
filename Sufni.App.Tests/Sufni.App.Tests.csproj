@@ -5,10 +5,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-    <!-- xUnit1051 wants every CancellationToken-accepting call to pass TestContext.Current.CancellationToken.
-         These unit tests already bound async waits with explicit timeouts, so the token would add boilerplate
-         without practical benefit; suppress the rule for this test project. -->
-    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -30,6 +26,7 @@
   <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="Sufni.App.Tests.ExtensionHost" />
+    <Using Include="Sufni.App.Tests.TestSupport.Async" />
     <Using Include="Sufni.App.ExtensionHost.TestSupport.Async" />
     <Using Include="Sufni.App.ExtensionHost.TestSupport.Doubles" />
     <Using Include="Sufni.App.ExtensionHost.TestSupport.Fixtures" />

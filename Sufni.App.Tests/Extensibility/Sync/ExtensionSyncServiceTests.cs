@@ -18,7 +18,7 @@ public class ExtensionSyncServiceTests
 
         var batches = await service.CreateBatchesAsync(
             sinceExclusive: 5,
-            upperInclusive: 10);
+            upperInclusive: 10, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal([firstEnvelope, thirdEnvelope], batches);
         Assert.Equal((5, 10), first.CreateWindow);
@@ -36,7 +36,7 @@ public class ExtensionSyncServiceTests
             [CreateEnvelope("unknown")],
             SynchronizationPhase.PullingRemoteChanges,
             currentStep: 2,
-            totalSteps: 6);
+            totalSteps: 6, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Empty(participant.AppliedEnvelopes);
     }
@@ -53,7 +53,7 @@ public class ExtensionSyncServiceTests
                 [CreateEnvelope("first"), CreateEnvelope("second")],
                 SynchronizationPhase.PullingRemoteChanges,
                 currentStep: 2,
-                totalSteps: 6));
+                totalSteps: 6, cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Equal("invalid second batch", exception.Message);
         Assert.Single(first.PreparedEnvelopes);
@@ -76,7 +76,7 @@ public class ExtensionSyncServiceTests
             [envelope],
             SynchronizationPhase.PullingRemoteChanges,
             currentStep: 2,
-            totalSteps: 6);
+            totalSteps: 6, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal([envelope], participant.AppliedEnvelopes);
         var snapshot = Assert.Single(progress);
@@ -100,7 +100,7 @@ public class ExtensionSyncServiceTests
                 [CreateEnvelope("known")],
                 SynchronizationPhase.PullingRemoteChanges,
                 currentStep: 2,
-                totalSteps: 6));
+                totalSteps: 6, cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Equal("extension failed", exception.Message);
     }

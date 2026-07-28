@@ -29,7 +29,7 @@ public class SessionPersistenceTransactionRunnerTests
         var refresh = new RecordingRefreshParticipant();
         var context = CreateConnectionContext(tempDatabase.DatabasePath, [migrator]);
         var cascade = new ExtensionCascadeService(context, [migrator], [provider], [refresh]);
-        var connection = await context.GetInitializedConnectionAsync();
+        var connection = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
         var sourceRepository = new RecordedSessionSourceRepository(context);
         var runner = new SessionPersistenceTransactionRunner(context, cascade);
         await connection.InsertAsync(track);
@@ -41,7 +41,7 @@ public class SessionPersistenceTransactionRunnerTests
         await sourceRepository.PutRecordedSessionSourceAsync(source);
         await connection.InsertAsync(new SessionDeleteTrackCascadeRow { Id = "extension", TrackId = track.Id });
 
-        await runner.DeleteSessionAsync(sessionId, track.Id, deleteFullTrack: true, deleteSource: true);
+        await runner.DeleteSessionAsync(sessionId, track.Id, deleteFullTrack: true, deleteSource: true, cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await connection.GetAsync<Session>(sessionId);
         var persistedTrack = await connection.GetAsync<Track>(track.Id);
@@ -65,7 +65,7 @@ public class SessionPersistenceTransactionRunnerTests
         var track = PersistenceTestData.CreateFullTrack();
         var source = PersistenceTestData.CreateRecordedSessionSource(sessionId);
         var context = CreateConnectionContext(tempDatabase.DatabasePath);
-        var connection = await context.GetInitializedConnectionAsync();
+        var connection = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
         var sourceRepository = new RecordedSessionSourceRepository(context);
         var cascade = new ThrowingTrackCascadeService();
         var runner = new SessionPersistenceTransactionRunner(context, cascade);
@@ -78,7 +78,7 @@ public class SessionPersistenceTransactionRunnerTests
         await sourceRepository.PutRecordedSessionSourceAsync(source);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            runner.DeleteSessionAsync(sessionId, track.Id, deleteFullTrack: true, deleteSource: true));
+            runner.DeleteSessionAsync(sessionId, track.Id, deleteFullTrack: true, deleteSource: true, cancellationToken: TestContext.Current.CancellationToken));
 
         var session = await connection.GetAsync<Session>(sessionId);
         var persistedTrack = await connection.GetAsync<Track>(track.Id);

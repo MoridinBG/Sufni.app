@@ -47,7 +47,7 @@ public class TrackCoordinatorTests
         trackRepository.FindTrackByTimeRangeAsync(Arg.Any<long>(), Arg.Any<long>())
             .Returns(Task.FromResult<Guid?>(null));
 
-        var result = await CreateCoordinator().ImportGpxAsync();
+        var result = await CreateCoordinator().ImportGpxAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(1, result.ImportedCount);
         Assert.Equal(0, result.AlreadyImportedCount);
@@ -63,7 +63,7 @@ public class TrackCoordinatorTests
         trackRepository.FindTrackByTimeRangeAsync(Arg.Any<long>(), Arg.Any<long>())
             .Returns(Task.FromResult<Guid?>(Guid.NewGuid()));
 
-        var result = await CreateCoordinator().ImportGpxAsync();
+        var result = await CreateCoordinator().ImportGpxAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(0, result.ImportedCount);
         Assert.Equal(1, result.AlreadyImportedCount);
@@ -77,7 +77,7 @@ public class TrackCoordinatorTests
         file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(System.Text.Encoding.UTF8.GetBytes("not gpx"))));
         filesService.OpenGpxFilesAsync().Returns([file]);
 
-        await Assert.ThrowsAsync<System.Xml.XmlException>(() => CreateCoordinator().ImportGpxAsync());
+        await Assert.ThrowsAsync<System.Xml.XmlException>(() => CreateCoordinator().ImportGpxAsync(cancellationToken: TestContext.Current.CancellationToken));
         await trackEntityRepository.DidNotReceive().PutAsync(Arg.Any<Track>());
     }
 
@@ -88,7 +88,7 @@ public class TrackCoordinatorTests
         file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(EmptyTrackGpx()))));
         filesService.OpenGpxFilesAsync().Returns([file]);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateCoordinator().ImportGpxAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateCoordinator().ImportGpxAsync(cancellationToken: TestContext.Current.CancellationToken));
         await trackEntityRepository.DidNotReceive().PutAsync(Arg.Any<Track>());
     }
 
@@ -129,7 +129,7 @@ public class TrackCoordinatorTests
         sessionTrackReader.GetSessionTrackAsync(sessionId, 99, Arg.Any<CancellationToken>())
             .Returns(existingTrack);
 
-        var result = await CreateCoordinator().LoadSessionTrackAsync(sessionId, fullTrackId, telemetry);
+        var result = await CreateCoordinator().LoadSessionTrackAsync(sessionId, fullTrackId, telemetry, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(fullTrackId, result.FullTrackId);
         Assert.Same(fullTrack.Points, result.FullTrackPoints);
@@ -154,7 +154,7 @@ public class TrackCoordinatorTests
         // Load is read-only: with no full_track_id the coordinator neither
         // associates a track nor persists anything. Track association is owned by
         // the processed-write path, not the load path.
-        var result = await CreateCoordinator().LoadSessionTrackAsync(sessionId, null, telemetry);
+        var result = await CreateCoordinator().LoadSessionTrackAsync(sessionId, null, telemetry, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Null(result.FullTrackId);
         Assert.Null(result.TrackPoints);
@@ -212,7 +212,7 @@ public class TrackCoordinatorTests
             sessionId,
             fullTrackId,
             telemetry,
-            offsetSeconds);
+            offsetSeconds, cancellationToken: TestContext.Current.CancellationToken);
 
         // The GPS-offset write is one-way: it persists the regenerated session
         // window + offset and publishes the store so the editor refreshes through

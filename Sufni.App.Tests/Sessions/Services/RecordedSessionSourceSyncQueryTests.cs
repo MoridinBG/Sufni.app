@@ -19,11 +19,11 @@ public class RecordedSessionSourceSyncQueryTests
             .Returns([derivedSessionId, ordinaryMissingSessionId]);
         repository.GetSourceBackedSessionIdsAsync().Returns([existingSourceId]);
         repository.GetPersistedDerivationSourceSessionIdsAsync().Returns([]);
-        provider.GetWindowsAsync().Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>
+        provider.GetWindowsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>
         {
             [derivedSessionId] = new(sourceSessionId, 1, null)
         });
-        provider.GetReferencedSourceSessionIdsAsync().Returns([sourceSessionId, existingSourceId]);
+        provider.GetReferencedSourceSessionIdsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns([sourceSessionId, existingSourceId]);
         var query = new RecordedSessionSourceSyncQuery(repository, provider);
 
         var targetIds = await query.GetSourceSyncTargetIdsAsync();
@@ -44,11 +44,11 @@ public class RecordedSessionSourceSyncQueryTests
         repository.GetSessionIdsMissingRecordedSourceAsync()
             .Returns([derivedSessionId]);
         repository.GetSourceBackedSessionIdsAsync().Returns([sourceSessionId]);
-        provider.GetWindowsAsync().Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>
+        provider.GetWindowsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>
         {
             [derivedSessionId] = new(sourceSessionId, 1, null)
         });
-        provider.GetReferencedSourceSessionIdsAsync().Returns([sourceSessionId]);
+        provider.GetReferencedSourceSessionIdsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns([sourceSessionId]);
         var query = new RecordedSessionSourceSyncQuery(repository, provider);
 
         var targetIds = await query.GetSourceSyncTargetIdsAsync();
@@ -68,11 +68,11 @@ public class RecordedSessionSourceSyncQueryTests
             .Returns([selfWindowSessionId, absentWindowSessionId]);
         repository.GetSourceBackedSessionIdsAsync().Returns([]);
         repository.GetPersistedDerivationSourceSessionIdsAsync().Returns([]);
-        provider.GetWindowsAsync().Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>
+        provider.GetWindowsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>
         {
             [selfWindowSessionId] = new(selfWindowSessionId, 2, null)
         });
-        provider.GetReferencedSourceSessionIdsAsync().Returns([]);
+        provider.GetReferencedSourceSessionIdsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns([]);
         var query = new RecordedSessionSourceSyncQuery(repository, provider);
 
         var targetIds = await query.GetSourceSyncTargetIdsAsync();
@@ -91,8 +91,8 @@ public class RecordedSessionSourceSyncQueryTests
         repository.GetSessionIdsMissingRecordedSourceAsync().Returns([derivedSessionId]);
         repository.GetSourceBackedSessionIdsAsync().Returns([]);
         repository.GetPersistedDerivationSourceSessionIdsAsync().Returns([sourceSessionId]);
-        provider.GetWindowsAsync().Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>());
-        provider.GetReferencedSourceSessionIdsAsync().Returns([]);
+        provider.GetWindowsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>());
+        provider.GetReferencedSourceSessionIdsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns([]);
         var query = new RecordedSessionSourceSyncQuery(repository, provider);
 
         var targetIds = await query.GetSourceSyncTargetIdsAsync();
@@ -109,8 +109,8 @@ public class RecordedSessionSourceSyncQueryTests
         repository.GetSessionIdsMissingRecordedSourceAsync().Returns([]);
         repository.GetSourceBackedSessionIdsAsync().Returns([]);
         repository.GetPersistedDerivationSourceSessionIdsAsync().Returns([]);
-        provider.GetWindowsAsync().Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>());
-        provider.GetReferencedSourceSessionIdsAsync().Returns([sourceSessionId]);
+        provider.GetWindowsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>());
+        provider.GetReferencedSourceSessionIdsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns([sourceSessionId]);
         var query = new RecordedSessionSourceSyncQuery(repository, provider);
 
         var targetIds = await query.GetSourceSyncTargetIdsAsync();

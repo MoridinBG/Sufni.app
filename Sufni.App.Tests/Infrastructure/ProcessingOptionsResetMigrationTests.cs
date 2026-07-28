@@ -178,7 +178,7 @@ public class ProcessingOptionsResetMigrationTests
     {
         using var tempDatabase = new TempDatabase("processing-option-reset-applied.db");
         var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath, []);
-        var connection = await context.GetInitializedConnectionAsync();
+        var connection = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
         await new CoreMigrationStore(connection).MarkAppliedAsync(MigrationId);
 
         await CreateMigration(context).RunAsync();

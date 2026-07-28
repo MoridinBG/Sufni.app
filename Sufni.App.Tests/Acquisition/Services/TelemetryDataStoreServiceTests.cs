@@ -40,7 +40,7 @@ public class TelemetryDataStoreServiceTests
             backgroundTaskRunner: backgroundTaskRunner,
             appEnvironment: CreateEnvironment(supportsMassStorageImport: false));
 
-        var detected = await service.DetectConnectedBoardIdAsync();
+        var detected = await service.DetectConnectedBoardIdAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Null(detected);
         Assert.Equal(0, backgroundTaskRunner.InvocationCount);
@@ -55,7 +55,7 @@ public class TelemetryDataStoreServiceTests
         var dataStore = CreateDataStore("DAQ");
         dataStore.GetFiles().Returns(Task.FromResult(new List<ITelemetryFile> { file }));
 
-        var files = await service.LoadFilesAsync(dataStore);
+        var files = await service.LoadFilesAsync(dataStore, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Same(file, Assert.Single(files));
         Assert.Equal(1, backgroundTaskRunner.InvocationCount);
@@ -69,7 +69,7 @@ public class TelemetryDataStoreServiceTests
         var expectedBoardId = UuidUtil.CreateDeviceUuid("abcdef1234567890");
         var folder = CreateStorageProviderFolder("/tmp/sufni-daq", "ABCDEF1234567890");
 
-        var result = await service.TryAddStorageProviderAsync(folder);
+        var result = await service.TryAddStorageProviderAsync(folder, cancellationToken: TestContext.Current.CancellationToken);
 
         var added = Assert.IsType<StorageProviderRegistrationResult.Added>(result);
         Assert.Same(added.DataStore, Assert.Single(service.DataStores));
@@ -90,7 +90,7 @@ public class TelemetryDataStoreServiceTests
         duplicateFolder.Name.Returns("DAQ duplicate");
         duplicateFolder.Path.Returns(new Uri("file:///tmp/sufni-daq"));
 
-        var result = await service.TryAddStorageProviderAsync(duplicateFolder);
+        var result = await service.TryAddStorageProviderAsync(duplicateFolder, cancellationToken: TestContext.Current.CancellationToken);
 
         var alreadyOpen = Assert.IsType<StorageProviderRegistrationResult.AlreadyOpen>(result);
         Assert.Same(existingStore, alreadyOpen.DataStore);
@@ -104,7 +104,7 @@ public class TelemetryDataStoreServiceTests
         var serviceDiscovery = Substitute.For<IServiceDiscovery>();
         var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
         var boardId = Guid.NewGuid();
-        boardIdInspector.InspectAsync(IPAddress.Loopback, 5555).Returns(Task.FromResult<Guid?>(boardId));
+        boardIdInspector.InspectAsync(IPAddress.Loopback, 5555, cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult<Guid?>(boardId));
         var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
         service.StartBrowse();
 
@@ -122,7 +122,7 @@ public class TelemetryDataStoreServiceTests
         var serviceDiscovery = Substitute.For<IServiceDiscovery>();
         var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
         var boardId = Guid.NewGuid();
-        boardIdInspector.InspectAsync(IPAddress.Loopback, 5555).Returns(Task.FromResult<Guid?>(boardId));
+        boardIdInspector.InspectAsync(IPAddress.Loopback, 5555, cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult<Guid?>(boardId));
         var service = CreateService(
             serviceDiscovery: serviceDiscovery,
             boardIdInspector: boardIdInspector,
@@ -156,7 +156,10 @@ public class TelemetryDataStoreServiceTests
     {
         var serviceDiscovery = Substitute.For<IServiceDiscovery>();
         var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
-        boardIdInspector.InspectAsync(Arg.Any<IPAddress>(), Arg.Any<int>())
+        boardIdInspector.InspectAsync(
+                Arg.Any<IPAddress>(),
+                Arg.Any<int>(),
+                cancellationToken: Arg.Any<CancellationToken>())
             .Returns<Task<Guid?>>(_ => throw new IOException("unreachable"));
         var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
         var errors = new List<string>();
@@ -218,7 +221,10 @@ public class TelemetryDataStoreServiceTests
             new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, liveProto)));
 
         Assert.Empty(service.DataStores);
-        boardIdInspector.DidNotReceive().InspectAsync(Arg.Any<IPAddress>(), Arg.Any<int>());
+        boardIdInspector.DidNotReceive().InspectAsync(
+            Arg.Any<IPAddress>(),
+            Arg.Any<int>(),
+            cancellationToken: Arg.Any<CancellationToken>());
     }
 
     private static TelemetryDataStoreService CreateService(

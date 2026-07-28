@@ -118,7 +118,7 @@ public class BikeCoordinatorTests
         bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(new BikeEditorAnalysisResult.Unavailable());
 
-        var result = await CreateCoordinator().ImportBikeAsync();
+        var result = await CreateCoordinator().ImportBikeAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var imported = Assert.IsType<BikeImportResult.Imported>(result);
         Assert.Equal("imported", imported.Data.Bike.Name);
@@ -151,7 +151,7 @@ public class BikeCoordinatorTests
         bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(new BikeEditorAnalysisResult.Unavailable());
 
-        var result = await CreateCoordinator().ImportBikeAsync();
+        var result = await CreateCoordinator().ImportBikeAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var imported = Assert.IsType<BikeImportResult.Imported>(result);
         Assert.IsType<BikeEditorAnalysisResult.Unavailable>(imported.Data.AnalysisResult);
@@ -453,7 +453,9 @@ public class BikeCoordinatorTests
         var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);
 
         Assert.IsType<BikeSaveResult.InvalidRearSuspension>(result);
-        await bikeEditorService.DidNotReceiveWithAnyArgs().LoadAnalysisAsync(default!, default);
+        await bikeEditorService.DidNotReceiveWithAnyArgs().LoadAnalysisAsync(
+            default!,
+            Arg.Any<CancellationToken>());
         await bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>(), Arg.Any<CancellationToken>());
         shell.DidNotReceive().GoBack();
     }

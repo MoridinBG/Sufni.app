@@ -30,7 +30,7 @@ public class BikeEditorServiceTests
         file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(imageBytes)));
         filesService.OpenBikeImageFileAsync().Returns(file);
 
-        var result = await CreateService().LoadImageAsync();
+        var result = await CreateService().LoadImageAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var loaded = Assert.IsType<BikeImageLoadResult.Loaded>(result);
         Assert.Equal(imageBytes, loaded.ImageBytes);
@@ -56,7 +56,7 @@ public class BikeEditorServiceTests
         file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes(bikeJson))));
         filesService.OpenBikeFileAsync().Returns(file);
 
-        var result = await CreateService().ImportBikeAsync();
+        var result = await CreateService().ImportBikeAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var imported = Assert.IsType<BikeFileImportResult.Imported>(result);
         Assert.Equal("imported bike", imported.Bike.Name);
@@ -78,7 +78,7 @@ public class BikeEditorServiceTests
         file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes("not json"))));
         filesService.OpenBikeFileAsync().Returns(file);
 
-        var result = await CreateService().ImportBikeAsync();
+        var result = await CreateService().ImportBikeAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var invalid = Assert.IsType<BikeFileImportResult.InvalidFile>(result);
         Assert.False(string.IsNullOrWhiteSpace(invalid.ErrorMessage));
@@ -101,7 +101,7 @@ public class BikeEditorServiceTests
             ImageRotationDegrees = 13.5,
         };
 
-        var result = await CreateService().ExportBikeAsync(bike);
+        var result = await CreateService().ExportBikeAsync(bike, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.IsType<BikeExportResult.Exported>(result);
         var json = Encoding.UTF8.GetString(output.ToArray());
@@ -127,7 +127,7 @@ public class BikeEditorServiceTests
     {
         var kinematicSolutionCache = new CountingKinematicSolutionCache();
 
-        var result = await CreateService(kinematicSolutionCache).LoadAnalysisAsync(rearSuspension);
+        var result = await CreateService(kinematicSolutionCache).LoadAnalysisAsync(rearSuspension, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.IsType<BikeEditorAnalysisResult.Unavailable>(result);
         Assert.Equal(0, kinematicSolutionCache.GetOrSolveCount);
@@ -138,7 +138,7 @@ public class BikeEditorServiceTests
     {
         var kinematicSolutionCache = new CountingKinematicSolutionCache();
 
-        var result = await CreateService(kinematicSolutionCache).LoadAnalysisAsync(new RearSuspensionSpec.Linkage(CreateSimpleLinkageSpec()));
+        var result = await CreateService(kinematicSolutionCache).LoadAnalysisAsync(new RearSuspensionSpec.Linkage(CreateSimpleLinkageSpec()), cancellationToken: TestContext.Current.CancellationToken);
 
         var computed = Assert.IsType<BikeEditorAnalysisResult.Computed>(result);
         Assert.NotEmpty(computed.Data.LeverageRatioData.X);
@@ -159,7 +159,7 @@ public class BikeEditorServiceTests
             new LinkSpec("shock-eye-a", "shock-eye-b"),
             0.5);
 
-        var result = await CreateService().LoadAnalysisAsync(new RearSuspensionSpec.Linkage(linkage));
+        var result = await CreateService().LoadAnalysisAsync(new RearSuspensionSpec.Linkage(linkage), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.IsType<BikeEditorAnalysisResult.Unavailable>(result);
     }
@@ -172,7 +172,7 @@ public class BikeEditorServiceTests
             (10, 25),
             (20, 45));
 
-        var result = await CreateService().LoadAnalysisAsync(new RearSuspensionSpec.LeverageRatio(leverageRatio));
+        var result = await CreateService().LoadAnalysisAsync(new RearSuspensionSpec.LeverageRatio(leverageRatio), cancellationToken: TestContext.Current.CancellationToken);
 
         var computed = Assert.IsType<BikeEditorAnalysisResult.Computed>(result);
         Assert.Collection(

@@ -24,7 +24,7 @@ public class ExtensionCascadeServiceTests
         var refresh = new RecordingRefreshParticipant();
 
         var context = CreateConnectionContext(databasePath, [migrator]);
-        var connection = await context.GetInitializedConnectionAsync();
+        var connection = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
         await connection.InsertAsync(new SoftCascadeRow
         {
             Id = "soft",
@@ -39,8 +39,8 @@ public class ExtensionCascadeServiceTests
                 transaction,
                 ExtensionCoreEntityKind.Session,
                 sessionId);
-        });
-        await service.RefreshExtensionStateAsync();
+        }, cancellationToken: TestContext.Current.CancellationToken);
+        await service.RefreshExtensionStateAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(applied);
         var row = await connection.GetAsync<SoftCascadeRow>("soft");
@@ -64,7 +64,7 @@ public class ExtensionCascadeServiceTests
             ExtensionCascadeAction.HardDelete));
 
         var context = CreateConnectionContext(databasePath, [migrator]);
-        var connection = await context.GetInitializedConnectionAsync();
+        var connection = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
         await connection.InsertAsync(new HardCascadeRow
         {
             Id = "hard",
@@ -79,7 +79,7 @@ public class ExtensionCascadeServiceTests
                 transaction,
                 ExtensionCoreEntityKind.Track,
                 trackId);
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(applied);
         Assert.Empty(await connection.Table<HardCascadeRow>().ToListAsync());
@@ -121,7 +121,7 @@ public class ExtensionCascadeServiceTests
                 refreshProviderWasResolved = true;
                 return [new RecordingRefreshParticipant()];
             });
-        var connection = await context.GetInitializedConnectionAsync();
+        var connection = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var row = Assert.Single(await connection.Table<SoftCascadeRow>().ToListAsync());
         Assert.NotNull(row.Deleted);
@@ -143,7 +143,7 @@ public class ExtensionCascadeServiceTests
             ExtensionCascadeAction.SoftDelete));
 
         var context = CreateConnectionContext(databasePath, [migrator]);
-        _ = await context.GetInitializedConnectionAsync();
+        _ = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
             new ExtensionCascadeService(context, [migrator], [provider], []));
@@ -169,7 +169,7 @@ public class ExtensionCascadeServiceTests
             ExtensionCascadeAction.SoftDelete));
 
         var context = CreateConnectionContext(databasePath, [migrator]);
-        _ = await context.GetInitializedConnectionAsync();
+        _ = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
             new ExtensionCascadeService(context, [migrator], [provider], []));

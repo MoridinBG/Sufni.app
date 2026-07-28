@@ -192,7 +192,7 @@ public class NetworkTelemetryDataStoreTests
         {
             case NetworkTelemetryFileOperation.ReadSource:
             {
-                using var source = await file.ReadSourceAsync();
+                using var source = await file.ReadSourceAsync(cancellationToken: TestContext.Current.CancellationToken);
                 Assert.Equal("DEVICE.SST", source.FileName);
                 Assert.Equal(sourceBytes, source.SstBytes.ToArray());
                 Assert.Equal(sourceBytes.Length, source.LogicalLength);
@@ -245,7 +245,7 @@ public class NetworkTelemetryDataStoreTests
 
         var exception = await Assert.ThrowsAsync<DaqManagementException>(() => operation switch
         {
-            NetworkTelemetryFileOperation.ReadSource => file.ReadSourceAsync(),
+            NetworkTelemetryFileOperation.ReadSource => file.ReadSourceAsync(cancellationToken: TestContext.Current.CancellationToken),
             NetworkTelemetryFileOperation.MarkImported => file.OnImported(),
             NetworkTelemetryFileOperation.Trash => file.OnTrashed(),
             _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, null)

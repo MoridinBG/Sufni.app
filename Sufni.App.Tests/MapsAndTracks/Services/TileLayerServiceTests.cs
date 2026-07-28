@@ -118,7 +118,7 @@ public class TileLayerServiceTests
             },
         });
 
-        var observed = await nextSelection.WaitAsync(TimeSpan.FromSeconds(5));
+        var observed = await nextSelection.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(syncedLayer.Id, observed.Id);
         Assert.NotSame(initial, service.SelectedLayer);

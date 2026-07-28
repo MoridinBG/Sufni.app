@@ -73,7 +73,7 @@ public class LiveDaqSharedStreamTests
 
         catalogEntries.OnNext([CreateCatalogEntry(snapshot with { ProtocolVersion = LiveProtocolVersion.V3 })]);
 
-        await closed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await closed.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         Assert.True(stream.CurrentState.IsClosed);
         Assert.Equal("DAQ protocol changed. Reopen the live tab.", stream.CurrentState.LastError);
 
@@ -90,7 +90,7 @@ public class LiveDaqSharedStreamTests
 
         var stream = registry.GetOrCreate(snapshot);
         await using var lease = stream.AcquireLease();
-        await stream.EnsureStartedAsync();
+        await stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var firstClient = clientFactory.CreatedClients.Single();
         Assert.Equal(LiveProtocolVersion.V2, clientFactory.CreatedForSnapshots.Single().ProtocolVersion);
@@ -138,13 +138,13 @@ public class LiveDaqSharedStreamTests
             ex => framesCompleted.TrySetException(ex),
             () => framesCompleted.TrySetResult());
         var lease = stream.AcquireLease();
-        await stream.EnsureStartedAsync();
+        await stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var client = clientFactory.CreatedClients.Single();
 
         await stream.DisposeAsync();
-        await statesCompleted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await framesCompleted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await statesCompleted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        await framesCompleted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         await stream.DisposeAsync();
 
         Assert.Equal(1, client.DisposeCalls);
@@ -162,7 +162,7 @@ public class LiveDaqSharedStreamTests
 
         var stream = registry.GetOrCreate(snapshot);
         await using var lease = stream.AcquireLease();
-        await stream.EnsureStartedAsync();
+        await stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var subscription = stream.States.Subscribe(state =>
@@ -174,7 +174,7 @@ public class LiveDaqSharedStreamTests
         });
 
         catalogEntries.OnNext([]);
-        await closed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await closed.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         Assert.True(stream.CurrentState.IsClosed);
         var replacement = registry.GetOrCreate(snapshot);
@@ -190,18 +190,18 @@ public class LiveDaqSharedStreamTests
 
         var stream = registry.GetOrCreate(snapshot);
         await using var lease = stream.AcquireLease();
-        await stream.EnsureStartedAsync();
+        await stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         clientFactory.ConfigureBeforeReturn = client => client.FailNextStartPreview = true;
 
-        await stream.ApplyConfigurationAsync(LiveDaqStreamConfiguration.FromRequestedRates(100, 0, 5));
+        await stream.ApplyConfigurationAsync(LiveDaqStreamConfiguration.FromRequestedRates(100, 0, 5), cancellationToken: TestContext.Current.CancellationToken);
 
         await Task.Yield();
 
         Assert.False(stream.CurrentState.IsClosed);
         Assert.Equal(LiveConnectionState.Disconnected, stream.CurrentState.ConnectionState);
 
-        await stream.EnsureStartedAsync();
+        await stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
         await Task.Yield();
 
         Assert.False(stream.CurrentState.IsClosed);
@@ -223,8 +223,8 @@ public class LiveDaqSharedStreamTests
 
         var firstWait = stream.EnsureStartedAsync(canceledWaiter.Token);
         var client = clientFactory.CreatedClients.Single();
-        await client.StartEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        var secondWait = stream.EnsureStartedAsync();
+        await client.StartEntered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        var secondWait = stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         canceledWaiter.Cancel();
         Assert.Null(await firstWait);
@@ -261,9 +261,9 @@ public class LiveDaqSharedStreamTests
 
         var stream = registry.GetOrCreate(snapshot);
         await using var lease = stream.AcquireLease();
-        var initialStart = stream.EnsureStartedAsync();
+        var initialStart = stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
         var firstClient = clientFactory.CreatedClients.Single();
-        await firstClient.StartEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await firstClient.StartEntered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         var latestConfiguration = new LiveDaqStreamConfiguration(
             RequestedStreamMask: LiveStreamMask.Temperature | LiveStreamMask.Marker,
@@ -272,11 +272,11 @@ public class LiveDaqSharedStreamTests
             ImuRateMhz: 0,
             GpsRateMhz: 0,
             TemperatureRateMhz: 5_000);
-        var reconfigure = stream.ApplyConfigurationAsync(latestConfiguration);
+        var reconfigure = stream.ApplyConfigurationAsync(latestConfiguration, cancellationToken: TestContext.Current.CancellationToken);
 
         pendingStart.SetResult(CreateStartedResult(902, LiveStreamMask.Travel));
-        await initialStart.WaitAsync(TimeSpan.FromSeconds(2));
-        await reconfigure.WaitAsync(TimeSpan.FromSeconds(2));
+        await initialStart.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        await reconfigure.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         Assert.Equal(2, clientFactory.CreatedClients.Count);
         var replacement = clientFactory.CreatedClients[1];
@@ -297,18 +297,18 @@ public class LiveDaqSharedStreamTests
 
         var stream = registry.GetOrCreate(snapshot);
         await using var lease = stream.AcquireLease();
-        var start = stream.EnsureStartedAsync();
+        var start = stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
         var client = clientFactory.CreatedClients.Single();
-        await client.ConnectEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.ConnectEntered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         var nextConfiguration = LiveDaqStreamConfiguration.FromRequestedRates(100, 20, 5);
-        var reconfigure = stream.ApplyConfigurationAsync(nextConfiguration);
+        var reconfigure = stream.ApplyConfigurationAsync(nextConfiguration, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(nextConfiguration, stream.RequestedConfiguration);
         await using var concurrentLease = stream.AcquireLease();
 
         connectRelease.SetResult();
-        await start.WaitAsync(TimeSpan.FromSeconds(2));
-        await reconfigure.WaitAsync(TimeSpan.FromSeconds(2));
+        await start.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        await reconfigure.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -328,19 +328,19 @@ public class LiveDaqSharedStreamTests
 
         var stream = registry.GetOrCreate(snapshot);
         await using var lease = stream.AcquireLease();
-        var start = stream.EnsureStartedAsync();
+        var start = stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
         var oldClient = clientFactory.CreatedClients.Single();
-        await oldClient.StartEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await oldClient.StartEntered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
-        var stop = stream.StopAsync();
+        var stop = stream.StopAsync(cancellationToken: TestContext.Current.CancellationToken);
         pendingStart.SetResult(CreateStartedResult(903, LiveStreamMask.Temperature | LiveStreamMask.Marker));
-        await start.WaitAsync(TimeSpan.FromSeconds(2));
-        await stop.WaitAsync(TimeSpan.FromSeconds(2));
+        await start.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        await stop.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         Assert.Equal(LiveConnectionState.Disconnected, stream.CurrentState.ConnectionState);
         Assert.Equal(LiveStreamMask.None, stream.CurrentState.SelectedStreamMask);
 
-        var restarted = await stream.EnsureStartedAsync();
+        var restarted = await stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.IsType<LivePreviewStartResult.Started>(restarted);
         Assert.Equal(LiveConnectionState.Connected, stream.CurrentState.ConnectionState);
     }
@@ -356,10 +356,10 @@ public class LiveDaqSharedStreamTests
 
         var stream = Assert.IsType<LiveDaqSharedStream>(registry.GetOrCreate(snapshot));
         await using var lease = stream.AcquireLease();
-        var start = stream.EnsureStartedAsync();
-        await clientFactory.CreatedClients.Single().StartEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var start = stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await clientFactory.CreatedClients.Single().StartEntered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
-        await stream.CloseAsync("terminal");
+        await stream.CloseAsync("terminal", cancellationToken: TestContext.Current.CancellationToken);
         pendingStart.SetResult(CreateStartedResult(904, LiveStreamMask.Temperature | LiveStreamMask.Marker));
         Assert.Null(await start);
 
@@ -379,8 +379,8 @@ public class LiveDaqSharedStreamTests
 
         var stream = registry.GetOrCreate(snapshot);
         var lease = stream.AcquireLease();
-        var start = stream.EnsureStartedAsync();
-        await clientFactory.CreatedClients.Single().StartEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var start = stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await clientFactory.CreatedClients.Single().StartEntered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         await stream.DisposeAsync();
         pendingStart.SetResult(CreateStartedResult(905, LiveStreamMask.Temperature | LiveStreamMask.Marker));
@@ -403,7 +403,7 @@ public class LiveDaqSharedStreamTests
 
         var stream = registry.GetOrCreate(snapshot);
         await using var lease = stream.AcquireLease();
-        await stream.EnsureStartedAsync();
+        await stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
         var oldClient = clientFactory.CreatedClients.Single();
         var observedFrames = new List<LiveProtocolFrame>();
         using var subscription = stream.Frames.Subscribe(observedFrames.Add);
@@ -415,7 +415,7 @@ public class LiveDaqSharedStreamTests
             ImuRateMhz: 0,
             GpsRateMhz: 0,
             TemperatureRateMhz: 5_000);
-        await stream.ApplyConfigurationAsync(configuration);
+        await stream.ApplyConfigurationAsync(configuration, cancellationToken: TestContext.Current.CancellationToken);
 
         oldClient.PublishFrame(CreateTravelBatchFrame(77));
         oldClient.PublishFault("stale fault");
@@ -436,23 +436,23 @@ public class LiveDaqSharedStreamTests
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var stream = registry.GetOrCreate(snapshot);
         await using var lease = stream.AcquireLease();
-        await stream.EnsureStartedAsync();
+        await stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
         var client = clientFactory.CreatedClients.Single();
         var stopRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var disconnectRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         client.PendingStopCompletion = stopRelease;
         client.PendingDisconnectCompletion = disconnectRelease;
 
-        var stop = stream.StopAsync();
-        await client.StopEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var stop = stream.StopAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await client.StopEntered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         await using var leaseWhileStopping = stream.AcquireLease();
 
         stopRelease.SetResult();
-        await client.DisconnectEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectEntered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         await using var leaseWhileDisconnecting = stream.AcquireLease();
 
         disconnectRelease.SetResult();
-        await stop.WaitAsync(TimeSpan.FromSeconds(2));
+        await stop.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         Assert.Equal(LiveConnectionState.Disconnected, stream.CurrentState.ConnectionState);
     }
 
@@ -464,24 +464,24 @@ public class LiveDaqSharedStreamTests
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var stream = registry.GetOrCreate(snapshot);
         await using var lease = stream.AcquireLease();
-        await stream.EnsureStartedAsync();
+        await stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
         var oldClient = clientFactory.CreatedClients.Single();
         var stopRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var disconnectRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         oldClient.PendingStopCompletion = stopRelease;
         oldClient.PendingDisconnectCompletion = disconnectRelease;
 
-        var stop = stream.StopAsync();
-        await oldClient.StopEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        var restart = stream.EnsureStartedAsync();
+        var stop = stream.StopAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await oldClient.StopEntered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        var restart = stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.False(restart.IsCompleted);
 
         stopRelease.SetResult();
-        await oldClient.DisconnectEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await oldClient.DisconnectEntered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         disconnectRelease.SetResult();
 
-        var restarted = await restart.WaitAsync(TimeSpan.FromSeconds(2));
-        await stop.WaitAsync(TimeSpan.FromSeconds(2));
+        var restarted = await restart.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        await stop.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         Assert.IsType<LivePreviewStartResult.Started>(restarted);
         Assert.Equal(2, clientFactory.CreatedClients.Count);
@@ -497,10 +497,10 @@ public class LiveDaqSharedStreamTests
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var stream = registry.GetOrCreate(snapshot);
         await using var lease = stream.AcquireLease();
-        await stream.EnsureStartedAsync();
+        await stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
         var client = clientFactory.CreatedClients.Single();
 
-        await stream.StopAsync();
+        await stream.StopAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(["stop", "disconnect"], client.StopLifecycleCalls);
         Assert.Equal(LiveConnectionState.Disconnected, stream.CurrentState.ConnectionState);
@@ -524,7 +524,7 @@ public class LiveDaqSharedStreamTests
         await using var lease = stream.AcquireLease();
         if (operation is not CanceledOperation.Connect)
         {
-            await stream.EnsureStartedAsync();
+            await stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(LiveConnectionState.Connected, stream.CurrentState.ConnectionState);
             clientFactory.CreatedClients.Single().ThrowCanceledOnDisconnect = true;
         }
@@ -532,13 +532,13 @@ public class LiveDaqSharedStreamTests
         switch (operation)
         {
             case CanceledOperation.Connect:
-                Assert.Null(await stream.EnsureStartedAsync());
+                Assert.Null(await stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken));
                 break;
             case CanceledOperation.Stop:
-                await stream.StopAsync();
+                await stream.StopAsync(cancellationToken: TestContext.Current.CancellationToken);
                 break;
             case CanceledOperation.ApplyConfiguration:
-                await stream.ApplyConfigurationAsync(LiveDaqStreamConfiguration.FromRequestedRates(100, 0, 5));
+                await stream.ApplyConfigurationAsync(LiveDaqStreamConfiguration.FromRequestedRates(100, 0, 5), cancellationToken: TestContext.Current.CancellationToken);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(operation), operation, null);
@@ -561,9 +561,9 @@ public class LiveDaqSharedStreamTests
 
         var stream = registry.GetOrCreate(snapshot);
         await using var lease = stream.AcquireLease();
-        await stream.ApplyConfigurationAsync(LiveDaqStreamConfiguration.FromRequestedRates(100, 0, 0));
+        await stream.ApplyConfigurationAsync(LiveDaqStreamConfiguration.FromRequestedRates(100, 0, 0), cancellationToken: TestContext.Current.CancellationToken);
 
-        var result = await stream.EnsureStartedAsync();
+        var result = await stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var started = Assert.IsType<LivePreviewStartResult.Started>(result);
         Assert.Equal(LiveConnectionState.Connected, stream.CurrentState.ConnectionState);
@@ -587,7 +587,7 @@ public class LiveDaqSharedStreamTests
         var stream = registry.GetOrCreate(snapshot);
         await using var lease = stream.AcquireLease();
 
-        var result = await stream.EnsureStartedAsync();
+        var result = await stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var rejected = Assert.IsType<LivePreviewStartResult.Rejected>(result);
         Assert.Equal(LiveStartErrorCode.NoSensorsStarted, rejected.ErrorCode);
@@ -604,18 +604,18 @@ public class LiveDaqSharedStreamTests
 
         var first = registry.GetOrCreate(snapshot);
         var firstLease = first.AcquireLease();
-        await first.EnsureStartedAsync();
+        await first.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var firstClient = clientFactory.CreatedClients.Single();
         firstClient.BlockDisposeAsync = true;
 
         var releaseTask = firstLease.DisposeAsync().AsTask();
-        await firstClient.DisposeStarted.WaitAsync(TimeSpan.FromSeconds(2));
+        await firstClient.DisposeStarted.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         var replacement = registry.GetOrCreate(snapshot);
 
         firstClient.ReleaseDispose();
-        await releaseTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await releaseTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         Assert.NotSame(first, replacement);
 
@@ -632,18 +632,18 @@ public class LiveDaqSharedStreamTests
 
         var stream = registry.GetOrCreate(snapshot);
         var firstLease = stream.AcquireLease();
-        await stream.EnsureStartedAsync();
+        await stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var client = clientFactory.CreatedClients.Single();
         client.BlockDisposeAsync = true;
 
         var releaseTask = firstLease.DisposeAsync().AsTask();
-        await client.DisposeStarted.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisposeStarted.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         var rescuedLease = stream.AcquireLease();
 
         client.ReleaseDispose();
-        await releaseTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await releaseTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         var again = registry.GetOrCreate(snapshot);
         Assert.Same(stream, again);
@@ -660,7 +660,7 @@ public class LiveDaqSharedStreamTests
 
         var stream = registry.GetOrCreate(snapshot);
         await using var lease = stream.AcquireLease();
-        await stream.EnsureStartedAsync();
+        await stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var client = clientFactory.CreatedClients.Single();
         var firstFrameEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -693,15 +693,17 @@ public class LiveDaqSharedStreamTests
             {
                 client.PublishFrame(CreateTravelBatchFrame((ulong)index));
             }
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
-        await firstFrameEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await firstFrameEntered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         var publishCompletedWhileSubscriberBlocked =
-            await Task.WhenAny(publishTask, Task.Delay(TimeSpan.FromSeconds(2))) == publishTask;
+            await Task.WhenAny(
+                publishTask,
+                Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken)) == publishTask;
         if (!publishCompletedWhileSubscriberBlocked)
         {
             releaseFirstFrame.TrySetResult();
-            await publishTask.WaitAsync(TimeSpan.FromSeconds(2));
+            await publishTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         }
 
         Assert.True(
@@ -719,7 +721,7 @@ public class LiveDaqSharedStreamTests
             releaseFirstFrame.TrySetResult();
         }
 
-        await publishTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await publishTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         await AssertEventuallyAsync(() =>
         {

@@ -59,7 +59,7 @@ public class BikeDependencyQueryTests
 
         Assert.False(query.IsBikeInUse(bikeId));
 
-        await setupStore.RefreshAsync();
+        await setupStore.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(query.IsBikeInUse(bikeId));
         Assert.False(query.IsBikeInUse(Guid.NewGuid()));
@@ -80,7 +80,7 @@ public class BikeDependencyQueryTests
                 new(setupId, "race updated") { BikeId = bikeId, Updated = 2 },
             }));
         using var query = CreateQuery();
-        await setupStore.RefreshAsync();
+        await setupStore.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // A subscriber arriving after items exist receives the cache's
         // current state as an initial emit, then one emit per change.
@@ -88,7 +88,7 @@ public class BikeDependencyQueryTests
         using var subscription = query.Changes.Subscribe(_ => emits++);
         Assert.Equal(1, emits);
 
-        await setupStore.RefreshAsync();
+        await setupStore.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(2, emits);
     }
 }

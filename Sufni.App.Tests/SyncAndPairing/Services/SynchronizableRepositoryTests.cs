@@ -84,7 +84,7 @@ public class SynchronizableRepositoryTests
         using var tempDatabase = new TempDatabase("delete-cascade.db");
         var sessionId = Guid.NewGuid();
         var (context, cascade, refresh) = CreateCascadeHarness(tempDatabase.DatabasePath);
-        var connection = await context.GetInitializedConnectionAsync();
+        var connection = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
         if (state != RepositoryCascadeDeleteState.Missing)
         {
             await connection.InsertAsync(new Session(sessionId, "session", "desc", null)

@@ -22,29 +22,29 @@ public class ManagementClientTests
         switch (testCase)
         {
             case ManagementClientValidationCase.PingWhenDisconnected:
-                await Assert.ThrowsAsync<InvalidOperationException>(() => client.PingAsync());
+                await Assert.ThrowsAsync<InvalidOperationException>(() => client.PingAsync(cancellationToken: TestContext.Current.CancellationToken));
                 break;
             case ManagementClientValidationCase.NullDownloadDestination:
                 await Assert.ThrowsAsync<ArgumentNullException>(() =>
-                    client.GetFileAsync(DaqFileClass.RootSst, recordId: 1, destination: null!));
+                    client.GetFileAsync(DaqFileClass.RootSst, recordId: 1, destination: null!, cancellationToken: TestContext.Current.CancellationToken));
                 break;
             case ManagementClientValidationCase.ReadOnlyDownloadDestination:
                 using (var destination = new MemoryStream(new byte[1], writable: false))
                 {
                     await Assert.ThrowsAsync<ArgumentException>(() =>
-                        client.GetFileAsync(DaqFileClass.RootSst, recordId: 1, destination));
+                        client.GetFileAsync(DaqFileClass.RootSst, recordId: 1, destination, cancellationToken: TestContext.Current.CancellationToken));
                 }
                 break;
             case ManagementClientValidationCase.ConfigDownloadRecordId:
                 using (var destination = new MemoryStream())
                 {
                     await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-                        client.GetFileAsync(DaqFileClass.Config, recordId: 1, destination));
+                        client.GetFileAsync(DaqFileClass.Config, recordId: 1, destination, cancellationToken: TestContext.Current.CancellationToken));
                 }
                 break;
             case ManagementClientValidationCase.NullConfigBytes:
                 await Assert.ThrowsAsync<ArgumentNullException>(() =>
-                    client.ReplaceConfigAsync(configBytes: null!));
+                    client.ReplaceConfigAsync(configBytes: null!, cancellationToken: TestContext.Current.CancellationToken));
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(testCase), testCase, null);
@@ -62,10 +62,10 @@ public class ManagementClientTests
             ioTimeout: TimeSpan.FromSeconds(1),
             commitTimeout: TimeSpan.FromSeconds(1));
 
-        await client.ConnectAsync(server.Host, server.Port);
+        await client.ConnectAsync(server.Host, server.Port, cancellationToken: TestContext.Current.CancellationToken);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            client.ConnectAsync(server.Host, server.Port));
+            client.ConnectAsync(server.Host, server.Port, cancellationToken: TestContext.Current.CancellationToken));
 
         releaseServer.SetResult();
         await serverTask;
@@ -82,9 +82,9 @@ public class ManagementClientTests
             await ManagementTestServer.WriteFrameAsync(stream, pong[..6]);
         });
         using var client = CreateConnectedClient();
-        await client.ConnectAsync(server.Host, server.Port);
+        await client.ConnectAsync(server.Host, server.Port, cancellationToken: TestContext.Current.CancellationToken);
 
-        await Assert.ThrowsAsync<DaqManagementException>(() => client.PingAsync());
+        await Assert.ThrowsAsync<DaqManagementException>(() => client.PingAsync(cancellationToken: TestContext.Current.CancellationToken));
 
         await serverTask;
     }
@@ -99,9 +99,9 @@ public class ManagementClientTests
             connectTimeout: TimeSpan.FromSeconds(1),
             ioTimeout: TimeSpan.FromMilliseconds(200),
             commitTimeout: TimeSpan.FromSeconds(1));
-        await client.ConnectAsync(server.Host, server.Port);
+        await client.ConnectAsync(server.Host, server.Port, cancellationToken: TestContext.Current.CancellationToken);
 
-        await Assert.ThrowsAsync<DaqManagementException>(() => client.PingAsync());
+        await Assert.ThrowsAsync<DaqManagementException>(() => client.PingAsync(cancellationToken: TestContext.Current.CancellationToken));
 
         releaseServer.SetResult();
         await serverTask;

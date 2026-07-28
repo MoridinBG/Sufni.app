@@ -140,7 +140,9 @@ public class VelocityBandViewTests
 
         mounted.Host.MouseDown(start, MouseButton.Left, RawInputModifiers.None);
         mounted.Host.MouseMove(moved, RawInputModifiers.LeftMouseButton);
-        await Task.Delay(PointerGesture.DampingCutoffLongPressDelay + TimeSpan.FromMilliseconds(50));
+        await Task.Delay(
+            PointerGesture.DampingCutoffLongPressDelay + TimeSpan.FromMilliseconds(50),
+            TestContext.Current.CancellationToken);
         await ViewTestHelpers.FlushDispatcherAsync();
         mounted.Host.MouseUp(moved, MouseButton.Left, RawInputModifiers.None);
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -175,7 +177,9 @@ public class VelocityBandViewTests
         var dragTarget = Translate(view, mounted.Host, new Point(view.Bounds.Width / 2.0, 120));
 
         mounted.Host.MouseDown(start, MouseButton.Left, RawInputModifiers.None);
-        await Task.Delay(PointerGesture.DampingCutoffLongPressDelay + TimeSpan.FromMilliseconds(50));
+        await Task.Delay(
+            PointerGesture.DampingCutoffLongPressDelay + TimeSpan.FromMilliseconds(50),
+            TestContext.Current.CancellationToken);
         await ViewTestHelpers.FlushDispatcherAsync();
         mounted.Host.MouseMove(dragTarget, RawInputModifiers.LeftMouseButton);
         mounted.Host.MouseUp(dragTarget, MouseButton.Left, RawInputModifiers.None);

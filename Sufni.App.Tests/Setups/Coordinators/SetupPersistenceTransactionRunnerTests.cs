@@ -17,7 +17,7 @@ public class SetupPersistenceTransactionRunnerTests
     {
         using var tempDatabase = new TempDatabase("setup-save-transaction.db");
         var context = CreateConnectionContext(tempDatabase.DatabasePath);
-        var connection = await context.GetInitializedConnectionAsync();
+        var connection = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
         var runner = new SetupPersistenceTransactionRunner(context);
         var setupId = Guid.NewGuid();
         var oldBoardId = Guid.NewGuid();
@@ -28,7 +28,7 @@ public class SetupPersistenceTransactionRunnerTests
         await runner.SaveSetupAsync(
             new Setup(setupId, "trail setup") { BikeId = bikeId },
             oldBoardId,
-            newBoardId);
+            newBoardId, cancellationToken: TestContext.Current.CancellationToken);
 
         var setup = await connection.GetAsync<Setup>(setupId);
         var oldBoard = await connection.GetAsync<Board>(oldBoardId);
@@ -45,13 +45,13 @@ public class SetupPersistenceTransactionRunnerTests
     {
         using var tempDatabase = new TempDatabase("setup-import-transaction.db");
         var context = CreateConnectionContext(tempDatabase.DatabasePath);
-        var connection = await context.GetInitializedConnectionAsync();
+        var connection = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
         var runner = new SetupPersistenceTransactionRunner(context);
         var bike = new Bike(Guid.NewGuid(), "bike");
         var setup = new Setup(Guid.NewGuid(), "imported setup") { BikeId = bike.Id };
         var boardId = Guid.NewGuid();
 
-        await runner.ImportSetupAsync(bike, setup, boardId);
+        await runner.ImportSetupAsync(bike, setup, boardId, cancellationToken: TestContext.Current.CancellationToken);
 
         var persistedBike = await connection.GetAsync<Bike>(bike.Id);
         var persistedSetup = await connection.GetAsync<Setup>(setup.Id);
@@ -78,13 +78,13 @@ public class SetupPersistenceTransactionRunnerTests
         var refresh = new RecordingRefreshParticipant();
         var context = CreateConnectionContext(tempDatabase.DatabasePath, [migrator]);
         var cascade = new ExtensionCascadeService(context, [migrator], [provider], [refresh]);
-        var connection = await context.GetInitializedConnectionAsync();
+        var connection = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
         var runner = new SetupPersistenceTransactionRunner(context, cascade);
         await connection.InsertAsync(new Setup(setupId, "setup") { BikeId = Guid.NewGuid(), Updated = 10 });
         await connection.InsertAsync(new Board(boardId, setupId) { Updated = 10 });
         await connection.InsertAsync(new SetupTransactionCascadeRow { Id = "extension", SetupId = setupId });
 
-        await runner.DeleteSetupAsync(setupId, boardId);
+        await runner.DeleteSetupAsync(setupId, boardId, cancellationToken: TestContext.Current.CancellationToken);
 
         var setup = await connection.GetAsync<Setup>(setupId);
         var board = await connection.GetAsync<Board>(boardId);
@@ -101,7 +101,7 @@ public class SetupPersistenceTransactionRunnerTests
     {
         using var tempDatabase = new TempDatabase("setup-delete-rollback.db");
         var context = CreateConnectionContext(tempDatabase.DatabasePath);
-        var connection = await context.GetInitializedConnectionAsync();
+        var connection = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
         var cascade = new ThrowingCascadeService();
         var runner = new SetupPersistenceTransactionRunner(context, cascade);
         var setupId = Guid.NewGuid();
@@ -109,7 +109,7 @@ public class SetupPersistenceTransactionRunnerTests
         await connection.InsertAsync(new Setup(setupId, "setup") { BikeId = Guid.NewGuid(), Updated = 10 });
         await connection.InsertAsync(new Board(boardId, setupId) { Updated = 10 });
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => runner.DeleteSetupAsync(setupId, boardId));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => runner.DeleteSetupAsync(setupId, boardId, cancellationToken: TestContext.Current.CancellationToken));
 
         var setup = await connection.GetAsync<Setup>(setupId);
         var board = await connection.GetAsync<Board>(boardId);

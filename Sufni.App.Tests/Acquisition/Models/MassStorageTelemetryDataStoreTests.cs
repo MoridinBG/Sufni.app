@@ -18,9 +18,9 @@ public class MassStorageTelemetryDataStoreTests
         File.WriteAllText(Path.Combine(tempDirectory.Path, "notes.txt"), "ignored");
         var driveInfo = new DriveInfo(tempDirectory.Path);
 
-        var dataStore = await MassStorageTelemetryDataStore.CreateAsync(driveInfo);
+        var dataStore = await MassStorageTelemetryDataStore.CreateAsync(driveInfo, cancellationToken: TestContext.Current.CancellationToken);
         var files = await dataStore.GetFiles();
-        using var source = await files[0].ReadSourceAsync();
+        using var source = await files[0].ReadSourceAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(UuidUtil.CreateDeviceUuid("abcdef1234567890"), dataStore.BoardId);
         Assert.True(Directory.Exists(Path.Combine(tempDirectory.Path, "uploaded")));

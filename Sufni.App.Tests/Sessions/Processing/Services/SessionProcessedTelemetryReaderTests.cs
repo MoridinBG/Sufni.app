@@ -25,7 +25,7 @@ public class SessionProcessedTelemetryReaderTests
             PsstMetadata(sessionId, fingerprintJson: null));
         sessionRepository.GetSessionRawPsstAsync(sessionId, Arg.Any<long>()).Returns(raw);
 
-        var telemetry = await reader.GetAsync(sessionId);
+        var telemetry = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(telemetry);
         Assert.Equal("legacy-source-less.sst", telemetry.Metadata.SourceName);
@@ -46,8 +46,8 @@ public class SessionProcessedTelemetryReaderTests
         sessionRepository.GetSessionRawPsstAsync(sessionId, Arg.Any<long>()).Returns(raw);
         using var retention = reader.Retain(sessionId);
 
-        var first = await reader.GetAsync(sessionId);
-        var second = await reader.GetAsync(sessionId);
+        var first = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
+        var second = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(first);
         Assert.Same(first, second);
@@ -67,8 +67,8 @@ public class SessionProcessedTelemetryReaderTests
         sessionRepository.GetSessionRawPsstAsync(sessionId, 5).Returns(raw);
         using var retention = reader.Retain(sessionId);
 
-        var first = await reader.GetExactAsync(sessionId, processedTelemetryRevision: 5);
-        var second = await reader.GetExactAsync(sessionId, processedTelemetryRevision: 5);
+        var first = await reader.GetExactAsync(sessionId, processedTelemetryRevision: 5, cancellationToken: TestContext.Current.CancellationToken);
+        var second = await reader.GetExactAsync(sessionId, processedTelemetryRevision: 5, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(first);
         Assert.Same(first, second);
@@ -89,7 +89,7 @@ public class SessionProcessedTelemetryReaderTests
             PsstMetadata(sessionId, processedTelemetryRevision: 6));
         sessionRepository.GetSessionRawPsstAsync(sessionId, 6).Returns(Blob(duration: 66));
 
-        var result = await reader.GetExactAsync(sessionId, processedTelemetryRevision: 5);
+        var result = await reader.GetExactAsync(sessionId, processedTelemetryRevision: 5, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Null(result);
         await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId, 5);
@@ -133,8 +133,8 @@ public class SessionProcessedTelemetryReaderTests
         sessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId).Returns(PsstMetadata(sessionId));
         sessionRepository.GetSessionRawPsstAsync(sessionId, Arg.Any<long>()).Returns(raw);
 
-        var first = await reader.GetAsync(sessionId);
-        var second = await reader.GetAsync(sessionId);
+        var first = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
+        var second = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(first);
         Assert.NotNull(second);
@@ -159,8 +159,8 @@ public class SessionProcessedTelemetryReaderTests
         sessionRepository.GetSessionRawPsstAsync(sessionId, Arg.Any<long>()).Returns(firstRaw, secondRaw);
         using var retention = reader.Retain(sessionId);
 
-        var first = await reader.GetAsync(sessionId);
-        var second = await reader.GetAsync(sessionId);
+        var first = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
+        var second = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(first);
         Assert.NotNull(second);
@@ -187,8 +187,8 @@ public class SessionProcessedTelemetryReaderTests
         sessionRepository.GetSessionRawPsstAsync(sessionId, Arg.Any<long>()).Returns(firstRaw, secondRaw);
         using var retention = reader.Retain(sessionId);
 
-        var first = await reader.GetAsync(sessionId);
-        var second = await reader.GetAsync(sessionId);
+        var first = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
+        var second = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(first);
         Assert.NotNull(second);
@@ -214,7 +214,7 @@ public class SessionProcessedTelemetryReaderTests
         sessionRepository.GetSessionRawPsstAsync(sessionId, 1).Returns((byte[]?)null);
         sessionRepository.GetSessionRawPsstAsync(sessionId, 2).Returns(raw);
 
-        var telemetry = await reader.GetAsync(sessionId);
+        var telemetry = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(telemetry);
         Assert.Equal(66, telemetry!.Metadata.Duration);
@@ -233,11 +233,11 @@ public class SessionProcessedTelemetryReaderTests
         sessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId).Returns(PsstMetadata(sessionId));
         sessionRepository.GetSessionRawPsstAsync(sessionId, Arg.Any<long>()).Returns(raw);
         var firstRetention = reader.Retain(sessionId);
-        var first = await reader.GetAsync(sessionId);
+        var first = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
 
         firstRetention.Dispose();
         using var secondRetention = reader.Retain(sessionId);
-        var second = await reader.GetAsync(sessionId);
+        var second = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(first);
         Assert.NotNull(second);
@@ -262,13 +262,13 @@ public class SessionProcessedTelemetryReaderTests
 
         try
         {
-            var first = await reader.GetAsync(sessionId);
+            var first = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
             firstRetention.Dispose();
-            var second = await reader.GetAsync(sessionId);
+            var second = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
 
             secondRetention.Dispose();
             using var thirdRetention = reader.Retain(sessionId);
-            var third = await reader.GetAsync(sessionId);
+            var third = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
 
             Assert.NotNull(first);
             Assert.Same(first, second);
@@ -300,9 +300,9 @@ public class SessionProcessedTelemetryReaderTests
         sessionRepository.GetSessionRawPsstAsync(sessionId, Arg.Any<long>()).Returns(raw);
         using var retention = reader.Retain(sessionId);
 
-        var first = await reader.GetAsync(sessionId);
-        var missing = await reader.GetAsync(sessionId);
-        var second = await reader.GetAsync(sessionId);
+        var first = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
+        var missing = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
+        var second = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(first);
         Assert.Null(missing);
@@ -325,8 +325,8 @@ public class SessionProcessedTelemetryReaderTests
         sessionRepository.GetSessionRawPsstAsync(sessionId, Arg.Any<long>()).Returns(raw);
         using var retention = reader.Retain(sessionId);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => reader.GetAsync(sessionId));
-        var second = await reader.GetAsync(sessionId);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken));
+        var second = await reader.GetAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(second);
         Assert.Equal(2, telemetryProcessor.ReadProcessedTelemetryDataCallCount);

@@ -389,6 +389,6 @@ public class LiveDaqKnownBoardsQueryTests
             tcs.TrySetResult(records);
         });
 
-        return await tcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        return await tcs.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 }

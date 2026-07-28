@@ -24,7 +24,7 @@ public class RecordedSessionExtensionManagerTests
         var manager = CreateManager([first, second]);
         var state = CreateState();
 
-        await manager.InitializeAsync(state);
+        await manager.InitializeAsync(state, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(first.Scope);
         Assert.NotNull(second.Scope);
@@ -41,7 +41,7 @@ public class RecordedSessionExtensionManagerTests
         var factory = new TestRecordedSessionExtensionFactory("test");
         var manager = CreateManager([factory]);
         var initial = CreateState(isLoaded: true);
-        await manager.InitializeAsync(initial);
+        await manager.InitializeAsync(initial, cancellationToken: TestContext.Current.CancellationToken);
         var observed = new List<RecordedSessionHostState>();
         using var subscription = factory.Context!.StateChanged.Skip(1).Subscribe(observed.Add);
         var updated = initial with
@@ -70,7 +70,7 @@ public class RecordedSessionExtensionManagerTests
             addError: message => calls.Add($"error:{message}"),
             addNotification: message => calls.Add($"notification:{message}"),
             requestPageSelection: id => calls.Add($"page:{id}"));
-        await manager.InitializeAsync(CreateState());
+        await manager.InitializeAsync(CreateState(), cancellationToken: TestContext.Current.CancellationToken);
         var context = factory.Context;
 
         context!.SetAnalysisRange(1, 2);
@@ -103,7 +103,7 @@ public class RecordedSessionExtensionManagerTests
             operationCoordinator: new RecordedSessionOperationCoordinator(
                 (message, percent) => reports.Add((message, percent)),
                 () => completed++));
-        await manager.InitializeAsync(CreateState());
+        await manager.InitializeAsync(CreateState(), cancellationToken: TestContext.Current.CancellationToken);
 
         var first = factory.Context!.StartOperation("first");
         var second = factory.Context.StartOperation("second");
@@ -124,7 +124,7 @@ public class RecordedSessionExtensionManagerTests
     {
         var factory = new TestRecordedSessionExtensionFactory("test");
         var manager = CreateManager([factory]);
-        await manager.InitializeAsync(CreateState(isLoaded: true));
+        await manager.InitializeAsync(CreateState(isLoaded: true), cancellationToken: TestContext.Current.CancellationToken);
         var contribution = new RecordedSessionToolbarViewContribution(
             "test",
             "toolbar",
@@ -161,7 +161,7 @@ public class RecordedSessionExtensionManagerTests
     {
         var factory = new TestRecordedSessionExtensionFactory("owner");
         var manager = CreateManager([factory]);
-        await manager.InitializeAsync(CreateState(isLoaded: true));
+        await manager.InitializeAsync(CreateState(isLoaded: true), cancellationToken: TestContext.Current.CancellationToken);
         var contribution = new RecordedSessionHostedSignalRowContribution(
             "owner",
             "neutral-signal",
@@ -195,7 +195,7 @@ public class RecordedSessionExtensionManagerTests
                 Assert.Single(scope.Slots.HostedSignalRows);
             });
         manager = CreateManager([factory]);
-        await manager.InitializeAsync(CreateState(isLoaded: true));
+        await manager.InitializeAsync(CreateState(isLoaded: true), cancellationToken: TestContext.Current.CancellationToken);
         factory.Scope!.Slots.HostedSignalRows.Add(new RecordedSessionHostedSignalRowContribution(
             "owner",
             "neutral-signal",
@@ -231,7 +231,7 @@ public class RecordedSessionExtensionManagerTests
     {
         var factory = new TestRecordedSessionExtensionFactory("owner");
         var manager = CreateManager([factory]);
-        await manager.InitializeAsync(CreateState(isLoaded: true));
+        await manager.InitializeAsync(CreateState(isLoaded: true), cancellationToken: TestContext.Current.CancellationToken);
         var contribution = CreateAnalysisTabContribution("owner", "tab");
 
         factory.Scope!.Slots.AnalysisTabs.Add(contribution);
@@ -244,7 +244,7 @@ public class RecordedSessionExtensionManagerTests
     {
         var factory = new TestRecordedSessionExtensionFactory("owner");
         var manager = CreateManager([factory]);
-        await manager.InitializeAsync(CreateState(isLoaded: true));
+        await manager.InitializeAsync(CreateState(isLoaded: true), cancellationToken: TestContext.Current.CancellationToken);
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
             factory.Scope!.Slots.AnalysisTabs.Add(CreateAnalysisTabContribution("other", "tab")));
@@ -259,7 +259,7 @@ public class RecordedSessionExtensionManagerTests
     {
         var factory = new TestRecordedSessionExtensionFactory("owner");
         var manager = CreateManager([factory]);
-        await manager.InitializeAsync(CreateState(isLoaded: true));
+        await manager.InitializeAsync(CreateState(isLoaded: true), cancellationToken: TestContext.Current.CancellationToken);
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
             factory.Scope!.Slots.AnalysisTabs.Add(CreateAnalysisTabContribution("owner", " ")));
@@ -273,7 +273,7 @@ public class RecordedSessionExtensionManagerTests
     {
         var factory = new TestRecordedSessionExtensionFactory("owner");
         var manager = CreateManager([factory]);
-        await manager.InitializeAsync(CreateState(isLoaded: true));
+        await manager.InitializeAsync(CreateState(isLoaded: true), cancellationToken: TestContext.Current.CancellationToken);
         factory.Scope!.Slots.AnalysisTabs.Add(CreateAnalysisTabContribution("owner", "duplicate"));
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
@@ -295,7 +295,7 @@ public class RecordedSessionExtensionManagerTests
     {
         var factory = new TestRecordedSessionExtensionFactory("owner");
         var manager = CreateManager([factory]);
-        await manager.InitializeAsync(CreateState(isLoaded: true));
+        await manager.InitializeAsync(CreateState(isLoaded: true), cancellationToken: TestContext.Current.CancellationToken);
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
             factory.Scope!.Slots.SignalToolbarViews.Add(new RecordedSessionToolbarViewContribution(
@@ -315,7 +315,7 @@ public class RecordedSessionExtensionManagerTests
     {
         var factory = new TestRecordedSessionExtensionFactory("owner");
         var manager = CreateManager([factory]);
-        await manager.InitializeAsync(CreateState(isLoaded: true));
+        await manager.InitializeAsync(CreateState(isLoaded: true), cancellationToken: TestContext.Current.CancellationToken);
         factory.Scope!.Slots.SignalToolbarViews.Add(new RecordedSessionToolbarViewContribution(
             "owner",
             "duplicate",
@@ -340,7 +340,7 @@ public class RecordedSessionExtensionManagerTests
     {
         var factory = new TestRecordedSessionExtensionFactory("owner");
         var manager = CreateManager([factory]);
-        await manager.InitializeAsync(CreateState(isLoaded: true));
+        await manager.InitializeAsync(CreateState(isLoaded: true), cancellationToken: TestContext.Current.CancellationToken);
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
             factory.Scope!.Slots.HostedSignalRows.Add(new RecordedSessionHostedSignalRowContribution(
@@ -364,7 +364,7 @@ public class RecordedSessionExtensionManagerTests
         var dispatcher = new DeferredUiThreadDispatcher();
         var factory = new TestRecordedSessionExtensionFactory("test");
         var manager = CreateManager([factory], uiThreadDispatcher: dispatcher);
-        await manager.InitializeAsync(CreateState(isLoaded: true));
+        await manager.InitializeAsync(CreateState(isLoaded: true), cancellationToken: TestContext.Current.CancellationToken);
         var first = new RecordedSessionToolbarViewContribution(
             "test",
             "first",
@@ -397,7 +397,7 @@ public class RecordedSessionExtensionManagerTests
             RecordedSessionToolbarZone.Trailing,
             new TestContributionViewModel());
 
-        await manager.InitializeAsync(CreateState(isLoaded: true));
+        await manager.InitializeAsync(CreateState(isLoaded: true), cancellationToken: TestContext.Current.CancellationToken);
         manager.UpdateHostState(CreateState(isLoaded: true, isActive: true));
         factory.Scope!.Slots.SignalToolbarViews.Add(contribution);
 
@@ -409,7 +409,7 @@ public class RecordedSessionExtensionManagerTests
         Assert.Same(hostSlots, manager.ExtensionSlots);
         Assert.Empty(hostSlots.SignalToolbarViews);
 
-        await manager.InitializeAsync(CreateState(isLoaded: true));
+        await manager.InitializeAsync(CreateState(isLoaded: true), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Same(hostSlots, manager.ExtensionSlots);
         Assert.Empty(hostSlots.SignalToolbarViews);
@@ -420,11 +420,11 @@ public class RecordedSessionExtensionManagerTests
     {
         var factory = new TestRecordedSessionExtensionFactory("test");
         var manager = CreateManager([factory]);
-        await manager.InitializeAsync(CreateState(isLoaded: true));
+        await manager.InitializeAsync(CreateState(isLoaded: true), cancellationToken: TestContext.Current.CancellationToken);
         var firstScope = factory.Scope!;
 
         await manager.DisposeScopesAsync();
-        await manager.InitializeAsync(CreateState(isLoaded: true, isActive: true));
+        await manager.InitializeAsync(CreateState(isLoaded: true, isActive: true), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(firstScope.Disposed);
         Assert.NotSame(firstScope, factory.Scope);

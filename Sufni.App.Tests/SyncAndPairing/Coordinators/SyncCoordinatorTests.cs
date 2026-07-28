@@ -328,7 +328,7 @@ public class SyncCoordinatorTests
         pairing.PairingConfirmed += Raise.Event();
 
         // Wait for the detached SyncAllAsync task to drive SyncCompleted.
-        await syncCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await syncCompleted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         await syncClient.Received(1).SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>());
         await appStateRefreshOrchestrator.Received(1).RefreshAllStateAsync(Arg.Any<CancellationToken>());

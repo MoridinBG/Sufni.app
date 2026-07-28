@@ -22,7 +22,7 @@ public class RecordedSessionSourceStoreTests
         sourceRepository.GetRecordedSessionSourceSnapshotAsync(source.SessionId)
             .Returns(Task.FromResult<RecordedSessionSourceSnapshot?>(sourceSnapshot));
 
-        await store.PublishSourcesChangedAsync([source.SessionId]);
+        await store.PublishSourcesChangedAsync([source.SessionId], cancellationToken: TestContext.Current.CancellationToken);
 
         _ = sourceRepository.DidNotReceiveWithAnyArgs().PutRecordedSessionSourceAsync(default!);
         var snapshot = Assert.Single(snapshots);
@@ -44,10 +44,10 @@ public class RecordedSessionSourceStoreTests
 
         sourceRepository.GetRecordedSessionSourceSnapshotAsync(removed.SessionId)
             .Returns(Task.FromResult<RecordedSessionSourceSnapshot?>(RecordedSessionSourceSnapshot.From(removed)));
-        await store.PublishSourcesChangedAsync([removed.SessionId]);
+        await store.PublishSourcesChangedAsync([removed.SessionId], cancellationToken: TestContext.Current.CancellationToken);
         sourceRepository.GetRecordedSessionSourceSnapshotsAsync().Returns([RecordedSessionSourceSnapshot.From(kept)]);
 
-        await store.RefreshAsync();
+        await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await sourceRepository.DidNotReceive().GetRecordedSessionSourcesAsync();
         var snapshot = Assert.Single(snapshots);
@@ -64,9 +64,9 @@ public class RecordedSessionSourceStoreTests
         var source = CreateSource();
         sourceRepository.GetRecordedSessionSourceSnapshotAsync(source.SessionId)
             .Returns(Task.FromResult<RecordedSessionSourceSnapshot?>(RecordedSessionSourceSnapshot.From(source)));
-        await store.PublishSourcesChangedAsync([source.SessionId]);
+        await store.PublishSourcesChangedAsync([source.SessionId], cancellationToken: TestContext.Current.CancellationToken);
 
-        await store.PublishSourcesRemovedAsync([source.SessionId]);
+        await store.PublishSourcesRemovedAsync([source.SessionId], cancellationToken: TestContext.Current.CancellationToken);
 
         _ = sourceRepository.DidNotReceiveWithAnyArgs().DeleteRecordedSessionSourceAsync(default);
         Assert.Empty(snapshots);

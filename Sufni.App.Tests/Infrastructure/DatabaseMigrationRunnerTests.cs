@@ -643,7 +643,7 @@ public class DatabaseMigrationRunnerTests
             []);
         var context = PersistenceTestData.CreateConnectionContext(databasePath, [migrator]);
 
-        _ = await context.GetInitializedConnectionAsync();
+        _ = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         using var connection = new SQLiteConnection(databasePath);
         var tables = connection.Query<SqliteMasterRow>(
@@ -704,10 +704,10 @@ public class DatabaseMigrationRunnerTests
             ]);
 
         var firstRun = PersistenceTestData.CreateConnectionContext(databasePath, [migrator]);
-        _ = await firstRun.GetInitializedConnectionAsync();
+        _ = await firstRun.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var secondRun = PersistenceTestData.CreateConnectionContext(databasePath, [migrator]);
-        _ = await secondRun.GetInitializedConnectionAsync();
+        _ = await secondRun.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         using var connection = new SQLiteConnection(databasePath);
         var version = Assert.Single(connection.Table<ExtensionSchemaVersion>().ToList());
@@ -743,7 +743,7 @@ public class DatabaseMigrationRunnerTests
         var context = PersistenceTestData.CreateConnectionContext(databasePath, [migrator]);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => context.GetInitializedConnectionAsync());
+            () => context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken));
 
         using var connection = new SQLiteConnection(databasePath);
         Assert.Empty(connection.Table<TestExtensionRow>().ToList());

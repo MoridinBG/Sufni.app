@@ -28,7 +28,7 @@ public class RecordedSessionSourceRetentionCleanupTests
         var provider = Substitute.For<IRecordedSessionDerivationWindowProvider>();
         var retainedId = Guid.NewGuid();
         var retainedIds = new[] { retainedId };
-        provider.GetReferencedSourceSessionIdsAsync().Returns(Task.FromResult<IReadOnlyCollection<Guid>>(retainedIds));
+        provider.GetReferencedSourceSessionIdsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult<IReadOnlyCollection<Guid>>(retainedIds));
         repository.GetPersistedDerivationSourceSessionIdsAsync().Returns(Task.FromResult(new List<Guid>()));
         var deletedId = Guid.NewGuid();
         repository.DeleteOrphanedRecordedSessionSourcesAsync(Arg.Any<IReadOnlyCollection<Guid>>())
@@ -42,7 +42,7 @@ public class RecordedSessionSourceRetentionCleanupTests
 
         await cleanup.RunAsync();
 
-        await provider.Received(1).GetReferencedSourceSessionIdsAsync();
+        await provider.Received(1).GetReferencedSourceSessionIdsAsync(cancellationToken: Arg.Any<CancellationToken>());
         await repository.Received(1).DeleteOrphanedRecordedSessionSourcesAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(retainedIds)));
         await store.Received(1).PublishSourcesRemovedAsync(
@@ -59,7 +59,7 @@ public class RecordedSessionSourceRetentionCleanupTests
         var repository = new RecordedSessionSourceRepository(context);
         var store = Substitute.For<IRecordedSessionSourceStoreWriter>();
         var provider = Substitute.For<IRecordedSessionDerivationWindowProvider>();
-        provider.GetReferencedSourceSessionIdsAsync().Returns(Task.FromResult<IReadOnlyCollection<Guid>>([]));
+        provider.GetReferencedSourceSessionIdsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult<IReadOnlyCollection<Guid>>([]));
         var retainedSourceId = Guid.NewGuid();
         var orphanSourceId = Guid.NewGuid();
         var derivedSessionId = Guid.NewGuid();
@@ -74,7 +74,7 @@ public class RecordedSessionSourceRetentionCleanupTests
             DependencyHash: "dependency",
             SourceHash: "source",
             DerivationWindow: new RecordedSessionDerivationWindow(retainedSourceId, 1, null));
-        var connection = await context.GetInitializedConnectionAsync();
+        var connection = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
         await connection.InsertAsync(new Session(derivedSessionId, "derived", "desc", null, 100)
         {
             ProcessingFingerprintJson = AppJson.Serialize(fingerprint)

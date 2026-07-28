@@ -22,9 +22,9 @@ public class SessionTrackReaderTests
         var sessionStore = CreateSessionStore(source);
         using var reader = new SessionTrackReader(sessionRepository, sessionStore, capacity: 8);
 
-        var firstRead = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 10);
-        var cachedRead = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 10);
-        var updatedRead = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 11);
+        var firstRead = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 10, cancellationToken: TestContext.Current.CancellationToken);
+        var cachedRead = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 10, cancellationToken: TestContext.Current.CancellationToken);
+        var updatedRead = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 11, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Same(first, firstRead);
         Assert.Same(first, cachedRead);
@@ -45,9 +45,9 @@ public class SessionTrackReaderTests
         var sessionStore = CreateSessionStore(source);
         using var reader = new SessionTrackReader(sessionRepository, sessionStore, capacity: 8, pointBudget: 3);
 
-        var firstRead = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 10);
-        _ = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 11);
-        var repeatedRead = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 10);
+        var firstRead = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 10, cancellationToken: TestContext.Current.CancellationToken);
+        _ = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 11, cancellationToken: TestContext.Current.CancellationToken);
+        var repeatedRead = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 10, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Same(first, firstRead);
         Assert.Same(reloaded, repeatedRead);
@@ -69,7 +69,7 @@ public class SessionTrackReaderTests
         using var source = new SourceCache<SessionSnapshot, Guid>(snapshot => snapshot.Id);
         using var reader = new SessionTrackReader(sessionRepository, CreateSessionStore(source), capacity: 8);
 
-        var result = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 10);
+        var result = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 10, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Same(points, result);
         await sessionRepository.Received(1).GetSessionTrackAsync(sessionId, 10);
@@ -90,7 +90,7 @@ public class SessionTrackReaderTests
         using var source = new SourceCache<SessionSnapshot, Guid>(snapshot => snapshot.Id);
         using var reader = new SessionTrackReader(sessionRepository, CreateSessionStore(source), capacity: 8);
 
-        var result = await reader.GetSessionTrackExactAsync(sessionId, trackProjectionRevision: 10);
+        var result = await reader.GetSessionTrackExactAsync(sessionId, trackProjectionRevision: 10, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Null(result);
         await sessionRepository.Received(1).GetSessionTrackAsync(sessionId, 10);
@@ -108,8 +108,8 @@ public class SessionTrackReaderTests
         using var source = new SourceCache<SessionSnapshot, Guid>(snapshot => snapshot.Id);
         using var reader = new SessionTrackReader(sessionRepository, CreateSessionStore(source), capacity: 8);
 
-        var first = await reader.GetSessionTrackExactAsync(sessionId, trackProjectionRevision: 10);
-        var second = await reader.GetSessionTrackExactAsync(sessionId, trackProjectionRevision: 10);
+        var first = await reader.GetSessionTrackExactAsync(sessionId, trackProjectionRevision: 10, cancellationToken: TestContext.Current.CancellationToken);
+        var second = await reader.GetSessionTrackExactAsync(sessionId, trackProjectionRevision: 10, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Same(points, first);
         Assert.Same(points, second);
@@ -130,11 +130,11 @@ public class SessionTrackReaderTests
         using var reader = new SessionTrackReader(sessionRepository, sessionStore, capacity: 8);
         source.AddOrUpdate(Snapshot(sessionId, updated: 10, trackProjectionRevision: 10, fullTrackId: trackId, gpsOffsetSeconds: 0, name: "session"));
 
-        var firstRead = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 10);
+        var firstRead = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 10, cancellationToken: TestContext.Current.CancellationToken);
         source.AddOrUpdate(Snapshot(sessionId, updated: 11, trackProjectionRevision: 10, fullTrackId: trackId, gpsOffsetSeconds: 0, name: "renamed"));
-        var unchangedRead = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 10);
+        var unchangedRead = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 10, cancellationToken: TestContext.Current.CancellationToken);
         source.AddOrUpdate(Snapshot(sessionId, updated: 11, trackProjectionRevision: 11, fullTrackId: trackId, gpsOffsetSeconds: 0, name: "renamed"));
-        var evictedRead = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 10);
+        var evictedRead = await reader.GetSessionTrackAsync(sessionId, trackProjectionRevision: 10, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Same(first, firstRead);
         Assert.Same(first, unchangedRead);

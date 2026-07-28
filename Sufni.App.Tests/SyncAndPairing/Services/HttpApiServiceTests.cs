@@ -326,7 +326,7 @@ public class HttpApiServiceTests
         });
 
         var first = await Assert.ThrowsAsync<HttpRequestException>(() => service.GetIncompleteSessionIdsAsync());
-        await unpaired.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await unpaired.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         var second = await Assert.ThrowsAsync<HttpRequestException>(() => service.GetIncompleteSessionIdsAsync());
 
         Assert.Equal(HttpStatusCode.Unauthorized, first.StatusCode);
@@ -417,7 +417,7 @@ public class HttpApiServiceTests
         });
 
         await service.ConfirmPairingAsync("device-1", "phone", "123456");
-        await paired.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await paired.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal([false, true], pairedStates);
         await secureStorage.Received(1).SetStringAsync("RefreshToken", "refresh-2");
@@ -443,7 +443,7 @@ public class HttpApiServiceTests
     {
         var pairedState = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var subscription = service.PairedState.Subscribe(value => pairedState.TrySetResult(value));
-        return await pairedState.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        return await pairedState.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
     }
 
     private sealed class StubHttpMessageHandler(

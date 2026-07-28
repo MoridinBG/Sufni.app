@@ -34,7 +34,7 @@ internal sealed class LiveDaqClientProtocolHarness<TClient>
         try
         {
             var result = await clientScript(client, port);
-            await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+            await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
             return result;
         }
         finally
@@ -89,7 +89,7 @@ internal sealed class LiveDaqClientProtocolHarness<TClient>
         });
 
         await action();
-        await framesObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await framesObserved.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         return observedFrames;
     }
 
@@ -109,6 +109,6 @@ internal sealed class LiveDaqClientProtocolHarness<TClient>
         });
 
         await action();
-        return await observed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        return await observed.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 }

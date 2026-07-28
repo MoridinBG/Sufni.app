@@ -35,8 +35,9 @@ public class RecordedSessionAnalysisResultStateTests
             SuspensionType.Front);
         state.Invalidate(inputs);
 
-        var firstRequest = state.RequestAsync(key);
-        var secondRequest = state.RequestAsync(key);
+        var nonCancelableToken = new CancellationToken(canceled: false);
+        var firstRequest = state.RequestAsync(key, cancellationToken: nonCancelableToken);
+        var secondRequest = state.RequestAsync(key, cancellationToken: nonCancelableToken);
         Assert.Same(firstRequest, secondRequest);
         Assert.Equal(1, backgroundTaskRunner.RunCount);
 
@@ -48,7 +49,7 @@ public class RecordedSessionAnalysisResultStateTests
         var initialChange = Assert.Single(changes);
         Assert.Same(cached, initialChange.Result);
 
-        await state.RequestAsync(key);
+        await state.RequestAsync(key, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(1, computer.ComputeCount);
         Assert.Equal(2, changes.Count);
@@ -73,8 +74,9 @@ public class RecordedSessionAnalysisResultStateTests
         var key = inputs.ImuDisplayProjectionKey;
         state.Invalidate(inputs);
 
-        var firstRequest = state.RequestAsync(key);
-        var secondRequest = state.RequestAsync(key);
+        var nonCancelableToken = new CancellationToken(canceled: false);
+        var firstRequest = state.RequestAsync(key, cancellationToken: nonCancelableToken);
+        var secondRequest = state.RequestAsync(key, cancellationToken: nonCancelableToken);
 
         Assert.Same(firstRequest, secondRequest);
         Assert.Equal(1, backgroundTaskRunner.RunCount);
@@ -95,7 +97,7 @@ public class RecordedSessionAnalysisResultStateTests
             VelocityAverageMode = VelocityAverageMode.StrokePeakAveraged,
         };
         state.Invalidate(updatedInputs);
-        await state.RequestAsync(updatedInputs.ImuDisplayProjectionKey);
+        await state.RequestAsync(updatedInputs.ImuDisplayProjectionKey, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(key, updatedInputs.ImuDisplayProjectionKey);
         Assert.Equal(1, computer.ComputeCount);
@@ -116,7 +118,7 @@ public class RecordedSessionAnalysisResultStateTests
         var firstInputs = CreateInputs(range: null);
         var firstKey = firstInputs.ImuDisplayProjectionKey;
         state.Invalidate(firstInputs);
-        await state.RequestAsync(firstKey);
+        await state.RequestAsync(firstKey, cancellationToken: TestContext.Current.CancellationToken);
         var firstResult = Assert.IsType<ImuDisplayProjectionAnalysisResult>(state.Get(firstKey));
 
         var nextInputs = firstInputs with { TelemetryGeneration = firstInputs.TelemetryGeneration + 1 };
@@ -125,7 +127,7 @@ public class RecordedSessionAnalysisResultStateTests
 
         Assert.Null(state.Get(firstKey));
 
-        await state.RequestAsync(nextKey);
+        await state.RequestAsync(nextKey, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(2, computer.ComputeCount);
         Assert.NotEqual(firstKey, nextKey);
@@ -152,8 +154,8 @@ public class RecordedSessionAnalysisResultStateTests
             SuspensionType.Rear);
         state.Invalidate(inputs);
 
-        await state.RequestAsync(frontKey);
-        await state.RequestAsync(rearKey);
+        await state.RequestAsync(frontKey, cancellationToken: TestContext.Current.CancellationToken);
+        await state.RequestAsync(rearKey, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(2, computer.ComputeCount);
         Assert.IsType<VelocityDistributionAnalysisResult>(state.Get(frontKey));
@@ -161,7 +163,7 @@ public class RecordedSessionAnalysisResultStateTests
         Assert.NotSame(state.Get(frontKey), state.Get(rearKey));
 
         state.Dispose();
-        await state.RequestAsync(frontKey);
+        await state.RequestAsync(frontKey, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Null(state.CurrentInputs);
         Assert.Null(state.Get(frontKey));
@@ -185,11 +187,11 @@ public class RecordedSessionAnalysisResultStateTests
         var rangedInputs = CreateInputs(new TelemetryTimeRange(0, 1));
 
         state.Invalidate(fullInputs);
-        await state.RequestAsync(fullInputs.DampingPercentagesKey);
+        await state.RequestAsync(fullInputs.DampingPercentagesKey, cancellationToken: TestContext.Current.CancellationToken);
         state.Invalidate(rangedInputs);
-        await state.RequestAsync(rangedInputs.DampingPercentagesKey);
+        await state.RequestAsync(rangedInputs.DampingPercentagesKey, cancellationToken: TestContext.Current.CancellationToken);
         state.Invalidate(fullInputs);
-        await state.RequestAsync(fullInputs.DampingPercentagesKey);
+        await state.RequestAsync(fullInputs.DampingPercentagesKey, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(3, changes.Count);
         var result = Assert.IsType<DampingPercentagesAnalysisResult>(changes[^1].Result);
@@ -211,14 +213,14 @@ public class RecordedSessionAnalysisResultStateTests
         var inputs = CreateInputs(range: null);
         var key = inputs.DampingPercentagesKey;
         state.Invalidate(inputs);
-        await state.RequestAsync(key);
+        await state.RequestAsync(key, cancellationToken: TestContext.Current.CancellationToken);
         var cached = state.Get(key);
         Assert.NotNull(cached);
         changes.Clear();
 
         var updatedInputs = inputs with { TravelDistributionMode = TravelDistributionMode.DynamicSag };
         state.Invalidate(updatedInputs);
-        await state.RequestAsync(updatedInputs.DampingPercentagesKey);
+        await state.RequestAsync(updatedInputs.DampingPercentagesKey, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(1, computer.ComputeCount);
         Assert.Same(cached, state.Get(updatedInputs.DampingPercentagesKey));
@@ -240,12 +242,12 @@ public class RecordedSessionAnalysisResultStateTests
         var rangedInputs = CreateInputs(new TelemetryTimeRange(0, 1));
 
         state.Invalidate(fullInputs);
-        _ = state.RequestAsync(fullInputs.DampingPercentagesKey);
+        _ = state.RequestAsync(fullInputs.DampingPercentagesKey, cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(1, backgroundTaskRunner.RunCount);
 
         state.Invalidate(rangedInputs);
         state.Invalidate(fullInputs);
-        _ = state.RequestAsync(fullInputs.DampingPercentagesKey);
+        _ = state.RequestAsync(fullInputs.DampingPercentagesKey, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(2, backgroundTaskRunner.RunCount);
     }
@@ -262,11 +264,12 @@ public class RecordedSessionAnalysisResultStateTests
             () => telemetry);
         var inputs = CreateInputs(range: null);
         state.Invalidate(inputs);
-        var firstRequest = state.RequestAsync(inputs.DampingPercentagesKey);
+        var nonCancelableToken = new CancellationToken(canceled: false);
+        var firstRequest = state.RequestAsync(inputs.DampingPercentagesKey, cancellationToken: nonCancelableToken);
 
         var updatedInputs = inputs with { TravelDistributionMode = TravelDistributionMode.DynamicSag };
         state.Invalidate(updatedInputs);
-        var secondRequest = state.RequestAsync(updatedInputs.DampingPercentagesKey);
+        var secondRequest = state.RequestAsync(updatedInputs.DampingPercentagesKey, cancellationToken: nonCancelableToken);
 
         Assert.Same(firstRequest, secondRequest);
         Assert.Equal(1, backgroundTaskRunner.RunCount);
@@ -286,15 +289,16 @@ public class RecordedSessionAnalysisResultStateTests
         var travelKey = inputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
         var velocityKey = inputs.CreateKey(RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front);
         state.Invalidate(inputs);
-        var travelRequest = state.RequestAsync(travelKey);
-        _ = state.RequestAsync(velocityKey);
+        var nonCancelableToken = new CancellationToken(canceled: false);
+        var travelRequest = state.RequestAsync(travelKey, cancellationToken: nonCancelableToken);
+        _ = state.RequestAsync(velocityKey, cancellationToken: TestContext.Current.CancellationToken);
 
         var updatedInputs = inputs with { VelocityAverageMode = VelocityAverageMode.StrokePeakAveraged };
         var updatedTravelKey = updatedInputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
         var updatedVelocityKey = updatedInputs.CreateKey(RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front);
         state.Invalidate(updatedInputs);
-        var reusedTravelRequest = state.RequestAsync(updatedTravelKey);
-        _ = state.RequestAsync(updatedVelocityKey);
+        var reusedTravelRequest = state.RequestAsync(updatedTravelKey, cancellationToken: nonCancelableToken);
+        _ = state.RequestAsync(updatedVelocityKey, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Same(travelRequest, reusedTravelRequest);
         Assert.Equal(3, backgroundTaskRunner.RunCount);
@@ -319,7 +323,7 @@ public class RecordedSessionAnalysisResultStateTests
         state.Invalidate(inputs);
 
         var firstRequest = state.RequestAsync(key, callerCancellation.Token);
-        var secondRequest = state.RequestAsync(key);
+        var secondRequest = state.RequestAsync(key, cancellationToken: TestContext.Current.CancellationToken);
         await callerCancellation.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => firstRequest);
@@ -349,7 +353,7 @@ public class RecordedSessionAnalysisResultStateTests
         var staleKey = fullInputs.DampingPercentagesKey;
 
         state.Invalidate(fullInputs);
-        var staleRequest = state.RequestAsync(staleKey);
+        var staleRequest = state.RequestAsync(staleKey, cancellationToken: TestContext.Current.CancellationToken);
         await computer.Started;
         state.Invalidate(rangedInputs);
         computer.Complete();
@@ -398,7 +402,7 @@ public class RecordedSessionAnalysisResultStateTests
         Assert.Null(state.CurrentInputs);
         Assert.Null(state.Get(key));
         state.Invalidate(inputs);
-        await state.RequestAsync(key);
+        await state.RequestAsync(key, cancellationToken: TestContext.Current.CancellationToken);
         using var subscription = state.Connect().Subscribe(_ => Assert.Fail("Disposed state should not publish."));
         using var inputSubscription = state.ConnectInputs().Subscribe(_ => Assert.Fail("Disposed state should not publish input changes."));
     }

@@ -233,7 +233,7 @@ public class LiveSignalPipelineTests
 
         await pipeline.DisposeAsync();
 
-        await completed.Task.WaitAsync(Timeout);
+        await completed.Task.AwaitBoundedAsync(Timeout);
     }
 
     private static LiveSignalPipeline CreatePipeline()
@@ -254,7 +254,7 @@ public class LiveSignalPipelineTests
             .Where(predicate)
             .FirstAsync()
             .ToTask()
-            .WaitAsync(Timeout);
+            .AwaitBoundedAsync(Timeout);
     }
 
     private static double[] BuildRampTimes(int count, int startOffset = 0, double samplePeriodSeconds = 0.001)

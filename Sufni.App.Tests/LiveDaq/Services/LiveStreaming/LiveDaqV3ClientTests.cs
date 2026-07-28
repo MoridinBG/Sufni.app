@@ -105,11 +105,11 @@ public class LiveDaqV3ClientTests
             {
                 if (failureKind is ConnectFailureKind.InvalidServerHello)
                 {
-                    await Assert.ThrowsAsync<FormatException>(() => client.ConnectAsync(IPAddress.Loopback.ToString(), port));
+                    await Assert.ThrowsAsync<FormatException>(() => client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken));
                 }
                 else
                 {
-                    await Assert.ThrowsAsync<IOException>(() => client.ConnectAsync(IPAddress.Loopback.ToString(), port));
+                    await Assert.ThrowsAsync<IOException>(() => client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken));
                 }
 
                 return true;
@@ -158,7 +158,7 @@ public class LiveDaqV3ClientTests
             await stream.FlushAsync();
 
             _ = await ReadFrameAsync(stream);
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         await using var client = new LiveDaqV3Client();
         var travelObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -169,15 +169,15 @@ public class LiveDaqV3ClientTests
                 travelObserved.TrySetResult();
             }
         });
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
         Assert.IsType<LivePreviewStartResult.Started>(
             await client.StartPreviewAsync(
-                    new LiveStartRequest(LiveSensorInstanceMask.Travel, 200_000, 0, 0))
-                .WaitAsync(TimeSpan.FromSeconds(2)));
-        await travelObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                    new LiveStartRequest(LiveSensorInstanceMask.Travel, 200_000, 0, 0), cancellationToken: TestContext.Current.CancellationToken)
+                .AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
+        await travelObserved.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -229,19 +229,19 @@ public class LiveDaqV3ClientTests
             await allowSessionHeader.Task;
             await stream.WriteAsync(LiveV3ProtocolTestFrames.SessionHeaderTravelImuGps());
             await stream.FlushAsync();
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         await using var client = new LiveDaqV3Client();
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
 
         var startTask = client.StartPreviewAsync(
-            new LiveStartRequest(LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu | LiveSensorInstanceMask.Gps, 200_000, 200_000, 5_000));
+            new LiveStartRequest(LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu | LiveSensorInstanceMask.Gps, 200_000, 200_000, 5_000), cancellationToken: TestContext.Current.CancellationToken);
 
-        await startResultSent.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await startResultSent.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         Assert.False(startTask.IsCompleted);
         allowSessionHeader.TrySetResult();
 
-        var result = await startTask.WaitAsync(TimeSpan.FromSeconds(2));
+        var result = await startTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         var started = Assert.IsType<LivePreviewStartResult.Started>(result);
         Assert.Equal(SessionId, started.Header.SessionId);
         Assert.Equal(LiveProtocolVersion.V3, started.Header.ProtocolVersion);
@@ -255,8 +255,8 @@ public class LiveDaqV3ClientTests
             LiveStreamMask.Travel | LiveStreamMask.Imu | LiveStreamMask.Gps,
             started.Header.RequestedStreamMask);
 
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
 #if SUFNI_PROFILING_DIAGNOSTICS
@@ -325,7 +325,7 @@ public class LiveDaqV3ClientTests
                     ImuRateMhz: 0,
                     GpsRateMhz: 0,
                     RequestedStreamMask: LiveStreamMask.Travel))
-                .WaitAsync(TimeSpan.FromSeconds(2)));
+                .AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
 
         const LiveStreamMask allStreams =
             LiveStreamMask.Travel |
@@ -338,7 +338,7 @@ public class LiveDaqV3ClientTests
         Assert.Equal(allStreams, started.Header.AcceptedStreamMask);
 
         await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 #endif
 
@@ -362,18 +362,18 @@ public class LiveDaqV3ClientTests
             Assert.Equal((uint)0, request.Sequence);
             await stream.WriteAsync(LiveV3ProtocolTestFrames.DeviceStateResponse());
             await stream.FlushAsync();
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         await using var client = new LiveDaqV3Client();
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
 
-        var state = await client.RequestDeviceStateAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        var state = await client.RequestDeviceStateAsync(cancellationToken: TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         Assert.Equal(SstV5ProtocolConstants.StreamTravel, state.Streams[0].StreamKind);
         Assert.True(state.Sources[0].Available);
 
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -395,19 +395,19 @@ public class LiveDaqV3ClientTests
             await allowResponse.Task;
             await stream.WriteAsync(LiveV3ProtocolTestFrames.DeviceStateResponse());
             await stream.FlushAsync();
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         await using var client = new LiveDaqV3Client();
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
 
-        var firstRequest = client.RequestDeviceStateAsync();
+        var firstRequest = client.RequestDeviceStateAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => client.RequestDeviceStateAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => client.RequestDeviceStateAsync(cancellationToken: TestContext.Current.CancellationToken));
 
         allowResponse.TrySetResult();
-        _ = await firstRequest.WaitAsync(TimeSpan.FromSeconds(2));
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        _ = await firstRequest.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -433,17 +433,17 @@ public class LiveDaqV3ClientTests
             });
 
         await using var client = new LiveDaqV3Client();
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
         Assert.IsType<LivePreviewStartResult.Started>(
             await client.StartPreviewAsync(
-                    new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0))
-                .WaitAsync(TimeSpan.FromSeconds(2)));
+                    new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0), cancellationToken: TestContext.Current.CancellationToken)
+                .AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
 
-        var state = await client.RequestDeviceStateAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        var state = await client.RequestDeviceStateAsync(cancellationToken: TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         Assert.Equal(SstV5ProtocolConstants.StreamTravel, state.Streams[0].StreamKind);
 
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Theory]
@@ -480,23 +480,23 @@ public class LiveDaqV3ClientTests
             await stream.WriteAsync(pong);
             await stream.FlushAsync();
             await allowServerClose.Task;
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         await using var client = new LiveDaqV3Client();
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
         if (mismatch)
         {
-            await Assert.ThrowsAsync<IOException>(() => client.PingAsync(nonce));
+            await Assert.ThrowsAsync<IOException>(() => client.PingAsync(nonce, cancellationToken: TestContext.Current.CancellationToken));
         }
         else
         {
-            await client.PingAsync(nonce).WaitAsync(TimeSpan.FromSeconds(2));
+            await client.PingAsync(nonce, cancellationToken: TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         }
         Assert.True(client.IsConnected);
 
         allowServerClose.TrySetResult();
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -515,17 +515,17 @@ public class LiveDaqV3ClientTests
             });
 
         await using var client = new LiveDaqV3Client();
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
 
-        var result = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0))
-            .WaitAsync(TimeSpan.FromSeconds(2));
+        var result = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0), cancellationToken: TestContext.Current.CancellationToken)
+            .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         var rejected = Assert.IsType<LivePreviewStartResult.Rejected>(result);
         Assert.Equal(LiveStartErrorCode.InvalidRequest, rejected.ErrorCode);
         Assert.Equal(2, rejected.AdmissionReasons.Count);
 
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -560,12 +560,12 @@ public class LiveDaqV3ClientTests
             await stream.WriteAsync(LiveV3ProtocolTestFrames.StartResultPriorityConflict());
             await stream.FlushAsync();
             await allowServerClose.Task;
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         await using var client = new LiveDaqV3Client();
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
-        var result = await client.StartPreviewAsync(CreateAllStreamStartRequest())
-            .WaitAsync(TimeSpan.FromSeconds(2));
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await client.StartPreviewAsync(CreateAllStreamStartRequest(), cancellationToken: TestContext.Current.CancellationToken)
+            .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         var rejected = Assert.IsType<LivePreviewStartResult.Rejected>(result);
         Assert.Equal(LiveStartErrorCode.Busy, rejected.ErrorCode);
@@ -573,8 +573,8 @@ public class LiveDaqV3ClientTests
         Assert.True(client.IsConnected);
 
         allowServerClose.TrySetResult();
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -606,24 +606,24 @@ public class LiveDaqV3ClientTests
             await stream.WriteAsync(LiveV3ProtocolTestFrames.StartResultDenied());
             await stream.FlushAsync();
             await allowServerClose.Task;
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         await using var client = new LiveDaqV3Client();
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
         var result = await client.StartPreviewAsync(new LiveStartRequest(
                 RequestedSensorMask: LiveSensorInstanceMask.Battery,
                 TravelRateMhz: 0,
                 ImuRateMhz: 0,
                 GpsRateMhz: 0,
-                RequestedStreamMask: LiveStreamMask.Battery))
-            .WaitAsync(TimeSpan.FromSeconds(2));
+                RequestedStreamMask: LiveStreamMask.Battery), cancellationToken: TestContext.Current.CancellationToken)
+            .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         Assert.IsType<LivePreviewStartResult.Rejected>(result);
         Assert.True(client.IsConnected);
 
         allowServerClose.TrySetResult();
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -654,7 +654,7 @@ public class LiveDaqV3ClientTests
                 temperatureObserved.TrySetResult(frame);
             }
         });
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
 
         var started = Assert.IsType<LivePreviewStartResult.Started>(
             await client.StartPreviewAsync(new LiveStartRequest(
@@ -663,14 +663,14 @@ public class LiveDaqV3ClientTests
                     ImuRateMhz: 0,
                     GpsRateMhz: 0,
                     RequestedStreamMask: LiveStreamMask.Temperature,
-                    TemperatureRateMhz: 30))
-                .WaitAsync(TimeSpan.FromSeconds(2)));
+                    TemperatureRateMhz: 30), cancellationToken: TestContext.Current.CancellationToken)
+                .AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
         Assert.Equal(LiveStreamMask.Temperature, started.Header.AcceptedStreamMask);
         Assert.Equal(30u, started.Header.AcceptedTemperatureRateMhz);
-        Assert.Equal(2, (await temperatureObserved.Task.WaitAsync(TimeSpan.FromSeconds(2))).Records.Count);
+        Assert.Equal(2, (await temperatureObserved.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2))).Records.Count);
 
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -706,11 +706,11 @@ public class LiveDaqV3ClientTests
                 markerObserved.TrySetResult();
             }
         });
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
 
         var started = Assert.IsType<LivePreviewStartResult.Started>(
-            await client.StartPreviewAsync(CreateAllStreamStartRequest())
-                .WaitAsync(TimeSpan.FromSeconds(2)));
+            await client.StartPreviewAsync(CreateAllStreamStartRequest(), cancellationToken: TestContext.Current.CancellationToken)
+                .AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
         Assert.Equal(
             LiveStreamMask.Travel |
             LiveStreamMask.Imu |
@@ -722,11 +722,11 @@ public class LiveDaqV3ClientTests
         var omission = Assert.Single(started.Header.AdmissionOmissions);
         Assert.Equal(SstV5ProtocolConstants.StreamGps, omission.StreamKind);
         Assert.Equal(SstV5ProtocolConstants.ExtensionGpsDiagPublicV1, omission.TargetMask);
-        await batteryObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await markerObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await batteryObserved.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        await markerObserved.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -747,23 +747,23 @@ public class LiveDaqV3ClientTests
             });
 
         await using var client = new LiveDaqV3Client();
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
 
         var started = Assert.IsType<LivePreviewStartResult.Started>(
             await client.StartPreviewAsync(new LiveStartRequest(
                     LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu,
                     200_000,
                     200_000,
-                    0))
-                .WaitAsync(TimeSpan.FromSeconds(2)));
+                    0), cancellationToken: TestContext.Current.CancellationToken)
+                .AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
         Assert.Equal(LiveStreamMask.Travel | LiveStreamMask.Imu, started.Header.RequestedStreamMask);
         Assert.Equal(LiveStreamMask.Travel, started.Header.AcceptedStreamMask);
         var omission = Assert.Single(started.Header.AdmissionOmissions);
         Assert.Equal(SstV5ProtocolConstants.StreamImu, omission.StreamKind);
         Assert.Equal(LiveV3ProtocolHelpers.AdmissionUnavailable, omission.Reason);
 
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -782,15 +782,15 @@ public class LiveDaqV3ClientTests
             });
 
         await using var client = new LiveDaqV3Client();
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
 
-        var result = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0))
-            .WaitAsync(TimeSpan.FromSeconds(2));
+        var result = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0), cancellationToken: TestContext.Current.CancellationToken)
+            .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         Assert.IsType<LivePreviewStartResult.Failed>(result);
 
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -812,7 +812,7 @@ public class LiveDaqV3ClientTests
                 var closedBuffer = new byte[1];
                 Assert.Equal(
                     0,
-                    await stream.ReadAsync(closedBuffer).AsTask().WaitAsync(TimeSpan.FromSeconds(2)));
+                    await stream.ReadAsync(closedBuffer).AsTask().AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
             });
 
         await using var client = new LiveDaqV3Client();
@@ -824,16 +824,16 @@ public class LiveDaqV3ClientTests
                 faulted.TrySetResult();
             }
         });
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.IsType<LivePreviewStartResult.Failed>(
             await client.StartPreviewAsync(
-                    new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0))
-                .WaitAsync(TimeSpan.FromSeconds(2)));
-        await faulted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                    new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0), cancellationToken: TestContext.Current.CancellationToken)
+                .AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
+        await faulted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         Assert.False(client.IsConnected);
 
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -853,15 +853,15 @@ public class LiveDaqV3ClientTests
             });
 
         await using var client = new LiveDaqV3Client();
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
 
-        var result = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0))
-            .WaitAsync(TimeSpan.FromSeconds(2));
+        var result = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0), cancellationToken: TestContext.Current.CancellationToken)
+            .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         Assert.IsType<LivePreviewStartResult.Failed>(result);
 
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -891,20 +891,20 @@ public class LiveDaqV3ClientTests
 
             var disconnectStop = await ReadFrameAsync(stream);
             Assert.Equal(SessionId, LiveV3ProtocolReader.ParseHeader(disconnectStop).SessionId);
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         await using var client = new LiveDaqV3Client();
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
         var request = new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0);
 
         Assert.IsType<LivePreviewStartResult.Failed>(
-            await client.StartPreviewAsync(request).WaitAsync(TimeSpan.FromSeconds(2)));
+            await client.StartPreviewAsync(request, cancellationToken: TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
         var retry = Assert.IsType<LivePreviewStartResult.Started>(
-            await client.StartPreviewAsync(request).WaitAsync(TimeSpan.FromSeconds(2)));
+            await client.StartPreviewAsync(request, cancellationToken: TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
         Assert.Equal((uint)SessionId, retry.Header.SessionId);
 
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -947,12 +947,12 @@ public class LiveDaqV3ClientTests
             }
         });
 
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
-        var result = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0))
-            .WaitAsync(TimeSpan.FromSeconds(2));
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0), cancellationToken: TestContext.Current.CancellationToken)
+            .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         Assert.IsType<LivePreviewStartResult.Started>(result);
 
-        await framesObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await framesObserved.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         lock (observed)
         {
             Assert.True(
@@ -963,8 +963,8 @@ public class LiveDaqV3ClientTests
                 observed.IndexOf(typeof(LiveSessionResultFrame)));
         }
 
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -996,14 +996,14 @@ public class LiveDaqV3ClientTests
             }
         });
 
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
-        var result = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0))
-            .WaitAsync(TimeSpan.FromSeconds(2));
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0), cancellationToken: TestContext.Current.CancellationToken)
+            .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         Assert.IsType<LivePreviewStartResult.Started>(result);
 
-        await travelFrameObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await travelFrameObserved.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -1036,7 +1036,7 @@ public class LiveDaqV3ClientTests
             await stream.WriteAsync(LiveV3ProtocolTestFrames.StartResultDenied());
             await stream.FlushAsync();
             await allowServerClose.Task;
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         await using var client = new LiveDaqV3Client(
             TimeSpan.FromSeconds(2),
@@ -1058,17 +1058,17 @@ public class LiveDaqV3ClientTests
             }
         });
 
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
         var request = new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0);
         Assert.IsType<LivePreviewStartResult.Started>(
-            await client.StartPreviewAsync(request).WaitAsync(TimeSpan.FromSeconds(2)));
-        await terminalObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await client.StartPreviewAsync(request, cancellationToken: TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
+        await terminalObserved.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         Assert.IsType<LivePreviewStartResult.Rejected>(
-            await client.StartPreviewAsync(request).WaitAsync(TimeSpan.FromSeconds(2)));
+            await client.StartPreviewAsync(request, cancellationToken: TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
 
         allowServerClose.TrySetResult();
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -1099,20 +1099,20 @@ public class LiveDaqV3ClientTests
             });
 
         await using var client = new LiveDaqV3Client(TimeSpan.FromSeconds(2));
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
-        var started = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0))
-            .WaitAsync(TimeSpan.FromSeconds(2));
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
+        var started = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0), cancellationToken: TestContext.Current.CancellationToken)
+            .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         Assert.IsType<LivePreviewStartResult.Started>(started);
 
-        var stopTask = client.StopPreviewAsync();
-        await stopResultSent.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var stopTask = client.StopPreviewAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await stopResultSent.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         Assert.False(stopTask.IsCompleted);
 
         allowSessionResult.TrySetResult();
-        await stopTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await stopTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -1136,19 +1136,19 @@ public class LiveDaqV3ClientTests
                 var closedBuffer = new byte[1];
                 Assert.Equal(
                     0,
-                    await stream.ReadAsync(closedBuffer).AsTask().WaitAsync(TimeSpan.FromSeconds(2)));
+                    await stream.ReadAsync(closedBuffer).AsTask().AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
             });
 
         await using var client = new LiveDaqV3Client(TimeSpan.FromSeconds(2));
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
         Assert.IsType<LivePreviewStartResult.Started>(
             await client.StartPreviewAsync(
-                    new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0))
-                .WaitAsync(TimeSpan.FromSeconds(2)));
+                    new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0), cancellationToken: TestContext.Current.CancellationToken)
+                .AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
 
-        await Assert.ThrowsAsync<IOException>(() => client.StopPreviewAsync());
+        await Assert.ThrowsAsync<IOException>(() => client.StopPreviewAsync(cancellationToken: TestContext.Current.CancellationToken));
         Assert.False(client.IsConnected);
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -1219,26 +1219,26 @@ public class LiveDaqV3ClientTests
                     disconnectStopBytes,
                     new LiveV3SessionDecodeContext()));
             Assert.Equal(5u, disconnectStop.Sequence);
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         await using var client = new LiveDaqV3Client(TimeSpan.FromSeconds(2));
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
         var request = new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0);
 
         Assert.IsType<LivePreviewStartResult.Rejected>(
-            await client.StartPreviewAsync(request).WaitAsync(TimeSpan.FromSeconds(2)));
+            await client.StartPreviewAsync(request, cancellationToken: TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
         var firstStarted = Assert.IsType<LivePreviewStartResult.Started>(
-            await client.StartPreviewAsync(request).WaitAsync(TimeSpan.FromSeconds(2)));
+            await client.StartPreviewAsync(request, cancellationToken: TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
         Assert.Equal(255u, firstStarted.Header.SessionId);
 
-        await client.StopPreviewAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        await client.StopPreviewAsync(cancellationToken: TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         var wrappedStarted = Assert.IsType<LivePreviewStartResult.Started>(
-            await client.StartPreviewAsync(request).WaitAsync(TimeSpan.FromSeconds(2)));
+            await client.StartPreviewAsync(request, cancellationToken: TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
         Assert.Equal(1u, wrappedStarted.Header.SessionId);
 
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -1258,7 +1258,7 @@ public class LiveDaqV3ClientTests
                 var closedBuffer = new byte[1];
                 Assert.Equal(
                     0,
-                    await stream.ReadAsync(closedBuffer).AsTask().WaitAsync(TimeSpan.FromSeconds(2)));
+                    await stream.ReadAsync(closedBuffer).AsTask().AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
             });
 
         await using var client = new LiveDaqV3Client();
@@ -1276,20 +1276,20 @@ public class LiveDaqV3ClientTests
             }
         });
 
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
-        var started = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0))
-            .WaitAsync(TimeSpan.FromSeconds(2));
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
+        var started = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0), cancellationToken: TestContext.Current.CancellationToken)
+            .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         Assert.IsType<LivePreviewStartResult.Started>(started);
 
-        var errorMessage = await faulted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var errorMessage = await faulted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         Assert.Contains("error 2", errorMessage);
         Assert.Contains("frame type 99", errorMessage);
         Assert.Contains("3737844653", errorMessage);
-        await disconnected.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await disconnected.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         Assert.False(client.IsConnected);
 
-        await client.DisconnectAsync();
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     private static async Task RunStartupServerAsync(

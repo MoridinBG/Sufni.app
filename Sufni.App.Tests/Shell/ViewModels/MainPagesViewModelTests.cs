@@ -72,7 +72,7 @@ public class MainPagesViewModelTests
 
         await viewModel.OpenGpsTracksCommand.ExecuteAsync(null);
 
-        await trackCoordinator.Received(1).ImportGpxAsync();
+        await trackCoordinator.Received(1).ImportGpxAsync(cancellationToken: Arg.Any<CancellationToken>());
     }
 
     [Fact]

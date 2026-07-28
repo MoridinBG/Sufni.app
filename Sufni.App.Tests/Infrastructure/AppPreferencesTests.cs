@@ -68,7 +68,7 @@ public class AppPreferencesTests
         var rereadCustomLayer = Assert.Single(await reloaded.Map.GetCustomLayersAsync());
         Assert.Equal("Trail maps", rereadCustomLayer.Name);
 
-        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath, cancellationToken: TestContext.Current.CancellationToken));
         var maps = json.RootElement.GetProperty("maps");
         Assert.Equal(layer.Id.ToString("D"), maps.GetProperty("selectedLayerId").GetString());
         Assert.Single(maps.GetProperty("customLayers").EnumerateArray());
@@ -93,7 +93,7 @@ public class AppPreferencesTests
                 "customLayers": []
               }
             }
-            """);
+            """, cancellationToken: TestContext.Current.CancellationToken);
         var preferences = new AppPreferences(preferencesPath);
 
         await File.WriteAllTextAsync(
@@ -106,7 +106,7 @@ public class AppPreferencesTests
                 "customLayers": []
               }
             }
-            """);
+            """, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(initialLayerId, await preferences.Map.GetSelectedLayerIdAsync());
 
@@ -154,7 +154,7 @@ public class AppPreferencesTests
                 }
             });
 
-        var initial = await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var initial = await initialEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(PreferenceChangeOrigin.SyncApply, initial.Origin);
         Assert.False(initial.AdvancesSyncClock);
         Assert.Null(initial.Value.SelectedLayerId);
@@ -162,7 +162,7 @@ public class AppPreferencesTests
 
         await preferences.Map.SetSelectedLayerIdAsync(localLayerId);
 
-        var local = await localEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var local = await localEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(PreferenceChangeOrigin.LocalWrite, local.Origin);
         Assert.True(local.AdvancesSyncClock);
         Assert.Equal(localLayerId, local.Value.SelectedLayerId);
@@ -177,7 +177,7 @@ public class AppPreferencesTests
             },
         });
 
-        var synced = await syncEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var synced = await syncEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(PreferenceChangeOrigin.SyncApply, synced.Origin);
         Assert.False(synced.AdvancesSyncClock);
         Assert.Equal(syncedLayer.Id, synced.Value.SelectedLayerId);
@@ -200,7 +200,7 @@ public class AppPreferencesTests
         var reloaded = new AppPreferences(preferencesPath);
         Assert.Equal(mode, await reloaded.Theme.GetModeAsync());
 
-        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath, cancellationToken: TestContext.Current.CancellationToken));
         Assert.Equal(storedMode, json.RootElement.GetProperty("theme").GetProperty("mode").GetString());
     }
 
@@ -233,14 +233,14 @@ public class AppPreferencesTests
                 }
             });
 
-        var initial = await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var initial = await initialEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(PreferenceChangeOrigin.SyncApply, initial.Origin);
         Assert.False(initial.AdvancesSyncClock);
         Assert.Equal(SufniThemeMode.Dark, initial.Value);
 
         await preferences.Theme.SetModeAsync(SufniThemeMode.Light);
 
-        var local = await localEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var local = await localEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(PreferenceChangeOrigin.LocalWrite, local.Origin);
         Assert.True(local.AdvancesSyncClock);
         Assert.Equal(SufniThemeMode.Light, local.Value);
@@ -251,7 +251,7 @@ public class AppPreferencesTests
             Theme = new ThemePreferencesSyncData { Mode = SufniThemeMode.Dark.ToString() },
         });
 
-        var synced = await syncEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var synced = await syncEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(PreferenceChangeOrigin.SyncApply, synced.Origin);
         Assert.False(synced.AdvancesSyncClock);
         Assert.Equal(SufniThemeMode.Dark, synced.Value);
@@ -267,7 +267,7 @@ public class AppPreferencesTests
 
         if (document is not null)
         {
-            await File.WriteAllTextAsync(preferencesPath, document);
+            await File.WriteAllTextAsync(preferencesPath, document, cancellationToken: TestContext.Current.CancellationToken);
         }
 
         var preferences = new AppPreferences(preferencesPath);
@@ -298,14 +298,14 @@ public class AppPreferencesTests
                 }
             });
 
-        var initial = await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var initial = await initialEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(PreferenceChangeOrigin.SyncApply, initial.Origin);
         Assert.False(initial.AdvancesSyncClock);
         Assert.Null(initial.Value.LayoutProfile);
 
         await preferences.Ui.SetLayoutProfileAsync(UiLayoutProfile.Workspace);
 
-        var local = await localEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var local = await localEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(PreferenceChangeOrigin.LocalNoSyncClockWrite, local.Origin);
         Assert.False(local.AdvancesSyncClock);
         Assert.Equal(UiLayoutProfile.Workspace, local.Value.LayoutProfile);
@@ -323,7 +323,7 @@ public class AppPreferencesTests
         var missingFilePreferences = await preferences.Session.GetRecordedAsync(Guid.NewGuid());
         AssertDefaultSessionPreferences(missingFilePreferences);
 
-        await File.WriteAllTextAsync(preferencesPath, "{\"version\":1}");
+        await File.WriteAllTextAsync(preferencesPath, "{\"version\":1}", cancellationToken: TestContext.Current.CancellationToken);
         var missingSessionPreferences = await preferences.Session.GetRecordedAsync(Guid.NewGuid());
 
         AssertDefaultSessionPreferences(missingSessionPreferences);
@@ -351,7 +351,7 @@ public class AppPreferencesTests
 
         testCase.AssertStored(stored);
 
-        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath, cancellationToken: TestContext.Current.CancellationToken));
         testCase.AssertJson(GetRecordedSessionJson(json, sessionId));
     }
 
@@ -387,7 +387,7 @@ public class AppPreferencesTests
         Assert.Equal(TravelDistributionMode.DynamicSag, second.Analysis.TravelDistributionMode);
         Assert.Equal(SessionInsightsTargetProfile.Enduro, second.Analysis.SessionInsightsTargetProfile);
 
-        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath, cancellationToken: TestContext.Current.CancellationToken));
         var sessions = json.RootElement.GetProperty("session").GetProperty("sessions");
         Assert.Equal(2, sessions.EnumerateObject().Count());
     }
@@ -425,7 +425,7 @@ public class AppPreferencesTests
                 }
               }
             }
-            """);
+            """, cancellationToken: TestContext.Current.CancellationToken);
         var preferences = new AppPreferences(preferencesPath);
 
         var stored = await preferences.Session.GetRecordedAsync(sessionId);
@@ -489,7 +489,7 @@ public class AppPreferencesTests
                 }
               }
             }
-            """);
+            """, cancellationToken: TestContext.Current.CancellationToken);
         var preferences = new AppPreferences(preferencesPath);
 
         var stored = await preferences.Session.GetRecordedAsync(sessionId);
@@ -579,7 +579,7 @@ public class AppPreferencesTests
                 }
               }
             }
-            """);
+            """, cancellationToken: TestContext.Current.CancellationToken);
         var preferences = new AppPreferences(preferencesPath);
 
         var stored = await preferences.Session.GetRecordedAsync(sessionId);
@@ -620,7 +620,7 @@ public class AppPreferencesTests
                 ])),
         });
 
-        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath, cancellationToken: TestContext.Current.CancellationToken));
         Assert.Equal(AppPreferenceSerialization.CurrentVersion, json.RootElement.GetProperty("version").GetInt32());
         var session = json.RootElement
             .GetProperty("session")
@@ -780,7 +780,7 @@ public class AppPreferencesTests
             Assert.Equal(VelocityAverageMode.StrokePeakAveraged, stored.Analysis.VelocityAverageMode);
         }
 
-        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath, cancellationToken: TestContext.Current.CancellationToken));
         var sessions = json.RootElement.GetProperty("session").GetProperty("sessions");
         Assert.Equal(sessionIds.Length, sessions.EnumerateObject().Count());
     }
@@ -801,7 +801,7 @@ public class AppPreferencesTests
             _ => throw new ArgumentOutOfRangeException(nameof(fallbackCase), fallbackCase, null),
         };
 
-        await File.WriteAllTextAsync(preferencesPath, jsonText);
+        await File.WriteAllTextAsync(preferencesPath, jsonText, cancellationToken: TestContext.Current.CancellationToken);
         var preferences = new AppPreferences(preferencesPath);
 
         var stored = await preferences.Session.GetRecordedAsync(sessionId);
@@ -820,7 +820,7 @@ public class AppPreferencesTests
 
         var updated = await preferences.Session.GetRecordedAsync(sessionId);
         Assert.False(updated.SignalDisplay.Travel);
-        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath, cancellationToken: TestContext.Current.CancellationToken));
         Assert.True(json.RootElement.TryGetProperty("session", out _));
     }
 
@@ -878,7 +878,7 @@ public class AppPreferencesTests
                 "customLayers": []
               }
             }
-            """);
+            """, cancellationToken: TestContext.Current.CancellationToken);
         var preferences = new AppPreferences(preferencesPath);
 
         var snapshot = await preferences.GetSyncDataAsync(1, long.MaxValue);
@@ -887,7 +887,7 @@ public class AppPreferencesTests
         Assert.True(snapshot!.Updated > 1);
         Assert.Equal(selectedLayerId, snapshot.Maps.SelectedLayerId);
 
-        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath));
+        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath, cancellationToken: TestContext.Current.CancellationToken));
         Assert.True(json.RootElement.GetProperty("updated").GetInt64() > 1);
     }
 
@@ -960,7 +960,7 @@ public class AppPreferencesTests
             var replayed = await preferences.Session.ObserveRecorded(sessionId)
                 .FirstAsync()
                 .ToTask()
-                .WaitAsync(TimeSpan.FromSeconds(5));
+                .AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
             Assert.Equal(TravelDistributionMode.DynamicSag, replayed.Analysis.TravelDistributionMode);
             return;
@@ -982,7 +982,7 @@ public class AppPreferencesTests
                 }
             });
 
-        AssertDefaultSessionPreferences(await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+        AssertDefaultSessionPreferences(await initialEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
 
         if (valueCase == ObserveRecordedValueCase.SyncApply)
         {
@@ -1013,7 +1013,7 @@ public class AppPreferencesTests
                 });
         }
 
-        var observed = await changedEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var observed = await changedEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(TravelDistributionMode.DynamicSag, observed.Analysis.TravelDistributionMode);
     }
 
@@ -1047,7 +1047,7 @@ public class AppPreferencesTests
                 }
             });
 
-        var initial = await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var initial = await initialEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(PreferenceChangeOrigin.SyncApply, initial.Origin);
         Assert.False(initial.AdvancesSyncClock);
         AssertDefaultSessionPreferences(initial.Value);
@@ -1059,7 +1059,7 @@ public class AppPreferencesTests
                 Processing = new SessionProcessingPreferences(VelocityFilterWindowMilliseconds: 250),
             });
 
-        var local = await localEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var local = await localEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(PreferenceChangeOrigin.LocalWrite, local.Origin);
         Assert.True(local.AdvancesSyncClock);
         Assert.Equal(TravelDistributionMode.DynamicSag, local.Value.Analysis.TravelDistributionMode);
@@ -1067,7 +1067,7 @@ public class AppPreferencesTests
 
         await preferences.Session.ResetRecordedProcessingToDefaultLocallyAsync(sessionId);
 
-        var reset = await resetEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var reset = await resetEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(PreferenceChangeOrigin.LocalNoSyncClockWrite, reset.Origin);
         Assert.False(reset.AdvancesSyncClock);
         Assert.Equal(TravelDistributionMode.DynamicSag, reset.Value.Analysis.TravelDistributionMode);
@@ -1100,13 +1100,13 @@ public class AppPreferencesTests
                 }
             });
 
-        var initial = await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var initial = await initialEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(PreferenceChangeOrigin.SyncApply, initial.Origin);
         AssertDefaultSessionPreferences(initial.Value);
 
         await preferences.Session.ResetRecordedProcessingToDefaultLocallyAsync(sessionId);
 
-        var reset = await resetEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var reset = await resetEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(PreferenceChangeOrigin.LocalNoSyncClockWrite, reset.Origin);
         Assert.False(reset.AdvancesSyncClock);
         AssertDefaultSessionPreferences(reset.Value);
@@ -1136,7 +1136,7 @@ public class AppPreferencesTests
                 }
             });
 
-        var initial = await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var initial = await initialEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(PreferenceChangeOrigin.SyncApply, initial.Origin);
         Assert.False(initial.AdvancesSyncClock);
         Assert.Empty(initial.Value);
@@ -1147,7 +1147,7 @@ public class AppPreferencesTests
                 Analysis = current.Analysis with { TravelDistributionMode = TravelDistributionMode.DynamicSag },
             });
 
-        var local = await localEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var local = await localEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(PreferenceChangeOrigin.LocalWrite, local.Origin);
         Assert.True(local.AdvancesSyncClock);
         Assert.True(local.Value.TryGetValue(sessionId, out var stored));
@@ -1183,7 +1183,7 @@ public class AppPreferencesTests
                     duplicateEmission.TrySetResult();
                 }
             });
-        await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await initialEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         var stored = SessionPreferences.Default with
         {
@@ -1200,7 +1200,7 @@ public class AppPreferencesTests
                 Sessions = { [sessionId] = stored },
             },
         });
-        await firstStoredEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await firstStoredEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
         {
@@ -1262,7 +1262,7 @@ public class AppPreferencesTests
                     duplicateEmission.TrySetResult();
                 }
             });
-        await initialEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await initialEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         var stored = SessionPreferences.Default with
         {
@@ -1279,7 +1279,7 @@ public class AppPreferencesTests
                 Sessions = { [sessionId] = stored },
             },
         });
-        await firstStoredEmission.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await firstStoredEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
         {
@@ -1296,7 +1296,7 @@ public class AppPreferencesTests
 
     private static async Task AssertDoesNotCompleteAsync(Task task, TimeSpan timeout)
     {
-        var completed = await Task.WhenAny(task, Task.Delay(timeout));
+        var completed = await Task.WhenAny(task, Task.Delay(timeout, TestContext.Current.CancellationToken));
         Assert.NotSame(task, completed);
     }
 

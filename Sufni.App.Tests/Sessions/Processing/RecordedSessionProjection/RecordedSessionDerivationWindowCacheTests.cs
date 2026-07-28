@@ -86,7 +86,7 @@ public class RecordedSessionDerivationWindowCacheTests
         provider.Windows[sessionId] = new RecordedSessionDerivationWindow(sourceId, 1, 2);
         provider.RaiseWindowsChanged();
 
-        Assert.Equal(sessionId, await changed.Task.WaitAsync(TimeSpan.FromSeconds(1)));
+        Assert.Equal(sessionId, await changed.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(1)));
         Assert.Equal(provider.Windows[sessionId], cache.Get(sessionId));
     }
 

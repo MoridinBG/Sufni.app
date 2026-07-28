@@ -31,17 +31,17 @@ public class AppDataRefresherTests
             derivationWindowCache,
             []);
 
-        await refresher.RefreshCoreStateAsync();
+        await refresher.RefreshCoreStateAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // The option/window caches must hydrate before stores refresh so the
         // projection's first sweep sees each session's real derivation inputs.
         await processingOptionCache.Received(1).HydrateAsync();
         await derivationWindowCache.Received(1).HydrateAsync();
-        await bikeStore.Received(1).RefreshAsync();
-        await setupStore.Received(1).RefreshAsync();
-        await sessionStore.Received(1).RefreshAsync();
-        await sourceStore.Received(1).RefreshAsync();
-        await pairedDeviceStore.Received(1).RefreshAsync();
+        await bikeStore.Received(1).RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await setupStore.Received(1).RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await sessionStore.Received(1).RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await sourceStore.Received(1).RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await pairedDeviceStore.Received(1).RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -65,9 +65,9 @@ public class AppDataRefresherTests
             derivationWindowCache,
             [participant]);
 
-        await refresher.RefreshAllStateAsync();
+        await refresher.RefreshAllStateAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        await sessionStore.Received(1).RefreshAsync();
+        await sessionStore.Received(1).RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
         await participant.Received(1).RefreshExtensionStateAsync(Arg.Any<CancellationToken>());
     }
 }

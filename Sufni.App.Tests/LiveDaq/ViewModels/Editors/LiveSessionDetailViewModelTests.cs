@@ -400,7 +400,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
 
         await PublishSnapshotAsync(CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed()));
-        await firstBakeStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await firstBakeStarted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         var secondBakeApplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         editor.SpringPage.PropertyChanged += (_, args) =>
@@ -420,7 +420,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
         await WaitForUiRefreshAsync();
         if (editor.SpringPage.FrontTravelDistribution != secondData.FrontTravelDistribution)
         {
-            await secondBakeApplied.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await secondBakeApplied.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         }
 
         Assert.True(capturedFirstToken.IsCancellationRequested);

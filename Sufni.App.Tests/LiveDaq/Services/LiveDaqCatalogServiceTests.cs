@@ -311,15 +311,15 @@ public class LiveDaqCatalogServiceTests
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
 
-        var acceptTask = listener.AcceptTcpClientAsync();
+        var acceptTask = listener.AcceptTcpClientAsync(cancellationToken: TestContext.Current.CancellationToken);
         var inspector = new LiveDaqBoardIdInspector(
             new InlineBackgroundTaskRunner(),
             TimeSpan.FromMilliseconds(150));
 
         await Assert.ThrowsAsync<OperationCanceledException>(
-            () => inspector.InspectAsync(IPAddress.Loopback, port).WaitAsync(TimeSpan.FromSeconds(2)));
+            () => inspector.InspectAsync(IPAddress.Loopback, port, cancellationToken: TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
 
-        using var accepted = await acceptTask.WaitAsync(TimeSpan.FromSeconds(2));
+        using var accepted = await acceptTask.AsTask().AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -335,7 +335,7 @@ public class LiveDaqCatalogServiceTests
         var serverTask = ServeIdentifyAckAsync(listener, boardSerial);
         var inspector = new LiveDaqBoardIdInspector(new InlineBackgroundTaskRunner());
 
-        var boardId = await inspector.InspectAsync(IPAddress.Loopback, port);
+        var boardId = await inspector.InspectAsync(IPAddress.Loopback, port, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(expectedBoardId, boardId);
         await serverTask;
@@ -358,7 +358,7 @@ public class LiveDaqCatalogServiceTests
             tcs.TrySetResult(entries);
         });
 
-        return await tcs.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        return await tcs.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     private static ServiceAnnouncement CreateAnnouncement(

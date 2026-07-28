@@ -16,7 +16,7 @@ public class SessionPresentationServiceTests
     {
         var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: false);
 
-        var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180));
+        var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(result.FrontTravelDistribution);
         Assert.NotNull(result.FrontVelocityDistribution);
@@ -34,7 +34,7 @@ public class SessionPresentationServiceTests
     {
         var telemetry = TestTelemetryData.CreateProcessed(frontPresent: false, rearPresent: true);
 
-        var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180));
+        var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Null(result.FrontTravelDistribution);
         Assert.Null(result.FrontVelocityDistribution);
@@ -52,7 +52,7 @@ public class SessionPresentationServiceTests
     {
         var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
 
-        var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180));
+        var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(result.FrontTravelDistribution);
         Assert.NotNull(result.RearTravelDistribution);
@@ -70,7 +70,7 @@ public class SessionPresentationServiceTests
     {
         var telemetry = CreateTelemetryWithSingleBalanceSamplePerSide();
 
-        var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180));
+        var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(result.FrontTravelDistribution);
         Assert.NotNull(result.RearTravelDistribution);
@@ -86,7 +86,7 @@ public class SessionPresentationServiceTests
     {
         var telemetry = CreateTelemetryWithoutStrokes();
 
-        var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180));
+        var result = service.BuildCachePresentation(telemetry, new SessionPresentationDimensions(320, 180), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Null(result.FrontTravelDistribution);
         Assert.Null(result.RearTravelDistribution);

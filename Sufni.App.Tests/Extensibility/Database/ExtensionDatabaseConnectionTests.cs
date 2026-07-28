@@ -33,7 +33,7 @@ public class ExtensionDatabaseConnectionTests
         IExtensionDatabaseConnection database = new ExtensionDatabaseConnection(
             PersistenceTestData.CreateConnectionContext(databasePath, [migrator]));
 
-        var session = await database.OpenSessionAsync("test");
+        var session = await database.OpenSessionAsync("test", cancellationToken: TestContext.Current.CancellationToken);
         var rows = await session.Table<TestExtensionRow>().ToListAsync();
 
         Assert.Single(rows);
@@ -51,7 +51,7 @@ public class ExtensionDatabaseConnectionTests
             PersistenceTestData.CreateConnectionContext(
                 databasePath,
                 [new TestExtensionMigrator("test", targetVersion: 0, [typeof(TestExtensionRow)], [])]));
-        var session = await database.OpenSessionAsync("test");
+        var session = await database.OpenSessionAsync("test", cancellationToken: TestContext.Current.CancellationToken);
 
         _ = session.Table<TestExtensionRow>();
         var undeclaredException = Assert.Throws<InvalidOperationException>(
@@ -76,8 +76,8 @@ public class ExtensionDatabaseConnectionTests
                     new TestExtensionMigrator("extension-a", targetVersion: 0, [typeof(TestExtensionRow)], []),
                     new TestExtensionMigrator("extension-b", targetVersion: 0, [typeof(SecondTestExtensionRow)], []),
                 ]));
-        var extensionASession = await database.OpenSessionAsync("extension-a");
-        var extensionBSession = await database.OpenSessionAsync("extension-b");
+        var extensionASession = await database.OpenSessionAsync("extension-a", cancellationToken: TestContext.Current.CancellationToken);
+        var extensionBSession = await database.OpenSessionAsync("extension-b", cancellationToken: TestContext.Current.CancellationToken);
 
         await extensionASession.InsertAsync(new TestExtensionRow { Id = "a", Value = 1 });
         await extensionBSession.InsertAsync(new SecondTestExtensionRow { Id = "b" });
@@ -101,8 +101,8 @@ public class ExtensionDatabaseConnectionTests
                     new TestExtensionMigrator("extension-a", targetVersion: 0, [typeof(TestExtensionRow)], []),
                     new TestExtensionMigrator("extension-b", targetVersion: 0, [typeof(SecondTestExtensionRow)], []),
                 ]));
-        var extensionASession = await database.OpenSessionAsync("extension-a");
-        var extensionBSession = await database.OpenSessionAsync("extension-b");
+        var extensionASession = await database.OpenSessionAsync("extension-a", cancellationToken: TestContext.Current.CancellationToken);
+        var extensionBSession = await database.OpenSessionAsync("extension-b", cancellationToken: TestContext.Current.CancellationToken);
 
         await extensionASession.RunInTransactionAsync(transaction =>
             transaction.Insert(new TestExtensionRow { Id = "a", Value = 1 }));
@@ -133,7 +133,7 @@ public class ExtensionDatabaseConnectionTests
             PersistenceTestData.CreateConnectionContext(
                 databasePath,
                 [new TestExtensionMigrator("test", targetVersion: 0, [typeof(TestExtensionRow)], [])]));
-        var session = await database.OpenSessionAsync("test");
+        var session = await database.OpenSessionAsync("test", cancellationToken: TestContext.Current.CancellationToken);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             session.RunInTransactionAsync(transaction =>
@@ -155,7 +155,7 @@ public class ExtensionDatabaseConnectionTests
             PersistenceTestData.CreateConnectionContext(
                 databasePath,
                 [new TestExtensionMigrator("test", targetVersion: 0, [typeof(TestExtensionRow)], [])]));
-        var session = await database.OpenSessionAsync("test");
+        var session = await database.OpenSessionAsync("test", cancellationToken: TestContext.Current.CancellationToken);
 
         await session.RunInTransactionAsync(transaction =>
         {

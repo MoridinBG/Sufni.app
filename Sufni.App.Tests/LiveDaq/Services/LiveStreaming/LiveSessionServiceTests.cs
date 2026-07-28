@@ -77,7 +77,7 @@ public class LiveSessionServiceTests
     {
         var service = CreateService();
 
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         sharedStream.Received(1).AcquireLease();
         sharedStream.Received(1).AcquireConfigurationLock();
@@ -108,7 +108,7 @@ public class LiveSessionServiceTests
             .Returns<Task<LivePreviewStartResult?>>(_ => throw new InvalidOperationException("boom"));
         var service = CreateService();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.EnsureAttachedAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken));
 
         await observerLease.Received(1).DisposeAsync();
         await configurationLockLease.Received(1).DisposeAsync();
@@ -222,7 +222,7 @@ public class LiveSessionServiceTests
             batch => batch.ImuTimes.TryGetValue(LiveImuLocation.Frame, out var imuTimes) && imuTimes.Count == 50,
             TimeSpan.FromSeconds(2));
 
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         frames.OnNext(CreateTravelBatchFrame());
         frames.OnNext(CreateImuBatchFrame());
@@ -234,14 +234,14 @@ public class LiveSessionServiceTests
             altitude: 601));
 
         await Task.WhenAll(travelBatch, imuBatch);
-        await analysisReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await analysisReady.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         Assert.True(service.Current.Controls.CanSave);
         Assert.NotNull(service.Current.AnalysisTelemetry);
         Assert.Equal(2, service.Current.SessionTrackPoints.Count);
         Assert.True(service.Current.SessionTrackPoints[0].Time < service.Current.SessionTrackPoints[1].Time);
 
-        var capture = await service.PrepareCaptureForSaveAsync();
+        var capture = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(5, capture.TelemetryCapture.FrontMeasurements.Length);
         Assert.Equal(2, capture.TelemetryCapture.GpsData!.Length);
 
@@ -250,7 +250,7 @@ public class LiveSessionServiceTests
 
         Assert.IsType<LiveSessionStreamPresentation.Closed>(service.Current.Stream);
 
-        var partialCapture = await service.PrepareCaptureForSaveAsync();
+        var partialCapture = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(5, partialCapture.TelemetryCapture.RearMeasurements.Length);
     }
 
@@ -258,7 +258,7 @@ public class LiveSessionServiceTests
     public async Task V3Frames_PrepareCaptureForSave_PreservesSegmentsGapsMarkersAndFinalStatus()
     {
         var service = CreateService();
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var v3Header = PublishV3TravelSession();
 
@@ -286,7 +286,7 @@ public class LiveSessionServiceTests
                     Streams = [],
                 })));
 
-        var package = await service.PrepareCaptureForSaveAsync();
+        var package = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
         var capture = package.TelemetryCapture;
 
         var frontSegment = Assert.Single(capture.FrontSegments);
@@ -310,7 +310,7 @@ public class LiveSessionServiceTests
     public async Task TemperatureFrames_AreSavedSeparatelyFromImu_AndClearedOnReset()
     {
         var service = CreateService();
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         var temperatureHeader = sessionHeader with
         {
             AcceptedTemperatureRateMhz = 30,
@@ -372,13 +372,13 @@ public class LiveSessionServiceTests
                         21.5f)),
             ]));
 
-        var capture = await service.PrepareCaptureForSaveAsync();
+        var capture = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(21.5f, Assert.Single(capture.TelemetryCapture.TemperatureData).TemperatureCelsius);
         Assert.Null(capture.TelemetryCapture.ImuData);
 
-        await service.ResetCaptureAsync();
+        await service.ResetCaptureAsync(cancellationToken: TestContext.Current.CancellationToken);
         frames.OnNext(CreateTravelBatchFrame());
-        var resetCapture = await service.PrepareCaptureForSaveAsync();
+        var resetCapture = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.Empty(resetCapture.TelemetryCapture.TemperatureData);
     }
 
@@ -386,14 +386,14 @@ public class LiveSessionServiceTests
     public async Task V3Frames_PrepareCaptureForSave_MarksMissingFinalStatus_WhenClosedWithoutSessionResult()
     {
         var service = CreateService();
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         var v3Header = PublishV3TravelSession();
 
         frames.OnNext(CreateV3TravelBatch(v3Header, LiveSensorInstanceMask.ForkTravel));
         currentState = currentState with { IsClosed = true, LastError = "link lost" };
         states.OnNext(currentState);
 
-        var package = await service.PrepareCaptureForSaveAsync();
+        var package = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Null(package.TelemetryCapture.FinalStatus);
         Assert.True(package.TelemetryCapture.MissingFinalStatus);
@@ -403,7 +403,7 @@ public class LiveSessionServiceTests
     public async Task V3ImuFrames_PrepareCaptureForSave_UsesCanonicalSegmentsWithoutDenseDuplicate()
     {
         var service = CreateService();
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         var v3Header = PublishV3TravelAndImuSession();
         var frame0 = CreateImuRecord(10);
         var fork0 = CreateImuRecord(20);
@@ -418,7 +418,7 @@ public class LiveSessionServiceTests
             LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.ForkImu,
             [frame0, fork0, frame1, fork1]));
 
-        var package = await service.PrepareCaptureForSaveAsync();
+        var package = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
         var imuData = package.TelemetryCapture.ImuData;
 
         Assert.NotNull(imuData);
@@ -445,7 +445,7 @@ public class LiveSessionServiceTests
     public async Task V3ImuFrames_PrepareCaptureForSave_PreservesValidityAndIndexGapsByLocation()
     {
         var service = CreateService();
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         var v3Header = PublishV3TravelAndImuSession();
 
         frames.OnNext(CreateV3TravelBatch(v3Header, LiveSensorInstanceMask.Travel));
@@ -468,7 +468,7 @@ public class LiveSessionServiceTests
             LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.ForkImu,
             [CreateImuRecord(60), CreateImuRecord(70)]));
 
-        var package = await service.PrepareCaptureForSaveAsync();
+        var package = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
         var imuData = package.TelemetryCapture.ImuData;
 
         Assert.NotNull(imuData);
@@ -522,9 +522,9 @@ public class LiveSessionServiceTests
             }
         });
 
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         frames.OnNext(CreateTravelBatchFrame());
-        await analysisReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await analysisReady.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         sessionPresentationService.Received(1).CalculateDampingPercentages(
             Arg.Any<TelemetryData>(),
@@ -537,26 +537,26 @@ public class LiveSessionServiceTests
     public async Task ResetCaptureAsync_ClearsAccumulatedCaptureAndAnalysis()
     {
         var service = CreateService();
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         frames.OnNext(CreateTravelBatchFrame());
         frames.OnNext(CreateGpsBatchFrame());
 
         Assert.True(service.Current.Controls.CanSave);
 
-        await service.ResetCaptureAsync();
+        await service.ResetCaptureAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.False(service.Current.Controls.CanSave);
         Assert.Null(service.Current.AnalysisTelemetry);
         Assert.Empty(service.Current.SessionTrackPoints);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.PrepareCaptureForSaveAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task SessionRollover_ClosesCaptureBeforeReset()
     {
         var service = CreateService();
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         frames.OnNext(CreateTravelBatchFrame());
         var nextHeader = CreateRolloverSessionHeader();
 
@@ -572,7 +572,7 @@ public class LiveSessionServiceTests
     public async Task ResetCaptureAsync_AfterSessionRollover_AdoptsCurrentHeaderAndReopensStreaming()
     {
         var service = CreateService();
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         frames.OnNext(CreateTravelBatchFrame());
         frames.OnNext(new LiveSessionStatsFrame(
             new LiveFrameMetadata(10),
@@ -580,7 +580,7 @@ public class LiveSessionServiceTests
         var nextHeader = CreateRolloverSessionHeader();
         PublishSharedState(nextHeader, isClosed: false);
 
-        await service.ResetCaptureAsync();
+        await service.ResetCaptureAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var streaming = Assert.IsType<LiveSessionStreamPresentation.Streaming>(service.Current.Stream);
         Assert.Equal(nextHeader.SessionId, streaming.SessionHeader.SessionId);
@@ -598,7 +598,7 @@ public class LiveSessionServiceTests
     public async Task ResetCaptureAsync_DoesNotReopenWithoutOpenStreamHeader(bool isClosed, bool removeHeaderBeforeReset)
     {
         var service = CreateService();
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         frames.OnNext(CreateTravelBatchFrame());
         var nextHeader = CreateRolloverSessionHeader();
         PublishSharedState(nextHeader, isClosed);
@@ -607,7 +607,7 @@ public class LiveSessionServiceTests
             currentState = currentState with { SessionHeader = null };
         }
 
-        await service.ResetCaptureAsync();
+        await service.ResetCaptureAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.IsType<LiveSessionStreamPresentation.Closed>(service.Current.Stream);
         Assert.NotEqual(nextHeader.SessionId, service.Current.Controls.SessionHeader?.SessionId);
@@ -617,16 +617,16 @@ public class LiveSessionServiceTests
     public async Task ResetCaptureAsync_AfterSessionRollover_RejectsOldSessionFramesAndSavesNewSessionFrames()
     {
         var service = CreateService();
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         frames.OnNext(CreateTravelBatchFrame());
         var nextHeader = CreateRolloverSessionHeader();
         PublishSharedState(nextHeader, isClosed: false);
-        await service.ResetCaptureAsync();
+        await service.ResetCaptureAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         PublishIdentityBearingFrames(sessionHeader, measurementBase: 1000, temperature: 11.5f, markerDeltaUs: 1_000_000, resultReason: 1, queueDepth: 99);
         PublishIdentityBearingFrames(nextHeader, measurementBase: 2000, temperature: 22.5f, markerDeltaUs: 2_000_000, resultReason: 2, queueDepth: 3);
 
-        var package = await service.PrepareCaptureForSaveAsync();
+        var package = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
         var capture = package.TelemetryCapture;
         Assert.Equal([2000, 2010, 2020, 2030, 2040], capture.FrontMeasurements);
         Assert.Equal(22.5f, Assert.Single(capture.TemperatureData).TemperatureCelsius);
@@ -644,7 +644,7 @@ public class LiveSessionServiceTests
     public async Task GpsFrames_CalculateSpeeds_ForOrderedAndOutOfOrderFrames(GpsSpeedScenario scenario)
     {
         var service = CreateService();
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         frames.OnNext(CreateGpsBatchFrame());
         if (scenario is GpsSpeedScenario.OutOfOrderFallback)
@@ -682,7 +682,7 @@ public class LiveSessionServiceTests
     public async Task GpsFrames_OutOfOrderRecordInsideBatch_PreservesEntireRawBatchAndReprojectsAllPoints()
     {
         var service = CreateService();
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         frames.OnNext(CreateTravelBatchFrame());
         var time8 = new DateTime(2026, 1, 2, 3, 4, 8, DateTimeKind.Utc);
         var time7 = time8.AddSeconds(-1);
@@ -701,7 +701,7 @@ public class LiveSessionServiceTests
         Assert.True(points[0].Time < points[1].Time);
         Assert.True(points[1].Time < points[2].Time);
 
-        var package = await service.PrepareCaptureForSaveAsync();
+        var package = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(
             [time8, time7, time9],
             package.TelemetryCapture.GpsData!.Select(record => record.Timestamp).ToArray());
@@ -733,17 +733,19 @@ public class LiveSessionServiceTests
             }
         });
 
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         frames.OnNext(CreateTravelBatchFrame());
-        await firstAnalysisUpdate.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await firstAnalysisUpdate.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         frames.OnNext(CreateTravelBatchFrame());
 
-        var secondUpdateArrivedTooSoon = await Task.WhenAny(secondAnalysisUpdate.Task, Task.Delay(250)) == secondAnalysisUpdate.Task;
+        var secondUpdateArrivedTooSoon = await Task.WhenAny(
+            secondAnalysisUpdate.Task,
+            Task.Delay(250, TestContext.Current.CancellationToken)) == secondAnalysisUpdate.Task;
         Assert.False(secondUpdateArrivedTooSoon);
 
-        await secondAnalysisUpdate.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await secondAnalysisUpdate.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -763,17 +765,17 @@ public class LiveSessionServiceTests
 
         try
         {
-            await service.EnsureAttachedAsync();
+            await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             frames.OnNext(CreateTravelBatchFrame());
-            await blockingRunner.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await blockingRunner.Started.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
             frames.OnNext(CreateTravelBatchFrame());
             frames.OnNext(CreateTravelBatchFrame());
 
             blockingRunner.Release();
 
-            await skippedRecomputesReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await skippedRecomputesReady.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
             Assert.True(service.Current.Controls.ClientDropCounters.AnalysisRecomputesSkipped > 0);
         }
@@ -794,7 +796,7 @@ public class LiveSessionServiceTests
             batch => batch.FrontTravel.Count == 5,
             TimeSpan.FromSeconds(2));
 
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         frames.OnNext(CreateTravelBatchFrame(firstMonotonicUs: sessionHeader.SessionStartMonotonicUs));
 
@@ -805,7 +807,7 @@ public class LiveSessionServiceTests
             batch => batch.TravelTimes.Count == 0 && batch.Revision > firstBatch.Revision,
             TimeSpan.FromSeconds(2));
 
-        await service.ResetCaptureAsync();
+        await service.ResetCaptureAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var resetBatch = await resetBatchTask;
 
@@ -826,7 +828,7 @@ public class LiveSessionServiceTests
     public async Task TravelFrames_PublishDurationThroughLatestValidTravelEnd()
     {
         var service = CreateService();
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         frames.OnNext(CreateTravelBatchFrame());
 
@@ -856,7 +858,7 @@ public class LiveSessionServiceTests
             batch => batch.FrontTravel.Count == 10,
             TimeSpan.FromSeconds(2));
 
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         frames.OnNext(CreateTravelBatchFrame());
         frames.OnNext(CreateTravelBatchFrame());
@@ -883,7 +885,7 @@ public class LiveSessionServiceTests
                 && times.Count == 50,
             TimeSpan.FromSeconds(2));
 
-        await service.EnsureAttachedAsync();
+        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         frames.OnNext(CreateImuBatchFrame());
 
@@ -910,10 +912,10 @@ public class LiveSessionServiceTests
 
         try
         {
-            await service.EnsureAttachedAsync();
+            await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             frames.OnNext(CreateTravelBatchFrame());
-            await signalPipeline.AppendStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await signalPipeline.AppendStarted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
             for (var index = 0; index < 20; index++)
             {
@@ -921,14 +923,14 @@ public class LiveSessionServiceTests
                     firstMonotonicUs: sessionHeader.SessionStartMonotonicUs + (ulong)(index + 1) * 1_000_000));
             }
 
-            await displayDropsReady.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await displayDropsReady.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
             Assert.True(service.Current.Controls.CanSave);
             Assert.True(service.Current.Controls.ClientDropCounters.SignalBatchesCoalesced > 0);
             Assert.True(service.Current.Controls.ClientDropCounters.SignalSamplesDiscarded > 0);
             Assert.True(service.Current.Controls.ClientDropCounters.AnalysisRecomputesSkipped > 0);
 
-            var capture = await service.PrepareCaptureForSaveAsync();
+            var capture = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(105, capture.TelemetryCapture.FrontMeasurements.Length);
         }
         finally
@@ -1164,7 +1166,7 @@ public class LiveSessionServiceTests
             .Where(predicate)
             .FirstAsync()
             .ToTask()
-            .WaitAsync(timeout);
+            .AwaitBoundedAsync(timeout);
     }
 
     private LiveTravelBatchFrame CreateTravelBatchFrame(ulong? firstMonotonicUs = null) =>

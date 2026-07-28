@@ -45,7 +45,7 @@ public class PersistedStoreTests
         var store = new BikeStore(bikeRepository, UiThreadDispatcher);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
-        await store.RefreshAsync();
+        await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var snapshot = Assert.Single(snapshots);
         Assert.Equal(bikeId, snapshot.Id);
@@ -53,11 +53,11 @@ public class PersistedStoreTests
         Assert.Equal(snapshot, store.Get(bikeId));
 
         var updated = snapshot with { Name = "Enduro bike" };
-        var updateResult = await store.CommitBikeAsync(Bike.FromSnapshot(updated));
+        var updateResult = await store.CommitBikeAsync(Bike.FromSnapshot(updated), cancellationToken: TestContext.Current.CancellationToken);
         Assert.IsType<StoreMutationResult<BikeSnapshot>.Saved>(updateResult);
         Assert.Equal(updated, store.Get(bikeId));
 
-        var deleteResult = await store.CommitBikeDeleteAsync(bikeId);
+        var deleteResult = await store.CommitBikeDeleteAsync(bikeId, cancellationToken: TestContext.Current.CancellationToken);
         Assert.IsType<StoreDeleteResult<BikeSnapshot>.Deleted>(deleteResult);
         Assert.Empty(snapshots);
         Assert.Null(store.Get(bikeId));
@@ -83,15 +83,15 @@ public class PersistedStoreTests
         var changeSets = new List<IChangeSet<BikeSnapshot, Guid>>();
         using var subscription = store.Connect().Subscribe(changeSets.Add);
 
-        await store.RefreshAsync();
+        await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
         await store.CommitBikeAsync(new Bike
         {
             Id = bikeId,
             Name = "Enduro bike",
             HeadAngle = 64,
             Updated = 8
-        });
-        await store.CommitBikeDeleteAsync(bikeId);
+        }, cancellationToken: TestContext.Current.CancellationToken);
+        await store.CommitBikeDeleteAsync(bikeId, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Collection(
             changeSets,
@@ -116,7 +116,7 @@ public class PersistedStoreTests
         var store = new BikeStore(bikeRepository, dispatcher);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
-        await store.RefreshAsync();
+        await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(1, dispatcher.InvokeCount);
         Assert.Single(snapshots);
@@ -163,8 +163,8 @@ public class PersistedStoreTests
         var changeSets = new List<IChangeSet<BikeSnapshot, Guid>>();
         using var subscription = store.Connect().Subscribe(changeSets.Add);
 
-        await store.RefreshAsync();
-        await store.RefreshAsync();
+        await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var changeSet = Assert.Single(changeSets);
         var change = Assert.Single(changeSet);
@@ -191,7 +191,7 @@ public class PersistedStoreTests
         var store = new SetupStore(setupRepository, boardRepository, UiThreadDispatcher);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
-        await store.RefreshAsync();
+        await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var snapshot = Assert.Single(snapshots);
         Assert.Equal(setupId, snapshot.Id);
@@ -215,8 +215,8 @@ public class PersistedStoreTests
         var watched = new List<SessionSnapshot>();
         using var watchSubscription = store.Watch(sessionId).Subscribe(watched.Add);
 
-        await store.RefreshAsync();
-        await store.PublishSessionsRemovedAsync([sessionId]);
+        await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await store.PublishSessionsRemovedAsync([sessionId], cancellationToken: TestContext.Current.CancellationToken);
         var updatedSession = new Session(sessionId, "Evening run", "desc", null, 100)
         {
             HasProcessedData = true,
@@ -224,7 +224,7 @@ public class PersistedStoreTests
         };
         var updated = SessionSnapshot.From(updatedSession);
         sessionRepository.GetSessionAsync(sessionId).Returns(updatedSession);
-        await store.PublishSessionsChangedAsync([sessionId]);
+        await store.PublishSessionsChangedAsync([sessionId], cancellationToken: TestContext.Current.CancellationToken);
 
         var committedSession = new Session(sessionId, "Night run", "desc", null, 100)
         {
@@ -233,7 +233,7 @@ public class PersistedStoreTests
         };
         sessionRepository.PutSessionAsync(committedSession).Returns(Task.FromResult(sessionId));
         sessionRepository.GetSessionAsync(sessionId).Returns(committedSession);
-        var commitResult = await store.CommitSessionMetadataAsync(committedSession, updated.Updated);
+        var commitResult = await store.CommitSessionMetadataAsync(committedSession, updated.Updated, cancellationToken: TestContext.Current.CancellationToken);
         var committed = Assert.IsType<StoreMutationResult<SessionSnapshot>.Saved>(commitResult);
 
         var snapshot = Assert.Single(snapshots);
@@ -256,7 +256,7 @@ public class PersistedStoreTests
         var store = new PairedDeviceStore(pairedDeviceRepository, UiThreadDispatcher);
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
-        await store.RefreshAsync();
+        await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var snapshot = Assert.Single(snapshots);
         Assert.Equal("device-1", snapshot.DeviceId);
@@ -265,10 +265,10 @@ public class PersistedStoreTests
         var updatedDevice = new PairedDevice("device-1", "Tablet", expires);
         pairedDeviceRepository.GetPairedDeviceAsync("device-1").Returns(updatedDevice);
         var updated = PairedDeviceSnapshot.From(updatedDevice);
-        await store.PublishPairedDevicesChangedAsync(["device-1"]);
+        await store.PublishPairedDevicesChangedAsync(["device-1"], cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(updated, store.Get("device-1"));
 
-        var deleteResult = await store.CommitLocalUnpairAsync("device-1");
+        var deleteResult = await store.CommitLocalUnpairAsync("device-1", cancellationToken: TestContext.Current.CancellationToken);
         Assert.IsType<StoreDeleteResult<PairedDeviceSnapshot>.Deleted>(deleteResult);
         Assert.Empty(snapshots);
         Assert.Null(store.Get("device-1"));

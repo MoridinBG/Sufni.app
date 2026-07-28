@@ -169,7 +169,7 @@ public class SessionCoordinatorTests
                 return Task.FromResult(fresh);
             });
 
-        var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture, SessionPreferences.Default);
+        var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture, SessionPreferences.Default, cancellationToken: TestContext.Current.CancellationToken);
 
         await reprocessor.Received(1).ReprocessAsync(
             Arg.Is<RecordedSessionDomainSnapshot>(domain =>
@@ -254,7 +254,7 @@ public class SessionCoordinatorTests
         var result = await CreateCoordinator().SaveLiveCaptureAsync(
             session,
             capture,
-            SessionPreferences.Default);
+            SessionPreferences.Default, cancellationToken: TestContext.Current.CancellationToken);
 
         var saved = Assert.IsType<LiveSessionSaveResult.Saved>(result);
         Assert.Equal(session.Id, saved.SessionId);
@@ -281,7 +281,7 @@ public class SessionCoordinatorTests
                 Arg.Any<RecordedSessionSource?>())
             .ThrowsAsync(new InvalidOperationException("disk full"));
 
-        var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture, SessionPreferences.Default);
+        var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture, SessionPreferences.Default, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.IsType<LiveSessionSaveResult.Failed>(result);
         await sessionStore.DidNotReceive().PublishSessionsChangedAsync(
@@ -319,7 +319,7 @@ public class SessionCoordinatorTests
                     new StoreMutationResult<SessionSnapshot>.Saved(SessionSnapshot.From(saved)));
             });
 
-        var createdId = await CreateCoordinator().CreateDerivedSessionAsync(from.Id, "source (2)", 3.75);
+        var createdId = await CreateCoordinator().CreateDerivedSessionAsync(from.Id, "source (2)", 3.75, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.NotNull(saved);
         Assert.Equal(saved!.Id, createdId);
@@ -375,7 +375,7 @@ public class SessionCoordinatorTests
         SetLocalTelemetry(snapshot.Id, telemetry);
         var progress = new CapturingSessionDetailLoadProgress();
 
-        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, dimensions, progress);
+        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, dimensions, progress, cancellationToken: TestContext.Current.CancellationToken);
 
         var loaded = Assert.IsType<SessionDetailLoadResult.Loaded>(result);
         Assert.Same(telemetry, loaded.Data.TelemetryPresentation.TelemetryData);
@@ -414,7 +414,7 @@ public class SessionCoordinatorTests
             .Returns(trackData);
         var progress = new CapturingSessionDetailLoadProgress();
 
-        var result = await CreateCoordinator().LoadTrackAsync(snapshot.Id, telemetry, progress);
+        var result = await CreateCoordinator().LoadTrackAsync(snapshot.Id, telemetry, progress, cancellationToken: TestContext.Current.CancellationToken);
 
         var loaded = Assert.IsType<SessionDetailTrackLoadResult.Loaded>(result);
         Assert.Same(trackData, loaded.Data);
@@ -436,7 +436,7 @@ public class SessionCoordinatorTests
             .ThrowsAsync(new InvalidOperationException("track failed"));
         var progress = new CapturingSessionDetailLoadProgress();
 
-        var result = await CreateCoordinator().LoadTrackAsync(snapshot.Id, telemetry, progress);
+        var result = await CreateCoordinator().LoadTrackAsync(snapshot.Id, telemetry, progress, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.IsType<SessionDetailTrackLoadResult.Failed>(result);
         Assert.Equal(
@@ -475,7 +475,7 @@ public class SessionCoordinatorTests
         var result = await CreateCoordinator().LoadDetailAsync(
             snapshot.Id,
             new SessionPresentationDimensions(320, 180),
-            progress);
+            progress, cancellationToken: TestContext.Current.CancellationToken);
 
         var incomplete = Assert.IsType<SessionDetailLoadResult.IncompleteLocalData>(result);
         Assert.Equal(snapshot.Id, incomplete.SessionId);

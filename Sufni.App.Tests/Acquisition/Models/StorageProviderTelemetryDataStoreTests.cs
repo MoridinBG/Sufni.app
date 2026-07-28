@@ -58,7 +58,7 @@ public class StorageProviderTelemetryDataStoreTests
         var storageFile = CreateStorageFile("ride.SST", bytes);
         var telemetryFile = await StorageProviderTelemetryFile.CreateAsync(storageFile);
 
-        using var source = await telemetryFile.ReadSourceAsync();
+        using var source = await telemetryFile.ReadSourceAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("ride.SST", source.FileName);
         Assert.Equal(bytes.Length, source.LogicalLength);

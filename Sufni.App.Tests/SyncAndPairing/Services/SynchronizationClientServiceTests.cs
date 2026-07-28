@@ -448,11 +448,11 @@ public class SynchronizationClientServiceTests
         var syncTask = CreateService().SyncAll();
 
         // The swap pass must not start while a fill download is still pending.
-        await fillRequested.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await fillRequested.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         await httpApiService.DidNotReceive().GetSessionPsstAsync(swapId);
 
         fillDownload.SetResult(new SessionBlobPayload(fillFingerprint, [4, 5, 6]));
-        await syncTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await syncTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         await httpApiService.Received(1).GetSessionPsstAsync(swapId);
     }

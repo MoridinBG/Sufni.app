@@ -315,7 +315,7 @@ public class ImportSessionsCoordinatorTests
         await sessionA.Received(1).TrashFileAsync(2, Arg.Any<CancellationToken>());
         await sessionB.Received(1).TrashFileAsync(3, Arg.Any<CancellationToken>());
         await harness.DaqManagementService.DidNotReceiveWithAnyArgs()
-            .TrashFileAsync(default!, default, default, default);
+            .TrashFileAsync(default!, default, default, Arg.Any<CancellationToken>());
         await sessionA.Received(1).DisposeAsync();
         await sessionB.Received(1).DisposeAsync();
     }
@@ -356,8 +356,8 @@ public class ImportSessionsCoordinatorTests
 
         var importTask = harness.CreateCoordinator().ImportAsync([first, second], setup.Id);
 
-        await firstProcessingStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await secondReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await firstProcessingStarted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        await secondReadStarted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         releaseFirstProcessing.SetResult();
         var result = await importTask;
 
