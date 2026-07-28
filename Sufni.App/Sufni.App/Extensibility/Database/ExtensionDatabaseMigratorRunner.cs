@@ -58,7 +58,10 @@ internal sealed class ExtensionDatabaseMigratorRunner
                 {
                     var context = new ExtensionDatabaseMigrationContext(
                         migrator.ExtensionId,
-                        new ExtensionDatabaseTransaction(transactionConnection, tableCatalog));
+                        new ExtensionDatabaseTransaction(
+                            transactionConnection,
+                            tableCatalog,
+                            migrator.ExtensionId));
                     step.Apply(context);
                     transactionConnection.InsertOrReplace(new ExtensionSchemaVersion
                     {

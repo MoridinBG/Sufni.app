@@ -6,7 +6,8 @@ namespace Sufni.App.Extensibility.Database;
 
 internal sealed class ExtensionDatabaseTransaction(
     SQLiteConnection connection,
-    ExtensionDatabaseTableCatalog tableCatalog) : IExtensionDatabaseTransaction
+    ExtensionDatabaseTableCatalog tableCatalog,
+    string extensionId) : IExtensionDatabaseTransaction
 {
     public TableQuery<T> Table<T>()
         where T : new()
@@ -51,10 +52,10 @@ internal sealed class ExtensionDatabaseTransaction(
     private void ValidateTable<T>()
     {
         var tableType = typeof(T);
-        if (!tableCatalog.IsDeclaredTableType(tableType))
+        if (!tableCatalog.IsDeclaredTableType(tableType, extensionId))
         {
             throw new InvalidOperationException(
-                $"Extension database table type '{tableType.FullName}' is not declared by a registered extension migrator.");
+                $"Extension database table type '{tableType.FullName}' is not declared by extension '{extensionId}'.");
         }
     }
 }

@@ -33,7 +33,7 @@ public class ExtensionDatabaseConnectionTests
         IExtensionDatabaseConnection database = new ExtensionDatabaseConnection(
             PersistenceTestData.CreateConnectionContext(databasePath, [migrator]));
 
-        var session = await database.OpenSessionAsync();
+        var session = await database.OpenSessionAsync("test");
         var rows = await session.Table<TestExtensionRow>().ToListAsync();
 
         Assert.Single(rows);
@@ -51,7 +51,7 @@ public class ExtensionDatabaseConnectionTests
             PersistenceTestData.CreateConnectionContext(
                 databasePath,
                 [new TestExtensionMigrator("test", targetVersion: 0, [typeof(TestExtensionRow)], [])]));
-        var session = await database.OpenSessionAsync();
+        var session = await database.OpenSessionAsync("test");
 
         _ = session.Table<TestExtensionRow>();
         var undeclaredException = Assert.Throws<InvalidOperationException>(
@@ -64,6 +64,66 @@ public class ExtensionDatabaseConnectionTests
     }
 
     [Fact]
+    public async Task OpenSessionAsync_IsolatesRegisteredTablesByExtensionOwner()
+    {
+        using var tempDatabase = new TempDatabase("extension-owner-session.db");
+        var databasePath = tempDatabase.DatabasePath;
+
+        IExtensionDatabaseConnection database = new ExtensionDatabaseConnection(
+            PersistenceTestData.CreateConnectionContext(
+                databasePath,
+                [
+                    new TestExtensionMigrator("extension-a", targetVersion: 0, [typeof(TestExtensionRow)], []),
+                    new TestExtensionMigrator("extension-b", targetVersion: 0, [typeof(SecondTestExtensionRow)], []),
+                ]));
+        var extensionASession = await database.OpenSessionAsync("extension-a");
+        var extensionBSession = await database.OpenSessionAsync("extension-b");
+
+        await extensionASession.InsertAsync(new TestExtensionRow { Id = "a", Value = 1 });
+        await extensionBSession.InsertAsync(new SecondTestExtensionRow { Id = "b" });
+
+        Assert.NotNull(await extensionASession.FindAsync<TestExtensionRow>("a"));
+        Assert.NotNull(await extensionBSession.FindAsync<SecondTestExtensionRow>("b"));
+        _ = Assert.Throws<InvalidOperationException>(() => extensionASession.Table<SecondTestExtensionRow>());
+        _ = Assert.Throws<InvalidOperationException>(() => extensionBSession.Table<TestExtensionRow>());
+    }
+
+    [Fact]
+    public async Task RunInTransactionAsync_IsolatesRegisteredTablesByExtensionOwner()
+    {
+        using var tempDatabase = new TempDatabase("extension-owner-transaction.db");
+        var databasePath = tempDatabase.DatabasePath;
+
+        IExtensionDatabaseConnection database = new ExtensionDatabaseConnection(
+            PersistenceTestData.CreateConnectionContext(
+                databasePath,
+                [
+                    new TestExtensionMigrator("extension-a", targetVersion: 0, [typeof(TestExtensionRow)], []),
+                    new TestExtensionMigrator("extension-b", targetVersion: 0, [typeof(SecondTestExtensionRow)], []),
+                ]));
+        var extensionASession = await database.OpenSessionAsync("extension-a");
+        var extensionBSession = await database.OpenSessionAsync("extension-b");
+
+        await extensionASession.RunInTransactionAsync(transaction =>
+            transaction.Insert(new TestExtensionRow { Id = "a", Value = 1 }));
+        await extensionBSession.RunInTransactionAsync(transaction =>
+            transaction.Insert(new SecondTestExtensionRow { Id = "b" }));
+
+        Assert.NotNull(await extensionASession.FindAsync<TestExtensionRow>("a"));
+        Assert.NotNull(await extensionBSession.FindAsync<SecondTestExtensionRow>("b"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            extensionASession.RunInTransactionAsync(transaction =>
+            {
+                _ = transaction.Table<SecondTestExtensionRow>();
+            }));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            extensionBSession.RunInTransactionAsync(transaction =>
+            {
+                _ = transaction.Table<TestExtensionRow>();
+            }));
+    }
+
+    [Fact]
     public async Task RunInTransactionAsync_RollsBack_WhenCallbackThrows()
     {
         using var tempDatabase = new TempDatabase("extension-transaction-rollback.db");
@@ -73,7 +133,7 @@ public class ExtensionDatabaseConnectionTests
             PersistenceTestData.CreateConnectionContext(
                 databasePath,
                 [new TestExtensionMigrator("test", targetVersion: 0, [typeof(TestExtensionRow)], [])]));
-        var session = await database.OpenSessionAsync();
+        var session = await database.OpenSessionAsync("test");
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             session.RunInTransactionAsync(transaction =>
@@ -95,7 +155,7 @@ public class ExtensionDatabaseConnectionTests
             PersistenceTestData.CreateConnectionContext(
                 databasePath,
                 [new TestExtensionMigrator("test", targetVersion: 0, [typeof(TestExtensionRow)], [])]));
-        var session = await database.OpenSessionAsync();
+        var session = await database.OpenSessionAsync("test");
 
         await session.RunInTransactionAsync(transaction =>
         {

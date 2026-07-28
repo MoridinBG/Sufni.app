@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.App.ExtensionHost.Contracts.Database;
@@ -7,9 +8,13 @@ namespace Sufni.App.Extensibility.Database;
 
 internal sealed class ExtensionDatabaseConnection(SqliteConnectionContext connectionContext) : IExtensionDatabaseConnection
 {
-    public async Task<IExtensionDatabaseSession> OpenSessionAsync(CancellationToken cancellationToken = default)
+    public async Task<IExtensionDatabaseSession> OpenSessionAsync(
+        string extensionId,
+        CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(extensionId);
+
         var connection = await connectionContext.GetInitializedConnectionAsync(cancellationToken);
-        return new ExtensionDatabaseSession(connection, connectionContext.ExtensionTableCatalog);
+        return new ExtensionDatabaseSession(connection, connectionContext.ExtensionTableCatalog, extensionId);
     }
 }

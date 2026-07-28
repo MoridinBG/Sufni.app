@@ -73,11 +73,13 @@ public sealed class TestExtensionHostHarness : IAsyncDisposable
         SQLiteAsyncConnection connection,
         ExtensionDatabaseTableCatalog tableCatalog) : IExtensionDatabaseConnection
     {
-        public Task<IExtensionDatabaseSession> OpenSessionAsync(CancellationToken cancellationToken = default)
+        public Task<IExtensionDatabaseSession> OpenSessionAsync(
+            string extensionId,
+            CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult<IExtensionDatabaseSession>(
-                new ExtensionDatabaseSession(connection, tableCatalog));
+                new ExtensionDatabaseSession(connection, tableCatalog, extensionId));
         }
     }
 }

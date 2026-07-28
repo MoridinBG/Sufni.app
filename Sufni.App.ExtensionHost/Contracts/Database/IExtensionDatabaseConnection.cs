@@ -7,7 +7,9 @@ namespace Sufni.App.ExtensionHost.Contracts.Database;
 
 public interface IExtensionDatabaseConnection
 {
-    Task<IExtensionDatabaseSession> OpenSessionAsync(CancellationToken cancellationToken = default);
+    Task<IExtensionDatabaseSession> OpenSessionAsync(
+        string extensionId,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IExtensionDatabaseSession

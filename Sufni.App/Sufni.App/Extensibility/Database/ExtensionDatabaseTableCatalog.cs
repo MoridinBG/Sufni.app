@@ -45,12 +45,14 @@ internal sealed class ExtensionDatabaseTableCatalog
     public bool TryGetRegistration(string tableName, out ExtensionDatabaseTableRegistration registration) =>
         registrationsByTableName.TryGetValue(tableName, out registration!);
 
-    public bool IsDeclaredTableType(Type tableType)
+    public bool IsDeclaredTableType(Type tableType, string extensionId)
     {
         ArgumentNullException.ThrowIfNull(tableType);
+        ArgumentNullException.ThrowIfNull(extensionId);
 
         return registrationsByTableName.TryGetValue(GetTableName(tableType), out var registration) &&
-               registration.TableType == tableType;
+               registration.TableType == tableType &&
+               string.Equals(registration.ExtensionId, extensionId, StringComparison.Ordinal);
     }
 
     public static ExtensionDatabaseTableCatalog Create(IEnumerable<IExtensionDatabaseMigrator> migrators)

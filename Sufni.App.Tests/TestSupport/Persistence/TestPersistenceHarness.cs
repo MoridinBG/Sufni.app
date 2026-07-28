@@ -61,8 +61,8 @@ internal sealed class TestPersistenceHarness
     public Task<SQLiteAsyncConnection> GetInitializedConnectionAsync() =>
         context.GetInitializedConnectionAsync();
 
-    public Task<IExtensionDatabaseSession> OpenSessionAsync() =>
-        extensionDatabaseConnection.OpenSessionAsync();
+    public Task<IExtensionDatabaseSession> OpenSessionAsync(string extensionId) =>
+        extensionDatabaseConnection.OpenSessionAsync(extensionId);
 
     public Task<List<T>> GetAllAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>()
         where T : Synchronizable, new() =>

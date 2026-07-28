@@ -7,7 +7,8 @@ namespace Sufni.App.Extensibility.Database;
 
 internal sealed class ExtensionDatabaseSession(
     SQLiteAsyncConnection connection,
-    ExtensionDatabaseTableCatalog tableCatalog) : IExtensionDatabaseSession
+    ExtensionDatabaseTableCatalog tableCatalog,
+    string extensionId) : IExtensionDatabaseSession
 {
     public AsyncTableQuery<T> Table<T>()
         where T : new()
@@ -52,16 +53,16 @@ internal sealed class ExtensionDatabaseSession(
     public Task RunInTransactionAsync(Action<IExtensionDatabaseTransaction> work)
     {
         return connection.RunInTransactionAsync(transactionConnection =>
-            work(new ExtensionDatabaseTransaction(transactionConnection, tableCatalog)));
+            work(new ExtensionDatabaseTransaction(transactionConnection, tableCatalog, extensionId)));
     }
 
     private void ValidateTable<T>()
     {
         var tableType = typeof(T);
-        if (!tableCatalog.IsDeclaredTableType(tableType))
+        if (!tableCatalog.IsDeclaredTableType(tableType, extensionId))
         {
             throw new InvalidOperationException(
-                $"Extension database table type '{tableType.FullName}' is not declared by a registered extension migrator.");
+                $"Extension database table type '{tableType.FullName}' is not declared by extension '{extensionId}'.");
         }
     }
 }
