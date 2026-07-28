@@ -169,7 +169,11 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         }
 
         hasLoaded = true;
-        StartForegroundUpdates();
+        if (IsTabActive)
+        {
+            StartForegroundUpdates();
+        }
+
         return Task.CompletedTask;
     }
 

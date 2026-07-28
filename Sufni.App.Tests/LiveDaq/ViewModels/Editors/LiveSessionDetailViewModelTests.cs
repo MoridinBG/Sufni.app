@@ -91,6 +91,63 @@ public class LiveSessionDetailViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task LoadedCommand_AttachesCaptureWithoutStartingForegroundProjection_WhenInactive()
+    {
+        var editor = CreateEditor(isTabActive: false);
+
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        await liveSessionService.Received(1).EnsureAttachedAsync(Arg.Any<CancellationToken>());
+        Assert.False(uiTimers.HasScheduledTimers);
+        Assert.False(snapshots.HasObservers);
+        Assert.False(signalBatches.HasObservers);
+        await liveSessionService.DidNotReceive().DisposeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task TabDeactivation_StopsForegroundProjection_AndReactivationAppliesCurrentSnapshot()
+    {
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+        Assert.True(uiTimers.HasScheduledTimers);
+        Assert.True(snapshots.HasObservers);
+        Assert.True(signalBatches.HasObservers);
+
+        editor.SetTabActive(false);
+
+        Assert.False(uiTimers.HasScheduledTimers);
+        Assert.False(snapshots.HasObservers);
+        Assert.False(signalBatches.HasObservers);
+        await liveSessionService.DidNotReceive().DisposeAsync();
+        await liveSessionService.DidNotReceive().ResetCaptureAsync(Arg.Any<CancellationToken>());
+
+        var telemetryData = TestTelemetryData.CreateProcessed();
+        currentSnapshot = CreateSnapshot(canSave: true, telemetryData: telemetryData);
+        snapshots.OnNext(currentSnapshot);
+        Assert.Null(editor.TelemetryData);
+
+        editor.SetTabActive(true);
+
+        Assert.True(uiTimers.HasScheduledTimers);
+        Assert.True(snapshots.HasObservers);
+        Assert.True(signalBatches.HasObservers);
+        Assert.Same(telemetryData, editor.TelemetryData);
+    }
+
+    [AvaloniaFact]
+    public async Task CloseAfterDeactivation_DisposesCaptureServiceExactlyOnce()
+    {
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+        editor.SetTabActive(false);
+
+        await editor.PrepareCloseAsync();
+
+        await liveSessionService.Received(1).DisposeAsync();
+        await liveSessionService.DidNotReceive().ResetCaptureAsync(Arg.Any<CancellationToken>());
+    }
+
+    [AvaloniaFact]
     public async Task SnapshotUpdate_ProjectsTelemetryTrackAndSaveState()
     {
         var editor = CreateEditor();
@@ -382,9 +439,10 @@ public class LiveSessionDetailViewModelTests : IDisposable
 
     private LiveSessionDetailViewModel CreateEditor(
         LiveDaqSessionContext? context = null,
-        IBikeCoordinator? bikeCoordinator = null)
+        IBikeCoordinator? bikeCoordinator = null,
+        bool isTabActive = true)
     {
-        return new LiveSessionDetailViewModel(
+        var editor = new LiveSessionDetailViewModel(
             context ?? CreateSessionContext(),
             liveSessionService,
             sessionCoordinator,
@@ -395,6 +453,8 @@ public class LiveSessionDetailViewModelTests : IDisposable
             dialogService,
             new InlineUiThreadDispatcher(),
             bikeCoordinator);
+        editor.SetTabActive(isTabActive);
+        return editor;
     }
 
     private async Task PublishSnapshotAsync(LiveSessionPresentationSnapshot snapshot)

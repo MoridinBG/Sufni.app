@@ -60,6 +60,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private readonly System.Threading.Lock presentationGate = new();
     private readonly System.Threading.Lock signalBatchRefreshGate = new();
     private bool hasLoaded;
+    private bool isViewLoaded;
     private long? blockedSavedCaptureRevision;
     private LiveSessionPresentationSnapshot pendingPresentation = LiveSessionPresentationSnapshot.Empty;
     private bool hasPendingPresentation;
@@ -296,12 +297,58 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             lastPresentationDimensions = dimensions;
         }
 
+        isViewLoaded = true;
+        if (hasLoaded)
+        {
+            if (IsTabActive)
+            {
+                StartForegroundUpdates();
+            }
+
+            return;
+        }
+
+        hasLoaded = true;
+        await mediaWorkspace.InitializeAsync();
+        await liveSessionService.EnsureAttachedAsync();
+
+        if (IsTabActive)
+        {
+            StartForegroundUpdates();
+        }
+    }
+
+    [RelayCommand]
+    private async Task Unloaded()
+    {
+        isViewLoaded = false;
+        StopForegroundUpdates();
+        await Task.CompletedTask;
+    }
+
+    protected override void OnActivated()
+    {
+        if (isViewLoaded)
+        {
+            StartForegroundUpdates();
+        }
+    }
+
+    protected override void OnDeactivated()
+    {
+        if (isViewLoaded)
+        {
+            StopForegroundUpdates();
+        }
+    }
+
+    private void StartForegroundUpdates()
+    {
         // Live session updates arrive far faster than the controls need to repaint.
         // Keep the latest snapshot and project it into the UI at a fixed cadence.
         uiRefreshTimer ??= PeriodicUiTimer.SchedulePeriodic(
             TimeSpan.FromMilliseconds(PlotSettings.LiveUiRefreshIntervalMs),
             RefreshUi);
-        RefreshUi();
 
         EnsureScopedSubscription(disposables =>
         {
@@ -309,26 +356,32 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             disposables.Add(liveSessionService.SignalBatches.Subscribe(QueueSignalBatchRefresh));
         });
 
-        if (hasLoaded)
-        {
-            return;
-        }
-
-        hasLoaded = true;
-        await mediaWorkspace.InitializeAsync();
-
-        await liveSessionService.EnsureAttachedAsync();
         ApplyPresentation(liveSessionService.Current);
+        RefreshUi();
     }
 
-    [RelayCommand]
-    private async Task Unloaded()
+    private void StopForegroundUpdates()
     {
         uiRefreshTimer?.Dispose();
         uiRefreshTimer = null;
         CancelBake();
+        lastBakedTelemetryData = null;
         DisposeScopedSubscriptions();
-        await Task.CompletedTask;
+        ClearPendingForegroundUpdates();
+    }
+
+    private void ClearPendingForegroundUpdates()
+    {
+        lock (presentationGate)
+        {
+            hasPendingPresentation = false;
+        }
+
+        lock (signalBatchRefreshGate)
+        {
+            pendingSignalBatchPresence = default;
+            hasPendingSignalBatchRefresh = false;
+        }
     }
 
     private static SessionPresentationDimensions? CreatePresentationDimensions(Rect? bounds)
@@ -386,10 +439,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     protected override async Task CloseImplementation()
     {
-        uiRefreshTimer?.Dispose();
-        uiRefreshTimer = null;
-        CancelBake();
-
+        isViewLoaded = false;
+        StopForegroundUpdates();
         await liveSessionService.DisposeAsync();
         mediaWorkspace.Dispose();
     }
@@ -734,7 +785,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             hasPendingSignalBatchRefresh = false;
         }
 
-        if (presence.HasAnyData)
+        if (presence.HasAnyData && isViewLoaded && IsTabActive)
         {
             signalsWorkspace.ApplySignalDataPresence(
                 presence.HasTravelData,
@@ -782,7 +833,9 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     private void MaybeQueueBake(TelemetryData? telemetryData)
     {
-        if (telemetryData is null ||
+        if (!isViewLoaded ||
+            !IsTabActive ||
+            telemetryData is null ||
             lastPresentationDimensions is not { } dimensions)
         {
             return;
