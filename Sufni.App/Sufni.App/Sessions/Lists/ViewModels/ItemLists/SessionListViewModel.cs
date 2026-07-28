@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Linq;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
@@ -29,12 +31,15 @@ public partial class SessionListViewModel : ItemListViewModelBase
 {
     #region Private fields
 
+    private readonly IRecordedSessionProjection recordedSessionProjection;
     private readonly ISessionCoordinator sessionCoordinator;
     private readonly IRecordedSessionListExtensionService? listExtensionService;
+    private readonly ObservableCollectionExtended<SessionRowViewModel> sessionRowsSource = [];
     private readonly ReadOnlyObservableCollection<SessionRowViewModel> sessionRows;
     private readonly BehaviorSubject<Func<RecordedSessionSummary, bool>> filterSubject = new(_ => true);
     private readonly HashSet<Guid> pendingDeleteIds = [];
     private readonly Dictionary<SessionDateGroupKey, bool> dateGroupExpansionState = [];
+    private bool subscriptionsAttached;
     private bool dateGroupSyncQueued;
 
     #endregion Private fields
@@ -57,14 +62,23 @@ public partial class SessionListViewModel : ItemListViewModelBase
         IBackgroundTaskRunner? backgroundTaskRunner = null)
         : base(uiThreadDispatcher, backgroundTaskRunner)
     {
+        this.recordedSessionProjection = recordedSessionProjection;
         this.sessionCoordinator = sessionCoordinator;
         this.listExtensionService = listExtensionService;
-        if (this.listExtensionService is not null)
-        {
-            this.listExtensionService.ContributionsChanged += OnListExtensionContributionsChanged;
-        }
+        sessionRows = new ReadOnlyObservableCollection<SessionRowViewModel>(sessionRowsSource);
+    }
 
-        recordedSessionProjection.ConnectSessions()
+    #endregion Constructors
+
+    #region ItemListViewModelBase overrides
+
+    protected override void AttachSubscriptions(CompositeDisposable subscriptions)
+    {
+        sessionRowsSource.Clear();
+        RebuildFilter();
+        subscriptionsAttached = true;
+
+        subscriptions.Add(recordedSessionProjection.ConnectSessions()
             .Filter(filterSubject)
             .TransformWithInlineUpdate(
                 summary => new SessionRowViewModel(
@@ -72,30 +86,36 @@ public partial class SessionListViewModel : ItemListViewModelBase
                     sessionCoordinator,
                     RequestRowDelete,
                     RecalculateSessionAsync,
-                    this.listExtensionService),
+                    listExtensionService),
                 (row, summary) => row.Update(summary))
             .SortAndBind(
-                out sessionRows,
+                sessionRowsSource,
                 SortExpressionComparer<SessionRowViewModel>.Descending(r => r.Timestamp ?? DateTime.MinValue))
-            .Subscribe();
+            .Subscribe());
 
-        ((INotifyCollectionChanged)sessionRows).CollectionChanged += OnSessionRowsChanged;
-        SynchronizeDateGroups();
+        ((INotifyCollectionChanged)sessionRowsSource).CollectionChanged += OnSessionRowsChanged;
+        subscriptions.Add(Disposable.Create(() =>
+            ((INotifyCollectionChanged)sessionRowsSource).CollectionChanged -= OnSessionRowsChanged));
 
-        // Push a fresh predicate to our filter subject whenever the
-        // search text or date-filter bounds change.
-        PropertyChanged += (_, args) =>
+        PropertyChanged += OnListPropertyChanged;
+        subscriptions.Add(Disposable.Create(() => PropertyChanged -= OnListPropertyChanged));
+
+        if (listExtensionService is not null)
         {
-            if (args.PropertyName is nameof(SearchText) or nameof(DateFilterFrom) or nameof(DateFilterTo))
-            {
-                RebuildFilter();
-            }
-        };
+            listExtensionService.ContributionsChanged += OnListExtensionContributionsChanged;
+            subscriptions.Add(Disposable.Create(() =>
+                listExtensionService.ContributionsChanged -= OnListExtensionContributionsChanged));
+        }
+
+        SynchronizeDateGroups();
     }
 
-    #endregion Constructors
-
-    #region ItemListViewModelBase overrides
+    protected override void OnSubscriptionsDetached()
+    {
+        subscriptionsAttached = false;
+        sessionRowsSource.Clear();
+        SynchronizeDateGroups();
+    }
 
     protected override void RebuildFilter()
     {
@@ -128,6 +148,14 @@ public partial class SessionListViewModel : ItemListViewModelBase
     #endregion ItemListViewModelBase overrides
 
     #region Private methods
+
+    private void OnListPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName is nameof(SearchText) or nameof(DateFilterFrom) or nameof(DateFilterTo))
+        {
+            RebuildFilter();
+        }
+    }
 
     private void RequestRowDelete(SessionRowViewModel row)
     {
@@ -189,7 +217,10 @@ public partial class SessionListViewModel : ItemListViewModelBase
         UiThreadDispatcher.Post(() =>
         {
             dateGroupSyncQueued = false;
-            SynchronizeDateGroups();
+            if (subscriptionsAttached)
+            {
+                SynchronizeDateGroups();
+            }
         });
     }
 
