@@ -44,16 +44,27 @@ desktop layer where appropriate:
 
 ## macOS
 
+The macOS project defaults to the Apple Silicon `osx-arm64` runtime so a
+normal build produces one architecture instead of invoking universal-bundle
+`lipo` assembly.
+
 ```sh
-# Build
+# Build for Apple Silicon (project default)
 dotnet build Sufni.App/Sufni.App.macOS/Sufni.App.macOS.csproj -c Debug
 
-# Run (Apple Silicon)
+# Run
 open Sufni.App/Sufni.App.macOS/bin/Debug/net10.0-macos/osx-arm64/Sufni.App.macOS.app
 ```
 
-On Intel Macs, substitute `osx-x64` for `osx-arm64`.
-One-shot build+run: `dotnet run --project Sufni.App/Sufni.App.macOS/Sufni.App.macOS.csproj -c Debug`.
+On Intel Macs, override the project default explicitly:
+
+```sh
+dotnet build Sufni.App/Sufni.App.macOS/Sufni.App.macOS.csproj \
+  -c Debug -r osx-x64 -p:RuntimeIdentifier=osx-x64
+```
+
+The Intel bundle is written under `bin/Debug/net10.0-macos/osx-x64/`.
+One-shot build+run on Apple Silicon: `dotnet run --project Sufni.App/Sufni.App.macOS/Sufni.App.macOS.csproj -c Debug`.
 
 ## Linux
 
