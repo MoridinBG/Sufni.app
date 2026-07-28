@@ -94,6 +94,10 @@ Do not bombard the SUT with random junk just to create more cases. Prefer inputs
 - Use `TestSynchronizationContextScope` when the SUT or one of its collaborators posts callbacks or continuations through `SynchronizationContext` and the test needs those callbacks to run deterministically before assertions.
 - Use `TaskCompletionSource<T>` when the test needs to hold async work pending so it can assert intermediate states such as busy, cancellation, unload behavior, or superseded results before completion.
 - Prefer explicit control over async completion to timing-based waits or delays.
+- Bound awaits that could otherwise stall the test indefinitely. In `Sufni.App.Tests`, use the globally imported `AwaitBoundedAsync(TimeSpan)` helper for completion sources, event observations, protocol/server tasks, background drains, and similar synchronization points. The helper applies both the stated timeout and `TestContext.Current.CancellationToken`; do not replace it with an unbounded `await` or a test-local `Task.WhenAny` timeout pattern.
+- Pass `TestContext.Current.CancellationToken` to test-owned cancellable work such as file I/O, `Task.Run`, polling helpers, and SUT calls whose cancellation token is not part of the behavior under test. This lets the test runner stop that work when the test is canceled.
+- Preserve a dedicated SUT cancellation token when the test is proving caller cancellation, token propagation, supersession, or shared-work isolation. Pass that token unchanged to the SUT or captured collaborator rather than replacing or linking it with the test-context token; use `AwaitBoundedAsync` on separate observation tasks so the test itself still cannot hang.
+- Any intentional timing delay that remains must be cancellable. Use `Task.Delay(..., TestContext.Current.CancellationToken)` for test-owned timing. Use a dedicated token only when cancellation of that delay is itself part of the scenario; deterministic gates and bounded polling are still preferred.
 - When the SUT exposes a safe override seam and the test needs lightweight observability, a small tracking subclass is preferable to reflection.
 
 ## Parallelization Tiers
