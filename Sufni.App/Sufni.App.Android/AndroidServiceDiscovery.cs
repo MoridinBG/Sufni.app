@@ -1,19 +1,29 @@
 using System;
-using Android.Content;
-using Android.Net.Wifi;
 using Serilog;
 using Sufni.App.Infrastructure;
-using Application = Android.App.Application;
 
 namespace Sufni.App.Android;
 
-public sealed class AndroidServiceDiscovery : IServiceDiscovery
+internal interface IAndroidMulticastLock : IDisposable
+{
+    bool IsHeld { get; }
+    void Acquire();
+    void Release();
+}
+
+internal interface IAndroidMulticastLockFactory
+{
+    IAndroidMulticastLock? Create();
+}
+
+internal sealed class AndroidServiceDiscovery(
+    IServiceDiscovery inner,
+    IAndroidMulticastLockFactory multicastLockFactory) : IServiceDiscovery
 {
     private static readonly ILogger logger = Log.ForContext<AndroidServiceDiscovery>();
 
-    private readonly SocketServiceDiscovery inner = new();
     private readonly object gate = new();
-    private WifiManager.MulticastLock? multicastLock;
+    private IAndroidMulticastLock? multicastLock;
     private bool browseStarted;
 
     public event EventHandler<ServiceAnnouncementEventArgs>? ServiceAdded
@@ -74,29 +84,24 @@ public sealed class AndroidServiceDiscovery : IServiceDiscovery
 
     private void AcquireMulticastLock()
     {
+        IAndroidMulticastLock? candidate = null;
         try
         {
-            var wifiManager = Application.Context.GetSystemService(Context.WifiService) as WifiManager;
-            if (wifiManager is null)
+            candidate = multicastLockFactory.Create();
+            if (candidate is null)
             {
-                logger.Warning("Android Wi-Fi manager unavailable; service discovery will browse without a multicast lock");
+                logger.Warning("Android multicast lock unavailable; service discovery may not receive mDNS packets");
                 return;
             }
 
-            var browseLock = wifiManager.CreateMulticastLock("SufniServiceDiscovery");
-            if (browseLock is null)
-            {
-                logger.Warning("Android Wi-Fi manager did not create a multicast lock; service discovery may not receive mDNS packets");
-                return;
-            }
-
-            browseLock.SetReferenceCounted(false);
-            browseLock.Acquire();
-            multicastLock = browseLock;
+            candidate.Acquire();
+            multicastLock = candidate;
+            candidate = null;
             logger.Verbose("Acquired Android multicast lock for service discovery");
         }
         catch (Exception ex)
         {
+            candidate?.Dispose();
             logger.Warning(ex, "Could not acquire Android multicast lock; service discovery may not receive mDNS packets");
             multicastLock = null;
         }

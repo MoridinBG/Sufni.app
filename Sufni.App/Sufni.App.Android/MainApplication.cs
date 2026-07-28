@@ -29,7 +29,9 @@ public sealed class MainApplication(nint javaReference, JniHandleOwnership trans
             App.ServiceCollection,
             static () => new AndroidSecureStorage(),
             static () => new AndroidFriendlyNameProvider(),
-            static _ => new AndroidServiceDiscovery(),
+            static _ => new AndroidServiceDiscovery(
+                new SocketServiceDiscovery(),
+                new AndroidMulticastLockFactory()),
             static () => new AndroidHapticFeedback(() => MainActivity.CurrentWindow));
 
         return MobileAppBootstrapper.ConfigureMobileAvalonia(
