@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Reactive.Disposables;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
+using DynamicData.Binding;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Bikes.Coordinators;
@@ -25,6 +28,7 @@ public partial class BikeListViewModel : ItemListViewModelBase
     private readonly IBikeStore bikeStore;
     private readonly IBikeCoordinator bikeCoordinator;
     private readonly IBikeDependencyQuery dependencyQuery;
+    private readonly ObservableCollectionExtended<BikeRowViewModel> bikeRowsSource = [];
     private readonly ReadOnlyObservableCollection<BikeRowViewModel> bikeRows;
     private readonly BehaviorSubject<Func<BikeRowViewModel, bool>> filterSubject = new(_ => true);
     private readonly HashSet<Guid> pendingDeleteIds = [];
@@ -50,6 +54,17 @@ public partial class BikeListViewModel : ItemListViewModelBase
         this.bikeStore = bikeStore;
         this.bikeCoordinator = bikeCoordinator;
         this.dependencyQuery = dependencyQuery;
+        bikeRows = new ReadOnlyObservableCollection<BikeRowViewModel>(bikeRowsSource);
+    }
+
+    #endregion Constructors
+
+    #region ItemListViewModelBase overrides
+
+    protected override void AttachSubscriptions(CompositeDisposable subscriptions)
+    {
+        bikeRowsSource.Clear();
+        RebuildFilter();
 
         // Pipeline order matters:
         //   1. Transform creates a row per snapshot.
@@ -58,26 +73,23 @@ public partial class BikeListViewModel : ItemListViewModelBase
         //      when the filter merely hides it.
         //   3. Filter operates on rows (so the predicate sees the
         //      same Id/Name we already exposed on the row VM).
-        bikeStore.Connect()
+        subscriptions.Add(bikeStore.Connect()
             .TransformWithInlineUpdate(
                 snapshot => new BikeRowViewModel(snapshot, bikeCoordinator, RequestRowDelete, dependencyQuery),
                 (row, snapshot) => row.Update(snapshot))
             .DisposeMany()
             .Filter(filterSubject)
-            .Bind(out bikeRows)
-            .Subscribe();
+            .Bind(bikeRowsSource)
+            .Subscribe());
 
-        // Push a fresh predicate to our filter subject whenever the
-        // search text changes.
-        PropertyChanged += (_, args) =>
-        {
-            if (args.PropertyName == nameof(SearchText)) RebuildFilter();
-        };
+        PropertyChanged += OnListPropertyChanged;
+        subscriptions.Add(Disposable.Create(() => PropertyChanged -= OnListPropertyChanged));
     }
 
-    #endregion Constructors
-
-    #region ItemListViewModelBase overrides
+    protected override void OnSubscriptionsDetached()
+    {
+        bikeRowsSource.Clear();
+    }
 
     protected override void RebuildFilter()
     {
@@ -97,6 +109,11 @@ public partial class BikeListViewModel : ItemListViewModelBase
     #endregion ItemListViewModelBase overrides
 
     #region Private methods
+
+    private void OnListPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(SearchText)) RebuildFilter();
+    }
 
     private void RequestRowDelete(BikeRowViewModel row)
     {

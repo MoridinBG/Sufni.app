@@ -14,6 +14,15 @@
     Background="{DynamicResource SufniRegion}"
     mc:Ignorable="d">
 
+    <Interaction.Behaviors>
+        <EventTriggerBehavior EventName="Loaded">
+            <InvokeCommandAction Command="{Binding LoadedCommand}" />
+        </EventTriggerBehavior>
+        <EventTriggerBehavior EventName="Unloaded">
+            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
+        </EventTriggerBehavior>
+    </Interaction.Behaviors>
+
     <Grid ColumnDefinitions="* auto" RowDefinitions="auto * auto auto">
 
         <!--  Search bar  -->

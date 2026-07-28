@@ -44,6 +44,7 @@ public class SetupListViewModelTests
         setupCoordinator.DeleteAsync(snapshot.Id).Returns(deleteTcs.Task);
 
         var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher);
+        viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 
         viewModel.Items[0].UndoableDeleteCommand.Execute(null);
@@ -58,6 +59,35 @@ public class SetupListViewModelTests
         await finalizeTask;
 
         Assert.Empty(viewModel.Items);
+    }
+
+    [Fact]
+    public void Items_UpdateOnlyWhileLoaded_AndReloadCurrentStoreState()
+    {
+        var setupStore = Substitute.For<ISetupStore>();
+        using var setupCache = new SourceCache<SetupSnapshot, Guid>(snapshot => snapshot.Id);
+        setupStore.Connect().Returns(setupCache.Connect());
+        var first = TestSnapshots.Setup(name: "first");
+        var second = TestSnapshots.Setup(name: "second");
+        setupCache.AddOrUpdate(first);
+
+        var viewModel = new SetupListViewModel(
+            setupStore,
+            TestCoordinatorSubstitutes.Setup(),
+            UiThreadDispatcher);
+
+        Assert.Empty(viewModel.Items);
+
+        viewModel.LoadedCommand.Execute(null);
+        Assert.Single(viewModel.Items);
+
+        viewModel.UnloadedCommand.Execute(null);
+        setupCache.AddOrUpdate(second);
+        Assert.Empty(viewModel.Items);
+
+        viewModel.LoadedCommand.Execute(null);
+        viewModel.LoadedCommand.Execute(null);
+        Assert.Equal(2, viewModel.Items.Count);
     }
 
     [Fact]
@@ -76,6 +106,7 @@ public class SetupListViewModelTests
             .Returns(new SetupDeleteResult(SetupDeleteOutcome.Failed, "boom"));
 
         var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher);
+        viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 
         viewModel.Items[0].UndoableDeleteCommand.Execute(null);

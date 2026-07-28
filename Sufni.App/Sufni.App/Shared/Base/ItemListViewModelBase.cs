@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Reactive.Disposables;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -79,6 +80,10 @@ public partial class ItemListViewModelBase : ViewModelBase
 
     protected virtual void AddImplementation() { }
 
+    protected virtual void AttachSubscriptions(CompositeDisposable subscriptions) { }
+
+    protected virtual void OnSubscriptionsDetached() { }
+
     /// <summary>
     /// Republish the filter predicate so the row hide/reveal triggered
     /// by a pending delete or undo is observed by the DynamicData chain.
@@ -142,6 +147,19 @@ public partial class ItemListViewModelBase : ViewModelBase
     private void Add()
     {
         AddImplementation();
+    }
+
+    [RelayCommand]
+    private void Loaded()
+    {
+        EnsureScopedSubscription(AttachSubscriptions);
+    }
+
+    [RelayCommand]
+    private void Unloaded()
+    {
+        DisposeScopedSubscriptions();
+        OnSubscriptionsDetached();
     }
 
     [RelayCommand]

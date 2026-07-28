@@ -31,6 +31,7 @@ public class BikeListViewModelTests
         var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
 
         var viewModel = new BikeListViewModel(bikeStore, bikeCoordinator, dependencyQuery, UiThreadDispatcher);
+        viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 
         viewModel.Items[0].UndoableDeleteCommand.Execute(null);
@@ -45,6 +46,36 @@ public class BikeListViewModelTests
         await finalizeTask;
 
         Assert.Empty(viewModel.Items);
+    }
+
+    [Fact]
+    public void Items_UpdateOnlyWhileLoaded_AndReloadCurrentStoreState()
+    {
+        var bikeStore = Substitute.For<IBikeStore>();
+        using var bikeCache = new SourceCache<BikeSnapshot, Guid>(snapshot => snapshot.Id);
+        bikeStore.Connect().Returns(bikeCache.Connect());
+        var first = TestSnapshots.Bike(name: "first");
+        var second = TestSnapshots.Bike(name: "second");
+        bikeCache.AddOrUpdate(first);
+
+        var viewModel = new BikeListViewModel(
+            bikeStore,
+            TestCoordinatorSubstitutes.Bike(),
+            Substitute.For<IBikeDependencyQuery>(),
+            UiThreadDispatcher);
+
+        Assert.Empty(viewModel.Items);
+
+        viewModel.LoadedCommand.Execute(null);
+        Assert.Single(viewModel.Items);
+
+        viewModel.UnloadedCommand.Execute(null);
+        bikeCache.AddOrUpdate(second);
+        Assert.Empty(viewModel.Items);
+
+        viewModel.LoadedCommand.Execute(null);
+        viewModel.LoadedCommand.Execute(null);
+        Assert.Equal(2, viewModel.Items.Count);
     }
 
     [Fact]
@@ -65,6 +96,7 @@ public class BikeListViewModelTests
         var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
 
         var viewModel = new BikeListViewModel(bikeStore, bikeCoordinator, dependencyQuery, UiThreadDispatcher);
+        viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 
         viewModel.Items[0].UndoableDeleteCommand.Execute(null);

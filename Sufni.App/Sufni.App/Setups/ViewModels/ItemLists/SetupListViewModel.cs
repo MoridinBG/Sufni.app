@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Reactive.Disposables;
 using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
+using DynamicData.Binding;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Setups.Coordinators;
@@ -23,6 +26,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     private readonly ISetupStore setupStore;
     private readonly ISetupCoordinator setupCoordinator;
+    private readonly ObservableCollectionExtended<SetupRowViewModel> setupRowsSource = [];
     private readonly ReadOnlyObservableCollection<SetupRowViewModel> setupRows;
     private readonly BehaviorSubject<Func<SetupSnapshot, bool>> filterSubject = new(_ => true);
     private readonly HashSet<Guid> pendingDeleteIds = [];
@@ -46,26 +50,34 @@ public partial class SetupListViewModel : ItemListViewModelBase
     {
         this.setupStore = setupStore;
         this.setupCoordinator = setupCoordinator;
-
-        setupStore.Connect()
-            .Filter(filterSubject)
-            .TransformWithInlineUpdate(
-                snapshot => new SetupRowViewModel(snapshot, setupCoordinator, RequestRowDelete),
-                (row, snapshot) => row.Update(snapshot))
-            .Bind(out setupRows)
-            .Subscribe();
-
-        // Push a fresh predicate to our filter subject whenever the
-        // search text changes.
-        PropertyChanged += (_, args) =>
-        {
-            if (args.PropertyName == nameof(SearchText)) RebuildFilter();
-        };
+        setupRows = new ReadOnlyObservableCollection<SetupRowViewModel>(setupRowsSource);
     }
 
     #endregion Constructors
 
     #region ItemListViewModelBase overrides
+
+    protected override void AttachSubscriptions(CompositeDisposable subscriptions)
+    {
+        setupRowsSource.Clear();
+        RebuildFilter();
+
+        subscriptions.Add(setupStore.Connect()
+            .Filter(filterSubject)
+            .TransformWithInlineUpdate(
+                snapshot => new SetupRowViewModel(snapshot, setupCoordinator, RequestRowDelete),
+                (row, snapshot) => row.Update(snapshot))
+            .Bind(setupRowsSource)
+            .Subscribe());
+
+        PropertyChanged += OnListPropertyChanged;
+        subscriptions.Add(Disposable.Create(() => PropertyChanged -= OnListPropertyChanged));
+    }
+
+    protected override void OnSubscriptionsDetached()
+    {
+        setupRowsSource.Clear();
+    }
 
     protected override void RebuildFilter()
     {
@@ -85,6 +97,11 @@ public partial class SetupListViewModel : ItemListViewModelBase
     #endregion ItemListViewModelBase overrides
 
     #region Private methods
+
+    private void OnListPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(SearchText)) RebuildFilter();
+    }
 
     private void RequestRowDelete(SetupRowViewModel row)
     {
