@@ -122,6 +122,55 @@ public class LiveSignalPlotViewTests
     }
 
     [AvaloniaFact]
+    public async Task LiveSessionSignalsDesktopView_SuspendsWhileAncestorIsHidden_AndResumesWhenVisible()
+    {
+        ViewTestHelpers.EnsurePlotViewStyle();
+
+        var batches = new Subject<LiveSignalBatch>();
+        var workspace = new StubLiveSessionSignalsWorkspace(batches);
+        var view = new LiveSessionSignalsDesktopView
+        {
+            DataContext = workspace
+        };
+        var tabContent = new Border
+        {
+            Child = view,
+        };
+        var host = new Window
+        {
+            Width = 1200,
+            Height = 900,
+            Content = tabContent
+        };
+
+        host.Show();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var travelView = GetNamedVisual<LiveTravelPlotView>(view, "TravelPlot");
+        batches.OnNext(CreateBatch(revision: 1));
+        await FlushSignalBatchesAsync(travelView);
+        var travelPlot = GetRenderedPlot(travelView);
+        Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
+        Assert.True(batches.HasObservers);
+
+        tabContent.IsVisible = false;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.False(batches.HasObservers);
+
+        batches.OnNext(CreateBatch(revision: 2));
+        tabContent.IsVisible = true;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.True(batches.HasObservers);
+
+        batches.OnNext(CreateBatch(revision: 3));
+        await FlushSignalBatchesAsync(travelView);
+        Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(6, streamer.Data.CountTotal));
+
+        host.Close();
+        await ViewTestHelpers.FlushDispatcherAsync();
+    }
+
+    [AvaloniaFact]
     public async Task LiveSessionSignalsDesktopView_AppendsSignalBatches_WhileBorrowedIntoZoomOverlay()
     {
         ViewTestHelpers.EnsureViewTestResources();

@@ -10,6 +10,7 @@ using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Plots;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
+using Sufni.App.Shared.Views;
 using Sufni.App.Shared.Views.Plots;
 using Sufni.App.Shared.Views.Input;
 using Sufni.App.Theming;
@@ -26,6 +27,8 @@ public abstract class LiveSignalPlotViewBase : SufniPlotView
     private IDisposable? uiRefreshTimer;
     private readonly System.Threading.Lock pendingSignalBatchesGate = new();
     private IDisposable? signalBatchesSubscription;
+    private readonly EffectiveVisibilityObserver effectiveVisibilityObserver;
+    private bool isEffectivelyVisible;
     private bool applyingTimelineRange;
     private long lastRevision;
     private int pendingSampleMargin = DefaultPendingSampleMargin;
@@ -110,6 +113,8 @@ public abstract class LiveSignalPlotViewBase : SufniPlotView
 
     protected LiveSignalPlotViewBase()
     {
+        effectiveVisibilityObserver = new EffectiveVisibilityObserver(this, OnEffectiveVisibilityChanged);
+
         PropertyChanged += (_, e) =>
         {
             switch (e.Property.Name)
@@ -165,21 +170,8 @@ public abstract class LiveSignalPlotViewBase : SufniPlotView
             }
         };
 
-        AttachedToVisualTree += (_, _) =>
-        {
-            uiRefreshTimer ??= PeriodicUiTimer.SchedulePeriodic(
-                TimeSpan.FromMilliseconds(PlotSettings.LiveSignalRefreshIntervalMs),
-                FlushPendingSignalBatches);
-            EnsureSignalBatchSubscription();
-        };
-        DetachedFromVisualTree += (_, _) =>
-        {
-            signalBatchesSubscription?.Dispose();
-            signalBatchesSubscription = null;
-            uiRefreshTimer?.Dispose();
-            uiRefreshTimer = null;
-            ClearPendingSignalBatches();
-        };
+        AttachedToVisualTree += (_, _) => effectiveVisibilityObserver.Attach();
+        DetachedFromVisualTree += (_, _) => effectiveVisibilityObserver.Detach();
     }
 
     protected void InitializeInteractions()
@@ -332,9 +324,40 @@ public abstract class LiveSignalPlotViewBase : SufniPlotView
         }
     }
 
+    private void OnEffectiveVisibilityChanged(bool isVisible)
+    {
+        isEffectivelyVisible = isVisible;
+        if (isVisible)
+        {
+            StartForegroundUpdates();
+            return;
+        }
+
+        StopForegroundUpdates();
+    }
+
+    private void StartForegroundUpdates()
+    {
+        uiRefreshTimer ??= PeriodicUiTimer.SchedulePeriodic(
+            TimeSpan.FromMilliseconds(PlotSettings.LiveSignalRefreshIntervalMs),
+            FlushPendingSignalBatches);
+        EnsureSignalBatchSubscription();
+    }
+
+    private void StopForegroundUpdates()
+    {
+        signalBatchesSubscription?.Dispose();
+        signalBatchesSubscription = null;
+        uiRefreshTimer?.Dispose();
+        uiRefreshTimer = null;
+        ClearPendingSignalBatches();
+    }
+
     private void EnsureSignalBatchSubscription()
     {
-        if (signalBatchesSubscription is not null || SignalBatches is not IObservable<LiveSignalBatch> signalBatches)
+        if (!isEffectivelyVisible ||
+            signalBatchesSubscription is not null ||
+            SignalBatches is not IObservable<LiveSignalBatch> signalBatches)
         {
             return;
         }
