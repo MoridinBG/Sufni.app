@@ -25,8 +25,6 @@ public interface ISessionBlobSwapRequestStore
 
     Task<SessionBlobSwap?> GetRequestAsync(Guid sessionId);
 
-    Task<string?> GetTargetFingerprintAsync(Guid sessionId);
-
     Task ClearAsync(Guid sessionId);
 }
 
@@ -74,9 +72,6 @@ internal sealed class SessionBlobSwapRequestStore(SqliteConnectionContext connec
             : AppJson.Deserialize<SessionProcessedGeneration>(row.TargetGenerationJson);
         return new SessionBlobSwap(row.SessionId, row.TargetFingerprint, generation);
     }
-
-    public async Task<string?> GetTargetFingerprintAsync(Guid sessionId) =>
-        (await GetRequestAsync(sessionId))?.TargetFingerprint;
 
     public async Task ClearAsync(Guid sessionId)
     {

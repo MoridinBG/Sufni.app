@@ -562,18 +562,31 @@ public class SynchronizationServerService : ISynchronizationServerService
     {
         try
         {
-            var swapTarget = await swapRequestStore.GetTargetFingerprintAsync(id);
-            if (swapTarget is not null)
+            var swapRequest = await swapRequestStore.GetRequestAsync(id);
+            if (swapRequest is not null)
             {
                 // Push-swap row: only the uploader holding the wanted bytes
-                // commits the swap (overwriting the held BLOB + fingerprint +
-                // BLOB-derived metrics coherently and dropping the request).
-                // Any other upload is just a client that does not have those
-                // bytes yet, so it is ignored and the row stays pending — no
-                // 400, so that client's sync run does not fail.
-                if (StringComparer.Ordinal.Equals(payload.Fingerprint, swapTarget))
+                // commits the swap and drops the request. Legacy requests without
+                // a stored generation retain the previous fingerprint-only completion.
+                // Any other upload is ignored so that client's sync run does not fail.
+                if (StringComparer.Ordinal.Equals(payload.Fingerprint, swapRequest.TargetFingerprint))
                 {
-                    await sessionTelemetryWriter.SwapSessionPsstAsync(id, payload.Data, payload.Fingerprint);
+                    if (swapRequest.TargetGeneration is null)
+                    {
+                        await sessionTelemetryWriter.SwapSessionPsstAsync(
+                            id,
+                            payload.Data,
+                            payload.Fingerprint);
+                    }
+                    else
+                    {
+                        await sessionTelemetryWriter.SwapSessionPsstAsync(
+                            id,
+                            payload.Data,
+                            payload.Fingerprint,
+                            swapRequest.TargetGeneration);
+                    }
+
                     await swapRequestStore.ClearAsync(id);
                 }
             }

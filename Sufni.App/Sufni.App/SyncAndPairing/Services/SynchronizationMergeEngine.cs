@@ -103,37 +103,6 @@ internal sealed class SynchronizationMergeEngine(
                                                                          id=?
                                                                      """;
 
-    // The metadata write WITHOUT the BLOB-bound columns: session_processing_fingerprint,
-    // data (data is never written by any metadata path), and the BLOB-derived summary
-    // metrics (duration/distance/ascent/descent). Used to "defer" that whole set when the
-    // row already holds a BLOB, so it keeps honestly advertising the fingerprint AND the
-    // metrics of the bytes it holds while the rest of the metadata syncs immediately. The
-    // deferred columns then move together when the swap commits the new BLOB (the swap
-    // recomputes the metrics from the new bytes), so the row is never left advertising one
-    // BLOB's fingerprint with another BLOB's metrics.
-    private const string RemoteSessionMetadataExceptFingerprintAssignments = """
-                                                                  name=?,
-                                                                  setup_id=?,
-                                                                  description=?,
-                                                                  timestamp=?,
-                                                                   full_track_id=?,
-                                                                   gps_offset_seconds=?,
-                                                                  track=?,
-                                                                  front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
-                                                                  rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
-                                                                  updated=?,
-                                                                  client_updated=?,
-                                                                  deleted=?
-                                                                  """;
-
-    private static readonly string UpdateRemoteSessionMetadataExceptFingerprintSql = $"""
-                                                                     UPDATE session
-                                                                     SET
-                                                                         {RemoteSessionMetadataExceptFingerprintAssignments}
-                                                                     WHERE
-                                                                         id=?
-                                                                     """;
-
     private const string RemoteSessionMetadataExceptProcessedGenerationAssignments = """
                                                                   name=?,
                                                                   setup_id=?,
@@ -485,14 +454,16 @@ internal sealed class SynchronizationMergeEngine(
     {
         if (existing is { HasProcessedData: true } heldRow)
         {
-            // Hub-side defer: when the hub already holds a BLOB, keep its fingerprint,
-            // data, and BLOB-derived metrics so /session/data keeps advertising the
-            // bytes it holds, and sync only the rest of the metadata. The hub runs no
+            // Hub-side defer: when the hub already holds a BLOB, retain the complete
+            // processed generation and sync only independent session metadata. The hub runs no
             // session-data pull phase, so to receive a newer BLOB it records a
             // push-swap request and asks a client to upload it.
             connection.Execute(
-                UpdateRemoteSessionMetadataExceptFingerprintSql,
-                CreateRemoteSessionMetadataExceptFingerprintValues(session, now, session.Updated));
+                UpdateRemoteSessionMetadataExceptProcessedGenerationSql,
+                CreateRemoteSessionMetadataExceptProcessedGenerationValues(
+                    session,
+                    now,
+                    session.Updated));
             UpdateSessionBlobSwapRequest(connection, session, heldRow);
             return;
         }
@@ -559,7 +530,7 @@ internal sealed class SynchronizationMergeEngine(
             incomingFingerprint.MatchesDatabaseInputs(currentDatabaseInputs) &&
             !heldFingerprint.MatchesDatabaseInputs(currentDatabaseInputs))
         {
-            RecordSessionBlobSwapRequest(connection, incoming.Id, incoming.ProcessingFingerprintJson!);
+            RecordSessionBlobSwapRequest(connection, incoming);
             return;
         }
 
@@ -570,7 +541,7 @@ internal sealed class SynchronizationMergeEngine(
             // target so the hub can request the matching BLOB once the source phase
             // fills session_recording_source; otherwise this metadata delta would be
             // lost when the client advances its sync watermark.
-            RecordSessionBlobSwapRequest(connection, incoming.Id, incoming.ProcessingFingerprintJson!);
+            RecordSessionBlobSwapRequest(connection, incoming);
             return;
         }
 
@@ -632,12 +603,12 @@ internal sealed class SynchronizationMergeEngine(
 
     private static void RecordSessionBlobSwapRequest(
         SQLiteConnection connection,
-        Guid sessionId,
-        string targetFingerprint) =>
+        Session incoming) =>
         connection.Execute(
-            $"INSERT OR REPLACE INTO {SessionBlobSwapRequestStore.TableName} (session_id, target_fingerprint) VALUES (?, ?)",
-            sessionId,
-            targetFingerprint);
+            $"INSERT OR REPLACE INTO {SessionBlobSwapRequestStore.TableName} (session_id, target_fingerprint, target_generation) VALUES (?, ?, ?)",
+            incoming.Id,
+            incoming.ProcessingFingerprintJson,
+            AppJson.Serialize(SessionProcessedGeneration.From(incoming)));
 
     private static string? SerializeTrack(Session session) =>
         session.Track is null ? null : AppJson.Serialize(session.Track);
@@ -658,37 +629,6 @@ internal sealed class SynchronizationMergeEngine(
         session.FullTrack,
         NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
         session.ProcessingFingerprintJson,
-        SerializeTrack(session),
-        session.FrontSpringRate,
-        session.FrontHighSpeedCompression,
-        session.FrontLowSpeedCompression,
-        session.FrontLowSpeedRebound,
-        session.FrontHighSpeedRebound,
-        session.RearSpringRate,
-        session.RearHighSpeedCompression,
-        session.RearLowSpeedCompression,
-        session.RearLowSpeedRebound,
-        session.RearHighSpeedRebound,
-        updated,
-        clientUpdated,
-        session.Deleted,
-        session.Id
-    ];
-
-    // Same column order as CreateRemoteSessionMetadataValues but WITHOUT the
-    // session_processing_fingerprint value and the four BLOB-derived metric values
-    // (the SQL omits those assignments — they are deferred with the BLOB).
-    private static object?[] CreateRemoteSessionMetadataExceptFingerprintValues(
-        Session session,
-        long updated,
-        long clientUpdated) =>
-    [
-        session.Name,
-        session.Setup,
-        session.Description,
-        session.Timestamp,
-        session.FullTrack,
-        NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
         SerializeTrack(session),
         session.FrontSpringRate,
         session.FrontHighSpeedCompression,
