@@ -77,6 +77,12 @@ public interface ISessionRepository
 
     Task UpdateSessionPsstAsync(Guid id, byte[] data, string? fingerprintJson, SessionSummaryMetrics metrics);
 
+    Task UpdateSessionProcessedGenerationAsync(
+        Guid id,
+        byte[] data,
+        string? fingerprintJson,
+        SessionProcessedGeneration generation);
+
     Task UpdateSessionTrackAsync(
         Guid id,
         List<TrackPoint> points,
@@ -526,6 +532,45 @@ internal sealed class SessionRepository(
             metrics.DistanceMeters,
             metrics.AscentMeters,
             metrics.DescentMeters,
+            id);
+        if (updatedRows == 0)
+        {
+            throw new Exception($"Session {id} does not exist.");
+        }
+    }
+
+    public async Task UpdateSessionProcessedGenerationAsync(
+        Guid id,
+        byte[] data,
+        string? fingerprintJson,
+        SessionProcessedGeneration generation)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        var trackJson = generation.Track is null ? null : AppJson.Serialize(generation.Track);
+        var updatedRows = await connection.ExecuteAsync(
+            $"""
+            UPDATE session
+            SET
+                data=?,
+                {SessionSqlProjection.ProcessingFingerprintColumn}=?,
+                duration_seconds=?,
+                distance_meters=?,
+                ascent_meters=?,
+                descent_meters=?,
+                full_track_id=?,
+                gps_offset_seconds=?,
+                track=?
+            WHERE id=? AND deleted IS NULL
+            """,
+            data,
+            fingerprintJson,
+            generation.DurationSeconds,
+            generation.DistanceMeters,
+            generation.AscentMeters,
+            generation.DescentMeters,
+            generation.FullTrackId,
+            NormalizeGpsOffsetSeconds(generation.GpsOffsetSeconds),
+            trackJson,
             id);
         if (updatedRows == 0)
         {

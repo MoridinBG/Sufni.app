@@ -458,6 +458,70 @@ public class SessionRepositoryTests
     }
 
     [Fact]
+    public async Task UpdateSessionProcessedGenerationAsync_ReplacesCompleteGenerationWithoutBumpingUpdated()
+    {
+        using var tempDatabase = new TempDatabase("session-generation-update.db");
+        var sessionId = Guid.NewGuid();
+        var heldTrackId = Guid.NewGuid();
+        var targetTrackId = Guid.NewGuid();
+        var heldData = PersistenceTestData.CreateTelemetryBlob(65);
+        var targetData = PersistenceTestData.CreateTelemetryBlob(80);
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        await database.PutSessionAsync(new Session(sessionId, "session", "desc", null, 100)
+        {
+            ProcessedData = heldData,
+            ProcessingFingerprintJson = "held",
+            DurationSeconds = 65,
+            DistanceMeters = 10,
+            AscentMeters = 4,
+            DescentMeters = 2,
+            FullTrack = heldTrackId,
+            GpsOffsetSeconds = 0.5,
+            Track = [new TrackPoint(100, 1, 2, 3)],
+        });
+        var before = (await database.GetSessionAsync(sessionId))!;
+        var targetGeneration = new SessionProcessedGeneration(
+            DurationSeconds: 80,
+            DistanceMeters: 20,
+            AscentMeters: 8,
+            DescentMeters: 3,
+            FullTrackId: targetTrackId,
+            GpsOffsetSeconds: 1.25,
+            Track: [new TrackPoint(101, 4, 5, 6)]);
+
+        await database.SessionRepository.UpdateSessionProcessedGenerationAsync(
+            sessionId,
+            targetData,
+            "target",
+            targetGeneration);
+
+        var after = (await database.GetSessionAsync(sessionId))!;
+        Assert.Equal(before.Updated, after.Updated);
+        Assert.Equal("target", after.ProcessingFingerprintJson);
+        Assert.Equal(80, after.DurationSeconds);
+        Assert.Equal(20, after.DistanceMeters);
+        Assert.Equal(8, after.AscentMeters);
+        Assert.Equal(3, after.DescentMeters);
+        Assert.Equal(targetTrackId, after.FullTrack);
+        Assert.Equal(1.25, after.GpsOffsetSeconds);
+        Assert.Equal(before.ProcessedTelemetryRevision + 1, after.ProcessedTelemetryRevision);
+        Assert.Equal(before.TrackProjectionRevision + 1, after.TrackProjectionRevision);
+        Assert.Null(await database.SessionRepository.GetSessionRawPsstAsync(
+            sessionId,
+            before.ProcessedTelemetryRevision));
+        Assert.Equal(targetData, await database.SessionRepository.GetSessionRawPsstAsync(
+            sessionId,
+            after.ProcessedTelemetryRevision));
+        Assert.Null(await database.SessionRepository.GetSessionTrackAsync(
+            sessionId,
+            before.TrackProjectionRevision));
+        var targetTrack = await database.SessionRepository.GetSessionTrackAsync(
+            sessionId,
+            after.TrackProjectionRevision);
+        Assert.Equal(101, Assert.Single(targetTrack!).Time);
+    }
+
+    [Fact]
     public async Task UpdateSessionPsstAsync_Throws_WhenSessionDoesNotExist()
     {
         using var tempDatabase = new TempDatabase("session-psst-update-missing.db");

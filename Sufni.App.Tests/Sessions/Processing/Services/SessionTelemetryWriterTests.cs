@@ -344,6 +344,39 @@ public class SessionTelemetryWriterTests
     }
 
     [Fact]
+    public async Task SwapSessionPsstAsync_WithTargetGeneration_ValidatesBytesAndPersistsGenerationAsGiven()
+    {
+        var sessionId = Guid.NewGuid();
+        var data = PersistenceTestData.CreateTelemetryBlob(80);
+        var generation = new SessionProcessedGeneration(
+            DurationSeconds: 80,
+            DistanceMeters: 20,
+            AscentMeters: 8,
+            DescentMeters: 3,
+            FullTrackId: Guid.NewGuid(),
+            GpsOffsetSeconds: 1.25,
+            Track: [new TrackPoint(100, 1, 2, 3)]);
+        var sessionRepository = Substitute.For<ISessionRepository>();
+        var telemetryProcessor = new TestSessionTelemetryProcessor();
+        telemetryProcessor.Map(data, TestTelemetryData.CreateMinimal(duration: 80));
+        var writer = new SessionTelemetryWriter(
+            sessionRepository,
+            Substitute.For<ITrackRepository>(),
+            telemetryProcessor);
+
+        await writer.SwapSessionPsstAsync(sessionId, data, "target", generation);
+
+        Assert.Equal(1, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
+        await sessionRepository.Received(1).UpdateSessionProcessedGenerationAsync(
+            sessionId,
+            data,
+            "target",
+            generation);
+        await sessionRepository.DidNotReceive().GetSessionAsync(Arg.Any<Guid>());
+        await sessionRepository.DidNotReceive().GetSessionTrackAsync(Arg.Any<Guid>());
+    }
+
+    [Fact]
     public async Task SwapSessionPsstAsync_OverwritesHeldBlobAndFingerprint_WhenFingerprintDiffers()
     {
         using var tempDatabase = new TempDatabase("writer-psst-swap.db");

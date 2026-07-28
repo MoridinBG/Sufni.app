@@ -58,6 +58,12 @@ public interface ISessionTelemetryWriter
     /// </summary>
     Task SwapSessionPsstAsync(Guid id, byte[] data, string? fingerprint);
 
+    Task SwapSessionPsstAsync(
+        Guid id,
+        byte[] data,
+        string? fingerprint,
+        SessionProcessedGeneration generation);
+
     Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points, double? gpsOffsetSeconds = null);
 }
 
@@ -113,6 +119,20 @@ internal sealed class SessionTelemetryWriter(
         // fingerprint against its target, so write through unconditionally — the
         // stored fingerprint may legitimately differ (a swap replaces a held BLOB).
         await WriteProcessedBytesAsync(id, data, fingerprint, current);
+    }
+
+    public async Task SwapSessionPsstAsync(
+        Guid id,
+        byte[] data,
+        string? fingerprint,
+        SessionProcessedGeneration generation)
+    {
+        _ = sessionTelemetryProcessor.ReadProcessedTelemetryData(data);
+        await sessionRepository.UpdateSessionProcessedGenerationAsync(
+            id,
+            data,
+            fingerprint,
+            generation);
     }
 
     private async Task WriteProcessedBytesAsync(Guid id, byte[] data, string? fingerprint, Session current)
