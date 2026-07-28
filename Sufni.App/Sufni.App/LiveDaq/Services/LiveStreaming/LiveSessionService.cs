@@ -45,6 +45,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     private const int GpsChunkSize = 256;
     private const int TemperatureChunkSize = 64;
     private const int DisplayUpdateQueueCapacity = 8;
+    private const string SessionRolloverError = "DAQ started a new live session.";
     private static readonly TimeSpan AnalysisPressureQuietPeriod = TimeSpan.FromMilliseconds(500);
 #if SUFNI_PROFILING_DIAGNOSTICS
     private static readonly int[] ProfilingCheckpointSeconds = [15, 30, 60, 90, 120];
@@ -166,6 +167,7 @@ internal sealed class LiveSessionService : ILiveSessionService
 
     private bool hasPublishedSaveableCapture;
     private bool isTerminalClosed;
+    private bool isRecoverableRolloverTerminal;
     private bool isAttached;
     private bool isDisposed;
     private DateTimeOffset nextAnalysisRunAt = DateTimeOffset.MinValue;
@@ -310,6 +312,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             markers.Clear();
             streamGaps.Clear();
             finalStatus = null;
+            latestSessionStats = null;
             imuDisplaySignalProcessor.Reset();
             analysisTelemetry = null;
             dampingPercentages = SessionDampingPercentages.Empty;
@@ -328,6 +331,28 @@ internal sealed class LiveSessionService : ILiveSessionService
             nextAnalysisRunAt = DateTimeOffset.MinValue;
             lastClientPressureUtc = DateTimeOffset.MinValue;
             hasPublishedSaveableCapture = false;
+
+            if (isRecoverableRolloverTerminal)
+            {
+                var state = sharedStream.CurrentState;
+                connectionState = state.ConnectionState;
+                sharedClientDropCounters = state.ClientDropCounters;
+                if (!state.IsClosed && state.SessionHeader is { } currentHeader)
+                {
+                    sessionHeader = currentHeader;
+                    imuBuilders.Clear();
+                    EnsureImuBuildersLocked();
+                    isTerminalClosed = false;
+                    isRecoverableRolloverTerminal = false;
+                    lastError = state.LastError;
+                }
+                else if (state.IsClosed)
+                {
+                    isRecoverableRolloverTerminal = false;
+                    lastError = state.LastError;
+                }
+            }
+
             snapshot = BuildSnapshotLocked();
         }
 
@@ -478,7 +503,8 @@ internal sealed class LiveSessionService : ILiveSessionService
                 if (sessionHeader is not null && nextHeader.SessionId != sessionHeader.SessionId && HasAnyCaptureLocked())
                 {
                     isTerminalClosed = true;
-                    lastError ??= "DAQ started a new live session.";
+                    isRecoverableRolloverTerminal = !state.IsClosed;
+                    lastError ??= SessionRolloverError;
                 }
                 else
                 {
@@ -496,6 +522,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             if (state.IsClosed)
             {
                 isTerminalClosed = true;
+                isRecoverableRolloverTerminal = false;
             }
 
             snapshot = BuildSnapshotLocked();
@@ -512,7 +539,7 @@ internal sealed class LiveSessionService : ILiveSessionService
 
         lock (gate)
         {
-            if (isDisposed || isTerminalClosed)
+            if (isDisposed || isTerminalClosed || !IsCurrentSessionFrameLocked(frame))
             {
                 return;
             }
@@ -604,6 +631,25 @@ internal sealed class LiveSessionService : ILiveSessionService
         {
             QueueAnalysisRecompute();
         }
+    }
+
+    private bool IsCurrentSessionFrameLocked(LiveProtocolFrame frame)
+    {
+        uint? frameSessionId = frame switch
+        {
+            LiveTravelBatchFrame travel => travel.Batch.SessionId,
+            LiveImuBatchFrame imu => imu.Batch.SessionId,
+            LiveTemperatureBatchFrame temperature => temperature.Batch.SessionId,
+            LiveGpsBatchFrame gps => gps.Batch.SessionId,
+            LiveBatteryBatchFrame battery => battery.Batch.SessionId,
+            LiveMarkerBatchFrame marker => marker.Batch.SessionId,
+            LiveSessionStatsFrame stats => stats.Payload.SessionId,
+            LiveSessionResultFrame result => result.Payload.SessionId,
+            _ => null,
+        };
+
+        return frameSessionId is null ||
+            (sessionHeader is not null && frameSessionId.Value == sessionHeader.SessionId);
     }
 
     private LiveDisplayUpdate? ApplyTravelBatchLocked(LiveTravelBatchFrame frame)

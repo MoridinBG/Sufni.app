@@ -552,6 +552,92 @@ public class LiveSessionServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.PrepareCaptureForSaveAsync());
     }
 
+    [Fact]
+    public async Task SessionRollover_ClosesCaptureBeforeReset()
+    {
+        var service = CreateService();
+        await service.EnsureAttachedAsync();
+        frames.OnNext(CreateTravelBatchFrame());
+        var nextHeader = CreateRolloverSessionHeader();
+
+        PublishSharedState(nextHeader, isClosed: false);
+
+        var closed = Assert.IsType<LiveSessionStreamPresentation.Closed>(service.Current.Stream);
+        Assert.Equal("DAQ started a new live session.", closed.ErrorMessage);
+        Assert.Equal(sessionHeader.SessionId, service.Current.Controls.SessionHeader?.SessionId);
+        Assert.True(service.Current.Controls.CanSave);
+    }
+
+    [Fact]
+    public async Task ResetCaptureAsync_AfterSessionRollover_AdoptsCurrentHeaderAndReopensStreaming()
+    {
+        var service = CreateService();
+        await service.EnsureAttachedAsync();
+        frames.OnNext(CreateTravelBatchFrame());
+        frames.OnNext(new LiveSessionStatsFrame(
+            new LiveFrameMetadata(10),
+            new LiveSessionStats(sessionHeader.SessionId, 4, 5, 6, 7, 8, 9)));
+        var nextHeader = CreateRolloverSessionHeader();
+        PublishSharedState(nextHeader, isClosed: false);
+
+        await service.ResetCaptureAsync();
+
+        var streaming = Assert.IsType<LiveSessionStreamPresentation.Streaming>(service.Current.Stream);
+        Assert.Equal(nextHeader.SessionId, streaming.SessionHeader.SessionId);
+        Assert.Equal(nextHeader.SessionId, service.Current.Controls.SessionHeader?.SessionId);
+        Assert.Null(service.Current.Controls.LastError);
+        Assert.False(service.Current.Controls.CanSave);
+        Assert.Equal(0u, service.Current.Controls.TravelQueueDepth);
+        Assert.Equal(0u, service.Current.Controls.ImuQueueDepth);
+        Assert.Equal(0u, service.Current.Controls.GpsQueueDepth);
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task ResetCaptureAsync_DoesNotReopenWithoutOpenStreamHeader(bool isClosed, bool removeHeaderBeforeReset)
+    {
+        var service = CreateService();
+        await service.EnsureAttachedAsync();
+        frames.OnNext(CreateTravelBatchFrame());
+        var nextHeader = CreateRolloverSessionHeader();
+        PublishSharedState(nextHeader, isClosed);
+        if (removeHeaderBeforeReset)
+        {
+            currentState = currentState with { SessionHeader = null };
+        }
+
+        await service.ResetCaptureAsync();
+
+        Assert.IsType<LiveSessionStreamPresentation.Closed>(service.Current.Stream);
+        Assert.NotEqual(nextHeader.SessionId, service.Current.Controls.SessionHeader?.SessionId);
+    }
+
+    [Fact]
+    public async Task ResetCaptureAsync_AfterSessionRollover_RejectsOldSessionFramesAndSavesNewSessionFrames()
+    {
+        var service = CreateService();
+        await service.EnsureAttachedAsync();
+        frames.OnNext(CreateTravelBatchFrame());
+        var nextHeader = CreateRolloverSessionHeader();
+        PublishSharedState(nextHeader, isClosed: false);
+        await service.ResetCaptureAsync();
+
+        PublishIdentityBearingFrames(sessionHeader, measurementBase: 1000, temperature: 11.5f, markerDeltaUs: 1_000_000, resultReason: 1, queueDepth: 99);
+        PublishIdentityBearingFrames(nextHeader, measurementBase: 2000, temperature: 22.5f, markerDeltaUs: 2_000_000, resultReason: 2, queueDepth: 3);
+
+        var package = await service.PrepareCaptureForSaveAsync();
+        var capture = package.TelemetryCapture;
+        Assert.Equal([2000, 2010, 2020, 2030, 2040], capture.FrontMeasurements);
+        Assert.Equal(22.5f, Assert.Single(capture.TemperatureData).TemperatureCelsius);
+        Assert.Single(capture.GpsData!);
+        Assert.Equal(2.0, Assert.Single(capture.Markers).TimestampOffset);
+        Assert.Equal((byte)2, capture.FinalStatus?.SessionResultReason);
+        Assert.Equal(3u, service.Current.Controls.TravelQueueDepth);
+        var imuSegment = Assert.Single(capture.ImuData!.Segments);
+        Assert.Equal((short)20, Assert.Single(imuSegment.Records).Ax);
+    }
+
     [Theory]
     [InlineData(GpsSpeedScenario.Incremental)]
     [InlineData(GpsSpeedScenario.OutOfOrderFallback)]
@@ -823,6 +909,118 @@ public class LiveSessionServiceTests
         }
     }
 
+    private LiveSessionHeader CreateRolloverSessionHeader()
+    {
+        return LiveProtocolTestFrames.CreateSessionHeaderModel(
+            sessionId: sessionHeader.SessionId + 1,
+            imuMask: LiveImuLocationMask.Frame,
+            requestedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.Gps,
+            acceptedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.Gps,
+            protocolVersion: LiveProtocolVersion.V3) with
+        {
+            AcceptedTemperatureRateMhz = 30,
+            AcceptedStreamMask = LiveStreamMask.Travel |
+                LiveStreamMask.Imu |
+                LiveStreamMask.Temperature |
+                LiveStreamMask.Gps |
+                LiveStreamMask.Battery |
+                LiveStreamMask.Marker,
+        };
+    }
+
+    private void PublishSharedState(LiveSessionHeader header, bool isClosed)
+    {
+        currentState = currentState with
+        {
+            ConnectionState = LiveConnectionState.Connected,
+            LastError = null,
+            SessionHeader = header,
+            SelectedStreamMask = header.AcceptedStreamMask,
+            IsClosed = isClosed,
+            ProtocolVersion = header.ProtocolVersion,
+        };
+        states.OnNext(currentState);
+    }
+
+    private void PublishIdentityBearingFrames(
+        LiveSessionHeader header,
+        ushort measurementBase,
+        float temperature,
+        ulong markerDeltaUs,
+        byte resultReason,
+        uint queueDepth)
+    {
+        frames.OnNext(CreateTravelBatchFrame(header, measurementBase));
+        frames.OnNext(CreateV3ImuBatch(
+            header,
+            firstIndex: 0,
+            sampleCount: 1,
+            LiveSensorInstanceMask.FrameImu,
+            [CreateImuRecord((short)(measurementBase / 100))]));
+        frames.OnNext(new LiveTemperatureBatchFrame(
+            new LiveFrameMetadata(41),
+            new LiveBatchHeader(
+                header.SessionId,
+                LiveStreamMask.Temperature,
+                StreamSequence: 0,
+                FirstIndex: 0,
+                FirstMonotonicDeltaUs: 500_000,
+                FirstMonotonicUs: header.SessionStartMonotonicUs + 500_000,
+                SampleCount: 1,
+                ValidityMask: LiveSensorInstanceMask.FrameImu),
+            [
+                new LiveTemperatureRecord(
+                    0,
+                    500_000,
+                    LiveSensorInstanceMask.FrameImu,
+                    new TemperatureSample(
+                        header.SessionStartUtc.ToUnixTimeSeconds(),
+                        (byte)LiveImuLocation.Frame,
+                        temperature)),
+            ]));
+        frames.OnNext(CreateGpsBatchFrame(
+            header,
+            timestamp: header.SessionStartUtc.UtcDateTime.AddSeconds(1),
+            latitude: 42.6977 + header.SessionId / 1_000_000.0));
+        frames.OnNext(new LiveBatteryBatchFrame(
+            new LiveFrameMetadata(43),
+            new LiveBatchHeader(
+                header.SessionId,
+                LiveStreamMask.Battery,
+                StreamSequence: 0,
+                FirstIndex: 0,
+                FirstMonotonicDeltaUs: 1_000_000,
+                FirstMonotonicUs: header.SessionStartMonotonicUs + 1_000_000,
+                SampleCount: 1,
+                ValidityMask: LiveSensorInstanceMask.None),
+            [new LiveBatteryRecord(0, 1_000_000, 4000, 0)]));
+        frames.OnNext(new LiveMarkerBatchFrame(
+            new LiveFrameMetadata(44),
+            new LiveBatchHeader(
+                header.SessionId,
+                LiveStreamMask.Marker,
+                StreamSequence: 0,
+                FirstIndex: 0,
+                FirstMonotonicDeltaUs: markerDeltaUs,
+                FirstMonotonicUs: header.SessionStartMonotonicUs + markerDeltaUs,
+                SampleCount: 1,
+                ValidityMask: LiveSensorInstanceMask.None),
+            [new LiveMarkerRecord(0, markerDeltaUs, SstV5ProtocolConstants.MarkerManualUserMark)]));
+        frames.OnNext(new LiveSessionStatsFrame(
+            new LiveFrameMetadata(45),
+            new LiveSessionStats(header.SessionId, queueDepth, queueDepth, queueDepth, 0, 0, 0)));
+        frames.OnNext(new LiveSessionResultFrame(
+            new LiveFrameMetadata(46),
+            new LiveSessionResult(
+                header.SessionId,
+                new SstFinalStatus
+                {
+                    SessionResultReason = resultReason,
+                    StoppedMonotonicDeltaUs = 3_000_000,
+                    Streams = [],
+                })));
+    }
+
     private ILiveSessionService CreateService(
         IBackgroundTaskRunner? runner = null,
         ILiveSignalPipeline? signalPipeline = null,
@@ -940,18 +1138,24 @@ public class LiveSessionServiceTests
             .WaitAsync(timeout);
     }
 
-    private LiveTravelBatchFrame CreateTravelBatchFrame(ulong? firstMonotonicUs = null)
+    private LiveTravelBatchFrame CreateTravelBatchFrame(ulong? firstMonotonicUs = null) =>
+        CreateTravelBatchFrame(sessionHeader, 1000, firstMonotonicUs);
+
+    private static LiveTravelBatchFrame CreateTravelBatchFrame(
+        LiveSessionHeader header,
+        ushort measurementBase,
+        ulong? firstMonotonicUs = null)
     {
         return new LiveTravelBatchFrame(
             Header: new LiveFrameMetadata(1),
-            Batch: new LiveBatchHeader(sessionHeader.SessionId, 1, 0, firstMonotonicUs ?? sessionHeader.SessionStartMonotonicUs, 5),
+            Batch: new LiveBatchHeader(header.SessionId, 1, 0, firstMonotonicUs ?? header.SessionStartMonotonicUs, 5),
             Records:
             [
-                new LiveTravelRecord(1000, 1100),
-                new LiveTravelRecord(1010, 1110),
-                new LiveTravelRecord(1020, 1120),
-                new LiveTravelRecord(1030, 1130),
-                new LiveTravelRecord(1040, 1140),
+                new LiveTravelRecord(measurementBase, (ushort)(measurementBase + 100)),
+                new LiveTravelRecord((ushort)(measurementBase + 10), (ushort)(measurementBase + 110)),
+                new LiveTravelRecord((ushort)(measurementBase + 20), (ushort)(measurementBase + 120)),
+                new LiveTravelRecord((ushort)(measurementBase + 30), (ushort)(measurementBase + 130)),
+                new LiveTravelRecord((ushort)(measurementBase + 40), (ushort)(measurementBase + 140)),
             ]);
     }
 
@@ -1084,11 +1288,19 @@ public class LiveSessionServiceTests
         DateTime? timestamp = null,
         double latitude = 42.6977,
         double longitude = 23.3219,
+        float altitude = 600) =>
+        CreateGpsBatchFrame(sessionHeader, timestamp, latitude, longitude, altitude);
+
+    private static LiveGpsBatchFrame CreateGpsBatchFrame(
+        LiveSessionHeader header,
+        DateTime? timestamp = null,
+        double latitude = 42.6977,
+        double longitude = 23.3219,
         float altitude = 600)
     {
         return new LiveGpsBatchFrame(
             Header: new LiveFrameMetadata(3),
-            Batch: new LiveBatchHeader(sessionHeader.SessionId, 1, 0, sessionHeader.SessionStartMonotonicUs, 1),
+            Batch: new LiveBatchHeader(header.SessionId, 1, 0, header.SessionStartMonotonicUs, 1),
             Records:
             [
                 new GpsRecord(
