@@ -62,10 +62,12 @@ device connection; local files share one local lane. Producers read source bytes
 and feed a bounded channel. A bounded set of consumer tasks
 (`ImportProcessDop = clamp(Environment.ProcessorCount / 2, 2, 4)`) performs SST
 source creation, processing, and persistence in parallel. After all consumers
-finish, imported session/source store publishes are batched once, then
-`OnImported()` acknowledgements drain serially from a queue so remote
-`MARK_SST_UPLOADED` / local move operations happen only after persistence
-succeeds.
+finish, the committed session/source IDs are published once to each store. Only
+after both publications succeed are `Imported` events emitted and `OnImported()`
+acknowledgements drained serially, so remote `MARK_SST_UPLOADED` / local move
+operations happen after persistence and app-state publication. If either
+publication fails, the committed imports are reported as unpublished and their
+source files remain unacknowledged.
 
 ### Mass Storage
 
@@ -156,7 +158,7 @@ Each chunk: 1-byte type + uint16 payload length + variable payload. Unknown chun
 
 The parser (`Sufni.Telemetry/SstV4TlvParser.cs`) tracks `telemetrySampleCount` as it processes chunks. Marker timestamps are calculated as `telemetrySampleCount / telemetrySampleRate` at the point the marker chunk appears. IMU data is only retained if calibration metadata (`ImuMeta`) is present.
 
-The `Inspect()` path walks every TLV chunk, validating each chunk's declared length and accumulating telemetry sample count without decoding IMU/GPS payloads. This is enough to compute duration, version, the `HasUnknown` flag, and any malformed-warning message — used for UI display before import. Unknown TLV chunk types (or unknown rate-stream types inside a `Rates` chunk) do not block import: inspect skips past their payload and sets `HasUnknown = true` on the resulting `ValidSstFileInspection`. A `MalformedSstFileInspection` is returned only for header / framing failures that prevent a clean read — truncated header, invalid chunk lengths, incomplete trailing chunk header, or a missing/invalid telemetry sample rate. If the final TLV chunk declares bytes past EOF, the parser trims incomplete trailing data, keeps any complete records, marks the result with a malformed warning, and still allows import.
+The `Inspect()` path walks every TLV chunk, validating each chunk's declared length and accumulating telemetry sample count without decoding IMU/GPS payloads. This is enough to compute duration, version, the `HasUnknown` flag, and any malformed-warning message — used for UI display before import. Unknown TLV chunk types (or unknown rate-stream types inside a `Rates` chunk) do not block import: inspect skips past their payload and sets `HasUnknown = true` on the resulting `ValidSstFileInspection`. A `MalformedSstFileInspection` is returned for header / framing failures that prevent a clean read — truncated header, invalid chunk lengths, incomplete trailing chunk header, or a missing/invalid telemetry sample rate — and for a file with a valid rate but zero complete telemetry samples (`SST v4 telemetry data is missing.`, zero duration). If the final TLV chunk declares bytes past EOF, the parser trims incomplete trailing data, keeps any complete records, marks the result with a malformed warning, and still allows import.
 
 ### SST V5 Chunked Format
 
