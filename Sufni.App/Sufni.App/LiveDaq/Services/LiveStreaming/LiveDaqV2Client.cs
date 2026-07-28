@@ -219,27 +219,7 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
             lifecycleGate.Release();
         }
 
-        try
-        {
-            return await task.WaitAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            await lifecycleGate.WaitAsync(CancellationToken.None);
-            try
-            {
-                if (pendingStartResult?.Task == task)
-                {
-                    ClearPendingStartContextLocked();
-                }
-            }
-            finally
-            {
-                lifecycleGate.Release();
-            }
-
-            throw;
-        }
+        return await task.WaitAsync(cancellationToken);
     }
 
     public async Task StopPreviewAsync(CancellationToken cancellationToken = default)
@@ -772,8 +752,7 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
                     logger.Debug(
                         "Received live DAQ session header for session {SessionId}",
                         sessionHeaderFrame.Payload.SessionId);
-                    activeSessionId = sessionHeaderFrame.Payload.SessionId;
-                    if (pendingStartResult is null || startAckAwaitingHeader is null)
+                    if (startAckAwaitingHeader is null)
                     {
                         shouldEmitFrame = false;
                         break;
@@ -781,7 +760,7 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
 
                     if (sessionHeaderFrame.Payload.SessionId != startAckAwaitingHeader.Value.SessionId)
                     {
-                        pendingStartResult.TrySetResult(new LivePreviewStartResult.Failed(
+                        pendingStartResult?.TrySetResult(new LivePreviewStartResult.Failed(
                             "Live session header did not match the accepted session."));
                         ClearPendingStartContextLocked();
                         shouldEmitFrame = false;
@@ -792,9 +771,17 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
                     {
                         AcceptedStreamMask = startAckAwaitingHeader.Value.SelectedStreamMask,
                     };
+                    activeSessionId = enrichedHeader.SessionId;
                     emittedFrame = new LiveSessionHeaderFrame(sessionHeaderFrame.Header, enrichedHeader);
-                    pendingStartResult.TrySetResult(new LivePreviewStartResult.Started(enrichedHeader));
+                    pendingStartResult?.TrySetResult(new LivePreviewStartResult.Started(enrichedHeader));
                     ClearPendingStartContextLocked();
+                    break;
+
+                case LiveTravelBatchFrame travelBatchFrame when travelBatchFrame.Batch.SessionId != activeSessionId:
+                case LiveImuBatchFrame imuBatchFrame when imuBatchFrame.Batch.SessionId != activeSessionId:
+                case LiveGpsBatchFrame gpsBatchFrame when gpsBatchFrame.Batch.SessionId != activeSessionId:
+                case LiveSessionStatsFrame sessionStatsFrame when sessionStatsFrame.Payload.SessionId != activeSessionId:
+                    shouldEmitFrame = false;
                     break;
 
                 case LiveErrorFrame errorFrame:
@@ -815,6 +802,12 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
                     logger.Debug(
                         "Received live DAQ preview stop ACK for session {SessionId}",
                         stopAckFrame.Payload.SessionId);
+                    if (stopAckFrame.Payload.SessionId != activeSessionId)
+                    {
+                        shouldEmitFrame = false;
+                        break;
+                    }
+
                     activeSessionId = null;
                     pendingStopAck?.TrySetResult(stopAckFrame.Payload.SessionId);
                     pendingStopAck = null;

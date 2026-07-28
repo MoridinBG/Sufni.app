@@ -95,18 +95,40 @@ internal static class LiveProtocolTestFrames
         return LiveV2ProtocolReader.CreateFrame(LiveV2FrameType.SessionHeader, sequence, payload);
     }
 
+    public static byte[] CreateTravelBatchFrame(
+        uint sequence,
+        uint sessionId,
+        LiveTravelRecord record)
+    {
+        var payload = CreateBatchPayload(sessionId, LiveV2ProtocolConstants.TravelRecordSize);
+        var recordOffset = LiveV2ProtocolConstants.BatchHeaderSize;
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(recordOffset, 2), record.ForkAngle);
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(recordOffset + 2, 2), record.ShockAngle);
+        return LiveV2ProtocolReader.CreateFrame(LiveV2FrameType.TravelBatch, sequence, payload);
+    }
+
+    public static byte[] CreateImuBatchFrame(
+        uint sequence,
+        uint sessionId,
+        ImuRecord record)
+    {
+        var payload = CreateBatchPayload(sessionId, LiveV2ProtocolConstants.ImuRecordSize);
+        var recordOffset = LiveV2ProtocolConstants.BatchHeaderSize;
+        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(recordOffset, 2), record.Ax);
+        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(recordOffset + 2, 2), record.Ay);
+        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(recordOffset + 4, 2), record.Az);
+        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(recordOffset + 6, 2), record.Gx);
+        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(recordOffset + 8, 2), record.Gy);
+        BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(recordOffset + 10, 2), record.Gz);
+        return LiveV2ProtocolReader.CreateFrame(LiveV2FrameType.ImuBatch, sequence, payload);
+    }
+
     public static byte[] CreateGpsBatchFrame(
         uint sequence,
         uint sessionId,
         GpsRecord record)
     {
-        var payload = new byte[LiveV2ProtocolConstants.BatchHeaderSize + LiveV2ProtocolConstants.GpsRecordSize];
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(0, 4), sessionId);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4, 4), 3);
-        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(8, 8), 42);
-        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(16, 8), 555000);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(24, 4), 1);
-
+        var payload = CreateBatchPayload(sessionId, LiveV2ProtocolConstants.GpsRecordSize);
         var timestamp = record.Timestamp.ToUniversalTime();
         var date = (uint)(timestamp.Year * 10000 + timestamp.Month * 100 + timestamp.Day);
         var timeOfDay = timestamp.TimeOfDay;
@@ -124,6 +146,30 @@ internal static class LiveProtocolTestFrames
         WriteSingleLittleEndian(payload.AsSpan(recordOffset + 38, 4), record.Epe2d);
         WriteSingleLittleEndian(payload.AsSpan(recordOffset + 42, 4), record.Epe3d);
         return LiveV2ProtocolReader.CreateFrame(LiveV2FrameType.GpsBatch, sequence, payload);
+    }
+
+    public static byte[] CreateSessionStatsFrame(uint sequence, uint sessionId)
+    {
+        var payload = new byte[LiveV2ProtocolConstants.SessionStatsPayloadSize];
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(0, 4), sessionId);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4, 4), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8, 4), 2);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(12, 4), 3);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(16, 4), 4);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(20, 4), 5);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(24, 4), 6);
+        return LiveV2ProtocolReader.CreateFrame(LiveV2FrameType.SessionStats, sequence, payload);
+    }
+
+    private static byte[] CreateBatchPayload(uint sessionId, int recordSize)
+    {
+        var payload = new byte[LiveV2ProtocolConstants.BatchHeaderSize + recordSize];
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(0, 4), sessionId);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4, 4), 3);
+        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(8, 8), 42);
+        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(16, 8), 555000);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(24, 4), 1);
+        return payload;
     }
 
     private static void WriteSingleLittleEndian(Span<byte> destination, float value)

@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -60,6 +59,7 @@ public class LiveDaqV2ClientTests
     {
         var wireHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 502);
         var harness = new LiveDaqClientProtocolHarness<LiveDaqV2Client>(() => new LiveDaqV2Client());
+        var stopReturned = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var outcome = await harness.WithServerAsync(
             async stream =>
@@ -74,6 +74,8 @@ public class LiveDaqV2ClientTests
                     selectedStreamMask: LiveStreamMask.Temperature | LiveStreamMask.Marker));
                 await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, wireHeader));
                 await stream.FlushAsync();
+                await stopReturned.Task;
+                Assert.False(stream.DataAvailable);
             },
             async (client, port) =>
             {
@@ -89,6 +91,8 @@ public class LiveDaqV2ClientTests
                 var result = await client.StartPreviewAsync(
                         new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0))
                     .WaitAsync(TimeSpan.FromSeconds(2));
+                await client.StopPreviewAsync().WaitAsync(TimeSpan.FromSeconds(1));
+                stopReturned.TrySetResult();
                 return (Result: result, ObservedHeaders: observedHeaders);
             });
 
@@ -219,6 +223,70 @@ public class LiveDaqV2ClientTests
     }
 
     [Fact]
+    public async Task Events_EmitOnlyActiveSessionTelemetryAndStatistics()
+    {
+        const uint activeSessionId = 713;
+        const uint foreignSessionId = 714;
+        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: activeSessionId);
+        var harness = new LiveDaqClientProtocolHarness<LiveDaqV2Client>(() => new LiveDaqV2Client());
+
+        var observedFrames = await harness.WithServerAsync(
+            async stream =>
+            {
+                _ = await LiveDaqClientProtocolHarness<LiveDaqV2Client>.ReadExactAsync(
+                    stream,
+                    LiveV2ProtocolConstants.FrameHeaderSize + LiveV2ProtocolConstants.StartRequestPayloadSize);
+                await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(
+                    1,
+                    LiveStartErrorCode.Ok,
+                    activeSessionId,
+                    LiveStreamMask.Travel | LiveStreamMask.Imu | LiveStreamMask.Gps));
+                await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, sessionHeader));
+                await stream.WriteAsync(LiveProtocolTestFrames.CreateTravelBatchFrame(3, foreignSessionId, new LiveTravelRecord(1, 2)));
+                await stream.WriteAsync(LiveProtocolTestFrames.CreateTravelBatchFrame(4, activeSessionId, new LiveTravelRecord(3, 4)));
+                await stream.WriteAsync(LiveProtocolTestFrames.CreateImuBatchFrame(5, foreignSessionId, new ImuRecord(1, 2, 3, 4, 5, 6)));
+                await stream.WriteAsync(LiveProtocolTestFrames.CreateImuBatchFrame(6, activeSessionId, new ImuRecord(7, 8, 9, 10, 11, 12)));
+                await stream.WriteAsync(CreateGpsBatchFrame(7, foreignSessionId));
+                await stream.WriteAsync(CreateGpsBatchFrame(8, activeSessionId));
+                await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionStatsFrame(9, foreignSessionId));
+                await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionStatsFrame(10, activeSessionId));
+                await stream.FlushAsync();
+            },
+            async (client, port) =>
+            {
+                var sessionFrames = new List<LiveProtocolFrame>();
+                var disconnected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                using var subscription = client.Events.Subscribe(clientEvent =>
+                {
+                    if (clientEvent is LiveDaqClientEvent.FrameReceived { Frame: var frame } &&
+                        frame is LiveTravelBatchFrame or LiveImuBatchFrame or LiveGpsBatchFrame or LiveSessionStatsFrame)
+                    {
+                        lock (sessionFrames)
+                        {
+                            sessionFrames.Add(frame);
+                        }
+                    }
+                    else if (clientEvent is LiveDaqClientEvent.Disconnected)
+                    {
+                        disconnected.TrySetResult();
+                    }
+                });
+
+                await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+                Assert.IsType<LivePreviewStartResult.Started>(await client.StartPreviewAsync(
+                    new LiveStartRequest(LiveSensorInstanceMask.All, 200_000, 100_000, 10_000)));
+                await disconnected.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                return sessionFrames;
+            });
+
+        Assert.Equal(4, observedFrames.Count);
+        Assert.Contains(observedFrames, frame => frame is LiveTravelBatchFrame travel && travel.Batch.SessionId == activeSessionId);
+        Assert.Contains(observedFrames, frame => frame is LiveImuBatchFrame imu && imu.Batch.SessionId == activeSessionId);
+        Assert.Contains(observedFrames, frame => frame is LiveGpsBatchFrame gps && gps.Batch.SessionId == activeSessionId);
+        Assert.Contains(observedFrames, frame => frame is LiveSessionStatsFrame stats && stats.Payload.SessionId == activeSessionId);
+    }
+
+    [Fact]
     public async Task ReceiveLoop_SkipsTelemetryPayload_WhenRawCapacityUnavailable_AndReadsFollowingStatusFrame()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -235,7 +303,7 @@ public class LiveDaqV2ClientTests
             await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.Ok, sessionHeader.SessionId, LiveStreamMask.Gps));
             await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, sessionHeader));
             await stream.WriteAsync(CreateGpsBatchFrame(3, sessionHeader.SessionId));
-            await stream.WriteAsync(CreateSessionStatsFrame(4, sessionHeader.SessionId));
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionStatsFrame(4, sessionHeader.SessionId));
             await stream.FlushAsync();
         });
 
@@ -297,7 +365,7 @@ public class LiveDaqV2ClientTests
             await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.Ok, sessionHeader.SessionId, LiveStreamMask.Gps));
             await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, sessionHeader));
             await stream.WriteAsync(CreateGpsBatchFrame(3, sessionHeader.SessionId));
-            await stream.WriteAsync(CreateSessionStatsFrame(4, sessionHeader.SessionId));
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionStatsFrame(4, sessionHeader.SessionId));
             await stream.FlushAsync();
         });
 
@@ -375,6 +443,69 @@ public class LiveDaqV2ClientTests
         Assert.IsType<LivePreviewStartResult.Started>(started);
 
         await client.StopPreviewAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        await client.DisconnectAsync();
+        await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task StopPreviewAsync_IgnoresForeignAck_UntilActiveSessionAckArrives()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 612);
+        var releaseMatchingAck = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var serverTask = Task.Run(async () =>
+        {
+            using var serverClient = await listener.AcceptTcpClientAsync();
+            await using var stream = serverClient.GetStream();
+
+            _ = await ReadExactAsync(stream, LiveV2ProtocolConstants.FrameHeaderSize + LiveV2ProtocolConstants.StartRequestPayloadSize);
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, LiveStartErrorCode.Ok, sessionHeader.SessionId, LiveStreamMask.Travel));
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, sessionHeader));
+            await stream.FlushAsync();
+
+            _ = await ReadExactAsync(stream, LiveV2ProtocolConstants.FrameHeaderSize);
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateStopAckFrame(3, sessionHeader.SessionId + 1));
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionStatsFrame(4, sessionHeader.SessionId));
+            await stream.FlushAsync();
+
+            await releaseMatchingAck.Task;
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateStopAckFrame(5, sessionHeader.SessionId));
+            await stream.FlushAsync();
+        });
+
+        await using var client = new LiveDaqV2Client();
+        var statsObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var matchingAckObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var observedStopAcks = new List<uint>();
+        using var subscription = client.Events.Subscribe(clientEvent =>
+        {
+            if (clientEvent is LiveDaqClientEvent.FrameReceived { Frame: LiveSessionStatsFrame })
+            {
+                statsObserved.TrySetResult();
+            }
+            else if (clientEvent is LiveDaqClientEvent.FrameReceived { Frame: LiveStopAckFrame stopAckFrame })
+            {
+                observedStopAcks.Add(stopAckFrame.Payload.SessionId);
+                matchingAckObserved.TrySetResult();
+            }
+        });
+
+        await client.ConnectAsync(IPAddress.Loopback.ToString(), port);
+        Assert.IsType<LivePreviewStartResult.Started>(await client.StartPreviewAsync(
+            new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0)));
+
+        var stopTask = client.StopPreviewAsync();
+        await statsObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.False(stopTask.IsCompleted);
+
+        releaseMatchingAck.TrySetResult();
+        await stopTask.WaitAsync(TimeSpan.FromSeconds(2));
+        await matchingAckObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal([sessionHeader.SessionId], observedStopAcks);
+
         await client.DisconnectAsync();
         await serverTask.WaitAsync(TimeSpan.FromSeconds(2));
     }
@@ -508,7 +639,7 @@ public class LiveDaqV2ClientTests
             await stream.FlushAsync();
             await releaseHeader.Task;
             await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, sessionHeader));
-            await stream.WriteAsync(CreateSessionStatsFrame(3, sessionHeader.SessionId));
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionStatsFrame(3, sessionHeader.SessionId));
             await stream.FlushAsync();
 
             var stopBytes = await ReadExactAsync(stream, LiveV2ProtocolConstants.FrameHeaderSize);
@@ -519,12 +650,17 @@ public class LiveDaqV2ClientTests
 
         await using var client = new LiveDaqV2Client();
         var ackObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var headerObserved = new TaskCompletionSource<LiveSessionHeader>(TaskCreationOptions.RunContinuationsAsynchronously);
         var statsObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var subscription = client.Events.Subscribe(clientEvent =>
         {
             if (clientEvent is LiveDaqClientEvent.FrameReceived { Frame: LiveStartAckFrame })
             {
                 ackObserved.TrySetResult();
+            }
+            else if (clientEvent is LiveDaqClientEvent.FrameReceived { Frame: LiveSessionHeaderFrame headerFrame })
+            {
+                headerObserved.TrySetResult(headerFrame.Payload);
             }
             else if (clientEvent is LiveDaqClientEvent.FrameReceived { Frame: LiveSessionStatsFrame })
             {
@@ -541,6 +677,8 @@ public class LiveDaqV2ClientTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => start);
 
         releaseHeader.SetResult();
+        var observedHeader = await headerObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(sessionHeader.SessionId, observedHeader.SessionId);
         await statsObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
         await client.StopPreviewAsync().WaitAsync(TimeSpan.FromSeconds(2));
 
@@ -639,19 +777,6 @@ public class LiveDaqV2ClientTests
                 Satellites: 12,
                 Epe2d: 0.5f,
                 Epe3d: 0.8f));
-    }
-
-    private static byte[] CreateSessionStatsFrame(uint sequence, uint sessionId)
-    {
-        var payload = new byte[LiveV2ProtocolConstants.SessionStatsPayloadSize];
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(0, 4), sessionId);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(4, 4), 1);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8, 4), 2);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(12, 4), 3);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(16, 4), 4);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(20, 4), 5);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(24, 4), 6);
-        return LiveV2ProtocolReader.CreateFrame(LiveV2FrameType.SessionStats, sequence, payload);
     }
 
     private static async Task SendFrameForTestAsync(NetworkStream stream, byte[] frame, CancellationToken cancellationToken)
