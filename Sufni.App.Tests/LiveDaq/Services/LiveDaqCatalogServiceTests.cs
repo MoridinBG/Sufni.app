@@ -188,6 +188,81 @@ public class LiveDaqCatalogServiceTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Observe_DuplicateBoardIdentity_SelectsLowestAnnouncementKey_RegardlessOfArrivalOrder(
+        bool preferredArrivesFirst)
+    {
+        const string bid = "0102030405060708";
+        var preferred = CreateAnnouncement(
+            "192.168.1.20",
+            9002,
+            LiveProtocolVersion.V3,
+            bid,
+            instanceName: "daq-a");
+        var alternate = CreateAnnouncement(
+            "192.168.1.21",
+            9003,
+            LiveProtocolVersion.V3,
+            bid,
+            instanceName: "daq-b");
+        using var service = CreateCatalogService();
+        IReadOnlyList<LiveDaqCatalogEntry> observed = [];
+        using var subscription = service.Observe().Subscribe(entries => observed = entries);
+
+        var announcements = preferredArrivesFirst
+            ? new[] { preferred, alternate }
+            : new[] { alternate, preferred };
+        foreach (var announcement in announcements)
+        {
+            serviceDiscovery.ServiceAdded += Raise.EventWith(
+                serviceDiscovery,
+                new ServiceAnnouncementEventArgs(announcement));
+        }
+
+        var entry = Assert.Single(observed);
+        Assert.Equal("192.168.1.20", entry.Host);
+        Assert.Equal(9002, entry.Port);
+    }
+
+    [Fact]
+    public void Observe_PreferredDuplicateRemoval_PromotesRetainedAlternate()
+    {
+        const string bid = "0102030405060708";
+        var preferred = CreateAnnouncement(
+            "192.168.1.20",
+            9002,
+            LiveProtocolVersion.V3,
+            bid,
+            instanceName: "daq-a");
+        var alternate = CreateAnnouncement(
+            "192.168.1.21",
+            9003,
+            LiveProtocolVersion.V3,
+            bid,
+            instanceName: "daq-b");
+        using var service = CreateCatalogService();
+        IReadOnlyList<LiveDaqCatalogEntry> observed = [];
+        using var subscription = service.Observe().Subscribe(entries => observed = entries);
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            serviceDiscovery,
+            new ServiceAnnouncementEventArgs(preferred));
+        serviceDiscovery.ServiceAdded += Raise.EventWith(
+            serviceDiscovery,
+            new ServiceAnnouncementEventArgs(alternate));
+        var identityKey = Assert.Single(observed).IdentityKey;
+
+        serviceDiscovery.ServiceRemoved += Raise.EventWith(
+            serviceDiscovery,
+            new ServiceAnnouncementEventArgs(preferred));
+
+        var promoted = Assert.Single(observed);
+        Assert.Equal(identityKey, promoted.IdentityKey);
+        Assert.Equal("192.168.1.21", promoted.Host);
+        Assert.Equal(9003, promoted.Port);
+    }
+
+    [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("4")]

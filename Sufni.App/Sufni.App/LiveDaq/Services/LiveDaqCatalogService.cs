@@ -104,10 +104,15 @@ public sealed class LiveDaqCatalogService : ILiveDaqCatalogService, IDisposable
 
     private void PublishSnapshotLocked()
     {
-        logger.Debug("Published live DAQ catalog snapshot with {EntryCount} entries", entries.Count);
-        entriesSubject.OnNext(entries.Values
+        var snapshot = entries
+            .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(pair => pair.Value)
+            .GroupBy(entry => entry.IdentityKey, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
             .OrderBy(entry => entry.DisplayName, StringComparer.CurrentCultureIgnoreCase)
-            .ToArray());
+            .ToArray();
+        logger.Debug("Published live DAQ catalog snapshot with {EntryCount} entries", snapshot.Length);
+        entriesSubject.OnNext(snapshot);
     }
 
     private static IPAddress NormalizeAddress(IPAddress address) =>
