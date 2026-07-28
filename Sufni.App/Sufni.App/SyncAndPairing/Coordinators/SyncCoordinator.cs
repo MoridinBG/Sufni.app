@@ -144,8 +144,16 @@ public class SyncCoordinator : ISyncCoordinator
                 CurrentStep: 8,
                 TotalSteps: 8,
                 IsDeterminate: true);
-            await RefreshStateOnUiThreadAsync();
 
+            if (result is SynchronizationRunResult.PartialApply partialApply)
+            {
+                await RefreshCoreStateOnUiThreadAsync();
+                logger.Error("Synchronization partially applied: {ErrorMessage}", partialApply.ErrorMessage);
+                SyncFailed?.Invoke(this, new SyncFailedEventArgs($"Sync partially applied: {partialApply.ErrorMessage}"));
+                return;
+            }
+
+            await RefreshStateOnUiThreadAsync();
             var completionMessage = GetCompletionMessage(result);
             logger.Information("Synchronization completed: {CompletionMessage}", completionMessage);
             SyncCompleted?.Invoke(this, new SyncCompletedEventArgs(completionMessage));
@@ -338,6 +346,17 @@ public class SyncCoordinator : ISyncCoordinator
                 $"Sync incomplete: {incomplete.MissingProcessedSessionCount} session blob(s) and {incomplete.IncompleteRecordedSourceCount} recorded source(s) still missing",
             _ => "Sync completed"
         };
+
+    private async Task RefreshCoreStateOnUiThreadAsync()
+    {
+        if (uiThreadDispatcher.CheckAccess())
+        {
+            await appStateRefreshOrchestrator.RefreshCoreStateAsync();
+            return;
+        }
+
+        await uiThreadDispatcher.InvokeAsync(() => appStateRefreshOrchestrator.RefreshCoreStateAsync());
+    }
 
     private async Task RefreshStateOnUiThreadAsync()
     {

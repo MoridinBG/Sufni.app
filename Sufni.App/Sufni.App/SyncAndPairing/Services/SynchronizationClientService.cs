@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Sufni.App.ExtensionHost.Contracts.Sync;
 using Serilog;
 
 using Sufni.App.Extensibility.Sync;
@@ -126,7 +125,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             incompleteSessions.Count);
     }
 
-    private async Task<(IReadOnlyList<SessionBlobSwap> Swaps, long UpperBound)> PullRemoteChanges(
+    private async Task<(IReadOnlyList<SessionBlobSwap> Swaps, long UpperBound, string? PartialApplyError)> PullRemoteChanges(
         long sinceExclusive,
         IProgress<SynchronizationProgressSnapshot>? progress)
     {
@@ -138,14 +137,26 @@ public class SynchronizationClientService : ISynchronizationClientService
         await appPreferences.ApplySyncDataAsync(syncData.AppPreferences);
         if (extensionSyncService is not null && extensionPlan is not null)
         {
-            var extensionProgress = await extensionSyncService.ApplyPreparedBatchesAsync(
-                extensionPlan,
-                SynchronizationPhase.PullingRemoteChanges,
-                currentStep: 2,
-                totalSteps: 6);
-            foreach (var snapshot in extensionProgress)
+            try
             {
-                progress?.Report(snapshot);
+                var extensionProgress = await extensionSyncService.ApplyPreparedBatchesAsync(
+                    extensionPlan,
+                    SynchronizationPhase.PullingRemoteChanges,
+                    currentStep: 2,
+                    totalSteps: 6);
+                foreach (var snapshot in extensionProgress)
+                {
+                    progress?.Report(snapshot);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                logger.Error(exception, "Extension synchronization failed after pulled core data was persisted");
+                return (swaps, syncData.UpperBound, exception.Message);
             }
         }
 
@@ -164,7 +175,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             syncData.ExtensionBatches.Count,
             syncData.AppPreferences is not null);
 
-        return (swaps, syncData.UpperBound);
+        return (swaps, syncData.UpperBound, null);
     }
 
     private async Task<int> PullIncompleteSessions(IReadOnlyList<SessionBlobSwap> swaps)
@@ -353,12 +364,18 @@ public class SynchronizationClientService : ISynchronizationClientService
             IReadOnlyList<SessionBlobSwap> swaps = [];
             var pullUpperBound = lastPullTime;
             var unresolvedSwaps = 0;
+            string? partialApplyError = null;
 
             await RunPhaseAsync(progress, SynchronizationPhase.PushingLocalChanges, "Pushing local changes", 1, () => PushLocalChanges(pushSinceExclusive));
             await RunPhaseAsync(progress, SynchronizationPhase.PullingRemoteChanges, "Pulling remote changes", 2, async () =>
             {
-                (swaps, pullUpperBound) = await PullRemoteChanges(pullSinceExclusive, progress);
+                (swaps, pullUpperBound, partialApplyError) = await PullRemoteChanges(pullSinceExclusive, progress);
             });
+            if (partialApplyError is not null)
+            {
+                return new SynchronizationRunResult.PartialApply(partialApplyError);
+            }
+
             await RunPhaseAsync(progress, SynchronizationPhase.PushingIncompleteSessions, "Uploading session data", 3, PushIncompleteSessions);
             await RunPhaseAsync(progress, SynchronizationPhase.PullingIncompleteSessions, "Downloading session data", 4, async () => unresolvedSwaps = await PullIncompleteSessions(swaps));
 

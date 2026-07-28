@@ -44,4 +44,6 @@ public abstract record SynchronizationRunResult
     public sealed record IncompleteLocalData(
         int MissingProcessedSessionCount,
         int IncompleteRecordedSourceCount) : SynchronizationRunResult;
+
+    public sealed record PartialApply(string ErrorMessage) : SynchronizationRunResult;
 }

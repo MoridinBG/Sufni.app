@@ -304,7 +304,7 @@ public class SynchronizationClientServiceTests
     }
 
     [Fact]
-    public async Task SyncAll_AdvancesPushButNotPullCursor_WhenExtensionApplyFails()
+    public async Task SyncAll_ReturnsPartialApplyAndHoldsPullCursor_WhenExtensionApplyFails()
     {
         var extensionSync = new FakeExtensionSyncService
         {
@@ -322,8 +322,12 @@ public class SynchronizationClientServiceTests
         syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(4).Returns(remoteChanges);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(extensionSync).SyncAll());
+        var result = await CreateService(extensionSync).SyncAll();
 
+        var partialApply = Assert.IsType<SynchronizationRunResult.PartialApply>(result);
+        Assert.Equal("extension failed", partialApply.ErrorMessage);
+        await syncDataStore.Received(1).ApplyRemoteSynchronizationDataAsync(remoteChanges);
+        await appPreferences.Received(1).ApplySyncDataAsync(remoteChanges.AppPreferences);
         await syncDataStore.Received(1).UpdateLastPushTimeAsync(
             SynchronizationClientService.SyncStateKey,
             Arg.Any<long>());

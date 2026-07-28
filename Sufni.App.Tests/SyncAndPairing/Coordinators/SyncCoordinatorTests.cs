@@ -27,6 +27,8 @@ public class SyncCoordinatorTests
             .Returns(Task.FromResult<string?>("https://sync.test"));
         syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>())
             .Returns(CompletedSync());
+        appStateRefreshOrchestrator.RefreshCoreStateAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
         appStateRefreshOrchestrator.RefreshAllStateAsync(Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
     }
@@ -247,6 +249,30 @@ public class SyncCoordinatorTests
     }
 
     // ----- SyncAllAsync failure -----
+
+    [AvaloniaFact]
+    public async Task SyncAllAsync_RefreshesCoreAndRaisesFailure_WhenSyncWasPartiallyApplied()
+    {
+        SetPairingState(true);
+        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>())
+            .Returns(Task.FromResult<SynchronizationRunResult>(
+                new SynchronizationRunResult.PartialApply("extension failed")));
+        var coordinator = CreateCoordinator();
+
+        SyncFailedEventArgs? failure = null;
+        var completed = 0;
+        coordinator.SyncFailed += (_, args) => failure = args;
+        coordinator.SyncCompleted += (_, _) => completed++;
+
+        await coordinator.SyncAllAsync();
+
+        Assert.NotNull(failure);
+        Assert.Equal("Sync partially applied: extension failed", failure.ErrorMessage);
+        Assert.Equal(0, completed);
+        Assert.False(coordinator.IsRunning);
+        await appStateRefreshOrchestrator.Received(1).RefreshCoreStateAsync(Arg.Any<CancellationToken>());
+        await appStateRefreshOrchestrator.DidNotReceive().RefreshAllStateAsync(Arg.Any<CancellationToken>());
+    }
 
     [AvaloniaFact]
     public async Task SyncAllAsync_RaisesSyncFailed_AndResetsIsRunning_WhenSyncThrows()
