@@ -173,6 +173,33 @@ public class CollapsibleSplitViewTests
     }
 
     [AvaloniaFact]
+    public async Task CollapsibleSplitView_ShowsExpandedTouchTarget_WhenInheritedTouchInputChanges()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        var view = CreateView();
+        var root = new Grid
+        {
+            Children = { view },
+        };
+        var host = await ViewTestHelpers.ShowViewAsync(root);
+        await using var mounted = new MountedCollapsibleSplitView(host, view);
+        var touchTarget = FindPart<Border>(mounted.View, "PART_SplitTouchTarget");
+
+        Assert.False(touchTarget.IsVisible);
+        Assert.False(touchTarget.IsHitTestVisible);
+
+        CollapsibleSplitView.SetHasTouchInput(root, true);
+
+        Assert.True(touchTarget.IsVisible);
+        Assert.True(touchTarget.IsHitTestVisible);
+
+        CollapsibleSplitView.SetHasTouchInput(root, false);
+
+        Assert.False(touchTarget.IsVisible);
+        Assert.False(touchTarget.IsHitTestVisible);
+    }
+
+    [AvaloniaFact]
     public async Task CollapsibleSplitView_ClickingCollapsedHeader_RestoresStoredPaneRatio()
     {
         var view = CreateView();

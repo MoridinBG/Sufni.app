@@ -26,6 +26,8 @@ public sealed class ShellRootViewModel : ViewModelBase
         layoutProfile = appEnvironment.LayoutProfile;
         presentation = new ShellRootPresentation(this, layoutProfile);
         Capabilities = appEnvironment.Capabilities;
+        HasKeyboardInput = appEnvironment.Input.HasKeyboard;
+        HasTouchInput = appEnvironment.Input.HasTouch;
         this.plotZoomState = plotZoomState;
         appEnvironment.PropertyChanged += OnAppEnvironmentPropertyChanged;
     }
@@ -51,6 +53,8 @@ public sealed class ShellRootViewModel : ViewModelBase
     }
 
     public AppCapabilities Capabilities { get; }
+    public bool HasKeyboardInput { get; }
+    public bool HasTouchInput { get; }
 
     public bool HandleBackRequest()
     {

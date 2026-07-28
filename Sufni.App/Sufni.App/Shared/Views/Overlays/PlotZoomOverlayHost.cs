@@ -22,19 +22,16 @@ public sealed class PlotZoomOverlayHost : Panel, IPlotZoomSurface
     private const int AnimationDurationMs = 250;
     private const double DesktopSurfaceMargin = 24;
     private static readonly TimeSpan AnimationDuration = TimeSpan.FromMilliseconds(AnimationDurationMs);
-    private static readonly IAppEnvironment FallbackEnvironment = new AppEnvironment(
-        DefaultLayoutProfile: UiLayoutProfile.Workspace,
-        LayoutProfile: UiLayoutProfile.Workspace,
-        Capabilities: new AppCapabilities(
-            CanHostSyncServer: false,
-            CanPairAsClient: false,
-            SupportsMassStorageImport: false,
-            SupportsStorageProviderImport: false),
-        Input: new InputCapabilities(
-            HasPointer: true,
-            HasTouch: false,
-            HasKeyboard: true,
-            SupportsLongPressContextMenu: false));
+
+    public static readonly StyledProperty<UiLayoutProfile> LayoutProfileProperty =
+        AvaloniaProperty.Register<PlotZoomOverlayHost, UiLayoutProfile>(
+            nameof(LayoutProfile),
+            UiLayoutProfile.Workspace);
+
+    public static readonly StyledProperty<bool> HasKeyboardInputProperty =
+        AvaloniaProperty.Register<PlotZoomOverlayHost, bool>(
+            nameof(HasKeyboardInput),
+            defaultValue: true);
 
     private readonly Border scrim;
     private readonly Border modalSurface;
@@ -44,6 +41,17 @@ public sealed class PlotZoomOverlayHost : Panel, IPlotZoomSurface
     private Control? borrowedChild;
     private TopLevel? topLevel;
     private IDisposable? pendingCloseCompletion;
+
+    static PlotZoomOverlayHost()
+    {
+        LayoutProfileProperty.Changed.AddClassHandler<PlotZoomOverlayHost>((host, _) =>
+        {
+            if (host.IsZoomOpen)
+            {
+                host.ApplyModalPresentation();
+            }
+        });
+    }
 
     public PlotZoomOverlayHost()
     {
@@ -78,6 +86,18 @@ public sealed class PlotZoomOverlayHost : Panel, IPlotZoomSurface
         Children.Add(scrim);
         Children.Add(modalSurface);
         AddHandler(InputElement.DoubleTappedEvent, OnOverlayDoubleTapped);
+    }
+
+    public UiLayoutProfile LayoutProfile
+    {
+        get => GetValue(LayoutProfileProperty);
+        set => SetValue(LayoutProfileProperty, value);
+    }
+
+    public bool HasKeyboardInput
+    {
+        get => GetValue(HasKeyboardInputProperty);
+        set => SetValue(HasKeyboardInputProperty, value);
     }
 
     public bool IsZoomOpen => activeContainer is not null && borrowedChild is not null;
@@ -296,7 +316,7 @@ public sealed class PlotZoomOverlayHost : Panel, IPlotZoomSurface
 
     private void OnTopLevelKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Escape || !ResolveEnvironment().Input.HasKeyboard)
+        if (e.Key != Key.Escape || !HasKeyboardInput)
         {
             return;
         }
@@ -323,7 +343,7 @@ public sealed class PlotZoomOverlayHost : Panel, IPlotZoomSurface
 
     private void ApplyModalPresentation()
     {
-        var useWorkspacePresentation = ResolveEnvironment().LayoutProfile == UiLayoutProfile.Workspace;
+        var useWorkspacePresentation = LayoutProfile == UiLayoutProfile.Workspace;
         rotationHost.LayoutTransform = !useWorkspacePresentation && Bounds.Height > Bounds.Width
             ? new RotateTransform(90)
             : null;
@@ -342,13 +362,6 @@ public sealed class PlotZoomOverlayHost : Panel, IPlotZoomSurface
             modalSurface.BoxShadow = default;
             modalSurface.ClipToBounds = false;
         }
-    }
-
-    private static IAppEnvironment ResolveEnvironment()
-    {
-        return App.Current?.Services?.GetService(typeof(IAppEnvironment)) is IAppEnvironment environment
-            ? environment
-            : FallbackEnvironment;
     }
 
     private void RefreshThemeBrushes()

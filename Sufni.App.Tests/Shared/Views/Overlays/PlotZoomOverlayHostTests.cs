@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Views.Overlays;
 using Sufni.App.Tests.TestSupport.Harness;
 
@@ -49,7 +50,6 @@ public class PlotZoomOverlayHostTests
     [AvaloniaFact]
     public async Task EscapeKey_ClosesOverlay()
     {
-        using var environment = TestApp.UsePointerInput();
         await using var mounted = await MountAsync();
         await OpenAsync(mounted.Container);
         var args = new KeyEventArgs
@@ -71,8 +71,7 @@ public class PlotZoomOverlayHostTests
     [AvaloniaFact]
     public async Task EscapeKey_Ignored_WhenInputHasNoKeyboard()
     {
-        using var environment = TestApp.UseTouchInput();
-        await using var mounted = await MountAsync();
+        await using var mounted = await MountAsync(hasKeyboardInput: false);
         await OpenAsync(mounted.Container);
         var args = new KeyEventArgs
         {
@@ -106,8 +105,10 @@ public class PlotZoomOverlayHostTests
     [AvaloniaFact]
     public async Task Open_AppliesRotation_WhenCompactAndPortrait()
     {
-        using var environment = TestApp.UseTouchInput();
-        await using var mounted = await MountAsync(width: 320, height: 640);
+        await using var mounted = await MountAsync(
+            width: 320,
+            height: 640,
+            layoutProfile: UiLayoutProfile.Compact);
 
         await OpenAsync(mounted.Container);
 
@@ -117,10 +118,24 @@ public class PlotZoomOverlayHostTests
     [AvaloniaFact]
     public async Task Open_NeverRotates_WhenWorkspace()
     {
-        using var environment = TestApp.UsePointerInput();
         await using var mounted = await MountAsync(width: 320, height: 640);
 
         await OpenAsync(mounted.Container);
+
+        Assert.Null(GetRotationHost(mounted.Overlay).LayoutTransform);
+    }
+
+    [AvaloniaFact]
+    public async Task LayoutProfileChange_UpdatesOpenOverlayPresentation()
+    {
+        await using var mounted = await MountAsync(
+            width: 320,
+            height: 640,
+            layoutProfile: UiLayoutProfile.Compact);
+        await OpenAsync(mounted.Container);
+        Assert.IsType<RotateTransform>(GetRotationHost(mounted.Overlay).LayoutTransform);
+
+        mounted.Overlay.LayoutProfile = UiLayoutProfile.Workspace;
 
         Assert.Null(GetRotationHost(mounted.Overlay).LayoutTransform);
     }
@@ -141,7 +156,11 @@ public class PlotZoomOverlayHostTests
         Assert.False(mounted.Overlay.TryCollapseZoom());
     }
 
-    private static async Task<MountedOverlay> MountAsync(double width = 640, double height = 360)
+    private static async Task<MountedOverlay> MountAsync(
+        double width = 640,
+        double height = 360,
+        UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace,
+        bool hasKeyboardInput = true)
     {
         ViewTestHelpers.EnsureViewTestResources();
         var child = new Border();
@@ -149,7 +168,11 @@ public class PlotZoomOverlayHostTests
         {
             Child = child,
         };
-        var overlay = new PlotZoomOverlayHost();
+        var overlay = new PlotZoomOverlayHost
+        {
+            LayoutProfile = layoutProfile,
+            HasKeyboardInput = hasKeyboardInput,
+        };
         var root = new Grid
         {
             Children =

@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:desktopControls="clr-namespace:Sufni.App.Shared.DesktopViews.Controls"
     xmlns:overlays="clr-namespace:Sufni.App.Shared.Views.Overlays"
     xmlns:shortcuts="using:Sufni.App.Shell.KeyboardShortcuts"
     xmlns:viewmodels="clr-namespace:Sufni.App.Shell.ViewModels"
@@ -14,6 +15,7 @@
     d:DesignWidth="800"
     x:DataType="viewmodels:ShellRootViewModel"
     Background="{DynamicResource SufniSurfacePage}"
+    desktopControls:CollapsibleSplitView.HasTouchInput="{Binding HasTouchInput}"
     Icon="/Assets/sufni-icon.png"
     mc:Ignorable="d">
 
@@ -28,6 +30,9 @@
 
     <Panel>
         <ContentControl Content="{Binding Presentation}" />
-        <overlays:PlotZoomOverlayHost Name="PlotZoomOverlay" />
+        <overlays:PlotZoomOverlayHost
+            Name="PlotZoomOverlay"
+            HasKeyboardInput="{Binding HasKeyboardInput}"
+            LayoutProfile="{Binding LayoutProfile}" />
     </Panel>
 </Window>

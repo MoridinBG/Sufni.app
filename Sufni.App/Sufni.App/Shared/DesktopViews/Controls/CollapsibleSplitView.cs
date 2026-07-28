@@ -52,6 +52,12 @@ public sealed class CollapsibleSplitView : UserControl
     private double dragStartFirstRatio = 0.5;
     private double dragStartSecondRatio = 0.5;
 
+    public static readonly AttachedProperty<bool> HasTouchInputProperty =
+        AvaloniaProperty.RegisterAttached<CollapsibleSplitView, StyledElement, bool>(
+            nameof(HasTouchInput),
+            defaultValue: false,
+            inherits: true);
+
     public static readonly StyledProperty<Orientation> OrientationProperty =
         AvaloniaProperty.Register<CollapsibleSplitView, Orientation>(
             nameof(Orientation),
@@ -130,6 +136,7 @@ public sealed class CollapsibleSplitView : UserControl
 
     static CollapsibleSplitView()
     {
+        HasTouchInputProperty.Changed.AddClassHandler<CollapsibleSplitView>((view, _) => view.UpdateSplitTouchTargetVisibility());
         OrientationProperty.Changed.AddClassHandler<CollapsibleSplitView>((view, _) => view.ApplyPreferencesOrDefaults());
         FirstPaneIdProperty.Changed.AddClassHandler<CollapsibleSplitView>((view, _) => view.ApplyPreferencesOrDefaults());
         SecondPaneIdProperty.Changed.AddClassHandler<CollapsibleSplitView>((view, _) => view.ApplyPreferencesOrDefaults());
@@ -186,6 +193,18 @@ public sealed class CollapsibleSplitView : UserControl
         return new Size(
             double.IsFinite(availableSize.Width) ? availableSize.Width : desired.Width,
             double.IsFinite(availableSize.Height) ? availableSize.Height : desired.Height);
+    }
+
+    public static bool GetHasTouchInput(StyledElement element) =>
+        element.GetValue(HasTouchInputProperty);
+
+    public static void SetHasTouchInput(StyledElement element, bool value) =>
+        element.SetValue(HasTouchInputProperty, value);
+
+    public bool HasTouchInput
+    {
+        get => GetValue(HasTouchInputProperty);
+        set => SetValue(HasTouchInputProperty, value);
     }
 
     public Orientation Orientation
@@ -350,12 +369,6 @@ public sealed class CollapsibleSplitView : UserControl
         button[!TemplatedControl.ForegroundProperty] = new DynamicResourceExtension("SufniTabText");
         button[!TemplatedControl.BorderBrushProperty] = new DynamicResourceExtension("SufniFieldBorder");
         return button;
-    }
-
-    private static bool HasTouchInput()
-    {
-        return App.Current?.Services?.GetService(typeof(IAppEnvironment)) is IAppEnvironment environment &&
-            environment.Input.HasTouch;
     }
 
     private void AttachSplitHandleInput(InputElement target)
@@ -592,8 +605,14 @@ public sealed class CollapsibleSplitView : UserControl
 
         splitHandle.IsVisible = handleVisible;
         splitHandle.IsHitTestVisible = handleVisible;
-        splitTouchTarget.IsVisible = handleVisible && HasTouchInput();
-        splitTouchTarget.IsHitTestVisible = handleVisible && HasTouchInput();
+        UpdateSplitTouchTargetVisibility();
+    }
+
+    private void UpdateSplitTouchTargetVisibility()
+    {
+        var isVisible = splitHandle.IsVisible && HasTouchInput;
+        splitTouchTarget.IsVisible = isVisible;
+        splitTouchTarget.IsHitTestVisible = isVisible;
     }
 
     private void UpdateVisualStates()

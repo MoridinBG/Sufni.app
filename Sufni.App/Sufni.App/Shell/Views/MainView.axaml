@@ -4,16 +4,21 @@ xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:c="clr-namespace:Sufni.App.Shared.Views.Overlays"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:desktopControls="clr-namespace:Sufni.App.Shared.DesktopViews.Controls"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:vm="clr-namespace:Sufni.App.Shell.ViewModels"
 d:DesignHeight="600"
 d:DesignWidth="500"
 x:DataType="vm:ShellRootViewModel"
 Background="{DynamicResource SufniBackgroundDisabled}"
+desktopControls:CollapsibleSplitView.HasTouchInput="{Binding HasTouchInput}"
 mc:Ignorable="d">
     <Panel TopLevel.AutoSafeAreaPadding="True" Background="{DynamicResource SufniRegion}">
         <ContentControl Name="WorkspaceRootHost" Content="{Binding Presentation}" />
-        <c:PlotZoomOverlayHost Name="PlotZoomOverlay" />
+        <c:PlotZoomOverlayHost
+            Name="PlotZoomOverlay"
+            HasKeyboardInput="{Binding HasKeyboardInput}"
+            LayoutProfile="{Binding LayoutProfile}" />
         <c:BusyOverlay
             Name="SyncBusyOverlay"
             BusyMessageFontWeight="Bold"

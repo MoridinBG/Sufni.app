@@ -36,6 +36,8 @@ public class ShellRootViewModelTests
         Assert.Same(workspace, root.Workspace);
         Assert.Equal(UiLayoutProfile.Workspace, root.LayoutProfile);
         Assert.Same(environment.Capabilities, root.Capabilities);
+        Assert.True(root.HasKeyboardInput);
+        Assert.False(root.HasTouchInput);
     }
 
     [Fact]
