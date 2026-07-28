@@ -226,7 +226,12 @@ public class SynchronizationClientServiceTests
         var calls = new List<string>();
         var extensionSync = new FakeExtensionSyncService
         {
-            ApplyBatchesAsyncOverride = (_, _, _, _, _) =>
+            PrepareBatchesAsyncOverride = (_, _) =>
+            {
+                calls.Add("prepare");
+                return Task.FromResult(new ExtensionSyncApplyPlan([]));
+            },
+            ApplyPreparedBatchesAsyncOverride = (_, _, _, _, _) =>
             {
                 calls.Add("extension");
                 return Task.FromResult<IReadOnlyList<SynchronizationProgressSnapshot>>([]);
@@ -268,7 +273,34 @@ public class SynchronizationClientServiceTests
 
         await CreateService(extensionSync).SyncAll();
 
-        Assert.Equal(["core", "preferences", "extension", "pull-cursor"], calls);
+        Assert.Equal(["prepare", "core", "preferences", "extension", "pull-cursor"], calls);
+    }
+
+    [Fact]
+    public async Task SyncAll_DoesNotMutatePulledState_WhenExtensionPreparationFails()
+    {
+        var extensionSync = new FakeExtensionSyncService
+        {
+            PrepareBatchesAsyncOverride = (_, _) =>
+                Task.FromException<ExtensionSyncApplyPlan>(
+                    new InvalidOperationException("extension payload invalid")),
+        };
+        var remoteChanges = new SynchronizationData
+        {
+            ExtensionBatches = [CreateExtensionEnvelope("test")],
+        };
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(4).Returns(remoteChanges);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(extensionSync).SyncAll());
+
+        await syncDataStore.DidNotReceive().ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>());
+        await appPreferences.DidNotReceive().ApplySyncDataAsync(Arg.Any<AppPreferencesSyncData?>());
+        await syncDataStore.DidNotReceive().UpdateLastPullTimeAsync(
+            Arg.Any<string?>(),
+            Arg.Any<long>());
     }
 
     [Fact]
@@ -276,7 +308,7 @@ public class SynchronizationClientServiceTests
     {
         var extensionSync = new FakeExtensionSyncService
         {
-            ApplyBatchesAsyncOverride = (_, _, _, _, _) =>
+            ApplyPreparedBatchesAsyncOverride = (_, _, _, _, _) =>
                 Task.FromException<IReadOnlyList<SynchronizationProgressSnapshot>>(
                     new InvalidOperationException("extension failed"))
         };
@@ -699,11 +731,16 @@ public class SynchronizationClientServiceTests
 
         public Func<
             IEnumerable<ExtensionSyncEnvelope>,
+            CancellationToken,
+            Task<ExtensionSyncApplyPlan>>? PrepareBatchesAsyncOverride { get; init; }
+
+        public Func<
+            ExtensionSyncApplyPlan,
             SynchronizationPhase,
             int,
             int,
             CancellationToken,
-            Task<IReadOnlyList<SynchronizationProgressSnapshot>>>? ApplyBatchesAsyncOverride { get; init; }
+            Task<IReadOnlyList<SynchronizationProgressSnapshot>>>? ApplyPreparedBatchesAsyncOverride { get; init; }
 
         public Task<List<ExtensionSyncEnvelope>> CreateBatchesAsync(
             long sinceExclusive,
@@ -714,7 +751,8 @@ public class SynchronizationClientServiceTests
         public Task<ExtensionSyncApplyPlan> PrepareBatchesAsync(
             IEnumerable<ExtensionSyncEnvelope> envelopes,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ExtensionSyncApplyPlan([]));
+            PrepareBatchesAsyncOverride?.Invoke(envelopes, cancellationToken)
+            ?? Task.FromResult(new ExtensionSyncApplyPlan([]));
 
         public Task<IReadOnlyList<SynchronizationProgressSnapshot>> ApplyPreparedBatchesAsync(
             ExtensionSyncApplyPlan plan,
@@ -722,17 +760,28 @@ public class SynchronizationClientServiceTests
             int currentStep,
             int totalSteps,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(ApplyBatchesResult);
+            ApplyPreparedBatchesAsyncOverride?.Invoke(
+                plan,
+                phase,
+                currentStep,
+                totalSteps,
+                cancellationToken)
+            ?? Task.FromResult(ApplyBatchesResult);
 
-        public Task<IReadOnlyList<SynchronizationProgressSnapshot>> ApplyBatchesAsync(
+        public async Task<IReadOnlyList<SynchronizationProgressSnapshot>> ApplyBatchesAsync(
             IEnumerable<ExtensionSyncEnvelope> envelopes,
             SynchronizationPhase phase,
             int currentStep,
             int totalSteps,
             CancellationToken cancellationToken = default)
         {
-            return ApplyBatchesAsyncOverride?.Invoke(envelopes, phase, currentStep, totalSteps, cancellationToken)
-                ?? Task.FromResult(ApplyBatchesResult);
+            var plan = await PrepareBatchesAsync(envelopes, cancellationToken);
+            return await ApplyPreparedBatchesAsync(
+                plan,
+                phase,
+                currentStep,
+                totalSteps,
+                cancellationToken);
         }
     }
 }

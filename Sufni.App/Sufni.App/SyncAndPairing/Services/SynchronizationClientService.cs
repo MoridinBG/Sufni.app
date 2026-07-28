@@ -131,12 +131,15 @@ public class SynchronizationClientService : ISynchronizationClientService
         IProgress<SynchronizationProgressSnapshot>? progress)
     {
         var syncData = await httpApiService.PullSyncAsync(sinceExclusive);
+        var extensionPlan = extensionSyncService is null
+            ? null
+            : await extensionSyncService.PrepareBatchesAsync(syncData.ExtensionBatches);
         var swaps = await syncDataStore.ApplyRemoteSynchronizationDataAsync(syncData);
         await appPreferences.ApplySyncDataAsync(syncData.AppPreferences);
-        if (extensionSyncService is not null)
+        if (extensionSyncService is not null && extensionPlan is not null)
         {
-            var extensionProgress = await extensionSyncService.ApplyBatchesAsync(
-                syncData.ExtensionBatches,
+            var extensionProgress = await extensionSyncService.ApplyPreparedBatchesAsync(
+                extensionPlan,
                 SynchronizationPhase.PullingRemoteChanges,
                 currentStep: 2,
                 totalSteps: 6);
