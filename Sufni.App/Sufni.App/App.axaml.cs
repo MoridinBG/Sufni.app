@@ -232,7 +232,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<TrackCoordinator>();
         ServiceCollection.AddSingleton<ITrackCoordinator>(sp => sp.GetRequiredService<TrackCoordinator>());
         ServiceCollection.AddSingleton<SessionLoader>(sp => new SessionLoader(
-            sp.GetRequiredService<ISessionStoreWriter>(),
+            sp.GetRequiredService<ISessionStore>(),
             sp.GetRequiredService<ISessionProcessedTelemetryReader>(),
             sp.GetRequiredService<ITrackCoordinator>(),
             sp.GetRequiredService<IRecordedSessionDomainQuery>()));

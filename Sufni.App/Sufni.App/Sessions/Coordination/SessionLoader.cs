@@ -18,13 +18,13 @@ public sealed class SessionLoader
 {
     private static readonly ILogger logger = Log.ForContext<SessionLoader>();
 
-    private readonly ISessionStoreWriter sessionStore;
+    private readonly ISessionStore sessionStore;
     private readonly ISessionProcessedTelemetryReader processedTelemetryReader;
     private readonly ITrackCoordinator trackCoordinator;
     private readonly IRecordedSessionDomainQuery recordedSessionDomainQuery;
 
     internal SessionLoader(
-        ISessionStoreWriter sessionStore,
+        ISessionStore sessionStore,
         ISessionProcessedTelemetryReader processedTelemetryReader,
         ITrackCoordinator trackCoordinator,
         IRecordedSessionDomainQuery recordedSessionDomainQuery)
