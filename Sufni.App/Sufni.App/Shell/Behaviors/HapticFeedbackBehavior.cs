@@ -1,13 +1,9 @@
+using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Sufni.App.Shell.Behaviors;
-
-// Aliased so the field type below stays unambiguous against the
-// behavior class name.
-using PlatformHaptics = global::Sufni.App.Infrastructure.IHapticFeedback;
 
 public static class HapticFeedbackBehavior
 {
@@ -19,17 +15,24 @@ public static class HapticFeedbackBehavior
         AvaloniaProperty.RegisterAttached<Control, bool>(
             "IsEnabled", typeof(HapticFeedbackBehavior));
 
+    public static readonly AttachedProperty<Action?> LongPressFeedbackProperty =
+        AvaloniaProperty.RegisterAttached<StyledElement, Action?>(
+            "LongPressFeedback",
+            typeof(HapticFeedbackBehavior),
+            defaultValue: null,
+            inherits: true);
+
     public static void SetIsEnabled(Control element, bool value) =>
         element.SetValue(IsEnabledProperty, value);
 
     public static bool GetIsEnabled(Control element) =>
         element.GetValue(IsEnabledProperty);
 
-    // Resolved at use rather than cached at type initialization: the static
-    // field variant ran before the service provider was built and went stale
-    // across test apps.
-    private static PlatformHaptics? Feedback =>
-        App.Current?.Services?.GetService<PlatformHaptics>();
+    public static void SetLongPressFeedback(StyledElement element, Action? value) =>
+        element.SetValue(LongPressFeedbackProperty, value);
+
+    public static Action? GetLongPressFeedback(StyledElement element) =>
+        element.GetValue(LongPressFeedbackProperty);
 
     static HapticFeedbackBehavior()
     {
@@ -48,6 +51,11 @@ public static class HapticFeedbackBehavior
         }
     }
 
-    private static void OnLongPressRequested(object? sender, RoutedEventArgs e) =>
-        Feedback?.LongPress();
+    private static void OnLongPressRequested(object? sender, RoutedEventArgs e)
+    {
+        if (sender is StyledElement host)
+        {
+            GetLongPressFeedback(host)?.Invoke();
+        }
+    }
 }

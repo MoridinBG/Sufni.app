@@ -26,6 +26,7 @@ using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Shell.Behaviors;
+using Sufni.App.Shared.Views.Input;
 using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.Sessions.Plots.Views.Plots;
 
@@ -393,10 +394,10 @@ public class TravelPlotViewTests
     [InlineData(MobileMenuGesture.LongPressInsideAnalysisRange)]
     public async Task TravelPlotView_MobileMenuGestures_ShowInstalledPlotMenu(MobileMenuGesture gesture)
     {
-        using var input = TestApp.UseTouchInput();
         var telemetry = CreateMinimal(duration: 10);
         var workspace = new RecordedSessionSignalsWorkspaceStub(telemetry);
         var view = CreateMobileContextMenuView(gesture, telemetry, workspace);
+        PointerGesture.SetSupportsTouchLongPressContextMenu(view, true);
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 

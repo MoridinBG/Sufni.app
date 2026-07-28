@@ -10,6 +10,13 @@ public static class PointerGesture
     public const int AnalysisLongPressDelayMilliseconds = 500;
     public const int DampingCutoffLongPressDelayMilliseconds = 250;
 
+    public static readonly AttachedProperty<bool> SupportsTouchLongPressContextMenuProperty =
+        AvaloniaProperty.RegisterAttached<StyledElement, bool>(
+            "SupportsTouchLongPressContextMenu",
+            typeof(PointerGesture),
+            defaultValue: false,
+            inherits: true);
+
     public static TimeSpan AnalysisLongPressDelay { get; } =
         TimeSpan.FromMilliseconds(AnalysisLongPressDelayMilliseconds);
 
@@ -34,24 +41,19 @@ public static class PointerGesture
         return point.Properties.IsRightButtonPressed;
     }
 
-    public static bool SupportsTouchLongPressContextMenu()
+    public static void SetSupportsTouchLongPressContextMenu(StyledElement element, bool value) =>
+        element.SetValue(SupportsTouchLongPressContextMenuProperty, value);
+
+    public static bool GetSupportsTouchLongPressContextMenu(StyledElement element) =>
+        element.GetValue(SupportsTouchLongPressContextMenuProperty);
+
+    public static bool SupportsTouchLongPressContextMenu(StyledElement element)
     {
-        return SupportsTouchLongPressContextMenu(ResolveInputCapabilities());
+        return GetSupportsTouchLongPressContextMenu(element);
     }
 
     public static bool SupportsTouchLongPressContextMenu(InputCapabilities input)
     {
         return input.HasTouch && input.SupportsLongPressContextMenu;
-    }
-
-    private static InputCapabilities ResolveInputCapabilities()
-    {
-        return App.Current?.Services?.GetService(typeof(IAppEnvironment)) is IAppEnvironment environment
-            ? environment.Input
-            : new InputCapabilities(
-                HasPointer: true,
-                HasTouch: false,
-                HasKeyboard: true,
-                SupportsLongPressContextMenu: false);
     }
 }

@@ -117,9 +117,9 @@ public class VelocityBandViewTests
     [AvaloniaFact]
     public async Task MobileMovementBeforeLongPress_CancelsActivation()
     {
-        using var input = TestApp.UseTouchInput();
         var workspace = CreateWorkspace();
         var view = CreateMountedView(workspace);
+        PointerGesture.SetSupportsTouchLongPressContextMenu(view, true);
         var hapticCount = 0;
         view.AddHandler(
             HapticFeedbackBehavior.LongPressFeedbackRequestedEvent,
@@ -161,9 +161,9 @@ public class VelocityBandViewTests
     [AvaloniaFact]
     public async Task MobileLongPress_RequestsHapticFeedbackThenPreviewsAndCommits()
     {
-        using var input = TestApp.UseTouchInput();
         var workspace = CreateWorkspace();
         var view = CreateMountedView(workspace);
+        PointerGesture.SetSupportsTouchLongPressContextMenu(view, true);
         var hapticCount = 0;
         view.AddHandler(
             HapticFeedbackBehavior.LongPressFeedbackRequestedEvent,

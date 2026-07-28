@@ -57,10 +57,12 @@ using Sufni.App.Setups.Coordinators;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Setups.ViewModels.ItemLists;
+using Sufni.App.Shell.Behaviors;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Shell.DesktopViews;
 using Sufni.App.Shell.ViewModels;
 using Sufni.App.Shell.Views;
+using Sufni.App.Shared.Views.Input;
 using Sufni.App.Shared.Views.Overlays;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
@@ -84,11 +86,6 @@ public partial class App : Application
     internal void SetIsDesktopForTests(bool isDesktop)
     {
         IsDesktop = isDesktop;
-    }
-
-    internal void SetServicesForTests(IServiceProvider? services)
-    {
-        Services = services;
     }
 
     public override void Initialize()
@@ -377,12 +374,23 @@ public partial class App : Application
 
         var fileService = Services.GetRequiredService<IFilesService>();
         var dialogHost = Services.GetRequiredService<IDialogHost>();
+        var input = Services.GetRequiredService<IAppEnvironment>().Input;
+        var supportsTouchLongPressContextMenu =
+            PointerGesture.SupportsTouchLongPressContextMenu(input);
+        var hapticFeedback = Services.GetService<IHapticFeedback>();
+        Action? longPressFeedback = hapticFeedback is null
+            ? null
+            : hapticFeedback.LongPress;
 
         switch (ApplicationLifetime)
         {
             case IClassicDesktopStyleApplicationLifetime desktop:
                 var desktopShellRootViewModel = Services.GetRequiredService<ShellRootViewModel>();
                 var mainWindow = new MainWindow();
+                PointerGesture.SetSupportsTouchLongPressContextMenu(
+                    mainWindow,
+                    supportsTouchLongPressContextMenu);
+                HapticFeedbackBehavior.SetLongPressFeedback(mainWindow, longPressFeedback);
                 desktop.MainWindow = mainWindow;
                 Services.GetRequiredService<IPlotZoomState>()
                     .SetSurface(mainWindow.FindControl<PlotZoomOverlayHost>("PlotZoomOverlay"));
@@ -399,6 +407,10 @@ public partial class App : Application
                 {
                     DataContext = shellRootViewModel
                 };
+                PointerGesture.SetSupportsTouchLongPressContextMenu(
+                    mainView,
+                    supportsTouchLongPressContextMenu);
+                HapticFeedbackBehavior.SetLongPressFeedback(mainView, longPressFeedback);
                 Services.GetRequiredService<IPlotZoomState>()
                     .SetSurface(mainView.FindControl<PlotZoomOverlayHost>("PlotZoomOverlay"));
                 singleViewPlatform.MainView = mainView;

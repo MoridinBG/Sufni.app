@@ -744,9 +744,9 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         return TryGetTimelineSeconds(args, out var seconds) ? seconds : 0;
     }
 
-    private static bool UsesTouchContextMenuLongPress()
+    private bool UsesTouchContextMenuLongPress()
     {
-        return PointerGesture.SupportsTouchLongPressContextMenu();
+        return PointerGesture.SupportsTouchLongPressContextMenu(this);
     }
 
     private void StartTouchContextMenuLongPress(Point startPoint)
@@ -808,7 +808,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private bool TryShowMobileTelemetryPlotContextMenu(PointerEventArgs args)
     {
-        if (!PointerGesture.SupportsTouchLongPressContextMenu() ||
+        if (!PointerGesture.SupportsTouchLongPressContextMenu(this) ||
             !PointerGesture.IsSecondaryPressed(args, PlotControl))
         {
             return false;

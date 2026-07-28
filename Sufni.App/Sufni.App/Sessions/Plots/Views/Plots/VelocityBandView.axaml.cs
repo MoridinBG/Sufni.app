@@ -540,7 +540,7 @@ public class VelocityBandView : TemplatedControl
         return PointerGesture.IsPrimaryPressed(e, this);
     }
 
-    private static bool UsesMobileLongPress() => PointerGesture.SupportsTouchLongPressContextMenu();
+    private bool UsesMobileLongPress() => PointerGesture.SupportsTouchLongPressContextMenu(this);
 
     private void RefreshZoneLengths()
     {
