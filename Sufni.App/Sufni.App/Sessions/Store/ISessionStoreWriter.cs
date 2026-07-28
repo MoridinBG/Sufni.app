@@ -43,6 +43,13 @@ public interface ISessionStoreWriter : ISessionStore
         string? fingerprint,
         CancellationToken cancellationToken = default);
 
+    Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapAsync(
+        Guid sessionId,
+        byte[] data,
+        string? fingerprint,
+        SessionProcessedGeneration generation,
+        CancellationToken cancellationToken = default);
+
     Task<StoreMutationResult<SessionSnapshot>> CommitTrackPatchAsync(
         Guid sessionId,
         List<TrackPoint> points,

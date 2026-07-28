@@ -113,17 +113,45 @@ internal sealed class SessionStore(
         }
     }
 
-    public async Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapAsync(
+    public Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapAsync(
         Guid sessionId,
         byte[] data,
         string? fingerprint,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        CommitPsstSwapCoreAsync(sessionId, data, fingerprint, generation: null, cancellationToken);
+
+    public Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapAsync(
+        Guid sessionId,
+        byte[] data,
+        string? fingerprint,
+        SessionProcessedGeneration generation,
+        CancellationToken cancellationToken = default) =>
+        CommitPsstSwapCoreAsync(sessionId, data, fingerprint, generation, cancellationToken);
+
+    private async Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapCoreAsync(
+        Guid sessionId,
+        byte[] data,
+        string? fingerprint,
+        SessionProcessedGeneration? generation,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         try
         {
-            await sessionTelemetryWriter.SwapSessionPsstAsync(sessionId, data, fingerprint);
+            if (generation is null)
+            {
+                await sessionTelemetryWriter.SwapSessionPsstAsync(sessionId, data, fingerprint);
+            }
+            else
+            {
+                await sessionTelemetryWriter.SwapSessionPsstAsync(
+                    sessionId,
+                    data,
+                    fingerprint,
+                    generation);
+            }
+
             cancellationToken.ThrowIfCancellationRequested();
             return await PublishFreshSessionAsync(sessionId);
         }
