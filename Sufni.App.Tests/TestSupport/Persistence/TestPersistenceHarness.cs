@@ -110,6 +110,9 @@ internal sealed class TestPersistenceHarness
     public Task<List<Guid>> GetRequestedSessionBlobSwapIdsAsync() =>
         new SessionBlobSwapRequestStore(context).GetRequestedSessionIdsAsync();
 
+    public Task<SessionBlobSwap?> GetSessionBlobSwapRequestAsync(Guid sessionId) =>
+        new SessionBlobSwapRequestStore(context).GetRequestAsync(sessionId);
+
     public Task<SessionProcessingInputBundle?> GetProcessingInputBundleAsync(Guid sessionId) =>
         sessionRepository.GetProcessingInputBundleAsync(sessionId);
 

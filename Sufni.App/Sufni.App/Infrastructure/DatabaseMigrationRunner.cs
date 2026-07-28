@@ -44,6 +44,7 @@ internal sealed class DatabaseMigrationRunner(
             await DropSessionCacheTableAsync();
             await coreMigrations.EnsureTableAsync();
             await connection.ExecuteAsync(SessionBlobSwapRequestStore.CreateTableSql);
+            await EnsureSessionBlobSwapRequestColumnsAsync();
             await EnsureSessionBlobSwapRequestIntegrityAsync();
             await extensionMigratorRunner.RunAsync(connection);
 
@@ -86,6 +87,11 @@ internal sealed class DatabaseMigrationRunner(
             "sync",
             ("last_push_time", "INTEGER NOT NULL DEFAULT 0"),
             ("last_pull_time", "INTEGER NOT NULL DEFAULT 0"));
+
+    private Task EnsureSessionBlobSwapRequestColumnsAsync() =>
+        EnsureColumnsAsync(
+            SessionBlobSwapRequestStore.TableName,
+            ("target_generation", "TEXT"));
 
     private async Task EnsureSessionBlobSwapRequestIntegrityAsync()
     {

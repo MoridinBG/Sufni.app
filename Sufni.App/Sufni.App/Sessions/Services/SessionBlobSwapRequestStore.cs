@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using SQLite;
 
 using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Models;
 namespace Sufni.App.Sessions.Services;
 
 /// <summary>
@@ -22,6 +23,8 @@ public interface ISessionBlobSwapRequestStore
 {
     Task<List<Guid>> GetRequestedSessionIdsAsync();
 
+    Task<SessionBlobSwap?> GetRequestAsync(Guid sessionId);
+
     Task<string?> GetTargetFingerprintAsync(Guid sessionId);
 
     Task ClearAsync(Guid sessionId);
@@ -35,7 +38,7 @@ internal sealed class SessionBlobSwapRequestStore(SqliteConnectionContext connec
     public const string TableName = "session_blob_swap_request";
 
     public const string CreateTableSql =
-        $"CREATE TABLE IF NOT EXISTS {TableName} (session_id TEXT PRIMARY KEY, target_fingerprint TEXT NOT NULL)";
+        $"CREATE TABLE IF NOT EXISTS {TableName} (session_id TEXT PRIMARY KEY, target_fingerprint TEXT NOT NULL, target_generation TEXT)";
 
     public async Task<List<Guid>> GetRequestedSessionIdsAsync()
     {
@@ -54,14 +57,26 @@ internal sealed class SessionBlobSwapRequestStore(SqliteConnectionContext connec
         return rows.Select(row => row.SessionId).ToList();
     }
 
-    public async Task<string?> GetTargetFingerprintAsync(Guid sessionId)
+    public async Task<SessionBlobSwap?> GetRequestAsync(Guid sessionId)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
         var rows = await connection.QueryAsync<SwapRequestRow>(
-            $"SELECT session_id, target_fingerprint FROM {TableName} WHERE session_id = ?",
+            $"SELECT session_id, target_fingerprint, target_generation FROM {TableName} WHERE session_id = ?",
             sessionId);
-        return rows.Count == 1 ? rows[0].TargetFingerprint : null;
+        if (rows.Count != 1)
+        {
+            return null;
+        }
+
+        var row = rows[0];
+        var generation = row.TargetGenerationJson is null
+            ? null
+            : AppJson.Deserialize<SessionProcessedGeneration>(row.TargetGenerationJson);
+        return new SessionBlobSwap(row.SessionId, row.TargetFingerprint, generation);
     }
+
+    public async Task<string?> GetTargetFingerprintAsync(Guid sessionId) =>
+        (await GetRequestAsync(sessionId))?.TargetFingerprint;
 
     public async Task ClearAsync(Guid sessionId)
     {
@@ -76,5 +91,8 @@ internal sealed class SessionBlobSwapRequestStore(SqliteConnectionContext connec
 
         [Column("target_fingerprint")]
         public string TargetFingerprint { get; set; } = string.Empty;
+
+        [Column("target_generation")]
+        public string? TargetGenerationJson { get; set; }
     }
 }

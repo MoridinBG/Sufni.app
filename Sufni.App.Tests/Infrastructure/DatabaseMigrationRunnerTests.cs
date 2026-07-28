@@ -816,6 +816,59 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
+    public async Task Initialization_AddsGenerationToLegacySessionBlobSwapRequests()
+    {
+        using var tempDatabase = new TempDatabase("legacy-session-blob-swap-request.db");
+        var sessionId = Guid.NewGuid();
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.CreateTable<Session>();
+            connection.Execute(
+                $"CREATE TABLE {SessionBlobSwapRequestStore.TableName} (session_id TEXT PRIMARY KEY, target_fingerprint TEXT NOT NULL)");
+            connection.Insert(new Session(sessionId, "session", string.Empty, null)
+            {
+                Updated = 10,
+                ClientUpdated = 10,
+            });
+            connection.Execute(
+                $"INSERT INTO {SessionBlobSwapRequestStore.TableName} (session_id, target_fingerprint) VALUES (?, ?)",
+                sessionId,
+                "target");
+        }
+
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var legacyRequest = await database.GetSessionBlobSwapRequestAsync(sessionId);
+
+        Assert.NotNull(legacyRequest);
+        Assert.Equal("target", legacyRequest!.TargetFingerprint);
+        Assert.Null(legacyRequest.TargetGeneration);
+        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
+        Assert.Contains(
+            verificationConnection.Query<TableColumnInfo>(
+                $"PRAGMA table_info({SessionBlobSwapRequestStore.TableName})"),
+            column => column.Name == "target_generation");
+
+        var generation = new SessionProcessedGeneration(
+            DurationSeconds: 80,
+            DistanceMeters: 20,
+            AscentMeters: 8,
+            DescentMeters: 3,
+            FullTrackId: Guid.NewGuid(),
+            GpsOffsetSeconds: 1.25,
+            Track: [new TrackPoint(100, 1, 2, 3)]);
+        verificationConnection.Execute(
+            $"UPDATE {SessionBlobSwapRequestStore.TableName} SET target_generation = ? WHERE session_id = ?",
+            AppJson.Serialize(generation),
+            sessionId);
+
+        var migratedRequest = await database.GetSessionBlobSwapRequestAsync(sessionId);
+        Assert.NotNull(migratedRequest?.TargetGeneration);
+        Assert.Equal(80, migratedRequest!.TargetGeneration!.DurationSeconds);
+        Assert.Equal(1.25, migratedRequest.TargetGeneration.GpsOffsetSeconds);
+        Assert.Equal(100, Assert.Single(migratedRequest.TargetGeneration.Track!).Time);
+    }
+
+    [Fact]
     public async Task Initialization_RepairsAndMaintainsSessionBlobSwapRequestOwnership()
     {
         using var tempDatabase = new TempDatabase("session-blob-swap-request-integrity.db");
