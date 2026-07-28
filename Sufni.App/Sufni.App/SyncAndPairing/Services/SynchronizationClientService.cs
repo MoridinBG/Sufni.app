@@ -193,7 +193,10 @@ public class SynchronizationClientService : ISynchronizationClientService
         var unresolvedSwaps = 0;
         await Parallel.ForEachAsync(swaps, SyncTransferParallelOptions, async (swap, _) =>
         {
-            if (await TryDownloadAndCommitAsync(swap.SessionId, swap.TargetFingerprint))
+            if (await TryDownloadAndCommitAsync(
+                    swap.SessionId,
+                    swap.TargetFingerprint,
+                    swap.TargetGeneration))
             {
                 Interlocked.Increment(ref downloadedCount);
             }
@@ -216,7 +219,10 @@ public class SynchronizationClientService : ISynchronizationClientService
     // Downloads a processed BLOB and commits it only when its fingerprint matches.
     // A 404 (null), fingerprint mismatch, or network error leaves the pull cursor
     // behind so the transient swap is re-derived from the same metadata delta.
-    private async Task<bool> TryDownloadAndCommitAsync(Guid id, string? targetFingerprint)
+    private async Task<bool> TryDownloadAndCommitAsync(
+        Guid id,
+        string? targetFingerprint,
+        SessionProcessedGeneration? targetGeneration = null)
     {
         if (string.IsNullOrEmpty(targetFingerprint))
         {
@@ -238,7 +244,13 @@ public class SynchronizationClientService : ISynchronizationClientService
             return false;
         }
 
-        var result = await sessionStore.CommitPsstSwapAsync(id, transfer.Data, transfer.Fingerprint);
+        var result = targetGeneration is null
+            ? await sessionStore.CommitPsstSwapAsync(id, transfer.Data, transfer.Fingerprint)
+            : await sessionStore.CommitPsstSwapAsync(
+                id,
+                transfer.Data,
+                transfer.Fingerprint,
+                targetGeneration);
         return result is StoreMutationResult<SessionSnapshot>.Saved;
     }
 

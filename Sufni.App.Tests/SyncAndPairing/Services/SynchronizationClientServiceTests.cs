@@ -336,15 +336,31 @@ public class SynchronizationClientServiceTests
     {
         var sessionId = Guid.NewGuid();
         const string target = """{"target":true}""";
+        var targetGeneration = new SessionProcessedGeneration(
+            DurationSeconds: 80,
+            DistanceMeters: 20,
+            AscentMeters: 8,
+            DescentMeters: 3,
+            FullTrackId: Guid.NewGuid(),
+            GpsOffsetSeconds: 1.25,
+            Track: [new TrackPoint(100, 1, 2, 3)]);
         syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
         syncDataStore.ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>())
-            .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(sessionId, target)]);
+            .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(
+                sessionId,
+                target,
+                targetGeneration)]);
         httpApiService.GetSessionPsstAsync(sessionId).Returns(new SessionBlobPayload(target, [1, 2, 3]));
         sessionStore
-            .CommitPsstSwapAsync(sessionId, Arg.Any<byte[]>(), target, Arg.Any<CancellationToken>())
+            .CommitPsstSwapAsync(
+                sessionId,
+                Arg.Any<byte[]>(),
+                target,
+                targetGeneration,
+                Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<StoreMutationResult<SessionSnapshot>>(
                 new StoreMutationResult<SessionSnapshot>.Saved(TestSnapshots.Session(id: sessionId))));
 
@@ -354,6 +370,7 @@ public class SynchronizationClientServiceTests
             sessionId,
             Arg.Any<byte[]>(),
             target,
+            targetGeneration,
             Arg.Any<CancellationToken>());
         await syncDataStore.Received(1).UpdateLastPushTimeAsync(
             SynchronizationClientService.SyncStateKey,

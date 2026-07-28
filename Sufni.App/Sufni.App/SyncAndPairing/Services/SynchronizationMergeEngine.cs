@@ -134,6 +134,26 @@ internal sealed class SynchronizationMergeEngine(
                                                                          id=?
                                                                      """;
 
+    private const string RemoteSessionMetadataExceptProcessedGenerationAssignments = """
+                                                                  name=?,
+                                                                  setup_id=?,
+                                                                  description=?,
+                                                                  timestamp=?,
+                                                                  front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
+                                                                  rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
+                                                                  updated=?,
+                                                                  client_updated=?,
+                                                                  deleted=?
+                                                                  """;
+
+    private static readonly string UpdateRemoteSessionMetadataExceptProcessedGenerationSql = $"""
+                                                                     UPDATE session
+                                                                     SET
+                                                                         {RemoteSessionMetadataExceptProcessedGenerationAssignments}
+                                                                     WHERE
+                                                                         id=?
+                                                                     """;
+
     public async Task<SynchronizationData> GetSynchronizationDataAsync(
         long sinceExclusive,
         long upperInclusive)
@@ -335,17 +355,16 @@ internal sealed class SynchronizationMergeEngine(
             return null;
         }
 
-        // Held BLOB: defer the two BLOB-bound columns so the row keeps advertising
-        // the fingerprint of the bytes it holds, and sync the rest immediately.
+        // Held BLOB: retain every processed-generation field until matching bytes
+        // arrive, while applying the independent session metadata immediately.
         connection.Execute(
-            UpdateRemoteSessionMetadataExceptFingerprintSql,
-            CreateRemoteSessionMetadataExceptFingerprintValues(session, session.Updated, session.ClientUpdated));
+            UpdateRemoteSessionMetadataExceptProcessedGenerationSql,
+            CreateRemoteSessionMetadataExceptProcessedGenerationValues(
+                session,
+                session.Updated,
+                session.ClientUpdated));
 
-        return TryBuildSwap(
-            connection,
-            session.Id,
-            existing.ProcessingFingerprintJson,
-            session.ProcessingFingerprintJson);
+        return TryBuildSwap(connection, session, existing.ProcessingFingerprintJson);
     }
 
     private static long GetContentVersion(Synchronizable entity) => entity.ClientUpdated > 0
@@ -687,6 +706,31 @@ internal sealed class SynchronizationMergeEngine(
         session.Id
     ];
 
+    private static object?[] CreateRemoteSessionMetadataExceptProcessedGenerationValues(
+        Session session,
+        long updated,
+        long clientUpdated) =>
+    [
+        session.Name,
+        session.Setup,
+        session.Description,
+        session.Timestamp,
+        session.FrontSpringRate,
+        session.FrontHighSpeedCompression,
+        session.FrontLowSpeedCompression,
+        session.FrontLowSpeedRebound,
+        session.FrontHighSpeedRebound,
+        session.RearSpringRate,
+        session.RearHighSpeedCompression,
+        session.RearLowSpeedCompression,
+        session.RearLowSpeedRebound,
+        session.RearHighSpeedRebound,
+        updated,
+        clientUpdated,
+        session.Deleted,
+        session.Id
+    ];
+
     private static double NormalizeGpsOffsetSeconds(double gpsOffsetSeconds) =>
         double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;
 
@@ -698,10 +742,10 @@ internal sealed class SynchronizationMergeEngine(
     // the one-time normalization pass.
     private SessionBlobSwap? TryBuildSwap(
         SQLiteConnection connection,
-        Guid sessionId,
-        string? localFingerprintJson,
-        string? remoteFingerprintJson)
+        Session remoteSession,
+        string? localFingerprintJson)
     {
+        var remoteFingerprintJson = remoteSession.ProcessingFingerprintJson;
         if (StringComparer.Ordinal.Equals(localFingerprintJson, remoteFingerprintJson))
         {
             return null;
@@ -716,12 +760,15 @@ internal sealed class SynchronizationMergeEngine(
             return null;
         }
 
-        if (!SessionHasRecordedSource(connection, GetSourceSessionId(sessionId, remote)))
+        if (!SessionHasRecordedSource(connection, GetSourceSessionId(remoteSession.Id, remote)))
         {
             return null;
         }
 
-        return new SessionBlobSwap(sessionId, remoteFingerprintJson!);
+        return new SessionBlobSwap(
+            remoteSession.Id,
+            remoteFingerprintJson!,
+            SessionProcessedGeneration.From(remoteSession));
     }
 
     private static Guid GetSourceSessionId(Guid sessionId, ProcessingFingerprint fingerprint) =>
