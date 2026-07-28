@@ -2,12 +2,14 @@ namespace Sufni.App.ExtensionHost.Contracts.Database;
 
 public sealed class ExtensionDatabaseMigrationContext
 {
-    public ExtensionDatabaseMigrationContext(string extensionId, IExtensionDatabaseSession database)
+    public ExtensionDatabaseMigrationContext(
+        string extensionId,
+        IExtensionDatabaseTransaction transaction)
     {
         ExtensionId = extensionId;
-        Database = database;
+        Transaction = transaction;
     }
 
     public string ExtensionId { get; }
-    public IExtensionDatabaseSession Database { get; }
+    public IExtensionDatabaseTransaction Transaction { get; }
 }

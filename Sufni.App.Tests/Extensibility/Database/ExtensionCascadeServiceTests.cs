@@ -95,9 +95,9 @@ public class ExtensionCascadeServiceTests
         var migrator = CreateMigrator(
             [typeof(SoftCascadeRow)],
             [
-                new ExtensionDatabaseMigrationStep(1, async (context, _) =>
+                new ExtensionDatabaseMigrationStep(1, context =>
                 {
-                    await context.Database.InsertAsync(new SoftCascadeRow
+                    context.Transaction.Insert(new SoftCascadeRow
                     {
                         Id = "orphan",
                         SessionId = missingSessionId,

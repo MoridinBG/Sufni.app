@@ -20,9 +20,9 @@ public class ExtensionDatabaseConnectionTests
             targetVersion: 1,
             [typeof(TestExtensionRow)],
             [
-                new ExtensionDatabaseMigrationStep(1, async (context, _) =>
+                new ExtensionDatabaseMigrationStep(1, context =>
                 {
-                    await context.Database.InsertAsync(new TestExtensionRow
+                    context.Transaction.Insert(new TestExtensionRow
                     {
                         Id = "ready",
                         Value = 1,

@@ -46,9 +46,6 @@ internal sealed class ExtensionDatabaseMigratorRunner
         {
             var version = await connection.FindAsync<ExtensionSchemaVersion>(migrator.ExtensionId);
             var currentVersion = version?.Version ?? 0;
-            var context = new ExtensionDatabaseMigrationContext(
-                migrator.ExtensionId,
-                new ExtensionDatabaseSession(connection, tableCatalog));
             var pendingSteps = migrator.Steps
                 .Where(step => step.TargetVersion > currentVersion && step.TargetVersion <= migrator.TargetVersion)
                 .OrderBy(step => step.TargetVersion)
@@ -57,11 +54,17 @@ internal sealed class ExtensionDatabaseMigratorRunner
             foreach (var step in pendingSteps)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                await step.ApplyAsync(context, cancellationToken);
-                await connection.InsertOrReplaceAsync(new ExtensionSchemaVersion
+                await connection.RunInTransactionAsync(transactionConnection =>
                 {
-                    ExtensionId = migrator.ExtensionId,
-                    Version = step.TargetVersion
+                    var context = new ExtensionDatabaseMigrationContext(
+                        migrator.ExtensionId,
+                        new ExtensionDatabaseTransaction(transactionConnection, tableCatalog));
+                    step.Apply(context);
+                    transactionConnection.InsertOrReplace(new ExtensionSchemaVersion
+                    {
+                        ExtensionId = migrator.ExtensionId,
+                        Version = step.TargetVersion
+                    });
                 });
             }
         }

@@ -683,19 +683,19 @@ public class DatabaseMigrationRunnerTests
             targetVersion: 2,
             [typeof(TestExtensionRow)],
             [
-                new ExtensionDatabaseMigrationStep(1, async (context, _) =>
+                new ExtensionDatabaseMigrationStep(1, context =>
                 {
                     appliedSteps.Add(1);
-                    await context.Database.InsertAsync(new TestExtensionRow
+                    context.Transaction.Insert(new TestExtensionRow
                     {
                         Id = "step-1",
                         Value = 1,
                     });
                 }),
-                new ExtensionDatabaseMigrationStep(2, async (context, _) =>
+                new ExtensionDatabaseMigrationStep(2, context =>
                 {
                     appliedSteps.Add(2);
-                    await context.Database.InsertAsync(new TestExtensionRow
+                    context.Transaction.Insert(new TestExtensionRow
                     {
                         Id = "step-2",
                         Value = 2,
@@ -718,6 +718,36 @@ public class DatabaseMigrationRunnerTests
         Assert.Equal(2, version.Version);
         Assert.Equal(["step-1", "step-2"], rows.Select(row => row.Id).ToList());
 
+    }
+
+    [Fact]
+    public async Task Initialization_RollsBackExtensionStepAndVersion_WhenStepThrows()
+    {
+        using var tempDatabase = new TempDatabase("extension-migration-rollback.db");
+        var databasePath = tempDatabase.DatabasePath;
+        var migrator = new TestExtensionMigrator(
+            "test",
+            targetVersion: 1,
+            [typeof(TestExtensionRow)],
+            [
+                new ExtensionDatabaseMigrationStep(1, context =>
+                {
+                    context.Transaction.Insert(new TestExtensionRow
+                    {
+                        Id = "rolled-back",
+                        Value = 1,
+                    });
+                    throw new InvalidOperationException("fail extension migration");
+                }),
+            ]);
+        var context = PersistenceTestData.CreateConnectionContext(databasePath, [migrator]);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => context.GetInitializedConnectionAsync());
+
+        using var connection = new SQLiteConnection(databasePath);
+        Assert.Empty(connection.Table<TestExtensionRow>().ToList());
+        Assert.Null(connection.Find<ExtensionSchemaVersion>("test"));
     }
 
     [Fact]
