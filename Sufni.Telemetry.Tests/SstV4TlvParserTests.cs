@@ -151,6 +151,22 @@ public class SstV4TlvParserTests
         Assert.Equal(TimeSpan.FromSeconds(1.0 / 1000.0), inspection.Duration);
     }
 
+    [Fact]
+    public void Inspect_ValidRateAndEmptyTelemetryChunk_ReturnsMalformedInspection()
+    {
+        using var ms = SstTestFiles.CreateV4Stream(
+            123456789,
+            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000)),
+            SstTestFiles.Telemetry());
+
+        var result = RawTelemetryData.InspectStream(ms);
+
+        var inspection = Assert.IsType<MalformedSstFileInspection>(result);
+        Assert.Equal((byte)4, inspection.Version);
+        Assert.Equal((ushort)1000, inspection.TelemetrySampleRate);
+        Assert.Equal(TimeSpan.Zero, inspection.Duration);
+    }
+
     [Theory]
     [InlineData(TlvChunkType.Telemetry)]
     [InlineData(TlvChunkType.Temperature)]

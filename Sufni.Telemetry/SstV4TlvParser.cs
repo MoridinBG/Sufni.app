@@ -199,6 +199,16 @@ public class SstV4TlvParser : ISstParser
                 "SST v4 telemetry sample rate is missing or invalid.");
         }
 
+        if (telemetrySamples == 0)
+        {
+            return CreateMalformedInspection(
+                version,
+                timestamp,
+                sampleRate,
+                telemetrySamples,
+                "SST v4 telemetry data is missing.");
+        }
+
         var duration = TimeSpan.FromSeconds((double)telemetrySamples / sampleRate.Value);
         var startTime = DateTimeOffset.FromUnixTimeSeconds(timestamp).LocalDateTime;
         return new ValidSstFileInspection(version, startTime, duration, sampleRate.Value, hasUnknown, malformedMessage);
