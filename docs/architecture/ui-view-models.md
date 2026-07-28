@@ -97,11 +97,15 @@ There are five kinds of view model in the presentation layer:
 
   Each list owns its own `Items` `ReadOnlyObservableCollection`
   and pushes a fresh predicate to a `BehaviorSubject` whenever
-  filter state changes. `ItemListViewModelBase` itself contributes
-  only the cross-cutting search / date-filter / menu-item state
-  and the `AddCommand` plumbing (it does not declare an `Items`
-  property — there is nothing to shadow). Individual lists
-  override `AddImplementation()` to delegate to their coordinator.
+  filter state changes. `ItemListViewModelBase` owns the shared
+  `Loaded` / `Unloaded` subscription lifecycle: `Loaded` calls the
+  concrete list's `AttachSubscriptions` once, `Unloaded` disposes that
+  scope and lets the list clear its projected rows, and a later load
+  reconnects and republishes the store's current state. It also contributes
+  the cross-cutting search / date-filter / menu-item state and the
+  `AddCommand` plumbing (it does not declare an `Items` property — there is
+  nothing to shadow). Individual lists override `AddImplementation()` to
+  delegate to their coordinator.
   `SessionListViewModel` follows the same projection shape but uses
   `IRecordedSessionProjection.ConnectSessions()` instead of
   `ISessionStore.Connect()`, so rows include processed-data presence,
@@ -159,6 +163,12 @@ There are five kinds of view model in the presentation layer:
   live connect/disconnect workflow. The live session editor projects
   signals/media/analysis state from the live session service and
   persists through `SessionCoordinator.SaveLiveCaptureAsync(...)`.
+  The bike editor likewise keeps presentation concerns at this edge:
+  `IBikeCoordinator` exposes neutral bike-editor result contracts, and
+  `LoadImageAsync` returns encoded bytes rather than an Avalonia bitmap.
+  `BikeImageCanvasViewModel`, owned by `BikeEditorViewModel`, decodes those
+  bytes when applying a loaded image or persisted snapshot; the editor maps a
+  selected-image decode failure into its error-message surface.
 
   `SessionDetailViewModel` and `LiveSessionDetailViewModel` both
   compose session sub-pages from `ViewModels/SessionPages/` and expose
@@ -193,11 +203,18 @@ There are five kinds of view model in the presentation layer:
   `RecordedSessionExtensionPagesController` mirrors contributed extension
   pages and contributed analysis tabs into the editor's stable `Pages`
   collection and resolves contributed-page selection through the action
-  gateway; and `ProcessingPreferenceWorkflow` owns the
-  confirm-recompute-persist flow that runs when a processing preference change
-  is committed. The editor constructs them and delegates; it no longer owns
-  those flows. Session detail loading uses one local-only
-  `SessionCoordinator.LoadDetailAsync` path; inactive-tab deferral is supplied
+  gateway. Its projected wrapper keys distinguish `page` from `analysis` and
+  use the ordinal `(ExtensionId, ContributionId)` pair within each family. A
+  slot rebuild with the same analysis-tab key reuses the existing wrapper and
+  any lazily materialized view model while recomputing placement; the wrapper
+  is removed, and owned materialized content is disposed, only when that key
+  disappears or the controller is disposed. Ordinary page view models are
+  borrowed, while analysis-tab factory results are host-owned by default.
+  `ProcessingPreferenceWorkflow` owns the confirm-recompute-persist flow that
+  runs when a processing preference change is committed. The editor constructs
+  these collaborators and delegates; it no longer owns those flows. Session
+  detail loading uses one local-only `SessionCoordinator.LoadDetailAsync` path;
+  inactive-tab deferral is supplied
   by `EditorFactory` as workspace/profile policy. Collaborators reach the
   editor through the `ISessionOperationGateway` contract rather than delegate
   bundles.

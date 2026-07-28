@@ -47,7 +47,7 @@ or feature wording evolve:
   changes but does not mutate store caches directly; cross-aggregate writes
   live in workflow transaction runners or command services that publish store
   state only after the SQLite transaction commits.
-- A service or factory owns infrastructure-facing work such as datastore construction, file-picker lifetime, platform integration, and explicit background execution.
+- A service or factory owns infrastructure-facing work such as datastore construction, file-picker lifetime, platform integration, and explicit background execution. Infrastructure-facing contracts stay presentation-neutral: for example, the bike editor service and coordinator return image bytes and neutral result records, while Avalonia image decoding stays in the bike editor's presentation objects.
 - Screen-scoped caches belong to the screen that owns their lifecycle. Recorded-session analysis uses a per-open-session result state for cancellation and cached records, backed by a shared stateless analysis computer.
 
 Persisted stores backed by `SourceCacheStoreBase` refresh full snapshots with
@@ -117,7 +117,7 @@ Thread ownership is explicit:
 - Filesystem work, network work, datastore enumeration, SST parsing, PSST generation, and similar slow operations must cross an explicit background boundary (`IBackgroundTaskRunner` or a service-owned equivalent) before they run.
 - Code paths that need a testable UI-thread boundary use `IUiThreadDispatcher`; view/control code and Avalonia UI primitives such as `DispatcherTimer` may still use Avalonia's dispatcher directly. Dispatcher instances are supplied by the composition root and tests; view models do not construct Avalonia dispatcher services themselves. This keeps injected coordinator/view-model work testable while preserving Avalonia ownership at the edge.
 - Services may still use UI-thread primitives for cadence or collection ownership (for example `DispatcherTimer`), but only the UI-bound collection mutation belongs back on the UI thread.
-- Singleton page view models do not imply always-on work. Browse lifetimes and store subscriptions attach in `Loaded` and tear down in `Unloaded`.
+- Singleton page view models do not imply always-on work. Browse lifetimes and store subscriptions attach in `Loaded` and tear down in `Unloaded`. In particular, `ItemListViewModelBase` owns this lifecycle for every entity list: concrete lists build their store projection in `AttachSubscriptions`, clear projected rows after detach, ignore duplicate `Loaded` calls while already attached, and rebuild from the store's current state when loaded again.
 - Prefer generated async-command state such as `Command.IsRunning` as the busy-state source of truth instead of maintaining duplicate booleans.
 - Plot views coalesce `RefreshPlot()` calls through one render-priority
   dispatcher post. Multiple property/theme/reload triggers in the same UI turn
