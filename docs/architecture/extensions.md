@@ -135,7 +135,9 @@ the current retained state.
 
 ## Database Hooks
 
-`ExtensionDatabaseConnection` is registered as the concrete singleton behind `IExtensionDatabaseConnection`. Extensions call `OpenSessionAsync()` to wait for normal SQLite initialization and receive an `IExtensionDatabaseSession` scoped to declared extension table types. The session supports table queries plus find/insert/insert-or-replace/update/delete operations and rejects table types that are not owned by a registered extension migrator. For extension-owned multi-statement writes, `RunInTransactionAsync(Action<IExtensionDatabaseTransaction>)` runs a synchronous transaction callback with the same table validation on `Table`, `Find`, `Insert`, `InsertOrReplace`, `Update`, and `Delete`; exceptions roll the whole callback back.
+`ExtensionDatabaseConnection` is registered as the concrete singleton behind `IExtensionDatabaseConnection`. Extensions call `OpenSessionAsync(extensionId)` to wait for normal SQLite initialization and receive an owner-scoped `IExtensionDatabaseSession`. Every table query and find/insert/insert-or-replace/update/delete operation must match the captured extension id, exact CLR table type, and table name registered by that extension's migrator. Undeclared tables, core-owned tables, and another extension's tables are rejected before sqlite-net runs. The ownership catalog is frozen from startup migrator registrations.
+
+For extension-owned multi-statement writes, `RunInTransactionAsync(Action<IExtensionDatabaseTransaction>)` runs a synchronous transaction callback that retains the same owner id and repeats the same checks on `Table`, `Find`, `Insert`, `InsertOrReplace`, `Update`, and `Delete`; obtaining a transaction never broadens database access, and callback exceptions roll the whole transaction back.
 
 Extension schema state lives in `extension_schema_version`:
 
@@ -146,9 +148,9 @@ Each `IExtensionDatabaseMigrator` declares an `ExtensionId`, `TargetVersion`, ow
 
 1. Creates/migrates core tables.
 2. Creates `extension_schema_version`.
-3. Creates extension-owned tables from migrator table declarations.
-4. Runs missing migration steps in ascending target version.
-5. Updates `extension_schema_version` after each successful step.
+3. Creates extension-owned tables from migrator table declarations. Table creation is startup setup, outside the per-step transactions.
+4. Runs missing migration steps in ascending target version. Each step receives an owner-scoped migration transaction, and its schema/data changes plus the `extension_schema_version` update execute in the same SQLite transaction.
+5. Commits that transaction only when both the step and version update succeed; an exception rolls both back and leaves the step pending for the next startup.
 6. Runs core cleanup.
 7. Runs extension orphan repair.
 
@@ -170,9 +172,9 @@ The core row soft-delete and matching extension cascade rules share the same tra
 
 `SynchronizationData.ExtensionBatches` carries opaque extension sync envelopes. Each envelope has an extension id, payload version, and serialized payload bytes. Core sync code does not inspect payload fields.
 
-`ExtensionSyncService` asks registered participants for outgoing batches during push/pull response creation. Incoming batches are routed to the participant with the matching extension id; unknown ids are ignored so public and extended builds can coexist. Known participant failures propagate so the sync operation fails before the last-sync timestamp can advance.
+`ExtensionSyncService` asks registered participants for outgoing batches during push/pull response creation. `CreateBatchAsync(sinceExclusive, upperInclusive)` receives the same bounded snapshot interval used by core entities and app preferences. Incoming unknown ids are ignored so public and extended builds can coexist; blank or duplicate registered participant ids are rejected at service construction.
 
-Extension sync is ordered after core entity/app-preference sync during apply, so extension payloads can rely on the core rows from the same sync response already being present locally.
+Known incoming envelopes use a two-stage contract. `PrepareBatchAsync` validates and converts each envelope into an opaque `IExtensionSyncPreparedBatch`; all known batches must prepare successfully before core synchronization rows are committed. Only then does the host apply core entities in their transaction, apply app preferences, and call `ApplyPreparedBatchAsync` in participant order. The apply stage is not one cross-extension/core transaction: if it fails after core persistence, sync reports a partial apply and the client holds its pull watermark so the bounded delta is replayed. Participants must therefore make prepared application retry-safe. Core sync code never interprets extension payload fields.
 
 ## App Toolbar Contributions
 
@@ -341,26 +343,38 @@ families such as signal toolbar commands, map overlays, analysis
 metrics, plot context actions, row header actions, and time-range
 overlays carry neutral records or command descriptors instead.
 
-Contribution view-model lifetime is owned by the host surface that materializes
-the view model. `IExtensionViewModel` remains a marker contract; when a realized
-contribution view model also implements synchronous `IDisposable`, the host
-disposes it when the contribution is replaced or removed, when the host control
-detaches from the visual tree, or when the recorded-session page controller is
-disposed on final close. Direct host controls reuse owners by contribution key
-across redundant rebuilds, so disposal is tied to removal/replacement rather
-than every slot refresh. Extension view-model disposal must therefore be
-idempotent and must not depend on an async callback from the host.
+Contribution view-model lifetime follows each contribution contract.
+`IExtensionViewModel` remains a marker; disposal applies only when a realized
+view model also implements synchronous `IDisposable`. Instance-bearing toolbar,
+page, media-pane, banner/overlay, and list contributions are borrowed: host
+controls detach or replace their wrappers but do not dispose the extension-owned
+view model. Analysis-tab contributions carry a
+`CreateViewModel` factory and are host-owned by default through
+`OwnsCreatedViewModel`; the compatibility constructor that accepts an existing
+view model, or an explicit `OwnsCreatedViewModel = false`, makes that content
+borrowed instead. The materializing host disposes owned content on genuine
+removal/replacement or final host disposal, but never creates an unmaterialized
+view model merely to dispose it. Extension-owned disposal must be idempotent and
+must not depend on an async callback from the host.
 
-Recorded-session analysis tab contributions carry a `CreateViewModel`
-factory rather than requiring the tab view model to be created when the
-scope publishes its slots. Desktop materializes an analysis tab only when
-that tab is first selected, retains the created content for the open
-recorded session, and drops it if the contribution is removed or
-re-published. Mobile projects analysis tabs into normal recorded-session
-pages and creates the view model during page projection, matching the
-mobile page lifecycle. This lazy view-model creation does not change scope
-ownership: the recorded-session manager still owns scope creation, host-state
-updates, slot mirroring, and disposal on unload/final close.
+Recorded-session analysis tabs are lazy on both presentation profiles, with
+profile-specific retention rules. Desktop materializes a tab only on first
+selection and treats a new contribution record as replacement even when its
+extension/contribution ids are unchanged; realized owned content is disposed and
+new content is created lazily. Mobile projects a tab through a lazy wrapper in
+the normal recorded-session `Pages` collection, so projection alone does not
+invoke `CreateViewModel`. The wrapper's stable identity is the ordinal
+`(ExtensionId, ContributionId)` pair in the separate `analysis` key namespace.
+A slot reset that republishes the same key reuses the wrapper and any materialized
+view model, even if the contribution record or factory instance changed, while
+still moving the wrapper to its newly computed order. This is retention rather
+than descriptor replacement: the wrapper's captured display name, factory, and
+ownership flag do not change. To establish a new mobile content generation, the
+old key must disappear or the extension must publish a different contribution
+id. The mobile host drops and, when owned, disposes content only when the key
+disappears or the page controller is disposed on final close. These rules do not
+change scope ownership: the recorded-session manager still owns scope creation,
+host-state updates, slot mirroring, and disposal on unload/final close.
 
 A hosted signal row whose plot should match the app's themed time-series
 rows can contribute the SDK's neutral `RecordedSessionSignalPlotViewModel`

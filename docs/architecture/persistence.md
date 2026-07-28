@@ -9,6 +9,7 @@ erDiagram
     session ||--o| setup : "setup_id"
     session ||--o| track : "full_track_id"
     session ||--o| session_recording_source : "session_id"
+    session ||--o| session_blob_swap_request : "session_id"
     setup }o--|| bike : "bike_id"
     board ||--o| setup : "setup_id"
 
@@ -111,7 +112,14 @@ erDiagram
 
     sync {
         text server_url PK
-        int last_sync_time
+        int last_push_time
+        int last_pull_time
+    }
+
+    session_blob_swap_request {
+        text session_id PK
+        text target_fingerprint
+        text target_generation
     }
 
     paired_device {
@@ -156,7 +164,12 @@ Persistence consumers inject narrow repository interfaces instead of a single da
 creation and extension migrations. Every `Synchronizable` table (`board`,
 `bike`, `setup`, `session`, `track`) has separate `updated` and `deleted`
 indexes (`ix_<table>_updated`, `ix_<table>_deleted`) so `GetChangedAsync`
-can scan changed rows and tombstones without a full table scan.
+can scan changed rows and tombstones without a full table scan. Protocol v3
+persists `sync.last_push_time` and `sync.last_pull_time` separately. Delta
+projection is bounded to `(sinceExclusive, upperInclusive]` for both updates and
+tombstones; the client deliberately subtracts one second from a positive cursor
+when starting the next direction-specific snapshot, replaying the prior
+whole-second bucket rather than losing rows that share its timestamp.
 
 Three local-only revision columns identify the exact payload generation without
 using the sync-facing `Updated` timestamp: `session.processed_telemetry_revision`
@@ -194,7 +207,8 @@ use publish-only writer paths to reflect those already-persisted rows.
 - `PutSessionAsync()` — updates user-authored session metadata columns and stamps `Updated`/`Deleted` like `PutAsync`. Existing derived summary metrics are preserved on metadata updates. Metadata SQL does not name the multi-megabyte `data` BLOB or cached `track` JSON at all, so those processed-write-owned payloads, their fingerprint/linkage, and their local revisions remain untouched. Soft-deleted-row reuse still restores the complete supplied aggregate through its dedicated insert/reuse path.
 - `PutProcessedSessionAsync(session, newFullTrack, source)` — persists a processed session in one lock-held `RunInTransactionAsync` callback. It writes a new full `Track` when supplied, stamps `session.full_track_id`, writes all session metadata plus `data`, `session_processing_fingerprint`, and the summary-metric values already set on the session, and optionally inserts/replaces the matching `RecordedSessionSource`. If any write fails, the session, full-track, and source write roll back together.
 - `UpdateProcessedDerivedDataAsync(session, newFullTrack, expectedInputFingerprint)` — the derived-only write used by recorded-session recompute. In one lock-held transaction it re-reads the row, recomputes the **DB-input** part of the processing fingerprint from the freshly read setup/bike/source/version state, and compares it to `expectedInputFingerprint`; on a mismatch (a passive dependency change) it rolls back and returns `null`. When the expected fingerprint carries a derivation window, the source row is resolved by `DerivationWindow.SourceSessionId` rather than by the session id. The preference-stored processing option is deliberately **not** re-checked here — it is not a DB column and is guarded by the recompute engine's commit-time check. On a match it writes **only** the derived columns (`data`, `session_processing_fingerprint`, the four summary metrics, cached `track`, `full_track_id`), optionally inserts `newFullTrack`, stamps `updated`, and never touches user-metadata columns, returning the fresh row.
-- `UpdateSessionPsstAsync(id, data, fingerprintJson, metrics)` — overwrites the BLOB-bound pair (`data` and `session_processing_fingerprint`) plus the supplied summary metrics on a non-deleted row, with **no `updated` bump** so a sync swap/fill creates no metadata-sync feedback edge; the blob, fingerprint, and metrics arrive pre-validated/pre-computed from `SessionTelemetryWriter`
+- `UpdateSessionPsstAsync(id, data, fingerprintJson, metrics)` — the legacy/fill write path: overwrites the BLOB-bound pair (`data` and `session_processing_fingerprint`) plus supplied summary metrics on a non-deleted row, with **no `updated` bump** so a sync swap/fill creates no metadata-sync feedback edge; the values arrive pre-validated/pre-computed from `SessionTelemetryWriter`
+- `UpdateSessionProcessedGenerationAsync(id, data, fingerprintJson, generation)` — the generation-aware swap path. One SQLite `UPDATE` replaces `data`, fingerprint, all four summary metrics, `full_track_id`, normalized `gps_offset_seconds`, and cached `track` together, again without an `updated` bump. The caller validates the transferred MessagePack before this statement, so an invalid payload cannot partially install metadata from the target generation.
 - `UpdateSessionTrackAsync(id, points, metrics, gpsOffsetSeconds?)` — replaces the cached session-window `track` JSON and the supplied summary metrics, optionally updates the per-session GPS offset, and stamps `updated`; callers that omit the offset preserve the existing `gps_offset_seconds`
 - `GetSessionRawPsstAsync(id)` / `GetSessionRawPsstWithFingerprintAsync(id)` — return the latest raw MessagePack blob (sync transfer, consumer-side deserialization); the second also returns the fingerprint of those bytes so the session-data push can carry both. The revision-constrained `GetSessionRawPsstAsync(id, processedTelemetryRevision)` returns bytes only while that exact local payload generation still exists.
 - `GetSessionsAsync()` / `GetSessionAsync(id)` / `GetActiveSessionIdsAsync()` / `GetSessionTrackAsync(id)` / `GetIncompleteSessionIdsAsync()` / `GetIncompleteSessionIdsWithFingerprintAsync()` — metadata projections, active ids for recompute-all, latest cached session-window track points, and ids of rows without processed data (the last pairs each id with its stored fingerprint as the session-data pull's download match target). The revision-constrained `GetSessionTrackAsync(id, trackProjectionRevision)` likewise returns no value rather than advancing to a newer projection.
@@ -206,8 +220,9 @@ There is no `GetSessionPsstAsync` on the repository: consumers that need a `Tele
 `ISessionTelemetryWriter` (`Sufni.App/Sufni.App/Sessions/Processing/Services/SessionTelemetryWriter.cs`) sits in front of `ISessionRepository` for processed-data writes and owns the domain computation that precedes persistence:
 
 - `PutProcessedSessionAsync` / `UpdateProcessedDerivedDataAsync` — prepare the session, then delegate to the matching repository transaction. Preparation links a session without a `full_track_id` to an active track whose `[start_time, end_time]` window contains the session timestamp (`ITrackRepository.FindTrackContainingTimestampAsync`), derives `duration_seconds` from the processed telemetry metadata, derives GPS distance/ascent/descent from the session-window points (the supplied generated track, or points regenerated from the linked full track), **and now persists those resolved points as the cached session-window `track`** so import, live-save, and recompute all store the polyline at derivation time instead of through a later lazy load-path patch.
-- `PatchSessionPsstAsync(id, bytes, fingerprint)` — the **hub upload sink**. It rejects an `InvalidDataException` (mapped to a sync 400) both for bytes that fail MessagePack validation and for a `fingerprint` that does not ordinal-match the row's stored `session_processing_fingerprint` (the bytes are not the ones this row is awaiting). On acceptance it refreshes `duration_seconds` from the blob, preserves existing GPS metrics unless a cached session-window track allows recomputation, and writes through `UpdateSessionPsstAsync`.
-- `SwapSessionPsstAsync(id, bytes, fingerprint)` — the **client sync commit**. Same metric recomputation, but with no fingerprint reject: the caller has already matched the downloaded fingerprint against its swap/fill target, so it overwrites the row's blob and fingerprint coherently (a swap may replace a held blob whose fingerprint differs). See [download-then-swap](sync.md#processed-blob-coherence-download-then-swap).
+- `PatchSessionPsstAsync(id, bytes, fingerprint)` — the **hub fill sink**. It rejects an `InvalidDataException` (mapped to a sync 400) when the fingerprint does not ordinal-match the row's stored `session_processing_fingerprint`; it then deserializes the MessagePack before any repository write. On acceptance it refreshes `duration_seconds` from the blob, preserves existing GPS metrics unless a cached session-window track allows recomputation, and writes through `UpdateSessionPsstAsync`.
+- `SwapSessionPsstAsync(id, bytes, fingerprint)` — the legacy/fingerprint-only **sync swap commit**. The caller has already matched the downloaded fingerprint against its target; the writer validates MessagePack, recomputes metrics, and overwrites the row's blob and fingerprint coherently.
+- `SwapSessionPsstAsync(id, bytes, fingerprint, generation)` — the protocol-v3 generation commit. It validates MessagePack first, then delegates to `UpdateSessionProcessedGenerationAsync` so the blob, fingerprint, summary metrics, full-track linkage, GPS offset, and cached track swap atomically. See [download-then-swap](sync.md#processed-blob-coherence-download-then-swap).
 - `PatchSessionTrackAsync(id, points, gpsOffsetSeconds?)` — recomputes GPS distance/ascent/descent from the supplied projected points and the persisted `duration_seconds` column when it is present. For legacy rows where `duration_seconds` is null but the processed BLOB exists, it reads only the BLOB duration before deriving metrics so a GPS/track edit does not erase the session duration. It then calls `UpdateSessionTrackAsync`, passing a GPS offset only when the caller is intentionally realigning the session-window GPS segment.
 
 `ITrackRepository` owns track lookups: `FindTrackByTimeRangeAsync(startTime, endTime)` returns the active track whose cached `start_time` and `end_time` exactly match the supplied values (GPX import uses this to skip already-imported tracks before writing), `FindTrackContainingTimestampAsync` resolves the session-window containment lookup — ordering by `(end_time - start_time)`, then `start_time`, then `id`, so the tightest covering window wins deterministically — and `GetTracksByIdsAsync` loads full track payloads for write-path metric derivation. `GetTracksByIdsAsync` chunks id lookups into raw `IN` queries of at most 500 ids and excludes soft-deleted rows. Read-only full-track display uses `GetTrackPayloadMetadataAsync(trackId)` followed by `GetTrackPayloadAsync(trackId, pointsRevision)`, so `IFullTrackPointReader` can cache deserialized point payloads by `(trackId, pointsRevision)` and retry once if the row changes between metadata and payload reads. Its exact-reader operation accepts a caller-supplied points revision and fails closed instead of substituting newer points. Session-to-track association is owned by the processed-write pipeline (`ISessionTelemetryWriter`), not the repository.
@@ -221,6 +236,18 @@ There is no `GetSessionPsstAsync` on the repository: consumers that need a `Tele
 - `DeleteOrphanedRecordedSessionSourcesAsync(retainedIds)` — removes source rows whose owner session no longer exists unless the id is retained by the derivation-window provider
 - `PutRecordedSessionSourceAsync(source)` / `DeleteRecordedSessionSourceAsync(sessionId)` — insert/replace or remove a recorded source outside the processed-session transaction, used by source sync and source-store writes
 
+`session_blob_swap_request` is local durable coordination state for the desktop
+hub's push-direction processed-generation swaps. Each row stores the session id,
+target fingerprint, and nullable serialized `SessionProcessedGeneration`; the
+nullable column preserves compatibility with legacy fingerprint-only requests.
+The merge engine inserts, replaces, or clears the request inside the same
+transaction that accepts the corresponding deferred session metadata. Startup
+adds the generation column when needed, removes requests for missing or
+soft-deleted sessions, and recreates delete/soft-delete triggers that remove a
+request with its owner session. The request store repeats orphan cleanup before
+returning the incomplete-session list and clears a matching request only after
+the validated generation write succeeds.
+
 ## JSON Serialization
 
 `AppJson` (`Sufni.App/Sufni.App/Infrastructure/AppJson.cs`) centralizes System.Text.Json configuration behind a source-generated `AppJsonContext` and exposes two profiles:
@@ -233,16 +260,20 @@ Bike persistence, sync, and export JSON carry `RearSuspensionSpec` union values,
 ## Extension Schema
 
 `ExtensionDatabaseConnection` is the concrete singleton behind
-`IExtensionDatabaseConnection`. `OpenSessionAsync()` awaits normal startup
-initialization before returning an `IExtensionDatabaseSession` scoped to
-declared extension table types. Extension services can query and mutate their
-owned rows through the session operations, while undeclared table types and
-core table names are rejected before reaching sqlite-net.
-For extension-owned multi-statement writes, the session exposes
+`IExtensionDatabaseConnection`. `OpenSessionAsync(extensionId)` awaits normal
+startup initialization, captures that owner id, and returns an
+`IExtensionDatabaseSession` limited to the exact CLR table types declared by
+that extension's migrator. Every table/find/insert/insert-or-replace/update/delete
+operation checks table name, exact table type, and owner id before reaching
+sqlite-net; core tables, undeclared tables, and another extension's tables are
+rejected. The table catalog is frozen from startup migrator registrations, so a
+runtime session cannot broaden ownership.
+
+For extension-owned multi-statement writes, the owner-scoped session exposes
 `RunInTransactionAsync(Action<IExtensionDatabaseTransaction>)`. The transaction
-object provides synchronous table/find/insert/insert-or-replace/update/delete
-counterparts with the same declared-table validation, and callback exceptions
-roll the whole extension transaction back.
+object retains the same owner id and provides synchronous operations with the
+same ownership checks; callback exceptions roll the whole extension transaction
+back.
 
 Extension migrations are declared by `IExtensionDatabaseMigrator`.
 Each migrator declares:
@@ -256,9 +287,9 @@ During `DatabaseMigrationRunner.RunAsync()`, extension work runs after core
 tables/compatibility columns are created and before cleanup completes:
 
 1. Create `extension_schema_version`.
-2. Create tables declared by all extension migrators.
-3. Run missing migration steps in ascending target version.
-4. Update the schema-version row after each successful step.
+2. Create tables declared by all extension migrators outside the per-step transactions.
+3. Run missing migration steps in ascending target version. Each step receives an owner-scoped migration transaction, and the step plus its schema-version update execute in the same SQLite transaction.
+4. Commit that transaction only when both the step and version-row update succeed; otherwise both roll back and the step remains pending for the next startup.
 5. Run core cleanup.
 6. Run extension orphan repair.
 
@@ -312,4 +343,4 @@ The merge cases, in evaluation order:
 
 This gives local client changes precedence in conflicts while accepting remote deletes that are newer than the local content.
 
-Session merge accepts metadata, nullable derived summary metrics (`duration_seconds`, `distance_meters`, `ascent_meters`, `descent_meters`), track linkage/cache JSON, `gps_offset_seconds`, tuning fields, and `session_processing_fingerprint`, but it does not move the processed telemetry BLOB or the raw recording source through `SynchronizationData`. Those payloads are synchronized by the session-data and recorded-source endpoints described in [Cross-Device Synchronization](sync.md). One exception keeps the BLOB and its fingerprint coherent: when the local row already holds a processed BLOB, both inbound merge paths defer `session_processing_fingerprint` (they write every other accepted column but leave the fingerprint, and the BLOB, untouched) so the row keeps advertising the bytes it actually holds; the fingerprint and BLOB then move together later through the session-data endpoint's [download-then-swap](sync.md#processed-blob-coherence-download-then-swap).
+Session merge accepts metadata, processed-generation fields, tuning fields, and `session_processing_fingerprint`, but it does not move the processed telemetry BLOB or raw recording source through `SynchronizationData`. Those payloads use the dedicated endpoints described in [Cross-Device Synchronization](sync.md). When the local row already holds a processed BLOB, both inbound merge paths defer the **whole processed generation** — fingerprint, four summary metrics, full-track id, GPS offset, and cached session-window track — while applying independent user metadata. Matching bytes and the accepted generation then move together through the session-data endpoint's [download-then-swap](sync.md#processed-blob-coherence-download-then-swap).
