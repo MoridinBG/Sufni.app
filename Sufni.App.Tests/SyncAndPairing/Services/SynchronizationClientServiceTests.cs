@@ -711,6 +711,19 @@ public class SynchronizationClientServiceTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(CreateBatchesResult);
 
+        public Task<ExtensionSyncApplyPlan> PrepareBatchesAsync(
+            IEnumerable<ExtensionSyncEnvelope> envelopes,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ExtensionSyncApplyPlan([]));
+
+        public Task<IReadOnlyList<SynchronizationProgressSnapshot>> ApplyPreparedBatchesAsync(
+            ExtensionSyncApplyPlan plan,
+            SynchronizationPhase phase,
+            int currentStep,
+            int totalSteps,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(ApplyBatchesResult);
+
         public Task<IReadOnlyList<SynchronizationProgressSnapshot>> ApplyBatchesAsync(
             IEnumerable<ExtensionSyncEnvelope> envelopes,
             SynchronizationPhase phase,

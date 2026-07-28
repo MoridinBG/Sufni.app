@@ -42,6 +42,27 @@ public class ExtensionSyncServiceTests
     }
 
     [Fact]
+    public async Task ApplyBatchesAsync_PreparesEveryKnownBatchBeforeApplyingAny()
+    {
+        var first = new TestSyncParticipant("first");
+        var second = new TestSyncParticipant("second") { PrepareError = "invalid second batch" };
+        var service = new ExtensionSyncService([first, second]);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.ApplyBatchesAsync(
+                [CreateEnvelope("first"), CreateEnvelope("second")],
+                SynchronizationPhase.PullingRemoteChanges,
+                currentStep: 2,
+                totalSteps: 6));
+
+        Assert.Equal("invalid second batch", exception.Message);
+        Assert.Single(first.PreparedEnvelopes);
+        Assert.Single(second.PreparedEnvelopes);
+        Assert.Empty(first.AppliedEnvelopes);
+        Assert.Empty(second.AppliedEnvelopes);
+    }
+
+    [Fact]
     public async Task ApplyBatchesAsync_AppliesKnownBatchesAndReturnsProgressSnapshots()
     {
         var envelope = CreateEnvelope("known");
@@ -117,7 +138,9 @@ public class ExtensionSyncServiceTests
         public string ExtensionId { get; } = extensionId;
         public (long SinceExclusive, long UpperInclusive)? CreateWindow { get; private set; }
         public ExtensionSyncEnvelope? CreateResult { get; init; }
+        public string? PrepareError { get; init; }
         public ExtensionSyncApplyResult ApplyResult { get; init; } = new ExtensionSyncApplyResult.Applied([]);
+        public List<ExtensionSyncEnvelope> PreparedEnvelopes { get; } = [];
         public List<ExtensionSyncEnvelope> AppliedEnvelopes { get; } = [];
 
         public Task<ExtensionSyncEnvelope?> CreateBatchAsync(
@@ -129,10 +152,26 @@ public class ExtensionSyncServiceTests
             return Task.FromResult(CreateResult);
         }
 
-        public Task<ExtensionSyncApplyResult> ApplyBatchAsync(ExtensionSyncEnvelope envelope, CancellationToken cancellationToken)
+        public Task<ExtensionSyncPrepareResult> PrepareBatchAsync(
+            ExtensionSyncEnvelope envelope,
+            CancellationToken cancellationToken)
         {
-            AppliedEnvelopes.Add(envelope);
+            PreparedEnvelopes.Add(envelope);
+            ExtensionSyncPrepareResult result = PrepareError is null
+                ? new ExtensionSyncPrepareResult.Prepared(new PreparedBatch(envelope))
+                : new ExtensionSyncPrepareResult.Failed(PrepareError);
+            return Task.FromResult(result);
+        }
+
+        public Task<ExtensionSyncApplyResult> ApplyPreparedBatchAsync(
+            IExtensionSyncPreparedBatch batch,
+            CancellationToken cancellationToken)
+        {
+            AppliedEnvelopes.Add(((PreparedBatch)batch).Envelope);
             return Task.FromResult(ApplyResult);
         }
+
+        private sealed record PreparedBatch(ExtensionSyncEnvelope Envelope)
+            : IExtensionSyncPreparedBatch;
     }
 }

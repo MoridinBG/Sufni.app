@@ -42,25 +42,47 @@ internal sealed class ExtensionSyncService : IExtensionSyncService
         return envelopes;
     }
 
-    public async Task<IReadOnlyList<SynchronizationProgressSnapshot>> ApplyBatchesAsync(
+    public async Task<ExtensionSyncApplyPlan> PrepareBatchesAsync(
         IEnumerable<ExtensionSyncEnvelope> envelopes,
+        CancellationToken cancellationToken = default)
+    {
+        var prepared = new List<PreparedExtensionSyncBatch>();
+        foreach (var envelope in envelopes)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!participantsById.TryGetValue(envelope.ExtensionId, out var participant))
+            {
+                continue;
+            }
+
+            var result = await participant.PrepareBatchAsync(envelope, cancellationToken);
+            if (result is ExtensionSyncPrepareResult.Failed failed)
+            {
+                throw new InvalidOperationException(failed.ErrorMessage);
+            }
+
+            prepared.Add(new PreparedExtensionSyncBatch(
+                participant,
+                ((ExtensionSyncPrepareResult.Prepared)result).Batch));
+        }
+
+        return new ExtensionSyncApplyPlan(prepared);
+    }
+
+    public async Task<IReadOnlyList<SynchronizationProgressSnapshot>> ApplyPreparedBatchesAsync(
+        ExtensionSyncApplyPlan plan,
         SynchronizationPhase phase,
         int currentStep,
         int totalSteps,
         CancellationToken cancellationToken = default)
     {
         var progress = new List<SynchronizationProgressSnapshot>();
-
-        foreach (var envelope in envelopes)
+        foreach (var prepared in plan.Batches)
         {
             cancellationToken.ThrowIfCancellationRequested();
-
-            if (!participantsById.TryGetValue(envelope.ExtensionId, out var participant))
-            {
-                continue;
-            }
-
-            var result = await participant.ApplyBatchAsync(envelope, cancellationToken);
+            var result = await prepared.Participant.ApplyPreparedBatchAsync(
+                prepared.Batch,
+                cancellationToken);
             AddProgress(progress, result.ProgressMessages, phase, currentStep, totalSteps);
 
             if (result is ExtensionSyncApplyResult.Failed failed)
@@ -70,6 +92,22 @@ internal sealed class ExtensionSyncService : IExtensionSyncService
         }
 
         return progress;
+    }
+
+    public async Task<IReadOnlyList<SynchronizationProgressSnapshot>> ApplyBatchesAsync(
+        IEnumerable<ExtensionSyncEnvelope> envelopes,
+        SynchronizationPhase phase,
+        int currentStep,
+        int totalSteps,
+        CancellationToken cancellationToken = default)
+    {
+        var plan = await PrepareBatchesAsync(envelopes, cancellationToken);
+        return await ApplyPreparedBatchesAsync(
+            plan,
+            phase,
+            currentStep,
+            totalSteps,
+            cancellationToken);
     }
 
     private static void AddProgress(

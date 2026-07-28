@@ -10,6 +10,12 @@ public interface IExtensionSyncParticipant
         long sinceExclusive,
         long upperInclusive,
         CancellationToken cancellationToken);
-    Task<ExtensionSyncApplyResult> ApplyBatchAsync(ExtensionSyncEnvelope envelope, CancellationToken cancellationToken);
+    Task<ExtensionSyncPrepareResult> PrepareBatchAsync(
+        ExtensionSyncEnvelope envelope,
+        CancellationToken cancellationToken);
+
+    Task<ExtensionSyncApplyResult> ApplyPreparedBatchAsync(
+        IExtensionSyncPreparedBatch batch,
+        CancellationToken cancellationToken);
 }
 
