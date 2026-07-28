@@ -8,6 +8,7 @@ using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Queries;
+using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Bikes.ViewModels.Editors;
 using Sufni.App.Infrastructure;

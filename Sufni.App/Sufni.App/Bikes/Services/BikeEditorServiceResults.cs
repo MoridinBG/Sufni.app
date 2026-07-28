@@ -1,13 +1,12 @@
 using Avalonia.Media.Imaging;
+using Sufni.App.Bikes.Models;
 using Sufni.Kinematics;
 
-namespace Sufni.App.Bikes.ViewModels.Editors;
+namespace Sufni.App.Bikes.Services;
 
 public sealed record BikeAnalysisPresentationData(
     CoordinateList LeverageRatioData,
     CoordinateList? RearAxlePathData);
-
-public sealed record ImportedBikeEditorData(Sufni.App.Bikes.Models.Bike Bike, BikeEditorAnalysisResult AnalysisResult);
 
 public abstract record BikeEditorAnalysisResult
 {
@@ -31,20 +30,10 @@ public abstract record BikeFileImportResult
 {
     private BikeFileImportResult() { }
 
-    public sealed record Imported(Sufni.App.Bikes.Models.Bike Bike) : BikeFileImportResult;
+    public sealed record Imported(Bike Bike) : BikeFileImportResult;
     public sealed record Canceled : BikeFileImportResult;
     public sealed record InvalidFile(string ErrorMessage) : BikeFileImportResult;
     public sealed record Failed(string ErrorMessage) : BikeFileImportResult;
-}
-
-public abstract record BikeImportResult
-{
-    private BikeImportResult() { }
-
-    public sealed record Imported(ImportedBikeEditorData Data) : BikeImportResult;
-    public sealed record Canceled : BikeImportResult;
-    public sealed record InvalidFile(string ErrorMessage) : BikeImportResult;
-    public sealed record Failed(string ErrorMessage) : BikeImportResult;
 }
 
 public abstract record BikeExportResult

@@ -13,7 +13,6 @@ using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
 using Sufni.App.Shell.Coordinators;
-using Sufni.App.Bikes.ViewModels.Editors;
 using Sufni.App.Shared.Stores;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Bikes.Coordinators;

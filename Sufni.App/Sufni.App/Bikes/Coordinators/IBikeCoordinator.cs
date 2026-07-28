@@ -5,7 +5,7 @@ using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Models;
-using Sufni.App.Bikes.ViewModels.Editors;
+using Sufni.App.Bikes.Services;
 namespace Sufni.App.Bikes.Coordinators;
 
 public interface IBikeCoordinator

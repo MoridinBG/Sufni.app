@@ -17,7 +17,7 @@ using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Setups.Coordinators;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.Bikes.Models;
-using Sufni.App.Bikes.ViewModels.Editors;
+using Sufni.App.Bikes.Services;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.ViewModels.Editors;
 namespace Sufni.App.Tests.TestSupport.Doubles;

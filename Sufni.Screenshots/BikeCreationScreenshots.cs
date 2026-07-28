@@ -17,6 +17,7 @@ using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.DesktopViews.Items;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Queries;
+using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Bikes.ViewModels.Editors;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;

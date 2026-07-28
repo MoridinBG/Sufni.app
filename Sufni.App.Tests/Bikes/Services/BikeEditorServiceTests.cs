@@ -9,7 +9,6 @@ using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Bikes.Services;
 using Sufni.App.Infrastructure;
 using Sufni.App.Bikes.Models;
-using Sufni.App.Bikes.ViewModels.Editors;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Bikes.Services;
 

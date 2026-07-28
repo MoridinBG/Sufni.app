@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sufni.App.Bikes.Services;
 using Sufni.Kinematics;
 
 namespace Sufni.App.Bikes.ViewModels.Editors.Bike;

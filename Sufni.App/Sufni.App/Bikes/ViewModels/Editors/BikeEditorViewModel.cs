@@ -18,6 +18,7 @@ using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Queries;
+using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Bikes.ViewModels.LinkageEditing;
 using Sufni.App.Bikes.ViewModels.LinkageParts;
