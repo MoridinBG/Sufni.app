@@ -279,10 +279,16 @@ public partial class SessionAnalysisDesktopView : UserControl
         }
 
         var nextViewModel = contribution.CreateViewModel();
-        var owner = ExtensionViewModelLifetime.CreateOwnedControl(nextViewModel);
-        var control = owner.Control;
+        var ownedControl = contribution.OwnsCreatedViewModel
+            ? ExtensionViewModelLifetime.CreateOwnedControl(nextViewModel)
+            : null;
+        var control = ownedControl?.Control ??
+                      ExtensionViewModelLifetime.CreateBorrowedControl(nextViewModel).Control;
         control.IsVisible = false;
-        extensionContentControls[key] = new ExtensionTabContent(contribution, owner);
+        extensionContentControls[key] = new ExtensionTabContent(
+            contribution,
+            control,
+            ownedControl);
         AnalysisContentHost.Items.Add(control);
         return control;
     }
@@ -324,13 +330,12 @@ public partial class SessionAnalysisDesktopView : UserControl
 
     private sealed record ExtensionTabContent(
         RecordedSessionAnalysisTabContribution Contribution,
-        ExtensionViewModelLifetime.OwnedControl Owner) : IDisposable
+        Control Control,
+        ExtensionViewModelLifetime.OwnedControl? Owner) : IDisposable
     {
-        public Control Control => Owner.Control;
-
         public void Dispose()
         {
-            Owner.Dispose();
+            Owner?.Dispose();
         }
     }
 }

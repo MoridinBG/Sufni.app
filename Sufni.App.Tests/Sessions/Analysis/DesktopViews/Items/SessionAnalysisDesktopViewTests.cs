@@ -68,6 +68,66 @@ public class SessionAnalysisDesktopViewTests
     }
 
     [AvaloniaFact]
+    public async Task SessionAnalysisDesktopView_BorrowedExtensionTab_IsNotDisposedWhenRemoved()
+    {
+        var workspace = CreateWorkspace();
+        var viewModel = new DisposableContributionViewModel();
+        workspace.ExtensionSlots.AnalysisTabs.Add(new RecordedSessionAnalysisTabContribution(
+            "extension",
+            "borrowed-tab",
+            Order: 0,
+            "Borrowed tab",
+            RequestedIndex: 3,
+            () => viewModel)
+        {
+            OwnsCreatedViewModel = false,
+        });
+        await using var mounted = await MountAsync(workspace);
+        await SelectTabAsync(mounted.View, "Borrowed tab");
+
+        workspace.ExtensionSlots.AnalysisTabs.Clear();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(0, viewModel.DisposeCount);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionAnalysisDesktopView_BorrowedExtensionTab_SurvivesDetachAndReattach()
+    {
+        var workspace = CreateWorkspace();
+        var viewModel = new DisposableContributionViewModel();
+        var createdCount = 0;
+        workspace.ExtensionSlots.AnalysisTabs.Add(new RecordedSessionAnalysisTabContribution(
+            "extension",
+            "borrowed-tab",
+            Order: 0,
+            "Borrowed tab",
+            RequestedIndex: 3,
+            () =>
+            {
+                createdCount++;
+                return viewModel;
+            })
+        {
+            OwnsCreatedViewModel = false,
+        });
+        await using var mounted = await MountAsync(workspace);
+        await SelectTabAsync(mounted.View, "Borrowed tab");
+
+        mounted.Container.Child = null;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(0, viewModel.DisposeCount);
+
+        mounted.Container.Child = mounted.View;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        await SelectTabAsync(mounted.View, "Borrowed tab");
+
+        Assert.Equal(2, createdCount);
+        Assert.Equal(0, viewModel.DisposeCount);
+    }
+
+    [AvaloniaFact]
     public async Task SessionAnalysisDesktopView_SuspendsSelectedTabDemand_WhenOuterViewHidden()
     {
         var workspace = CreateWorkspace();
