@@ -537,6 +537,102 @@ public class SynchronizationMergeEngineTests
     }
 
     [Fact]
+    public async Task PulledSwap_ExposesOnlyHeldGenerationUntilCompleteTargetCommit()
+    {
+        using var tempDatabase = new TempDatabase("pulled-generation-boundary.db");
+        var sessionId = Guid.NewGuid();
+        var source = PersistenceTestData.CreateRecordedSessionSource(sessionId);
+        var localFingerprint = AppJson.Serialize(CreateFingerprint("local", source.SourceHash, window: null));
+        var remoteFingerprint = AppJson.Serialize(CreateFingerprint("remote", source.SourceHash, window: null));
+        var heldData = PersistenceTestData.CreateTelemetryBlob(65);
+        var targetData = PersistenceTestData.CreateTelemetryBlob(80);
+        var heldTrackId = Guid.NewGuid();
+        var targetTrackId = Guid.NewGuid();
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        await database.PutRecordedSessionSourceAsync(source);
+        _ = await database.GetSessionsAsync();
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.Insert(new Session(sessionId, "local", "desc", null, 100)
+            {
+                ProcessedData = heldData,
+                ProcessingFingerprintJson = localFingerprint,
+                DurationSeconds = 65,
+                DistanceMeters = 10,
+                AscentMeters = 4,
+                DescentMeters = 2,
+                FullTrack = heldTrackId,
+                GpsOffsetSeconds = 0.5,
+                Track = [new TrackPoint(100, 1, 2, 3)],
+                Updated = 1,
+                ClientUpdated = 1,
+            });
+        }
+        var held = (await database.GetSessionAsync(sessionId))!;
+
+        var swaps = await database.ApplyRemoteSynchronizationDataAndReturnSwapsAsync(
+            new SynchronizationData
+            {
+                Sessions =
+                [
+                    new Session(sessionId, "remote", "desc", null, 100)
+                    {
+                        ProcessingFingerprintJson = remoteFingerprint,
+                        DurationSeconds = 80,
+                        DistanceMeters = 20,
+                        AscentMeters = 8,
+                        DescentMeters = 3,
+                        FullTrack = targetTrackId,
+                        GpsOffsetSeconds = 1.25,
+                        Track = [new TrackPoint(101, 4, 5, 6)],
+                        Updated = 99,
+                        ClientUpdated = 88,
+                    },
+                ],
+            });
+
+        var swap = Assert.Single(swaps);
+        var afterMetadata = (await database.GetSessionAsync(sessionId))!;
+        Assert.Equal(held.ProcessingFingerprintJson, afterMetadata.ProcessingFingerprintJson);
+        Assert.Equal(held.FullTrack, afterMetadata.FullTrack);
+        Assert.Equal(held.GpsOffsetSeconds, afterMetadata.GpsOffsetSeconds);
+        Assert.Equal(heldData, await database.SessionRepository.GetSessionRawPsstAsync(
+            sessionId,
+            held.ProcessedTelemetryRevision));
+        Assert.Equal(100, Assert.Single((await database.SessionRepository.GetSessionTrackAsync(
+            sessionId,
+            held.TrackProjectionRevision))!).Time);
+
+        await database.SessionTelemetryWriter.SwapSessionPsstAsync(
+            sessionId,
+            targetData,
+            remoteFingerprint,
+            swap.TargetGeneration!);
+
+        var target = (await database.GetSessionAsync(sessionId))!;
+        Assert.Equal(99, target.Updated);
+        Assert.Equal(remoteFingerprint, target.ProcessingFingerprintJson);
+        Assert.Equal(80, target.DurationSeconds);
+        Assert.Equal(20, target.DistanceMeters);
+        Assert.Equal(8, target.AscentMeters);
+        Assert.Equal(3, target.DescentMeters);
+        Assert.Equal(targetTrackId, target.FullTrack);
+        Assert.Equal(1.25, target.GpsOffsetSeconds);
+        Assert.Null(await database.SessionRepository.GetSessionRawPsstAsync(
+            sessionId,
+            held.ProcessedTelemetryRevision));
+        Assert.Null(await database.SessionRepository.GetSessionTrackAsync(
+            sessionId,
+            held.TrackProjectionRevision));
+        Assert.Equal(targetData, await database.SessionRepository.GetSessionRawPsstAsync(
+            sessionId,
+            target.ProcessedTelemetryRevision));
+        Assert.Equal(101, Assert.Single((await database.SessionRepository.GetSessionTrackAsync(
+            sessionId,
+            target.TrackProjectionRevision))!).Time);
+    }
+
+    [Fact]
     public async Task MergeAllAsync_PushPayloadRoundTrip_PreservesExistingPsst_WhenSyncStopsBeforeRepair()
     {
         using var tempDatabase = new TempDatabase("interrupted-sync.db");
