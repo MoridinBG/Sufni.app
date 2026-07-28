@@ -332,15 +332,30 @@ public sealed class SessionCommandService
                 logger.Warning(e, "Failed to update recorded-session preferences after saving session {SessionId}", session.Id);
             }
 
-            await sessionStore.PublishSessionsChangedAsync([snapshot.Id], cancellationToken);
-            await sourceStore.PublishSourcesChangedAsync([sourceSnapshot.SessionId], cancellationToken);
+            string? publicationWarning = null;
+            try
+            {
+                await sessionStore.PublishSessionsChangedAsync([snapshot.Id], cancellationToken);
+                await sourceStore.PublishSourcesChangedAsync([sourceSnapshot.SessionId], cancellationToken);
+            }
+            catch (Exception e)
+            {
+                publicationWarning = $"Live session was saved, but app state could not be refreshed: {e.Message}";
+                logger.Warning(e, "Failed to publish live session state after saving session {SessionId}", session.Id);
+            }
 #if SUFNI_PROFILING_DIAGNOSTICS
             ProfilingBench01.Saved(snapshot.Id, source, capture.TelemetryCapture);
-            profilingStage?.SetResult(0, source.Payload.LongLength, "saved");
+            profilingStage?.SetResult(
+                0,
+                source.Payload.LongLength,
+                publicationWarning is null ? "saved" : "saved_publication_failed");
 #endif
 
             logger.Information("Live session save completed for {SessionId}", session.Id);
-            return new LiveSessionSaveResult.Saved(snapshot.Id, snapshot.Updated);
+            return new LiveSessionSaveResult.Saved(
+                snapshot.Id,
+                snapshot.Updated,
+                publicationWarning);
         }
         catch (OperationCanceledException)
         {

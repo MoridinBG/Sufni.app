@@ -463,6 +463,10 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                     profilingSaved = true;
 #endif
                     blockedSavedCaptureRevision = savedCaptureRevision;
+                    if (saved.PublicationWarning is not null)
+                    {
+                        ErrorMessages.Add(saved.PublicationWarning);
+                    }
 
                     try
                     {

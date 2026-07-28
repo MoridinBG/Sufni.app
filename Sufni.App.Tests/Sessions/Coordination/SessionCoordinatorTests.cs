@@ -210,6 +210,63 @@ public class SessionCoordinatorTests
         Assert.Equal(9, saved.Updated);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SaveLiveCaptureAsync_ReturnsSavedWithWarning_WhenPostCommitPublicationFails(
+        bool sourcePublicationFails)
+    {
+        var capture = CreateLiveCapturePackage(withGps: false);
+        var session = new Session(
+            Guid.NewGuid(),
+            "live session",
+            "desc",
+            capture.Context.SetupId,
+            capture.TelemetryCapture.Metadata.Timestamp);
+        var fresh = new Session(session.Id, session.Name, session.Description, session.Setup)
+        {
+            Updated = 9,
+            HasProcessedData = true,
+        };
+        SeedLiveCaptureDependencies(capture);
+        sessionTelemetryWriter
+            .PutProcessedSessionAsync(
+                Arg.Any<Session>(),
+                Arg.Any<ProcessedTelemetryPayload>(),
+                Arg.Any<Track?>(),
+                Arg.Any<RecordedSessionSource?>())
+            .Returns(fresh);
+        if (sourcePublicationFails)
+        {
+            sourceStore.PublishSourcesChangedAsync(
+                    Arg.Any<IReadOnlyCollection<Guid>>(),
+                    Arg.Any<CancellationToken>())
+                .ThrowsAsync(new InvalidOperationException("source publish failed"));
+        }
+        else
+        {
+            sessionStore.PublishSessionsChangedAsync(
+                    Arg.Any<IReadOnlyCollection<Guid>>(),
+                    Arg.Any<CancellationToken>())
+                .ThrowsAsync(new InvalidOperationException("session publish failed"));
+        }
+
+        var result = await CreateCoordinator().SaveLiveCaptureAsync(
+            session,
+            capture,
+            SessionPreferences.Default);
+
+        var saved = Assert.IsType<LiveSessionSaveResult.Saved>(result);
+        Assert.Equal(session.Id, saved.SessionId);
+        Assert.NotNull(saved.PublicationWarning);
+        Assert.Contains("saved", saved.PublicationWarning, StringComparison.OrdinalIgnoreCase);
+        await sessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
+            Arg.Is<Session>(savedSession => savedSession.Id == session.Id),
+            Arg.Any<ProcessedTelemetryPayload>(),
+            Arg.Any<Track?>(),
+            Arg.Any<RecordedSessionSource?>());
+    }
+
     [Fact]
     public async Task SaveLiveCaptureAsync_ReturnsFailed_WhenProcessedPersistenceThrows()
     {

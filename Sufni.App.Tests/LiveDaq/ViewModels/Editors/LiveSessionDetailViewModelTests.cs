@@ -171,6 +171,36 @@ public class LiveSessionDetailViewModelTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task SaveCommand_ResetsCaptureAndReportsWarning_WhenCommittedSavePublicationFails()
+    {
+        var savedId = Guid.NewGuid();
+        sessionCoordinator.SaveLiveCaptureAsync(
+                Arg.Any<Session>(),
+                Arg.Any<LiveSessionCapturePackage>(),
+                Arg.Any<SessionPreferences>(),
+                Arg.Any<CancellationToken>())
+            .Returns(new LiveSessionSaveResult.Saved(
+                savedId,
+                5,
+                "Live session was saved, but app state could not be refreshed: publish failed"));
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+        await PublishSnapshotAsync(CreateSnapshot(
+            canSave: true,
+            telemetryData: TestTelemetryData.CreateProcessed()));
+
+        await editor.SaveCommand.ExecuteAsync(null);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+
+        await liveSessionService.Received(1).ResetCaptureAsync(Arg.Any<CancellationToken>());
+        await sessionCoordinator.Received(1).OpenEditAsync(savedId);
+        Assert.Contains(
+            editor.ErrorMessages,
+            message => message.Contains("app state could not be refreshed", StringComparison.Ordinal));
+        Assert.False(editor.SaveCommand.CanExecute(null));
+    }
+
+    [AvaloniaFact]
     public async Task ResetCommand_ClearsCaptureButPreservesSidebarState()
     {
         var editor = CreateEditor();

@@ -115,7 +115,10 @@ public abstract record LiveSessionSaveResult
 {
     private LiveSessionSaveResult() { }
 
-    public sealed record Saved(Guid SessionId, long Updated) : LiveSessionSaveResult;
+    public sealed record Saved(
+        Guid SessionId,
+        long Updated,
+        string? PublicationWarning = null) : LiveSessionSaveResult;
     public sealed record Failed(string ErrorMessage) : LiveSessionSaveResult;
 }
 
