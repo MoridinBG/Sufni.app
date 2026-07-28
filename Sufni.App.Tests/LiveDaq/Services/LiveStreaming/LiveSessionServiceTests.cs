@@ -679,6 +679,35 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
+    public async Task GpsFrames_OutOfOrderRecordInsideBatch_PreservesEntireRawBatchAndReprojectsAllPoints()
+    {
+        var service = CreateService();
+        await service.EnsureAttachedAsync();
+        frames.OnNext(CreateTravelBatchFrame());
+        var time8 = new DateTime(2026, 1, 2, 3, 4, 8, DateTimeKind.Utc);
+        var time7 = time8.AddSeconds(-1);
+        var time9 = time8.AddSeconds(1);
+        frames.OnNext(CreateGpsBatchFrame(time8, latitude: 42.6978));
+        frames.OnNext(new LiveGpsBatchFrame(
+            new LiveFrameMetadata(4),
+            new LiveBatchHeader(sessionHeader.SessionId, 2, 0, sessionHeader.SessionStartMonotonicUs, 2),
+            [
+                CreateGpsRecord(time7, latitude: 42.6977),
+                CreateGpsRecord(time9, latitude: 42.6979),
+            ]));
+
+        var points = service.Current.SessionTrackPoints;
+        Assert.Equal(3, points.Count);
+        Assert.True(points[0].Time < points[1].Time);
+        Assert.True(points[1].Time < points[2].Time);
+
+        var package = await service.PrepareCaptureForSaveAsync();
+        Assert.Equal(
+            [time8, time7, time9],
+            package.TelemetryCapture.GpsData!.Select(record => record.Timestamp).ToArray());
+    }
+
+    [Fact]
     public async Task TravelFrames_ThrottleAnalysisUpdatesToConfiguredInterval()
     {
         var service = CreateService();
@@ -1303,19 +1332,30 @@ public class LiveSessionServiceTests
             Batch: new LiveBatchHeader(header.SessionId, 1, 0, header.SessionStartMonotonicUs, 1),
             Records:
             [
-                new GpsRecord(
-                    Timestamp: timestamp ?? new DateTime(2026, 1, 2, 3, 4, 6, DateTimeKind.Utc),
-                    Latitude: latitude,
-                    Longitude: longitude,
-                    Altitude: altitude,
-                    Speed: 10,
-                    Heading: 90,
-                    FixMode: 3,
-                    Satellites: 12,
-                    Epe2d: 0.5f,
-                    Epe3d: 0.8f),
+                CreateGpsRecord(
+                    timestamp ?? new DateTime(2026, 1, 2, 3, 4, 6, DateTimeKind.Utc),
+                    latitude,
+                    longitude,
+                    altitude),
             ]);
     }
+
+    private static GpsRecord CreateGpsRecord(
+        DateTime timestamp,
+        double latitude,
+        double longitude = 23.3219,
+        float altitude = 600) =>
+        new(
+            Timestamp: timestamp,
+            Latitude: latitude,
+            Longitude: longitude,
+            Altitude: altitude,
+            Speed: 10,
+            Heading: 90,
+            FixMode: 3,
+            Satellites: 12,
+            Epe2d: 0.5f,
+            Epe3d: 0.8f);
 
     private static LiveDaqSessionContext CreateSessionContext(DampingSpeedCutoffs? cutoffs = null)
     {

@@ -875,11 +875,10 @@ internal sealed class LiveSessionService : ILiveSessionService
             : sessionTrackPoints[^1].Time;
         TrackPoint? previousTrackPoint = sessionTrackPoints.Length == 0 ? null : sessionTrackPoints[^1];
         var previousCoordinate = previousAcceptedGpsCoordinate;
+        gpsRecords.AppendRange(frame.Records);
 
         foreach (var record in frame.Records)
         {
-            gpsRecords.Append(record);
-
             var projected = GpsTrackPointProjection.TryProject(record);
             if (projected is null)
             {
