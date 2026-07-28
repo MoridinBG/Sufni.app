@@ -128,9 +128,8 @@ public class ImportSessionsCoordinator(
             var totalToProcess = files.Count(f => f.ShouldBeImported is not false);
             var processedCount = 0;
             var progressGate = new object();
-            var importedSnapshots = new ConcurrentBag<SessionSnapshot>();
+            var committedImports = new ConcurrentBag<(ITelemetryFile File, SessionSnapshot Snapshot)>();
             var failuresQueue = new ConcurrentQueue<SessionImportFailure>();
-            var acknowledgements = new ConcurrentQueue<ITelemetryFile>();
 
             void Report(SessionImportEvent importEvent)
             {
@@ -183,6 +182,9 @@ public class ImportSessionsCoordinator(
                         break;
                     case SessionImportFailureOperation.Trash:
                         Report(new SessionImportEvent.TrashFailed(telemetryFile.Name, e.Message));
+                        break;
+                    case SessionImportFailureOperation.Publish:
+                        Report(new SessionImportEvent.PublicationFailed(telemetryFile.Name, e.Message));
                         break;
                 }
             }
@@ -282,9 +284,7 @@ public class ImportSessionsCoordinator(
                                 source);
 
                             var snapshot = SessionSnapshot.From(persisted);
-                            importedSnapshots.Add(snapshot);
-                            acknowledgements.Enqueue(telemetryFile);
-                            Report(new SessionImportEvent.Imported(snapshot));
+                            committedImports.Add((telemetryFile, snapshot));
                         }
                         catch (Exception e)
                         {
@@ -325,10 +325,12 @@ public class ImportSessionsCoordinator(
                 ExceptionDispatchInfo.Capture(producerException).Throw();
             }
 
-            imported.AddRange(importedSnapshots);
+            var committedEntries = committedImports.ToArray();
+            imported.AddRange(committedEntries.Select(entry => entry.Snapshot));
             failures.AddRange(failuresQueue);
 
-            var importedSessionIds = imported.Select(snapshot => snapshot.Id).ToArray();
+            var publicationSucceeded = true;
+            var importedSessionIds = committedEntries.Select(entry => entry.Snapshot.Id).ToArray();
             if (importedSessionIds.Length > 0)
             {
                 try
@@ -338,32 +340,37 @@ public class ImportSessionsCoordinator(
                 }
                 catch (Exception e)
                 {
+                    publicationSucceeded = false;
                     logger.Warning(e, "Failed to publish imported session store updates");
-                    foreach (var telemetryFile in acknowledgements)
+                    foreach (var entry in committedEntries)
                     {
                         failures.Add(new SessionImportFailure(
-                            telemetryFile.Name,
+                            entry.File.Name,
                             e.Message,
-                            SessionImportFailureOperation.Import));
-                        Report(new SessionImportEvent.ImportFailed(telemetryFile.Name, e.Message));
+                            SessionImportFailureOperation.Publish));
+                        Report(new SessionImportEvent.PublicationFailed(entry.File.Name, e.Message));
                     }
                 }
             }
 
-            while (acknowledgements.TryDequeue(out var telemetryFile))
+            if (publicationSucceeded)
             {
-                try
+                foreach (var entry in committedEntries)
                 {
-                    await telemetryFile.OnImported();
-                }
-                catch (Exception e)
-                {
-                    logger.Warning(e, "Failed to finish post-import action for telemetry file {FileName}", telemetryFile.Name);
-                    failures.Add(new SessionImportFailure(
-                        telemetryFile.Name,
-                        e.Message,
-                        SessionImportFailureOperation.Import));
-                    Report(new SessionImportEvent.ImportFailed(telemetryFile.Name, e.Message));
+                    Report(new SessionImportEvent.Imported(entry.Snapshot));
+                    try
+                    {
+                        await entry.File.OnImported();
+                    }
+                    catch (Exception e)
+                    {
+                        logger.Warning(e, "Failed to finish post-import action for telemetry file {FileName}", entry.File.Name);
+                        failures.Add(new SessionImportFailure(
+                            entry.File.Name,
+                            e.Message,
+                            SessionImportFailureOperation.Import));
+                        Report(new SessionImportEvent.ImportFailed(entry.File.Name, e.Message));
+                    }
                 }
             }
         }
@@ -441,6 +448,7 @@ public sealed record SessionImportResult(
 public enum SessionImportFailureOperation
 {
     Import,
+    Publish,
     Trash,
 }
 
@@ -455,6 +463,7 @@ public abstract record SessionImportEvent
 
     public sealed record Imported(SessionSnapshot Snapshot) : SessionImportEvent;
     public sealed record ImportFailed(string FileName, string ErrorMessage) : SessionImportEvent;
+    public sealed record PublicationFailed(string FileName, string ErrorMessage) : SessionImportEvent;
     public sealed record TrashFailed(string FileName, string ErrorMessage) : SessionImportEvent;
     public sealed record Progress(int Current, int Total) : SessionImportEvent;
 }

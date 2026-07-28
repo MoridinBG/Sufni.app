@@ -97,6 +97,46 @@ public class ImportSessionsCoordinatorTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ImportAsync_DoesNotAcknowledgeCommittedFiles_WhenPublicationFails(
+        bool sourcePublicationFails)
+    {
+        var harness = new ImportWorkflowHarness();
+        var (setup, _) = harness.SeedSetupAndBike();
+        var file = CreateTelemetryFile(name: "ride", shouldBeImported: true);
+        if (sourcePublicationFails)
+        {
+            harness.SourceStore.PublishSourcesChangedAsync(
+                    Arg.Any<IReadOnlyCollection<Guid>>(),
+                    Arg.Any<CancellationToken>())
+                .ThrowsAsync(new InvalidOperationException("source publish failed"));
+        }
+        else
+        {
+            harness.SessionStore.PublishSessionsChangedAsync(
+                    Arg.Any<IReadOnlyCollection<Guid>>(),
+                    Arg.Any<CancellationToken>())
+                .ThrowsAsync(new InvalidOperationException("session publish failed"));
+        }
+        var progressEvents = new List<SessionImportEvent>();
+
+        var result = await harness.CreateCoordinator().ImportAsync(
+            [file],
+            setup.Id,
+            harness.CaptureImportProgress(progressEvents));
+
+        Assert.Single(result.Imported);
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal(SessionImportFailureOperation.Publish, failure.Operation);
+        await file.DidNotReceive().OnImported();
+        Assert.Contains(
+            progressEvents,
+            importEvent => importEvent is SessionImportEvent.PublicationFailed { FileName: "ride" });
+        Assert.DoesNotContain(progressEvents, importEvent => importEvent is SessionImportEvent.Imported);
+    }
+
+    [Theory]
     [InlineData(true, ImportAction.Import)]
     [InlineData(null, ImportAction.Trash)]
     [InlineData(false, ImportAction.Ignore)]

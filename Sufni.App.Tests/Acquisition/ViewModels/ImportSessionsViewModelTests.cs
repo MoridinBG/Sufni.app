@@ -98,6 +98,48 @@ public class ImportSessionsViewModelTests
         Assert.Single(viewModel.ErrorMessages);
     }
 
+    [Fact]
+    public async Task ImportSessionsCommand_ReportsCommittedButUnpublishedFilesAccurately()
+    {
+        using var _ = new TestSynchronizationContextScope();
+        var harness = new ImportWorkflowHarness();
+        var boardId = Guid.NewGuid();
+        var setup = TestSnapshots.Setup(boardId: boardId);
+        harness.SetupCache.AddOrUpdate(setup);
+        var dataStore = CreateDataStore(boardId: boardId);
+        var file = CreateTelemetryFile("lap");
+        harness.TelemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
+            .Returns(
+                Task.FromResult<IReadOnlyList<ITelemetryFile>>([file]),
+                Task.FromResult<IReadOnlyList<ITelemetryFile>>([]));
+        var imported = TestSnapshots.Session(name: "lap");
+        var failure = new SessionImportFailure(
+            "lap",
+            "publish failed",
+            SessionImportFailureOperation.Publish);
+        harness.ImportSessionsCoordinatorSubstitute.ImportAsync(
+                Arg.Any<IReadOnlyList<ITelemetryFile>>(),
+                setup.Id,
+                Arg.Any<IProgress<SessionImportEvent>?>())
+            .Returns(callInfo =>
+            {
+                callInfo.ArgAt<IProgress<SessionImportEvent>?>(2)?.Report(
+                    new SessionImportEvent.PublicationFailed(failure.FileName, failure.ErrorMessage));
+                return Task.FromResult(new SessionImportResult([imported], [failure]));
+            });
+        var viewModel = harness.CreateViewModel();
+
+        viewModel.SelectedDataStore = dataStore;
+        await viewModel.ImportSessionsCommand.ExecuteAsync(null);
+
+        Assert.Contains(
+            viewModel.ErrorMessages,
+            message => message.Contains("left unacknowledged", StringComparison.Ordinal));
+        Assert.Contains(
+            viewModel.Notifications,
+            message => message.Contains("1 committed, 1 unpublished, 0 failed", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData(OpenStoreResult.Added)]
     [InlineData(OpenStoreResult.AlreadyOpen)]

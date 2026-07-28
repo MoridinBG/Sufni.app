@@ -162,6 +162,10 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                 case SessionImportEvent.ImportFailed failed:
                     ErrorMessages.Add($"Could not import {failed.FileName}: {failed.ErrorMessage}");
                     break;
+                case SessionImportEvent.PublicationFailed failed:
+                    ErrorMessages.Add(
+                        $"{failed.FileName} was imported, but app state could not be refreshed; the source was left unacknowledged: {failed.ErrorMessage}");
+                    break;
                 case SessionImportEvent.TrashFailed failed:
                     ErrorMessages.Add($"Could not trash {failed.FileName}: {failed.ErrorMessage}");
                     break;
@@ -174,6 +178,16 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     private void AddImportSummary(SessionImportResult result)
     {
+        var unpublishedCount = result.Failures.Count(failure =>
+            failure.Operation is SessionImportFailureOperation.Publish);
+        if (unpublishedCount > 0)
+        {
+            Notifications.Insert(
+                0,
+                $"Import finished: {result.Imported.Count} committed, {unpublishedCount} unpublished, {result.Failures.Count - unpublishedCount} failed.");
+            return;
+        }
+
         Notifications.Insert(
             0,
             $"Import finished: {result.Imported.Count} imported, {result.Failures.Count} failed.");
