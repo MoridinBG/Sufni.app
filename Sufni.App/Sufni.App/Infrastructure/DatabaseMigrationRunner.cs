@@ -163,11 +163,26 @@ internal sealed class DatabaseMigrationRunner(
         await EnsureColumnsAsync("track", ("points_revision", "INTEGER NOT NULL DEFAULT 0"));
 
         await connection.ExecuteAsync(
-            "UPDATE session SET processed_telemetry_revision = 1 WHERE processed_telemetry_revision = 0 AND data IS NOT NULL");
+            """
+            UPDATE session
+            SET processed_telemetry_revision = CASE WHEN data IS NOT NULL THEN 1 ELSE 0 END
+            WHERE processed_telemetry_revision IS NULL
+               OR (processed_telemetry_revision = 0 AND data IS NOT NULL)
+            """);
         await connection.ExecuteAsync(
-            "UPDATE session SET track_projection_revision = 1 WHERE track_projection_revision = 0 AND track IS NOT NULL");
+            """
+            UPDATE session
+            SET track_projection_revision = CASE WHEN track IS NOT NULL THEN 1 ELSE 0 END
+            WHERE track_projection_revision IS NULL
+               OR (track_projection_revision = 0 AND track IS NOT NULL)
+            """);
         await connection.ExecuteAsync(
-            "UPDATE track SET points_revision = 1 WHERE points_revision = 0 AND points IS NOT NULL");
+            """
+            UPDATE track
+            SET points_revision = CASE WHEN points IS NOT NULL THEN 1 ELSE 0 END
+            WHERE points_revision IS NULL
+               OR (points_revision = 0 AND points IS NOT NULL)
+            """);
 
         foreach (var triggerName in new[]
                  {
@@ -206,8 +221,12 @@ internal sealed class DatabaseMigrationRunner(
                 SET processed_telemetry_revision = CASE
                     WHEN NEW.data IS NOT OLD.data
                       OR NEW.session_processing_fingerprint IS NOT OLD.session_processing_fingerprint
-                    THEN OLD.processed_telemetry_revision + 1
-                    ELSE OLD.processed_telemetry_revision
+                    THEN COALESCE(
+                        OLD.processed_telemetry_revision,
+                        CASE WHEN OLD.data IS NOT NULL THEN 1 ELSE 0 END) + 1
+                    ELSE COALESCE(
+                        OLD.processed_telemetry_revision,
+                        CASE WHEN OLD.data IS NOT NULL THEN 1 ELSE 0 END)
                 END
                 WHERE id = NEW.id;
             END
@@ -230,8 +249,12 @@ internal sealed class DatabaseMigrationRunner(
                       OR NEW.duration_seconds IS NOT OLD.duration_seconds
                       OR NEW.gps_offset_seconds IS NOT OLD.gps_offset_seconds
                       OR NEW.full_track_id IS NOT OLD.full_track_id
-                    THEN OLD.track_projection_revision + 1
-                    ELSE OLD.track_projection_revision
+                    THEN COALESCE(
+                        OLD.track_projection_revision,
+                        CASE WHEN OLD.track IS NOT NULL THEN 1 ELSE 0 END) + 1
+                    ELSE COALESCE(
+                        OLD.track_projection_revision,
+                        CASE WHEN OLD.track IS NOT NULL THEN 1 ELSE 0 END)
                 END
                 WHERE id = NEW.id;
             END
@@ -256,8 +279,12 @@ internal sealed class DatabaseMigrationRunner(
             BEGIN
                 UPDATE track
                 SET points_revision = CASE
-                    WHEN NEW.points IS NOT OLD.points THEN OLD.points_revision + 1
-                    ELSE OLD.points_revision
+                    WHEN NEW.points IS NOT OLD.points THEN COALESCE(
+                        OLD.points_revision,
+                        CASE WHEN OLD.points IS NOT NULL THEN 1 ELSE 0 END) + 1
+                    ELSE COALESCE(
+                        OLD.points_revision,
+                        CASE WHEN OLD.points IS NOT NULL THEN 1 ELSE 0 END)
                 END
                 WHERE id = NEW.id;
             END

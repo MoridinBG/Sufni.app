@@ -437,6 +437,122 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
+    public async Task Initialization_RepairsNullLocalContentRevisions_FromPopulatedLegacySchema()
+    {
+        using var tempDatabase = new TempDatabase("legacy-null-local-content-revisions.db");
+        var processedSessionId = Guid.NewGuid();
+        var emptySessionId = Guid.NewGuid();
+        var populatedTrackId = Guid.NewGuid();
+        var emptyTrackId = Guid.NewGuid();
+        byte[] processedData = [1, 2, 3];
+        var points = AppJson.Serialize(new List<TrackPoint> { new(100, 1, 2, 3) });
+
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.Execute(
+                """
+                CREATE TABLE session (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    setup_id TEXT,
+                    description TEXT NOT NULL,
+                    timestamp INTEGER,
+                    full_track_id TEXT,
+                    track TEXT,
+                    data BLOB,
+                    gps_offset_seconds REAL NOT NULL DEFAULT 0,
+                    session_processing_fingerprint TEXT,
+                    updated INTEGER NOT NULL,
+                    client_updated INTEGER,
+                    deleted INTEGER,
+                    has_data INTEGER NOT NULL DEFAULT 0
+                )
+                """);
+            connection.Execute(
+                """
+                CREATE TABLE track (
+                    id TEXT PRIMARY KEY,
+                    points TEXT,
+                    start_time INTEGER NOT NULL DEFAULT 0,
+                    end_time INTEGER NOT NULL DEFAULT 0,
+                    updated INTEGER NOT NULL,
+                    client_updated INTEGER,
+                    deleted INTEGER
+                )
+                """);
+            connection.Execute(
+                "INSERT INTO session (id, name, description, track, data, gps_offset_seconds, session_processing_fingerprint, updated, has_data) VALUES (?, ?, ?, ?, ?, 0, ?, ?, 1)",
+                processedSessionId,
+                "processed",
+                string.Empty,
+                points,
+                processedData,
+                "fingerprint",
+                10);
+            connection.Execute(
+                "INSERT INTO session (id, name, description, gps_offset_seconds, updated, has_data) VALUES (?, ?, ?, 0, ?, 0)",
+                emptySessionId,
+                "empty",
+                string.Empty,
+                12);
+            connection.Execute(
+                "INSERT INTO track (id, points, start_time, end_time, updated) VALUES (?, ?, 100, 100, ?)",
+                populatedTrackId,
+                points,
+                11);
+            connection.Execute(
+                "INSERT INTO track (id, points, start_time, end_time, updated) VALUES (?, NULL, 0, 0, ?)",
+                emptyTrackId,
+                13);
+        }
+
+        var firstRun = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        _ = await firstRun.GetInitializedConnectionAsync();
+        var metadata = await firstRun.SessionRepository.GetSessionPsstPayloadMetadataAsync(processedSessionId);
+
+        Assert.NotNull(metadata);
+        Assert.True(metadata.HasData);
+        Assert.Equal(1, metadata.ProcessedTelemetryRevision);
+        Assert.Equal(
+            processedData,
+            await firstRun.SessionRepository.GetSessionRawPsstAsync(
+                processedSessionId,
+                metadata.ProcessedTelemetryRevision));
+        Assert.Null(
+            await firstRun.SessionRepository.GetSessionRawPsstAsync(
+                processedSessionId,
+                processedTelemetryRevision: 0));
+
+        var secondRun = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        _ = await secondRun.GetInitializedConnectionAsync();
+
+        using var verification = new SQLiteConnection(tempDatabase.DatabasePath);
+        var processedSession = verification.Query<SessionRevisionRow>(
+            "SELECT processed_telemetry_revision, track_projection_revision, updated FROM session WHERE id = ?",
+            processedSessionId).Single();
+        var emptySession = verification.Query<SessionRevisionRow>(
+            "SELECT processed_telemetry_revision, track_projection_revision, updated FROM session WHERE id = ?",
+            emptySessionId).Single();
+        var populatedTrack = verification.Query<TrackRevisionRow>(
+            "SELECT points_revision, updated FROM track WHERE id = ?",
+            populatedTrackId).Single();
+        var emptyTrack = verification.Query<TrackRevisionRow>(
+            "SELECT points_revision, updated FROM track WHERE id = ?",
+            emptyTrackId).Single();
+
+        Assert.Equal(1, processedSession.ProcessedTelemetryRevision);
+        Assert.Equal(1, processedSession.TrackProjectionRevision);
+        Assert.Equal(10, processedSession.Updated);
+        Assert.Equal(0, emptySession.ProcessedTelemetryRevision);
+        Assert.Equal(0, emptySession.TrackProjectionRevision);
+        Assert.Equal(12, emptySession.Updated);
+        Assert.Equal(1, populatedTrack.PointsRevision);
+        Assert.Equal(11, populatedTrack.Updated);
+        Assert.Equal(0, emptyTrack.PointsRevision);
+        Assert.Equal(13, emptyTrack.Updated);
+    }
+
+    [Fact]
     public async Task LocalContentRevisionTriggers_IncrementOnlyForEffectiveContentChanges_AndPreserveUpdated()
     {
         using var tempDatabase = new TempDatabase("local-content-revision-triggers.db");
@@ -456,14 +572,19 @@ public class DatabaseMigrationRunnerTests
 
         AssertRevisions(connection, sessionId, trackId, processed: 1, projection: 1, pointsRevision: 1, sessionUpdated: 10, trackUpdated: 11);
 
-        connection.Execute("UPDATE session SET data = data, session_processing_fingerprint = session_processing_fingerprint, processed_telemetry_revision = 0, name = 'metadata' WHERE id = ?", sessionId);
-        connection.Execute("UPDATE session SET track = track, timestamp = timestamp, duration_seconds = duration_seconds, gps_offset_seconds = gps_offset_seconds, full_track_id = full_track_id, track_projection_revision = 0 WHERE id = ?", sessionId);
-        connection.Execute("UPDATE track SET points = points, points_revision = 0 WHERE id = ?", trackId);
+        connection.Execute("UPDATE session SET data = data, session_processing_fingerprint = session_processing_fingerprint, processed_telemetry_revision = NULL, name = 'metadata' WHERE id = ?", sessionId);
+        connection.Execute("UPDATE session SET track = track, timestamp = timestamp, duration_seconds = duration_seconds, gps_offset_seconds = gps_offset_seconds, full_track_id = full_track_id, track_projection_revision = NULL WHERE id = ?", sessionId);
+        connection.Execute("UPDATE track SET points = points, points_revision = NULL WHERE id = ?", trackId);
         AssertRevisions(connection, sessionId, trackId, processed: 1, projection: 1, pointsRevision: 1, sessionUpdated: 10, trackUpdated: 11);
 
-        connection.Execute("UPDATE session SET data = ?, processed_telemetry_revision = 0 WHERE id = ?", new byte[] { 2 }, sessionId);
-        connection.Execute("UPDATE session SET gps_offset_seconds = 0.5, track_projection_revision = 0 WHERE id = ?", sessionId);
-        connection.Execute("UPDATE track SET points = ?, points_revision = 0 WHERE id = ?", AppJson.Serialize(new List<TrackPoint> { new(101, 4, 5, 6) }), trackId);
+        connection.Execute("UPDATE session SET data = data, session_processing_fingerprint = session_processing_fingerprint, processed_telemetry_revision = 99 WHERE id = ?", sessionId);
+        connection.Execute("UPDATE session SET track = track, timestamp = timestamp, duration_seconds = duration_seconds, gps_offset_seconds = gps_offset_seconds, full_track_id = full_track_id, track_projection_revision = 99 WHERE id = ?", sessionId);
+        connection.Execute("UPDATE track SET points = points, points_revision = 99 WHERE id = ?", trackId);
+        AssertRevisions(connection, sessionId, trackId, processed: 1, projection: 1, pointsRevision: 1, sessionUpdated: 10, trackUpdated: 11);
+
+        connection.Execute("UPDATE session SET data = ?, processed_telemetry_revision = NULL WHERE id = ?", new byte[] { 2 }, sessionId);
+        connection.Execute("UPDATE session SET gps_offset_seconds = 0.5, track_projection_revision = NULL WHERE id = ?", sessionId);
+        connection.Execute("UPDATE track SET points = ?, points_revision = NULL WHERE id = ?", AppJson.Serialize(new List<TrackPoint> { new(101, 4, 5, 6) }), trackId);
         AssertRevisions(connection, sessionId, trackId, processed: 2, projection: 2, pointsRevision: 2, sessionUpdated: 10, trackUpdated: 11);
     }
 

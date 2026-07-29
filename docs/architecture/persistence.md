@@ -176,13 +176,16 @@ using the sync-facing `Updated` timestamp: `session.processed_telemetry_revision
 changes when the processed BLOB or its fingerprint changes,
 `session.track_projection_revision` changes when the cached session-window track
 or any of its projection inputs changes, and `track.points_revision` changes when
-the full-track point payload changes. Startup migration backfills revision `1`
-for existing non-null payloads, drops every owned revision trigger, and recreates
-the current definitions. Trigger-level `WHEN` predicates avoid nested writes for
+the full-track point payload changes. Startup migration normalizes both zero and
+SQL-null legacy revisions to `1` for existing non-null payloads and to `0` when
+the payload is absent, then drops every owned revision trigger and recreates the
+current definitions. Trigger-level `WHEN` predicates avoid nested writes for
 no-op watched assignments; effective content changes advance exactly one step,
-while an incoming assignment to a local revision is restored or replaced by the
-SQLite-owned value. These values are excluded from JSON/sync contracts; they are
-local cache/read-coherence keys, not conflict versions.
+and payload-aware fallback arithmetic prevents nullable legacy state from
+remaining null after a watched write. An incoming revision assignment that
+accompanies a watched write is restored or replaced by the SQLite-owned value.
+These values are excluded from JSON/sync contracts; they are local
+cache/read-coherence keys, not conflict versions.
 
 Repositories do not publish UI state. The reactive boundary above SQLite is the
 store writer layer: single-aggregate commit methods call repositories, re-read
