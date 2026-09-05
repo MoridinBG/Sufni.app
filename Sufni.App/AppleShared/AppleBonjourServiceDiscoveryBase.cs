@@ -81,6 +81,8 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
         }
 
         var key = GetBrowseResultKey(result);
+        var instanceName = ServiceAnnouncementMetadataReader.ReadInstanceName(result) ?? key;
+        var txtRecords = ReadTxtRecords(result.TxtRecord);
         logger.Verbose(
             "Bonjour browse result added on {Platform} for endpoint {Endpoint}",
             platformName,
@@ -119,8 +121,6 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
                 return;
             }
 
-            var instanceName = ServiceAnnouncementMetadataReader.ReadInstanceName(result) ?? key;
-            var txtRecords = ServiceAnnouncementMetadataReader.ReadTxtRecords(result);
             var announcement = new ServiceAnnouncement(address, port.Value, instanceName, txtRecords);
             if (!browseLifecycle.TryResolve(key, resolutionId, announcement))
             {
@@ -175,6 +175,7 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
     private NWBrowser CreateBrowser(string type)
     {
         var browserDescriptor = NWBrowserDescriptor.CreateBonjourService(type, "local.");
+        browserDescriptor.IncludeTxtRecord = true;
         var newBrowser = new NWBrowser(browserDescriptor, parameters);
         newBrowser.SetDispatchQueue(dispatchQueue);
 
@@ -227,4 +228,20 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
     }
 
     private static string GetBrowseResultKey(NWBrowseResult result) => result.EndPoint.ToString() ?? string.Empty;
+
+    private static IReadOnlyDictionary<string, string> ReadTxtRecords(NWTxtRecord? txtRecord)
+    {
+        var copiedRecords = new List<KeyValuePair<string, byte[]>>();
+        txtRecord?.Apply((key, _, value) =>
+        {
+            if (!string.IsNullOrEmpty(key))
+            {
+                copiedRecords.Add(new KeyValuePair<string, byte[]>(key, value.ToArray()));
+            }
+
+            return true;
+        });
+
+        return ServiceAnnouncementMetadataReader.ReadTxtRecords(copiedRecords);
+    }
 }

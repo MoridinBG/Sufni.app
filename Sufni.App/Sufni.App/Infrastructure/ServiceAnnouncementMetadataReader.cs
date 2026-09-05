@@ -45,6 +45,18 @@ public static class ServiceAnnouncementMetadataReader
         return records;
     }
 
+    public static IReadOnlyDictionary<string, string> ReadTxtRecords(
+        IEnumerable<KeyValuePair<string, byte[]>> source)
+    {
+        var records = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var record in source)
+        {
+            AddKeyValue(record.Key, record.Value, records);
+        }
+
+        return records;
+    }
+
     private static void AppendTxtRecords(object value, Dictionary<string, string> records, int depth)
     {
         switch (value)

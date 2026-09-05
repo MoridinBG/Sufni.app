@@ -91,10 +91,9 @@ set_xml_property() {
   XML_PROPERTY_NAME="$name" XML_PROPERTY_VALUE="$value" perl -0pi -e '
     my $name = $ENV{"XML_PROPERTY_NAME"};
     my $value = $ENV{"XML_PROPERTY_VALUE"};
-    if (s{<\Q$name\E>.*?</\Q$name\E>}{<$name>$value</$name>}s) {
-      exit 0;
+    if (!s{<\Q$name\E>.*?</\Q$name\E>}{<$name>$value</$name>}s) {
+      s{(</PropertyGroup>)}{    <$name>$value</$name>\n$1} or die "No PropertyGroup found\n";
     }
-    s{(</PropertyGroup>)}{    <$name>$value</$name>\n$1} or die "No PropertyGroup found\n";
   ' "$file"
 }
 
@@ -134,7 +133,7 @@ ensure_generated_xcode_project() {
   fi
 
   local log_file
-  log_file="$(mktemp "${TMPDIR:-/tmp}/sufni-ios-signing-dotnet-build.XXXXXX.log")"
+  log_file="$(mktemp "${TMPDIR:-/tmp}/sufni-ios-signing-dotnet-build.XXXXXX")"
 
   set +e
   dotnet build "$IOS_PROJECT" \
@@ -173,7 +172,7 @@ create_or_refresh_profile() {
   fi
 
   local log_file
-  log_file="$(mktemp "${TMPDIR:-/tmp}/sufni-ios-signing-xcodebuild.XXXXXX.log")"
+  log_file="$(mktemp "${TMPDIR:-/tmp}/sufni-ios-signing-xcodebuild.XXXXXX")"
 
   set +e
   xcodebuild \

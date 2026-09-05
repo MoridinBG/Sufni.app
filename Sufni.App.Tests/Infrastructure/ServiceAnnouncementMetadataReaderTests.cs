@@ -42,6 +42,33 @@ public class ServiceAnnouncementMetadataReaderTests
     }
 
     [Fact]
+    public void ReadTxtRecords_ParsesKeyValueByteRecords()
+    {
+        KeyValuePair<string, byte[]>[] source =
+        [
+            new("live_proto", Encoding.UTF8.GetBytes("2")),
+            new("bid", Encoding.UTF8.GetBytes("0123456789ABCDEF")),
+        ];
+
+        var records = ServiceAnnouncementMetadataReader.ReadTxtRecords(source);
+
+        Assert.Equal("2", records["live_proto"]);
+        Assert.Equal("0123456789ABCDEF", records["bid"]);
+    }
+
+    [Fact]
+    public void ReadTxtRecords_ReturnsOwnedSnapshot_WhenSourceIsDisposed()
+    {
+        var source = new DisposableTxtAnnouncement(["live_proto=2", "bid=0123456789ABCDEF"]);
+
+        var records = ServiceAnnouncementMetadataReader.ReadTxtRecords(source);
+        source.Dispose();
+
+        Assert.Equal("2", records["live_proto"]);
+        Assert.Equal("0123456789ABCDEF", records["bid"]);
+    }
+
+    [Fact]
     public void ServiceAnnouncement_AddressPortConstructor_DefaultsMetadata()
     {
         var announcement = new ServiceAnnouncement(System.Net.IPAddress.Loopback, 5575);
@@ -55,4 +82,14 @@ public class ServiceAnnouncementMetadataReaderTests
     private sealed record StringTxtAnnouncement(IReadOnlyList<string> Txt);
 
     private sealed record ByteTxtAnnouncement(IReadOnlyList<byte[]> Txt);
+
+    private sealed class DisposableTxtAnnouncement(IReadOnlyList<string> txt) : IDisposable
+    {
+        private bool isDisposed;
+
+        public IReadOnlyList<string> Txt =>
+            !isDisposed ? txt : throw new ObjectDisposedException(nameof(DisposableTxtAnnouncement));
+
+        public void Dispose() => isDisposed = true;
+    }
 }
