@@ -1031,12 +1031,20 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             return;
         }
 
-        var plotModel = plot!;
+        // ScottPlot renders on the render thread under Plot.Sync; rebuilding
+        // the plottables without it races a frame in progress.
+        lock (PlotControl.Plot.Sync)
+        {
+            RefreshPlot(RebuildPlot(plot!));
+        }
+    }
+
+    private PlotInvalidation RebuildPlot(TelemetryPlot plotModel)
+    {
         if (!CanLoadPlotData)
         {
             plotModel.Clear();
-            RefreshPlot(PlotInvalidation.Data);
-            return;
+            return PlotInvalidation.Data;
         }
 
         ApplyPlotOptions(plotModel);
@@ -1045,11 +1053,10 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         ApplyTimelineCursor();
         ApplyTimelineRange();
         OnPlotDataLoaded();
-        RefreshPlot(
-            PlotInvalidation.Data |
+        return PlotInvalidation.Data |
             PlotInvalidation.Cursor |
             PlotInvalidation.Overlay |
-            PlotInvalidation.Viewport);
+            PlotInvalidation.Viewport;
     }
 
     protected virtual void OnPlotDataLoaded()

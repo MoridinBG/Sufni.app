@@ -122,6 +122,9 @@ Thread ownership is explicit:
 - Plot views coalesce `RefreshPlot()` calls through one render-priority
   dispatcher post. Multiple property/theme/reload triggers in the same UI turn
   collapse into one ScottPlot refresh.
+- ScottPlot draws on Avalonia's render thread while holding `Plot.Sync`.
+  Time-series plot views rebuild their plottables under the same lock, so a
+  frame never reads a half-cleared plot.
 - Recorded-session maps initialize lazily. `SessionDetailViewModel.SetMapState`
   calls `MapViewModel.InitializeAsync()` only the first time the map state
   reserves layout (`SurfacePresentationState.ReservesLayout`); `Hidden` map
