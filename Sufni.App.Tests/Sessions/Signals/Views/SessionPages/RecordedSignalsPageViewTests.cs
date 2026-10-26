@@ -2,14 +2,12 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.Extensibility.Views;
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Segments.Views;
 using Sufni.App.Sessions.Signals.ViewModels.SessionPages;
 using Sufni.App.Sessions.Signals.Views.Controls;
 using Sufni.App.Sessions.Signals.Views.SessionPages;
 using Sufni.App.Shared.Views.Controls;
-using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.Tests.TestSupport.Sessions;
@@ -20,18 +18,9 @@ namespace Sufni.App.Tests.Sessions.Signals.Views.SessionPages;
 public class RecordedSignalsPageViewTests
 {
     [AvaloniaFact]
-    public async Task RecordedSignalsPageView_ComposesToolbarAndSignalRows()
+    public async Task RecordedSignalsPageView_ComposesSegmentToolbarAndSignalRows()
     {
         var signalsWorkspace = new TestRecordedSessionSignalsWorkspace(TestTelemetryData.CreateMinimal());
-        signalsWorkspace.ExtensionSlots.SignalToolbarViews.Add(new RecordedSessionToolbarViewContribution(
-            "extension",
-            "toolbar-view",
-            Order: 0,
-            RecordedSessionToolbarZone.Trailing,
-            new TestContributionViewModel
-            {
-                Content = new TextBlock { Name = "MobileSignalToolbarContribution", Text = "Toolbar" },
-            }));
         var mediaWorkspace = new TestSessionMediaWorkspace(
             trackPoints:
             [
@@ -42,7 +31,8 @@ public class RecordedSignalsPageViewTests
 
         await using var mounted = await MountAsync(page);
 
-        Assert.Single(mounted.View.GetVisualDescendants().OfType<RecordedSessionToolbarContributionsView>());
+        Assert.Single(mounted.View.GetVisualDescendants().OfType<SegmentMatchToolbarView>());
+        Assert.Single(mounted.View.GetVisualDescendants().OfType<SegmentPickerSheetButtonView>());
         Assert.Single(mounted.View.GetVisualDescendants().OfType<RecordedSignalRowsView>());
         Assert.Single(mounted.View.GetVisualDescendants().OfType<SignalRowsRoot>());
     }

@@ -11,7 +11,6 @@ using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
@@ -38,7 +37,6 @@ public class SessionWorkspaceViewModelTests
     {
         var sourceVisibility = new TelemetrySourceVisibilityStore();
         var timeline = new SessionTimelineLinkViewModel();
-        var extensionSlots = new RecordedSessionExtensionSlots();
         using var actions = new RecordedSessionEditorActions();
         var intents = Subscribe(actions);
         using var state = new Subject<RecordedSessionEditorState>();
@@ -48,7 +46,6 @@ public class SessionWorkspaceViewModelTests
             analysisResultState,
             sourceVisibility,
             timeline,
-            () => extensionSlots,
             actions,
             TestSegmentPickers.Create(),
             TestSegmentComparisons.Create());
@@ -194,13 +191,11 @@ public class SessionWorkspaceViewModelTests
 
     private static (Subject<RecordedSessionEditorState> State, TestSessionOperationGateway Gateway, RecordedSessionEditorActions Actions, SessionAnalysisWorkspaceViewModel Workspace) CreateAnalysisWorkspace()
     {
-        var extensionSlots = new RecordedSessionExtensionSlots();
         var gateway = new TestSessionOperationGateway();
         var actions = new RecordedSessionEditorActions();
         var state = new Subject<RecordedSessionEditorState>();
         var workspace = new SessionAnalysisWorkspaceViewModel(
             state,
-            () => extensionSlots,
             gateway,
             actions,
             new RelayCommand<TelemetryRangeSelection?>(_ => { }),
@@ -218,7 +213,6 @@ public class SessionWorkspaceViewModelTests
             state,
             () => null,
             new SessionTimelineLinkViewModel(),
-            () => new RecordedSessionExtensionSlots(),
             videoPane: null,
             TestSegmentComparisons.Create());
         var changes = TrackPropertyChanges(workspace);
@@ -242,7 +236,6 @@ public class SessionWorkspaceViewModelTests
             state,
             () => null,
             new SessionTimelineLinkViewModel(),
-            () => new RecordedSessionExtensionSlots(),
             videoPane: null,
             segmentComparison);
         var changes = TrackPropertyChanges(workspace);
@@ -271,7 +264,6 @@ public class SessionWorkspaceViewModelTests
             state,
             () => null,
             new SessionTimelineLinkViewModel(),
-            () => new RecordedSessionExtensionSlots(),
             videoPane,
             TestSegmentComparisons.Create());
         state.OnNext(CreateState());
@@ -373,7 +365,6 @@ public class SessionWorkspaceViewModelTests
     {
         var sourceVisibility = new TelemetrySourceVisibilityStore();
         var timeline = new SessionTimelineLinkViewModel();
-        var extensionSlots = new RecordedSessionExtensionSlots();
         using var actions = new RecordedSessionEditorActions();
         using var state = new Subject<RecordedSessionEditorState>();
         var analysisResultState = Substitute.For<IRecordedSessionAnalysisResultState>();
@@ -382,7 +373,6 @@ public class SessionWorkspaceViewModelTests
             analysisResultState,
             sourceVisibility,
             timeline,
-            () => extensionSlots,
             actions,
             TestSegmentPickers.Create(),
             TestSegmentComparisons.Create());

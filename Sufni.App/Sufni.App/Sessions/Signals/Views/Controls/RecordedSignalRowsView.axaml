@@ -27,7 +27,6 @@ mc:Ignorable="d">
             RowId="{x:Static models:SignalRowIds.Travel}"
             segmentViews:SegmentComparisonRows.Rows="{Binding SegmentComparison.TravelRows}"
             segmentViews:SegmentComparisonRows.Timeline="{Binding Timeline}"
-            controls:SignalRowExtensionHost.ExtensionSlots="{Binding ExtensionSlots}"
             HeaderActions="{Binding TravelHeaderActions}"
             Title="Travel (mm)"
             PresentationState="{Binding TravelSignalState}">
@@ -55,7 +54,6 @@ mc:Ignorable="d">
                     RowId="{x:Static models:SignalRowIds.Velocity}"
                     segmentViews:SegmentComparisonRows.Rows="{Binding SegmentComparison.VelocityRows}"
                     segmentViews:SegmentComparisonRows.Timeline="{Binding Timeline}"
-                    controls:SignalRowExtensionHost.ExtensionSlots="{Binding ExtensionSlots}"
                     HeaderActions="{Binding VelocityHeaderActions}"
                     Title="Velocity (m/s)"
                     PresentationState="{Binding VelocitySignalState}">
@@ -86,7 +84,6 @@ mc:Ignorable="d">
             RowId="{x:Static models:SignalRowIds.Imu}"
             segmentViews:SegmentComparisonRows.Rows="{Binding SegmentComparison.ImuRows}"
             segmentViews:SegmentComparisonRows.Timeline="{Binding Timeline}"
-            controls:SignalRowExtensionHost.ExtensionSlots="{Binding ExtensionSlots}"
             HeaderActions="{Binding ImuHeaderActions}"
             Title="Vibration RMS (g)"
             TitleToolTip="Root-mean-square frame vibration — higher means rougher terrain or more chatter."
@@ -114,7 +111,6 @@ mc:Ignorable="d">
                 <controls:SignalRow.ChildRows>
                     <controls:SignalRow
                     RowId="{x:Static models:SignalRowIds.PitchRoll}"
-                    controls:SignalRowExtensionHost.ExtensionSlots="{Binding ExtensionSlots}"
                     HeaderActions="{Binding PitchRollHeaderActions}"
                     Title="Frame pitch/roll (deg)"
                     TitleToolTip="Frame tilt from the IMU — pitch is nose up/down, roll is lean side to side."
@@ -146,7 +142,6 @@ mc:Ignorable="d">
             RowId="{x:Static models:SignalRowIds.Speed}"
             segmentViews:SegmentComparisonRows.Rows="{Binding SegmentComparison.SpeedRows}"
             segmentViews:SegmentComparisonRows.Timeline="{Binding Timeline}"
-            controls:SignalRowExtensionHost.ExtensionSlots="{Binding ExtensionSlots}"
             HeaderActions="{Binding SpeedHeaderActions}"
             Title="GPS speed (km/h)"
             PresentationState="{Binding SpeedSignalState}">
@@ -173,7 +168,6 @@ mc:Ignorable="d">
                 <controls:SignalRow.ChildRows>
                     <controls:SignalRow
                     RowId="{x:Static models:SignalRowIds.Elevation}"
-                    controls:SignalRowExtensionHost.ExtensionSlots="{Binding ExtensionSlots}"
                     HeaderActions="{Binding ElevationHeaderActions}"
                     Title="Elevation (m)"
                     PresentationState="{Binding ElevationSignalState}">

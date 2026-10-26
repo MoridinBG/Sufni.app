@@ -10,7 +10,6 @@ using NSubstitute;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.Telemetry;
 using AvaloniaColor = Avalonia.Media.Color;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
@@ -668,8 +667,6 @@ public class TravelPlotViewTests
         public SignalLayoutPreferences SignalLayoutPreferences { get; set; } = SignalLayoutPreferences.Default;
         public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
-        public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
-
         public SegmentPickerViewModel SegmentPicker { get; } = TestSegmentPickers.Create();
         public SegmentComparisonViewModel SegmentComparison { get; } = TestSegmentComparisons.Create();
         public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; } =

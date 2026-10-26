@@ -71,7 +71,7 @@ layering rules are unchanged — only the folder grouping is slice-first instead
 | **Shell** | `Shell/` | App shell: `ShellRootViewModel`, `ShellWorkspaceViewModel`, `MainPagesViewModel`, shell coordinator, profile shell views, navigation behaviors, keyboard shortcuts |
 | **Shared** | `Shared/` | Cross-slice bases (`Base/`), common helpers, formatting, shared plot bases, shared `Views/` + `DesktopViews/` controls/dialogs/overlays/converters |
 | **Infrastructure** | `Infrastructure/` | Infra services, app JSON/preferences, theming bridge (`Theming/`), and platform-service abstractions (`IServiceDiscovery`, `IHapticFeedback`, `IFriendlyNameProvider`) |
-| **Extensibility** | `Extensibility/` | App-side extension host wiring: capability/view registries, database hooks, sync, recorded-session contributions (renamed from the old `ExtensionHosting/`) |
+| **Extensibility** | `Extensibility/` | App-side extension host wiring: capability/view registries, database hooks, recorded-session scopes |
 
 `App.axaml(.cs)`, `ViewLocator.cs`, and `MobileAppBootstrapper.cs` stay at the project root.
 
@@ -197,7 +197,7 @@ Presentation-layer topics:
 
 ## Extension Host
 
-The public extension host lets build-time modules register services, view templates, database migrations, cascade rules, app-level toolbar actions, and recorded-session UI contributions without adding capability-specific dependencies to the shared app. Dependency-lower `Sufni.Telemetry.Caching` provides the shared single-flight LRU primitive. Neutral signal rows may publish separate consecutive runs so unavailable gaps are not connected. Public builds have no modules by default; non-public builds opt in through private MSBuild imports and a generated partial startup hook.
+The public extension host lets build-time modules register services, view templates, database migrations, cascade rules, and recorded-session scopes without adding capability-specific dependencies to the shared app. Dependency-lower `Sufni.Telemetry.Caching` provides the shared single-flight LRU primitive. Public builds have no modules by default; non-public builds opt in through private MSBuild imports and a generated partial startup hook.
 
 Topics in [architecture/extensions.md](architecture/extensions.md):
 
@@ -209,14 +209,14 @@ Topics in [architecture/extensions.md](architecture/extensions.md):
 - [Database Hooks](architecture/extensions.md#database-hooks) — schema versions, migrators, constrained extension sessions
 - [Cascade Rules](architecture/extensions.md#cascade-rules) — declared extension-owned row cleanup
 - [Recorded-Session Scope](architecture/extensions.md#recorded-session-scope) — per-open-session scope lifecycle and host operations
-- [Recorded-Session Slots](architecture/extensions.md#recorded-session-slots) — generic contribution slots and descriptors
+- [Recorded Time-Range Overlays](architecture/extensions.md#recorded-time-range-overlays) — neutral time-range overlay descriptors
 - [Neutrality Rules](architecture/extensions.md#neutrality-rules) — public naming boundaries
 
 ---
 
 ## Plot Rendering
 
-ScottPlot-based plot classes (shared bases in `Shared/Plots/`, concrete plots in each slice's `Plots/` folder), wrapped by Avalonia plot views in the slices' `Views/Plots/` folders (e.g. `Shared/Views/Plots/`, `Sessions/Plots/Views/Plots/`). Recorded telemetry plots inherit from `TelemetryPlot`, recorded time-series rows add `RecordedTimeSeriesPlot`, live plots derive through `LiveStreamingPlotBase` and apply incremental batches via ScottPlot's `DataStreamer`, and GPS speed/elevation rows use `TrackSignalPlot` over `TrackPoint` data. Neutral extension signal series can carry segmented runs for real data gaps; every run contributes to value limits, and unsupported future value forms fail loudly. The position/velocity analysis plot owns deterministic disposal of its native stroke paths when reloaded or detached. `TelemetryDisplaySmoothing` and `TelemetryDisplayDownsampling` shape the displayed signal at load time. Signal row titles, drag/drop hierarchy changes, and base/hosted row plot backgrounds are owned by the Avalonia row controls, while ScottPlot keeps axes, legends, data rendering, readouts, and overlays.
+ScottPlot-based plot classes (shared bases in `Shared/Plots/`, concrete plots in each slice's `Plots/` folder), wrapped by Avalonia plot views in the slices' `Views/Plots/` folders (e.g. `Shared/Views/Plots/`, `Sessions/Plots/Views/Plots/`). Recorded telemetry plots inherit from `TelemetryPlot`, recorded time-series rows add `RecordedTimeSeriesPlot`, live plots derive through `LiveStreamingPlotBase` and apply incremental batches via ScottPlot's `DataStreamer`, and GPS speed/elevation rows use `TrackSignalPlot` over `TrackPoint` data. Segment comparison series can carry segmented runs for real data gaps; every run contributes to value limits, and unsupported value forms fail loudly. The position/velocity analysis plot owns deterministic disposal of its native stroke paths when reloaded or detached. `TelemetryDisplaySmoothing` and `TelemetryDisplayDownsampling` shape the displayed signal at load time. Signal row titles, drag/drop hierarchy changes, and root/child row plot backgrounds are owned by the Avalonia row controls, while ScottPlot keeps axes, legends, data rendering, readouts, and overlays.
 
 Topics in [architecture/plot-rendering.md](architecture/plot-rendering.md):
 

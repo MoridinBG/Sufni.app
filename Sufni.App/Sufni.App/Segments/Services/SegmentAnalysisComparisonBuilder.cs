@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Segments.Models;
+using Sufni.App.Shared.Plots;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Segments.Services;
@@ -18,20 +18,6 @@ internal static class SegmentAnalysisComparisonBuilder
 {
     private const int TravelBinCount = 20;
     private const int VelocityBinCount = 40;
-    private static readonly RecordedSessionPlotOverlayStyle MatchStyle = new(
-        new RecordedSessionMapColor(255, 115, 199, 240),
-        Width: 2,
-        Opacity: 0.85);
-    private static readonly RecordedSessionPlotOverlayStyle StatisticLineStyle = new(
-        new RecordedSessionMapColor(255, 115, 199, 240),
-        Width: 1,
-        Opacity: 0.75);
-    private static readonly RecordedSessionPlotLabelStyle StatisticLabelStyle = new(
-        new RecordedSessionMapColor(255, 115, 199, 240),
-        BackgroundColor: null,
-        FontSize: 13,
-        RecordedSessionPlotLabelAnchor.Right);
-
     public static SegmentAnalysisComparison Build(
         SegmentComparison comparison,
         SegmentComparisonDetail detail,
@@ -130,28 +116,16 @@ internal static class SegmentAnalysisComparisonBuilder
     {
         var series = row.TravelSeries.FirstOrDefault(series => series.Role == role);
         if (series is null ||
-            CreateHistogramOverlay(
-                series.Values,
-                static value => value,
-                minimum: 0,
-                binCount: TravelBinCount,
-                out var overlayContext) is not { } overlay)
+            CreateHistogramTrace(series.Values, static value => value, minimum: 0, TravelBinCount) is not { } trace)
         {
             return;
         }
 
-        var (statisticLines, statisticLabels) =
-            CreateTravelStatisticOverlays(row, detail, side, travelHistogramMode, overlayContext);
-        if (statisticLines.Count > 0 || statisticLabels.Count > 0)
-        {
-            overlay = overlay with
-            {
-                Lines = overlay.Lines.Concat(statisticLines).ToArray(),
-                Labels = overlay.Labels.Concat(statisticLabels).ToArray(),
-            };
-        }
-
-        overlays.Add(new SegmentAnalysisOverlay(SegmentAnalysisPlot.TravelDistribution, side, overlay));
+        var markers = CreateTravelStatisticMarkers(row, detail, side, travelHistogramMode);
+        overlays.Add(new SegmentAnalysisOverlay(
+            SegmentAnalysisPlot.TravelDistribution,
+            side,
+            new AnalysisPlotOverlay(trace.X, trace.Y, markers)));
     }
 
     private static void AddVelocityOverlay(
@@ -165,43 +139,29 @@ internal static class SegmentAnalysisComparisonBuilder
     {
         var series = row.VelocitySeries.FirstOrDefault(series => series.Role == role);
         if (series is null ||
-            CreateHistogramOverlay(
-                series.Values,
-                static value => value * 1000.0,
-                minimum: null,
-                binCount: VelocityBinCount,
-                out var overlayContext) is not { } overlay)
+            CreateHistogramTrace(series.Values, static value => value * 1000.0, minimum: null, VelocityBinCount) is not { } trace)
         {
             return;
         }
 
-        var (statisticLines, statisticLabels) =
-            CreateVelocityStatisticOverlays(row, detail, side, cutoffs, velocityAverageMode, overlayContext);
-        if (statisticLines.Count > 0 || statisticLabels.Count > 0)
-        {
-            overlay = overlay with
-            {
-                Lines = overlay.Lines.Concat(statisticLines).ToArray(),
-                Labels = overlay.Labels.Concat(statisticLabels).ToArray(),
-            };
-        }
-
-        overlays.Add(new SegmentAnalysisOverlay(SegmentAnalysisPlot.VelocityDistribution, side, overlay));
+        var markers = CreateVelocityStatisticMarkers(row, detail, side, cutoffs, velocityAverageMode);
+        overlays.Add(new SegmentAnalysisOverlay(
+            SegmentAnalysisPlot.VelocityDistribution,
+            side,
+            new AnalysisPlotOverlay(trace.X, trace.Y, markers)));
     }
 
-    private static (IReadOnlyList<RecordedSessionPlotLineOverlay> Lines, IReadOnlyList<RecordedSessionPlotLabelOverlay> Labels)
-        CreateVelocityStatisticOverlays(
-            SegmentComparison row,
-            SegmentComparisonDetail detail,
-            SuspensionType side,
-            DampingSpeedCutoffs cutoffs,
-            VelocityAverageMode velocityAverageMode,
-            HistogramOverlayContext overlayContext)
+    private static IReadOnlyList<AnalysisPlotMarker> CreateVelocityStatisticMarkers(
+        SegmentComparison row,
+        SegmentComparisonDetail detail,
+        SuspensionType side,
+        DampingSpeedCutoffs cutoffs,
+        VelocityAverageMode velocityAverageMode)
     {
         var telemetryData = detail.AnalysisTelemetryData;
         if (!TelemetryStatistics.HasStrokeData(telemetryData, side, row.AnalysisRange))
         {
-            return ([], []);
+            return [];
         }
 
         var sideCutoffs = cutoffs.ForSide(side);
@@ -213,98 +173,62 @@ internal static class SegmentAnalysisComparisonBuilder
                 velocityAverageMode,
                 sideCutoffs.CompressionMmPerSecond,
                 sideCutoffs.ReboundMmPerSecond));
-        var xMaximum = Math.Max(overlayContext.XMaximum * 1.05, 1.0);
-        var items = new List<(string Text, double Y, LabelSide Side)>
+        var markers = new List<AnalysisPlotMarker>
         {
-            (string.Format(CultureInfo.InvariantCulture, "match max: {0:0.0} mm/s", statistics.MaxRebound),
-                statistics.MaxRebound,
-                LabelSide.Above),
-            (string.Format(CultureInfo.InvariantCulture, "match avg: {0:0.0} mm/s", statistics.AverageRebound),
-                statistics.AverageRebound,
-                LabelSide.Below),
-            (string.Format(CultureInfo.InvariantCulture, "match avg: {0:0.0} mm/s", statistics.AverageCompression),
-                statistics.AverageCompression,
-                LabelSide.Above),
-            (string.Format(CultureInfo.InvariantCulture, "match max: {0:0.0} mm/s", statistics.MaxCompression),
-                statistics.MaxCompression,
-                LabelSide.Below),
+            new(statistics.MaxRebound,
+                string.Format(CultureInfo.InvariantCulture, "match max: {0:0.0} mm/s", statistics.MaxRebound),
+                LabelAbove: true),
+            new(statistics.AverageRebound,
+                string.Format(CultureInfo.InvariantCulture, "match avg: {0:0.0} mm/s", statistics.AverageRebound),
+                LabelAbove: false),
+            new(statistics.AverageCompression,
+                string.Format(CultureInfo.InvariantCulture, "match avg: {0:0.0} mm/s", statistics.AverageCompression),
+                LabelAbove: true),
+            new(statistics.MaxCompression,
+                string.Format(CultureInfo.InvariantCulture, "match max: {0:0.0} mm/s", statistics.MaxCompression),
+                LabelAbove: false),
         };
         if (statistics.ReboundStrokeCount > 0)
         {
-            items.Insert(
+            markers.Insert(
                 1,
-                (string.Format(
-                        CultureInfo.InvariantCulture,
-                        "match 95%: {0:0.0} mm/s",
-                        statistics.Percentile95Rebound),
+                new AnalysisPlotMarker(
                     statistics.Percentile95Rebound,
-                    LabelSide.Above));
+                    string.Format(CultureInfo.InvariantCulture, "match 95%: {0:0.0} mm/s", statistics.Percentile95Rebound),
+                    LabelAbove: true));
         }
 
         if (statistics.CompressionStrokeCount > 0)
         {
-            items.Insert(
-                items.Count - 1,
-                (string.Format(
-                        CultureInfo.InvariantCulture,
-                        "match 95%: {0:0.0} mm/s",
-                        statistics.Percentile95Compression),
+            markers.Insert(
+                markers.Count - 1,
+                new AnalysisPlotMarker(
                     statistics.Percentile95Compression,
-                    LabelSide.Below));
+                    string.Format(CultureInfo.InvariantCulture, "match 95%: {0:0.0} mm/s", statistics.Percentile95Compression),
+                    LabelAbove: false));
         }
 
-        var lines = new List<RecordedSessionPlotLineOverlay>(items.Count);
-        var labels = new List<RecordedSessionPlotLabelOverlay>(items.Count);
-        foreach (var item in items)
-        {
-            if (!double.IsFinite(item.Y))
-            {
-                continue;
-            }
-
-            lines.Add(new RecordedSessionPlotLineOverlay(
-                0,
-                item.Y,
-                xMaximum,
-                item.Y,
-                StatisticLineStyle,
-                Placement: RecordedSessionPlotLinePlacement.PlotHorizontal));
-            labels.Add(new RecordedSessionPlotLabelOverlay(
-                X: 0,
-                item.Y,
-                item.Text,
-                StatisticLabelStyle with
-                {
-                    Anchor = item.Side == LabelSide.Above
-                        ? RecordedSessionPlotLabelAnchor.Top
-                        : RecordedSessionPlotLabelAnchor.Bottom,
-                },
-                RecordedSessionPlotLabelPlacement.PlotRightEdge));
-        }
-
-        return (lines, labels);
+        return markers.Where(marker => double.IsFinite(marker.Y)).ToArray();
     }
 
-    private static (IReadOnlyList<RecordedSessionPlotLineOverlay> Lines, IReadOnlyList<RecordedSessionPlotLabelOverlay> Labels)
-        CreateTravelStatisticOverlays(
-            SegmentComparison row,
-            SegmentComparisonDetail detail,
-            SuspensionType side,
-            TravelDistributionMode travelHistogramMode,
-            HistogramOverlayContext overlayContext)
+    private static IReadOnlyList<AnalysisPlotMarker> CreateTravelStatisticMarkers(
+        SegmentComparison row,
+        SegmentComparisonDetail detail,
+        SuspensionType side,
+        TravelDistributionMode travelHistogramMode)
     {
         var telemetryData = detail.AnalysisTelemetryData;
 
         if (travelHistogramMode == TravelDistributionMode.ActiveSuspension &&
             !TelemetryStatistics.HasStrokeData(telemetryData, side, row.AnalysisRange))
         {
-            return ([], []);
+            return [];
         }
 
         var suspension = side == SuspensionType.Front ? telemetryData.Front : telemetryData.Rear;
         if (suspension.MaxTravel is not { } maxTravel || maxTravel <= 0 || !double.IsFinite(maxTravel))
         {
-            return ([], []);
+            return [];
         }
 
         var statistics = TelemetryStatistics.CalculateTravelStatistics(
@@ -313,7 +237,7 @@ internal static class SegmentAnalysisComparisonBuilder
             new TravelStatisticsOptions(row.AnalysisRange, travelHistogramMode));
         if (!double.IsFinite(statistics.Average) || !double.IsFinite(statistics.Max))
         {
-            return ([], []);
+            return [];
         }
 
         var averagePercentage = statistics.Average / maxTravel * 100.0;
@@ -321,61 +245,38 @@ internal static class SegmentAnalysisComparisonBuilder
         var bottomoutLabel = travelHistogramMode == TravelDistributionMode.DynamicSag
             ? FormatCount(statistics.Bottomouts, "bottom-out region", "bottom-out regions")
             : FormatCount(statistics.Bottomouts, "stroke bottom-out", "stroke bottom-outs");
-        var xMaximum = Math.Max(overlayContext.XMaximum * 1.05, 1.0);
-        var items = new List<(string Text, double Y, RecordedSessionPlotLabelAnchor Anchor)>
-        {
-            (string.Format(
+        return
+        [
+            new AnalysisPlotMarker(
+                statistics.Average,
+                string.Format(
                     CultureInfo.InvariantCulture,
                     "match avg: {0:0.0} mm ({1:0.0}%)",
                     statistics.Average,
                     averagePercentage),
-                statistics.Average,
-                RecordedSessionPlotLabelAnchor.Top),
-            (string.Format(
+                LabelAbove: true),
+            new AnalysisPlotMarker(
+                statistics.Max,
+                string.Format(
                     CultureInfo.InvariantCulture,
                     "match max: {0:0.0} mm ({1:0.0}%) / {2}",
                     statistics.Max,
                     maxPercentage,
                     bottomoutLabel),
-                statistics.Max,
-                RecordedSessionPlotLabelAnchor.Top),
-        };
-
-        var lines = new List<RecordedSessionPlotLineOverlay>(items.Count);
-        var labels = new List<RecordedSessionPlotLabelOverlay>(items.Count);
-        foreach (var item in items)
-        {
-            if (!double.IsFinite(item.Y))
-            {
-                continue;
-            }
-
-            lines.Add(new RecordedSessionPlotLineOverlay(
-                0,
-                item.Y,
-                xMaximum,
-                item.Y,
-                StatisticLineStyle,
-                Placement: RecordedSessionPlotLinePlacement.PlotHorizontal));
-            labels.Add(new RecordedSessionPlotLabelOverlay(
-                X: 0,
-                item.Y,
-                item.Text,
-                StatisticLabelStyle with { Anchor = item.Anchor },
-                RecordedSessionPlotLabelPlacement.PlotRightEdge));
-        }
-
-        return (lines, labels);
+                LabelAbove: true),
+        ];
     }
 
-    private static RecordedSessionAnalysisPlotOverlayDescriptor? CreateHistogramOverlay(
+    /// <summary>
+    /// Bins the values and returns the share of each bin in percent (X) against
+    /// the bin center (Y), or null when the values do not form a histogram.
+    /// </summary>
+    private static (double[] X, double[] Y)? CreateHistogramTrace(
         IReadOnlyList<double> values,
         Func<double, double> transform,
         double? minimum,
-        int binCount,
-        out HistogramOverlayContext context)
+        int binCount)
     {
-        context = default;
         var finiteValues = values
             .Select(transform)
             .Where(double.IsFinite)
@@ -426,39 +327,11 @@ internal static class SegmentAnalysisComparisonBuilder
             return null;
         }
 
-        var points = counts
-            .Index().Select(item => (
-                X: item.Item / total * 100.0,
-                Y: min + (item.Index + 0.5) * binWidth))
-            .ToArray();
-        context = new HistogramOverlayContext(
-            points.Length == 0 ? 1 : Math.Max(1, points.Max(point => point.X)),
-            min,
-            max);
-        var lines = new List<RecordedSessionPlotLineOverlay>(Math.Max(0, points.Length - 1));
-        for (var index = 1; index < points.Length; index++)
-        {
-            lines.Add(new RecordedSessionPlotLineOverlay(
-                points[index - 1].X,
-                points[index - 1].Y,
-                points[index].X,
-                points[index].Y,
-                MatchStyle));
-        }
-
-        return lines.Count == 0
-            ? null
-            : new RecordedSessionAnalysisPlotOverlayDescriptor(lines, Bands: [], Labels: []);
-    }
-
-    private enum LabelSide
-    {
-        Above,
-        Below,
+        return (
+            counts.Select(count => count / total * 100.0).ToArray(),
+            counts.Select((_, index) => min + (index + 0.5) * binWidth).ToArray());
     }
 
     private static string FormatCount(int count, string singular, string plural) =>
         count == 1 ? $"{count} {singular}" : $"{count} {plural}";
-
-    private readonly record struct HistogramOverlayContext(double XMaximum, double Minimum, double Maximum);
 }

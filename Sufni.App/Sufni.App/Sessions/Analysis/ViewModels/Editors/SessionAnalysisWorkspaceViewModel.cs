@@ -8,7 +8,6 @@ using CommunityToolkit.Mvvm.Input;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.Telemetry;
@@ -24,7 +23,6 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
 {
     private readonly ISessionOperationGateway gateway;
     private readonly RecordedSessionEditorActions actions;
-    private readonly Func<RecordedSessionExtensionSlots> extensionSlots;
     private readonly IDisposable stateSubscription;
     private TelemetryData? telemetryData;
     private TelemetryTimeRange? analysisRange;
@@ -51,7 +49,6 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
 
     public SessionAnalysisWorkspaceViewModel(
         IObservable<RecordedSessionEditorState> state,
-        Func<RecordedSessionExtensionSlots> extensionSlots,
         ISessionOperationGateway gateway,
         RecordedSessionEditorActions actions,
         IRelayCommand<TelemetryRangeSelection?> selectAnalysisRangeCommand,
@@ -59,11 +56,9 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
         SegmentComparisonViewModel segmentComparison)
     {
         ArgumentNullException.ThrowIfNull(state);
-        ArgumentNullException.ThrowIfNull(extensionSlots);
         ArgumentNullException.ThrowIfNull(gateway);
         ArgumentNullException.ThrowIfNull(actions);
 
-        this.extensionSlots = extensionSlots;
         this.gateway = gateway;
         this.actions = actions;
         SelectAnalysisRangeCommand = selectAnalysisRangeCommand;
@@ -106,8 +101,6 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
         get => selectedSessionInsightsTargetProfile;
         set => actions.SetSessionInsightsTargetProfile(value);
     }
-
-    public RecordedSessionExtensionSlots ExtensionSlots => extensionSlots();
 
     public SegmentComparisonViewModel SegmentComparison { get; }
 
@@ -209,7 +202,6 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
         nameof(SelectedBalanceSpeedMode),
         nameof(SelectedVelocityAverageMode),
         nameof(SelectedSessionInsightsTargetProfile),
-        nameof(ExtensionSlots),
         nameof(FrontAnalysisState),
         nameof(RearAnalysisState),
         nameof(CompressionBalanceState),

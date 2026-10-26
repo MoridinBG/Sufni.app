@@ -576,7 +576,6 @@ public sealed class SignalRowsRoot : UserControl
 
     // Rows without a row id keep their place and are not stored.
     private static bool IsPreferenceManaged(SignalRow row) =>
-        !SignalRowExtensionHost.GetIsHostedSignalRow(row) &&
         !string.IsNullOrWhiteSpace(row.RowId);
 
     private static IEnumerable<SignalRow> MaterializeRows(

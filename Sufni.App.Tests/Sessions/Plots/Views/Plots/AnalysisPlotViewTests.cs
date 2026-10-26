@@ -8,9 +8,7 @@ using Avalonia.Headless.XUnit;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.Telemetry;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
 
@@ -19,6 +17,7 @@ using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Sessions.Plots;
+using Sufni.App.Shared.Plots;
 using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Sessions.Plots.Views.Plots;
@@ -339,10 +338,7 @@ public class AnalysisPlotViewTests
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        var otherOverlay = new RecordedSessionAnalysisPlotOverlayDescriptor(
-            [new RecordedSessionPlotLineOverlay(1, 2, 3, 4, CreateOverlayStyle())],
-            [new RecordedSessionPlotBandOverlay(5, 6, CreateOverlayStyle())],
-            Labels: []);
+        var otherOverlay = new AnalysisPlotOverlay([1, 3], [2, 4], [new AnalysisPlotMarker(4, "other", LabelAbove: true)]);
 
         view.AnalysisOverlays =
         [
@@ -399,46 +395,18 @@ public class AnalysisPlotViewTests
         Assert.Contains(GetBars(plot.Plot), bar => bar.LineWidth == 3.0f);
     }
 
-    private static RecordedSessionAnalysisPlotOverlayDescriptor CreateFrontOverlay() =>
-        new(
-            [new RecordedSessionPlotLineOverlay(2, 12, 8, 18, CreateOverlayStyle(width: 3))],
-            [new RecordedSessionPlotBandOverlay(20, 30, CreateOverlayStyle(opacity: 0.35))],
-            Labels:
-            [
-                new RecordedSessionPlotLabelOverlay(
-                    X: 0,
-                    Y: 18,
-                    "match avg: 18.0 mm",
-                    new RecordedSessionPlotLabelStyle(
-                        new RecordedSessionMapColor(255, 17, 34, 51),
-                        BackgroundColor: null,
-                        FontSize: 11,
-                        RecordedSessionPlotLabelAnchor.Top),
-                    RecordedSessionPlotLabelPlacement.PlotRightEdge)
-            ]);
-
-    private static RecordedSessionPlotOverlayStyle CreateOverlayStyle(double width = 2, double opacity = 0.75)
-    {
-        return new RecordedSessionPlotOverlayStyle(
-            new RecordedSessionMapColor(255, 17, 34, 51),
-            width,
-            opacity);
-    }
+    private static AnalysisPlotOverlay CreateFrontOverlay() =>
+        new([2, 8], [12, 18], [new AnalysisPlotMarker(18, "match avg: 18.0 mm", LabelAbove: true)]);
 
     private static void AssertAnalysisOverlay(ScottPlot.Avalonia.AvaPlot plot)
     {
-        var span = Assert.Single(plot.Plot.PlottableList.OfType<HorizontalSpan>());
-        Assert.Equal(20, span.X1, 3);
-        Assert.Equal(30, span.X2, 3);
-        Assert.True(span.IsVisible);
-        Assert.False(span.EnableAutoscale);
-
-        var line = Assert.Single(plot.Plot.PlottableList.OfType<Scatter>());
-        Assert.False(line.MarkerStyle.IsVisible);
-        Assert.Equal(3, line.LineStyle.Width, 3);
-        Assert.Contains(
-            "match avg: 18.0 mm",
-            plot.Plot.PlottableList.OfType<Text>().SelectMany(PlotTestHelpers.ReadTextLabels));
+        var trace = Assert.Single(plot.Plot.PlottableList.OfType<Scatter>());
+        Assert.False(trace.MarkerStyle.IsVisible);
+        Assert.Equal([2.0, 8.0], trace.Data.GetScatterPoints().Select(point => point.X));
+        Assert.Contains(plot.Plot.PlottableList.OfType<FixedHorizontalLine>(), line => line.Y == 18);
+        var labels = plot.Plot.PlottableList.OfType<Text>().SelectMany(PlotTestHelpers.ReadTextLabels).ToArray();
+        Assert.Contains("match avg: 18.0 mm", labels);
+        Assert.DoesNotContain("other", labels);
     }
 
     private static DampingRangeSelection CreateFrontDampingSelection(TelemetryData telemetry)

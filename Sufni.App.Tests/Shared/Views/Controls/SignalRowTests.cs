@@ -9,13 +9,10 @@ using Avalonia.Styling;
 using Avalonia.VisualTree;
 using Sufni.App.Theming;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
 using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Shared.Views.Plots;
-using Sufni.App.Extensibility.Views;
 using Sufni.App.Infrastructure;
 using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.Shared.Views.Controls;
@@ -375,34 +372,6 @@ public class SignalRowTests
         Assert.Single(row.GetVisualDescendants().OfType<Button>(), button => button.Name == "toggle_action");
     }
 
-    [AvaloniaFact]
-    public void SignalRowExtensionHost_ReusesNeutralSignalPlotView_OnSameHostedRowUpdate()
-    {
-        var slots = new RecordedSessionExtensionSlots();
-        var root = CreateRow("Travel");
-        root.RowId = SignalRowIds.Travel;
-        SignalRowExtensionHost.SetExtensionSlots(root, slots);
-        slots.HostedSignalRows.Add(CreateNeutralHostedSignalRow(
-            "hosted-row",
-            "Hosted row",
-            CreateSignalPlotViewModel(durationSeconds: 10)));
-
-        var child = Assert.Single(root.ChildRows);
-        var originalPlotView = Assert.IsType<ExtensionSignalPlotView>(child.PlotContent);
-        var updatedViewModel = CreateSignalPlotViewModel(durationSeconds: 20);
-
-        slots.HostedSignalRows[0] = CreateNeutralHostedSignalRow(
-            "hosted-row",
-            "Updated hosted row",
-            updatedViewModel);
-
-        var updatedChild = Assert.Single(root.ChildRows);
-        Assert.Same(child, updatedChild);
-        Assert.Same(originalPlotView, updatedChild.PlotContent);
-        Assert.Same(updatedViewModel, originalPlotView.DataContext);
-        Assert.Equal("Updated hosted row", updatedChild.Title);
-    }
-
     private static SignalRow CreateRow(string title)
     {
         return new SignalRow
@@ -418,34 +387,6 @@ public class SignalRowTests
             ChildRowGap = 4,
         };
     }
-
-    private static RecordedSessionHostedSignalRowContribution CreateNeutralHostedSignalRow(
-        string contributionId,
-        string title,
-        RecordedSessionSignalPlotViewModel viewModel) =>
-        new(
-            "extension",
-            contributionId,
-            Order: 0,
-            RecordedSessionBuiltInSignalRow.Travel,
-            RecordedSessionSignalRowTarget.Extension("extension", contributionId),
-            title,
-            SurfacePresentationState.Ready,
-            viewModel,
-            IsInitiallyExpanded: true);
-
-    private static RecordedSessionSignalPlotViewModel CreateSignalPlotViewModel(double durationSeconds) =>
-        new(
-            [new RecordedSessionSignalSeries(
-                RecordedSessionSignalSeriesRole.FrontSuspension,
-                "Front",
-                "mm",
-                [0, 1],
-                [10, 20])],
-            invertValueAxis: true,
-            durationSeconds,
-            "No data",
-            []);
 
     private static SignalRowAction CreateAction(
         string id,

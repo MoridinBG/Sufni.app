@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
 using ScottPlot;
 using ScottPlot.Plottables;
@@ -70,12 +69,13 @@ public class TelemetryPlot : SufniPlot
     public static readonly Color FrontColor = SufniThemes.SignalSeries.SuspensionFront.ToScottPlotColor();
     public static readonly Color RearColor = SufniThemes.SignalSeries.SuspensionRear.ToScottPlotColor();
 
+    private static readonly Color AnalysisOverlayColor = Color.FromHex("#73C7F0");
     private const float MarkerLineWidth = 2.0f;
     private const double StatisticLabelDataOffsetFraction = 0.05;
     private const double StatisticLabelDataMarginFraction = 0.02;
     private readonly TelemetryLegendInteraction legendInteraction;
     private readonly List<IPointerReadoutTarget> pointerReadoutTargets = [];
-    private readonly List<IPlottable> statisticsOverlayPlottables = [];
+    private readonly List<IPlottable> analysisOverlayPlottables = [];
     private TelemetrySourceVisibilityStore? sourceVisibility;
     private Tooltip? cursorTooltip;
     private Color markerLineColor;
@@ -285,165 +285,62 @@ public class TelemetryPlot : SufniPlot
         HideCursorReadout();
     }
 
-    public void ApplyAnalysisOverlayDescriptor(RecordedSessionAnalysisPlotOverlayDescriptor? descriptor)
+    public void ApplyAnalysisOverlay(AnalysisPlotOverlay? overlay)
     {
-        ClearAnalysisOverlayDescriptor();
-        if (descriptor is null)
+        ClearAnalysisOverlay();
+        if (overlay is null)
         {
             return;
         }
 
-        foreach (var band in descriptor.Bands)
+        var trace = Plot.Add.Scatter(overlay.TraceX, overlay.TraceY);
+        trace.MarkerStyle.IsVisible = false;
+        trace.LineStyle.Color = AnalysisOverlayColor.WithAlpha(0.85);
+        trace.LineStyle.Width = 2;
+        analysisOverlayPlottables.Add(trace);
+
+        foreach (var marker in overlay.Markers)
         {
-            var span = Plot.Add.HorizontalSpan(band.X1, band.X2);
-            ApplyAnalysisOverlayStyle(span, band.Style);
-            statisticsOverlayPlottables.Add(span);
-
-            if (!string.IsNullOrWhiteSpace(band.Label))
+            var line = new FixedHorizontalLine
             {
-                var label = AddAnalysisOverlayLabel(band.Label, (band.X1 + band.X2) / 2.0, Plot.Axes.GetLimits().Top);
-                statisticsOverlayPlottables.Add(label);
-            }
-        }
-
-        foreach (var line in descriptor.Lines)
-        {
-            IPlottable linePlottable;
-            if (line.Placement == RecordedSessionPlotLinePlacement.PlotHorizontal)
-            {
-                var horizontalLine = new FixedHorizontalLine
-                {
-                    LineWidth = (float)line.Style.Width,
-                    LineColor = ToPlotColor(line.Style),
-                    LinePattern = LinePattern.DenselyDashed,
-                    Y = line.Y1,
-                };
-                linePlottable = horizontalLine;
-                Plot.PlottableList.Add(horizontalLine);
-            }
-            else
-            {
-                var scatter = Plot.Add.Scatter(
-                    new[] { line.X1, line.X2 },
-                    new[] { line.Y1, line.Y2 });
-                scatter.MarkerStyle.IsVisible = false;
-                scatter.LineStyle.Color = ToPlotColor(line.Style);
-                scatter.LineStyle.Width = (float)line.Style.Width;
-                linePlottable = scatter;
-            }
-
-            statisticsOverlayPlottables.Add(linePlottable);
-
-            if (!string.IsNullOrWhiteSpace(line.Label))
-            {
-                var label = AddAnalysisOverlayLabel(line.Label, line.X2, line.Y2);
-                statisticsOverlayPlottables.Add(label);
-            }
-        }
-
-        foreach (var labelOverlay in descriptor.Labels)
-        {
-            var label = AddAnalysisOverlayLabel(labelOverlay);
-            statisticsOverlayPlottables.Add(label);
+                LineWidth = 1,
+                LineColor = AnalysisOverlayColor.WithAlpha(0.75),
+                LinePattern = LinePattern.DenselyDashed,
+                Y = marker.Y,
+            };
+            Plot.PlottableList.Add(line);
+            analysisOverlayPlottables.Add(line);
+            analysisOverlayPlottables.Add(AddMarkerLabel(marker));
         }
     }
 
-    private void ClearAnalysisOverlayDescriptor()
+    private void ClearAnalysisOverlay()
     {
-        foreach (var plottable in statisticsOverlayPlottables)
+        foreach (var plottable in analysisOverlayPlottables)
         {
             Plot.PlottableList.Remove(plottable);
         }
 
-        statisticsOverlayPlottables.Clear();
+        analysisOverlayPlottables.Clear();
     }
 
-    private static void ApplyAnalysisOverlayStyle(HorizontalSpan span, RecordedSessionPlotOverlayStyle style)
+    private Text AddMarkerLabel(AnalysisPlotMarker marker)
     {
-        var color = ToPlotColor(style);
-        span.FillColor = color;
-        span.LineStyle.Color = color;
-        span.LineStyle.Width = (float)style.Width;
-        span.EnableAutoscale = false;
-        span.IsVisible = true;
-    }
-
-    private Text AddAnalysisOverlayLabel(string label, double x, double y)
-    {
-        var text = Plot.Add.Text(label, x, y);
-        text.LabelFontColor = PlotTheme.InPlotLabelText.ToScottPlotColor();
-        text.LabelFontSize = 12;
-        text.LabelAlignment = Alignment.MiddleCenter;
+        var limits = Plot.Axes.GetLimits();
+        var x = limits.Right - Math.Abs(limits.Right - limits.Left) * 0.015;
+        var y = OffsetMarkerLabelPosition(marker.Y, marker.LabelAbove, limits);
+        var text = Plot.Add.Text(marker.Text, x, y);
+        text.LabelFontColor = AnalysisOverlayColor;
+        text.LabelFontSize = 13;
+        text.LabelAlignment = marker.LabelAbove ? Alignment.LowerRight : Alignment.UpperRight;
+        text.LabelOffsetX = -10;
+        text.LabelOffsetY = 0;
         return text;
     }
 
-    private Text AddAnalysisOverlayLabel(RecordedSessionPlotLabelOverlay overlay)
-    {
-        var x = overlay.X;
-        var y = overlay.Y;
-        if (overlay.Placement == RecordedSessionPlotLabelPlacement.PlotRightEdge)
-        {
-            var limits = Plot.Axes.GetLimits();
-            var xInset = Math.Abs(limits.Right - limits.Left) * 0.015;
-            x = limits.Right - xInset;
-            y = OffsetPlotRightEdgeLabelPosition(y, overlay.Style.Anchor, limits);
-        }
-
-        var text = Plot.Add.Text(overlay.Text, x, y);
-        text.LabelFontColor = ToPlotColor(overlay.Style.TextColor);
-        text.LabelFontSize = (float)overlay.Style.FontSize;
-        text.LabelAlignment = overlay.Placement == RecordedSessionPlotLabelPlacement.PlotRightEdge
-            ? ToPlotRightEdgeAlignment(overlay.Style.Anchor)
-            : ToPlotAlignment(overlay.Style.Anchor);
-        if (overlay.Placement == RecordedSessionPlotLabelPlacement.PlotRightEdge)
-        {
-            text.LabelOffsetX = -10;
-            text.LabelOffsetY = 0;
-        }
-
-        if (overlay.Style.BackgroundColor is { } backgroundColor)
-        {
-            text.LabelBackgroundColor = ToPlotColor(backgroundColor);
-            text.LabelBorderWidth = 0;
-        }
-
-        return text;
-    }
-
-    private static Color ToPlotColor(RecordedSessionPlotOverlayStyle style) =>
-        ToPlotColor(style.Color, style.Opacity);
-
-    private static Color ToPlotColor(RecordedSessionMapColor color, double opacity = 1.0)
-    {
-        return Color.FromHex($"#{color.R:x2}{color.G:x2}{color.B:x2}")
-            .WithAlpha(color.A / (double)byte.MaxValue * Math.Clamp(opacity, 0.0, 1.0));
-    }
-
-    private static Alignment ToPlotAlignment(RecordedSessionPlotLabelAnchor anchor)
-    {
-        return anchor switch
-        {
-            RecordedSessionPlotLabelAnchor.Left => Alignment.MiddleLeft,
-            RecordedSessionPlotLabelAnchor.Right => Alignment.MiddleRight,
-            RecordedSessionPlotLabelAnchor.Top => Alignment.UpperCenter,
-            RecordedSessionPlotLabelAnchor.Bottom => Alignment.LowerCenter,
-            _ => Alignment.MiddleCenter,
-        };
-    }
-
-    private static Alignment ToPlotRightEdgeAlignment(RecordedSessionPlotLabelAnchor anchor)
-    {
-        return anchor switch
-        {
-            RecordedSessionPlotLabelAnchor.Top => Alignment.LowerRight,
-            RecordedSessionPlotLabelAnchor.Bottom => Alignment.UpperRight,
-            _ => Alignment.MiddleRight,
-        };
-    }
-
-    private static double OffsetPlotRightEdgeLabelPosition(
+    private static double OffsetMarkerLabelPosition(
         double position,
-        RecordedSessionPlotLabelAnchor anchor,
+        bool above,
         AxisLimits limits)
     {
         if (!double.IsFinite(position) ||
@@ -471,7 +368,7 @@ public class TelemetryPlot : SufniPlot
         }
 
         var visualUpDirection = limits.Top > limits.Bottom ? 1d : -1d;
-        var preferredDirection = anchor == RecordedSessionPlotLabelAnchor.Top
+        var preferredDirection = above
             ? visualUpDirection
             : -visualUpDirection;
         var preferred = position + preferredDirection * offset;
@@ -612,7 +509,7 @@ public class TelemetryPlot : SufniPlot
 
     public override void Clear()
     {
-        statisticsOverlayPlottables.Clear();
+        analysisOverlayPlottables.Clear();
         legendInteraction.Clear();
         base.Clear();
         HideSourceLegend();

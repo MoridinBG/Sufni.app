@@ -1,6 +1,6 @@
 # Extension Host
 
-> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the public extension host: build-time module registration, capability registration, host services, view resolution, database hooks, and recorded-session contribution slots.
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the public extension host: build-time module registration, capability registration, view resolution, database hooks, and the recorded-session scope.
 
 ## Overview
 
@@ -9,9 +9,7 @@
 The SDK is split into two top-level namespaces inside the one assembly:
 
 - `Sufni.App.ExtensionHost.Contracts.*` — interfaces, records, and enums: the compatibility surface. Modules and the app code against these.
-- `Sufni.App.ExtensionHost.Runtime.*` — behavioral machinery that ships with the SDK (`RecordedSessionExtensionSlots`, the slot publisher and its batching collection, the mutable `SignalRowAction`, runtime presentation controls such as `PlotZoomContainer`, and the `Stores.SourceCacheStoreBase` used by public and private persisted stores). **Behavioral changes under `Runtime` are API changes** — extensions observe this machinery's semantics, not just its signatures.
-
-One deliberate cross-reference exists: the `Contracts` scope interface exposes `RecordedSessionExtensionSlots` (a `Runtime` type) — slots *are* part of the scope contract, and the single-assembly split keeps that legal.
+- `Sufni.App.ExtensionHost.Runtime.*` — behavioral machinery that ships with the SDK (the mutable `SignalRowAction`, runtime presentation controls such as `PlotZoomContainer`, and the `Stores.SourceCacheStoreBase` used by public and private persisted stores). **Behavioral changes under `Runtime` are API changes** — extensions observe this machinery's semantics, not just its signatures.
 
 The theme model is **not** part of the SDK. It lives in a separate leaf project `Sufni.App.Theming` (assembly and namespace `Sufni.App.Theming`, Avalonia-only) that the app and theme-consuming extensions reference directly; the extension host's contracts and runtime use no theme type. An extension that must style a ScottPlot surface the app cannot render for it references `Sufni.App.Theming` and calls `SufniThemes.FromVariant(...)`. See [theming.md](theming.md).
 
@@ -93,8 +91,7 @@ the extension still owns its control state and rendering; the host owns only the
 modal placement and close gestures. The same ownership rule applies to custom
 plot internals: an extension that creates disposable ScottPlot plottables or
 native drawing resources must dispose them when replacing/clearing the plot and
-when its control detaches. Host removal of the contribution or plot contents does
-not transfer ownership of those extension-created resources.
+when its control detaches.
 
 ## Runtime Stores
 
@@ -171,94 +168,10 @@ without a long positional constructor. It exposes constrained host operations:
 - set timeline visible range
 - post errors or notifications
 
-## Recorded-Session Slots
+Scopes publish nothing into the recorded-session views; the built-in features
+render their own presentation.
 
-`RecordedSessionExtensionSlots` is the shared contribution surface exposed by recorded signals, media, and analysis workspaces. The host slot object is stable for the lifetime of the open editor; state emissions and scope slot rebuilds update the contents rather than replacing the collection object that views and workspaces bind to. Scopes add contributions to their own slot collection; the manager mirrors them into the host collection and rebuilds when scope collections change.
-Slot mirroring is coalesced and published through batched collection resets so
-one extension update does not fan out as repeated intermediate empty/add UI
-states.
-Before mirroring, the manager validates that each contribution's extension id
-matches the owning factory id and that hosted signal row targets are well formed.
-Hosted signal row contributions must identify themselves through
-`RecordedSessionProjectionRowTarget.Extension(extensionId, contributionId)` using
-their own extension and contribution ids; plot-row actions and time-range
-overlays may target built-in rows or hosted rows published by the same
-extension. Contribution ids are unique globally per extension across every
-recorded-session slot family in the mirrored scope.
-Scopes that rebuild multiple slot families use
-`RecordedSessionExtensionSlotPublisher` with a
-`RecordedSessionExtensionSlotBuilder` to publish a complete neutral slot
-snapshot through the same batched reset path. Off-UI rebuild requests can be
-coalesced so only the latest pending snapshot reaches the UI thread.
-The builder can copy an existing slot snapshot, and the slot collection exposes
-a generic change subscription so host mirroring is not manually repeated per
-slot family.
-
-The 10 current public slot families are:
-
-- signal toolbar commands
-- signal toolbar views
-- map overlays
-- analysis banners, analysis plot overlays, and analysis metric annotations
-- plot context-menu actions
-- plot-row header actions
-- hosted signal rows
-- recorded time-range overlays
-
-View-model-backed slot families use marker interfaces instead of `object`:
-signal toolbar views, analysis banner/overlay, and hosted signal row
-contributions each require the matching
-`IRecordedSession...ContributionViewModel` marker. Descriptor-only
-families such as signal toolbar commands, map overlays, analysis
-metrics, plot context actions, row header actions, and time-range
-overlays carry neutral records or command descriptors instead.
-
-Contribution view-model lifetime follows each contribution contract.
-`IExtensionViewModel` remains a marker; disposal applies only when a realized
-view model also implements synchronous `IDisposable`. Instance-bearing toolbar and
-banner/overlay contributions are borrowed: host
-controls detach or replace their wrappers but do not dispose the extension-owned
-view model. Extension-owned disposal must be idempotent and
-must not depend on an async callback from the host.
-
-A hosted signal row whose plot should match the app's themed time-series
-rows can contribute the SDK's neutral `RecordedSessionSignalPlotViewModel`
-(namespace `Sufni.App.ExtensionHost.Runtime.RecordedSessions`) as its
-`IRecordedSessionHostedSignalRowContributionViewModel`. The view model carries
-neutral `RecordedSessionSignalSeries` (each tagged with a
-`RecordedSessionSignalSeriesRole` the app maps to a theme-invariant signal
-color), a value-axis inversion flag, duration, empty message, optional airtime
-spans, and observable `ShowAirtime` / `Timeline`. The host recognizes this view
-model type and renders it with the app's `ExtensionSignalPlotView` (a
-`SufniTimeSeriesPlotView`), so the row gets app theming, the shared cursor and
-visible-range link, and the inherited airtime overlay without the extension
-drawing on a raw plot. Each neutral `RecordedSessionSignalSeries` keeps the
-flat `SecondsX` / `Values` form for continuous data and may instead provide
-`RecordedSessionSignalRun` values for consecutive available runs. The host
-renders runs as separate segments and never draws a line across unavailable
-gaps; invalid runs are ignored, and when runs are present they take precedence
-over the flat arrays. Extensions that need rendering the app cannot express
-generically still supply their own view through the view registry.
-
-Recorded-session signal toolbar command and view contributions both carry
-a `RecordedSessionToolbarZone` value. The host renders `Leading`
-contributions at the start of the signal toolbar and `Trailing`
-contributions at the end, with each family and zone sorted by `Order`,
-then extension id, then contribution id. Command contributions render as
-`CommandBarButton` instances with label, optional SVG icon, command, and
-optional command parameter only. Custom toolbar UI renders through
-`RecordedSessionToolbarViewContribution` in `CommandBar.Content`.
-Toolbar controls own their own transient UI, such as flyouts. The host
-does not provide a generic page-root overlay slot for extension-owned
-transient controls.
-
-Views render these through generic host controls or bindable descriptor properties. Public plot and map models receive neutral descriptors only; they do not depend on extension workflow semantics.
-
-Time-series signal targets are typed at the extension boundary. Built-in signal rows are referenced with `RecordedSessionBuiltInSignalRow`; extension-owned rows are referenced with `RecordedSessionProjectionRowTarget.Extension(extensionId, contributionId)`. The target's `StableKey` is the only string used internally for row lookup and persisted expansion state. Host XAML may keep legacy `SignalRowIds` for built-in rows behind conversion helpers, but extension-facing contribution records do not expose those row id strings.
-
-Analysis plot overlays are generic descriptors. A descriptor can contain lines, bands, and labels. Lines may use explicit plot coordinates or the host plot's full current horizontal span for analysis reference lines. Labels specify text, text/background color, font size, anchor, and either explicit plot coordinates or the host plot's current right edge for analysis value labels. Plot controls render those primitives without knowing why an extension contributed them.
-
-Analysis plot overlays target `RecordedSessionAnalysisPlotTarget` values, which combine a plot family with the relevant suspension side, balance type, or IMU location. Analysis metric annotations target `RecordedSessionAnalysisMetricTarget` enum values for the front and rear HSC, HSR, LSC, and LSR percentage slots. Extensions contribute display text, an optional delta text, a tone, and an order. `VelocityAnalysisHost` renders annotations beside the matching host metric and sorts multiple annotations by `Order`, extension id, and contribution id.
+## Recorded Time-Range Overlays
 
 Recorded time-range overlays use neutral `RecordedTimeRangeOverlayColor` ARGB
 records and line/fill style descriptors in `Sufni.App.ExtensionHost`; the app
@@ -266,6 +179,6 @@ plot layer converts those descriptors to ScottPlot primitives at render time.
 
 ## Neutrality Rules
 
-Public code may name the host, slots, descriptors, migrations, and cascades. Public code must not name extension-specific entities, database columns, payload fields, platform services, view models, views, assets, or workflows.
+Public code may name the host, descriptors, migrations, and cascades. Public code must not name extension-specific entities, database columns, payload fields, platform services, view models, views, assets, or workflows.
 
 This is now maintained by convention and code review rather than an automated test. The previous `PublicNeutralityTests` repository-scanning enforcement has been removed.

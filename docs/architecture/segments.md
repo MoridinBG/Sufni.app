@@ -1,6 +1,6 @@
 # Saved Segments
 
-> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the `Segments/` slice: saved segments of recorded sessions, their persistence and synchronization, how trim and split move them, the segments picker, and Strava segment efforts.
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the `Segments/` slice: saved segments of recorded sessions, their persistence and synchronization, how trim and split move them, the segments picker, Strava segment efforts, and matching a range against every session.
 
 ## Table of Contents
 
@@ -11,6 +11,7 @@
 - [Trim And Split](#trim-and-split)
 - [Segments Picker](#segments-picker)
 - [Strava](#strava)
+- [Matching And Comparison](#matching-and-comparison)
 
 ## Overview
 
@@ -18,12 +19,13 @@ A saved segment is a named time range on one recorded session, in seconds from t
 
 The slice lives in `Sufni.App/Sufni.App/Segments/`:
 
-- `Models/` — `SessionSegment` (table row, `Synchronizable`) and the Strava result models.
-- `Services/` — `ISessionSegmentRepository` and `IStravaSegmentService`.
+- `Models/` — `SessionSegment` (table row, `Synchronizable`), the Strava result models, and the match and comparison models.
+- `Services/` — `ISessionSegmentRepository`, `IStravaSegmentService`, the comparison builders, and `Matching/` (`ISegmentMatcher` and the DTW scoring).
 - `Stores/` — `SessionSegmentStore` behind `ISessionSegmentStore` and `ISessionSegmentStoreWriter`.
 - `Coordinators/` — `SegmentCoordinator` behind `ISegmentCoordinator`.
-- `ViewModels/` — `SegmentPickerViewModel` with its factory and rows, `SegmentNamePromptViewModel`, and `StravaConnectDialogViewModel`.
-- `Views/` and `DesktopViews/` — the picker panel, the mobile bottom-sheet button, the desktop flyout button, and the two dialog views.
+- `ViewModels/` — `SegmentPickerViewModel` with its factory and rows, `SegmentComparisonViewModel` with its factory and rows, `SegmentNamePromptViewModel`, and `StravaConnectDialogViewModel`.
+- `Plots/` — `SegmentComparisonPlot`.
+- `Views/` and `DesktopViews/` — the picker panel, the mobile bottom-sheet button, the desktop flyout button, the match toolbar, the comparison rows and plot view, the analysis comparison banner, and the two dialog views.
 
 ## Persistence
 
@@ -67,3 +69,16 @@ The picker lists the segment efforts of the Strava activity that overlaps the se
 - `IStravaSegmentService` (singleton) keeps the client credentials and OAuth tokens in `ISecureStorage` under the `SegmentAnalysis.Strava.*` keys, which predate the fold and keep existing connections. It refreshes the access token when needed, finds the activity with the most overlap, and returns the efforts as ranges of the session's telemetry, clamped to its duration. Results are cached per session start and duration until the connection changes; the cache keeps negative results.
 - The picker loads the efforts each time it opens and passes a cancellation token; closing the picker or the editor cancels the load. Selecting an effort sets the analysis range only.
 - "Connect with Strava" opens `StravaConnectDialogViewModel` on the content-dialog path. The user enters the client id and secret, opens the authorization URL in the browser, and pastes the redirect URL back; the service exchanges the code for tokens. "Reset credentials" removes every stored key and the cache.
+
+## Matching And Comparison
+
+The Match command compares the GPS points of the selected analysis range with the session-window track of every other session and shows the matches as child rows of the Travel, Velocity, IMU, and Speed rows.
+
+- **Reads.** `ISessionContentReader` (`Sessions/Services/`) is the one place that joins the session, track, and processed-telemetry readers for work across sessions. Every catalog item carries a `SessionContentToken` (processed-telemetry revision, track projection revision, linked full-track id and points revision, timestamp, duration, and GPS offset). `GetExactSnapshotAsync` reads the selected content of a token and returns `Available`, `Stale` when the session changed since the token was taken, or `Missing`; it never returns newer content.
+- **Operation.** `ISessionOperationRunner` (`Sessions/Services/`, singleton) runs one operation per session. Starting a new one cancels the previous one; reports and completion of an operation that is no longer current are ignored. The recorded-session editor renders the operation's state as its busy overlay and cancels it when the session unloads.
+- **Matching.** `ISegmentCoordinator.MatchAsync` runs as the session's operation. It takes the source points from the session's track inside the range (at least two), and `ISegmentMatcher` scores every candidate session with DTW (`SegmentDtw`) on the background runner. The matcher keeps prepared candidate paths in a bounded cache keyed by content (64 MB). Matches are ordered by the local time of the matched segment, then by cost.
+- **Pages.** Comparisons are built ten matches at a time from exact snapshots of the matched sessions. A match whose session changed, is gone, or has no matched signals is skipped. `SegmentComparisonBuilder` cuts the matched travel, velocity, IMU, and speed series and the airtimes and places them on the source session's timeline.
+- **State.** Each editor owns one `SegmentComparisonViewModel` (created by `ISegmentComparisonFactory`, disposed on close). The editor pushes the analysis range, telemetry, track, and analysis settings into it. A change of the range, telemetry, or track discards the matches; a change of the analysis settings rebuilds only the analysis comparison. Unload clears it.
+- **Rows.** `SegmentComparisonRows` (attached to the Travel, Velocity, IMU, and Speed rows) adds one collapsed child row per comparison before the declared children. The rows have no `RowId`, so the layout preference does not store them. Each row has the match error in the title, the remove action, the compare-analysis action when the match has travel or velocity series, and the airtime toggle only when the match has airtimes (travel rows).
+- **Analysis comparison.** "Compare analysis" on one row builds a `SegmentAnalysisComparison` with `SegmentAnalysisComparisonBuilder`: travel and velocity histogram overlays with statistic markers per side, and the match's damping band percentages with deltas against the current session. The analysis pages show `SegmentAnalysisComparisonBannerView`, the travel and velocity distribution plots draw the overlays (see [plot-rendering.md](plot-rendering.md#concrete-plots)), the damping view shows the deltas, and the media workspace passes the matched track to the map (see [maps-and-tracks.md](maps-and-tracks.md)).
+- **Benchmarks.** `Sufni.App.Benchmarks/` holds the matcher benchmarks.

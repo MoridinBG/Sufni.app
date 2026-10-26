@@ -2,7 +2,6 @@ using System;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.ViewModels;
@@ -15,12 +14,10 @@ namespace Sufni.App.Sessions.Media.ViewModels.Editors;
 internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessionMediaWorkspace, IDisposable
 {
     private readonly Func<MapViewModel?> mapViewModel;
-    private readonly Func<RecordedSessionExtensionSlots> extensionSlots;
     private readonly VideoPaneViewModel? videoPane;
     private readonly SegmentComparisonViewModel segmentComparison;
     private readonly IDisposable stateSubscription;
     private MapViewModel? currentMapViewModel;
-    private RecordedSessionExtensionSlots? currentExtensionSlots;
     private SurfacePresentationState mapState = SurfacePresentationState.Hidden;
     private double? mediaColumnWidth;
 
@@ -28,18 +25,15 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
         IObservable<RecordedSessionEditorState> state,
         Func<MapViewModel?> mapViewModel,
         SessionTimelineLinkViewModel timeline,
-        Func<RecordedSessionExtensionSlots> extensionSlots,
         VideoPaneViewModel? videoPane,
         SegmentComparisonViewModel segmentComparison)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(mapViewModel);
         ArgumentNullException.ThrowIfNull(timeline);
-        ArgumentNullException.ThrowIfNull(extensionSlots);
 
         this.mapViewModel = mapViewModel;
         Timeline = timeline;
-        this.extensionSlots = extensionSlots;
         this.videoPane = videoPane;
         if (videoPane is not null)
         {
@@ -59,8 +53,6 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
 
     public SessionTimelineLinkViewModel Timeline { get; }
 
-    public RecordedSessionExtensionSlots ExtensionSlots => currentExtensionSlots ?? extensionSlots();
-
     public double? MediaColumnWidth => mediaColumnWidth;
 
     public VideoPaneViewModel? Video => videoPane is { HasVideo: true } ? videoPane : null;
@@ -76,13 +68,6 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
         {
             currentMapViewModel = nextMapViewModel;
             OnPropertyChanged(nameof(MapViewModel));
-        }
-
-        var nextExtensionSlots = extensionSlots();
-        if (!ReferenceEquals(currentExtensionSlots, nextExtensionSlots))
-        {
-            currentExtensionSlots = nextExtensionSlots;
-            OnPropertyChanged(nameof(ExtensionSlots));
         }
 
         if (SetProperty(ref mapState, state.Presentation.MapState, nameof(MapState)))

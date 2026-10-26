@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.Shared.Plots;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Segments.Models;
@@ -114,7 +114,7 @@ public enum SegmentAnalysisPlot
 public sealed record SegmentAnalysisOverlay(
     SegmentAnalysisPlot Plot,
     SuspensionType Side,
-    RecordedSessionAnalysisPlotOverlayDescriptor Overlay);
+    AnalysisPlotOverlay Overlay);
 
 /// <summary>
 /// A damping band percentage of the match, with the current session's value minus

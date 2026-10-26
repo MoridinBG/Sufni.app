@@ -65,10 +65,7 @@ There are five kinds of view model in the presentation layer:
   its own. Compact and workspace shell views bind those mirrors differently,
   but both read the same view models. The triggering of the initial store
   refresh (`LoadDatabaseContent`) also lives here so the database load happens
-  exactly once after the shell is constructed. It also exposes app toolbar
-  command and view contributions from DI-created app toolbar contribution
-  providers; profile-specific shell chrome renders those neutral app-level
-  contributions without knowing extension workflow types.
+  exactly once after the shell is constructed.
 
 - **Feature page view models** — non-entity top-level screens such as `ImportSessionsViewModel` and the pairing pages. They own only screen-scoped state, bind directly to controls, attach subscriptions and browse lifetime in `Loaded` / `Unloaded`, and delegate workflows to coordinators and services. `ImportSessionsViewModel` is the canonical example: it keeps datastore / file selection, notifications, and errors; resolves `SelectedSetup` from `ISetupStore.FindByBoardId`; asks `ITelemetryDataStoreService` to browse, load files, and register storage-provider folders; and delegates the actual import lifecycle to `ImportSessionsCoordinator`. For long-running screen actions they prefer the generated async-command `IsRunning` state over duplicate busy flags.
 
@@ -193,8 +190,9 @@ There are five kinds of view model in the presentation layer:
   runtime objects such as the page collection, timeline link,
   source-visibility store, map view model, video pane (see
   [video.md](video.md)), segments picker (see
-  [segments.md](segments.md#segments-picker)), and recorded-session extension slots
-  are owned directly by the editor or extension manager and passed to workspaces
+  [segments.md](segments.md#segments-picker)), and segment comparison (see
+  [segments.md](segments.md#matching-and-comparison)) are owned directly by the
+  editor and passed to workspaces
   by reference; state emissions update projected presentation without replacing
   those objects. The recorded signals, media, analysis, and mobile-shell
   workspaces own state subscriptions and are disposed on final editor close.
@@ -320,7 +318,7 @@ Two pages diverge from that pattern:
   on the workspace
   (recorded: projected from
   `RecordedSessionEditorState.Presentation.Signals`; live: directly on
-  `LiveSessionSignalsWorkspaceViewModel`). Hosted row titles
+  `LiveSessionSignalsWorkspaceViewModel`). Child row titles
   are progressively inset by hierarchy depth. Expanded parent rows draw
   short connector branches in the child-row band, starting at each
   direct child row's top edge and stopping before that child row's
@@ -328,7 +326,7 @@ Two pages diverge from that pattern:
   content. The guides stay in the left title/glyph gutter, avoid the
   glyph text itself, and do not enter plot chrome or shift plot
   content, so signal data remains vertically aligned across parent and
-  hosted rows.
+  child rows.
   The row hierarchy, each row's expanded/collapsed state, and manually
   resized root-row height ratios are stored in
   `SessionPreferences.SignalLayout` as stable row IDs plus normalized ratios.
@@ -352,18 +350,11 @@ Two pages diverge from that pattern:
 - **Recorded-session extension scopes** are owned by
   `SessionDetailViewModel` for each open recorded session. On
   `Loaded`, the editor initializes `RecordedSessionExtensionManager`
-  with the current domain snapshot and constrained host context; on
-  `Unloaded` / final close it disposes all scopes. The manager mirrors
-  each scope's `RecordedSessionExtensionSlots` into one host slot
-  collection. Recorded signals, media, and analysis workspaces expose
-  that same slot object so views can render toolbar
-  content, map overlays, analysis banners/overlays,
-  signal-row actions, hosted signal rows,
-  and time-range overlays without adding workflow-specific properties
-  to public workspace contracts. Extension scopes can request analysis
-  range changes, timeline range changes, notifications,
-  and cancellable host operations through `RecordedSessionHostContext`;
-  they do not write editor state directly.
+  with the current host state and constrained host context; on
+  `Unloaded` / final close it disposes all scopes. Scopes can request
+  analysis range changes, timeline range changes, and notifications
+  through `RecordedSessionHostContext`; they publish nothing into the
+  workspaces and do not write editor state directly.
 - **`PreferencesPageViewModel`** owns the per-plot `Selected` and
   `SelectedSmoothing` toggles plus a per-plot `Available` flag, and
   exposes `CreatePlotPreferences()` / `ApplyPlotPreferences(...)` /

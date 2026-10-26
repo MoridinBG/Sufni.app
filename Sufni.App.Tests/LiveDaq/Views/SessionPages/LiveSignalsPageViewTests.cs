@@ -9,7 +9,6 @@ using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 
@@ -110,7 +109,6 @@ public class LiveSignalsPageViewTests
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
         public SessionTimelineLinkViewModel Timeline { get; } = new();
-        public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
         public double? MediaColumnWidth => 400;
         public VideoPaneViewModel? Video => null;
         public MatchedTrackOverlay? MatchedTrack => null;

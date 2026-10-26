@@ -3,7 +3,6 @@ x:Class="Sufni.App.Sessions.Analysis.DesktopViews.Items.SessionAnalysisDesktopVi
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:segmentViews="clr-namespace:Sufni.App.Segments.Views"
-    xmlns:views="clr-namespace:Sufni.App.Extensibility.Views"
 xmlns:converters="clr-namespace:Sufni.App.Shared.Views.Converters"
 xmlns:controls="clr-namespace:Sufni.App.Sessions.Analysis.Views.Controls"
 xmlns:itemviews="clr-namespace:Sufni.App.Sessions.Insights.Views.Items"
@@ -60,7 +59,6 @@ mc:Ignorable="d">
             Width="{Binding #AnalysisPaneScrollViewer.Bounds.Width}"
             ClipToBounds="True"
             Spacing="16">
-                <views:RecordedSessionAnalysisContributionsView ExtensionSlots="{Binding ExtensionSlots}" />
                 <segmentViews:SegmentAnalysisComparisonBannerView DataContext="{Binding SegmentComparison}" />
 
                 <ItemsControl Name="AnalysisContentHost">

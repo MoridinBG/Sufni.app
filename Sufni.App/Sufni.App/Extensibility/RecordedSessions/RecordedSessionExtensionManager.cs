@@ -11,7 +11,6 @@ using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
 using Sufni.App.Extensibility.Capabilities;
 namespace Sufni.App.Extensibility.RecordedSessions;
@@ -25,13 +24,10 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
     private readonly IUiThreadDispatcher uiThreadDispatcher;
     private readonly IRecordedSessionHostOperations operations;
     private readonly BehaviorSubject<RecordedSessionHostState> stateChanged;
-    private readonly RecordedSessionExtensionSlotPublisher extensionSlotPublisher;
     private readonly SemaphoreSlim lifecycleGate = new(1, 1);
     private readonly object scopesGate = new();
     private readonly List<RecordedSessionExtensionScopeRegistration> scopes = [];
-    private readonly List<IDisposable> slotSubscriptions = [];
     private bool disposed;
-    private bool extensionSlotsRebuildQueued;
 
     public RecordedSessionExtensionManager(
         Guid sessionId,
@@ -54,7 +50,6 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.uiThreadDispatcher = uiThreadDispatcher;
         this.operations = operations;
-        extensionSlotPublisher = new RecordedSessionExtensionSlotPublisher(ExtensionSlots, uiThreadDispatcher);
         CurrentState = new RecordedSessionHostState(
             new RecordedSessionIdentityState(sessionId, null, null, null, IsLoaded: false, IsActive: false),
             new RecordedSessionSelectionState(null),
@@ -68,7 +63,6 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
     }
 
     public RecordedSessionHostState CurrentState { get; private set; }
-    public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
 
     public async ValueTask InitializeAsync(
         RecordedSessionHostState initialState,
@@ -98,7 +92,6 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
                     lock (scopesGate)
                     {
                         scopes.Add(new RecordedSessionExtensionScopeRegistration(factory.ExtensionId, scope));
-                        AttachScopeSlots(scope.Slots);
                     }
 
                     await scope.InitializeAsync(cancellationToken);
@@ -111,8 +104,6 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
 
                     scope.UpdateHostState(currentState);
                 }
-
-                RebuildExtensionSlotsImmediately();
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -174,23 +165,13 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
 
     private async ValueTask DisposeScopesCoreAsync()
     {
-        IDisposable[] subscriptionSnapshot;
         RecordedSessionExtensionScopeRegistration[] scopeSnapshot;
         lock (scopesGate)
         {
-            subscriptionSnapshot = slotSubscriptions.ToArray();
-            slotSubscriptions.Clear();
-            extensionSlotsRebuildQueued = false;
             scopeSnapshot = scopes.ToArray();
             scopes.Clear();
         }
 
-        foreach (var subscription in subscriptionSnapshot)
-        {
-            subscription.Dispose();
-        }
-
-        ClearExtensionSlots();
         for (var i = scopeSnapshot.Length - 1; i >= 0; i--)
         {
             await scopeSnapshot[i].Scope.DisposeAsync();
@@ -236,74 +217,6 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
                 backgroundTaskRunner,
                 uiThreadDispatcher),
             operations);
-    }
-
-    private void AttachScopeSlots(RecordedSessionExtensionSlots slots)
-    {
-        slotSubscriptions.Add(slots.SubscribeToChanges(QueueExtensionSlotsRebuild));
-    }
-
-    private void QueueExtensionSlotsRebuild()
-    {
-        lock (scopesGate)
-        {
-            if (disposed || extensionSlotsRebuildQueued)
-            {
-                return;
-            }
-
-            extensionSlotsRebuildQueued = true;
-        }
-
-        uiThreadDispatcher.Post(() =>
-        {
-            lock (scopesGate)
-            {
-                if (disposed || !extensionSlotsRebuildQueued)
-                {
-                    return;
-                }
-
-                extensionSlotsRebuildQueued = false;
-            }
-
-            RebuildExtensionSlots();
-        });
-    }
-
-    private void RebuildExtensionSlotsImmediately()
-    {
-        lock (scopesGate)
-        {
-            extensionSlotsRebuildQueued = false;
-        }
-
-        RebuildExtensionSlots();
-    }
-
-    private void RebuildExtensionSlots()
-    {
-        RecordedSessionExtensionScopeRegistration[] scopeSnapshot;
-        lock (scopesGate)
-        {
-            scopeSnapshot = scopes.ToArray();
-        }
-
-        extensionSlotPublisher.Publish(builder =>
-        {
-            foreach (var scope in scopeSnapshot)
-            {
-                ExtensionContributionValidator.ValidateRecordedSessionSlots(
-                    scope.Scope.Slots,
-                    scope.ExtensionId);
-                builder.AddFrom(scope.Scope.Slots);
-            }
-        });
-    }
-
-    private void ClearExtensionSlots()
-    {
-        extensionSlotPublisher.Clear();
     }
 
     private void ThrowIfDisposed()

@@ -4,8 +4,6 @@ using System.Linq;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Input;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.Telemetry;
@@ -262,7 +260,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
 
             if (IsAnalysisOverlayProperty(e.Property.Name))
             {
-                ApplyAnalysisOverlayDescriptor(refresh: true);
+                ApplyAnalysisOverlay(refresh: true);
             }
 
             if (e.Property.Name is nameof(ActiveAnalysisSelection) && PlotModel is ISelectableAnalysisPlot selectablePlot)
@@ -277,7 +275,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
     {
         base.OnAttachedToVisualTree(e);
         SubscribeToAnalysisResultState(AnalysisResultState);
-        ApplyAnalysisOverlayDescriptor(refresh: false);
+        ApplyAnalysisOverlay(refresh: false);
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -314,7 +312,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         SetPlotModel(plotModel);
         UpdateAnalysisTitle();
         ApplyActiveAnalysisSelectionToPlotModel(plotModel);
-        ApplyAnalysisOverlayDescriptor(refresh: false);
+        ApplyAnalysisOverlay(refresh: false);
         InitializeBarReadoutInteractions();
     }
 
@@ -322,7 +320,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
     {
         base.OnPlotDataLoaded();
         ApplyActiveAnalysisSelectionToPlotModel(PlotModel);
-        ApplyAnalysisOverlayDescriptor(refresh: false);
+        ApplyAnalysisOverlay(refresh: false);
     }
 
     protected override void LoadPlotData(TelemetryPlot plotModel)
@@ -517,41 +515,26 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         }
     }
 
-    private void ApplyAnalysisOverlayDescriptor(bool refresh)
+    private void ApplyAnalysisOverlay(bool refresh)
     {
         if (!HasPlotModel)
         {
             return;
         }
 
-        PlotModel.ApplyAnalysisOverlayDescriptor(CreateAnalysisOverlayDescriptor());
-        if (refresh)
-        {
-            RefreshPlot(PlotInvalidation.Overlay);
-        }
-    }
-
-    private RecordedSessionAnalysisPlotOverlayDescriptor? CreateAnalysisOverlayDescriptor()
-    {
         SegmentAnalysisPlot? plot = AnalysisPlotKind switch
         {
             AnalysisPlotKind.TravelDistribution => SegmentAnalysisPlot.TravelDistribution,
             AnalysisPlotKind.VelocityDistribution => SegmentAnalysisPlot.VelocityDistribution,
             _ => null,
         };
-        var overlays = AnalysisOverlays?
-            .Where(overlay => overlay.Plot == plot && overlay.Side == SuspensionType)
-            .Select(overlay => overlay.Overlay)
-            .ToArray() ?? [];
-        if (overlays.Length == 0)
+        PlotModel.ApplyAnalysisOverlay(AnalysisOverlays?
+            .FirstOrDefault(overlay => overlay.Plot == plot && overlay.Side == SuspensionType)?
+            .Overlay);
+        if (refresh)
         {
-            return null;
+            RefreshPlot(PlotInvalidation.Overlay);
         }
-
-        return new RecordedSessionAnalysisPlotOverlayDescriptor(
-            overlays.SelectMany(overlay => overlay.Lines).ToArray(),
-            overlays.SelectMany(overlay => overlay.Bands).ToArray(),
-            overlays.SelectMany(overlay => overlay.Labels).ToArray());
     }
 
     private void UpdateAnalysisTitle()

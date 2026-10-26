@@ -4,7 +4,6 @@ xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:segmentViews="clr-namespace:Sufni.App.Segments.Views"
     xmlns:controls2="clr-namespace:Sufni.App.Sessions.Insights.Views.Controls"
-    xmlns:views="clr-namespace:Sufni.App.Extensibility.Views"
 xmlns:controls="clr-namespace:Sufni.App.Shared.Views.Overlays"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -25,7 +24,6 @@ mc:Ignorable="d">
         Width="{Binding #PageScrollViewer.Bounds.Width}"
         ClipToBounds="True"
         Spacing="10">
-            <views:RecordedSessionAnalysisContributionsView ExtensionSlots="{Binding Workspace.ExtensionSlots}" />
             <segmentViews:SegmentAnalysisComparisonBannerView DataContext="{Binding Workspace.SegmentComparison}" />
 
             <StackPanel Name="MobileAnalysisHeader" Spacing="4">

@@ -1,5 +1,4 @@
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
 namespace Sufni.App.Tests.TestSupport.Doubles;
 
@@ -27,7 +26,6 @@ internal sealed class TestRecordedSessionExtensionScope : IRecordedSessionExtens
     public bool Initialized { get; private set; }
     public bool Disposed { get; private set; }
     public Action? OnDisposing { get; set; }
-    public RecordedSessionExtensionSlots Slots { get; } = new();
     public List<RecordedSessionHostState> UpdatedStates { get; } = [];
 
     public ValueTask InitializeAsync(CancellationToken cancellationToken)

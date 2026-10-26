@@ -92,5 +92,5 @@ public class ExtensionViewRegistryTests
         Assert.True(locator.Match(new ExtensionViewModel()));
     }
 
-    private sealed class ExtensionViewModel : IExtensionViewModel;
+    private sealed class ExtensionViewModel;
 }

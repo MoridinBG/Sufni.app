@@ -9,7 +9,6 @@ using Mapsui.UI.Avalonia;
 using Mapsui.Widgets.InfoWidgets;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.Models;
 
 using Sufni.App.MapsAndTracks.Models;

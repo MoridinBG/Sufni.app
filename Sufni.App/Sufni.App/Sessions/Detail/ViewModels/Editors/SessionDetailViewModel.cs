@@ -5,7 +5,6 @@ using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
@@ -97,7 +96,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly SegmentPickerViewModel segmentPicker;
     private readonly SegmentComparisonViewModel segmentComparison;
     private readonly TelemetrySourceVisibilityStore sourceVisibility = new();
-    private readonly RecordedSessionExtensionSlots emptyExtensionSlots = new();
     private readonly RecordedSessionExtensionManager? recordedSessionExtensions;
     private readonly ISessionOperationRunner sessionOperationRunner;
     private readonly SessionStalenessReconciler stalenessReconciler;
@@ -228,7 +226,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public TelemetryRangeSelection? ActiveRearAnalysisSelection => currentEditorState.AnalysisSelection.ActiveRear;
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; }
     public bool CanEditDampingSpeedCutoffs => currentEditorState.Presentation.CanEditDampingSpeedCutoffs;
-    public RecordedSessionExtensionSlots ExtensionSlots => recordedSessionExtensions?.ExtensionSlots ?? emptyExtensionSlots;
 
     #endregion Public fields
 
@@ -1677,7 +1674,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             analysisResultState,
             SourceVisibility,
             Timeline,
-            () => ExtensionSlots,
             editorActions,
             segmentPicker,
             segmentComparison);
@@ -1686,12 +1682,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             editorStateController.State,
             () => MapViewModel,
             Timeline,
-            () => ExtensionSlots,
             videoPane,
             segmentComparison);
         var analysisWorkspace = new SessionAnalysisWorkspaceViewModel(
             editorStateController.State,
-            () => ExtensionSlots,
             this,
             editorActions,
             SelectAnalysisRangeCommand,

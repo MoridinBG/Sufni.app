@@ -8,7 +8,6 @@ using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHost.Runtime.Presentation;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Services;
@@ -41,12 +40,10 @@ internal sealed class TestSessionAnalysisWorkspace : ISessionAnalysisWorkspace, 
         bool hasFrontFrameVibration = false,
         bool hasRearForkVibration = false,
         bool hasRearFrameVibration = false,
-        TelemetryTimeRange? analysisRange = null,
-        RecordedSessionExtensionSlots? extensionSlots = null)
+        TelemetryTimeRange? analysisRange = null)
     {
         TelemetryData = telemetryData;
         AnalysisRange = analysisRange;
-        ExtensionSlots = extensionSlots ?? new RecordedSessionExtensionSlots();
         FrontAnalysisState = State(hasFrontAnalysis);
         RearAnalysisState = State(hasRearAnalysis);
         CompressionBalanceState = State(hasCompressionBalance);
@@ -64,7 +61,6 @@ internal sealed class TestSessionAnalysisWorkspace : ISessionAnalysisWorkspace, 
     public BalanceSpeedMode SelectedBalanceSpeedMode { get; set; } = BalanceSpeedMode.Both;
     public VelocityAverageMode SelectedVelocityAverageMode { get; set; } = VelocityAverageMode.SampleAveraged;
     public SessionInsightsTargetProfile SelectedSessionInsightsTargetProfile { get; set; } = SessionInsightsTargetProfile.Trail;
-    public RecordedSessionExtensionSlots ExtensionSlots { get; }
     public SegmentComparisonViewModel SegmentComparison { get; } = TestSegmentComparisons.Create();
     public IReadOnlyList<TravelDistributionModeOption> TravelDistributionModeOptions { get; } =
     [
@@ -144,7 +140,6 @@ internal sealed class TestRecordedSessionSignalsWorkspace : IRecordedSessionSign
         SurfacePresentationState? pitchRollSignalState = null,
         SurfacePresentationState? speedSignalState = null,
         SurfacePresentationState? elevationSignalState = null,
-        RecordedSessionExtensionSlots? extensionSlots = null,
         IRecordedSessionAnalysisResultState? analysisResultState = null)
     {
         TelemetryData = telemetryData;
@@ -155,7 +150,6 @@ internal sealed class TestRecordedSessionSignalsWorkspace : IRecordedSessionSign
         PitchRollSignalState = pitchRollSignalState ?? SurfacePresentationState.Hidden;
         SpeedSignalState = speedSignalState ?? SurfacePresentationState.Hidden;
         ElevationSignalState = elevationSignalState ?? SurfacePresentationState.Hidden;
-        ExtensionSlots = extensionSlots ?? new RecordedSessionExtensionSlots();
     }
 
     public TelemetryData? TelemetryData { get; }
@@ -190,7 +184,6 @@ internal sealed class TestRecordedSessionSignalsWorkspace : IRecordedSessionSign
     public SignalLayoutPreferences SignalLayoutPreferences { get; set; } = SignalLayoutPreferences.Default;
     public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
     public SessionTimelineLinkViewModel Timeline { get; } = new();
-    public RecordedSessionExtensionSlots ExtensionSlots { get; }
     public SegmentPickerViewModel SegmentPicker { get; } = TestSegmentPickers.Create();
     public SegmentComparisonViewModel SegmentComparison { get; } = TestSegmentComparisons.Create();
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; set; } =
@@ -257,12 +250,10 @@ internal sealed class TestSessionMediaWorkspace : ISessionMediaWorkspace, INotif
     public TestSessionMediaWorkspace(
         IReadOnlyList<TrackPoint>? trackPoints = null,
         VideoPaneViewModel? video = null,
-        MapViewModel? mapViewModel = null,
-        RecordedSessionExtensionSlots? extensionSlots = null)
+        MapViewModel? mapViewModel = null)
     {
         MapViewModel = mapViewModel ?? CreateMapViewModel(trackPoints ?? []);
         Video = video;
-        ExtensionSlots = extensionSlots ?? new RecordedSessionExtensionSlots();
     }
 
     public bool HasMediaContent => MapState.ReservesLayout || Video is not null;
@@ -271,7 +262,6 @@ internal sealed class TestSessionMediaWorkspace : ISessionMediaWorkspace, INotif
         ? SurfacePresentationState.Ready
         : SurfacePresentationState.Hidden;
     public SessionTimelineLinkViewModel Timeline { get; } = new();
-    public RecordedSessionExtensionSlots ExtensionSlots { get; }
     public double? MediaColumnWidth { get; set; } = 400;
     public VideoPaneViewModel? Video { get; set; }
     public MatchedTrackOverlay? MatchedTrack { get; set; }
@@ -297,22 +287,4 @@ internal sealed class RequestCounter
     public int Count { get; private set; }
 
     public void Increment() => Count++;
-}
-
-internal static class TestRecordedSessionExtensionContributions
-{
-    public static RecordedSessionToolbarViewContribution AddSignalToolbarView(
-        this RecordedSessionExtensionSlots slots,
-        string contributionId = "toolbar-view",
-        IRecordedSessionToolbarContributionViewModel? viewModel = null)
-    {
-        var contribution = new RecordedSessionToolbarViewContribution(
-            "test",
-            contributionId,
-            Order: 0,
-            RecordedSessionToolbarZone.Trailing,
-            viewModel ?? new TestContributionViewModel());
-        slots.SignalToolbarViews.Add(contribution);
-        return contribution;
-    }
 }

@@ -5,7 +5,6 @@ using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
@@ -66,7 +65,6 @@ public interface IRecordedSessionSignalsWorkspace
     SignalLayoutPreferences SignalLayoutPreferences { get; set; }
     TelemetrySourceVisibilityStore SourceVisibility { get; }
     SessionTimelineLinkViewModel Timeline { get; }
-    RecordedSessionExtensionSlots ExtensionSlots { get; }
     SegmentPickerViewModel SegmentPicker { get; }
     SegmentComparisonViewModel SegmentComparison { get; }
     IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; }
@@ -101,7 +99,6 @@ public interface ISessionMediaWorkspace
     MapViewModel? MapViewModel { get; }
     SurfacePresentationState MapState { get; }
     SessionTimelineLinkViewModel Timeline { get; }
-    RecordedSessionExtensionSlots ExtensionSlots { get; }
     double? MediaColumnWidth { get; }
 
     /// <summary>
@@ -122,7 +119,6 @@ public interface ISessionAnalysisWorkspace
     BalanceSpeedMode SelectedBalanceSpeedMode { get; set; }
     VelocityAverageMode SelectedVelocityAverageMode { get; set; }
     SessionInsightsTargetProfile SelectedSessionInsightsTargetProfile { get; set; }
-    RecordedSessionExtensionSlots ExtensionSlots { get; }
     SegmentComparisonViewModel? SegmentComparison { get; }
     IReadOnlyList<TravelDistributionModeOption> TravelDistributionModeOptions { get; }
     IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; }
