@@ -51,7 +51,6 @@ internal sealed class DatabaseMigrationRunner(
             await EnsureSessionBlobSwapRequestColumnsAsync();
             await EnsureSessionBlobSwapRequestIntegrityAsync();
             await CopyPrivateSessionVideosAsync();
-            await EnsureSessionVideoIntegrityAsync();
             await MigrateSessionDerivationWindowsAsync();
             await CopyPrivateSessionSegmentsAsync();
             await extensionMigratorRunner.RunAsync(connection);
@@ -278,42 +277,6 @@ internal sealed class DatabaseMigrationRunner(
         {
             return null;
         }
-    }
-
-    private async Task EnsureSessionVideoIntegrityAsync()
-    {
-        await connection.ExecuteAsync(
-            """
-            DELETE FROM session_video
-            WHERE NOT EXISTS (
-                SELECT 1
-                FROM session
-                WHERE session.id = session_video.session_id
-                  AND session.deleted IS NULL
-            )
-            """);
-
-        await connection.ExecuteAsync("DROP TRIGGER IF EXISTS session_video_after_session_delete");
-        await connection.ExecuteAsync("DROP TRIGGER IF EXISTS session_video_after_session_soft_delete");
-        await connection.ExecuteAsync(
-            """
-            CREATE TRIGGER session_video_after_session_delete
-            AFTER DELETE ON session
-            BEGIN
-                DELETE FROM session_video
-                WHERE session_id = OLD.id;
-            END
-            """);
-        await connection.ExecuteAsync(
-            """
-            CREATE TRIGGER session_video_after_session_soft_delete
-            AFTER UPDATE OF deleted ON session
-            WHEN NEW.deleted IS NOT NULL
-            BEGIN
-                DELETE FROM session_video
-                WHERE session_id = NEW.id;
-            END
-            """);
     }
 
     private async Task EnsureSyncIndexesAsync()
@@ -660,6 +623,7 @@ internal sealed class DatabaseMigrationRunner(
         var deletedSegments = await connection.Table<SessionSegment>().DeleteAsync(segment => segment.Deleted != null && segment.Deleted < oneDayAgo);
         deletedSegments += await connection.ExecuteAsync(
             "DELETE FROM session_segment WHERE session_id NOT IN (SELECT id FROM session)");
+        await connection.ExecuteAsync("DELETE FROM session_video WHERE session_id NOT IN (SELECT id FROM session)");
         var duplicateTracks = await CleanupDuplicateTrackTimeRangesAsync();
         var deletedTracks = await connection.Table<Track>().DeleteAsync(track => track.Deleted != null && track.Deleted < oneDayAgo);
         var deletedBoards = await connection.Table<Board>().DeleteAsync(board => board.Deleted != null && board.Deleted < oneDayAgo);

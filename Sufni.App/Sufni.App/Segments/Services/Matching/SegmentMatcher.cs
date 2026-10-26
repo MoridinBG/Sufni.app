@@ -142,7 +142,7 @@ internal sealed class SegmentMatcher : ISegmentMatcher
             sortKeys[session.Id] = new SessionSortKey(session.Timestamp ?? long.MaxValue);
         }
 
-        var slots = new CandidateTrack?[sessions.Count];
+        var candidateTracks = new CandidateTrack?[sessions.Count];
         var progressGate = new object();
         var completed = 0;
         var parallelOptions = new ParallelOptions
@@ -165,7 +165,7 @@ internal sealed class SegmentMatcher : ISegmentMatcher
                 return;
             }
 
-            slots[index] = new CandidateTrack(session, path);
+            candidateTracks[index] = new CandidateTrack(session, path);
             ReportEnumerationProgress();
 
             void ReportEnumerationProgress()
@@ -179,7 +179,7 @@ internal sealed class SegmentMatcher : ISegmentMatcher
         });
 
         var tracks = new List<CandidateTrack>(sessions.Count);
-        foreach (var track in slots)
+        foreach (var track in candidateTracks)
         {
             if (track is not null)
             {

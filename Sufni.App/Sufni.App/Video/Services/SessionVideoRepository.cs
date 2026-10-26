@@ -10,7 +10,10 @@ namespace Sufni.App.Video.Services;
 
 public interface ISessionVideoRepository
 {
-    Task<List<SessionVideoClip>> GetAllAsync();
+    /// <summary>
+    /// Returns the clips of live sessions.
+    /// </summary>
+    Task<List<SessionVideoClip>> GetLiveAsync();
 
     /// <summary>
     /// Links one file to every given session in one transaction and returns
@@ -32,10 +35,15 @@ public interface ISessionVideoRepository
 
 internal sealed class SessionVideoRepository(SqliteConnectionContext connectionContext) : ISessionVideoRepository
 {
-    public async Task<List<SessionVideoClip>> GetAllAsync()
+    public async Task<List<SessionVideoClip>> GetLiveAsync()
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
-        return await connection.Table<SessionVideoClip>().ToListAsync();
+        return await connection.QueryAsync<SessionVideoClip>(
+            """
+            SELECT clip.*
+            FROM session_video clip
+            JOIN session ON session.id = clip.session_id AND session.deleted IS NULL
+            """);
     }
 
     public Task<IReadOnlyList<SessionVideoClip>> LinkAsync(

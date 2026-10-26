@@ -19,6 +19,7 @@ using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
 using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.Video.Models;
 using Sufni.App.Tests.TestSupport.Persistence;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Infrastructure;
@@ -1122,7 +1123,7 @@ public class DatabaseMigrationRunnerTests
         }
 
         var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        var clip = Assert.Single(await database.SessionVideoRepository.GetAllAsync());
+        var clip = Assert.Single(await database.SessionVideoRepository.GetLiveAsync());
 
         Assert.Equal((clipId, sessionId, "/videos/ride.mp4", 1_000L, 60.0, 2.5, 7L),
             (clip.Id, clip.SessionId, clip.Path, clip.StartTimestamp, clip.DurationSeconds, clip.AlignmentOffsetSeconds, clip.Added));
@@ -1276,27 +1277,28 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
-    public async Task SessionDelete_RemovesLinkedVideos()
+    public async Task StartupCleanup_PurgesVideosOfPurgedSessions()
     {
-        using var tempDatabase = new TempDatabase("session-video-ownership.db");
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        var softDeletedSessionId = Guid.NewGuid();
-        var hardDeletedSessionId = Guid.NewGuid();
+        using var tempDatabase = new TempDatabase("video-purge.db");
+        var purgedSessionId = Guid.NewGuid();
         var keptSessionId = Guid.NewGuid();
-        foreach (var sessionId in new[] { softDeletedSessionId, hardDeletedSessionId, keptSessionId })
+        var keptClipId = Guid.NewGuid();
+        var twoDaysAgo = DateTimeOffset.UtcNow.AddDays(-2).ToUnixTimeSeconds();
+
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
         {
-            await database.PutSessionAsync(new Session(sessionId, "ride", string.Empty, null));
+            connection.CreateTable<Session>();
+            connection.CreateTable<SessionVideoClip>();
+            connection.Insert(new Session(purgedSessionId, "purged", string.Empty, null) { Updated = 10, Deleted = twoDaysAgo });
+            connection.Insert(new Session(keptSessionId, "kept", string.Empty, null) { Updated = 10 });
+            connection.Insert(new SessionVideoClip { Id = Guid.NewGuid(), SessionId = purgedSessionId, Path = "/videos/orphan.mp4" });
+            connection.Insert(new SessionVideoClip { Id = keptClipId, SessionId = keptSessionId, Path = "/videos/kept.mp4" });
         }
 
-        await database.SessionVideoRepository.LinkAsync(
-            "/videos/ride.mp4", 1_000, 60, added: 1, [softDeletedSessionId, hardDeletedSessionId, keptSessionId]);
+        await new TestPersistenceHarness(tempDatabase.DatabasePath).GetInitializedConnectionAsync();
 
-        using var connection = new SQLiteConnection(tempDatabase.DatabasePath);
-        connection.Execute("UPDATE session SET deleted = ? WHERE id = ?", 12, softDeletedSessionId);
-        connection.Execute("DELETE FROM session WHERE id = ?", hardDeletedSessionId);
-
-        var clip = Assert.Single(await database.SessionVideoRepository.GetAllAsync());
-        Assert.Equal(keptSessionId, clip.SessionId);
+        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
+        Assert.Equal(keptClipId, Assert.Single(verificationConnection.Table<SessionVideoClip>().ToList()).Id);
     }
 
     [Fact]

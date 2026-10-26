@@ -283,9 +283,9 @@ the validated generation write succeeds.
 
 `session_video` links a local video file to a recorded session. It is local
 state and is not synchronized. `ISessionVideoRepository` writes one row per
-matched session in one transaction and updates the alignment offset. Startup
-removes rows whose session is missing or soft-deleted and recreates the
-delete/soft-delete triggers that remove the rows with their session. Builds that
+matched session in one transaction and updates the alignment offset. A clip is
+live only while its session is live: `ISessionVideoRepository` reads the clips
+of live sessions, and no delete cascades to clips. Builds that
 ran the old video extension have their `private_session_video_clip` rows copied
 once into `session_video`; the copy drops the source table and its
 `extension_schema_version` row. See [video.md](video.md).
@@ -368,7 +368,7 @@ duplicate extension table ownership during connection-context construction.
 On database initialization, the `Cleanup()` pass permanently removes:
 
 - `Synchronizable` rows with `Deleted` older than 1 day
-- `session_segment` rows whose session row no longer exists
+- `session_segment` and `session_video` rows whose session row no longer exists
 - `paired_device` rows where `Expires < DateTime.UtcNow`
 
 Recorded-source orphan cleanup runs after initialization through

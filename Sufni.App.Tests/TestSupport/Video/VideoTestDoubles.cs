@@ -124,7 +124,7 @@ internal sealed class VideoFixture : IDisposable
 
     public async Task<SessionVideoStore> CreateStoreAsync(params SessionVideoClip[] clips)
     {
-        Repository.GetAllAsync().Returns([.. clips]);
+        Repository.GetLiveAsync().Returns([.. clips]);
         var store = new SessionVideoStore(Repository, new InlineUiThreadDispatcher());
         await store.RefreshAsync(TestContext.Current.CancellationToken);
         return store;

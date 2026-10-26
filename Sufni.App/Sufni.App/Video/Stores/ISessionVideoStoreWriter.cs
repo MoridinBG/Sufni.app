@@ -8,7 +8,7 @@ namespace Sufni.App.Video.Stores;
 public interface ISessionVideoStoreWriter : ISessionVideoStore
 {
     /// <summary>
-    /// Loads every clip from the database, observes file presence again, and
+    /// Loads the clips of live sessions, observes file presence again, and
     /// replaces the current contents.
     /// </summary>
     Task RefreshAsync(CancellationToken cancellationToken = default);

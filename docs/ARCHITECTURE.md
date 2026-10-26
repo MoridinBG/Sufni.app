@@ -252,7 +252,7 @@ A local video file is linked to every recorded session whose recording window ov
 
 Topics in [architecture/video.md](architecture/video.md):
 
-- [Persistence](architecture/video.md#persistence) — `session_video` table, delete triggers, one-time copy migration
+- [Persistence](architecture/video.md#persistence) — `session_video` table, clip liveness, one-time copy migration
 - [Store And Coordinator](architecture/video.md#store-and-coordinator) — `SessionVideoStore`, `VideoCoordinator`
 - [Import](architecture/video.md#import) — "Open video" action and overlap matching
 - [Clip Selection](architecture/video.md#clip-selection) — which clip shows at a telemetry time

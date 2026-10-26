@@ -18,7 +18,7 @@ internal sealed class SessionVideoStore(
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var clips = await repository.GetAllAsync();
+        var clips = await repository.GetLiveAsync();
         cancellationToken.ThrowIfCancellationRequested();
         await ReplaceWithAsync(clips.Select(SessionVideoSnapshot.From));
     }
