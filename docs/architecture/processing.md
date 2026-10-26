@@ -145,7 +145,21 @@ Derivation is **deterministic for a fixed processing binary**: `TelemetryData.Fr
 
 ### Processed Telemetry Read Cache
 
-`ISessionProcessedTelemetryReader` is the decoded-telemetry read path for session detail loads and the cross-session `ISessionContentReader`. Its latest-content operation asks `ISessionRepository.GetSessionPsstPayloadMetadataAsync(...)` for the lightweight processed-payload metadata before loading the raw processed BLOB, while its exact operation accepts a caller-supplied `ProcessedTelemetryRevision` and never advances to a newer revision. While a `SessionDetailViewModel` is loaded it retains its session id; retained sessions reuse one decoded `TelemetryData` instance for the same `(sessionId, ProcessedTelemetryRevision)` key, and a key change replaces the retained lazy decode. Unretained reads decode one-off. The view model releases the retention after recorded-session extension scopes are disposed on unload. Because the same `TelemetryData` instance can be shared by plots, mobile detail building, and segment matching, consumers must treat decoded telemetry as read-only.
+`ISessionProcessedTelemetryReader` is the decoded-telemetry read path for session detail loads and the cross-session `ISessionContentReader`. Its latest-content operation asks `ISessionRepository.GetSessionPsstPayloadMetadataAsync(...)` for the lightweight processed-payload metadata before loading the raw processed BLOB, while its exact operation accepts a caller-supplied `ProcessedTelemetryRevision` and never advances to a newer revision. While a `SessionDetailViewModel` is loaded it retains its session id; retained sessions reuse one decoded `TelemetryData` instance for the same `(sessionId, ProcessedTelemetryRevision)` key, and a key change replaces the retained lazy decode. Unretained reads decode one-off. The view model releases the retention on unload. Because the same `TelemetryData` instance can be shared by plots, mobile detail building, and segment matching, consumers must treat decoded telemetry as read-only.
+
+### Shared Caching
+
+`Sufni.Telemetry.Caching.SingleFlightLruCache<TKey, TValue>` is the shared
+primitive for bounded reusable computations. It keeps pending producers
+separate from retained LRU values, so count and weight limits apply only after
+successful completion. Callers may use count-only, weight-only, or combined
+limits and may reject successful values from retention with a predicate while
+still sharing that producer result with current waiters. Waiter cancellation is
+independent: producers run with their own non-cancelable lifetime, and faulted
+or canceled producers remain retryable. Oversize values are shared but not
+retained. `Clear()` detaches pending generations without canceling their
+existing waiters, and detached late completions cannot populate the current
+retained state.
 
 ---
 

@@ -31,7 +31,7 @@ The slice lives in `Sufni.App/Sufni.App/Segments/`:
 
 `session_segment` holds id, `session_id`, `name`, `start_seconds`, `end_seconds`, and the `Synchronizable` columns `updated`, `client_updated`, and `deleted`. `DatabaseMigrationRunner` creates it with the core tables and gives it the sync-delta indexes. `ISessionSegmentRepository.GetLiveAsync` returns the live segments of live sessions. Rename and delete change only live rows; delete is a soft delete.
 
-Startup cleanup removes segment tombstones older than one day and segments whose session row no longer exists. Builds that ran the old segment extension have every `private_saved_session_segment` row, tombstones included, copied once into `session_segment` (`core_migration` id `session-segment`); the copy drops the source table and its extension schema-version row.
+Startup cleanup removes segment tombstones older than one day and segments whose session row no longer exists. Older builds stored segments in `private_saved_session_segment`. Startup copies every row, tombstones included, into `session_segment` once (`core_migration` id `session-segment`) and drops that table.
 
 ## Store And Coordinator
 

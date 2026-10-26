@@ -182,7 +182,7 @@ There are five kinds of view model in the presentation layer:
   analysis presentation. `SessionDetailViewModel` keeps one current state
   snapshot for legacy read properties and property notifications, while
   `RecordedSessionEditorEffects` drives named effects such as analysis
-  invalidation, command refresh, extension-host publication, map/media
+  invalidation, command refresh, map/media
   synchronization, preference persistence, and dirty/baseline tracking.
   `RecordedPagePresentationApplier` is limited to page-owned chart/string
   projection and balance-page insertion; core signal, analysis, map, media, and
@@ -280,7 +280,7 @@ the side-selector visibility, and its presentation state from the
 workspace's front and rear analysis states. On desktop, the analysis view
 builds one tab strip from the built-in tabs, adding Position/velocity after
 Damping only when the workspace offers it, and places the selected
-analysis body plus extension banners inside one vertical scroll
+analysis body plus the segment comparison banner inside one vertical scroll
 region; analysis plot hosts use natural fixed plot heights instead
 of stretching to the current analysis pane height.
 
@@ -347,14 +347,6 @@ Two pages diverge from that pattern:
   duplicated in the signal hierarchy preference: plot visibility remains
   the existing `SessionPlotPreferences` contract, so hidden rows keep
   their saved hierarchy position and reappear there when re-enabled.
-- **Recorded-session extension scopes** are owned by
-  `SessionDetailViewModel` for each open recorded session. On
-  `Loaded`, the editor initializes `RecordedSessionExtensionManager`
-  with the current host state and constrained host context; on
-  `Unloaded` / final close it disposes all scopes. Scopes can request
-  analysis range changes, timeline range changes, and notifications
-  through `RecordedSessionHostContext`; they publish nothing into the
-  workspaces and do not write editor state directly.
 - **`PreferencesPageViewModel`** owns the per-plot `Selected` and
   `SelectedSmoothing` toggles plus a per-plot `Available` flag, and
   exposes `CreatePlotPreferences()` / `ApplyPlotPreferences(...)` /

@@ -15,7 +15,6 @@ This document is the catalog. Each subsystem is summarized here and the deep det
 - [DAQ Management](#daq-management)
 - [Signal Processing & Suspension Kinematics](#signal-processing--suspension-kinematics)
 - [UI Architecture](#ui-architecture)
-- [Extension Host](#extension-host)
 - [Plot Rendering](#plot-rendering)
 - [Maps & GPS Tracks](#maps--gps-tracks)
 - [Session Video](#session-video)
@@ -70,8 +69,7 @@ layering rules are unchanged — only the folder grouping is slice-first instead
 | **Segments** | `Segments/` | Saved segments of recorded sessions: model, repository, store, coordinator, segments picker, Strava segment efforts |
 | **Shell** | `Shell/` | App shell: `ShellRootViewModel`, `ShellWorkspaceViewModel`, `MainPagesViewModel`, shell coordinator, profile shell views, navigation behaviors, keyboard shortcuts |
 | **Shared** | `Shared/` | Cross-slice bases (`Base/`), common helpers, formatting, shared plot bases, shared `Views/` + `DesktopViews/` controls/dialogs/overlays/converters |
-| **Infrastructure** | `Infrastructure/` | Infra services, app JSON/preferences, theming bridge (`Theming/`), and platform-service abstractions (`IServiceDiscovery`, `IHapticFeedback`, `IFriendlyNameProvider`) |
-| **Extensibility** | `Extensibility/` | App-side extension host wiring: capability/view registries, database hooks, recorded-session scopes |
+| **Infrastructure** | `Infrastructure/` | Infra services, app JSON/preferences, theme model and bridge (`Theming/`), and platform-service abstractions (`IServiceDiscovery`, `ISecureStorage`, `IHapticFeedback`, `IFriendlyNameProvider`) |
 
 `App.axaml(.cs)`, `ViewLocator.cs`, and `MobileAppBootstrapper.cs` stay at the project root.
 
@@ -82,7 +80,7 @@ layering rules are unchanged — only the folder grouping is slice-first instead
 | Interface               | File                                                    | Purpose                                                                 | Implementations                                                                                                |
 | ----------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `IServiceDiscovery`     | `Sufni.App/Sufni.App/Infrastructure/IServiceDiscovery.cs`     | mDNS browse for `_sufni._tcp` DAQ announcements and `_sstsync._tcp` sync | `SocketServiceDiscovery` (shared / Win / Linux), `AndroidServiceDiscovery` (Android), `BonjourServiceDiscovery` (macOS / iOS) |
-| `ISecureStorage`        | `Sufni.App.ExtensionHost/Contracts/Services/ISecureStorage.cs`        | Encrypted key-value store for JWT secrets, certificates, refresh tokens | `WindowsSecureStorage`, `LinuxSecureStorage`, `MacOsSecureStorage`, `AndroidSecureStorage`, `IosSecureStorage` |
+| `ISecureStorage`        | `Sufni.App/Sufni.App/Infrastructure/ISecureStorage.cs`        | Encrypted key-value store for JWT secrets, certificates, refresh tokens | `WindowsSecureStorage`, `LinuxSecureStorage`, `MacOsSecureStorage`, `AndroidSecureStorage`, `IosSecureStorage` |
 | `IHapticFeedback`       | `Sufni.App/Sufni.App/Infrastructure/IHapticFeedback.cs`       | Tactile feedback: `Click()`, `LongPress()`                              | `AndroidHapticFeedback`, `IosHapticFeedback`                                                                   |
 | `IFriendlyNameProvider` | `Sufni.App/Sufni.App/Infrastructure/IFriendlyNameProvider.cs` | Human-readable device name for sync identification                      | `AndroidFriendlyNameProvider`, `IosFriendlyNameProvider`                                                       |
 | `IVideoPlayerFactory`   | `Sufni.App/Sufni.App/Video/Models/VideoPlayback.cs`           | Native video player for the session video pane                          | `LibVlcVideoPlayerFactory` (Win / Linux), `MacOsVideoPlayerFactory`, `IosVideoPlayerFactory`                     |
@@ -159,6 +157,7 @@ Topics in [architecture/processing.md](architecture/processing.md):
   - [Processing Parameters](architecture/processing.md#processing-parameters) — all tunables in `Parameters.cs`
   - [Serialized Structure](architecture/processing.md#serialized-structure) — MessagePack `TelemetryData` shape
   - [Recorded Session Derivation](architecture/processing.md#recorded-session-derivation) — raw source, optional derivation window, processed BLOB, processing fingerprint, and staleness rules
+  - [Shared Caching](architecture/processing.md#shared-caching) — `SingleFlightLruCache` for bounded reusable computations
 - [Suspension Kinematics](architecture/processing.md#suspension-kinematics)
   - [Linkage Model](architecture/processing.md#linkage-model) — immutable specs, resolver validation, runtime linkage state
   - [Kinematic Solver](architecture/processing.md#kinematic-solver) — Gauss-Seidel constraint relaxation across shock travel
@@ -192,25 +191,6 @@ Presentation-layer topics:
 - [Controls Library](architecture/controls.md#controls-library) — reusable controls in `Shared/Views/Controls/` and `Shared/DesktopViews/Controls/`
 - [Theming](architecture/theming.md#theming) — theme snapshots, resource bridge, runtime theme service, and theme ownership
 - [Plot Rendering](architecture/plot-rendering.md) — `SufniPlot` / `TelemetryPlot`, IMU display, shared plot hosting and input gestures
-
----
-
-## Extension Host
-
-The public extension host lets build-time modules register services, view templates, database migrations, cascade rules, and recorded-session scopes without adding capability-specific dependencies to the shared app. Dependency-lower `Sufni.Telemetry.Caching` provides the shared single-flight LRU primitive. Public builds have no modules by default; non-public builds opt in through private MSBuild imports and a generated partial startup hook.
-
-Topics in [architecture/extensions.md](architecture/extensions.md):
-
-- [Overview](architecture/extensions.md#overview) — neutral public host boundaries
-- [Module Startup](architecture/extensions.md#module-startup) — module service and capability registration
-- [Build Imports](architecture/extensions.md#build-imports) — conditional private import flow
-- [View Resolution](architecture/extensions.md#view-resolution) — extension view registry before built-in fallback
-- [Shared Caching](architecture/extensions.md#shared-caching) — dependency-lower single-flight production, independent waiter cancellation, bounded LRU retention, and clear-generation semantics
-- [Database Hooks](architecture/extensions.md#database-hooks) — schema versions, migrators, constrained extension sessions
-- [Cascade Rules](architecture/extensions.md#cascade-rules) — declared extension-owned row cleanup
-- [Recorded-Session Scope](architecture/extensions.md#recorded-session-scope) — per-open-session scope lifecycle and host operations
-- [Recorded Time-Range Overlays](architecture/extensions.md#recorded-time-range-overlays) — neutral time-range overlay descriptors
-- [Neutrality Rules](architecture/extensions.md#neutrality-rules) — public naming boundaries
 
 ---
 

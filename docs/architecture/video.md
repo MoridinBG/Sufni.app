@@ -34,7 +34,7 @@ Video playback is a capability. `AppCapabilities.CanPlayVideo` is true on Window
 
 `session_video` holds one row per linked session: id, `session_id`, `path`, `start_timestamp` (unix seconds), `duration_seconds`, `alignment_offset_seconds`, and `added` (unix milliseconds). One import writes one row for each matched session in a single transaction.
 
-`DatabaseMigrationRunner` creates the table with the core tables. A clip is live only while its session is live: the repository reads the clips of live sessions, and a session delete does not touch `session_video`. Startup cleanup removes rows whose session row is gone. Builds that ran the old video extension have their `private_session_video_clip` rows copied into `session_video` once (`core_migration` id `session-video`); the copy drops the source table and its extension schema-version row, and also drops `private_session_video`, the extension's first table, which it abandoned without a copy.
+`DatabaseMigrationRunner` creates the table with the core tables. A clip is live only while its session is live: the repository reads the clips of live sessions, and a session delete does not touch `session_video`. Startup cleanup removes rows whose session row is gone. Older builds stored clips in `private_session_video_clip`. Startup copies those rows into `session_video` once (`core_migration` id `session-video`), drops that table, and drops `private_session_video`, an older table that is not copied.
 
 ## Store And Coordinator
 
@@ -73,7 +73,7 @@ The video time of a telemetry time is `session timestamp - clip start + alignmen
 `VideoPlaybackViewModel` holds play, sync, and timeline-playback state for one editor.
 
 - Sync: while sync is on and the video is paused, the video follows the telemetry cursor. The pane sets the playback context on every cursor move; only a changed context (another clip, timing, or alignment) seeks the player.
-- Timeline playback: the pane subscribes to the timeline's `PlaybackToggleRequested` (Space over a plot) and `PlaybackStopRequested` (primary click in a plot). While timeline playback is active, the video position drives the telemetry cursor and `IRecordedSessionTimeline.SetPlaybackActive(true)` stops the plots from moving the cursor on pointer input.
+- Timeline playback: the pane subscribes to the timeline's `PlaybackToggleRequested` (Space over a plot) and `PlaybackStopRequested` (primary click in a plot). While timeline playback is active, the video position drives the telemetry cursor and `IRecordedSessionTimeline.SetPlaybackActive(true)` stops the plots from moving the cursor on pointer input. While playback is active, the timeline pans the visible range, keeping its span, when the driven cursor lands outside it.
 
 Sync and timeline playback need a known telemetry duration.
 

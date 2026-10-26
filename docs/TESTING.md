@@ -84,7 +84,7 @@ Do not bombard the SUT with random junk just to create more cases. Prefer inputs
 
 ## Shared Helpers
 
-- Check `Sufni.App.Tests/TestSupport/` and the `Sufni.App.ExtensionHost.TestSupport/` project before creating a new local helper. The `Sufni.App.ExtensionHost.TestSupport/` project carries the fixtures shared with extension test projects (`TempDatabase`, `TempDirectory`, `InlineUiThreadDispatcher`, `InlineBackgroundTaskRunner`, `TestRecordedSessionTimeline`, the recorded-session host-context builder, and the real-machinery `TestExtensionHostHarness` / `TestExtensionCapabilityRegistry`); `Sufni.App.Tests/TestSupport/` carries app-test-only helpers (renamed from the old `Infrastructure/` so it no longer collides with the production `Infrastructure` slice).
+- Check `Sufni.App.Tests/TestSupport/` before creating a new local helper. It carries the shared fixtures: `TempDatabase` and `TempDirectory` (`Io/`), `InlineUiThreadDispatcher` and `InlineBackgroundTaskRunner` (`Async/`), and `TestRecordedSessionTimeline` and the golden telemetry fixtures (`Fixtures/`). The golden telemetry fixtures live in `Sufni.Telemetry.Tests` and are linked into the app tests.
 - Reuse shared builders, snapshot factories, app/test-environment helpers, and synchronization helpers when they fit the test.
 - If the same helper pattern starts appearing in multiple test classes, move it into shared test infrastructure.
 - Keep shared helpers small and mechanical. They should reduce repetition, not hide the behavior the test is asserting.
@@ -111,7 +111,7 @@ Do not bombard the SUT with random junk just to create more cases. Prefer inputs
 
 - When behavior branches on platform lifetime, layout profile, app capability, or input capability, cover the relevant branches.
 - Configure `IAppEnvironment`, layout profile, and capabilities explicitly when those are the behavior under test.
-- Use `TestApp.SetIsDesktop(true)` and `TestApp.SetIsDesktop(false)` only for the remaining native lifetime edges that intentionally read the platform flag, such as extension service-registration context or native overlay behavior.
+- Use `TestApp.SetIsDesktop(true)` and `TestApp.SetIsDesktop(false)` only for the remaining native lifetime edges that intentionally read the platform flag, such as native overlay behavior.
 - Keep the assertion focused on the behavioral difference caused by the branch, not on the toggle itself.
 
 ## Layer Ownership

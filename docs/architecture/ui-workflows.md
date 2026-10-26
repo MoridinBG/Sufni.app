@@ -26,7 +26,7 @@ and are registered as singletons.
 | `ISegmentCoordinator` (`SegmentCoordinator`)                              | shared       | Saved-segment create, rename, and delete with the segment name rule; segment matching and comparison pages; Strava connect, reset, and segment fetch. The per-editor segments picker, comparison, and Strava connect dialog call it. See [segments.md](segments.md#store-and-coordinator) |
 | `PairedDeviceCoordinator`                                                 | shared       | Local-only unpair; subscribes to the desktop server's `PairingConfirmed` and `Unpaired`                                                                                                                                                                                                                                                                                                                                                                             |
 | `ImportSessionsCoordinator`                                               | shared       | Opens the import view, runs the full per-file import / trash workflow off thread, reads original SST bytes, persists raw source + processed session + optional generated track atomically, reports per-file progress, and publishes changed session/source ids through store writer publish-only paths                                                                                                                                                                |
-| `SyncCoordinator`                                                         | shared       | `IsRunning` / `IsPaired` / `CanSync` state, drives `SynchronizationClientService.SyncAll()`, then refreshes all core and extension state through `IAppStateRefreshOrchestrator`                                                                                                                                                                                                                                                                                    |
+| `SyncCoordinator`                                                         | shared       | `IsRunning` / `IsPaired` / `CanSync` state, drives `SynchronizationClientService.SyncAll()`, then refreshes all stores through `IAppDataRefresher`                                                                                                                                                                                                                                                                                    |
 | `IPairingClientCoordinator` (`PairingClientCoordinator`)                  | mobile only  | `DeviceId` / `DisplayName` / `ServerUrl`, mirrors HTTP `PairedState` as `IsPaired`, mDNS browse lifecycle, request/confirm/unpair HTTP plumbing                                                                                                                                                                                                                                                                                                                     |
 | `IPairingServerCoordinator` (`PairingServerCoordinator`)                  | desktop only | Re-exposes `ISynchronizationServerService` pairing events as plain .NET events for `PairingServerViewModel`, plus `StartServerAsync()` passthrough                                                                                                                                                                                                                                                                                                                  |
 | `IInboundSyncCoordinator` (`InboundSyncCoordinator`)                      | desktop only | Marker interface; constructor subscribes to `SynchronizationDataArrived` and publishes incoming bike/setup ids through writer publish-only paths after the server merge has already persisted them, and refreshes the segment store when segments arrive. Sessions and paired devices have their own coordinators, so each entity family has exactly one inbound writer                                                                                                                                                  |
@@ -40,7 +40,7 @@ singletons):
 | Use case            | Owns                                                                                                                                                       |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SessionLoader`     | Local-only staged detail reads. It depends on read-only `ISessionStore` (never `ISessionStoreWriter`) and uses `Get(sessionId)` only to resolve the linked full-track id. `LoadDetailAsync` decodes and validates telemetry for first-content publication, while `LoadTrackAsync` resolves the optional map/track payload later. Missing local processed telemetry or recorded-source payloads return an incomplete-local-data result; track failures remain a typed failed settling result |
-| `SessionCommandService` | Session write workflows: `SaveAsync` delegates metadata commits to `ISessionStoreWriter`; `DeleteAsync` clears stored preferences, always uses `SessionPersistenceTransactionRunner` to delete the session, the generated track, and the recorded source when no other live session derives from it, and to apply extension cascades atomically, then publishes session removal (and source removal when the source was deleted) after commit; create-only `SaveLiveCaptureAsync` persists live captures as processed session + raw source + optional generated track and publishes affected stores post-commit; `RequestRecomputeAsync` / `RequestRecomputeAllAsync` delegate to `SessionRecomputeEngine` |
+| `SessionCommandService` | Session write workflows: `SaveAsync` delegates metadata commits to `ISessionStoreWriter`; `DeleteAsync` clears stored preferences, always uses `SessionPersistenceTransactionRunner` to delete the session, the generated track, and the recorded source when no other live session derives from it in one transaction, then publishes session removal (and source removal when the source was deleted) after commit; create-only `SaveLiveCaptureAsync` persists live captures as processed session + raw source + optional generated track and publishes affected stores post-commit; `RequestRecomputeAsync` / `RequestRecomputeAllAsync` delegate to `SessionRecomputeEngine` |
 | `SessionRecomputeEngine` | Serialized, per-session **cancel-and-replace** recompute engine and the single owner of recompute liveness. `RequestRecomputeAsync` rebuilds processed telemetry from the raw source against the current setup/bike inputs and the hydrated `IRecordedSessionProcessingOptionCache`; the reprocessor returns a `ProcessedTelemetryPayload` carrying the decoded telemetry, serialized bytes, and fingerprint JSON, and `SessionTelemetryWriter.UpdateProcessedDerivedDataAsync` commits that payload after the in-transaction DB-input fingerprint check. If that derived write replaces the session's previous full track, the engine deletes the previous track only after the active-session `full_track_id` projection shows it is no longer referenced. A newer request for the same session cancels and replaces the in-flight one (which resolves to `Superseded`), and a run whose DB inputs change underneath it re-enqueues itself until it converges. `IsActive` reports an in-flight run. Cancellation bounds correctness (no stale commit), not CPU — an in-flight reprocess is not interrupted, only prevented from committing. `RequestRecomputeAllAsync` hydrates the processing-option cache, enumerates active ids through the session-id projection (`ISessionRepository.GetActiveSessionIdsAsync()`), and fans them through `RequestRecomputeAsync` with a degree of parallelism scaled to `Environment.ProcessorCount`, returning a `SessionRecomputeAllResult` tally and reporting per-session progress through an optional `IProgress<SessionRecomputeAllProgress>` so the caller can drive a determinate progress dialog; sessions that cannot be recomputed are counted and skipped, not surfaced as failures. The staleness prompt (`SessionStalenessReconciler`) offers "Recompute all" alongside "Recompute" — it builds those buttons through the dialog service's generic `ShowChoiceAsync` prompt (the service stays recompute-agnostic; the reconciler owns the choice ids and what they mean) and runs the bulk recompute behind a modal, equally generic `ShowProgressAsync` loading dialog |
 | `SessionSyncApplier`| Subscribes to the desktop server's `SynchronizationDataArrived`, `SessionDataArrived`, and `SessionSourceDataArrived`, publishing inbound session/source ids through writer publish-only paths after the server has persisted the payloads. The desktop sync server's PSST upload endpoint persists BLOB fills and swaps through `ISessionTelemetryWriter`; the resulting `SessionDataArrived` event is the only store-publication path for that upload |
 
@@ -94,24 +94,8 @@ and calls `BuildServiceProvider()`. There is no separate
 `RegisteredServices` indirection — the `ServiceCollection` itself is
 the composition root.
 
-Extension module startup is part of the same composition root. `App`
-computes the native platform mode, calls the two-argument build-time partial
-`RegisterBuildTimeExtensions(App.Extensions, isDesktop)`, registers the
-profile-aware `ExtensionViewRegistry`, then lets modules register
-services before core shared services. `AppExtensionServiceRegistrationContext.IsDesktop`
-remains platform-based for service registration. After module and core
-services are present, `AppExtensionCapabilityRegistry` is registered as a
-singleton and modules register profile-based view capabilities. No assembly
-scanning occurs; public builds have no partial implementation and therefore no
-modules. See [Extension Host](extensions.md#module-startup).
-
 Shared registrations in `App.OnFrameworkInitializationCompleted`:
 
-- **Extension host**: `IExtensionViewRegistry` /
-  `ExtensionViewRegistry`, `AppExtensionCapabilityRegistry`, and the
-  services/capabilities supplied by `App.Extensions` before the
-  service provider is built. Capabilities include eager service
-  resolution.
 - **Shell**: `ShellWorkspaceViewModel`, `ShellRootViewModel`, and the single
   `IShellCoordinator` implementation, `ShellWorkspaceCoordinator`, are shared
   registrations. Single-view lifetimes additionally register
@@ -120,7 +104,7 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   mirrors the shared workspace instead of owning a separate navigation model.
 - **Services**: `IHttpApiService`, `IBackgroundTaskRunner`,
   `IUiThreadDispatcher`, `IDaqManagementService`, `ITelemetryDataStoreService`,
-  SQLite repository interfaces, `ISyncDataStore`, `IExtensionDatabaseConnection`,
+  SQLite repository interfaces, `ISyncDataStore`,
   `IFilesService`, `ITileLayerService`,
   `IMapViewModelFactory`, `ISessionTrackReader`, `IFullTrackPointReader`,
   plus `IAppPreferences` and the two facets
@@ -141,11 +125,10 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   sources with the sources referenced by derived sessions. The recorded-source
   factory is static and stays in `RecordedSessionProjection/` beside the
   reprocessor.
-- **Refresh orchestration**: `AppDataRefresher` is registered behind
-  `IAppStateRefreshOrchestrator` and the compatibility `IAppDataRefresher`
-  alias. Core refresh hydrates the processing-option cache, then refreshes bikes, setups, sessions, recorded-session sources, and paired
-  devices in order. All-state refresh appends extension state refresh
-  participants.
+- **Data refresh**: `AppDataRefresher` is registered behind
+  `IAppDataRefresher`. It hydrates the processing-option cache, then refreshes
+  bikes, setups, sessions, recorded-session sources, paired devices, session
+  videos, and session segments in order.
 - **Stores**: each concrete store registered as a singleton, then
   re-registered behind both its read and writer interfaces via
   factory delegates that resolve the same instance. This includes
@@ -211,10 +194,7 @@ never see this contract — they consume `IDialogService` only.
 mobile-only `IPairingClientCoordinator`). This is necessary because
 their constructors subscribe to synchronization-server / pairing /
 service-discovery events and nothing else depends on them at
-startup. The app then resolves any eager service types declared by
-extension capabilities, giving extension services the same
-constructor-subscription startup point without requiring core
-coordinators to know their concrete types.
+startup.
 
 ## Navigation
 

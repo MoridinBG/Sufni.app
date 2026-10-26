@@ -133,10 +133,9 @@ internal sealed class DatabaseMigrationRunner(
             """);
     }
 
-    // One-time copy of the video links kept by the former private video
-    // extension. The source table exists only on databases that ran it. The
-    // extension's first table, `private_session_video`, was abandoned without a
-    // copy when the extension moved to clips, so it is dropped as is.
+    // One-time copy of the video clips stored by older builds. The source table
+    // exists only on databases that ran those builds. The older
+    // `private_session_video` table holds nothing to keep, so it is dropped as is.
     private async Task MigrateSessionVideosAsync()
     {
         const string migrationId = "session-video";
@@ -167,8 +166,8 @@ internal sealed class DatabaseMigrationRunner(
         await coreMigrations.MarkAppliedAsync(migrationId);
     }
 
-    // One-time copy of the saved segments kept by the former private segment
-    // extension, tombstones included so that peers' deletions stay deleted.
+    // One-time copy of the saved segments stored by older builds, tombstones
+    // included so that peers' deletions stay deleted.
     private async Task MigrateSessionSegmentsAsync()
     {
         const string migrationId = "session-segment";
@@ -198,7 +197,7 @@ internal sealed class DatabaseMigrationRunner(
     }
 
     // One-time move of trim/split windows onto the session row. Windows come from
-    // the former private session-editing table; sessions without a row there take
+    // the table of older builds; sessions without a row there take
     // the window from their processing fingerprint, because installs that received
     // derived sessions through sync hold only that copy.
     private async Task MigrateSessionDerivationWindowsAsync()
@@ -273,8 +272,8 @@ internal sealed class DatabaseMigrationRunner(
         await coreMigrations.MarkAppliedAsync(migrationId);
     }
 
-    // The schema versions of the former extension tables, which the copy
-    // migrations above replaced.
+    // The schema versions of the older tables that the copy migrations above
+    // replaced.
     private Task DropSchemaVersionTableAsync() =>
         connection.ExecuteAsync("DROP TABLE IF EXISTS extension_schema_version");
 

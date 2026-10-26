@@ -157,11 +157,6 @@ erDiagram
         int expires
     }
 
-    extension_schema_version {
-        text extension_id PK
-        int version
-    }
-
     core_migration {
         text id PK
     }
@@ -169,7 +164,7 @@ erDiagram
 
 ## SQLite Persistence Repositories
 
-`SqliteConnectionContext` (`Sufni.App/Sufni.App/Infrastructure/SqliteConnectionContext.cs`) owns the single `SQLiteAsyncConnection`, the extension table catalog, and the initialization gate. It constructs the database at `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db` and starts `DatabaseMigrationRunner`, which enables WAL mode, creates core tables, applies compatibility migrations/backfills, runs extension migrations, performs startup cleanup, repairs duplicate track ranges, and runs extension orphan repair.
+`SqliteConnectionContext` (`Sufni.App/Sufni.App/Infrastructure/SqliteConnectionContext.cs`) owns the single `SQLiteAsyncConnection` and the initialization gate. It constructs the database at `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db` and starts `DatabaseMigrationRunner`, which enables WAL mode, creates core tables, applies compatibility migrations/backfills and the copy migrations, performs startup cleanup, and repairs duplicate track ranges.
 
 The connection context is also the only app-owned transaction entry point for multi-statement repository writes. `RunInTransactionAsync(...)` awaits initialization, then delegates to sqlite-net's `RunInTransactionAsync(Action<SQLiteConnection>)`, so the connection/transaction lock is held for the whole callback. Transaction bodies use synchronous `SQLiteConnection` operations; raw `BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK` statement sequences are not used.
 
@@ -189,7 +184,7 @@ Startup migration does not repair or currentize stale `session_processing_finger
 Persistence consumers inject narrow repository interfaces instead of a single database facade. `ISynchronizableRepository<T>` owns generic soft-delete CRUD for `Synchronizable` entities; `ISessionRepository`, `IRecordedSessionSourceRepository`, `ITrackRepository`, `ISessionVideoRepository`, `ISessionSegmentRepository`, and `IPairedDeviceRepository` own aggregate-specific operations and intent-specific projections; `ISyncDataStore` / `SynchronizationMergeEngine` owns sync timestamps, delta projection, remote apply, and merge conflict resolution. Read paths that only need ids, source snapshots, track payload metadata, full-track reference checks, or processing fingerprint inputs use those projections instead of loading whole aggregates or BLOB columns. `DatabaseMigrationRunner` is the only schema initializer/migrator, and repositories assume `SqliteConnectionContext` has run initialization before handing out the shared connection.
 
 `DatabaseMigrationRunner` also ensures sync-delta indexes after core table
-creation and extension migrations. Every `Synchronizable` table (`board`,
+creation. Every `Synchronizable` table (`board`,
 `bike`, `setup`, `session`, `track`, `session_segment`) has separate `updated` and `deleted`
 indexes (`ix_<table>_updated`, `ix_<table>_deleted`) so `GetChangedAsync`
 can scan changed rows and tombstones without a full table scan. Protocol v3
@@ -223,7 +218,7 @@ has already changed persistence. Cross-aggregate workflows such as setup import,
 session delete, and processed-session save run all SQL rows in one
 `RunInTransactionAsync` callback, then publish each affected store only after
 the transaction commits. Sync merge and server endpoint handlers likewise change
-SQLite first; inbound coordinators, appliers, or the refresh orchestrator then
+SQLite first; inbound coordinators, appliers, or `IAppDataRefresher` then
 use publish-only writer paths to reflect those already-persisted rows.
 
 `ISynchronizableRepository<T>` operations on any `Synchronizable` subclass:
@@ -231,7 +226,7 @@ use publish-only writer paths to reflect those already-persisted rows.
 - `GetAllAsync<T>()` — returns all records where `Deleted == null`
 - `GetChangedAsync<T>(long since)` — returns records where `Updated > since` OR (`Deleted != null` AND `Deleted > since`)
 - `PutAsync<T>(item)` — upsert. Stamps `Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds()` and clears `Deleted` (resurrecting any tombstoned row with the same id).
-- `DeleteAsync<T>(id)` — runs in one transaction, soft-deletes the core row when it exists and is not already tombstoned, and applies matching extension cascade rules for the entity kind/id in the same transaction. Cascade rules still run when the core row is already tombstoned or missing, so extension rows referencing that id can be cleaned. Extension state refresh runs after commit only when rules matched.
+- `DeleteAsync<T>(id)` — soft-deletes the row when it exists and is not already tombstoned.
 
 `ISessionRepository` operations split metadata and processed-data handling, and store the values they are given: telemetry validation, summary-metric derivation, and session-window track association/generation happen in `SessionTelemetryWriter` before the repository is called. `session.data` is the authoritative local processed-telemetry cache; `session.has_data` remains in the row for schema compatibility and snapshot projection, but session reads derive the availability flag from `data IS NOT NULL` so the flag cannot drift away from the blob. Nullable summary columns (`duration_seconds`, `distance_meters`, `ascent_meters`, `descent_meters`) are derived list-summary cache values, not user-authored session metadata. `gps_offset_seconds` is per-session state applied when deriving the cached session-window GPS track from a reusable full `Track`; it is stored on `session` rather than `track` because the same full ride track can back multiple recorded sessions or segments.
 
@@ -285,32 +280,32 @@ the validated generation write succeeds.
 state and is not synchronized. `ISessionVideoRepository` writes one row per
 matched session in one transaction and updates the alignment offset. A clip is
 live only while its session is live: `ISessionVideoRepository` reads the clips
-of live sessions, and no delete cascades to clips. Builds that
-ran the old video extension have their `private_session_video_clip` rows copied
-once into `session_video` (`core_migration` id `session-video`); the copy drops the source table and its
-`extension_schema_version` row, and also drops `private_session_video`, the
-extension's first table, which it abandoned without a copy. See [video.md](video.md).
+of live sessions, and no delete cascades to clips. Older builds stored clips in
+`private_session_video_clip`. Startup copies those rows into `session_video`
+once (`core_migration` id `session-video`), drops that table, and drops
+`private_session_video`, an older table that is not copied. See
+[video.md](video.md).
 
 `session_segment` holds saved segments: a name and a time range in seconds
 from the session's telemetry start. It is a `Synchronizable` table. A segment
 is live only while its session is live: `ISessionSegmentRepository` reads the
-live segments of live sessions, and no delete cascades to segments. Builds that
-ran the old segment extension have every `private_saved_session_segment` row,
-tombstones included, copied once into `session_segment` (`core_migration` id
-`session-segment`); the copy drops the
-source table and its `extension_schema_version` row. See
-[segments.md](segments.md).
+live segments of live sessions, and no delete cascades to segments. Older
+builds stored segments in `private_saved_session_segment`. Startup copies every
+row, tombstones included, into `session_segment` once (`core_migration` id
+`session-segment`) and drops that table. See [segments.md](segments.md).
 
 The session derivation window lives on the session row. `source_session_id`,
 `window_start_seconds`, and `window_end_seconds` describe the window; a null
 `source_session_id` means the session uses its own source in full. The
 `previous_window_*` columns keep the window before the last trim for undo.
-These columns are synchronized with the session. Builds that ran the old
-session-editing extension get a one-time copy (`core_migration` id
-`session-derivation-window`): live rows of `private_session_source_range`
-that are not the session's own full range are copied, then sessions without a
-range row take the window stored in their processing fingerprint. The copy
-drops the range table and its `extension_schema_version` row.
+These columns are synchronized with the session. Older builds stored trims and
+splits in `private_session_source_range`. Startup copies them once
+(`core_migration` id `session-derivation-window`): live rows that are not the
+session's own full range are copied, then sessions without a range row take the
+window stored in their processing fingerprint. The copy drops the range table.
+
+After the three copies, startup drops `extension_schema_version`, the table
+that held the schema versions of the old tables.
 
 ## JSON Serialization
 
@@ -320,48 +315,6 @@ drops the range table and its `extension_schema_version` row.
 - **Hardened** (`AppJson.InboundOptions` / `AppJson.InboundContext`) — network-inbound deserialization on the desktop sync server only (the two `PATCH` session/source-data endpoints). Built from the .NET 10 `Strict` preset — reject duplicate keys and unmapped members, case-sensitive binding, required non-nullable members and constructor parameters — plus the same snake_case enum converter. Because the client always emits every snake_case key explicitly (including explicit nulls for optional members), well-formed first-party traffic is unaffected while malformed or truncated bodies are rejected at the trust boundary. See [Cross-Device Sync § Server](sync.md#server).
 
 Bike persistence, sync, and export JSON carry `RearSuspensionSpec` union values, `LinkageSpec`, `LeverageRatioSpec`, and `WheelSpec`. Sync rows and schema-versioned bike export files require `rear_suspension`; missing unions, malformed unions, and the legacy `rear_suspension_kind` / `linkage` / `leverage_ratio` JSON triple are invalid outside the local SQLite startup migration. The pre-refactor mutable linkage classes are not serialization roots.
-
-## Extension Schema
-
-`ExtensionDatabaseConnection` is the concrete singleton behind
-`IExtensionDatabaseConnection`. `OpenSessionAsync(extensionId)` awaits normal
-startup initialization, captures that owner id, and returns an
-`IExtensionDatabaseSession` limited to the exact CLR table types declared by
-that extension's migrator. Every table/find/insert/insert-or-replace/update/delete
-operation checks table name, exact table type, and owner id before reaching
-sqlite-net; core tables, undeclared tables, and another extension's tables are
-rejected. The table catalog is frozen from startup migrator registrations, so a
-runtime session cannot broaden ownership.
-
-For extension-owned multi-statement writes, the owner-scoped session exposes
-`RunInTransactionAsync(Action<IExtensionDatabaseTransaction>)`. The transaction
-object retains the same owner id and provides synchronous operations with the
-same ownership checks; callback exceptions roll the whole extension transaction
-back.
-
-Extension migrations are declared by `IExtensionDatabaseMigrator`.
-Each migrator declares:
-
-- `ExtensionId`
-- `TargetVersion`
-- `TableTypes` owned by that extension
-- ordered `ExtensionDatabaseMigrationStep` entries
-
-During `DatabaseMigrationRunner.RunAsync()`, extension work runs after core
-tables/compatibility columns are created and before cleanup completes:
-
-1. Create `extension_schema_version`.
-2. Create tables declared by all extension migrators outside the per-step transactions.
-3. Run missing migration steps in ascending target version. Each step receives an owner-scoped migration transaction, and the step plus its schema-version update execute in the same SQLite transaction.
-4. Commit that transaction only when both the step and version-row update succeed; otherwise both roll back and the step remains pending for the next startup.
-5. Run core cleanup.
-6. Run extension orphan repair.
-
-The public schema tracks only extension ids and versions. Extension
-table columns and payload fields remain owned by the declaring module.
-Migrator validation rejects blank or duplicate extension ids, invalid target
-versions, duplicate migration step versions, reserved core table names, and
-duplicate extension table ownership during connection-context construction.
 
 ## Soft Delete
 
@@ -379,19 +332,6 @@ calls `DeleteOrphanedRecordedSessionSourcesAsync()`, which keeps every source
 row that a live session references, and publishes the removed ids to the
 recorded-source store. This lets a split/trimmed derived session keep using a source row whose
 original owner session has been purged.
-
-Extension-owned rows that reference core entities are cleaned through
-declared cascade rules rather than ad hoc core knowledge.
-`IExtensionCascadeRuleProvider` declares the extension table, core
-entity kind, foreign-key column, and `SoftDelete` or `HardDelete`
-action. `ExtensionCascadeService` validates that the target table is
-owned by an extension migrator. `ISynchronizableRepository<T>.DeleteAsync`
-applies matching rules inside the same transaction as the core soft delete,
-including tombstoned or missing core rows where extension rows still reference
-the id. Startup orphan repair repeats the same declared cleanup after core
-cleanup. `IExtensionStateRefreshParticipant` lets extension state refresh after
-cascade work without exposing extension stores to core coordinators; delete
-workflows invoke refresh after the delete transaction commits.
 
 ## Conflict Resolution
 

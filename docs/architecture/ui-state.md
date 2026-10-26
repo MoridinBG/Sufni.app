@@ -22,22 +22,18 @@ implementation lives in each slice's store folder (e.g. `Bikes/Stores/`,
 | `PairedDeviceStore`          | `IPairedDeviceStore`            | `IPairedDeviceStoreWriter`          | `PairedDeviceSnapshot`            | `string` |
 | `LiveDaqStore`               | `ILiveDaqStore`                 | `ILiveDaqStoreWriter`               | `LiveDaqSnapshot`                 | `string` |
 
-Persisted stores share the SDK-visible
-`SourceCacheStoreBase<TSnapshot, TKey>` from
-`Sufni.App.ExtensionHost.Runtime.Stores`
-(`Sufni.App.ExtensionHost/Runtime/Stores/SourceCacheStoreBase.cs`) for the
+Persisted stores share
+`SourceCacheStoreBase<TSnapshot, TKey>`
+(`Sufni.App/Sufni.App/Shared/Base/SourceCacheStoreBase.cs`) for the
 repeated DynamicData mechanics. The base owns the cache lifetime, `Connect()`,
 `Get(key)`, watch helpers, and UI-thread-dispatched protected publication
 methods (`PublishSnapshotAsync`, `PublishSnapshotsAsync`, `PublishRemoveAsync`,
-`PublishRemovalsAsync`, and `ReplaceWithAsync`). Public app stores and private
-extension stores inherit the same base while keeping their own public read/write
-interfaces, persistence semantics, and domain-specific lookups. Raw cache
+`PublishRemovalsAsync`, and `ReplaceWithAsync`). Each store keeps its own
+read/write interfaces, persistence semantics, and domain-specific lookups. Raw cache
 mutation stays inside the store; writer interfaces expose semantic commit
 methods for local writes and publish-only methods for already-persisted external
 changes.
-Startup and post-sync refresh are coordinated by
-`IAppStateRefreshOrchestrator`, with `IAppDataRefresher` retained only as a
-compatibility alias for core refresh callers. `LiveDaqStore` remains separate
+Startup and post-sync refresh are coordinated by `IAppDataRefresher`. `LiveDaqStore` remains separate
 because it is runtime-only and publishes `Clear()` / `ReplaceAll(...)` rather
 than database refresh.
 
@@ -51,9 +47,9 @@ Each persisted writer interface additionally exposes:
 
 - `RefreshAsync()` — load (or reload) all rows from the database via the
   store's repository interface and replace the cache contents. Core refresh
-  hydrates processing-option state first, then refreshes
-  bikes, setups, sessions, recorded-session sources, and paired devices;
-  all-state refresh then invokes extension state refresh participants.
+  `IAppDataRefresher` hydrates processing-option state first, then refreshes
+  bikes, setups, sessions, recorded-session sources, paired devices, session
+  videos, and session segments.
 - Semantic commit methods for local writes that belong to that aggregate
   family, for example `CommitBikeAsync`, `CommitSessionMetadataAsync`,
   `CommitSessionMetadataFieldAsync`, `CommitTrackPatchAsync`, and

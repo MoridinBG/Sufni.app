@@ -52,7 +52,7 @@ The older folder names remain for continuity: `Views/` mostly contains common or
 
 ## Platform Flag And Capabilities
 
-`App.IsDesktop` still exists as a native lifetime/platform fact. It is set once in `OnFrameworkInitializationCompleted` from the Avalonia application lifetime and is used at the composition edge for platform concerns such as extension service-registration context, platform-only eager coordinator resolution, and desktop window versus single-view lifetime wiring.
+`App.IsDesktop` still exists as a native lifetime/platform fact. It is set once in `OnFrameworkInitializationCompleted` from the Avalonia application lifetime and is used at the composition edge for platform concerns such as platform-only eager coordinator resolution and desktop window versus single-view lifetime wiring.
 
 User-visible UI behavior should not branch on `App.IsDesktop`. It should use:
 
@@ -114,8 +114,6 @@ The shared DI container is `App.ServiceCollection` (a static `IServiceCollection
 3. Single-view lifetimes also register `MobileNavigationShellHost` / `IMobileNavigationShellHost` / `IMobileNavigationPageHost` for native host integration.
 4. After the provider is built, the app eagerly resolves coordinators that subscribe to external events at construction time. The platform-only eager resolutions still follow platform capabilities: mobile resolves the pairing client coordinator; desktop resolves pairing server and inbound sync coordinators.
 
-Extension module startup is part of the same composition root. `AppExtensionServiceRegistrationContext.IsDesktop` remains platform-based for service registration. Extension view registration and lookup are profile-based.
-
 ## Solution Scoping
 
 `Sufni.App.sln` is the full-matrix solution. For day-to-day work the per-platform solutions scope the projects so the IDE only loads what is relevant:
@@ -130,7 +128,7 @@ The mobile solutions deliberately omit `Sufni.App.Desktop` and the test projects
 
 ## Testing
 
-The headless test app (`Sufni.App.Tests/TestSupport/Harness/TestApp.cs`) is a subclass of `App` that skips both XAML loading and the DI bootstrap. Tests configure layout profile and capabilities explicitly when those are the behavior under test. `TestApp.SetIsDesktop(...)` is reserved for the remaining platform-lifetime edges, such as extension service-registration context.
+The headless test app (`Sufni.App.Tests/TestSupport/Harness/TestApp.cs`) is a subclass of `App` that skips both XAML loading and the DI bootstrap. Tests configure layout profile and capabilities explicitly when those are the behavior under test. `TestApp.SetIsDesktop(...)` is reserved for the remaining platform-lifetime edges, such as native overlay behavior.
 
 View-test helpers should select compact/workspace profile and capabilities explicitly rather than assuming platform-based view splits.
 

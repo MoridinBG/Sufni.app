@@ -102,7 +102,7 @@ public class SignalRowTests
     public async Task SignalRow_TitleToolTip_AppliesToTitleText()
     {
         var row = CreateRow("Travel");
-        row.TitleToolTip = "Extension supplied title tool tip.";
+        row.TitleToolTip = "Title tool tip.";
 
         await using var mounted = await MountAsync(row);
 
