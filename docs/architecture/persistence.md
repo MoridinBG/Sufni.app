@@ -11,6 +11,7 @@ erDiagram
     session ||--o| session_recording_source : "session_id"
     session ||--o| session_blob_swap_request : "session_id"
     session ||--o{ session_video : "session_id"
+    session ||--o{ session_segment : "session_id"
     setup }o--|| bike : "bike_id"
     board ||--o| setup : "setup_id"
 
@@ -128,6 +129,17 @@ erDiagram
         text target_generation
     }
 
+    session_segment {
+        text id PK
+        text session_id FK
+        text name
+        real start_seconds
+        real end_seconds
+        int updated
+        int client_updated
+        int deleted
+    }
+
     session_video {
         text id PK
         text session_id FK
@@ -174,11 +186,11 @@ derived-data changes.
 
 Startup migration does not repair or currentize stale `session_processing_fingerprint` values. Legacy, missing, malformed, or dependency-mismatched fingerprints remain classified as stale by the recorded-session projection so recompute can surface derived-data changes explicitly instead of silently rewriting fingerprint state at database initialization.
 
-Persistence consumers inject narrow repository interfaces instead of a single database facade. `ISynchronizableRepository<T>` owns generic soft-delete CRUD for `Synchronizable` entities; `ISessionRepository`, `IRecordedSessionSourceRepository`, `ITrackRepository`, `ISessionVideoRepository`, and `IPairedDeviceRepository` own aggregate-specific operations and intent-specific projections; `ISyncDataStore` / `SynchronizationMergeEngine` owns sync timestamps, delta projection, remote apply, and merge conflict resolution. Read paths that only need ids, source snapshots, track payload metadata, full-track reference checks, or processing fingerprint inputs use those projections instead of loading whole aggregates or BLOB columns. `DatabaseMigrationRunner` is the only schema initializer/migrator, and repositories assume `SqliteConnectionContext` has run initialization before handing out the shared connection.
+Persistence consumers inject narrow repository interfaces instead of a single database facade. `ISynchronizableRepository<T>` owns generic soft-delete CRUD for `Synchronizable` entities; `ISessionRepository`, `IRecordedSessionSourceRepository`, `ITrackRepository`, `ISessionVideoRepository`, `ISessionSegmentRepository`, and `IPairedDeviceRepository` own aggregate-specific operations and intent-specific projections; `ISyncDataStore` / `SynchronizationMergeEngine` owns sync timestamps, delta projection, remote apply, and merge conflict resolution. Read paths that only need ids, source snapshots, track payload metadata, full-track reference checks, or processing fingerprint inputs use those projections instead of loading whole aggregates or BLOB columns. `DatabaseMigrationRunner` is the only schema initializer/migrator, and repositories assume `SqliteConnectionContext` has run initialization before handing out the shared connection.
 
 `DatabaseMigrationRunner` also ensures sync-delta indexes after core table
 creation and extension migrations. Every `Synchronizable` table (`board`,
-`bike`, `setup`, `session`, `track`) has separate `updated` and `deleted`
+`bike`, `setup`, `session`, `track`, `session_segment`) has separate `updated` and `deleted`
 indexes (`ix_<table>_updated`, `ix_<table>_deleted`) so `GetChangedAsync`
 can scan changed rows and tombstones without a full table scan. Protocol v3
 persists `sync.last_push_time` and `sync.last_pull_time` separately. Delta
@@ -278,6 +290,15 @@ ran the old video extension have their `private_session_video_clip` rows copied
 once into `session_video`; the copy drops the source table and its
 `extension_schema_version` row. See [video.md](video.md).
 
+`session_segment` holds saved segments: a name and a time range in seconds
+from the session's telemetry start. It is a `Synchronizable` table. A segment
+is live only while its session is live: `ISessionSegmentRepository` reads the
+live segments of live sessions, and no delete cascades to segments. Builds that
+ran the old segment extension have every `private_saved_session_segment` row,
+tombstones included, copied once into `session_segment`; the copy drops the
+source table and its `extension_schema_version` row. See
+[segments.md](segments.md).
+
 The session derivation window lives on the session row. `source_session_id`,
 `window_start_seconds`, and `window_end_seconds` describe the window; a null
 `source_session_id` means the session uses its own source in full. The
@@ -342,11 +363,12 @@ duplicate extension table ownership during connection-context construction.
 
 ## Soft Delete
 
-`Synchronizable` entities (`Sufni.App/Sufni.App/SyncAndPairing/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track` — carry `Updated` (server timestamp), `ClientUpdated` (local timestamp), and nullable `Deleted` (soft delete timestamp). `paired_device`, `session_recording_source`, and `sync` are not `Synchronizable` and have their own lifecycles. Startup cleanup also soft-deletes duplicate active tracks that share the same cached start/end seconds, keeps one canonical row, repoints non-deleted sessions to it, and clears affected cached session-window tracks so they regenerate from the canonical full track.
+`Synchronizable` entities (`Sufni.App/Sufni.App/SyncAndPairing/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track`, `session_segment` — carry `Updated` (server timestamp), `ClientUpdated` (local timestamp), and nullable `Deleted` (soft delete timestamp). `paired_device`, `session_recording_source`, and `sync` are not `Synchronizable` and have their own lifecycles. Startup cleanup also soft-deletes duplicate active tracks that share the same cached start/end seconds, keeps one canonical row, repoints non-deleted sessions to it, and clears affected cached session-window tracks so they regenerate from the canonical full track.
 
 On database initialization, the `Cleanup()` pass permanently removes:
 
 - `Synchronizable` rows with `Deleted` older than 1 day
+- `session_segment` rows whose session row no longer exists
 - `paired_device` rows where `Expires < DateTime.UtcNow`
 
 Recorded-source orphan cleanup runs after initialization through

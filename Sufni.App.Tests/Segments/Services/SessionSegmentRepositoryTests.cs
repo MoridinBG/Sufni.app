@@ -1,0 +1,45 @@
+using Sufni.App.Segments.Models;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Tests.TestSupport.Persistence;
+
+namespace Sufni.App.Tests.Segments.Services;
+
+public class SessionSegmentRepositoryTests
+{
+    [Fact]
+    public async Task GetLiveAsync_HidesDeletedSegmentsAndSegmentsOfDeletedSessions()
+    {
+        using var tempDatabase = new TempDatabase();
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var repository = database.SessionSegmentRepository;
+        var liveSession = new Session(Guid.NewGuid(), "live", string.Empty, null);
+        var deletedSession = new Session(Guid.NewGuid(), "deleted", string.Empty, null);
+        await database.PutSessionAsync(liveSession);
+        await database.PutSessionAsync(deletedSession);
+        var kept = new SessionSegment { SessionId = liveSession.Id, Name = "kept", StartSeconds = 0, EndSeconds = 1 };
+        var deleted = new SessionSegment { SessionId = liveSession.Id, Name = "deleted", StartSeconds = 0, EndSeconds = 1 };
+        await repository.InsertAsync(kept);
+        await repository.InsertAsync(deleted);
+        await repository.InsertAsync(new SessionSegment { SessionId = deletedSession.Id, Name = "hidden", StartSeconds = 0, EndSeconds = 1 });
+        await repository.DeleteAsync(deleted.Id);
+        await database.DeleteAsync(deletedSession);
+
+        var live = await repository.GetLiveAsync();
+
+        Assert.Equal(kept.Id, Assert.Single(live).Id);
+    }
+
+    [Fact]
+    public async Task RenameAsync_ReturnsNull_WhenSegmentIsDeleted()
+    {
+        using var tempDatabase = new TempDatabase();
+        var repository = new TestPersistenceHarness(tempDatabase.DatabasePath).SessionSegmentRepository;
+        var segment = new SessionSegment { SessionId = Guid.NewGuid(), Name = "climb", StartSeconds = 0, EndSeconds = 1 };
+        await repository.InsertAsync(segment);
+        await repository.DeleteAsync(segment.Id);
+
+        var renamed = await repository.RenameAsync(segment.Id, "descent");
+
+        Assert.Null(renamed);
+    }
+}

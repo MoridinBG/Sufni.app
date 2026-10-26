@@ -36,14 +36,15 @@ sequenceDiagram
 - **Rate limiting**: the anonymous `/pair/*` surface is throttled per remote IP by a fixed-window limiter — 10 requests per PIN-TTL window (30 s) — bounding PIN guesses per source per PIN lifetime. Excess requests get `429` with a `Retry-After` header and are logged; the partition key fails closed to `"unknown"` when the peer IP is unavailable.
 - **Strict inbound JSON**: request bodies bind with a hardened profile (reject duplicate keys, reject unmapped members, case-sensitive names, required non-nullable members and constructor parameters). Well-formed first-party traffic is unaffected because the client emits every snake_case key explicitly; responses and other serialization stay on the lenient profile. See [Persistence § JSON Serialization](persistence.md#json-serialization).
 
-All sync HTTP requests, including pairing, carry `X-Sufni-Sync-Protocol: 4`.
+All sync HTTP requests, including pairing, carry `X-Sufni-Sync-Protocol: 5`.
 Both the anonymous pairing group and the JWT-protected sync group reject missing
 or mismatched protocol headers with `426 Upgrade Required`. Protocol v3 gives
 push and pull separate persisted watermarks and bounds each metadata snapshot
 with one sampled `upper_bound`. Protocol v4 adds the session derivation window
 columns to the session payload. They are authored metadata like `timestamp`:
 the merge engine writes them in both remote-update variants, including the one
-that keeps the held processed generation. The client installs the header on its shared
+that keeps the held processed generation. Protocol v5 adds the saved-segment
+list. The client installs the header on its shared
 `HttpClient`, so new endpoint groups must either stay behind that service or
 explicitly add the same version gate. Kestrel caps sync request bodies at 256
 MiB.
@@ -146,6 +147,7 @@ SynchronizationData
 ├── Setups[]
 ├── Sessions[] (metadata, tuning fields, full-track link, processing fingerprint; no blob)
 ├── Tracks[]
+├── Segments[] (saved segments, JSON `segment`)
 ├── AppPreferences? (map/session preferences as AppPreferencesSyncData)
 └── ExtensionBatches[] (opaque extension envelopes)
 ```
@@ -155,6 +157,13 @@ it, use the legacy `rear_suspension_kind` / `linkage` / `leverage_ratio` triple,
 or contain a malformed union are rejected during deserialization on both the
 client pull path and the desktop inbound push path; legacy rear-suspension data
 is accepted only by the local SQLite startup migration.
+
+Saved segments use the core paths unchanged: the client applies remote rows
+verbatim and the hub merges them by timestamp and tombstone, after sessions in
+the same transaction. A segment of a deleted session needs no cascade, because
+segment reads include only live sessions. The client refreshes the segment store
+with the other stores after a sync; the hub's `InboundSyncCoordinator` refreshes
+it when a push carries segments.
 
 Processed telemetry blobs (`session.data`) and raw recorded sources (`session_recording_source.payload`) are transferred through the dedicated session-data and session-source endpoints, not through `SynchronizationData`. Their bodies are binary `application/octet-stream`; row metadata travels in HTTP headers so large BLOBs are not base64-encoded in JSON.
 

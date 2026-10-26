@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Serilog;
 
+using Sufni.App.Segments.Stores;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Video.Stores;
@@ -10,7 +11,7 @@ namespace Sufni.App.Sessions.Coordination;
 
 /// <summary>
 /// Runs the trim and split commands of recorded sessions. Each command commits
-/// in one transaction, publishes the changed sessions and video clips, and
+/// in one transaction, publishes the changed sessions, segments, and video clips, and
 /// recomputes the affected sessions; a split also opens the new part in the
 /// background.
 /// </summary>
@@ -41,6 +42,7 @@ public abstract record SessionEditResult
 internal sealed class SessionEditingCoordinator(
     ISessionStoreWriter sessionStore,
     ISessionVideoStoreWriter videoStore,
+    ISessionSegmentStoreWriter segmentStore,
     ISessionPersistenceTransactionRunner transactions,
     ISessionRecomputeEngine recomputeEngine,
     Func<IEditorFactory> editorFactory) : ISessionEditingCoordinator
@@ -89,6 +91,11 @@ internal sealed class SessionEditingCoordinator(
             if (committed.Clips.Count > 0)
             {
                 await videoStore.PublishClipsAsync(committed.Clips);
+            }
+
+            if (committed.Segments.Count > 0)
+            {
+                await segmentStore.PublishSegmentsAsync(committed.Segments);
             }
 
             if (committed.CreatedSessionId is { } createdId && sessionStore.Get(createdId) is { } created)

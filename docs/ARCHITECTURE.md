@@ -19,6 +19,7 @@ This document is the catalog. Each subsystem is summarized here and the deep det
 - [Plot Rendering](#plot-rendering)
 - [Maps & GPS Tracks](#maps--gps-tracks)
 - [Session Video](#session-video)
+- [Saved Segments](#saved-segments)
 - [Live DAQ Streaming](#live-daq-streaming)
 - [Live Session Recording](#live-session-recording)
 - [Persistence & Serialization](#persistence--serialization)
@@ -66,6 +67,7 @@ layering rules are unchanged — only the folder grouping is slice-first instead
 | **SyncAndPairing** | `SyncAndPairing/` | Client sync + pairing coordinators/services/VMs (desktop sync server stays in `Sufni.App.Desktop`) |
 | **MapsAndTracks** | `MapsAndTracks/` | Map view + interaction/viewport controllers, track geometry, track signal plot |
 | **Video** | `Video/` | Session video: clip links, store, import/alignment coordinator, video pane and playback, player contracts |
+| **Segments** | `Segments/` | Saved segments of recorded sessions: model, repository, store, coordinator |
 | **Shell** | `Shell/` | App shell: `ShellRootViewModel`, `ShellWorkspaceViewModel`, `MainPagesViewModel`, shell coordinator, profile shell views, navigation behaviors, keyboard shortcuts |
 | **Shared** | `Shared/` | Cross-slice bases (`Base/`), common helpers, formatting, shared plot bases, shared `Views/` + `DesktopViews/` controls/dialogs/overlays/converters |
 | **Infrastructure** | `Infrastructure/` | Infra services, app JSON/preferences, theming bridge (`Theming/`), and platform-service abstractions (`IServiceDiscovery`, `IHapticFeedback`, `IFriendlyNameProvider`) |
@@ -261,6 +263,19 @@ Topics in [architecture/video.md](architecture/video.md):
 - [Alignment](architecture/video.md#alignment) — mark video event, mark telemetry event
 - [Session List Indicator](architecture/video.md#session-list-indicator) — present/missing row icon
 - [Platform Players](architecture/video.md#platform-players) — LibVLC and AVFoundation players
+
+---
+
+## Saved Segments
+
+A saved segment is a named time range on one recorded session. Segments are synchronized, move with trim and split, and are live only while their session is live.
+
+Topics in [architecture/segments.md](architecture/segments.md):
+
+- [Persistence](architecture/segments.md#persistence) — `session_segment` table, startup cleanup, one-time copy migration
+- [Store And Coordinator](architecture/segments.md#store-and-coordinator) — `SessionSegmentStore`, `SegmentCoordinator`, name rule
+- [Synchronization](architecture/segments.md#synchronization) — segment list in the sync payload
+- [Trim And Split](architecture/segments.md#trim-and-split) — how edits move segments
 
 ---
 

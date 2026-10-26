@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Sufni.App.ExtensionHost.Contracts.Database;
 
 using Sufni.App.Bikes.Stores;
+using Sufni.App.Segments.Stores;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
@@ -29,6 +30,7 @@ internal sealed class AppDataRefresher(
     IRecordedSessionSourceStoreWriter recordedSessionSourceStore,
     IPairedDeviceStoreWriter pairedDeviceStore,
     ISessionVideoStoreWriter sessionVideoStore,
+    ISessionSegmentStoreWriter sessionSegmentStore,
     IRecordedSessionProcessingOptionCache processingOptionCache,
     IEnumerable<IExtensionStateRefreshParticipant> extensionStateRefreshParticipants) : IAppDataRefresher, IAppStateRefreshOrchestrator
 {
@@ -48,6 +50,7 @@ internal sealed class AppDataRefresher(
         await recordedSessionSourceStore.RefreshAsync(cancellationToken);
         await pairedDeviceStore.RefreshAsync(cancellationToken);
         await sessionVideoStore.RefreshAsync(cancellationToken);
+        await sessionSegmentStore.RefreshAsync(cancellationToken);
     }
 
     public async Task RefreshAllStateAsync(CancellationToken cancellationToken = default)

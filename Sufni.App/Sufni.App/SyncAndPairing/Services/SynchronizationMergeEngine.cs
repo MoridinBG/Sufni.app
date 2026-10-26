@@ -16,6 +16,7 @@ using Sufni.App.Sessions.Services;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Bikes.Models;
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Segments.Models;
 using Sufni.App.Setups.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Store;
@@ -149,6 +150,7 @@ internal sealed class SynchronizationMergeEngine(
         var setups = await GetChangedAsync<Setup>(connection, sinceExclusive, upperInclusive);
         var sessions = await GetChangedAsync<Session>(connection, sinceExclusive, upperInclusive);
         var tracks = await GetChangedAsync<Track>(connection, sinceExclusive, upperInclusive);
+        var segments = await GetChangedAsync<SessionSegment>(connection, sinceExclusive, upperInclusive);
 
         var changedTrackIds = tracks.Select(track => track.Id).ToHashSet();
         var relatedTrackIds = sessions
@@ -172,7 +174,8 @@ internal sealed class SynchronizationMergeEngine(
             Bikes = bikes,
             Setups = setups,
             Sessions = sessions,
-            Tracks = tracks
+            Tracks = tracks,
+            Segments = segments
         };
     }
 
@@ -194,6 +197,8 @@ internal sealed class SynchronizationMergeEngine(
                     swaps.Add(swap);
                 }
             }
+
+            foreach (var segment in data.Segments) ApplyRemoteEntity(connection, segment);
 
             return swaps;
         });
@@ -257,6 +262,7 @@ internal sealed class SynchronizationMergeEngine(
             foreach (var board in data.Boards) Merge(connection, board, MergeGenericAcceptedContent);
             foreach (var session in data.Sessions) Merge(connection, session, MergeSessionAcceptedContent);
             foreach (var track in data.Tracks) Merge(connection, track, MergeGenericAcceptedContent);
+            foreach (var segment in data.Segments) Merge(connection, segment, MergeGenericAcceptedContent);
         });
     }
 

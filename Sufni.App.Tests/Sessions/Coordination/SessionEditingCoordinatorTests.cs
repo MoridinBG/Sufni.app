@@ -1,4 +1,5 @@
 using NSubstitute;
+using Sufni.App.Segments.Stores;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Shell.Coordinators;
@@ -12,6 +13,7 @@ public class SessionEditingCoordinatorTests
 {
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly ISessionVideoStoreWriter videoStore = Substitute.For<ISessionVideoStoreWriter>();
+    private readonly ISessionSegmentStoreWriter segmentStore = Substitute.For<ISessionSegmentStoreWriter>();
     private readonly ISessionPersistenceTransactionRunner transactions = Substitute.For<ISessionPersistenceTransactionRunner>();
     private readonly ISessionRecomputeEngine recomputeEngine = Substitute.For<ISessionRecomputeEngine>();
     private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
@@ -30,7 +32,7 @@ public class SessionEditingCoordinatorTests
         var part2 = TestSnapshots.Session(id: Guid.NewGuid());
         var clip = new SessionVideoClip { Id = Guid.NewGuid(), SessionId = part2.Id };
         sessionStore.Get(part2.Id).Returns(part2);
-        transactions.SplitAsync(session, 3).Returns(new SessionEditCommit.Committed([session.Id, part2.Id], [clip], part2.Id));
+        transactions.SplitAsync(session, 3).Returns(new SessionEditCommit.Committed([session.Id, part2.Id], [clip], [], part2.Id));
 
         var result = await CreateCoordinator().SplitAsync(session.Id, 3);
 
@@ -61,7 +63,7 @@ public class SessionEditingCoordinatorTests
     [Fact]
     public async Task UndoTrimAsync_WhenRecomputeFails_AppliesWithRecomputeError()
     {
-        transactions.UndoTrimAsync(session).Returns(new SessionEditCommit.Committed([session.Id], []));
+        transactions.UndoTrimAsync(session).Returns(new SessionEditCommit.Committed([session.Id], [], []));
         recomputeEngine.RequestRecomputeAsync(session.Id, RecomputeReason.SourceWindowChanged)
             .Returns(Task.FromResult<SessionRecomputeResult>(new SessionRecomputeResult.Failed("source is corrupt")));
 
@@ -79,5 +81,5 @@ public class SessionEditingCoordinatorTests
     }
 
     private SessionEditingCoordinator CreateCoordinator() =>
-        new(sessionStore, videoStore, transactions, recomputeEngine, () => editorFactory);
+        new(sessionStore, videoStore, segmentStore, transactions, recomputeEngine, () => editorFactory);
 }

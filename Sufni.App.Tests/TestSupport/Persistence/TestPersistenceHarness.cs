@@ -8,6 +8,7 @@ using Sufni.Telemetry;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.Segments.Services;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.Services;
@@ -61,6 +62,8 @@ internal sealed class TestPersistenceHarness
     public ISessionTelemetryWriter SessionTelemetryWriter => sessionTelemetryWriter;
 
     public ISessionVideoRepository SessionVideoRepository => new SessionVideoRepository(context);
+
+    public ISessionSegmentRepository SessionSegmentRepository => new SessionSegmentRepository(context);
 
     public ISessionPersistenceTransactionRunner SessionTransactions => new SessionPersistenceTransactionRunner(context);
 

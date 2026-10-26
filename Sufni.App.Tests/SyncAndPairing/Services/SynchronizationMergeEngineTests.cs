@@ -9,6 +9,7 @@ using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
@@ -149,6 +150,24 @@ public class SynchronizationMergeEngineTests
         Assert.Single(syncData.Tracks);
         Assert.Equal(trackId, syncData.Tracks[0].Id);
 
+    }
+
+    [Fact]
+    public async Task MergeAllAsync_AcceptsPushedSegmentOfPushedSession()
+    {
+        using var deviceDatabase = new TempDatabase("segment-device.db");
+        using var hubDatabase = new TempDatabase("segment-hub.db");
+        var device = new TestPersistenceHarness(deviceDatabase.DatabasePath);
+        var hub = new TestPersistenceHarness(hubDatabase.DatabasePath);
+        var session = new Session(Guid.NewGuid(), "ride", string.Empty, null);
+        await device.PutSessionAsync(session);
+        var segment = new SessionSegment { SessionId = session.Id, Name = "climb", StartSeconds = 1, EndSeconds = 4 };
+        await device.SessionSegmentRepository.InsertAsync(segment);
+
+        await hub.MergeAllAsync(await device.GetSynchronizationDataAsync(0, DateTimeOffset.UtcNow.ToUnixTimeSeconds()));
+
+        var merged = Assert.Single(await hub.SessionSegmentRepository.GetLiveAsync());
+        Assert.Equal((segment.Id, session.Id, "climb"), (merged.Id, merged.SessionId, merged.Name));
     }
 
     [Fact]

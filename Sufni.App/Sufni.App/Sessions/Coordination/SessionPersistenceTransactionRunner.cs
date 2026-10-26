@@ -6,6 +6,7 @@ using SQLite;
 using Sufni.App.Extensibility.Database;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Segments.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
@@ -93,7 +94,7 @@ internal sealed class SessionPersistenceTransactionRunner(
             }
 
             Update(connection, row, window with { End = split }, previous: window, row.Name, now);
-            return new SessionEditCommit.Committed([row.Id], []);
+            return new SessionEditCommit.Committed([row.Id], [], []);
         });
 
     public Task<SessionEditCommit> TrimFromBeginningAsync(SessionSnapshot session, double clickSeconds) =>
@@ -112,7 +113,8 @@ internal sealed class SessionPersistenceTransactionRunner(
                 connection,
                 row.Id,
                 FractionDelta(window.Start, split));
-            return new SessionEditCommit.Committed([row.Id], clips);
+            var segments = SessionSegmentRepository.ShiftInTransaction(connection, row.Id, window.Start - split, now);
+            return new SessionEditCommit.Committed([row.Id], clips, segments);
         });
 
     public Task<SessionEditCommit> UndoTrimAsync(SessionSnapshot session) =>
@@ -131,7 +133,12 @@ internal sealed class SessionPersistenceTransactionRunner(
                 connection,
                 row.Id,
                 FractionDelta(window.Start, restored.Start));
-            return new SessionEditCommit.Committed([row.Id], clips);
+            var segments = SessionSegmentRepository.ShiftInTransaction(
+                connection,
+                row.Id,
+                window.Start - restored.Start,
+                now);
+            return new SessionEditCommit.Committed([row.Id], clips, segments);
         });
 
     public Task<SessionEditCommit> SplitAsync(SessionSnapshot session, double clickSeconds) =>
@@ -172,7 +179,13 @@ internal sealed class SessionPersistenceTransactionRunner(
                 part2.Id,
                 FractionDelta(window.Start, split),
                 DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-            return new SessionEditCommit.Committed([row.Id, part2.Id], clips, part2.Id);
+            var segments = SessionSegmentRepository.MoveToSessionInTransaction(
+                connection,
+                row.Id,
+                part2.Id,
+                clickSeconds,
+                now);
+            return new SessionEditCommit.Committed([row.Id, part2.Id], clips, segments, part2.Id);
         });
 
     private static readonly SessionEditCommit InvalidPosition =

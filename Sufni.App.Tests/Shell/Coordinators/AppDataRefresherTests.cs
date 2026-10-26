@@ -2,6 +2,7 @@ using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.Database;
 
 using Sufni.App.Bikes.Stores;
+using Sufni.App.Segments.Stores;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
@@ -21,6 +22,7 @@ public class AppDataRefresherTests
         var sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
         var pairedDeviceStore = Substitute.For<IPairedDeviceStoreWriter>();
         var sessionVideoStore = Substitute.For<ISessionVideoStoreWriter>();
+        var sessionSegmentStore = Substitute.For<ISessionSegmentStoreWriter>();
         var processingOptionCache = Substitute.For<IRecordedSessionProcessingOptionCache>();
         var refresher = new AppDataRefresher(
             bikeStore,
@@ -29,6 +31,7 @@ public class AppDataRefresherTests
             sourceStore,
             pairedDeviceStore,
             sessionVideoStore,
+            sessionSegmentStore,
             processingOptionCache,
             []);
 
@@ -43,6 +46,7 @@ public class AppDataRefresherTests
         await sourceStore.Received(1).RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
         await pairedDeviceStore.Received(1).RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
         await sessionVideoStore.Received(1).RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await sessionSegmentStore.Received(1).RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -54,6 +58,7 @@ public class AppDataRefresherTests
         var sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
         var pairedDeviceStore = Substitute.For<IPairedDeviceStoreWriter>();
         var sessionVideoStore = Substitute.For<ISessionVideoStoreWriter>();
+        var sessionSegmentStore = Substitute.For<ISessionSegmentStoreWriter>();
         var processingOptionCache = Substitute.For<IRecordedSessionProcessingOptionCache>();
         var participant = Substitute.For<IExtensionStateRefreshParticipant>();
         var refresher = new AppDataRefresher(
@@ -63,6 +68,7 @@ public class AppDataRefresherTests
             sourceStore,
             pairedDeviceStore,
             sessionVideoStore,
+            sessionSegmentStore,
             processingOptionCache,
             [participant]);
 

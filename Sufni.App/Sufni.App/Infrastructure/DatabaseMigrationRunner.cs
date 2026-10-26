@@ -12,6 +12,7 @@ using Sufni.Kinematics;
 using Sufni.App.Extensibility.Database;
 using Sufni.App.Bikes.Models;
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Setups.Models;
 using Sufni.App.SyncAndPairing.Models;
@@ -27,7 +28,7 @@ internal sealed class DatabaseMigrationRunner(
     ExtensionCascadeService extensionCascadeService)
 {
     private static readonly ILogger logger = Log.ForContext<DatabaseMigrationRunner>();
-    private static readonly string[] SyncIndexedTables = ["board", "bike", "setup", "session", "track"];
+    private static readonly string[] SyncIndexedTables = ["board", "bike", "setup", "session", "track", "session_segment"];
     private readonly CoreMigrationStore coreMigrations = new(connection);
 
     internal async Task RunAsync()
@@ -52,14 +53,16 @@ internal sealed class DatabaseMigrationRunner(
             await CopyPrivateSessionVideosAsync();
             await EnsureSessionVideoIntegrityAsync();
             await MigrateSessionDerivationWindowsAsync();
+            await CopyPrivateSessionSegmentsAsync();
             await extensionMigratorRunner.RunAsync(connection);
 
             var cleanupSummary = await Cleanup();
             await extensionCascadeService.RepairOrphansAsync(refreshExtensionState: false);
             logger.Information("SQLite database initialized at {DatabasePath}", databasePath);
             logger.Verbose(
-                "SQLite startup cleanup removed {SessionCount} sessions, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
+                "SQLite startup cleanup removed {SessionCount} sessions, {SegmentCount} segments, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
                 cleanupSummary.Sessions,
+                cleanupSummary.Segments,
                 cleanupSummary.Tracks,
                 cleanupSummary.Boards,
                 cleanupSummary.Setups,
@@ -85,7 +88,8 @@ internal sealed class DatabaseMigrationRunner(
             typeof(Synchronization),
             typeof(PairedDevice),
             typeof(Track),
-            typeof(SessionVideoClip)
+            typeof(SessionVideoClip),
+            typeof(SessionSegment)
         ]);
     }
 
@@ -158,6 +162,31 @@ internal sealed class DatabaseMigrationRunner(
                 """);
             transaction.Execute("DROP TABLE private_session_video_clip");
             transaction.Execute("DELETE FROM extension_schema_version WHERE extension_id = 'sufni.private.video'");
+        });
+    }
+
+    // One-time copy of the saved segments kept by the former private segment
+    // extension, tombstones included so that peers' deletions stay deleted.
+    private async Task CopyPrivateSessionSegmentsAsync()
+    {
+        var sourceTableCount = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'private_saved_session_segment'");
+        if (sourceTableCount == 0)
+        {
+            return;
+        }
+
+        await connection.RunInTransactionAsync(transaction =>
+        {
+            transaction.Execute(
+                """
+                INSERT OR IGNORE INTO session_segment
+                    (id, session_id, name, start_seconds, end_seconds, updated, client_updated, deleted)
+                SELECT id, session_id, name, start_seconds, end_seconds, updated, client_updated, deleted
+                FROM private_saved_session_segment
+                """);
+            transaction.Execute("DROP TABLE private_saved_session_segment");
+            transaction.Execute("DELETE FROM extension_schema_version WHERE extension_id = 'sufni.private.segment-analysis'");
         });
     }
 
@@ -628,6 +657,9 @@ internal sealed class DatabaseMigrationRunner(
         var oneDayAgo = DateTimeOffset.Now.AddDays(-1).ToUnixTimeSeconds();
 
         var deletedSessions = await connection.Table<Session>().DeleteAsync(session => session.Deleted != null && session.Deleted < oneDayAgo);
+        var deletedSegments = await connection.Table<SessionSegment>().DeleteAsync(segment => segment.Deleted != null && segment.Deleted < oneDayAgo);
+        deletedSegments += await connection.ExecuteAsync(
+            "DELETE FROM session_segment WHERE session_id NOT IN (SELECT id FROM session)");
         var duplicateTracks = await CleanupDuplicateTrackTimeRangesAsync();
         var deletedTracks = await connection.Table<Track>().DeleteAsync(track => track.Deleted != null && track.Deleted < oneDayAgo);
         var deletedBoards = await connection.Table<Board>().DeleteAsync(board => board.Deleted != null && board.Deleted < oneDayAgo);
@@ -637,6 +669,7 @@ internal sealed class DatabaseMigrationRunner(
 
         return new CleanupSummary(
             deletedSessions,
+            deletedSegments,
             deletedTracks + duplicateTracks,
             deletedBoards,
             deletedSetups,
@@ -785,6 +818,7 @@ internal sealed class DatabaseMigrationRunner(
 
     private sealed record CleanupSummary(
         int Sessions,
+        int Segments,
         int Tracks,
         int Boards,
         int Setups,

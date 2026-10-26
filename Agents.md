@@ -282,7 +282,7 @@ A desktop instance can host an embedded ASP.NET Core HTTP server
 advertised via mDNS. Mobile clients
 (`SyncAndPairing/Services/SynchronizationClientService.cs`, driving `HttpApiService`) pair
 with the server, then push and pull entity changes plus processed-session and
-recorded-source BLOBs through dedicated binary endpoints. Protocol version 4 is
+recorded-source BLOBs through dedicated binary endpoints. Protocol version 5 is
 carried by an HTTP header on every sync request. These two services are the
 source of truth for the endpoints and payloads.
 

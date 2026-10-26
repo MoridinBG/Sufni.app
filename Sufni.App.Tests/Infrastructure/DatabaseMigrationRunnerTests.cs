@@ -8,6 +8,7 @@ using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
+using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
@@ -1207,6 +1208,71 @@ public class DatabaseMigrationRunnerTests
         var session = SessionSnapshot.From((await database.GetSessionAsync(sessionId))!);
 
         Assert.Equal(window, session.DerivationWindow);
+    }
+
+    [Fact]
+    public async Task Initialization_CopiesPrivateSegmentsWithTombstones_AndDropsSourceTable()
+    {
+        using var tempDatabase = new TempDatabase("private-segment-copy.db");
+        var sessionId = Guid.NewGuid();
+        var liveId = Guid.NewGuid();
+        var deletedId = Guid.NewGuid();
+
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.CreateTable<Session>();
+            connection.Insert(new Session(sessionId, "ride", string.Empty, null) { Updated = 10 });
+            connection.Execute(
+                """
+                CREATE TABLE private_saved_session_segment (
+                    id TEXT PRIMARY KEY, session_id TEXT NOT NULL, name TEXT NOT NULL,
+                    start_seconds REAL NOT NULL, end_seconds REAL NOT NULL,
+                    updated INTEGER NOT NULL, client_updated INTEGER NOT NULL, deleted INTEGER)
+                """);
+            const string insertSegment = "INSERT INTO private_saved_session_segment VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+            var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            connection.Execute(insertSegment, liveId, sessionId, "climb", 1.5, 4.0, now, now, null);
+            connection.Execute(insertSegment, deletedId, sessionId, "descent", 5.0, 9.0, now, now, now);
+            connection.Execute("CREATE TABLE extension_schema_version (extension_id TEXT PRIMARY KEY, version INTEGER)");
+            connection.Execute("INSERT INTO extension_schema_version VALUES ('sufni.private.segment-analysis', 1)");
+        }
+
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var live = Assert.Single(await database.SessionSegmentRepository.GetLiveAsync());
+
+        Assert.Equal((liveId, sessionId, "climb", 1.5, 4.0), (live.Id, live.SessionId, live.Name, live.StartSeconds, live.EndSeconds));
+        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
+        Assert.NotNull(verificationConnection.Find<SessionSegment>(deletedId)?.Deleted);
+        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE name = 'private_saved_session_segment'"));
+        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM extension_schema_version WHERE extension_id = 'sufni.private.segment-analysis'"));
+    }
+
+    [Fact]
+    public async Task StartupCleanup_PurgesSegmentsOfPurgedSessions()
+    {
+        using var tempDatabase = new TempDatabase("segment-purge.db");
+        var purgedSessionId = Guid.NewGuid();
+        var keptSessionId = Guid.NewGuid();
+        var keptSegmentId = Guid.NewGuid();
+        var twoDaysAgo = DateTimeOffset.UtcNow.AddDays(-2).ToUnixTimeSeconds();
+
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.CreateTable<Session>();
+            connection.CreateTable<SessionSegment>();
+            connection.Insert(new Session(purgedSessionId, "purged", string.Empty, null) { Updated = 10, Deleted = twoDaysAgo });
+            connection.Insert(new Session(keptSessionId, "kept", string.Empty, null) { Updated = 10 });
+            connection.Insert(new SessionSegment { SessionId = purgedSessionId, Name = "orphan", StartSeconds = 0, EndSeconds = 1 });
+            connection.Insert(new SessionSegment { SessionId = keptSessionId, Name = "old tombstone", StartSeconds = 0, EndSeconds = 1, Deleted = twoDaysAgo });
+            connection.Insert(new SessionSegment { Id = keptSegmentId, SessionId = keptSessionId, Name = "kept", StartSeconds = 0, EndSeconds = 1 });
+        }
+
+        await new TestPersistenceHarness(tempDatabase.DatabasePath).GetInitializedConnectionAsync();
+
+        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
+        Assert.Equal(keptSegmentId, Assert.Single(verificationConnection.Table<SessionSegment>().ToList()).Id);
     }
 
     [Fact]

@@ -4,6 +4,8 @@ using NSubstitute;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
+using Sufni.App.Segments.Models;
+using Sufni.App.Segments.Stores;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
 using Sufni.App.SyncAndPairing.Models;
@@ -18,10 +20,11 @@ public class InboundSyncCoordinatorTests
     private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
     private readonly IBikeStoreWriter bikeStore = Substitute.For<IBikeStoreWriter>();
     private readonly ISetupStoreWriter setupStore = Substitute.For<ISetupStoreWriter>();
+    private readonly ISessionSegmentStoreWriter segmentStore = Substitute.For<ISessionSegmentStoreWriter>();
     private readonly ISynchronizationServerService server = Substitute.For<ISynchronizationServerService>();
 
     private InboundSyncCoordinator CreateCoordinator() =>
-        new(bikeRepository, setupRepository, bikeStore, setupStore, server);
+        new(bikeRepository, setupRepository, bikeStore, setupStore, segmentStore, server);
 
     private static async Task DrainDispatcherAsync() =>
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -135,5 +138,22 @@ public class InboundSyncCoordinatorTests
         await setupStore.Received(1).PublishSetupsChangedAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(setupId)),
             Arg.Any<CancellationToken>());
+    }
+
+    // ----- Segments -----
+
+    [AvaloniaFact]
+    public async Task SynchronizationDataArrived_WithSegments_RefreshesSegmentStore()
+    {
+        var coordinator = CreateCoordinator();
+        var data = new SynchronizationData
+        {
+            Segments = { new SessionSegment { SessionId = Guid.NewGuid(), Name = "climb", StartSeconds = 1, EndSeconds = 2 } },
+        };
+
+        server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
+        await DrainDispatcherAsync();
+
+        await segmentStore.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
     }
 }
