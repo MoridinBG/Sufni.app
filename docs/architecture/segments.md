@@ -60,7 +60,7 @@ Each recorded-session editor creates one `SegmentPickerViewModel` through `ISegm
 - **Actions.** Selecting a row sets the analysis range; selecting the selected row clears it. Both close the picker. Rename asks for a name; delete asks for confirmation. Both go through `ISegmentCoordinator`, and a failure goes to the editor's error list.
 - **Save.** The built-in plot context-menu entry "Save current selection" (id `save-current-selection`, shown as "Analysis > Save current selection") appears on the six time-series rows and is available when the click lies inside the analysis range. It asks for a name, prefilled with the next free "Segment N", and creates the segment.
 - **Name prompt.** `SegmentNamePromptViewModel` runs on the content-dialog path of `IDialogService`. It validates with `ISegmentCoordinator.ValidateName`, completes on confirm and on cancel, and exposes the confirmed name.
-- **Placement.** The Segments button sits at the trailing end of the signals strip. The desktop signals view opens the panel in a flyout; the mobile signals page opens it as a bottom sheet sized to the window. The picker is available while processed telemetry is loaded and closes when it is gone.
+- **Placement.** The Segments button sits at the trailing end of the signals strip. The desktop signals view opens the panel in a flyout, and the panel holds the picker as its own data context because a hidden flyout drops the inherited one; the mobile signals page opens it as a bottom sheet sized to the window. The picker is available while processed telemetry is loaded and closes when it is gone.
 
 ## Strava
 

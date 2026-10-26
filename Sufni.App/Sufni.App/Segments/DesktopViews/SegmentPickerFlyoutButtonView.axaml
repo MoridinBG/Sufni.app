@@ -23,7 +23,7 @@
                 Flyout.FlyoutPresenterClasses="wide"
                 Opened="SegmentsFlyout_OnOpened"
                 Placement="BottomEdgeAlignedRight">
-                <views:SegmentPickerPanelView />
+                <views:SegmentPickerPanelView x:Name="PickerPanel" />
             </Flyout>
         </Button.Flyout>
     </Button>

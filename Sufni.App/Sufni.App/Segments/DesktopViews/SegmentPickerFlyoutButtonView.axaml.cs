@@ -6,7 +6,8 @@ using Sufni.App.Segments.ViewModels;
 namespace Sufni.App.Segments.DesktopViews;
 
 // The flyout opens and closes the picker; the picker closing (after a
-// selection) hides the flyout.
+// selection) hides the flyout. The panel holds the picker as its own data
+// context because the flyout drops the inherited one while it is hidden.
 public partial class SegmentPickerFlyoutButtonView : UserControl
 {
     private SegmentPickerViewModel? picker;
@@ -25,6 +26,7 @@ public partial class SegmentPickerFlyoutButtonView : UserControl
         }
 
         picker = DataContext as SegmentPickerViewModel;
+        PickerPanel.DataContext = picker;
         if (picker is not null)
         {
             picker.PropertyChanged += OnPickerPropertyChanged;
