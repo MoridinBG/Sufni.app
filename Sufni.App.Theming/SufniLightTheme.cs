@@ -74,6 +74,7 @@ public static class SufniLightTheme
             PlotAnalysisSelectionRearBase: Lagoon,
             PlotDampingSelectionFill: WarningOchre.WithAlpha(0.20),
             PlotDampingSelectionOutline: WarningOchre.WithAlpha(0.62),
+            PlotAnalysisRangeBase: Violet,
             PlotAnalysisSelectedFillOpacity: 0.2,
             PlotPreviewFill: AccentBlue.WithAlpha(0.24),
             PlotCursorLine: text.Secondary,

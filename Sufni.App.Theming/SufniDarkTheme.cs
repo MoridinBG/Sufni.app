@@ -74,6 +74,7 @@ public static class SufniDarkTheme
             PlotAnalysisSelectionRearBase: Lagoon,
             PlotDampingSelectionFill: WarningGold.WithAlpha(0.22),
             PlotDampingSelectionOutline: WarningGold.WithAlpha(0.65),
+            PlotAnalysisRangeBase: Violet,
             PlotAnalysisSelectedFillOpacity: 0.16,
             PlotPreviewFill: SlateMist.WithAlpha(0.12),
             PlotCursorLine: Pearl,

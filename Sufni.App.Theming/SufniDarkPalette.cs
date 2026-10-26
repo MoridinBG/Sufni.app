@@ -78,4 +78,5 @@ public static class SufniDarkPalette
     public static readonly Color MarkerRed  = C("#D53E4F");
     public static readonly Color Indigo     = C("#4F70B5");
     public static readonly Color Lagoon     = C("#3C9D9A");
+    public static readonly Color Violet     = C("#9467BD");
 }

@@ -33,6 +33,7 @@ public sealed record SufniThemeInputs(
     Color PlotAnalysisSelectionRearBase,
     Color PlotDampingSelectionFill,
     Color PlotDampingSelectionOutline,
+    Color PlotAnalysisRangeBase,
     double PlotAnalysisSelectedFillOpacity,
     Color PlotPreviewFill,
     Color PlotCursorLine,
@@ -163,7 +164,7 @@ public static class SufniThemeBuilder
                 DampingSelectionFill: inputs.PlotDampingSelectionFill,
                 DampingSelectionOutline: inputs.PlotDampingSelectionOutline),
             AnalysisRange: new SufniPlotAnalysisRangeTheme(
-                SelectedFill: series.SuspensionFront.WithAlpha(inputs.PlotAnalysisSelectedFillOpacity),
+                SelectedFill: inputs.PlotAnalysisRangeBase.WithAlpha(inputs.PlotAnalysisSelectedFillOpacity),
                 PreviewFill: inputs.PlotPreviewFill),
             Cursor: new SufniPlotCursorTheme(
                 Line: inputs.PlotCursorLine,
