@@ -131,8 +131,7 @@ public class RecordedSessionEditorActionsTests
         var runtime = new RecordedSessionHostRuntimeState(
             session.Id,
             ViewLoaded: true,
-            IsActive: false,
-            PendingTimelineAlignmentMark: null);
+            IsActive: false);
 
         states.OnNext(state);
         runtimes.OnNext(runtime);

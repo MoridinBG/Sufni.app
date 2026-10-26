@@ -14,9 +14,9 @@ public class RecordedSessionExtensionSlotPublisherTests
     {
         var slots = new RecordedSessionExtensionSlots();
         var publisher = new RecordedSessionExtensionSlotPublisher(slots, new TestUiThreadDispatcher(checkAccess: true));
-        var mediaPane = new RecordedSessionMediaPaneContribution(
+        var banner = new RecordedSessionAnalysisBannerContribution(
             "extension",
-            "media",
+            "banner",
             Order: 10,
             new TestContributionViewModel());
         var contextMenu = new RecordedSessionSignalPlotContextMenuContribution(
@@ -28,16 +28,16 @@ public class RecordedSessionExtensionSlotPublisherTests
 
         publisher.Publish(builder =>
         {
-            builder.MediaPanes.Add(mediaPane);
+            builder.AnalysisBanners.Add(banner);
             builder.SignalPlotContextMenuActions.Add(contextMenu);
         });
 
-        Assert.Equal([mediaPane], slots.MediaPanes);
+        Assert.Equal([banner], slots.AnalysisBanners);
         Assert.Equal([contextMenu], slots.SignalPlotContextMenuActions);
 
-        publisher.Publish(builder => builder.MediaPanes.Add(mediaPane with { ContributionId = "updated" }));
+        publisher.Publish(builder => builder.AnalysisBanners.Add(banner with { ContributionId = "updated" }));
 
-        Assert.Equal(["updated"], slots.MediaPanes.Select(contribution => contribution.ContributionId));
+        Assert.Equal(["updated"], slots.AnalysisBanners.Select(contribution => contribution.ContributionId));
         Assert.Empty(slots.SignalPlotContextMenuActions);
     }
 

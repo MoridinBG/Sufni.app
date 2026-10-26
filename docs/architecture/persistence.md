@@ -10,6 +10,7 @@ erDiagram
     session ||--o| track : "full_track_id"
     session ||--o| session_recording_source : "session_id"
     session ||--o| session_blob_swap_request : "session_id"
+    session ||--o{ session_video : "session_id"
     setup }o--|| bike : "bike_id"
     board ||--o| setup : "setup_id"
 
@@ -122,6 +123,16 @@ erDiagram
         text target_generation
     }
 
+    session_video {
+        text id PK
+        text session_id FK
+        text path
+        int start_timestamp
+        real duration_seconds
+        real alignment_offset_seconds
+        int added
+    }
+
     paired_device {
         text device_id PK
         text display_name
@@ -158,7 +169,7 @@ derived-data changes.
 
 Startup migration does not repair or currentize stale `session_processing_fingerprint` values. Legacy, missing, malformed, or dependency-mismatched fingerprints remain classified as stale by the recorded-session projection so recompute can surface derived-data changes explicitly instead of silently rewriting fingerprint state at database initialization.
 
-Persistence consumers inject narrow repository interfaces instead of a single database facade. `ISynchronizableRepository<T>` owns generic soft-delete CRUD for `Synchronizable` entities; `ISessionRepository`, `IRecordedSessionSourceRepository`, `ITrackRepository`, and `IPairedDeviceRepository` own aggregate-specific operations and intent-specific projections; `ISyncDataStore` / `SynchronizationMergeEngine` owns sync timestamps, delta projection, remote apply, and merge conflict resolution. Read paths that only need ids, source snapshots, track payload metadata, full-track reference checks, or processing fingerprint inputs use those projections instead of loading whole aggregates or BLOB columns. `DatabaseMigrationRunner` is the only schema initializer/migrator, and repositories assume `SqliteConnectionContext` has run initialization before handing out the shared connection.
+Persistence consumers inject narrow repository interfaces instead of a single database facade. `ISynchronizableRepository<T>` owns generic soft-delete CRUD for `Synchronizable` entities; `ISessionRepository`, `IRecordedSessionSourceRepository`, `ITrackRepository`, `ISessionVideoRepository`, and `IPairedDeviceRepository` own aggregate-specific operations and intent-specific projections; `ISyncDataStore` / `SynchronizationMergeEngine` owns sync timestamps, delta projection, remote apply, and merge conflict resolution. Read paths that only need ids, source snapshots, track payload metadata, full-track reference checks, or processing fingerprint inputs use those projections instead of loading whole aggregates or BLOB columns. `DatabaseMigrationRunner` is the only schema initializer/migrator, and repositories assume `SqliteConnectionContext` has run initialization before handing out the shared connection.
 
 `DatabaseMigrationRunner` also ensures sync-delta indexes after core table
 creation and extension migrations. Every `Synchronizable` table (`board`,
@@ -250,6 +261,15 @@ soft-deleted sessions, and recreates delete/soft-delete triggers that remove a
 request with its owner session. The request store repeats orphan cleanup before
 returning the incomplete-session list and clears a matching request only after
 the validated generation write succeeds.
+
+`session_video` links a local video file to a recorded session. It is local
+state and is not synchronized. `ISessionVideoRepository` writes one row per
+matched session in one transaction and updates the alignment offset. Startup
+removes rows whose session is missing or soft-deleted and recreates the
+delete/soft-delete triggers that remove the rows with their session. Builds that
+ran the old video extension have their `private_session_video_clip` rows copied
+once into `session_video`; the copy drops the source table and its
+`extension_schema_version` row. See [video.md](video.md).
 
 ## JSON Serialization
 

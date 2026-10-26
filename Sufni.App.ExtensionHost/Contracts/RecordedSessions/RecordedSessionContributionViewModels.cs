@@ -4,14 +4,8 @@ namespace Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
 public interface IRecordedSessionToolbarContributionViewModel : IExtensionViewModel;
 
-public interface IRecordedSessionMediaPaneContributionViewModel : IExtensionViewModel;
-
 public interface IRecordedSessionAnalysisBannerContributionViewModel : IExtensionViewModel;
 
 public interface IRecordedSessionAnalysisOverlayContributionViewModel : IExtensionViewModel;
-
-public interface IRecordedSessionListIndicatorContributionViewModel : IExtensionViewModel;
-
-public interface IRecordedSessionListActionContributionViewModel : IExtensionViewModel;
 
 public interface IRecordedSessionHostedSignalRowContributionViewModel : IExtensionViewModel;

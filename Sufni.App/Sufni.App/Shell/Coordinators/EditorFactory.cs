@@ -31,6 +31,7 @@ using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Coordinators;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Setups.ViewModels.Editors;
+using Sufni.App.Video.ViewModels;
 namespace Sufni.App.Shell.Coordinators;
 
 internal sealed class EditorFactory(
@@ -64,7 +65,8 @@ internal sealed class EditorFactory(
     IExtensionDatabaseConnection extensionDatabase,
     IRecordedSessionDataReader recordedSessionDataReader,
     IBackgroundTaskRunner backgroundTaskRunner,
-    Func<ImportSessionsViewModel> importSessionsResolver) : IEditorFactory
+    Func<ImportSessionsViewModel> importSessionsResolver,
+    IVideoPaneFactory videoPaneFactory) : IEditorFactory
 {
     public void OpenNewBikeEditor(BikeSnapshot snapshot)
     {
@@ -188,7 +190,8 @@ internal sealed class EditorFactory(
                 extensionDatabase,
                 recordedSessionDataReader,
                 backgroundTaskRunner),
-            layoutProfileTransitionState);
+            layoutProfileTransitionState,
+            videoPaneFactory);
 
     private ClosedTabRestoreEntry CreateBikeRestoreEntry(Guid bikeId) =>
         ClosedTabRestoreEntry.For<BikeEditorViewModel>(

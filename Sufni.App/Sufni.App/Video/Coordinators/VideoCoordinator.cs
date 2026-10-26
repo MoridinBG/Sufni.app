@@ -1,0 +1,198 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Avalonia.Platform.Storage;
+using Serilog;
+using Sufni.App.ExtensionHost.Contracts.Services;
+
+using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Services;
+using Sufni.App.Video.Services;
+using Sufni.App.Video.Stores;
+namespace Sufni.App.Video.Coordinators;
+
+public abstract record VideoImportResult
+{
+    private VideoImportResult() { }
+
+    public sealed record Cancelled : VideoImportResult;
+    public sealed record Linked(int SessionCount) : VideoImportResult;
+    public sealed record Failed(string ErrorMessage) : VideoImportResult;
+}
+
+/// <summary>
+/// Owns the video workflows: importing a file and linking it to every
+/// recorded session whose recording window overlaps the video, and saving
+/// alignment corrections.
+/// </summary>
+public interface IVideoCoordinator
+{
+    Task<VideoImportResult> ImportAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Adds <paramref name="deltaSeconds"/> to the clip's alignment offset.
+    /// Returns false when the clip no longer exists.
+    /// </summary>
+    Task<bool> ShiftAlignmentAsync(Guid clipId, double deltaSeconds);
+
+    Task RefreshAsync();
+}
+
+internal sealed class VideoCoordinator(
+    IFilesService filesService,
+    IVideoMetadataReader metadataReader,
+    ISessionRepository sessionRepository,
+    ISessionVideoRepository videoRepository,
+    ISessionVideoStoreWriter videoStore,
+    IBackgroundTaskRunner backgroundTaskRunner) : IVideoCoordinator
+{
+    private static readonly ILogger logger = Log.ForContext<VideoCoordinator>();
+
+    public async Task<VideoImportResult> ImportAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var file = await filesService.OpenVideoFileAsync();
+            if (file is null)
+            {
+                return new VideoImportResult.Cancelled();
+            }
+
+            var localPath = file.TryGetLocalPath();
+            if (string.IsNullOrWhiteSpace(localPath))
+            {
+                return new VideoImportResult.Failed("Selected video must be a local file.");
+            }
+
+            return await backgroundTaskRunner.RunAsync(
+                () => ImportCoreAsync(file, Path.GetFullPath(localPath), cancellationToken),
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return new VideoImportResult.Cancelled();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return new VideoImportResult.Failed(e.Message);
+        }
+    }
+
+    public async Task<bool> ShiftAlignmentAsync(Guid clipId, double deltaSeconds)
+    {
+        if (videoStore.Get(clipId) is not { } clip)
+        {
+            return false;
+        }
+
+        var updated = await videoRepository.UpdateAlignmentAsync(clipId, clip.AlignmentOffsetSeconds + deltaSeconds);
+        if (updated is null)
+        {
+            return false;
+        }
+
+        await videoStore.PublishClipsAsync([updated]);
+        return true;
+    }
+
+    public Task RefreshAsync() => videoStore.RefreshAsync();
+
+    private async Task<VideoImportResult> ImportCoreAsync(
+        IStorageFile file,
+        string path,
+        CancellationToken cancellationToken)
+    {
+        VideoMetadataReadResult metadataResult;
+        await using (var stream = await file.OpenReadAsync())
+        {
+            metadataResult = await metadataReader.ReadAsync(stream, cancellationToken);
+        }
+
+        if (metadataResult is VideoMetadataReadResult.Invalid invalid)
+        {
+            return new VideoImportResult.Failed(invalid.ErrorMessage);
+        }
+
+        var metadata = ((VideoMetadataReadResult.Parsed)metadataResult).Metadata;
+        var sessions = await sessionRepository.GetSessionsAsync();
+        var sessionIds = sessions
+            .Where(session => GetMatchFailureReason(session, metadata) is null)
+            .Select(session => session.Id)
+            .ToArray();
+        if (sessionIds.Length == 0)
+        {
+            LogMatchFailures(file.Name, metadata, sessions);
+            return new VideoImportResult.Failed("No recorded session overlaps the selected video.");
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var clips = await videoRepository.LinkAsync(
+            path,
+            metadata.StartUtc.ToUnixTimeSeconds(),
+            metadata.Duration.TotalSeconds,
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            sessionIds);
+        await videoStore.PublishClipsAsync(clips);
+        return new VideoImportResult.Linked(clips.Count);
+    }
+
+    // A session matches when any part of the video recording window overlaps
+    // the session recording window. Returns null on a match, otherwise the
+    // reason logged when an import links no sessions.
+    private static string? GetMatchFailureReason(Session session, VideoMetadata metadata)
+    {
+        if (session.Timestamp is null)
+        {
+            return "session has no start timestamp";
+        }
+
+        if (session.DurationSeconds is not > 0)
+        {
+            return "session has no positive duration";
+        }
+
+        var sessionStartUtc = DateTimeOffset.FromUnixTimeSeconds(session.Timestamp.Value);
+        var sessionEndUtc = sessionStartUtc.AddSeconds(session.DurationSeconds.Value);
+        if (sessionEndUtc <= metadata.StartUtc)
+        {
+            var gapSeconds = (metadata.StartUtc - sessionEndUtc).TotalSeconds;
+            return $"session ends at {sessionEndUtc:u}, {gapSeconds:0.###} s before the video begins";
+        }
+
+        if (sessionStartUtc >= metadata.EndUtc)
+        {
+            var gapSeconds = (sessionStartUtc - metadata.EndUtc).TotalSeconds;
+            return $"session starts at {sessionStartUtc:u} (unix {session.Timestamp.Value}), {gapSeconds:0.###} s after the video ends";
+        }
+
+        return null;
+    }
+
+    private static void LogMatchFailures(
+        string fileName,
+        VideoMetadata metadata,
+        IReadOnlyList<Session> sessions)
+    {
+        logger.Debug(
+            "Video {FileName} matched no sessions; it covers {VideoStartUtc:u} to {VideoEndUtc:u} (unix {VideoStartUnix}, duration {DurationSeconds:0.###} s)",
+            fileName,
+            metadata.StartUtc,
+            metadata.EndUtc,
+            metadata.StartUtc.ToUnixTimeSeconds(),
+            metadata.Duration.TotalSeconds);
+
+        foreach (var session in sessions)
+        {
+            logger.Debug(
+                "Session {SessionName} ({SessionId}) did not match video {FileName}: {Reason}",
+                session.Name,
+                session.Id,
+                fileName,
+                GetMatchFailureReason(session, metadata));
+        }
+    }
+}

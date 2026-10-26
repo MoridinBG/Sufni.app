@@ -6,12 +6,6 @@ using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
 namespace Sufni.App.ExtensionHost.TestSupport.Doubles;
 
-public delegate bool TryResolveTimelineAlignmentHandler(
-    RecordedSessionTimelineAlignmentTarget target,
-    double seconds,
-    string? subjectId,
-    out RecordedSessionTimelineAlignmentResolution? resolution);
-
 /// <summary>
 /// Delegate-backed <see cref="IRecordedSessionHostOperations"/> for tests;
 /// unsupplied operations default to no-ops (and a substitute lease).
@@ -23,9 +17,6 @@ public sealed class DelegatingRecordedSessionHostOperations(
     Action<string>? addError = null,
     Action<string>? addNotification = null,
     Func<string, IRecordedSessionOperationLease>? startOperation = null,
-    Func<RecordedSessionTimelineAlignmentTarget, double, string?, bool>? tryBeginTimelineAlignment = null,
-    TryResolveTimelineAlignmentHandler? tryResolveTimelineAlignment = null,
-    Func<RecordedSessionTimelineAlignmentTarget, string?, bool>? tryCancelTimelineAlignment = null,
     Func<Guid, string, double, CancellationToken, Task<Guid?>>? createDerivedSessionAsync = null,
     Func<Guid, CancellationToken, Task<bool>>? deleteSessionAsync = null,
     Func<Guid, double, CancellationToken, Task<bool>>? updateSessionOriginAsync = null,
@@ -40,32 +31,6 @@ public sealed class DelegatingRecordedSessionHostOperations(
 
     public void SetTimelineVisibleRange(double startNormalized, double endNormalized, object source) =>
         (setTimelineVisibleRange ?? ((_, _, _) => { }))(startNormalized, endNormalized, source);
-
-    public bool TryBeginTimelineAlignment(
-        RecordedSessionTimelineAlignmentTarget target,
-        double seconds,
-        string? subjectId = null) =>
-        tryBeginTimelineAlignment?.Invoke(target, seconds, subjectId) ?? false;
-
-    public bool TryResolveTimelineAlignment(
-        RecordedSessionTimelineAlignmentTarget target,
-        double seconds,
-        string? subjectId,
-        out RecordedSessionTimelineAlignmentResolution? resolution)
-    {
-        if (tryResolveTimelineAlignment is not null)
-        {
-            return tryResolveTimelineAlignment(target, seconds, subjectId, out resolution);
-        }
-
-        resolution = null;
-        return false;
-    }
-
-    public bool TryCancelTimelineAlignment(
-        RecordedSessionTimelineAlignmentTarget target,
-        string? subjectId = null) =>
-        tryCancelTimelineAlignment?.Invoke(target, subjectId) ?? false;
 
     public void AddError(string message) => (addError ?? (_ => { }))(message);
 

@@ -95,12 +95,12 @@ public class RecordedSessionExtensionSlotsTests
 
         AddOneContributionToEachFamily(slots);
 
-        Assert.Equal(13, notifications);
+        Assert.Equal(10, notifications);
 
         subscription.Dispose();
         slots.SignalToolbarViews.Add(CreateToolbarContribution("after-dispose"));
 
-        Assert.Equal(13, notifications);
+        Assert.Equal(10, notifications);
     }
 
     [Fact]
@@ -115,13 +115,10 @@ public class RecordedSessionExtensionSlotsTests
 
         Assert.Equal(["toolbar-command"], target.SignalToolbarCommands.Select(contribution => contribution.ContributionId));
         Assert.Equal(["toolbar-view"], target.SignalToolbarViews.Select(contribution => contribution.ContributionId));
-        Assert.Equal(["media"], target.MediaPanes.Select(contribution => contribution.ContributionId));
         Assert.Equal(["map"], target.MapOverlays.Select(contribution => contribution.ContributionId));
         Assert.Equal(["banner"], target.AnalysisBanners.Select(contribution => contribution.ContributionId));
         Assert.Equal(["overlay"], target.AnalysisOverlays.Select(contribution => contribution.ContributionId));
         Assert.Equal(["metric"], target.AnalysisMetrics.Select(contribution => contribution.ContributionId));
-        Assert.Equal(["indicator"], target.SessionListIndicators.Select(contribution => contribution.ContributionId));
-        Assert.Equal(["list-action"], target.SessionListActions.Select(contribution => contribution.ContributionId));
         Assert.Equal(["context"], target.SignalPlotContextMenuActions.Select(contribution => contribution.ContributionId));
         Assert.Equal(["row-action"], target.SignalRowHeaderActions.Select(contribution => contribution.ContributionId));
         Assert.Equal(["hosted-row"], target.HostedSignalRows.Select(contribution => contribution.ContributionId));
@@ -132,11 +129,6 @@ public class RecordedSessionExtensionSlotsTests
     {
         slots.SignalToolbarCommands.Add(CreateToolbarCommandContribution("toolbar-command"));
         slots.SignalToolbarViews.Add(CreateToolbarContribution("toolbar-view"));
-        slots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
-            "extension",
-            "media",
-            Order: 3,
-            new TestContributionViewModel()));
         slots.MapOverlays.Add(new RecordedSessionMapOverlayContribution(
             "extension",
             "map",
@@ -163,16 +155,6 @@ public class RecordedSessionExtensionSlotsTests
             "42.00",
             DeltaValue: null,
             RecordedSessionMetricTone.Default));
-        slots.SessionListIndicators.Add(new RecordedSessionListIndicatorContribution(
-            "extension",
-            "indicator",
-            Order: 9,
-            new TestContributionViewModel()));
-        slots.SessionListActions.Add(new RecordedSessionListActionContribution(
-            "extension",
-            "list-action",
-            Order: 10,
-            new TestContributionViewModel()));
         slots.SignalPlotContextMenuActions.Add(new RecordedSessionSignalPlotContextMenuContribution(
             "extension",
             "context",

@@ -29,6 +29,8 @@ The shared application code lives in `Sufni.App/Sufni.App/` and is consumed by e
 
 Only desktop heads pull in `Sufni.App.Desktop`, which is what keeps ASP.NET Core server hosting, JWT bearer validation, and server certificate generation off the mobile builds. Shared client-side JWT parsing still lives in `Sufni.App` because mobile sync clients need to inspect access-token expiry for refresh.
 
+Video players are head-specific. The Windows and Linux heads reference `Sufni.App/Sufni.App.Video.LibVlc/`. The macOS and iOS heads link `Sufni.App/AppleShared/AppleAvPlaybackBackend.cs` and each define an AVFoundation player factory. Android has no video player. See [video.md](video.md#platform-players).
+
 ## Layout Profiles And View Selection
 
 The UI has two local layout profiles:
@@ -55,7 +57,7 @@ The older folder names remain for continuity: `Views/` mostly contains common or
 User-visible UI behavior should not branch on `App.IsDesktop`. It should use:
 
 - `IAppEnvironment.LayoutProfile` for compact versus workspace presentation.
-- `AppCapabilities` for platform-only app actions such as sync server hosting, pairing client support, mass-storage import, storage-provider import, haptics, and native windowing.
+- `AppCapabilities` for platform-only app actions such as sync server hosting, pairing client support, mass-storage import, storage-provider import, video playback (`CanPlayVideo`, false on Android), haptics, and native windowing.
 - `InputCapabilities` for pointer, touch, keyboard, pinch, and long-press context-menu behavior.
 
 Tests configure these explicitly through service setup or test helpers rather than relying on platform inference.
@@ -107,7 +109,7 @@ Mobile heads register these inline in `MainApplication.CustomizeAppBuilder` (And
 
 The shared DI container is `App.ServiceCollection` (a static `IServiceCollection`). Each platform entry point appends its registrations to it before Avalonia hands control to `App.OnFrameworkInitializationCompleted`, which then runs the shared registrations and calls `BuildServiceProvider()`.
 
-1. The platform head registers platform abstractions (`ISecureStorage`, `IServiceDiscovery`, optionally `IHapticFeedback`, `IFriendlyNameProvider`), platform sync services, and `IAppEnvironment` with the platform default layout profile and capabilities. Desktop heads call into `DesktopAppBootstrapper.RegisterDesktopSync(...)`; mobile heads register the sync client and pairing client coordinator inline.
+1. The platform head registers platform abstractions (`ISecureStorage`, `IServiceDiscovery`, optionally `IHapticFeedback`, `IFriendlyNameProvider`, `IVideoPlayerFactory`), platform sync services, and `IAppEnvironment` with the platform default layout profile and capabilities. Desktop heads call into `DesktopAppBootstrapper.RegisterDesktopSync(...)`; mobile heads register the sync client and pairing client coordinator inline.
 2. `App.OnFrameworkInitializationCompleted` registers the shared graph: stores, services, queries, view models, `ShellWorkspaceViewModel`, `ShellRootViewModel`, `ShellWorkspaceCoordinator`, and the profile-aware `ViewLocator`.
 3. Single-view lifetimes also register `MobileNavigationShellHost` / `IMobileNavigationShellHost` / `IMobileNavigationPageHost` for native host integration.
 4. After the provider is built, the app eagerly resolves coordinators that subscribe to external events at construction time. The platform-only eager resolutions still follow platform capabilities: mobile resolves the pairing client coordinator; desktop resolves pairing server and inbound sync coordinators.
@@ -120,7 +122,7 @@ Extension module startup is part of the same composition root. `AppExtensionServ
 
 | Solution | Projects scoped |
 | --- | --- |
-| `Sufni.Desktop.sln` | `Sufni.Telemetry`, `Sufni.Kinematics`, `Sufni.App`, `Sufni.App.Desktop`, the three desktop heads (`Windows`, `macOS`, `Linux`), `Sufni.App.Tests`, `Sufni.Telemetry.Tests` |
+| `Sufni.Desktop.sln` | `Sufni.Telemetry`, `Sufni.Kinematics`, `Sufni.App`, `Sufni.App.Desktop`, `Sufni.App.Video.LibVlc`, the three desktop heads (`Windows`, `macOS`, `Linux`), `Sufni.App.Tests`, `Sufni.Telemetry.Tests` |
 | `Sufni.Android.sln` | `Sufni.Telemetry`, `Sufni.Kinematics`, `Sufni.App`, `Sufni.App.Android` |
 | `Sufni.iOS.sln` | `Sufni.Telemetry`, `Sufni.Kinematics`, `Sufni.App`, `Sufni.App.iOS` |
 
@@ -138,7 +140,7 @@ The places where platform behavior still differs are deliberately small:
 
 - **Session detail load**. `SessionDetailViewModel` uses the same local-only staged coordinator path in both profiles: `LoadDetailAsync(...)` publishes decoded telemetry first, then `LoadTrackAsync(...)` settles optional map/track data under the same active load token. Missing processed telemetry or recorded-source payloads surface as an incomplete-local-data screen state; sync is responsible for downloading those payloads before the session is opened. See [UI Workflows § Coordinators](ui-workflows.md#coordinators) and [Sync](sync.md).
 - **Sync side**. Desktop-capable platforms can host the server; mobile-capable platforms pair and sync as clients. There is no peer-to-peer mode and no path that runs both on one device unless a future platform registers both capabilities deliberately.
-- **Platform-only actions**. Sync server actions, pairing client actions, haptics, mass-storage import, storage-provider import, and native windowing are all capability-gated.
+- **Platform-only actions**. Sync server actions, pairing client actions, haptics, mass-storage import, storage-provider import, video playback, and native windowing are all capability-gated.
 - **Dialogs**. `DialogService` shows generic prompts as standalone Avalonia `Window`s when the native lifetime has an owner window, and as in-tree overlays when the lifetime is single-view.
 - **Zoomed plot modal**. Double-clicking or double-tapping a plot opens the same live plot control in `PlotZoomOverlayHost`. Workspace profile shows a framed modal over a scrim; compact profile uses an edge-to-edge modal inside the safe area and rotates plot content in portrait-shaped windows. Escape close follows keyboard input capability, and single-view hosts participate in the hardware-back chain through `TryCloseTransientShellSurface`.
 - **Bike linkage editing**. `BikeEditorViewModel.CanChangeRearSuspensionMode` remains desktop-capability-oriented because the linkage editor canvas is built for a pointer-heavy interaction model.

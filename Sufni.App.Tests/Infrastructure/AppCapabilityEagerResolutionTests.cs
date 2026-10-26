@@ -64,7 +64,8 @@ public class AppCapabilityEagerResolutionTests
             CanHostSyncServer: canHostSyncServer,
             CanPairAsClient: canPairAsClient,
             SupportsMassStorageImport: false,
-            SupportsStorageProviderImport: true);
+            SupportsStorageProviderImport: true,
+            CanPlayVideo: false);
 
     private sealed class RecordingServiceProvider : IServiceProvider
     {

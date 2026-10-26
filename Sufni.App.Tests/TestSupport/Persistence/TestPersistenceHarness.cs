@@ -16,6 +16,7 @@ using Sufni.App.Sessions.Services;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Extensibility.Database;
+using Sufni.App.Video.Services;
 namespace Sufni.App.Tests.TestSupport.Persistence;
 
 internal sealed class TestPersistenceHarness
@@ -57,6 +58,8 @@ internal sealed class TestPersistenceHarness
     public ISessionRepository SessionRepository => sessionRepository;
 
     public ISessionTelemetryWriter SessionTelemetryWriter => sessionTelemetryWriter;
+
+    public ISessionVideoRepository SessionVideoRepository => new SessionVideoRepository(context);
 
     public Task<SQLiteAsyncConnection> GetInitializedConnectionAsync() =>
         context.GetInitializedConnectionAsync();

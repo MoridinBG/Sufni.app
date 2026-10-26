@@ -27,6 +27,7 @@ using Sufni.App.Tests.TestSupport.Extensions;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.Tests.TestSupport.Persistence;
+using Sufni.App.Video.ViewModels;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.TestSupport.Sessions;
@@ -64,6 +65,7 @@ internal sealed class SessionDetailHarness
     public TestSessionProcessedTelemetryReader ProcessedTelemetryReader { get; } = new();
     public IRecordedSessionDerivationWindowCache DerivationWindowCache { get; } = Substitute.For<IRecordedSessionDerivationWindowCache>();
     public IEditorFactory EditorFactory { get; } = Substitute.For<IEditorFactory>();
+    public IVideoPaneFactory? VideoPaneFactory { get; set; }
     public IUiThreadDispatcher UiThreadDispatcher { get; set; } = new InlineUiThreadDispatcher();
     public IRecordedSessionProcessingOptionCache ProcessingOptionCache { get; set; } = new InMemoryRecordedSessionProcessingOptionCache();
     public IObservable<RecordedSessionDomainSnapshot> ProjectionChanges { get; private set; } = Observable.Empty<RecordedSessionDomainSnapshot>();
@@ -197,6 +199,7 @@ internal sealed class SessionDetailHarness
                 recordedSessionExtensionFactories ?? [],
                 Substitute.For<IExtensionDatabaseConnection>(),
                 Substitute.For<IRecordedSessionDataReader>(),
-                new InlineBackgroundTaskRunner()));
+                new InlineBackgroundTaskRunner()),
+            videoPaneFactory: VideoPaneFactory);
     }
 }

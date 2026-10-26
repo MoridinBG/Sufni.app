@@ -78,7 +78,7 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   `ExtensionViewRegistry`, `AppExtensionCapabilityRegistry`, and the
   services/capabilities supplied by `App.Extensions` before the
   service provider is built. Capabilities include eager service
-  resolution and app toolbar action contributions.
+  resolution.
 - **Shell**: `ShellWorkspaceViewModel`, `ShellRootViewModel`, and the single
   `IShellCoordinator` implementation, `ShellWorkspaceCoordinator`, are shared
   registrations. Single-view lifetimes additionally register
@@ -88,7 +88,7 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
 - **Services**: `IHttpApiService`, `IBackgroundTaskRunner`,
   `IUiThreadDispatcher`, `IDaqManagementService`, `ITelemetryDataStoreService`,
   SQLite repository interfaces, `ISyncDataStore`, `IExtensionDatabaseConnection`,
-  `IFilesService`, `IFilePickerService`, `ITileLayerService`,
+  `IFilesService`, `ITileLayerService`,
   `IMapViewModelFactory`, `ISessionTrackReader`, `IFullTrackPointReader`,
   plus `IAppPreferences` and the two facets
   it exposes — `IMapPreferences` and `ISessionPreferences` —
@@ -150,8 +150,8 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   based on the registered capabilities and services.
 
 Concrete datastore construction, management-protocol ownership,
-file-picker lifetime (including the generic `IFilePickerService` seam and
-loaded `SelectedDeviceConfigFile` results for device CONFIG replacement),
+file-picker lifetime (including loaded `SelectedDeviceConfigFile` results
+for device CONFIG replacement),
 UI-thread dispatching, and background execution stay
 behind these service registrations rather than being created ad hoc in
 view models.
@@ -160,7 +160,8 @@ Platform entry points add (a strict subset depending on the
 platform): `IAppEnvironment` with default layout profile, `AppCapabilities`,
 and `InputCapabilities`; `ISecureStorage`; `IServiceDiscovery` (registered as
 keyed singletons under `"gosst"` and optionally `"sync"`); `IHapticFeedback`;
-`IFriendlyNameProvider`; `ISynchronizationServerService` +
+`IFriendlyNameProvider`; `IVideoPlayerFactory` on heads with
+`AppCapabilities.CanPlayVideo`; `ISynchronizationServerService` +
 `IPairingServerCoordinator` + `IInboundSyncCoordinator` +
 `PairingServerViewModel` on server-capable desktop heads; or
 `ISynchronizationClientService` + `IPairingClientCoordinator` +

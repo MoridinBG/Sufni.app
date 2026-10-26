@@ -9,8 +9,6 @@ public interface IExtensionContribution
 
 public interface IExtensionViewModel;
 
-public interface IAppToolbarContributionViewModel : IExtensionViewModel;
-
 public sealed record ToolbarIconDescriptor(
     string AssetPath,
     double Width = 18,

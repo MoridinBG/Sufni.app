@@ -1,0 +1,339 @@
+using Sufni.App.Tests.TestSupport.Video;
+using Sufni.App.Video.Models;
+using Sufni.App.Video.ViewModels;
+using static Sufni.App.Tests.Video.ViewModels.VideoPlaybackHarness;
+
+namespace Sufni.App.Tests.Video.ViewModels;
+
+public class VideoPlaybackViewModelTests
+{
+    [Fact]
+    public void Sync_SeeksBackendToAlignedVideoTime_WhenTimelineCursorChanges()
+    {
+        var harness = new VideoPlaybackHarness(Context(
+            sessionOffsetSeconds: 2,
+            videoDurationSeconds: 10,
+            alignmentOffsetSeconds: 1));
+
+        harness.ViewModel.IsSyncEnabled = true;
+        harness.Timeline.SetCursorPosition(0.25);
+
+        Assert.Equal(TimeSpan.FromSeconds(8), harness.Backend.SeekedPositions.Single());
+    }
+
+    [Fact]
+    public void Sync_ClampsSeekToVideoDuration()
+    {
+        var harness = new VideoPlaybackHarness(Context(
+            sessionOffsetSeconds: 8,
+            videoDurationSeconds: 10,
+            alignmentOffsetSeconds: 5));
+
+        harness.ViewModel.IsSyncEnabled = true;
+        harness.Timeline.SetCursorPosition(0.5);
+
+        Assert.Equal(TimeSpan.FromSeconds(10), harness.Backend.SeekedPositions.Single());
+    }
+
+    [Fact]
+    public void PlayPause_PreservesSyncAndSuppressesSeekWhilePlaying()
+    {
+        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30));
+        harness.ViewModel.IsSyncEnabled = true;
+        harness.Backend.SeekedPositions.Clear();
+
+        harness.ViewModel.PlayPauseCommand.Execute(null);
+        harness.Timeline.SetCursorPosition(0.5);
+
+        Assert.True(harness.Backend.IsPlaying);
+        Assert.True(harness.ViewModel.IsSyncEnabled);
+        Assert.True(harness.ViewModel.IsPlaying);
+        Assert.Empty(harness.Backend.SeekedPositions);
+
+        harness.ViewModel.PlayPauseCommand.Execute(null);
+        harness.Backend.SeekedPositions.Clear();
+        harness.Timeline.SetCursorPosition(0.75);
+
+        Assert.False(harness.Backend.IsPlaying);
+        Assert.True(harness.ViewModel.IsSyncEnabled);
+        Assert.False(harness.ViewModel.IsPlaying);
+        Assert.Equal(TimeSpan.FromSeconds(15), Assert.Single(harness.Backend.SeekedPositions));
+    }
+
+    [Fact]
+    public void ToggleSyncCommand_TogglesSync_WhenSyncIsAvailable()
+    {
+        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 10));
+
+        harness.ViewModel.ToggleSyncCommand.Execute(null);
+
+        Assert.True(harness.ViewModel.IsSyncEnabled);
+
+        harness.ViewModel.ToggleSyncCommand.Execute(null);
+
+        Assert.False(harness.ViewModel.IsSyncEnabled);
+    }
+
+    [Fact]
+    public void SetPlaybackContext_DisablesSync_WhenTelemetryDurationIsMissing()
+    {
+        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 10));
+        harness.ViewModel.IsSyncEnabled = true;
+
+        harness.ViewModel.SetPlaybackContext(Context(videoDurationSeconds: 10, telemetryDurationSeconds: null));
+
+        Assert.False(harness.ViewModel.CanSync);
+        Assert.False(harness.ViewModel.IsSyncEnabled);
+    }
+
+    [Fact]
+    public void SetPlaybackContext_SeeksToCursorWithUpdatedAlignment_WhenSyncIsEnabled()
+    {
+        var harness = new VideoPlaybackHarness(
+            Context(sessionOffsetSeconds: 2, videoDurationSeconds: 20, alignmentOffsetSeconds: 1),
+            cursor: 0.25);
+        harness.ViewModel.IsSyncEnabled = true;
+        harness.Backend.SeekedPositions.Clear();
+
+        harness.ViewModel.SetPlaybackContext(Context(
+            sessionOffsetSeconds: 2,
+            videoDurationSeconds: 20,
+            alignmentOffsetSeconds: 4));
+
+        Assert.True(harness.ViewModel.IsSyncEnabled);
+        Assert.Equal(TimeSpan.FromSeconds(11), Assert.Single(harness.Backend.SeekedPositions));
+    }
+
+    [Fact]
+    public void TimelinePlaybackToggle_StartsPlaybackFromCursor_AndPreservesSync()
+    {
+        var harness = new VideoPlaybackHarness(
+            Context(sessionOffsetSeconds: 2, videoDurationSeconds: 10, alignmentOffsetSeconds: 1),
+            cursor: 0.25);
+        harness.ViewModel.IsSyncEnabled = true;
+        harness.Backend.SeekedPositions.Clear();
+
+        harness.Timeline.RequestPlaybackToggle();
+
+        Assert.True(harness.ViewModel.IsTimelinePlaybackActive);
+        Assert.True(harness.Backend.IsPlaying);
+        Assert.True(harness.ViewModel.IsSyncEnabled);
+        Assert.Equal(TimeSpan.FromSeconds(8), Assert.Single(harness.Backend.SeekedPositions));
+    }
+
+    [Fact]
+    public void TimelinePlaybackToggle_ResumesSyncAfterPlaybackPauses()
+    {
+        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+        harness.ViewModel.IsSyncEnabled = true;
+        harness.Timeline.RequestPlaybackToggle();
+        harness.Backend.SeekedPositions.Clear();
+
+        harness.Backend.RaisePositionChanged(TimeSpan.FromSeconds(10));
+        harness.Timeline.RequestPlaybackToggle();
+        harness.Timeline.SetCursorPosition(0.75);
+
+        Assert.False(harness.ViewModel.IsTimelinePlaybackActive);
+        Assert.False(harness.Backend.IsPlaying);
+        Assert.True(harness.ViewModel.IsSyncEnabled);
+        Assert.Equal(TimeSpan.FromSeconds(15), Assert.Single(harness.Backend.SeekedPositions));
+    }
+
+    [Fact]
+    public void TimelinePlaybackToggle_SecondToggle_PausesPlayback()
+    {
+        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+        harness.Timeline.RequestPlaybackToggle();
+
+        harness.Timeline.RequestPlaybackToggle();
+
+        Assert.False(harness.ViewModel.IsTimelinePlaybackActive);
+        Assert.False(harness.Backend.IsPlaying);
+    }
+
+    [Fact]
+    public void TimelinePlaybackToggle_IsIgnored_WhenTelemetryDurationIsMissing()
+    {
+        var harness = new VideoPlaybackHarness(
+            Context(videoDurationSeconds: 30, telemetryDurationSeconds: null),
+            cursor: 0.25);
+
+        harness.Timeline.RequestPlaybackToggle();
+
+        Assert.False(harness.ViewModel.IsTimelinePlaybackActive);
+        Assert.False(harness.Backend.IsPlaying);
+    }
+
+    [Fact]
+    public void TimelinePlayback_MovesTimelineCursor_AsVideoPositionAdvances()
+    {
+        var harness = new VideoPlaybackHarness(
+            Context(sessionOffsetSeconds: 2, videoDurationSeconds: 30, alignmentOffsetSeconds: 1),
+            cursor: 0);
+        harness.Timeline.RequestPlaybackToggle();
+
+        harness.Backend.RaisePositionChanged(TimeSpan.FromSeconds(8));
+
+        Assert.Equal(0.25, harness.Timeline.NormalizedCursorPosition);
+    }
+
+    [Fact]
+    public void TimelinePlayback_ClampsCursor_WhenVideoRunsPastTelemetryEnd()
+    {
+        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 60), cursor: 0.9);
+        harness.Timeline.RequestPlaybackToggle();
+
+        harness.Backend.RaisePositionChanged(TimeSpan.FromSeconds(45));
+
+        Assert.Equal(1, harness.Timeline.NormalizedCursorPosition);
+    }
+
+    [Fact]
+    public void TimelinePlayback_DoesNotMoveCursor_WhenInactive()
+    {
+        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.5);
+
+        harness.Backend.RaisePositionChanged(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(0.5, harness.Timeline.NormalizedCursorPosition);
+    }
+
+    [Fact]
+    public void TimelinePlaybackStopRequest_PausesActivePlayback()
+    {
+        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+        harness.Timeline.RequestPlaybackToggle();
+
+        harness.Timeline.RequestPlaybackStop();
+
+        Assert.False(harness.ViewModel.IsTimelinePlaybackActive);
+        Assert.False(harness.Backend.IsPlaying);
+    }
+
+    [Fact]
+    public void TimelinePlaybackStopRequest_DoesNotStartPlayback_WhenInactive()
+    {
+        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+
+        harness.Timeline.RequestPlaybackStop();
+
+        Assert.False(harness.ViewModel.IsTimelinePlaybackActive);
+        Assert.False(harness.Backend.IsPlaying);
+    }
+
+    [Fact]
+    public void TimelinePlayback_Deactivates_WhenBackendStopsOnItsOwn()
+    {
+        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+        harness.Timeline.RequestPlaybackToggle();
+
+        harness.Backend.SimulateEndReached();
+
+        Assert.False(harness.ViewModel.IsTimelinePlaybackActive);
+        Assert.False(harness.ViewModel.IsPlaying);
+    }
+
+    [Fact]
+    public void TimelinePlayback_CursorUpdatesDoNotSeekBackend()
+    {
+        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+        harness.Timeline.RequestPlaybackToggle();
+        harness.Backend.SeekedPositions.Clear();
+
+        harness.Backend.RaisePositionChanged(TimeSpan.FromSeconds(10));
+        harness.Backend.RaisePositionChanged(TimeSpan.FromSeconds(11));
+
+        Assert.Empty(harness.Backend.SeekedPositions);
+    }
+
+    [Fact]
+    public void TimelinePlayback_Deactivates_WhenTelemetryDurationDisappears()
+    {
+        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+        harness.Timeline.RequestPlaybackToggle();
+
+        harness.ViewModel.SetPlaybackContext(Context(videoDurationSeconds: 30, telemetryDurationSeconds: null));
+
+        Assert.False(harness.ViewModel.IsTimelinePlaybackActive);
+    }
+
+    [Fact]
+    public void TimelinePlaybackToggle_MarksTimelineAsPlaybackDriven()
+    {
+        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+
+        harness.Timeline.RequestPlaybackToggle();
+
+        Assert.True(harness.Timeline.IsPlaybackActive);
+    }
+
+    [Fact]
+    public void TimelinePlaybackStop_ClearsPlaybackDrivenFlagOnTimeline()
+    {
+        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+        harness.Timeline.RequestPlaybackToggle();
+
+        harness.Timeline.RequestPlaybackStop();
+
+        Assert.False(harness.Timeline.IsPlaybackActive);
+    }
+
+    [Fact]
+    public void Dispose_ClearsPlaybackDrivenFlagOnTimeline_WhileActive()
+    {
+        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+        harness.Timeline.RequestPlaybackToggle();
+
+        harness.ViewModel.Dispose();
+
+        Assert.False(harness.Timeline.IsPlaybackActive);
+    }
+
+    [Fact]
+    public void SetBackend_Null_ReleasesTimelinePlayback()
+    {
+        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+        harness.Timeline.RequestPlaybackToggle();
+
+        harness.ViewModel.SetBackend(null);
+
+        Assert.False(harness.Timeline.IsPlaybackActive);
+        Assert.False(harness.ViewModel.PlayPauseCommand.CanExecute(null));
+    }
+}
+
+internal sealed class VideoPlaybackHarness
+{
+    public VideoPlaybackHarness(
+        VideoPlaybackContext? context = null,
+        double? cursor = null)
+    {
+        if (cursor is not null)
+        {
+            Timeline.SetCursorPosition(cursor);
+        }
+
+        ViewModel = new VideoPlaybackViewModel(Timeline);
+        ViewModel.SetBackend(Backend);
+
+        if (context is not null)
+        {
+            ViewModel.SetPlaybackContext(context);
+        }
+    }
+
+    public FakeVideoPlaybackBackend Backend { get; } = new();
+    public TestRecordedSessionTimeline Timeline { get; } = new();
+    public VideoPlaybackViewModel ViewModel { get; }
+
+    public static VideoPlaybackContext Context(
+        double sessionOffsetSeconds = 0,
+        double videoDurationSeconds = 30,
+        double? telemetryDurationSeconds = 20,
+        double alignmentOffsetSeconds = 0) =>
+        new(
+            SessionOffsetSeconds: sessionOffsetSeconds,
+            VideoDurationSeconds: videoDurationSeconds,
+            TelemetryDurationSeconds: telemetryDurationSeconds,
+            AlignmentOffsetSeconds: alignmentOffsetSeconds);
+}

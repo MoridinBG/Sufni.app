@@ -10,13 +10,10 @@ public sealed class RecordedSessionExtensionSlotBuilder
 {
     public List<RecordedSessionToolbarCommandContribution> SignalToolbarCommands { get; } = [];
     public List<RecordedSessionToolbarViewContribution> SignalToolbarViews { get; } = [];
-    public List<RecordedSessionMediaPaneContribution> MediaPanes { get; } = [];
     public List<RecordedSessionMapOverlayContribution> MapOverlays { get; } = [];
     public List<RecordedSessionAnalysisBannerContribution> AnalysisBanners { get; } = [];
     public List<RecordedSessionAnalysisOverlayContribution> AnalysisOverlays { get; } = [];
     public List<RecordedSessionAnalysisMetricContribution> AnalysisMetrics { get; } = [];
-    public List<RecordedSessionListIndicatorContribution> SessionListIndicators { get; } = [];
-    public List<RecordedSessionListActionContribution> SessionListActions { get; } = [];
     public List<RecordedSessionSignalPlotContextMenuContribution> SignalPlotContextMenuActions { get; } = [];
     public List<RecordedSessionSignalRowActionContribution> SignalRowHeaderActions { get; } = [];
     public List<RecordedSessionHostedSignalRowContribution> HostedSignalRows { get; } = [];
@@ -28,13 +25,10 @@ public sealed class RecordedSessionExtensionSlotBuilder
 
         SignalToolbarCommands.AddRange(slots.SignalToolbarCommands);
         SignalToolbarViews.AddRange(slots.SignalToolbarViews);
-        MediaPanes.AddRange(slots.MediaPanes);
         MapOverlays.AddRange(slots.MapOverlays);
         AnalysisBanners.AddRange(slots.AnalysisBanners);
         AnalysisOverlays.AddRange(slots.AnalysisOverlays);
         AnalysisMetrics.AddRange(slots.AnalysisMetrics);
-        SessionListIndicators.AddRange(slots.SessionListIndicators);
-        SessionListActions.AddRange(slots.SessionListActions);
         SignalPlotContextMenuActions.AddRange(slots.SignalPlotContextMenuActions);
         SignalRowHeaderActions.AddRange(slots.SignalRowHeaderActions);
         HostedSignalRows.AddRange(slots.HostedSignalRows);
@@ -45,13 +39,10 @@ public sealed class RecordedSessionExtensionSlotBuilder
     {
         slots.SignalToolbarCommands.ReplaceWith(SignalToolbarCommands);
         slots.SignalToolbarViews.ReplaceWith(SignalToolbarViews);
-        slots.MediaPanes.ReplaceWith(MediaPanes);
         slots.MapOverlays.ReplaceWith(MapOverlays);
         slots.AnalysisBanners.ReplaceWith(AnalysisBanners);
         slots.AnalysisOverlays.ReplaceWith(AnalysisOverlays);
         slots.AnalysisMetrics.ReplaceWith(AnalysisMetrics);
-        slots.SessionListIndicators.ReplaceWith(SessionListIndicators);
-        slots.SessionListActions.ReplaceWith(SessionListActions);
         slots.SignalPlotContextMenuActions.ReplaceWith(SignalPlotContextMenuActions);
         slots.SignalRowHeaderActions.ReplaceWith(SignalRowHeaderActions);
         slots.HostedSignalRows.ReplaceWith(HostedSignalRows);

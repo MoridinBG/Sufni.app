@@ -1,7 +1,6 @@
 using System.Globalization;
 using DynamicData;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
@@ -9,6 +8,8 @@ using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Lists.ViewModels.ItemLists;
 using Sufni.App.Tests.TestSupport.Doubles;
+using Sufni.App.Tests.TestSupport.Video;
+using Sufni.App.Video.Stores;
 namespace Sufni.App.Tests.Sessions.Lists.ViewModels.ItemLists;
 
 public class SessionListViewModelTests
@@ -132,62 +133,43 @@ public class SessionListViewModelTests
     }
 
     [Fact]
-    public void Rows_RefreshExtensionListContributions_WhenSummaryUpdates()
+    public async Task Rows_ShowLatestAddedVideoAsMissing_WhenItsFileIsGone()
     {
         var (projection, sessionCache) = CreateProjection();
         using (sessionCache)
+        using (var videos = new VideoFixture())
         {
-            var summary = CreateSummary(name: "initial", updated: 1);
-            var listExtensionService = new TestRecordedSessionListExtensionService();
+            var summary = CreateSummary(name: "session");
             sessionCache.AddOrUpdate(summary);
+            var store = await videos.CreateStoreAsync(
+                videos.CreateClip(summary.Id, startTimestamp: 0, durationSeconds: 60, added: 1),
+                videos.CreateClip(summary.Id, startTimestamp: 0, durationSeconds: 60, added: 2, fileExists: false));
 
-            var viewModel = CreateLoadedViewModel(
-                projection,
-                TestCoordinatorSubstitutes.Session(),
-                UiThreadDispatcher,
-                listExtensionService);
+            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher, store);
+
             var row = Assert.Single(viewModel.Items);
-
-            var initialIndicator = Assert.Single(row.Indicators);
-            var initialAction = Assert.Single(row.Actions);
-            Assert.Equal("initial-indicator", initialIndicator.ContributionId);
-            Assert.Equal("initial-action", initialAction.ContributionId);
-
-            sessionCache.AddOrUpdate(summary with { Name = "updated", Updated = 2 });
-
-            Assert.Same(row, Assert.Single(viewModel.Items));
-            var updatedIndicator = Assert.Single(row.Indicators);
-            var updatedAction = Assert.Single(row.Actions);
-            Assert.Equal("updated-indicator", updatedIndicator.ContributionId);
-            Assert.Equal("updated-action", updatedAction.ContributionId);
+            Assert.True(row.HasMissingVideo);
+            Assert.False(row.HasPresentVideo);
         }
     }
 
     [Fact]
-    public void Rows_RefreshExtensionListContributions_WhenExtensionServiceInvalidates()
+    public async Task Rows_ShowPresentVideo_WhenClipIsLinkedAfterLoad()
     {
         var (projection, sessionCache) = CreateProjection();
         using (sessionCache)
+        using (var videos = new VideoFixture())
         {
-            var summary = CreateSummary(name: "session", updated: 1);
-            var listExtensionService = new TestRecordedSessionListExtensionService();
+            var summary = CreateSummary(name: "session");
             sessionCache.AddOrUpdate(summary);
-
-            var viewModel = CreateLoadedViewModel(
-                projection,
-                TestCoordinatorSubstitutes.Session(),
-                UiThreadDispatcher,
-                listExtensionService);
+            var store = await videos.CreateStoreAsync();
+            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher, store);
             var row = Assert.Single(viewModel.Items);
-            Assert.Equal("session-indicator", Assert.Single(row.Indicators).ContributionId);
-            Assert.Equal("session-action", Assert.Single(row.Actions).ContributionId);
 
-            listExtensionService.ContributionRevision = 2;
-            listExtensionService.RaiseContributionsChanged();
+            await store.PublishClipsAsync([videos.CreateClip(summary.Id, startTimestamp: 0, durationSeconds: 60)]);
 
             Assert.Same(row, Assert.Single(viewModel.Items));
-            Assert.Equal("session-2-indicator", Assert.Single(row.Indicators).ContributionId);
-            Assert.Equal("session-2-action", Assert.Single(row.Actions).ContributionId);
+            Assert.True(row.HasPresentVideo);
         }
     }
 
@@ -203,6 +185,7 @@ public class SessionListViewModelTests
             var viewModel = new SessionListViewModel(
                 projection,
                 TestCoordinatorSubstitutes.Session(),
+                VideoFixture.CreateEmptyStore(),
                 UiThreadDispatcher);
 
             Assert.Empty(viewModel.Items);
@@ -226,32 +209,6 @@ public class SessionListViewModelTests
             Assert.Equal(2, viewModel.DateGroups.Count);
             Assert.Equal(new DateOnly(2026, 5, 20), viewModel.DateGroups[0].Key.Date);
             Assert.False(viewModel.DateGroups[0].IsExpanded);
-        }
-    }
-
-    [Fact]
-    public void ExtensionContributions_UseCurrentRevisionAfterReload()
-    {
-        var (projection, sessionCache) = CreateProjection();
-        using (sessionCache)
-        {
-            var summary = CreateSummary(name: "session", updated: 1);
-            var listExtensionService = new TestRecordedSessionListExtensionService();
-            sessionCache.AddOrUpdate(summary);
-            var viewModel = CreateLoadedViewModel(
-                projection,
-                TestCoordinatorSubstitutes.Session(),
-                UiThreadDispatcher,
-                listExtensionService);
-            Assert.Equal("session-indicator", Assert.Single(viewModel.Items[0].Indicators).ContributionId);
-
-            viewModel.UnloadedCommand.Execute(null);
-            listExtensionService.ContributionRevision = 2;
-            listExtensionService.RaiseContributionsChanged();
-            Assert.Empty(viewModel.Items);
-
-            viewModel.LoadedCommand.Execute(null);
-            Assert.Equal("session-2-indicator", Assert.Single(viewModel.Items[0].Indicators).ContributionId);
         }
     }
 
@@ -615,13 +572,13 @@ public class SessionListViewModelTests
         IRecordedSessionProjection projection,
         ISessionCoordinator sessionCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
-        IRecordedSessionListExtensionService? listExtensionService = null)
+        ISessionVideoStore? videoStore = null)
     {
         var viewModel = new SessionListViewModel(
             projection,
             sessionCoordinator,
-            uiThreadDispatcher,
-            listExtensionService);
+            videoStore ?? VideoFixture.CreateEmptyStore(),
+            uiThreadDispatcher);
         viewModel.LoadedCommand.Execute(null);
         return viewModel;
     }

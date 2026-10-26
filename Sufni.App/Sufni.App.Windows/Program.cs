@@ -5,6 +5,8 @@ using System;
 using Sufni.App.Desktop;
 
 using Sufni.App.Infrastructure;
+using Sufni.App.Video.LibVlc;
+using Sufni.App.Video.Models;
 namespace Sufni.App.Windows
 {
     internal partial class Program
@@ -25,7 +27,8 @@ namespace Sufni.App.Windows
                     CanHostSyncServer: true,
                     CanPairAsClient: false,
                     SupportsMassStorageImport: true,
-                    SupportsStorageProviderImport: true),
+                    SupportsStorageProviderImport: true,
+                    CanPlayVideo: true),
                 new InputCapabilities(
                     HasPointer: true,
                     HasTouch: false,
@@ -34,12 +37,10 @@ namespace Sufni.App.Windows
             App.ServiceCollection.AddSingleton<ISecureStorage, WindowsSecureStorage>();
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, SocketServiceDiscovery>("daq");
             DesktopAppBootstrapper.RegisterDesktopSync(App.ServiceCollection);
-            RegisterPlatformExtensions(App.ServiceCollection);
+            App.ServiceCollection.AddSingleton<IVideoPlayerFactory, LibVlcVideoPlayerFactory>();
             return DesktopAppBootstrapper.ConfigureAvaloniaApp(
                 AppBuilder.Configure<App>().UsePlatformDetect(),
                 "Windows");
         }
-
-        static partial void RegisterPlatformExtensions(IServiceCollection services);
     }
 }

@@ -253,7 +253,7 @@ public class RecordedSessionExtensionManagerTests
             new TestContributionViewModel()));
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
-            factory.Scope.Slots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
+            factory.Scope.Slots.AnalysisBanners.Add(new RecordedSessionAnalysisBannerContribution(
                 "owner",
                 "duplicate",
                 Order: 2,
@@ -261,7 +261,7 @@ public class RecordedSessionExtensionManagerTests
 
         Assert.Contains("duplicate", exception.Message);
         Assert.Contains("owner", exception.Message);
-        Assert.Empty(manager.ExtensionSlots.MediaPanes);
+        Assert.Empty(manager.ExtensionSlots.AnalysisBanners);
     }
 
     [Fact]

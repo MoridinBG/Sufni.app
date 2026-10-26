@@ -16,15 +16,12 @@ back, `ShellRootViewModel.TryCloseTransientShellSurface()` asks
 `IPlotZoomState` to collapse the zoom modal before closing the drawer or
 navigating back.
 
-Extension contribution hosts are also reusable controls. The app shell uses
-`AppToolbarContributionsView` for app-level toolbar actions. Recorded-session
+Extension contribution hosts are also reusable controls. Recorded-session
 hosts include:
 `RecordedSessionToolbarContributionsView`,
-`RecordedSessionMediaPanesView`,
-`RecordedSessionAnalysisContributionsView`,
-`RecordedSessionSessionListContributionsView`, and
+`RecordedSessionAnalysisContributionsView`, and
 `SignalRowExtensionHost`. They render neutral slot collections
-from the app or recorded-session extension surfaces and wrap non-control
+from the recorded-session extension surfaces and wrap non-control
 contribution view models in `ContentControl` so the extension view registry
 can resolve templates normally.
 

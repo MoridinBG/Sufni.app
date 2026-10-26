@@ -24,6 +24,8 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Tests.TestSupport.Doubles;
+using Sufni.App.Tests.TestSupport.Video;
+using Sufni.App.Video.ViewModels;
 namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 
 public class SessionWorkspaceViewModelTests
@@ -206,16 +208,15 @@ public class SessionWorkspaceViewModelTests
     }
 
     [Fact]
-    public void SessionMediaWorkspace_TracksSurfaceStateAndExtensionMediaPanes()
+    public void SessionMediaWorkspace_TracksMapState()
     {
-        var timeline = new SessionTimelineLinkViewModel();
-        var extensionSlots = new RecordedSessionExtensionSlots();
         using var state = new Subject<RecordedSessionEditorState>();
-        var workspace = new SessionMediaWorkspaceViewModel(
+        using var workspace = new SessionMediaWorkspaceViewModel(
             state,
             () => null,
-            timeline,
-            () => extensionSlots);
+            new SessionTimelineLinkViewModel(),
+            () => new RecordedSessionExtensionSlots(),
+            videoPane: null);
         var changes = TrackPropertyChanges(workspace);
         state.OnNext(CreateState());
 
@@ -226,17 +227,37 @@ public class SessionWorkspaceViewModelTests
         Assert.True(workspace.HasMediaContent);
         Assert.Contains(nameof(SessionMediaWorkspaceViewModel.MapState), changes);
         Assert.Contains(nameof(SessionMediaWorkspaceViewModel.HasMediaContent), changes);
+    }
 
-        changes.Clear();
-        state.OnNext(CreateState(mapState: SurfacePresentationState.Hidden));
-        extensionSlots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
-            "extension",
-            "media",
-            Order: 0,
-            Substitute.For<IRecordedSessionMediaPaneContributionViewModel>()));
+    [Fact]
+    public async Task SessionMediaWorkspace_ExposesVideoPane_OnceSessionHasPlayableClip()
+    {
+        using var videoFixture = new VideoFixture();
+        var sessionId = Guid.NewGuid();
+        var store = await videoFixture.CreateStoreAsync();
+        using var videoPane = new VideoPaneViewModel(
+            sessionId,
+            new TestRecordedSessionTimeline(),
+            store,
+            videoFixture.Coordinator,
+            videoFixture.PlayerFactory);
+        using var state = new Subject<RecordedSessionEditorState>();
+        using var workspace = new SessionMediaWorkspaceViewModel(
+            state,
+            () => null,
+            new SessionTimelineLinkViewModel(),
+            () => new RecordedSessionExtensionSlots(),
+            videoPane);
+        state.OnNext(CreateState());
+        var videoBeforeLink = workspace.Video;
+        var changes = TrackPropertyChanges(workspace);
 
+        await store.PublishClipsAsync([videoFixture.CreateClip(sessionId, startTimestamp: 1_000, durationSeconds: 60)]);
+
+        Assert.Null(videoBeforeLink);
+        Assert.Same(videoPane, workspace.Video);
         Assert.True(workspace.HasMediaContent);
-        Assert.Contains(nameof(SessionMediaWorkspaceViewModel.HasMediaContent), changes);
+        Assert.Contains(nameof(SessionMediaWorkspaceViewModel.Video), changes);
     }
 
     [Fact]
@@ -393,9 +414,7 @@ public class SessionWorkspaceViewModelTests
                 LayoutPreferences: preferences.Layout),
             Presentation: new RecordedSessionEditorPresentationState(
                 MapState: mapState ?? SurfacePresentationState.Hidden,
-                MediaPaneState: SurfacePresentationState.Hidden,
                 MediaColumnWidth: null,
-                MediaUrl: null,
                 SignalAvailability: new RecordedSignalAvailabilityState(
                     Travel: false,
                     Velocity: false,

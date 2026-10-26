@@ -1,13 +1,10 @@
-using System.Windows.Input;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
-using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Theming;
 
-using Sufni.App.ExtensionHost.Contracts.Capabilities;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Bikes.Stores;
@@ -23,6 +20,7 @@ using Sufni.App.Shell.Coordinators;
 using Sufni.App.Shell.ViewModels;
 using Sufni.App.SyncAndPairing.Stores;
 using Sufni.App.Tests.TestSupport.Doubles;
+using Sufni.App.Video.Coordinators;
 namespace Sufni.App.Tests.Shell.ViewModels;
 
 [Collection("Ui")]
@@ -83,7 +81,8 @@ public class MainPagesViewModelTests
                 CanHostSyncServer: false,
                 CanPairAsClient: false,
                 SupportsMassStorageImport: false,
-                SupportsStorageProviderImport: false));
+                SupportsStorageProviderImport: false,
+                CanPlayVideo: false));
 
         var viewModel = MainPagesViewModelTestFactory.Create(appEnvironment: environment);
 
@@ -93,6 +92,7 @@ public class MainPagesViewModelTests
         Assert.False(viewModel.CanImportGpsTracks);
         Assert.False(viewModel.OpenImportCommand.CanExecute(null));
         Assert.False(viewModel.OpenGpsTracksCommand.CanExecute(null));
+        Assert.False(viewModel.OpenVideoCommand.CanExecute(null));
     }
 
     [Fact]
@@ -209,6 +209,32 @@ public class MainPagesViewModelTests
     }
 
     [Fact]
+    public async Task OpenVideoCommand_AddsNotificationToSelectedPage_WhenVideoIsLinked()
+    {
+        var videoCoordinator = Substitute.For<IVideoCoordinator>();
+        videoCoordinator.ImportAsync(Arg.Any<CancellationToken>()).Returns(new VideoImportResult.Linked(2));
+        var viewModel = MainPagesViewModelTestFactory.Create(videoCoordinator: videoCoordinator);
+        viewModel.SelectedPrimaryIndex = 2;
+
+        await viewModel.OpenVideoCommand.ExecuteAsync(null);
+
+        Assert.Empty(viewModel.SessionsPage.Notifications);
+        Assert.Equal(["Linked video to 2 recorded sessions."], viewModel.BikesPage.Notifications);
+    }
+
+    [Fact]
+    public async Task OpenVideoCommand_AddsErrorMessage_WhenImportFails()
+    {
+        var videoCoordinator = Substitute.For<IVideoCoordinator>();
+        videoCoordinator.ImportAsync(Arg.Any<CancellationToken>()).Returns(new VideoImportResult.Failed("no sessions"));
+        var viewModel = MainPagesViewModelTestFactory.Create(videoCoordinator: videoCoordinator);
+
+        await viewModel.OpenVideoCommand.ExecuteAsync(null);
+
+        Assert.Equal(["no sessions"], viewModel.SessionsPage.ErrorMessages);
+    }
+
+    [Fact]
     public void OpenPageCommand_ClosesDrawerAndPushesNonPrimaryPageThroughShell()
     {
         var shell = Substitute.For<IShellCoordinator>();
@@ -220,91 +246,6 @@ public class MainPagesViewModelTests
 
         Assert.False(viewModel.IsDrawerOpen);
         shell.Received(1).Open(page);
-    }
-
-    [Fact]
-    public void Constructor_ExposesNoExtensionToolbarActions_WhenNoProvidersAreRegistered()
-    {
-        var viewModel = MainPagesViewModelTestFactory.Create();
-
-        Assert.Empty(viewModel.ExtensionToolbarCommands);
-        Assert.Empty(viewModel.ExtensionToolbarViews);
-    }
-
-    [Fact]
-    public void Constructor_CreatesExtensionToolbarActionsFromDiProviders_InOrder()
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton<ToolbarDependency>();
-        services.AddSingleton<IAppToolbarContributionProvider, LaterToolbarContributionProvider>();
-        services.AddSingleton<IAppToolbarContributionProvider, EarlierToolbarContributionProvider>();
-        using var provider = services.BuildServiceProvider();
-        var dependency = provider.GetRequiredService<ToolbarDependency>();
-
-        var viewModel = MainPagesViewModelTestFactory.Create(
-            appToolbarContributionProviders: provider.GetServices<IAppToolbarContributionProvider>());
-
-        Assert.Equal(
-            ["earlier", "later"],
-            viewModel.ExtensionToolbarViews.Select(contribution => contribution.ContributionId));
-        Assert.Empty(viewModel.ExtensionToolbarCommands);
-        Assert.Same(dependency, viewModel.ExtensionToolbarViews[1].ViewModel);
-    }
-
-    [Fact]
-    public void Constructor_ExposesExtensionToolbarActionsFromProviders()
-    {
-        var command = Substitute.For<ICommand>();
-        var commandContribution = new AppToolbarCommandContribution(
-            "extension",
-            "command",
-            Order: 0,
-            "Command",
-            Icon: null,
-            command);
-        var viewContribution = new AppToolbarViewContribution(
-            "extension",
-            "view",
-            Order: 1,
-            new TestContributionViewModel());
-
-        var viewModel = MainPagesViewModelTestFactory.Create(
-            appToolbarContributionProviders:
-            [
-                new TestAppToolbarContributionProvider(
-                    [commandContribution],
-                    [viewContribution]),
-            ]);
-
-        Assert.Equal([commandContribution], viewModel.ExtensionToolbarCommands);
-        Assert.Equal([viewContribution], viewModel.ExtensionToolbarViews);
-    }
-
-    [Fact]
-    public void Constructor_RejectsExtensionToolbarContributionFromDifferentOwner()
-    {
-        var provider = new MismatchedToolbarContributionProvider();
-
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            MainPagesViewModelTestFactory.Create(appToolbarContributionProviders: [provider]));
-
-        Assert.Contains("other:action", exception.Message);
-        Assert.Contains("owner", exception.Message);
-    }
-
-    [Fact]
-    public void Constructor_RejectsDuplicateExtensionToolbarContributionIdsForSameExtension()
-    {
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            MainPagesViewModelTestFactory.Create(
-                appToolbarContributionProviders:
-                [
-                    new DuplicateToolbarContributionProvider("first"),
-                    new DuplicateToolbarContributionProvider("second"),
-                ]));
-
-        Assert.Contains("duplicate", exception.Message);
-        Assert.Contains("extension", exception.Message);
     }
 
     [Fact]
@@ -400,88 +341,6 @@ public class MainPagesViewModelTests
             synchronizationServerService: server,
             backgroundTaskRunner: new InlineBackgroundTaskRunner(),
             inboundActivityIdleGrace: TimeSpan.Zero);
-
-    private sealed class ToolbarDependency : IAppToolbarContributionViewModel;
-
-    private sealed class LaterToolbarContributionProvider(ToolbarDependency dependency) : IAppToolbarContributionProvider
-    {
-        public string ExtensionId => "extension";
-
-        public IReadOnlyList<AppToolbarCommandContribution> CreateCommandContributions() => [];
-
-        public IReadOnlyList<AppToolbarViewContribution> CreateViewContributions()
-        {
-            return
-            [
-                new AppToolbarViewContribution("extension", "later", Order: 20, dependency),
-            ];
-        }
-    }
-
-    private sealed class EarlierToolbarContributionProvider : IAppToolbarContributionProvider
-    {
-        public string ExtensionId => "extension";
-
-        public IReadOnlyList<AppToolbarCommandContribution> CreateCommandContributions() => [];
-
-        public IReadOnlyList<AppToolbarViewContribution> CreateViewContributions()
-        {
-            return
-            [
-                new AppToolbarViewContribution("extension", "earlier", Order: 10, new TestContributionViewModel()),
-            ];
-        }
-    }
-
-    private sealed class MismatchedToolbarContributionProvider : IAppToolbarContributionProvider
-    {
-        public string ExtensionId => "owner";
-
-        public IReadOnlyList<AppToolbarCommandContribution> CreateCommandContributions()
-        {
-            return
-            [
-                new AppToolbarCommandContribution(
-                    "other",
-                    "action",
-                    Order: 10,
-                    "Action",
-                    Icon: null,
-                    Substitute.For<ICommand>()),
-            ];
-        }
-
-        public IReadOnlyList<AppToolbarViewContribution> CreateViewContributions() => [];
-    }
-
-    private sealed class DuplicateToolbarContributionProvider(string surface) : IAppToolbarContributionProvider
-    {
-        public string ExtensionId => "extension";
-
-        public IReadOnlyList<AppToolbarCommandContribution> CreateCommandContributions()
-        {
-            return
-            [
-                new AppToolbarCommandContribution(
-                    ExtensionId,
-                    "duplicate",
-                    Order: 10,
-                    "Duplicate",
-                    Icon: null,
-                    Substitute.For<ICommand>()),
-            ];
-        }
-
-        public IReadOnlyList<AppToolbarViewContribution> CreateViewContributions()
-        {
-            return
-            [
-                new AppToolbarViewContribution(ExtensionId, "duplicate", Order: 20, new TestContributionViewModel()),
-            ];
-        }
-
-        public override string ToString() => surface;
-    }
 
     private sealed class ConfirmableTabPageViewModel : TabPageViewModelBase
     {

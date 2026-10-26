@@ -191,7 +191,8 @@ There are five kinds of view model in the presentation layer:
   projection and balance-page insertion; core signal, analysis, map, media, and
   loaded-data availability come from `RecordedSessionEditorState`. Stable
   runtime objects such as the page collection, timeline link,
-  source-visibility store, map view model, and recorded-session extension slots
+  source-visibility store, map view model, video pane (see
+  [video.md](video.md)), and recorded-session extension slots
   are owned directly by the editor or extension manager and passed to workspaces
   by reference; state emissions update projected presentation without replacing
   those objects. The recorded signals, media, analysis, and mobile-shell
@@ -355,8 +356,8 @@ Two pages diverge from that pattern:
   each scope's `RecordedSessionExtensionSlots` into one host slot
   collection. Recorded signals, media, and analysis workspaces expose
   that same slot object so views can render toolbar
-  content, media panes, map overlays, analysis banners/overlays,
-  session-list indicators/actions, signal-row actions, hosted signal rows,
+  content, map overlays, analysis banners/overlays,
+  signal-row actions, hosted signal rows,
   and time-range overlays without adding workflow-specific properties
   to public workspace contracts. Extension scopes can request analysis
   range changes, timeline range changes, notifications,

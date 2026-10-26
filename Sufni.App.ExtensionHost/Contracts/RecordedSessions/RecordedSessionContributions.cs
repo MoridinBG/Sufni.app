@@ -33,12 +33,6 @@ public sealed record RecordedSessionToolbarViewContribution(
     RecordedSessionToolbarZone Zone,
     IRecordedSessionToolbarContributionViewModel ViewModel) : IRecordedSessionContribution;
 
-public sealed record RecordedSessionMediaPaneContribution(
-    string ExtensionId,
-    string ContributionId,
-    int Order,
-    IRecordedSessionMediaPaneContributionViewModel ViewModel) : IRecordedSessionContribution;
-
 public sealed record RecordedSessionMapOverlayContribution(
     string ExtensionId,
     string ContributionId,
@@ -185,18 +179,6 @@ public enum RecordedSessionAnalysisMetricTarget
     RearLscPercentage,
     RearLsrPercentage,
 }
-
-public sealed record RecordedSessionListIndicatorContribution(
-    string ExtensionId,
-    string ContributionId,
-    int Order,
-    IRecordedSessionListIndicatorContributionViewModel ViewModel) : IRecordedSessionContribution;
-
-public sealed record RecordedSessionListActionContribution(
-    string ExtensionId,
-    string ContributionId,
-    int Order,
-    IRecordedSessionListActionContributionViewModel ViewModel) : IRecordedSessionContribution;
 
 public sealed record RecordedSessionSignalPlotContextMenuContribution(
     string ExtensionId,

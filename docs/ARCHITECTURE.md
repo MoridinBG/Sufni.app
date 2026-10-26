@@ -18,6 +18,7 @@ This document is the catalog. Each subsystem is summarized here and the deep det
 - [Extension Host](#extension-host)
 - [Plot Rendering](#plot-rendering)
 - [Maps & GPS Tracks](#maps--gps-tracks)
+- [Session Video](#session-video)
 - [Live DAQ Streaming](#live-daq-streaming)
 - [Live Session Recording](#live-session-recording)
 - [Persistence & Serialization](#persistence--serialization)
@@ -34,6 +35,7 @@ This document is the catalog. Each subsystem is summarized here and the deep det
 | **Sufni.Kinematics**      | `Sufni.Kinematics/`            | Suspension linkage simulation, leverage ratio calculation                                                    |
 | **Sufni.App**             | `Sufni.App/Sufni.App/`         | Neutral shared application layer, organized **domain-slice-first** (see below): each slice keeps its own views, view models, coordinators, stores, queries, services, models, and plots |
 | **Sufni.App.Desktop**     | `Sufni.App/Sufni.App.Desktop/` | Desktop-only layer: sync server, ASP.NET Core hosting, inbound desktop sync infrastructure                   |
+| **Sufni.App.Video.LibVlc** | `Sufni.App/Sufni.App.Video.LibVlc/` | LibVLC video player for the Windows and Linux heads |
 | **Sufni.App.Windows**     | `Sufni.App/Sufni.App.Windows/` | Windows entry point (`Program.cs`)                                                                           |
 | **Sufni.App.macOS**       | `Sufni.App/Sufni.App.macOS/`   | macOS entry point (`Program.cs`)                                                                             |
 | **Sufni.App.Linux**       | `Sufni.App/Sufni.App.Linux/`   | Linux entry point (`Program.cs`)                                                                             |
@@ -63,10 +65,11 @@ layering rules are unchanged — only the folder grouping is slice-first instead
 | **Acquisition** | `Acquisition/` | Telemetry import + DAQ management (`Services/Management`), data-store models, import UI |
 | **SyncAndPairing** | `SyncAndPairing/` | Client sync + pairing coordinators/services/VMs (desktop sync server stays in `Sufni.App.Desktop`) |
 | **MapsAndTracks** | `MapsAndTracks/` | Map view + interaction/viewport controllers, track geometry, track signal plot |
+| **Video** | `Video/` | Session video: clip links, store, import/alignment coordinator, video pane and playback, player contracts |
 | **Shell** | `Shell/` | App shell: `ShellRootViewModel`, `ShellWorkspaceViewModel`, `MainPagesViewModel`, shell coordinator, profile shell views, navigation behaviors, keyboard shortcuts |
 | **Shared** | `Shared/` | Cross-slice bases (`Base/`), common helpers, formatting, shared plot bases, shared `Views/` + `DesktopViews/` controls/dialogs/overlays/converters |
 | **Infrastructure** | `Infrastructure/` | Infra services, app JSON/preferences, theming bridge (`Theming/`), and platform-service abstractions (`IServiceDiscovery`, `IHapticFeedback`, `IFriendlyNameProvider`) |
-| **Extensibility** | `Extensibility/` | App-side extension host wiring: capability/view registries, database hooks, sync, recorded-session contributions, notifications (renamed from the old `ExtensionHosting/`) |
+| **Extensibility** | `Extensibility/` | App-side extension host wiring: capability/view registries, database hooks, sync, recorded-session contributions (renamed from the old `ExtensionHosting/`) |
 
 `App.axaml(.cs)`, `ViewLocator.cs`, and `MobileAppBootstrapper.cs` stay at the project root.
 
@@ -80,6 +83,7 @@ layering rules are unchanged — only the folder grouping is slice-first instead
 | `ISecureStorage`        | `Sufni.App.ExtensionHost/Contracts/Services/ISecureStorage.cs`        | Encrypted key-value store for JWT secrets, certificates, refresh tokens | `WindowsSecureStorage`, `LinuxSecureStorage`, `MacOsSecureStorage`, `AndroidSecureStorage`, `IosSecureStorage` |
 | `IHapticFeedback`       | `Sufni.App/Sufni.App/Infrastructure/IHapticFeedback.cs`       | Tactile feedback: `Click()`, `LongPress()`                              | `AndroidHapticFeedback`, `IosHapticFeedback`                                                                   |
 | `IFriendlyNameProvider` | `Sufni.App/Sufni.App/Infrastructure/IFriendlyNameProvider.cs` | Human-readable device name for sync identification                      | `AndroidFriendlyNameProvider`, `IosFriendlyNameProvider`                                                       |
+| `IVideoPlayerFactory`   | `Sufni.App/Sufni.App/Video/Models/VideoPlayback.cs`           | Native video player for the session video pane                          | `LibVlcVideoPlayerFactory` (Win / Linux), `MacOsVideoPlayerFactory`, `IosVideoPlayerFactory`                     |
 
 Each platform entry point registers its implementations before the shared `App.axaml.cs` initialization runs.
 
@@ -203,7 +207,6 @@ Topics in [architecture/extensions.md](architecture/extensions.md):
 - [Database Hooks](architecture/extensions.md#database-hooks) — schema versions, migrators, constrained extension sessions
 - [Cascade Rules](architecture/extensions.md#cascade-rules) — declared extension-owned row cleanup
 - [Sync Envelopes](architecture/extensions.md#sync-envelopes) — opaque payload routing
-- [App Toolbar Actions](architecture/extensions.md#app-toolbar-actions) — app-level action contribution slot
 - [Recorded-Session Scope](architecture/extensions.md#recorded-session-scope) — per-open-session scope lifecycle and host operations
 - [Recorded-Session Slots](architecture/extensions.md#recorded-session-slots) — generic contribution slots and descriptors
 - [Neutrality Rules](architecture/extensions.md#neutrality-rules) — public naming boundaries
@@ -239,6 +242,24 @@ Topics in [architecture/maps-and-tracks.md](architecture/maps-and-tracks.md):
 - [Mapsui Integration](architecture/maps-and-tracks.md#mapsui-integration) — view-side glue
 - [Map Preferences](architecture/maps-and-tracks.md#map-preferences) — `IMapPreferences` facet
 - [Where Maps Are Displayed](architecture/maps-and-tracks.md#where-maps-are-displayed) — recorded session and live-session media workspace
+
+---
+
+## Session Video
+
+A local video file is linked to every recorded session whose recording window overlaps it. The recorded-session editor plays the clip in a video pane beside the map, in sync with the telemetry cursor, and a context-menu flow aligns the clip to the telemetry. Heads with `AppCapabilities.CanPlayVideo` register a native player.
+
+Topics in [architecture/video.md](architecture/video.md):
+
+- [Persistence](architecture/video.md#persistence) — `session_video` table, delete triggers, one-time copy migration
+- [Store And Coordinator](architecture/video.md#store-and-coordinator) — `SessionVideoStore`, `VideoCoordinator`
+- [Import](architecture/video.md#import) — "Open video" action and overlap matching
+- [Clip Selection](architecture/video.md#clip-selection) — which clip shows at a telemetry time
+- [Video Pane](architecture/video.md#video-pane) — editor-lifetime pane, view-owned native player
+- [Playback And Timeline](architecture/video.md#playback-and-timeline) — sync and timeline playback
+- [Alignment](architecture/video.md#alignment) — mark video event, mark telemetry event
+- [Session List Indicator](architecture/video.md#session-list-indicator) — present/missing row icon
+- [Platform Players](architecture/video.md#platform-players) — LibVLC and AVFoundation players
 
 ---
 

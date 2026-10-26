@@ -21,6 +21,10 @@ using Sufni.App.Sessions.Store;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Sessions;
+using Sufni.App.Tests.TestSupport.Video;
+using Sufni.App.Video.Models;
+using Sufni.App.Video.ViewModels;
+using CommunityToolkit.Mvvm.Input;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
@@ -408,19 +412,6 @@ public class SessionDetailViewModelTests
         context.AddNotification("extension notification");
         var lease = context.StartOperation("Extension work");
         lease.Report("Extension still working", 50);
-        var beganExternalAlignment = context.TryBeginTimelineAlignment(
-            RecordedSessionTimelineAlignmentTarget.ExternalMedia,
-            12.0,
-            subjectId: "media-a");
-        var beganGpsAlignment = context.TryBeginTimelineAlignment(
-            RecordedSessionTimelineAlignmentTarget.GpsTrack,
-            4.0);
-        var pendingAlignment = factory.Scope!.UpdatedStates.Last().Timeline.Alignment.PendingMark;
-        var resolvedExternalAlignment = context.TryResolveTimelineAlignment(
-            RecordedSessionTimelineAlignmentTarget.ExternalMedia,
-            7.0,
-            out var alignmentResolution,
-            subjectId: "media-a");
 
         Assert.Equal(selectedRange, editor.CurrentAnalysisRange);
         Assert.Equal(0.2, editor.Timeline.VisibleRangeStart, 6);
@@ -430,15 +421,6 @@ public class SessionDetailViewModelTests
         Assert.True(editor.SessionOperationState.IsVisible);
         Assert.Equal("Extension still working", editor.SessionOperationState.Message);
         Assert.Equal(50, editor.SessionOperationState.Percent);
-        Assert.True(beganExternalAlignment);
-        Assert.False(beganGpsAlignment);
-        Assert.NotNull(pendingAlignment);
-        Assert.Equal(RecordedSessionTimelineAlignmentTarget.ExternalMedia, pendingAlignment.Target);
-        Assert.Equal("media-a", pendingAlignment.SubjectId);
-        Assert.True(resolvedExternalAlignment);
-        Assert.NotNull(alignmentResolution);
-        Assert.Equal(5.0, alignmentResolution.OffsetDeltaSeconds);
-        Assert.Null(factory.Scope.UpdatedStates.Last().Timeline.Alignment.PendingMark);
 
         lease.Complete();
 
@@ -589,6 +571,60 @@ public class SessionDetailViewModelTests
         Assert.Equal("dirty draft", editor.DescriptionText);
         Assert.Equal(snapshot.Updated, editor.BaselineUpdated);
     }
+
+    [AvaloniaFact]
+    public async Task VideoAlignment_ShiftsClipByDistanceBetweenMarks()
+    {
+        using var videos = new VideoFixture();
+        var (editor, clip) = await CreateEditorWithVideoAsync(videos);
+        videos.Coordinator.ShiftAlignmentAsync(clip.Id, Arg.Any<double>()).Returns(true);
+
+        ExecuteSignalAction(editor, "video-mark-video-event", clickSeconds: 5);
+        await ((IAsyncRelayCommand)FindSignalAction(editor, "video-mark-telemetry-event").Command)
+            .ExecuteAsync(CreatePlotContext(clickSeconds: 3));
+
+        await videos.Coordinator.Received(1).ShiftAlignmentAsync(clip.Id, 2);
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public async Task VideoAlignment_Cancel_DropsPendingVideoMark()
+    {
+        using var videos = new VideoFixture();
+        var (editor, _) = await CreateEditorWithVideoAsync(videos);
+
+        ExecuteSignalAction(editor, "video-mark-video-event", clickSeconds: 5);
+        ExecuteSignalAction(editor, "video-cancel-alignment", clickSeconds: 5);
+
+        var context = CreatePlotContext(clickSeconds: 3);
+        Assert.False(FindSignalAction(editor, "video-mark-telemetry-event").Command.CanExecute(context));
+        Assert.True(FindSignalAction(editor, "video-mark-video-event").Command.CanExecute(context));
+    }
+
+    private static async Task<(SessionDetailViewModel Editor, SessionVideoClip Clip)> CreateEditorWithVideoAsync(
+        VideoFixture videos)
+    {
+        var harness = new SessionDetailHarness();
+        var snapshot = TestSnapshots.Session(timestamp: 1_000, hasProcessedData: true);
+        var clip = videos.CreateClip(snapshot.Id, startTimestamp: 1_000, durationSeconds: 60);
+        harness.VideoPaneFactory = new VideoPaneFactory(
+            await videos.CreateStoreAsync(clip),
+            videos.Coordinator,
+            videos.PlayerFactory);
+        var editor = harness.CreateLoadedRecordedSession(snapshot);
+        await harness.LoadAsync(editor);
+        return (editor, clip);
+    }
+
+    private static TelemetryPlotContextMenuAction FindSignalAction(SessionDetailViewModel editor, string actionId) =>
+        editor.SignalsWorkspace.SignalPlotContextMenuActionsBySignalRowId[SignalRowIds.Travel]
+            .Single(action => action.Id == actionId);
+
+    private static void ExecuteSignalAction(SessionDetailViewModel editor, string actionId, double clickSeconds) =>
+        FindSignalAction(editor, actionId).Command.Execute(CreatePlotContext(clickSeconds));
+
+    private static TelemetryPlotContextMenuContext CreatePlotContext(double clickSeconds) =>
+        new(SignalRowIds.Travel, clickSeconds, DurationSeconds: 10, AnalysisRange: null);
 
     private static RecordedSessionDomainSnapshot DomainFromSnapshot(
         SessionSnapshot snapshot,

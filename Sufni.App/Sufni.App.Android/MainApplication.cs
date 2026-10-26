@@ -19,7 +19,8 @@ public sealed class MainApplication(nint javaReference, JniHandleOwnership trans
                 CanHostSyncServer: false,
                 CanPairAsClient: true,
                 SupportsMassStorageImport: false,
-                SupportsStorageProviderImport: true),
+                SupportsStorageProviderImport: true,
+                CanPlayVideo: false),
             new InputCapabilities(
                 HasPointer: false,
                 HasTouch: true,

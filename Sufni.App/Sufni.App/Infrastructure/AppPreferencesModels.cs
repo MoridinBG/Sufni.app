@@ -360,7 +360,7 @@ public static class SessionLayoutPaneIds
     public const string Signals = "signals";
     public const string Media = "media";
     public const string Map = "map";
-    public const string ExtensionMedia = "extension_media";
+    public const string Video = "video";
     public const string SignalsMediaArea = "signals_media_area";
     public const string AnalysisSidebarArea = "analysis_sidebar_area";
     public const string Analysis = "analysis";

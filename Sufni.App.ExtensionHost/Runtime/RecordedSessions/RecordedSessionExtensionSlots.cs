@@ -13,13 +13,10 @@ public sealed class RecordedSessionExtensionSlots
 {
     public ObservableCollection<RecordedSessionToolbarCommandContribution> SignalToolbarCommands { get; } = CreateCollection<RecordedSessionToolbarCommandContribution>();
     public ObservableCollection<RecordedSessionToolbarViewContribution> SignalToolbarViews { get; } = CreateCollection<RecordedSessionToolbarViewContribution>();
-    public ObservableCollection<RecordedSessionMediaPaneContribution> MediaPanes { get; } = CreateCollection<RecordedSessionMediaPaneContribution>();
     public ObservableCollection<RecordedSessionMapOverlayContribution> MapOverlays { get; } = CreateCollection<RecordedSessionMapOverlayContribution>();
     public ObservableCollection<RecordedSessionAnalysisBannerContribution> AnalysisBanners { get; } = CreateCollection<RecordedSessionAnalysisBannerContribution>();
     public ObservableCollection<RecordedSessionAnalysisOverlayContribution> AnalysisOverlays { get; } = CreateCollection<RecordedSessionAnalysisOverlayContribution>();
     public ObservableCollection<RecordedSessionAnalysisMetricContribution> AnalysisMetrics { get; } = CreateCollection<RecordedSessionAnalysisMetricContribution>();
-    public ObservableCollection<RecordedSessionListIndicatorContribution> SessionListIndicators { get; } = CreateCollection<RecordedSessionListIndicatorContribution>();
-    public ObservableCollection<RecordedSessionListActionContribution> SessionListActions { get; } = CreateCollection<RecordedSessionListActionContribution>();
     public ObservableCollection<RecordedSessionSignalPlotContextMenuContribution> SignalPlotContextMenuActions { get; } = CreateCollection<RecordedSessionSignalPlotContextMenuContribution>();
     public ObservableCollection<RecordedSessionSignalRowActionContribution> SignalRowHeaderActions { get; } = CreateCollection<RecordedSessionSignalRowActionContribution>();
     public ObservableCollection<RecordedSessionHostedSignalRowContribution> HostedSignalRows { get; } = CreateCollection<RecordedSessionHostedSignalRowContribution>();
@@ -35,13 +32,10 @@ public sealed class RecordedSessionExtensionSlots
             [
                 Subscribe(SignalToolbarCommands, changed),
                 Subscribe(SignalToolbarViews, changed),
-                Subscribe(MediaPanes, changed),
                 Subscribe(MapOverlays, changed),
                 Subscribe(AnalysisBanners, changed),
                 Subscribe(AnalysisOverlays, changed),
                 Subscribe(AnalysisMetrics, changed),
-                Subscribe(SessionListIndicators, changed),
-                Subscribe(SessionListActions, changed),
                 Subscribe(SignalPlotContextMenuActions, changed),
                 Subscribe(SignalRowHeaderActions, changed),
                 Subscribe(HostedSignalRows, changed),

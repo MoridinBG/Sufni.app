@@ -27,15 +27,13 @@ public static class TestRecordedSessionHostStates
         Guid? sessionId = null,
         TrackTimeRange? trackTimelineContext = null,
         IRecordedSessionTimeline? timeline = null,
-        double durationSeconds = 30,
-        RecordedSessionTimelineAlignmentState? alignment = null) =>
+        double durationSeconds = 30) =>
         Create(
             isLoaded: true,
             sessionId: sessionId,
             durationSeconds: durationSeconds,
             trackTimelineContext: trackTimelineContext ?? new TrackTimeRange(0, durationSeconds),
-            timeline: timeline,
-            alignment: alignment);
+            timeline: timeline);
 
     public static RecordedSessionHostState LoadedWithAnalysisState(
         Guid? sessionId = null,
@@ -65,7 +63,6 @@ public static class TestRecordedSessionHostStates
         TelemetryTimeRange? analysisRange = null,
         TrackTimeRange? trackTimelineContext = null,
         IRecordedSessionTimeline? timeline = null,
-        RecordedSessionTimelineAlignmentState? alignment = null,
         SessionDampingPercentages? dampingPercentages = null,
         DampingSpeedCutoffs? dampingSpeedCutoffs = null,
         VelocityAverageMode velocityAverageMode = VelocityAverageMode.SampleAveraged,
@@ -79,7 +76,7 @@ public static class TestRecordedSessionHostStates
                 isLoaded,
                 isActive),
             new RecordedSessionSelectionState(analysisRange),
-            new RecordedSessionTimelineState(trackTimelineContext, durationSeconds, timeline, alignment),
+            new RecordedSessionTimelineState(trackTimelineContext, durationSeconds, timeline),
             new RecordedSessionAnalysisState(
                 dampingPercentages ?? SessionDampingPercentages.Empty,
                 dampingSpeedCutoffs ?? DampingSpeedCutoffs.Default,

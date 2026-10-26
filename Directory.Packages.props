@@ -29,6 +29,7 @@
     <PackageVersion Include="CsvHelper" Version="33.1.0" />
     <PackageVersion Include="Deadpikle.AvaloniaProgressRing" Version="0.11.0" />
     <PackageVersion Include="DynamicData" Version="9.4.31" />
+    <PackageVersion Include="LibVLCSharp.Avalonia" Version="3.10.0" />
     <PackageVersion Include="Makaretu.Dns.Multicast.New" Version="0.38.0" />
     <PackageVersion Include="Mapsui.Avalonia12" Version="5.1.0" />
     <PackageVersion Include="MathNet.Numerics" Version="5.0.0" />
@@ -45,6 +46,7 @@
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageVersion Include="Svg.Controls.Skia.Avalonia" Version="12.0.0.13" />
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.19.1" />
+    <PackageVersion Include="VideoLAN.LibVLC.Windows" Version="3.0.23.1" />
     <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.2.0.3" />
     <!-- Align the Xamarin.AndroidX.Lifecycle family. Common/Common.Jvm/Runtime/Runtime.Android resolve
          transitively to 2.11.0.1, so pin the remaining family members up to match; otherwise their

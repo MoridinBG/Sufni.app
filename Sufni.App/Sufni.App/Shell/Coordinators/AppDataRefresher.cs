@@ -8,6 +8,7 @@ using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
 using Sufni.App.SyncAndPairing.Stores;
+using Sufni.App.Video.Stores;
 namespace Sufni.App.Shell.Coordinators;
 
 public interface IAppDataRefresher
@@ -27,6 +28,7 @@ internal sealed class AppDataRefresher(
     ISessionStoreWriter sessionStore,
     IRecordedSessionSourceStoreWriter recordedSessionSourceStore,
     IPairedDeviceStoreWriter pairedDeviceStore,
+    ISessionVideoStoreWriter sessionVideoStore,
     IRecordedSessionProcessingOptionCache processingOptionCache,
     IRecordedSessionDerivationWindowCache derivationWindowCache,
     IEnumerable<IExtensionStateRefreshParticipant> extensionStateRefreshParticipants) : IAppDataRefresher, IAppStateRefreshOrchestrator
@@ -47,6 +49,7 @@ internal sealed class AppDataRefresher(
         await sessionStore.RefreshAsync(cancellationToken);
         await recordedSessionSourceStore.RefreshAsync(cancellationToken);
         await pairedDeviceStore.RefreshAsync(cancellationToken);
+        await sessionVideoStore.RefreshAsync(cancellationToken);
     }
 
     public async Task RefreshAllStateAsync(CancellationToken cancellationToken = default)

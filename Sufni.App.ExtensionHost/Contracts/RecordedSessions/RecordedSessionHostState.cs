@@ -27,19 +27,16 @@ public sealed record RecordedSessionTimelineState
     public RecordedSessionTimelineState(
         TrackTimeRange? trackTimelineContext,
         double? telemetryDurationSeconds,
-        IRecordedSessionTimeline? timeline,
-        RecordedSessionTimelineAlignmentState? alignment = null)
+        IRecordedSessionTimeline? timeline)
     {
         TrackTimelineContext = trackTimelineContext;
         TelemetryDurationSeconds = telemetryDurationSeconds;
         Timeline = timeline;
-        Alignment = alignment ?? RecordedSessionTimelineAlignmentState.Empty;
     }
 
     public TrackTimeRange? TrackTimelineContext { get; init; }
     public double? TelemetryDurationSeconds { get; init; }
     public IRecordedSessionTimeline? Timeline { get; init; }
-    public RecordedSessionTimelineAlignmentState Alignment { get; init; }
 }
 
 public sealed record RecordedSessionAnalysisState(

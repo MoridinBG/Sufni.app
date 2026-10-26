@@ -15,6 +15,7 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Setups.Models;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Sessions.Services;
+using Sufni.App.Video.Models;
 namespace Sufni.App.Infrastructure;
 
 internal sealed class DatabaseMigrationRunner(
@@ -46,6 +47,8 @@ internal sealed class DatabaseMigrationRunner(
             await connection.ExecuteAsync(SessionBlobSwapRequestStore.CreateTableSql);
             await EnsureSessionBlobSwapRequestColumnsAsync();
             await EnsureSessionBlobSwapRequestIntegrityAsync();
+            await CopyPrivateSessionVideosAsync();
+            await EnsureSessionVideoIntegrityAsync();
             await extensionMigratorRunner.RunAsync(connection);
 
             var cleanupSummary = await Cleanup();
@@ -78,7 +81,8 @@ internal sealed class DatabaseMigrationRunner(
             typeof(RecordedSessionSource),
             typeof(Synchronization),
             typeof(PairedDevice),
-            typeof(Track)
+            typeof(Track),
+            typeof(SessionVideoClip)
         ]);
     }
 
@@ -124,6 +128,67 @@ internal sealed class DatabaseMigrationRunner(
             WHEN NEW.deleted IS NOT NULL
             BEGIN
                 DELETE FROM {SessionBlobSwapRequestStore.TableName}
+                WHERE session_id = NEW.id;
+            END
+            """);
+    }
+
+    // One-time copy of the video links kept by the former private video
+    // extension. The source table exists only on databases that ran it.
+    private async Task CopyPrivateSessionVideosAsync()
+    {
+        var sourceTableCount = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'private_session_video_clip'");
+        if (sourceTableCount == 0)
+        {
+            return;
+        }
+
+        await connection.RunInTransactionAsync(transaction =>
+        {
+            transaction.Execute(
+                """
+                INSERT OR IGNORE INTO session_video
+                    (id, session_id, path, start_timestamp, duration_seconds, alignment_offset_seconds, added)
+                SELECT id, session_id, path, start_timestamp, duration_seconds, alignment_offset_seconds, added
+                FROM private_session_video_clip
+                """);
+            transaction.Execute("DROP TABLE private_session_video_clip");
+            transaction.Execute("DELETE FROM extension_schema_version WHERE extension_id = 'sufni.private.video'");
+        });
+    }
+
+    private async Task EnsureSessionVideoIntegrityAsync()
+    {
+        await connection.ExecuteAsync(
+            """
+            DELETE FROM session_video
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM session
+                WHERE session.id = session_video.session_id
+                  AND session.deleted IS NULL
+            )
+            """);
+
+        await connection.ExecuteAsync("DROP TRIGGER IF EXISTS session_video_after_session_delete");
+        await connection.ExecuteAsync("DROP TRIGGER IF EXISTS session_video_after_session_soft_delete");
+        await connection.ExecuteAsync(
+            """
+            CREATE TRIGGER session_video_after_session_delete
+            AFTER DELETE ON session
+            BEGIN
+                DELETE FROM session_video
+                WHERE session_id = OLD.id;
+            END
+            """);
+        await connection.ExecuteAsync(
+            """
+            CREATE TRIGGER session_video_after_session_soft_delete
+            AFTER UPDATE OF deleted ON session
+            WHEN NEW.deleted IS NOT NULL
+            BEGIN
+                DELETE FROM session_video
                 WHERE session_id = NEW.id;
             END
             """);

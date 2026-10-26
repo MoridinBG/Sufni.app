@@ -258,7 +258,8 @@ public class TelemetryDataStoreServiceTests
                 CanHostSyncServer: false,
                 CanPairAsClient: true,
                 SupportsMassStorageImport: supportsMassStorageImport,
-                SupportsStorageProviderImport: true),
+                SupportsStorageProviderImport: true,
+                CanPlayVideo: false),
             Input: new InputCapabilities(
                 HasPointer: false,
                 HasTouch: true,

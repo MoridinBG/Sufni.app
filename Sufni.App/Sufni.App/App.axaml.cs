@@ -25,7 +25,6 @@ using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Bikes.ViewModels.ItemLists;
 using Sufni.App.Extensibility.Database;
-using Sufni.App.Extensibility.Notifications;
 using Sufni.App.Extensibility.RecordedSessions;
 using Sufni.App.Extensibility.Sync;
 using Sufni.App.Extensibility.Views;
@@ -68,6 +67,10 @@ using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Stores;
 using Sufni.App.SyncAndPairing.ViewModels.ItemLists;
+using Sufni.App.Video.Coordinators;
+using Sufni.App.Video.Services;
+using Sufni.App.Video.Stores;
+using Sufni.App.Video.ViewModels;
 namespace Sufni.App;
 
 public partial class App : Application
@@ -172,10 +175,8 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISyncDataStore, SynchronizationMergeEngine>();
         ServiceCollection.AddSingleton<IExtensionDatabaseConnection, ExtensionDatabaseConnection>();
         ServiceCollection.AddSingleton<IRecordedSessionDataReader, RecordedSessionDataReader>();
-        ServiceCollection.AddSingleton<IExtensionNotificationService, ExtensionNotificationService>();
         ServiceCollection.AddSingleton<IExtensionCascadeService, ExtensionCascadeService>();
         ServiceCollection.AddSingleton<IExtensionSyncService, ExtensionSyncService>();
-        ServiceCollection.TryAddSingleton<IRecordedSessionListExtensionService, RecordedSessionListExtensionService>();
         ServiceCollection.TryAddSingleton<IRecordedSessionDerivationWindowProvider, NullRecordedSessionDerivationWindowProvider>();
         ServiceCollection.AddSingleton<IAppPreferences, AppPreferences>();
         ServiceCollection.AddSingleton<IThemeService, ThemeService>();
@@ -186,7 +187,6 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IMapViewModelFactory, MapViewModelFactory>();
         ServiceCollection.AddSingleton<FilesService>();
         ServiceCollection.AddSingleton<IFilesService>(sp => sp.GetRequiredService<FilesService>());
-        ServiceCollection.AddSingleton<IFilePickerService>(sp => sp.GetRequiredService<FilesService>());
         ServiceCollection.AddSingleton<DialogService>();
         ServiceCollection.AddSingleton<IDialogService>(sp => sp.GetRequiredService<DialogService>());
         ServiceCollection.AddSingleton<IDialogHost>(sp => sp.GetRequiredService<DialogService>());
@@ -215,6 +215,13 @@ public partial class App : Application
         ServiceCollection.AddSingleton<RecordedSessionSourceStore>();
         ServiceCollection.AddSingleton<IRecordedSessionSourceStore>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
         ServiceCollection.AddSingleton<IRecordedSessionSourceStoreWriter>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
+        ServiceCollection.AddSingleton<ISessionVideoRepository, SessionVideoRepository>();
+        ServiceCollection.AddSingleton<IVideoMetadataReader, Mp4VideoMetadataReader>();
+        ServiceCollection.AddSingleton<SessionVideoStore>();
+        ServiceCollection.AddSingleton<ISessionVideoStore>(sp => sp.GetRequiredService<SessionVideoStore>());
+        ServiceCollection.AddSingleton<ISessionVideoStoreWriter>(sp => sp.GetRequiredService<SessionVideoStore>());
+        ServiceCollection.AddSingleton<IVideoCoordinator, VideoCoordinator>();
+        ServiceCollection.AddSingleton<IVideoPaneFactory, VideoPaneFactory>();
         ServiceCollection.AddSingleton<AppDataRefresher>();
         ServiceCollection.AddSingleton<IAppStateRefreshOrchestrator>(sp => sp.GetRequiredService<AppDataRefresher>());
         ServiceCollection.AddSingleton<IAppDataRefresher>(sp => sp.GetRequiredService<AppDataRefresher>());

@@ -4,7 +4,6 @@ xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:overlays="clr-namespace:Sufni.App.Shared.Views.Overlays"
     xmlns:controls2="clr-namespace:Sufni.App.Shared.Views.Controls"
-xmlns:controls="clr-namespace:Sufni.App.Extensibility.Views"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:converters="using:Avalonia.Data.Converters"
@@ -165,10 +164,16 @@ mc:Ignorable="d">
                 <Image Width="18" Source="{SvgImage /Assets/fa-map.svg}" />
             </Button>
 
-            <controls:AppToolbarContributionsView
-            CommandContributions="{Binding ExtensionToolbarCommands}"
-            Presentation="NavRail"
-            ViewContributions="{Binding ExtensionToolbarViews}" />
+            <!--  Open video button  -->
+            <Button
+            Name="OpenVideoButton"
+            Width="50"
+            Classes="embedded"
+            Command="{Binding OpenVideoCommand}"
+            IsVisible="{Binding CanOpenVideos}"
+            ToolTip.Tip="Open video">
+                <Image Width="18" Source="{SvgImage /Assets/fa-video.svg}" />
+            </Button>
 
             <!--  Paired devices button  -->
             <Button

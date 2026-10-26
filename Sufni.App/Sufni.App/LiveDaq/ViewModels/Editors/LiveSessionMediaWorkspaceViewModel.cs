@@ -13,6 +13,7 @@ using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.MapsAndTracks.ViewModels;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
+using Sufni.App.Video.ViewModels;
 namespace Sufni.App.LiveDaq.ViewModels.Editors;
 
 public sealed class LiveSessionMediaWorkspaceViewModel : ObservableObject, ISessionMediaWorkspace, IDisposable
@@ -20,18 +21,17 @@ public sealed class LiveSessionMediaWorkspaceViewModel : ObservableObject, ISess
     private bool isInitialized;
     private bool mapExpected;
 
-    public bool HasMediaContent => MapState.ReservesLayout || MediaPaneState.ReservesLayout;
+    public bool HasMediaContent => MapState.ReservesLayout;
     public MapViewModel? MapViewModel { get; }
     public SurfacePresentationState MapState => !mapExpected
         ? SurfacePresentationState.Hidden
         : MapViewModel?.SessionTrackPoints?.Count > 0
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.WaitingForData("Waiting for map data.");
-    public SurfacePresentationState MediaPaneState => SurfacePresentationState.Hidden;
     public SessionTimelineLinkViewModel Timeline { get; }
     public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
     public double? MediaColumnWidth { get; } = 400;
-    public string? MediaUrl => null;
+    public VideoPaneViewModel? Video => null;
 
     public LiveSessionMediaWorkspaceViewModel()
     {

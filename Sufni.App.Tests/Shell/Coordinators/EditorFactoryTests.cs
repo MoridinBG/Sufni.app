@@ -30,7 +30,7 @@ using Sufni.App.Setups.ViewModels.Editors;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Extensions;
-
+using Sufni.App.Video.ViewModels;
 namespace Sufni.App.Tests.Shell.Coordinators;
 
 public class EditorFactoryTests
@@ -365,7 +365,8 @@ public class EditorFactoryTests
                     CanHostSyncServer: true,
                     CanPairAsClient: false,
                     SupportsMassStorageImport: true,
-                    SupportsStorageProviderImport: true),
+                    SupportsStorageProviderImport: true,
+                    CanPlayVideo: false),
                 new InputCapabilities(
                     HasPointer: true,
                     HasTouch: false,
@@ -376,7 +377,8 @@ public class EditorFactoryTests
             Substitute.For<IExtensionDatabaseConnection>(),
             Substitute.For<IRecordedSessionDataReader>(),
             backgroundTaskRunner,
-            () => throw new InvalidOperationException("The import-sessions resolver should not run in these tests."));
+            () => throw new InvalidOperationException("The import-sessions resolver should not run in these tests."),
+            Substitute.For<IVideoPaneFactory>());
     }
 
     private sealed class CapturingShellCoordinator : IShellCoordinator

@@ -23,7 +23,7 @@ using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Extensions;
 using Sufni.Telemetry;
-
+using Sufni.App.Video.ViewModels;
 namespace Sufni.App.Tests.TestSupport.Sessions;
 
 internal sealed class TestSessionAnalysisWorkspace : ISessionAnalysisWorkspace, INotifyPropertyChanged
@@ -252,30 +252,24 @@ internal sealed class TestSessionMediaWorkspace : ISessionMediaWorkspace, INotif
 
     public TestSessionMediaWorkspace(
         IReadOnlyList<TrackPoint>? trackPoints = null,
-        string? mediaUrl = null,
+        VideoPaneViewModel? video = null,
         MapViewModel? mapViewModel = null,
         RecordedSessionExtensionSlots? extensionSlots = null)
     {
         MapViewModel = mapViewModel ?? CreateMapViewModel(trackPoints ?? []);
-        MediaUrl = mediaUrl;
+        Video = video;
         ExtensionSlots = extensionSlots ?? new RecordedSessionExtensionSlots();
     }
 
-    public bool HasMediaContent =>
-        MapState.ReservesLayout ||
-        MediaPaneState.ReservesLayout ||
-        ExtensionSlots.MediaPanes.Count > 0;
+    public bool HasMediaContent => MapState.ReservesLayout || Video is not null;
     public MapViewModel? MapViewModel { get; set; }
     public SurfacePresentationState MapState => MapViewModel?.SessionTrackPoints?.Count > 0
-        ? SurfacePresentationState.Ready
-        : SurfacePresentationState.Hidden;
-    public SurfacePresentationState MediaPaneState => !string.IsNullOrWhiteSpace(MediaUrl)
         ? SurfacePresentationState.Ready
         : SurfacePresentationState.Hidden;
     public SessionTimelineLinkViewModel Timeline { get; } = new();
     public RecordedSessionExtensionSlots ExtensionSlots { get; }
     public double? MediaColumnWidth { get; set; } = 400;
-    public string? MediaUrl { get; set; }
+    public VideoPaneViewModel? Video { get; set; }
 
     public void NotifyChanged(string propertyName) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -302,20 +296,6 @@ internal sealed class RequestCounter
 
 internal static class TestRecordedSessionExtensionContributions
 {
-    public static RecordedSessionMediaPaneContribution AddMediaPane(
-        this RecordedSessionExtensionSlots slots,
-        string contributionId = "media-pane",
-        IRecordedSessionMediaPaneContributionViewModel? viewModel = null)
-    {
-        var contribution = new RecordedSessionMediaPaneContribution(
-            "test",
-            contributionId,
-            Order: 0,
-            viewModel ?? new TestContributionViewModel());
-        slots.MediaPanes.Add(contribution);
-        return contribution;
-    }
-
     public static RecordedSessionToolbarViewContribution AddSignalToolbarView(
         this RecordedSessionExtensionSlots slots,
         string contributionId = "toolbar-view",

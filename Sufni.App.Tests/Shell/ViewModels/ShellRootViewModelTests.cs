@@ -21,7 +21,8 @@ public class ShellRootViewModelTests
                 CanHostSyncServer: true,
                 CanPairAsClient: false,
                 SupportsMassStorageImport: true,
-                SupportsStorageProviderImport: true),
+                SupportsStorageProviderImport: true,
+                CanPlayVideo: false),
             Input: new InputCapabilities(
                 HasPointer: true,
                 HasTouch: false,
@@ -134,7 +135,8 @@ public class ShellRootViewModelTests
                 CanHostSyncServer: false,
                 CanPairAsClient: true,
                 SupportsMassStorageImport: false,
-                SupportsStorageProviderImport: true),
+                SupportsStorageProviderImport: true,
+                CanPlayVideo: false),
             Input: new InputCapabilities(
                 HasPointer: false,
                 HasTouch: true,

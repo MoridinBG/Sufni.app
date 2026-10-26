@@ -7,23 +7,15 @@ namespace Sufni.App.Tests.TestSupport.Doubles;
 
 internal sealed class TestContributionViewModel :
     ContentControl,
-    IAppToolbarContributionViewModel,
     IRecordedSessionToolbarContributionViewModel,
-    IRecordedSessionMediaPaneContributionViewModel,
     IRecordedSessionAnalysisBannerContributionViewModel,
     IRecordedSessionAnalysisOverlayContributionViewModel,
-    IRecordedSessionListIndicatorContributionViewModel,
-    IRecordedSessionListActionContributionViewModel,
     IRecordedSessionHostedSignalRowContributionViewModel;
 
 internal sealed class DisposableContributionViewModel :
-    IAppToolbarContributionViewModel,
     IRecordedSessionToolbarContributionViewModel,
-    IRecordedSessionMediaPaneContributionViewModel,
     IRecordedSessionAnalysisBannerContributionViewModel,
     IRecordedSessionAnalysisOverlayContributionViewModel,
-    IRecordedSessionListIndicatorContributionViewModel,
-    IRecordedSessionListActionContributionViewModel,
     IRecordedSessionHostedSignalRowContributionViewModel,
     IDisposable
 {

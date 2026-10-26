@@ -22,8 +22,6 @@ internal sealed record RecordedSessionEditorStateInputs(
     IObservable<SessionPreferences> PreferenceReplays,
     IObservable<RecordedSessionLoadPresentation> LoadPresentations,
     IObservable<SessionOperationPresentationState> OperationStates,
-    IObservable<SurfacePresentationState> MediaPaneStates,
-    IObservable<string?> MediaUrls,
     IObservable<SessionDampingPercentages> DampingPercentages,
     IObservable<DampingSpeedCutoffs> PlotDampingSpeedCutoffs,
     IObservable<bool> CanEditDampingSpeedCutoffs,
@@ -45,8 +43,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(inputs.PreferenceReplays);
         ArgumentNullException.ThrowIfNull(inputs.LoadPresentations);
         ArgumentNullException.ThrowIfNull(inputs.OperationStates);
-        ArgumentNullException.ThrowIfNull(inputs.MediaPaneStates);
-        ArgumentNullException.ThrowIfNull(inputs.MediaUrls);
         ArgumentNullException.ThrowIfNull(inputs.DampingPercentages);
         ArgumentNullException.ThrowIfNull(inputs.PlotDampingSpeedCutoffs);
         ArgumentNullException.ThrowIfNull(inputs.CanEditDampingSpeedCutoffs);
@@ -72,11 +68,9 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var mapState = CreateInputState(
             loadPresentationState.Select(CreateMapStateFromLoadPresentation),
             SurfacePresentationState.Hidden);
-        var mediaPaneState = CreateInputState(inputs.MediaPaneStates, SurfacePresentationState.Hidden);
         var mediaColumnWidth = CreateInputState(
             loadPresentationState.Select(CreateMediaColumnWidthFromLoadPresentation),
             (double?)null);
-        var mediaUrl = CreateInputState(inputs.MediaUrls, (string?)null);
         var analysisPresentation = CreateInputState(
             loadPresentationState.CombineLatest(
                 analysisRange,
@@ -137,18 +131,8 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                 static (screen, operation) => new DerivedPresentationState(screen, operation));
         var derivedMediaState = mapState
             .CombineLatest(
-                mediaPaneState,
-                static (map, pane) => new { map, pane })
-            .CombineLatest(
                 mediaColumnWidth,
-                static (current, width) => new { current.map, current.pane, width })
-            .CombineLatest(
-                mediaUrl,
-                static (current, url) => new DerivedMediaPresentationState(
-                    current.map,
-                    current.pane,
-                    current.width,
-                    url));
+                static (map, width) => new DerivedMediaPresentationState(map, width));
         var replayingState = Observable.Return(RecordedSessionEditorState.CreateInitial())
             .CombineLatest(
                 derivedIntentState,
@@ -244,9 +228,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                         Presentation = current.state.Presentation with
                         {
                             MapState = current.media.MapState,
-                            MediaPaneState = current.media.MediaPaneState,
                             MediaColumnWidth = current.media.MediaColumnWidth,
-                            MediaUrl = current.media.MediaUrl,
                             SignalAvailability = current.signalAvailability,
                             Signals = current.signals,
                             Analysis = current.analysis,
@@ -921,7 +903,5 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
 
     private sealed record DerivedMediaPresentationState(
         SurfacePresentationState MapState,
-        SurfacePresentationState MediaPaneState,
-        double? MediaColumnWidth,
-        string? MediaUrl);
+        double? MediaColumnWidth);
 }

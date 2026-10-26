@@ -1096,6 +1096,67 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
+    public async Task Initialization_CopiesPrivateVideoLinks_AndDropsSourceTable()
+    {
+        using var tempDatabase = new TempDatabase("private-video-copy.db");
+        var sessionId = Guid.NewGuid();
+        var clipId = Guid.NewGuid();
+
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.CreateTable<Session>();
+            connection.Insert(new Session(sessionId, "ride", string.Empty, null) { Updated = 10 });
+            connection.Execute(
+                """
+                CREATE TABLE private_session_video_clip (
+                    id TEXT PRIMARY KEY, session_id TEXT, path TEXT NOT NULL, file_name TEXT NOT NULL,
+                    start_timestamp INTEGER NOT NULL, duration_seconds REAL NOT NULL,
+                    alignment_offset_seconds REAL NOT NULL, added INTEGER NOT NULL, updated INTEGER NOT NULL)
+                """);
+            connection.Execute(
+                "INSERT INTO private_session_video_clip VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                clipId, sessionId, "/videos/ride.mp4", "ride.mp4", 1_000, 60.0, 2.5, 7, 8);
+            connection.Execute("CREATE TABLE extension_schema_version (extension_id TEXT PRIMARY KEY, version INTEGER)");
+            connection.Execute("INSERT INTO extension_schema_version VALUES ('sufni.private.video', 1)");
+        }
+
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var clip = Assert.Single(await database.SessionVideoRepository.GetAllAsync());
+
+        Assert.Equal((clipId, sessionId, "/videos/ride.mp4", 1_000L, 60.0, 2.5, 7L),
+            (clip.Id, clip.SessionId, clip.Path, clip.StartTimestamp, clip.DurationSeconds, clip.AlignmentOffsetSeconds, clip.Added));
+        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
+        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE name = 'private_session_video_clip'"));
+        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM extension_schema_version WHERE extension_id = 'sufni.private.video'"));
+    }
+
+    [Fact]
+    public async Task SessionDelete_RemovesLinkedVideos()
+    {
+        using var tempDatabase = new TempDatabase("session-video-ownership.db");
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var softDeletedSessionId = Guid.NewGuid();
+        var hardDeletedSessionId = Guid.NewGuid();
+        var keptSessionId = Guid.NewGuid();
+        foreach (var sessionId in new[] { softDeletedSessionId, hardDeletedSessionId, keptSessionId })
+        {
+            await database.PutSessionAsync(new Session(sessionId, "ride", string.Empty, null));
+        }
+
+        await database.SessionVideoRepository.LinkAsync(
+            "/videos/ride.mp4", 1_000, 60, added: 1, [softDeletedSessionId, hardDeletedSessionId, keptSessionId]);
+
+        using var connection = new SQLiteConnection(tempDatabase.DatabasePath);
+        connection.Execute("UPDATE session SET deleted = ? WHERE id = ?", 12, softDeletedSessionId);
+        connection.Execute("DELETE FROM session WHERE id = ?", hardDeletedSessionId);
+
+        var clip = Assert.Single(await database.SessionVideoRepository.GetAllAsync());
+        Assert.Equal(keptSessionId, clip.SessionId);
+    }
+
+    [Fact]
     public async Task StartupCleanup_SoftDeletesDuplicateTrackTimeRanges_AndRepointsSessions()
     {
         using var tempDatabase = new TempDatabase("duplicate-track-cleanup.db");

@@ -1,6 +1,6 @@
 # Extension Host
 
-> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the public extension host: build-time module registration, capability registration, host services, view resolution, database hooks, sync envelopes, app toolbar actions, and recorded-session contribution slots.
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the public extension host: build-time module registration, capability registration, host services, view resolution, database hooks, sync envelopes, and recorded-session contribution slots.
 
 ## Overview
 
@@ -29,7 +29,7 @@ There is no assembly scanning. Modules are added explicitly by build-time code t
 - `RegisterServices(IServiceCollection, AppExtensionServiceRegistrationContext)` runs before core shared services are registered.
 - `RegisterCapabilities(IAppExtensionCapabilityRegistry)` runs after module services are registered and before `BuildServiceProvider()`.
 
-`AppExtensionCollection` owns the ordered module list and rejects duplicate ids with ordinal comparison. `AppExtensionCapabilityRegistry` records capabilities that the app consumes after service registration, including eager extension service types and app toolbar action contributions. After `BuildServiceProvider()`, `App.OnFrameworkInitializationCompleted` resolves the existing eager coordinators and then resolves each registered eager extension service type so constructor-time subscriptions can attach before runtime work starts.
+`AppExtensionCollection` owns the ordered module list and rejects duplicate ids with ordinal comparison. `AppExtensionCapabilityRegistry` records the eager extension service types that the app resolves after service registration. After `BuildServiceProvider()`, `App.OnFrameworkInitializationCompleted` resolves the existing eager coordinators and then resolves each registered eager extension service type so constructor-time subscriptions can attach before runtime work starts.
 
 Desktop/mobile mode is computed before module service registration. The registration context (`AppExtensionServiceRegistrationContext`) exposes only `IsDesktop`; the service collection is passed to `RegisterServices` as its own parameter. Together they let modules keep platform-specific registrations outside the shared app source.
 
@@ -66,8 +66,6 @@ This keeps public `ViewLocator` dictionaries free of extension view-model types 
 
 
 ## Host Services
-
-`IFilePickerService` is the neutral file-open picker seam available through DI. Callers pass a `FilePickerRequest` with `FilePickerFilter` descriptors and receive Avalonia `IStorageFile` results. `FilesService` implements this interface alongside the workflow-specific `IFilesService`, so extension modules that need user-selected files can depend on the generic picker surface without depending on app-specific import, GPX, image, bike/setup, or DAQ CONFIG workflows.
 
 `IExtensionDialogService` is the neutral dialog-hosting seam for extension-owned view models. Extensions pass an `ExtensionDialogRequest<TResult>` with a title, layout, and an `IExtensionDialogResultSource<TResult>` view model. `DialogService` hosts the view model through a `ContentControl`, so extension view templates still resolve through `ViewLocator`; desktop uses an owned modal window and mobile/single-view uses the existing overlay host. Completing the result source returns the supplied result, while closing the host without completion returns `default`.
 
@@ -160,7 +158,7 @@ Extensions declare references to core rows through `IExtensionCascadeRuleProvide
 - `SoftDelete` marks the extension row deleted and updates its timestamp.
 - `HardDelete` removes the extension row.
 
-The core row soft-delete and matching extension cascade rules share the same transaction. Rules are applied by entity kind/id even when the core row is already tombstoned or absent, which lets retries and orphaned extension rows converge. Startup orphan repair applies the same declared rules after core cleanup. `IExtensionStateRefreshParticipant` lets extension state refresh after cascade work without public coordinators knowing extension store types; delete workflows refresh after the transaction commits when any rule matched. The main page startup database load also invokes these participants after the core stores refresh, so extension-owned read stores are hydrated before list, toolbar, and recorded-session contributions need persisted extension state.
+The core row soft-delete and matching extension cascade rules share the same transaction. Rules are applied by entity kind/id even when the core row is already tombstoned or absent, which lets retries and orphaned extension rows converge. Startup orphan repair applies the same declared rules after core cleanup. `IExtensionStateRefreshParticipant` lets extension state refresh after cascade work without public coordinators knowing extension store types; delete workflows refresh after the transaction commits when any rule matched. The main page startup database load also invokes these participants after the core stores refresh, so extension-owned read stores are hydrated before recorded-session contributions need persisted extension state.
 
 ## Sync Envelopes
 
@@ -170,49 +168,11 @@ The core row soft-delete and matching extension cascade rules share the same tra
 
 Known incoming envelopes use a two-stage contract. `PrepareBatchAsync` validates and converts each envelope into an opaque `IExtensionSyncPreparedBatch`; all known batches must prepare successfully before core synchronization rows are committed. Only then does the host apply core entities in their transaction, apply app preferences, and call `ApplyPreparedBatchAsync` in participant order. The apply stage is not one cross-extension/core transaction: if it fails after core persistence, sync reports a partial apply and the client holds its pull watermark so the bounded delta is replayed. Participants must therefore make prepared application retry-safe. Core sync code never interprets extension payload fields.
 
-## App Toolbar Contributions
-
-App toolbar contributions are split into simple command descriptors and
-arbitrary view contributions. Modules register
-`IAppToolbarContributionProvider` implementations through DI during
-`RegisterServices(...)`; each provider declares the owning
-`ExtensionId` and returns command contributions from
-`CreateCommandContributions()` plus custom view contributions from
-`CreateViewContributions()`. `MainPagesViewModel` resolves the
-providers, validates that every contribution id is present, every
-contribution extension id matches its provider, and no extension
-reuses a contribution id across either app-toolbar family, then sorts
-by `Order` and exposes `ExtensionToolbarCommands` and
-`ExtensionToolbarViews`. The desktop nav rail and mobile side panel
-render those contributions through `AppToolbarContributionsView`,
-after the built-in import/GPX actions and before the paired-device /
-theme area.
-
-`AppToolbarCommandContribution` carries an extension id, contribution
-id, order, label, optional `ToolbarIconDescriptor`, `ICommand`, and
-optional command parameter. `AppToolbarContributionsView` renders each
-command contribution to match the surface it is placed in, set through
-its `Presentation` property: an icon-only embedded button with the label
-as a hover tooltip in the desktop nav rail, and a labeled menu item in
-the mobile side panel. Either way it maps only those descriptor fields.
-This path is for simple icon/text commands; it does not give an
-extension an arbitrary control tree or extension-specific button
-template. Extensions that need custom interactive UI contribute
-`AppToolbarViewContribution` instead. View contributions carry an
-`IAppToolbarContributionViewModel` and render directly in the
-contributions host; the host wraps non-control view models in
-`ContentControl`, allowing the extension view registry to resolve a
-matching view template. The host reserves no space when both
-contribution families are empty, so public builds with no contributions
-add nothing to the rail or side panel. Providers are DI-created, so
-toolbar commands and view models can depend on normal extension and host
-services.
-
 ## Recorded-Session Scope
 
 `SessionDetailViewModel` owns one `RecordedSessionExtensionManager` per open recorded session. The manager creates scopes from registered `IRecordedSessionExtensionFactory` instances on `Loaded`, updates them with `RecordedSessionHostState` derived from the recorded editor state/host facets, and disposes them on `Unloaded` / final close. Factory extension ids are required and unique.
 
-`RecordedSessionHostState` is faceted so extensions receive only the host facts needed by each workflow. `Identity` carries the session id, display name, timestamp, duration, and loaded/active flags. `Selection` carries the current analysis range. `Timeline` carries the track timeline context, telemetry duration, an `IRecordedSessionTimeline` cursor/range interface, and neutral timeline-alignment state. Timeline alignment is represented as an optional pending mark with a target (`GpsTrack`, `ExternalMedia`, or `None`), an optional subject id, and the marked seconds; the host owns this state so only one start/end alignment flow can be active at a time across host features and extensions. The timeline interface also carries neutral timeline playback requests: the host raises `PlaybackToggleRequested` when Space is pressed while the pointer is over a recorded time-series plot with a published cursor, and `PlaybackStopRequested` on a primary click inside a plot. Extensions that own a playback source may respond by driving `SetCursorPosition`; with no subscriber the requests are no-ops. An extension that starts driving the cursor must mark the timeline through `SetPlaybackActive(true)` and clear it when playback ends — while `IsPlaybackActive` is set, host plot views suppress pointer-driven cursor updates so the mouse does not fight the playback source, and the host timeline pans the visible range (keeping the zoom span) whenever a driven cursor lands outside it, so the cursor stays visible on every linked surface. `Analysis` carries current damping percentages, damping speed cutoffs, velocity averaging mode, and travel distribution mode. The state does not expose the app's session snapshot, recorded-session domain snapshot, database internals, or concrete editor timeline view model.
+`RecordedSessionHostState` is faceted so extensions receive only the host facts needed by each workflow. `Identity` carries the session id, display name, timestamp, duration, and loaded/active flags. `Selection` carries the current analysis range. `Timeline` carries the track timeline context, telemetry duration, and an `IRecordedSessionTimeline` cursor/range interface. The timeline interface also carries neutral timeline playback requests: the host raises `PlaybackToggleRequested` when Space is pressed while the pointer is over a recorded time-series plot with a published cursor, and `PlaybackStopRequested` on a primary click inside a plot. A playback source (the built-in video pane, see [video.md](video.md)) may respond by driving `SetCursorPosition`; with no subscriber the requests are no-ops. A playback source that starts driving the cursor must mark the timeline through `SetPlaybackActive(true)` and clear it when playback ends — while `IsPlaybackActive` is set, host plot views suppress pointer-driven cursor updates so the mouse does not fight the playback source, and the host timeline pans the visible range (keeping the zoom span) whenever a driven cursor lands outside it, so the cursor stays visible on every linked surface. `Analysis` carries current damping percentages, damping speed cutoffs, velocity averaging mode, and travel distribution mode. The state does not expose the app's session snapshot, recorded-session domain snapshot, database internals, or concrete editor timeline view model.
 
 `RecordedSessionHostContext` is constructed from the grouped
 `RecordedSessionHostServices` record and an `IRecordedSessionHostOperations`
@@ -221,7 +181,6 @@ without a long positional constructor. It exposes constrained host operations:
 
 - set or clear the analysis range
 - set timeline visible range
-- begin, resolve, or cancel a pending timeline alignment mark
 - post errors or notifications
 - run a cancellable operation through `RecordedSessionOperationCoordinator`
 - read processed telemetry and track points through `IRecordedSessionDataReader`
@@ -313,22 +272,19 @@ The builder can copy an existing slot snapshot, and the slot collection exposes
 a generic change subscription so host mirroring is not manually repeated per
 slot family.
 
-The 13 current public slot families are:
+The 10 current public slot families are:
 
 - signal toolbar commands
 - signal toolbar views
-- media panes
 - map overlays
 - analysis banners, analysis plot overlays, and analysis metric annotations
-- session-list indicators and actions
 - plot context-menu actions
 - plot-row header actions
 - hosted signal rows
 - recorded time-range overlays
 
 View-model-backed slot families use marker interfaces instead of `object`:
-signal toolbar views, media pane, analysis banner/overlay,
-session-list indicator, session-list action, and hosted signal row
+signal toolbar views, analysis banner/overlay, and hosted signal row
 contributions each require the matching
 `IRecordedSession...ContributionViewModel` marker. Descriptor-only
 families such as signal toolbar commands, map overlays, analysis
@@ -337,8 +293,8 @@ overlays carry neutral records or command descriptors instead.
 
 Contribution view-model lifetime follows each contribution contract.
 `IExtensionViewModel` remains a marker; disposal applies only when a realized
-view model also implements synchronous `IDisposable`. Instance-bearing toolbar,
-media-pane, banner/overlay, and list contributions are borrowed: host
+view model also implements synchronous `IDisposable`. Instance-bearing toolbar and
+banner/overlay contributions are borrowed: host
 controls detach or replace their wrappers but do not dispose the extension-owned
 view model. Extension-owned disposal must be idempotent and
 must not depend on an async callback from the host.
@@ -374,10 +330,6 @@ Toolbar controls own their own transient UI, such as flyouts. The host
 does not provide a generic page-root overlay slot for extension-owned
 transient controls.
 
-Session-list indicators and actions are created by registered `IRecordedSessionListContributionProvider` implementations. Each provider declares its owning `ExtensionId`; duplicate providers for the same extension are rejected. `RecordedSessionListExtensionService` aggregates every provider, validates that contribution ids are present, validates that each contribution extension id matches its provider, rejects duplicate contribution ids globally per extension across indicators and actions for the row, and sorts each contribution family by `Order`, so separate modules can contribute to the same recorded-session row without replacing each other. Public builds with no providers return empty contribution lists.
-
-Providers whose contribution availability can change without a core recorded-session summary change also implement `IRecordedSessionListContributionChangeSource`. The aggregate list service exposes those invalidations as a neutral `ContributionsChanged` event. Session list rows respond by asking the list service to recreate their indicator and action descriptors from the latest summary, without the public app learning which extension-owned state changed.
-
 Views render these through generic host controls or bindable descriptor properties. Public plot and map models receive neutral descriptors only; they do not depend on extension workflow semantics.
 
 Time-series signal targets are typed at the extension boundary. Built-in signal rows are referenced with `RecordedSessionBuiltInSignalRow`; extension-owned rows are referenced with `RecordedSessionProjectionRowTarget.Extension(extensionId, contributionId)`. The target's `StableKey` is the only string used internally for row lookup and persisted expansion state. Host XAML may keep legacy `SignalRowIds` for built-in rows behind conversion helpers, but extension-facing contribution records do not expose those row id strings.
@@ -392,6 +344,6 @@ plot layer converts those descriptors to ScottPlot primitives at render time.
 
 ## Neutrality Rules
 
-Public code may name the host, app toolbar actions, slots, descriptors, migrations, cascades, sync envelopes, and operation leases. Public code must not name extension-specific entities, database columns, payload fields, platform services, view models, views, assets, or workflows.
+Public code may name the host, slots, descriptors, migrations, cascades, sync envelopes, and operation leases. Public code must not name extension-specific entities, database columns, payload fields, platform services, view models, views, assets, or workflows.
 
 This is now maintained by convention and code review rather than an automated test. The previous `PublicNeutralityTests` repository-scanning enforcement has been removed.

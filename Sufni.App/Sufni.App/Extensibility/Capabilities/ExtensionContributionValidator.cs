@@ -9,34 +9,6 @@ namespace Sufni.App.Extensibility.Capabilities;
 
 internal static class ExtensionContributionValidator
 {
-    public static void ValidateAppToolbarContribution(
-        IExtensionContribution contribution,
-        string ownerExtensionId,
-        ContributionIdTracker? contributionIds = null)
-    {
-        ValidateContribution(contribution, ownerExtensionId, "app toolbar");
-        contributionIds?.Add(contribution, "app toolbar");
-    }
-
-    public static void ValidateRecordedSessionListContributions(
-        string ownerExtensionId,
-        IEnumerable<RecordedSessionListIndicatorContribution> indicators,
-        IEnumerable<RecordedSessionListActionContribution> actions)
-    {
-        ValidateRequiredId(ownerExtensionId, "Recorded-session list contribution provider");
-        var contributionIds = new ContributionIdTracker("recorded-session list contributions");
-        ValidateContributions(
-            indicators,
-            ownerExtensionId,
-            "recorded-session list indicators",
-            contributionIds);
-        ValidateContributions(
-            actions,
-            ownerExtensionId,
-            "recorded-session list actions",
-            contributionIds);
-    }
-
     public static void ValidateRecordedSessionExtensionFactories(
         IReadOnlyList<IRecordedSessionExtensionFactory> factories)
     {
@@ -64,13 +36,10 @@ internal static class ExtensionContributionValidator
         var hostedRowTargets = ValidateHostedRows(slots.HostedSignalRows, ownerExtensionId, contributionIds);
         ValidateContributions(slots.SignalToolbarCommands, ownerExtensionId, "recorded-session signal toolbar commands", contributionIds);
         ValidateContributions(slots.SignalToolbarViews, ownerExtensionId, "recorded-session signal toolbar views", contributionIds);
-        ValidateContributions(slots.MediaPanes, ownerExtensionId, "recorded-session media panes", contributionIds);
         ValidateContributions(slots.MapOverlays, ownerExtensionId, "recorded-session map overlays", contributionIds);
         ValidateContributions(slots.AnalysisBanners, ownerExtensionId, "recorded-session analysis banners", contributionIds);
         ValidateContributions(slots.AnalysisOverlays, ownerExtensionId, "recorded-session analysis overlays", contributionIds);
         ValidateContributions(slots.AnalysisMetrics, ownerExtensionId, "recorded-session analysis metrics", contributionIds);
-        ValidateContributions(slots.SessionListIndicators, ownerExtensionId, "recorded-session list indicators", contributionIds);
-        ValidateContributions(slots.SessionListActions, ownerExtensionId, "recorded-session list actions", contributionIds);
         ValidateContributions(slots.SignalPlotContextMenuActions, ownerExtensionId, "recorded-session plot context menu actions", contributionIds);
         ValidateContributions(slots.SignalRowHeaderActions, ownerExtensionId, "recorded-session plot row actions", contributionIds);
         ValidateContributions(slots.SignalTimeRangeOverlays, ownerExtensionId, "recorded-session signal time-range overlays", contributionIds);

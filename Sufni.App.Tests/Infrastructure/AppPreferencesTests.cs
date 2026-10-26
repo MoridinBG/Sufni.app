@@ -1453,7 +1453,7 @@ public class AppPreferencesTests
             desktopMediaRows: new SessionPaneGroupPreferences(
             [
                 new SessionPaneSizePreference(SessionLayoutPaneIds.Map, 0.45),
-                new SessionPaneSizePreference(SessionLayoutPaneIds.ExtensionMedia, 0.55),
+                new SessionPaneSizePreference(SessionLayoutPaneIds.Video, 0.55),
             ]));
 
         return new RecordedPreferenceCase(
@@ -1487,7 +1487,7 @@ public class AppPreferencesTests
                 Assert.False(
                     layoutJson.GetProperty("desktopSignalsMediaColumns").GetProperty("panes")[0].GetProperty("isCollapsed").GetBoolean());
                 Assert.Equal(
-                    SessionLayoutPaneIds.ExtensionMedia,
+                    SessionLayoutPaneIds.Video,
                     layoutJson.GetProperty("desktopMediaRows").GetProperty("panes")[1].GetProperty("paneId").GetString());
             });
     }

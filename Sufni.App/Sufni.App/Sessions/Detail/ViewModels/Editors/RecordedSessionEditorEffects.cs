@@ -286,8 +286,7 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
 internal sealed record RecordedSessionHostRuntimeState(
     Guid SessionId,
     bool ViewLoaded,
-    bool IsActive,
-    RecordedSessionTimelineAlignmentMark? PendingTimelineAlignmentMark);
+    bool IsActive);
 
 internal sealed record RecordedSessionAnalysisEffectState(
     TelemetryTimeRange? AnalysisRange,

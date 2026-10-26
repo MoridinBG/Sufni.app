@@ -28,8 +28,7 @@ internal static class RecordedSessionHostStateProjection
             new RecordedSessionTimelineState(
                 state.TrackTimelineContext,
                 timelineDurationSeconds,
-                timeline,
-                new RecordedSessionTimelineAlignmentState(runtime.PendingTimelineAlignmentMark)),
+                timeline),
             new RecordedSessionAnalysisState(
                 state.Presentation.DampingPercentages,
                 state.Intent.DampingSpeedCutoffs,
