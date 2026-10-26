@@ -13,6 +13,7 @@ using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.MapsAndTracks.ViewModels;
+using Sufni.App.Segments.ViewModels;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Insights.Services;
@@ -189,6 +190,7 @@ internal sealed class TestRecordedSessionSignalsWorkspace : IRecordedSessionSign
     public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
     public SessionTimelineLinkViewModel Timeline { get; } = new();
     public RecordedSessionExtensionSlots ExtensionSlots { get; }
+    public SegmentPickerViewModel SegmentPicker { get; } = TestSegmentPickers.Create();
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; set; } =
         new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
     public bool ShowAirtime { get; set; } = true;

@@ -49,7 +49,8 @@ public class SessionWorkspaceViewModelTests
             sourceVisibility,
             timeline,
             () => extensionSlots,
-            actions);
+            actions,
+            TestSegmentPickers.Create());
         var changes = TrackPropertyChanges(workspace);
         state.OnNext(CreateState());
 
@@ -357,7 +358,8 @@ public class SessionWorkspaceViewModelTests
             sourceVisibility,
             timeline,
             () => extensionSlots,
-            actions);
+            actions,
+            TestSegmentPickers.Create());
         var changes = TrackPropertyChanges(workspace);
         state.OnNext(CreateState());
         changes.Clear();

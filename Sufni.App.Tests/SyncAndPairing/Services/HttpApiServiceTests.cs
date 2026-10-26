@@ -10,6 +10,7 @@ using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Sync;
 namespace Sufni.App.Tests.SyncAndPairing.Services;
 
@@ -444,14 +445,5 @@ public class HttpApiServiceTests
         var pairedState = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var subscription = service.PairedState.Subscribe(value => pairedState.TrySetResult(value));
         return await pairedState.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-    }
-
-    private sealed class StubHttpMessageHandler(
-        Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> sendAsync) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            return sendAsync(request, cancellationToken);
-        }
     }
 }

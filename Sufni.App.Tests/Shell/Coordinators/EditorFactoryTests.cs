@@ -379,7 +379,8 @@ public class EditorFactoryTests
             backgroundTaskRunner,
             () => throw new InvalidOperationException("The import-sessions resolver should not run in these tests."),
             Substitute.For<IVideoPaneFactory>(),
-            Substitute.For<ISessionEditingCoordinator>());
+            Substitute.For<ISessionEditingCoordinator>(),
+            TestSegmentPickers.CreateFactory());
     }
 
     private sealed class CapturingShellCoordinator : IShellCoordinator

@@ -53,6 +53,7 @@ using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Insights.ViewModels.Editors;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Video.ViewModels;
+using Sufni.App.Segments.ViewModels;
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
 /// <summary>
@@ -92,6 +93,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly ObservableCollection<PageViewModelBase> pages = [];
     private readonly SessionTimelineLinkViewModel timeline = new();
     private readonly VideoPaneViewModel? videoPane;
+    private readonly SegmentPickerViewModel segmentPicker;
     private readonly TelemetrySourceVisibilityStore sourceVisibility = new();
     private readonly RecordedSessionExtensionSlots emptyExtensionSlots = new();
     private readonly RecordedSessionExtensionManager? recordedSessionExtensions;
@@ -171,6 +173,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> trimUntilEndCommand;
     private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> splitCommand;
     private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> undoTrimCommand;
+    private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> saveSelectionAsSegmentCommand;
     private readonly DampingCutoffWorkflow dampingCutoffWorkflow;
     private readonly bool deferDomainHandlingWhenInactive;
     private IDisposable? processedTelemetryRetention;
@@ -584,7 +587,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         IAsyncRelayCommand<TelemetryPlotContextMenuContext?> trimFromBeginningCommand,
         IAsyncRelayCommand<TelemetryPlotContextMenuContext?> trimUntilEndCommand,
         IAsyncRelayCommand<TelemetryPlotContextMenuContext?> splitCommand,
-        IAsyncRelayCommand<TelemetryPlotContextMenuContext?> undoTrimCommand)
+        IAsyncRelayCommand<TelemetryPlotContextMenuContext?> undoTrimCommand,
+        IAsyncRelayCommand<TelemetryPlotContextMenuContext?> saveSelectionAsSegmentCommand)
     {
         var setAnalysisRangeStart = new TelemetryPlotContextMenuAction(
             "analysis-range-set-start",
@@ -638,6 +642,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             "session-undo-trim",
             "Undo trim",
             undoTrimCommand);
+        var saveSelectionAsSegment = new TelemetryPlotContextMenuAction(
+            "save-current-selection",
+            "Save current selection",
+            saveSelectionAsSegmentCommand);
         TelemetryPlotContextMenuAction[] actions =
         [
             setAnalysisRangeStart,
@@ -653,6 +661,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             trimUntilEnd,
             split,
             undoTrim,
+            saveSelectionAsSegment,
         ];
 
         return new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>
@@ -1422,6 +1431,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 () => sessionEditingCoordinator.UndoTrimAsync(Id))
             : Task.CompletedTask;
 
+    private bool CanSaveSelectionAsSegmentFromPlotContext(TelemetryPlotContextMenuContext? context) =>
+        telemetryData is not null &&
+        IsTelemetryPlotContext(context) &&
+        context!.IsClickInsideAnalysisRange;
+
+    private Task SaveSelectionAsSegmentFromPlotContextAsync(TelemetryPlotContextMenuContext? context) =>
+        CanSaveSelectionAsSegmentFromPlotContext(context)
+            ? segmentPicker.SaveSelectionAsync(context!.AnalysisRange!.Value)
+            : Task.CompletedTask;
+
     private async Task RunSessionEditAsync(string appliedMessage, Func<Task<SessionEditResult>> edit)
     {
         switch (await edit())
@@ -1490,6 +1509,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         IRecordedSessionAnalysisResultStateFactory analysisResultStateFactory,
         Func<IEditorFactory> editorFactory,
         ISessionEditingCoordinator sessionEditingCoordinator,
+        ISegmentPickerFactory segmentPickerFactory,
         IBikeCoordinator? bikeCoordinator = null,
         ExtensionHostDependencies? extensionHost = null,
         ILayoutProfileTransitionState? layoutProfileTransitionState = null,
@@ -1614,6 +1634,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         undoTrimCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
             UndoTrimFromPlotContextAsync,
             CanUndoTrimFromPlotContext);
+        saveSelectionAsSegmentCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
+            SaveSelectionAsSegmentFromPlotContextAsync,
+            CanSaveSelectionAsSegmentFromPlotContext);
         SignalPlotContextMenuActionsBySignalRowId = CreateSignalPlotContextMenuActionsBySignalRowId(
             signalAutozoomController.ActionsBySignalRowId,
             setAnalysisRangeStartCommand,
@@ -1628,12 +1651,27 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             trimFromBeginningCommand,
             trimUntilEndCommand,
             splitCommand,
-            undoTrimCommand);
+            undoTrimCommand,
+            saveSelectionAsSegmentCommand);
         PublishEditorInput(signalPlotContextMenuActionsInput, SignalPlotContextMenuActionsBySignalRowId);
         session = snapshot.ToMetadataEntity();
         sessionSnapshot = snapshot;
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
+        segmentPicker = segmentPickerFactory.Create(
+            Id,
+            range =>
+            {
+                if (range is { } value)
+                {
+                    editorActions.SetAnalysisRange(value);
+                }
+                else
+                {
+                    editorActions.ClearAnalysisRange();
+                }
+            },
+            ErrorMessages.Add);
         MobileWorkspace = new SessionShellMobileWorkspaceViewModel(
             this,
             Pages,
@@ -1645,7 +1683,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             SourceVisibility,
             Timeline,
             () => ExtensionSlots,
-            editorActions);
+            editorActions,
+            segmentPicker);
         videoPane = videoPaneFactory?.Create(Id, Timeline);
         MediaWorkspace = new SessionMediaWorkspaceViewModel(
             editorStateController.State,
@@ -1822,6 +1861,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             videoPane?.SetSessionTiming(
                 state.Session?.Timestamp,
                 state.TelemetryData?.Metadata.Duration ?? state.Session?.DurationSeconds);
+        }
+
+        if (previous.Session != state.Session ||
+            previous.TelemetryData != state.TelemetryData ||
+            previous.Intent.AnalysisRange != state.Intent.AnalysisRange)
+        {
+            segmentPicker.SetSessionState(
+                state.Session?.Timestamp,
+                state.TelemetryData?.Metadata.Duration,
+                state.Intent.AnalysisRange);
         }
 
         if (previous.FullTrackPoints != state.FullTrackPoints)
@@ -2478,6 +2527,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         DisposeWorkspace(SignalsWorkspace);
         DisposeWorkspace(MediaWorkspace);
         videoPane?.Dispose();
+        segmentPicker.Dispose();
         DisposeWorkspace(AnalysisWorkspace);
         editorEffects.Dispose();
         editorStateSubscription.Dispose();

@@ -70,6 +70,7 @@ using Sufni.App.SyncAndPairing.ViewModels.ItemLists;
 using Sufni.App.Segments.Coordinators;
 using Sufni.App.Segments.Services;
 using Sufni.App.Segments.Stores;
+using Sufni.App.Segments.ViewModels;
 using Sufni.App.Video.Coordinators;
 using Sufni.App.Video.Services;
 using Sufni.App.Video.Stores;
@@ -229,6 +230,8 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISessionSegmentStore>(sp => sp.GetRequiredService<SessionSegmentStore>());
         ServiceCollection.AddSingleton<ISessionSegmentStoreWriter>(sp => sp.GetRequiredService<SessionSegmentStore>());
         ServiceCollection.AddSingleton<ISegmentCoordinator, SegmentCoordinator>();
+        ServiceCollection.AddSingleton<IStravaSegmentService, StravaSegmentService>();
+        ServiceCollection.AddSingleton<ISegmentPickerFactory, SegmentPickerFactory>();
         ServiceCollection.AddSingleton<AppDataRefresher>();
         ServiceCollection.AddSingleton<IAppStateRefreshOrchestrator>(sp => sp.GetRequiredService<AppDataRefresher>());
         ServiceCollection.AddSingleton<IAppDataRefresher>(sp => sp.GetRequiredService<AppDataRefresher>());

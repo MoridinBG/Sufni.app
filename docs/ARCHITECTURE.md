@@ -67,7 +67,7 @@ layering rules are unchanged — only the folder grouping is slice-first instead
 | **SyncAndPairing** | `SyncAndPairing/` | Client sync + pairing coordinators/services/VMs (desktop sync server stays in `Sufni.App.Desktop`) |
 | **MapsAndTracks** | `MapsAndTracks/` | Map view + interaction/viewport controllers, track geometry, track signal plot |
 | **Video** | `Video/` | Session video: clip links, store, import/alignment coordinator, video pane and playback, player contracts |
-| **Segments** | `Segments/` | Saved segments of recorded sessions: model, repository, store, coordinator |
+| **Segments** | `Segments/` | Saved segments of recorded sessions: model, repository, store, coordinator, segments picker, Strava segment efforts |
 | **Shell** | `Shell/` | App shell: `ShellRootViewModel`, `ShellWorkspaceViewModel`, `MainPagesViewModel`, shell coordinator, profile shell views, navigation behaviors, keyboard shortcuts |
 | **Shared** | `Shared/` | Cross-slice bases (`Base/`), common helpers, formatting, shared plot bases, shared `Views/` + `DesktopViews/` controls/dialogs/overlays/converters |
 | **Infrastructure** | `Infrastructure/` | Infra services, app JSON/preferences, theming bridge (`Theming/`), and platform-service abstractions (`IServiceDiscovery`, `IHapticFeedback`, `IFriendlyNameProvider`) |
@@ -268,7 +268,7 @@ Topics in [architecture/video.md](architecture/video.md):
 
 ## Saved Segments
 
-A saved segment is a named time range on one recorded session. Segments are synchronized, move with trim and split, and are live only while their session is live.
+A saved segment is a named time range on one recorded session. Segments are synchronized, move with trim and split, and are live only while their session is live. The segments picker of the signals page lists, selects, renames, and deletes them, and shows Strava segment efforts when the user connected their own Strava API app.
 
 Topics in [architecture/segments.md](architecture/segments.md):
 
@@ -276,6 +276,8 @@ Topics in [architecture/segments.md](architecture/segments.md):
 - [Store And Coordinator](architecture/segments.md#store-and-coordinator) — `SessionSegmentStore`, `SegmentCoordinator`, name rule
 - [Synchronization](architecture/segments.md#synchronization) — segment list in the sync payload
 - [Trim And Split](architecture/segments.md#trim-and-split) — how edits move segments
+- [Segments Picker](architecture/segments.md#segments-picker) — per-editor picker, "Save current selection", name prompt
+- [Strava](architecture/segments.md#strava) — `IStravaSegmentService`, connect dialog, cancellation on close
 
 ---
 

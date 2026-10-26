@@ -21,12 +21,14 @@ using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
+using Sufni.App.Segments.ViewModels;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Shell.Behaviors;
 using Sufni.App.Shared.Views.Input;
+using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.Sessions.Plots.Views.Plots;
 
@@ -667,6 +669,8 @@ public class TravelPlotViewTests
         public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
         public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
+
+        public SegmentPickerViewModel SegmentPicker { get; } = TestSegmentPickers.Create();
         public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; } =
             plotContextMenuActionsBySignalRowId ?? new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
         public int ClearAnalysisRangeCallCount { get; private set; }

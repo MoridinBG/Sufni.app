@@ -10,6 +10,7 @@ using Sufni.Telemetry;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
+using Sufni.App.Segments.ViewModels;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 namespace Sufni.App.Sessions.Signals.ViewModels.Editors;
@@ -59,7 +60,8 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         TelemetrySourceVisibilityStore sourceVisibility,
         SessionTimelineLinkViewModel timeline,
         Func<RecordedSessionExtensionSlots> extensionSlots,
-        RecordedSessionEditorActions actions)
+        RecordedSessionEditorActions actions,
+        SegmentPickerViewModel segmentPicker)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(analysisResultState);
@@ -73,6 +75,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         Timeline = timeline;
         this.extensionSlots = extensionSlots;
         this.actions = actions;
+        SegmentPicker = segmentPicker;
         stateSubscription = state.Subscribe(ApplyState);
     }
 
@@ -111,6 +114,8 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
     public SessionTimelineLinkViewModel Timeline { get; }
 
     public RecordedSessionExtensionSlots ExtensionSlots => extensionSlots();
+
+    public SegmentPickerViewModel SegmentPicker { get; }
 
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId =>
         signalPlotContextMenuActionsBySignalRowId;

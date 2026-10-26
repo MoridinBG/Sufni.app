@@ -13,6 +13,7 @@ using Sufni.App.Bikes.ViewModels.LinkageParts;
 using Sufni.App.LiveDaq.ViewModels.Editors;
 using Sufni.App.LiveDaq.ViewModels.ItemLists;
 using Sufni.App.LiveDaq.ViewModels.SessionPages;
+using Sufni.App.Segments.ViewModels;
 using Sufni.App.Sessions.Insights.ViewModels.SessionPages;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Signals.ViewModels.SessionPages;
@@ -40,6 +41,8 @@ public class ViewLocator : IDataTemplate
         [typeof(PairingClientViewModel)] = static () => new global::Sufni.App.SyncAndPairing.Views.PairingClientView(),
         [typeof(LeverageRatioEditorViewModel)] = static () => new global::Sufni.App.Bikes.Views.Editors.LeverageRatioEditorView(),
         [typeof(LiveDaqConfigEditorViewModel)] = static () => new global::Sufni.App.LiveDaq.Views.Editors.LiveDaqConfigEditorView(),
+        [typeof(SegmentNamePromptViewModel)] = static () => new global::Sufni.App.Segments.Views.SegmentNamePromptView(),
+        [typeof(StravaConnectDialogViewModel)] = static () => new global::Sufni.App.Segments.Views.StravaConnectDialogView(),
         [typeof(JointViewModel)] = static () => new global::Sufni.App.Bikes.Views.LinkageParts.JointView(),
         [typeof(LinearForkSensorConfigurationViewModel)] = static () => new global::Sufni.App.Setups.Views.SensorConfigurations.LinearForkSensorConfigurationView(),
         [typeof(LinearShockSensorConfigurationViewModel)] = static () => new global::Sufni.App.Setups.Views.SensorConfigurations.LinearShockSensorConfigurationView(),

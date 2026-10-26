@@ -21,6 +21,7 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Shared.Base;
+using Sufni.App.Segments.ViewModels;
 using Sufni.App.Video.ViewModels;
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
@@ -65,6 +66,7 @@ public interface IRecordedSessionSignalsWorkspace
     TelemetrySourceVisibilityStore SourceVisibility { get; }
     SessionTimelineLinkViewModel Timeline { get; }
     RecordedSessionExtensionSlots ExtensionSlots { get; }
+    SegmentPickerViewModel SegmentPicker { get; }
     IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; }
     bool ShowAirtime { get; }
     bool ShowVelocityAirtime { get; }

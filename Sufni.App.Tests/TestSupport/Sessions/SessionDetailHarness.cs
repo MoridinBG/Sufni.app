@@ -11,6 +11,9 @@ using Sufni.App.ExtensionHost.TestSupport.Async;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.Segments.Coordinators;
+using Sufni.App.Segments.Services;
+using Sufni.App.Segments.Stores;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
@@ -66,6 +69,8 @@ internal sealed class SessionDetailHarness
     public ISessionEditingCoordinator SessionEditingCoordinator { get; } = Substitute.For<ISessionEditingCoordinator>();
     public IEditorFactory EditorFactory { get; } = Substitute.For<IEditorFactory>();
     public IVideoPaneFactory? VideoPaneFactory { get; set; }
+    public SessionSegmentStore SegmentStore { get; } = new(Substitute.For<ISessionSegmentRepository>(), new InlineUiThreadDispatcher());
+    public ISegmentCoordinator SegmentCoordinator { get; } = Substitute.For<ISegmentCoordinator>();
     public IUiThreadDispatcher UiThreadDispatcher { get; set; } = new InlineUiThreadDispatcher();
     public IRecordedSessionProcessingOptionCache ProcessingOptionCache { get; set; } = new InMemoryRecordedSessionProcessingOptionCache();
     public IObservable<RecordedSessionDomainSnapshot> ProjectionChanges { get; private set; } = Observable.Empty<RecordedSessionDomainSnapshot>();
@@ -195,6 +200,7 @@ internal sealed class SessionDetailHarness
             analysisResultStateFactory,
             () => EditorFactory,
             SessionEditingCoordinator,
+            TestSegmentPickers.CreateFactory(SegmentStore, SegmentCoordinator, DialogService),
             extensionHost: new ExtensionHostDependencies(
                 recordedSessionExtensionFactories ?? [],
                 Substitute.For<IExtensionDatabaseConnection>(),

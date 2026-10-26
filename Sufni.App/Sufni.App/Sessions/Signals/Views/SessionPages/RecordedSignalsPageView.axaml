@@ -7,6 +7,7 @@ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:controls="clr-namespace:Sufni.App.Shared.Views.Overlays"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:segmentViews="clr-namespace:Sufni.App.Segments.Views"
 xmlns:plots="clr-namespace:Sufni.App.Shared.Plots"
 xmlns:v="clr-namespace:Sufni.App.MapsAndTracks.Views"
 xmlns:videoViews="clr-namespace:Sufni.App.Video.Views"
@@ -21,7 +22,15 @@ mc:Ignorable="d">
     x:Name="PageScrollViewer"
     IsScrollChainingEnabled="False">
         <StackPanel Spacing="10">
-            <views:RecordedSessionToolbarContributionsView ExtensionSlots="{Binding Workspace.ExtensionSlots}" />
+            <Grid ColumnDefinitions="*,Auto">
+                <views:RecordedSessionToolbarContributionsView
+                    Grid.Column="0"
+                    ExtensionSlots="{Binding Workspace.ExtensionSlots}" />
+                <segmentViews:SegmentPickerSheetButtonView
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    DataContext="{Binding Workspace.SegmentPicker}" />
+            </Grid>
 
             <Grid MinHeight="{Binding #PageScrollViewer.Bounds.Height}">
                 <controls3:RecordedSignalRowsView

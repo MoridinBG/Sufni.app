@@ -10,6 +10,8 @@ using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Infrastructure;
+using Sufni.App.Segments.Coordinators;
+using Sufni.App.Segments.ViewModels;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Insights.Services;
@@ -655,6 +657,35 @@ public class SessionDetailViewModelTests
 
         Assert.False(FindSignalAction(untrimmed, "session-undo-trim").Command.CanExecute(context));
         Assert.True(FindSignalAction(trimmed, "session-undo-trim").Command.CanExecute(context));
+    }
+
+    [AvaloniaFact]
+    public async Task SaveCurrentSelection_SavesTheAnalysisRangeAsSegment()
+    {
+        var (harness, editor) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
+        harness.SegmentCoordinator.NextName(editor.Id).Returns("Segment 1");
+        harness.SegmentCoordinator.ValidateName(editor.Id, "Segment 1", null).Returns((string?)null);
+        harness.SegmentCoordinator.CreateAsync(editor.Id, "Segment 1", 2, 4).Returns(new SegmentChangeResult.Applied());
+        harness.DialogService.ShowContentDialogAsync(Arg.Any<SegmentNamePromptViewModel>(), Arg.Any<DialogOptions>())
+            .Returns(call =>
+            {
+                call.ArgAt<SegmentNamePromptViewModel>(0).ConfirmCommand.Execute(null);
+                return PromptResult.Ok;
+            });
+
+        await ((IAsyncRelayCommand)FindSignalAction(editor, "save-current-selection").Command)
+            .ExecuteAsync(CreatePlotContext(clickSeconds: 3) with { AnalysisRange = new TelemetryTimeRange(2, 4) });
+
+        await harness.SegmentCoordinator.Received(1).CreateAsync(editor.Id, "Segment 1", 2, 4);
+    }
+
+    [AvaloniaFact]
+    public async Task SaveCurrentSelection_IsUnavailableOutsideTheAnalysisRange()
+    {
+        var (_, editor) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
+        var outside = CreatePlotContext(clickSeconds: 6) with { AnalysisRange = new TelemetryTimeRange(2, 4) };
+
+        Assert.False(FindSignalAction(editor, "save-current-selection").Command.CanExecute(outside));
     }
 
     private static async Task<(SessionDetailHarness Harness, SessionDetailViewModel Editor)> CreateLoadedEditorAsync(

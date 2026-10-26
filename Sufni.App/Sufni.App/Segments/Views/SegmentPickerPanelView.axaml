@@ -1,0 +1,216 @@
+<UserControl
+    x:Class="Sufni.App.Segments.Views.SegmentPickerPanelView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:Sufni.App.Segments.ViewModels"
+    d:DesignHeight="480"
+    d:DesignWidth="390"
+    x:Name="Root"
+    x:DataType="vm:SegmentPickerViewModel"
+    mc:Ignorable="d">
+
+    <UserControl.Styles>
+        <Style Selector="Button.savedSegmentRow.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SufniSelectionSurfaceSubtle}" />
+        </Style>
+        <Style Selector="Button.savedSegmentRow.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SufniSelectionSurfaceSubtle}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border
+        MinWidth="0"
+        MaxWidth="430"
+        Padding="14"
+        Background="{DynamicResource SufniBackgroundDisabled}"
+        CornerRadius="4">
+        <ScrollViewer MaxHeight="520">
+            <StackPanel Spacing="16">
+                <Grid ColumnDefinitions="*,auto">
+                    <TextBlock
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontSize="18"
+                        FontWeight="SemiBold"
+                        Text="Segments" />
+                    <Button
+                        x:Name="CloseSegmentsPickerButton"
+                        Grid.Column="1"
+                        Width="32"
+                        Height="32"
+                        Padding="0"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        Classes="embedded"
+                        Command="{Binding CloseCommand}"
+                        ToolTip.Tip="Close">
+                        <Image Width="14" Source="{SvgImage /Assets/fa-xmark.svg}" />
+                    </Button>
+                </Grid>
+
+                <StackPanel Spacing="8">
+                    <TextBlock
+                        FontWeight="SemiBold"
+                        Opacity="0.78"
+                        Text="Saved Segments" />
+                    <TextBlock
+                        x:Name="EmptySavedSegmentsMessage"
+                        IsVisible="{Binding !HasSavedSegments}"
+                        Opacity="0.72"
+                        Text="No saved segments" />
+                    <ItemsControl x:Name="SavedSegmentsItems" ItemsSource="{Binding SavedSegments}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SavedSegmentRow">
+                                <Grid
+                                    Margin="0,2"
+                                    ColumnDefinitions="*,auto,auto"
+                                    ColumnSpacing="6">
+                                    <Button
+                                        x:Name="SavedSegmentRowButton"
+                                        Grid.Column="0"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Stretch"
+                                        Classes="embedded savedSegmentRow"
+                                        Classes.selected="{Binding IsSelected}"
+                                        Command="{Binding #Root.((vm:SegmentPickerViewModel)DataContext).SelectSavedSegmentCommand}"
+                                        CommandParameter="{Binding}">
+                                        <Grid ColumnDefinitions="3,*" ColumnSpacing="8">
+                                            <Border
+                                                Grid.Column="0"
+                                                Width="3"
+                                                Background="{DynamicResource SufniSelectionIndicator}"
+                                                CornerRadius="2"
+                                                IsVisible="{Binding IsSelected}" />
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock
+                                                    FontWeight="SemiBold"
+                                                    Text="{Binding Name}"
+                                                    TextWrapping="Wrap" />
+                                                <TextBlock Opacity="0.72" Text="{Binding RangeText}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Button>
+                                    <Button
+                                        x:Name="RenameSavedSegmentButton"
+                                        Grid.Column="1"
+                                        Width="32"
+                                        Height="32"
+                                        Padding="0"
+                                        HorizontalContentAlignment="Center"
+                                        VerticalContentAlignment="Center"
+                                        Classes="embedded"
+                                        Command="{Binding #Root.((vm:SegmentPickerViewModel)DataContext).RenameSavedSegmentCommand}"
+                                        CommandParameter="{Binding}"
+                                        ToolTip.Tip="Rename">
+                                        <Image Width="14" Source="{SvgImage /Assets/fa-edit.svg}" />
+                                    </Button>
+                                    <Button
+                                        x:Name="DeleteSavedSegmentButton"
+                                        Grid.Column="2"
+                                        Width="32"
+                                        Height="32"
+                                        Padding="0"
+                                        HorizontalContentAlignment="Center"
+                                        VerticalContentAlignment="Center"
+                                        Classes="embedded dangerous"
+                                        Command="{Binding #Root.((vm:SegmentPickerViewModel)DataContext).DeleteSavedSegmentCommand}"
+                                        CommandParameter="{Binding}"
+                                        ToolTip.Tip="Delete">
+                                        <Image Width="14" Source="{SvgImage /Assets/fa-trash-can.svg}" />
+                                    </Button>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="*,auto">
+                        <TextBlock
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            FontWeight="SemiBold"
+                            Opacity="0.78"
+                            Text="Strava Segments" />
+                        <Button
+                            x:Name="ResetStravaCredentialsButton"
+                            Grid.Column="1"
+                            Classes="embedded hyperlink"
+                            Command="{Binding ResetStravaCredentialsCommand}"
+                            Content="reset credentials"
+                            IsVisible="{Binding IsStravaConnected}" />
+                    </Grid>
+
+                    <Button
+                        x:Name="ConnectWithStravaButton"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left"
+                        Classes="embedded hyperlink"
+                        Command="{Binding ConnectWithStravaCommand}"
+                        Content="Connect with Strava"
+                        IsVisible="{Binding !IsStravaConnected}" />
+
+                    <StackPanel
+                        IsVisible="{Binding IsStravaSegmentsLoading}"
+                        Orientation="Horizontal"
+                        Spacing="8">
+                        <ProgressBar
+                            Width="48"
+                            Height="4"
+                            VerticalAlignment="Center"
+                            IsIndeterminate="True" />
+                        <TextBlock Text="Loading Strava segments" />
+                    </StackPanel>
+
+                    <TextBlock
+                        x:Name="StravaMessageText"
+                        IsVisible="{Binding HasStravaMessage}"
+                        Opacity="0.72"
+                        Text="{Binding StravaMessage}"
+                        TextWrapping="Wrap" />
+
+                    <ItemsControl
+                        x:Name="StravaSegmentsItems"
+                        IsVisible="{Binding IsStravaConnected}"
+                        ItemsSource="{Binding StravaSegments}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:StravaSegmentRow">
+                                <Button
+                                    x:Name="StravaSegmentRowButton"
+                                    Margin="0,2"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch"
+                                    Classes="embedded"
+                                    Command="{Binding #Root.((vm:SegmentPickerViewModel)DataContext).SelectStravaSegmentCommand}"
+                                    CommandParameter="{Binding}">
+                                    <Grid
+                                        ColumnDefinitions="*,auto"
+                                        ColumnSpacing="12"
+                                        RowDefinitions="auto,auto">
+                                        <TextBlock
+                                            Grid.Row="0"
+                                            Grid.Column="0"
+                                            FontWeight="SemiBold"
+                                            Text="{Binding Name}"
+                                            TextWrapping="Wrap" />
+                                        <TextBlock
+                                            Grid.Row="0"
+                                            Grid.Column="1"
+                                            Text="{Binding DistanceText}" />
+                                        <TextBlock
+                                            Grid.Row="1"
+                                            Grid.Column="0"
+                                            Opacity="0.72"
+                                            Text="{Binding RangeText}" />
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Border>
+</UserControl>

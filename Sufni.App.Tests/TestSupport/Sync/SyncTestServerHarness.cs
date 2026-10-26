@@ -14,6 +14,7 @@ using Sufni.App.Sessions.Store;
 using Sufni.App.Shared.Stores;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.Tests.TestSupport.Doubles;
 
 namespace Sufni.App.Tests.TestSupport.Sync;
 
@@ -116,12 +117,5 @@ internal sealed class SyncTestServerHarness
     {
         var json = await request.Content!.ReadAsStringAsync();
         return JsonSerializer.Deserialize<T>(json);
-    }
-
-    private sealed class StubHttpMessageHandler(
-        Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> sendAsync) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            sendAsync(request, cancellationToken);
     }
 }

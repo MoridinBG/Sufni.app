@@ -192,7 +192,8 @@ There are five kinds of view model in the presentation layer:
   loaded-data availability come from `RecordedSessionEditorState`. Stable
   runtime objects such as the page collection, timeline link,
   source-visibility store, map view model, video pane (see
-  [video.md](video.md)), and recorded-session extension slots
+  [video.md](video.md)), segments picker (see
+  [segments.md](segments.md#segments-picker)), and recorded-session extension slots
   are owned directly by the editor or extension manager and passed to workspaces
   by reference; state emissions update projected presentation without replacing
   those objects. The recorded signals, media, analysis, and mobile-shell

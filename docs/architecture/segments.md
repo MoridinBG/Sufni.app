@@ -1,6 +1,6 @@
 # Saved Segments
 
-> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the `Segments/` slice: saved segments of recorded sessions, their persistence and synchronization, and how trim and split move them.
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the `Segments/` slice: saved segments of recorded sessions, their persistence and synchronization, how trim and split move them, the segments picker, and Strava segment efforts.
 
 ## Table of Contents
 
@@ -9,6 +9,8 @@
 - [Store And Coordinator](#store-and-coordinator)
 - [Synchronization](#synchronization)
 - [Trim And Split](#trim-and-split)
+- [Segments Picker](#segments-picker)
+- [Strava](#strava)
 
 ## Overview
 
@@ -16,10 +18,12 @@ A saved segment is a named time range on one recorded session, in seconds from t
 
 The slice lives in `Sufni.App/Sufni.App/Segments/`:
 
-- `Models/` — `SessionSegment` (table row, `Synchronizable`).
-- `Services/` — `ISessionSegmentRepository`.
+- `Models/` — `SessionSegment` (table row, `Synchronizable`) and the Strava result models.
+- `Services/` — `ISessionSegmentRepository` and `IStravaSegmentService`.
 - `Stores/` — `SessionSegmentStore` behind `ISessionSegmentStore` and `ISessionSegmentStoreWriter`.
 - `Coordinators/` — `SegmentCoordinator` behind `ISegmentCoordinator`.
+- `ViewModels/` — `SegmentPickerViewModel` with its factory and rows, `SegmentNamePromptViewModel`, and `StravaConnectDialogViewModel`.
+- `Views/` and `DesktopViews/` — the picker panel, the mobile bottom-sheet button, the desktop flyout button, and the two dialog views.
 
 ## Persistence
 
@@ -45,3 +49,21 @@ The trim and split transactions in `SessionPersistenceTransactionRunner` move th
 - Split moves the segments that start at or after the click to the new second part, shifted to its origin. The other segments stay with the first part.
 
 `SessionEditingCoordinator` publishes the changed segments with the changed sessions.
+
+## Segments Picker
+
+Each recorded-session editor creates one `SegmentPickerViewModel` through `ISegmentPickerFactory` and disposes it when the editor closes. The signals workspace exposes it as `IRecordedSessionSignalsWorkspace.SegmentPicker`. The editor pushes the session timestamp, the processed telemetry duration, and the analysis range into the picker when they change, and passes the analysis-range setter and its error list.
+
+- **Rows.** The saved rows derive from the store: the session's segments that start at or after zero and end inside the telemetry duration, ordered by start. A segment outside that range (after a trim) is hidden and comes back when an undo restores the range. The row whose range equals the analysis range (within 1 ms) is selected.
+- **Actions.** Selecting a row sets the analysis range; selecting the selected row clears it. Both close the picker. Rename asks for a name; delete asks for confirmation. Both go through `ISegmentCoordinator`, and a failure goes to the editor's error list.
+- **Save.** The built-in plot context-menu entry "Save current selection" (id `save-current-selection`, shown as "Analysis > Save current selection") appears on the six time-series rows and is available when the click lies inside the analysis range. It asks for a name, prefilled with the next free "Segment N", and creates the segment.
+- **Name prompt.** `SegmentNamePromptViewModel` runs on the content-dialog path of `IDialogService`. It validates with `ISegmentCoordinator.ValidateName`, completes on confirm and on cancel, and exposes the confirmed name.
+- **Placement.** The Segments button sits at the trailing end of the signals strip. The desktop signals view opens the panel in a flyout; the mobile signals page opens it as a bottom sheet sized to the window. The picker is available while processed telemetry is loaded and closes when it is gone.
+
+## Strava
+
+The picker lists the segment efforts of the Strava activity that overlaps the session when the user has connected their own Strava API app.
+
+- `IStravaSegmentService` (singleton) keeps the client credentials and OAuth tokens in `ISecureStorage` under the `SegmentAnalysis.Strava.*` keys, which predate the fold and keep existing connections. It refreshes the access token when needed, finds the activity with the most overlap, and returns the efforts as ranges of the session's telemetry, clamped to its duration. Results are cached per session start and duration until the connection changes; the cache keeps negative results.
+- The picker loads the efforts each time it opens and passes a cancellation token; closing the picker or the editor cancels the load. Selecting an effort sets the analysis range only.
+- "Connect with Strava" opens `StravaConnectDialogViewModel` on the content-dialog path. The user enters the client id and secret, opens the authorization URL in the browser, and pastes the redirect URL back; the service exchanges the code for tokens. "Reset credentials" removes every stored key and the cache.

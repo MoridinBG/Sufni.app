@@ -176,7 +176,8 @@ internal sealed class SessionDetailViewTestContext
             new TestSessionProcessedTelemetryReader(),
             analysisResultStateFactory,
             () => Substitute.For<IEditorFactory>(),
-            Substitute.For<ISessionEditingCoordinator>());
+            Substitute.For<ISessionEditingCoordinator>(),
+            TestSegmentPickers.CreateFactory(dialogService: dialogService));
     }
 }
 

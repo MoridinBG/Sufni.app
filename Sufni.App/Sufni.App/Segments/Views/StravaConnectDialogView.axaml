@@ -1,0 +1,67 @@
+<UserControl
+    x:Class="Sufni.App.Segments.Views.StravaConnectDialogView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:Sufni.App.Segments.ViewModels"
+    d:DesignHeight="520"
+    d:DesignWidth="520"
+    x:DataType="vm:StravaConnectDialogViewModel"
+    Background="{DynamicResource SufniBackgroundDisabled}"
+    mc:Ignorable="d">
+
+    <StackPanel Margin="16" Spacing="10">
+        <TextBlock
+            FontSize="20"
+            FontWeight="SemiBold"
+            Text="Connect with Strava" />
+        <TextBox
+            x:Name="StravaClientIdBox"
+            PlaceholderText="Client ID"
+            Text="{Binding ClientId, Mode=TwoWay}" />
+        <TextBox
+            x:Name="StravaClientSecretBox"
+            PasswordChar="*"
+            PlaceholderText="Client secret"
+            Text="{Binding ClientSecret, Mode=TwoWay}" />
+        <Button
+            x:Name="StravaAuthorizationUrlButton"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Left"
+            Classes="embedded hyperlink"
+            Click="AuthorizationButton_OnClick"
+            Content="Authorize with Strava"
+            IsEnabled="{Binding CanOpenAuthorizationUrl}"
+            IsVisible="{Binding HasClientCredentials}" />
+        <TextBox
+            x:Name="StravaRedirectUrlBox"
+            IsVisible="{Binding HasOpenedAuthorizationUrl}"
+            PlaceholderText="Full redirect URL"
+            Text="{Binding RedirectUrl, Mode=TwoWay}"
+            TextWrapping="Wrap" />
+        <TextBlock
+            x:Name="StravaErrorMessageText"
+            IsVisible="{Binding HasError}"
+            Text="{Binding ErrorMessage}"
+            TextWrapping="Wrap" />
+        <TextBlock
+            IsVisible="{Binding IsConnecting}"
+            Opacity="0.75"
+            Text="Connecting to Strava" />
+        <StackPanel
+            HorizontalAlignment="Right"
+            Orientation="Horizontal"
+            Spacing="10">
+            <Button
+                x:Name="CancelButton"
+                Command="{Binding CancelCommand}"
+                Content="Cancel" />
+            <Button
+                x:Name="ConnectButton"
+                Classes="accent"
+                Command="{Binding ConnectCommand}"
+                Content="Connect" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

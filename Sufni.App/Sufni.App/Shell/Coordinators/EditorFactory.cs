@@ -31,6 +31,7 @@ using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Coordinators;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Setups.ViewModels.Editors;
+using Sufni.App.Segments.ViewModels;
 using Sufni.App.Video.ViewModels;
 namespace Sufni.App.Shell.Coordinators;
 
@@ -66,7 +67,8 @@ internal sealed class EditorFactory(
     IBackgroundTaskRunner backgroundTaskRunner,
     Func<ImportSessionsViewModel> importSessionsResolver,
     IVideoPaneFactory videoPaneFactory,
-    ISessionEditingCoordinator sessionEditingCoordinator) : IEditorFactory
+    ISessionEditingCoordinator sessionEditingCoordinator,
+    ISegmentPickerFactory segmentPickerFactory) : IEditorFactory
 {
     public void OpenNewBikeEditor(BikeSnapshot snapshot)
     {
@@ -184,6 +186,7 @@ internal sealed class EditorFactory(
             analysisResultStateFactory,
             () => this,
             sessionEditingCoordinator,
+            segmentPickerFactory,
             bikeCoordinator,
             new ExtensionHostDependencies(
                 recordedSessionExtensionFactories.ToArray(),
