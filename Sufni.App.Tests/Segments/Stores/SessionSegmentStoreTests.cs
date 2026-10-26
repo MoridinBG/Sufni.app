@@ -1,5 +1,4 @@
 using NSubstitute;
-using Sufni.App.ExtensionHost.TestSupport.Async;
 
 using Sufni.App.Segments.Models;
 using Sufni.App.Segments.Services;

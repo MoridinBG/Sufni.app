@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
 using ScottPlot.Avalonia;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
 
 namespace Sufni.App.Shared.Views.Plots;
 

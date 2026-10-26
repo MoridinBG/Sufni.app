@@ -1,4 +1,4 @@
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
+using Sufni.App.Infrastructure;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,7 +6,6 @@ using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using DynamicData;
-using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Stores;

@@ -1,5 +1,5 @@
 using System;
-using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.Infrastructure;
 using Sufni.App.Segments.Coordinators;
 
 namespace Sufni.App.Segments.ViewModels;

@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Acquisition.ViewModels;
@@ -25,7 +24,6 @@ using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.ViewModels;
 using Sufni.App.SyncAndPairing.ViewModels.ItemLists;
-using Sufni.App.Theming;
 using Sufni.App.Video.Coordinators;
 namespace Sufni.App.Shell.ViewModels;
 

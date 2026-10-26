@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using System.Reactive.Linq;
 using DynamicData;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.Sessions.Signals.ViewModels.Editors;
 
 using Sufni.App.Video.Coordinators;
 using Sufni.App.Video.Models;

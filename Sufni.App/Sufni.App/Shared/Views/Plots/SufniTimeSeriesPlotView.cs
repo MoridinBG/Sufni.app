@@ -8,15 +8,12 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Sufni.Telemetry;
 using ScottPlotPixel = ScottPlot.Pixel;
-using Sufni.App.ExtensionHost.Contracts.Plots;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Plots;
 using Sufni.App.Shared.Plots;
-using Sufni.App.Theming;
 using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Shared.Common;
 using Sufni.App.Shared.Views;

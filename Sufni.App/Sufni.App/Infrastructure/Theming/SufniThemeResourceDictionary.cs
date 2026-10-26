@@ -1,7 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Styling;
 
-using Sufni.App.Theming;
 namespace Sufni.App.Infrastructure.Theming;
 
 // Resource dictionary that exposes Sufni dark and light themes to Avalonia.

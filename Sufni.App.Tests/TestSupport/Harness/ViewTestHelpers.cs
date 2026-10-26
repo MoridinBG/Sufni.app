@@ -9,7 +9,6 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Sufni.App;
 using Sufni.App.Infrastructure;
-using Sufni.App.Theming;
 
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Tests.TestSupport.Harness;

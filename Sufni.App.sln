@@ -34,12 +34,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.Telemetry.Tests", "Su
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.Kinematics.Tests", "Sufni.Kinematics.Tests\Sufni.Kinematics.Tests.csproj", "{095DB5D2-0197-4070-82A4-26E06ADB2E55}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.ExtensionHost", "Sufni.App.ExtensionHost\Sufni.App.ExtensionHost.csproj", "{6FFDCB02-5531-46AA-9344-FA00FECD1A0A}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.ExtensionHost.TestSupport", "Sufni.App.ExtensionHost.TestSupport\Sufni.App.ExtensionHost.TestSupport.csproj", "{2F11E0A7-9EE1-42F6-AA11-9F23BCFE3824}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.Theming", "Sufni.App.Theming\Sufni.App.Theming.csproj", "{7BD77E05-1FCC-46B6-87AF-CD75AE25C543}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sufni.App.Video.LibVlc", "Sufni.App\Sufni.App.Video.LibVlc\Sufni.App.Video.LibVlc.csproj", "{31B59927-BAAF-4DF7-A3B6-C83CBBB42B3D}"
 EndProject
 Global
@@ -199,42 +193,6 @@ Global
 		{095DB5D2-0197-4070-82A4-26E06ADB2E55}.Release|x64.Build.0 = Release|Any CPU
 		{095DB5D2-0197-4070-82A4-26E06ADB2E55}.Release|x86.ActiveCfg = Release|Any CPU
 		{095DB5D2-0197-4070-82A4-26E06ADB2E55}.Release|x86.Build.0 = Release|Any CPU
-		{6FFDCB02-5531-46AA-9344-FA00FECD1A0A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{6FFDCB02-5531-46AA-9344-FA00FECD1A0A}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{6FFDCB02-5531-46AA-9344-FA00FECD1A0A}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{6FFDCB02-5531-46AA-9344-FA00FECD1A0A}.Debug|x64.Build.0 = Debug|Any CPU
-		{6FFDCB02-5531-46AA-9344-FA00FECD1A0A}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{6FFDCB02-5531-46AA-9344-FA00FECD1A0A}.Debug|x86.Build.0 = Debug|Any CPU
-		{6FFDCB02-5531-46AA-9344-FA00FECD1A0A}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{6FFDCB02-5531-46AA-9344-FA00FECD1A0A}.Release|Any CPU.Build.0 = Release|Any CPU
-		{6FFDCB02-5531-46AA-9344-FA00FECD1A0A}.Release|x64.ActiveCfg = Release|Any CPU
-		{6FFDCB02-5531-46AA-9344-FA00FECD1A0A}.Release|x64.Build.0 = Release|Any CPU
-		{6FFDCB02-5531-46AA-9344-FA00FECD1A0A}.Release|x86.ActiveCfg = Release|Any CPU
-		{6FFDCB02-5531-46AA-9344-FA00FECD1A0A}.Release|x86.Build.0 = Release|Any CPU
-		{2F11E0A7-9EE1-42F6-AA11-9F23BCFE3824}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{2F11E0A7-9EE1-42F6-AA11-9F23BCFE3824}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{2F11E0A7-9EE1-42F6-AA11-9F23BCFE3824}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{2F11E0A7-9EE1-42F6-AA11-9F23BCFE3824}.Debug|x64.Build.0 = Debug|Any CPU
-		{2F11E0A7-9EE1-42F6-AA11-9F23BCFE3824}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{2F11E0A7-9EE1-42F6-AA11-9F23BCFE3824}.Debug|x86.Build.0 = Debug|Any CPU
-		{2F11E0A7-9EE1-42F6-AA11-9F23BCFE3824}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{2F11E0A7-9EE1-42F6-AA11-9F23BCFE3824}.Release|Any CPU.Build.0 = Release|Any CPU
-		{2F11E0A7-9EE1-42F6-AA11-9F23BCFE3824}.Release|x64.ActiveCfg = Release|Any CPU
-		{2F11E0A7-9EE1-42F6-AA11-9F23BCFE3824}.Release|x64.Build.0 = Release|Any CPU
-		{2F11E0A7-9EE1-42F6-AA11-9F23BCFE3824}.Release|x86.ActiveCfg = Release|Any CPU
-		{2F11E0A7-9EE1-42F6-AA11-9F23BCFE3824}.Release|x86.Build.0 = Release|Any CPU
-		{7BD77E05-1FCC-46B6-87AF-CD75AE25C543}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{7BD77E05-1FCC-46B6-87AF-CD75AE25C543}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{7BD77E05-1FCC-46B6-87AF-CD75AE25C543}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{7BD77E05-1FCC-46B6-87AF-CD75AE25C543}.Debug|x64.Build.0 = Debug|Any CPU
-		{7BD77E05-1FCC-46B6-87AF-CD75AE25C543}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{7BD77E05-1FCC-46B6-87AF-CD75AE25C543}.Debug|x86.Build.0 = Debug|Any CPU
-		{7BD77E05-1FCC-46B6-87AF-CD75AE25C543}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{7BD77E05-1FCC-46B6-87AF-CD75AE25C543}.Release|Any CPU.Build.0 = Release|Any CPU
-		{7BD77E05-1FCC-46B6-87AF-CD75AE25C543}.Release|x64.ActiveCfg = Release|Any CPU
-		{7BD77E05-1FCC-46B6-87AF-CD75AE25C543}.Release|x64.Build.0 = Release|Any CPU
-		{7BD77E05-1FCC-46B6-87AF-CD75AE25C543}.Release|x86.ActiveCfg = Release|Any CPU
-		{7BD77E05-1FCC-46B6-87AF-CD75AE25C543}.Release|x86.Build.0 = Release|Any CPU
 		{31B59927-BAAF-4DF7-A3B6-C83CBBB42B3D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{31B59927-BAAF-4DF7-A3B6-C83CBBB42B3D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{31B59927-BAAF-4DF7-A3B6-C83CBBB42B3D}.Debug|x64.ActiveCfg = Debug|Any CPU

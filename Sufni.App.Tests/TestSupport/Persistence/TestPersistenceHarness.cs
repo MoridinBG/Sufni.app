@@ -1,7 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using SQLite;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure;

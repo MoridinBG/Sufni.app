@@ -1,6 +1,6 @@
 using Avalonia.Headless.XUnit;
 using Avalonia.LogicalTree;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.Shared.Common;
 using Sufni.App.Sessions.Analysis.Views.Controls;
 using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Tests.TestSupport.Fixtures;

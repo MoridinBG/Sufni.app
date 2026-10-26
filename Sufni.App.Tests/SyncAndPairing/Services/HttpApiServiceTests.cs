@@ -5,7 +5,7 @@ using System.Reactive.Linq;
 using System.Security.Authentication;
 using System.Threading;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.Infrastructure;
 
 using Sufni.App.Sessions.Models;
 using Sufni.App.SyncAndPairing.Services;

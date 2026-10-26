@@ -10,9 +10,8 @@ using Avalonia.VisualTree;
 using NSubstitute;
 using Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Sessions.Models;
 
 using Sufni.App.LiveDaq.Queries;
 using Sufni.App.LiveDaq.ViewModels.Editors;

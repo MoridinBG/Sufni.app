@@ -1,4 +1,4 @@
-using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Tests.TestSupport.Persistence;

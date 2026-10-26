@@ -3,8 +3,6 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.Kinematics;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Models;

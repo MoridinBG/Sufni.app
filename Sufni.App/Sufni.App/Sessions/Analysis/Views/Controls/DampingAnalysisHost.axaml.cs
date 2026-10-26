@@ -4,11 +4,9 @@ using System.ComponentModel;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
-using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.Sessions.Models;
 using Sufni.App.Segments.Models;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 namespace Sufni.App.Sessions.Analysis.Views.Controls;

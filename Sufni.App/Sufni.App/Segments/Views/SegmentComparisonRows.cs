@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Segments.ViewModels;
 using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Shared.Views.Overlays;

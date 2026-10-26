@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Sufni.App.ExtensionHost.Contracts.Models;
 
 namespace Sufni.App.MapsAndTracks.Models;
 

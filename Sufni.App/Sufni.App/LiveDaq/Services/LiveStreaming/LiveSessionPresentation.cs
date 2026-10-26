@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Sessions.Models;
 
 using Sufni.App.LiveDaq.Queries;
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;

@@ -3,7 +3,6 @@ using System.Text;
 using Avalonia.Platform.Storage;
 using NSubstitute;
 using Sufni.Kinematics;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Bikes.Services;
 using Sufni.App.Infrastructure;

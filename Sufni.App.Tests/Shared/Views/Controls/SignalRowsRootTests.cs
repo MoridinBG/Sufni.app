@@ -7,8 +7,8 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Themes.Fluent;
 using Avalonia.VisualTree;
-using Sufni.App.Theming;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.Infrastructure.Theming;
+using Sufni.App.Shared.Common;
 using static Sufni.App.Tests.TestSupport.Fixtures.PlotTestHelpers;
 
 using Sufni.App.Shared.Views.Controls;

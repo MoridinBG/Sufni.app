@@ -1,7 +1,7 @@
 using System.Reactive.Linq;
 using System.Reactive.Threading.Tasks;
 using System.Text.Json;
-using Sufni.App.Theming;
+using Sufni.App.Infrastructure.Theming;
 using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure;

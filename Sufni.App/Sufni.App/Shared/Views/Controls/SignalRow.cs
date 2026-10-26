@@ -11,12 +11,10 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.Shared.Common;
 
 using Sufni.App.Shared.Views;
 using Sufni.App.Shared.Views.Overlays;
-using Sufni.App.Theming;
 using Sufni.App.Shared.Views.Plots;
 using Sufni.App.Shared.Views.Input;
 using Sufni.App.Infrastructure.Theming;

@@ -3,7 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using LibVLCSharp.Avalonia;
 using LibVLCSharp.Shared;
-using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.Infrastructure;
 using Sufni.App.Video.Models;
 
 namespace Sufni.App.Video.LibVlc;

@@ -1,10 +1,9 @@
 using System;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
 using Sufni.App.LiveDaq.Services.Imu;
 using Sufni.App.Sessions.Models;
 using Sufni.Telemetry;
-using DampingSpeedCutoffSet = Sufni.App.ExtensionHost.Contracts.SessionDetails.DampingSpeedCutoffs;
+using DampingSpeedCutoffSet = Sufni.App.Bikes.Models.DampingSpeedCutoffs;
 
 namespace Sufni.App.Sessions.Analysis.Services;
 

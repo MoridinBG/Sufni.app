@@ -1,5 +1,4 @@
 using SQLite;
-using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure;

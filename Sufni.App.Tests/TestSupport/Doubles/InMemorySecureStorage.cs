@@ -1,4 +1,4 @@
-using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.Infrastructure;
 
 namespace Sufni.App.Tests.TestSupport.Doubles;
 

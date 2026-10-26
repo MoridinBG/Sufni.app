@@ -7,9 +7,8 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
-using Sufni.App.Theming;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.Infrastructure.Theming;
+using Sufni.App.Shared.Common;
 
 using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Shared.Views.Plots;

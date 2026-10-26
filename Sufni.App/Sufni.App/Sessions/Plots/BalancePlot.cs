@@ -3,12 +3,11 @@ using System.Linq;
 using ScottPlot;
 using ScottPlot.TickGenerators;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Infrastructure.Theming;
 
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Shared.Plots;
-using Sufni.App.Theming;
 using Sufni.App.Shared.Formatting;
 namespace Sufni.App.Sessions.Plots;
 

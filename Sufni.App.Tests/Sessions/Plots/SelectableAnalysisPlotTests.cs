@@ -1,5 +1,4 @@
 using ScottPlot;
-using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure.Theming;

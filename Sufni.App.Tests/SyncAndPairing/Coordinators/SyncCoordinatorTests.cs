@@ -4,7 +4,7 @@ using NSubstitute.ExceptionExtensions;
 using Avalonia.Threading;
 using System.Reactive.Subjects;
 
-using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.Infrastructure;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;

@@ -5,8 +5,6 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using SQLite;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Kinematics;
 
 using Sufni.App.Bikes.Models;

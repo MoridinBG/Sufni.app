@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using DynamicData;
-using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.Telemetry.Caching;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;

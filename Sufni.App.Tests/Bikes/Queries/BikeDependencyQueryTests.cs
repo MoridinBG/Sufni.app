@@ -2,7 +2,6 @@ using System.Reactive;
 using NSubstitute;
 
 using Sufni.App.Bikes.Queries;
-using Sufni.App.ExtensionHost.TestSupport.Async;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
 using Sufni.App.SyncAndPairing.Models;

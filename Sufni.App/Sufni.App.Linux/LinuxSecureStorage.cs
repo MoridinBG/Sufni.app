@@ -4,7 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using DBus.Services.Secrets;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.Infrastructure;
 
 namespace Sufni.App.Linux;
 

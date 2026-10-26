@@ -5,7 +5,6 @@ using System.Threading;
 using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;

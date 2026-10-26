@@ -1,8 +1,6 @@
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.Theming;
 
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;

@@ -2,7 +2,6 @@ using System.Reactive.Linq;
 using Avalonia.Headless.XUnit;
 using DynamicData;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Stores;

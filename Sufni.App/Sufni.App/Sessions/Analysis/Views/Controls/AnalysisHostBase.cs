@@ -1,8 +1,8 @@
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Shared.Common;
 using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.Telemetry;

@@ -7,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Sufni.Kinematics;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Infrastructure;

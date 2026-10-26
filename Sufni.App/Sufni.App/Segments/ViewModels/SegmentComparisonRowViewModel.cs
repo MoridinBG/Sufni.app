@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Segments.Models;
 
 namespace Sufni.App.Segments.ViewModels;

@@ -4,9 +4,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Platform;
 using Avalonia.Styling;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
-using Sufni.App.Theming;
 namespace Sufni.App.Infrastructure.Theming;
 
 // Runtime theme coordinator for preferences, sync updates, and Avalonia state.

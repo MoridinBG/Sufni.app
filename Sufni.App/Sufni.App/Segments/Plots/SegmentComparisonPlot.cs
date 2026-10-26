@@ -3,13 +3,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using ScottPlot;
-using Sufni.App.ExtensionHost.Contracts.Plots;
 using Sufni.App.Infrastructure.Theming;
 using Sufni.App.LiveDaq.Plots;
 using Sufni.App.Segments.Models;
 using Sufni.App.Segments.ViewModels;
 using Sufni.App.Sessions.Plots;
-using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Segments.Plots;

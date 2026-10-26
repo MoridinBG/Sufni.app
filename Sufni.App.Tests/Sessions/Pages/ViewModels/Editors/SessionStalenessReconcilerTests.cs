@@ -1,5 +1,4 @@
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Coordination;

@@ -1,7 +1,6 @@
 using Avalonia.Platform.Storage;
 using System.Net;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.Services;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestStorageItems;
 
 using Sufni.App.Acquisition.Models;

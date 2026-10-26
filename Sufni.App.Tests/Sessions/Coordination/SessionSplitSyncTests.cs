@@ -1,7 +1,6 @@
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;

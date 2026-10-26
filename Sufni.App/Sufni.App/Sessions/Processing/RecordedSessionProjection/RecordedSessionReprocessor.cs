@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Security.Cryptography;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;

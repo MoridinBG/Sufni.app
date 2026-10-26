@@ -1,4 +1,3 @@
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using System;
 using System.Text.Json;
 using Sufni.Telemetry;

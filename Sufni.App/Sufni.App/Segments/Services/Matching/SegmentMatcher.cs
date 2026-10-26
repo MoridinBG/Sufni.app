@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.Telemetry.Caching;
 
 using Sufni.App.Segments.Models;

@@ -4,9 +4,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using DynamicData;
 using NSubstitute;
-using Sufni.App.Theming;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Acquisition.ViewModels;

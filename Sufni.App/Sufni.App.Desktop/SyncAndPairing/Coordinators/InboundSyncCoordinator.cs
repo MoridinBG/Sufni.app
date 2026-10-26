@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;

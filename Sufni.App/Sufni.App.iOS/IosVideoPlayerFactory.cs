@@ -4,7 +4,7 @@ using AVFoundation;
 using Avalonia.Controls;
 using Avalonia.Platform;
 using Foundation;
-using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.Infrastructure;
 using Sufni.App.AppleShared;
 using Sufni.App.Video.Models;
 using UIKit;

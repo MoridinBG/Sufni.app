@@ -1,8 +1,6 @@
 using System.Linq;
 using System.Reactive.Linq;
 using DynamicData;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Models;

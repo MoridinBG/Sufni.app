@@ -1,7 +1,5 @@
 using System.Threading;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
-using Sufni.App.ExtensionHost.TestSupport;
 using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure;

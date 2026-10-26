@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Json;
 using Sufni.Kinematics;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;

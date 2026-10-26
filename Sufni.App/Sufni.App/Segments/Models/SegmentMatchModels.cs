@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.Telemetry;
 
 using Sufni.App.Sessions.Models;

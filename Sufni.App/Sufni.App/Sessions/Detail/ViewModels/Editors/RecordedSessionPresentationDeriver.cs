@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.Shared.Common;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;

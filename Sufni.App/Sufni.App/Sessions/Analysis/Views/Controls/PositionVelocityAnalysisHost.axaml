@@ -10,7 +10,7 @@ xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:pages="clr-namespace:Sufni.App.Sessions.Pages.ViewModels.SessionPages"
 xmlns:plots="clr-namespace:Sufni.App.Sessions.Plots.Views.Plots"
-xmlns:zoom="clr-namespace:Sufni.App.ExtensionHost.Runtime.Presentation;assembly=Sufni.App.ExtensionHost"
+xmlns:zoom="clr-namespace:Sufni.App.Shared.Views.Plots"
 d:DesignHeight="520"
 d:DesignWidth="900"
 mc:Ignorable="d">

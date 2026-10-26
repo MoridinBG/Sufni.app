@@ -1,6 +1,5 @@
 using System;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
 using Sufni.App.LiveDaq.Services.Imu;
 using Sufni.App.Sessions.Insights.Services;
 using Sufni.App.Sessions.Models;

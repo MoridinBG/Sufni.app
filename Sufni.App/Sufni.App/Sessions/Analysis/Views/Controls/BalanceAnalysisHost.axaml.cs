@@ -1,8 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 namespace Sufni.App.Sessions.Analysis.Views.Controls;
 

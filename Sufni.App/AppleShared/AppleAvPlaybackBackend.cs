@@ -3,7 +3,7 @@ using AVFoundation;
 using CoreFoundation;
 using CoreMedia;
 using Foundation;
-using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.Infrastructure;
 using Sufni.App.Video.Models;
 
 namespace Sufni.App.AppleShared;

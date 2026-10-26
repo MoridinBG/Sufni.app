@@ -1,6 +1,4 @@
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
 using System.Threading.Tasks;
 using System.Threading;

@@ -1,7 +1,6 @@
 using System.Windows.Input;
 using ScottPlot;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
 
 using Sufni.App.Shared.Views.Plots;
 using Sufni.App.Infrastructure;

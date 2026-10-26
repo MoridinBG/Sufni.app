@@ -1,5 +1,5 @@
 using Mapsui.Projections;
-using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.MapsAndTracks.Models;
 
 using Sufni.App.Sessions.Models;
 namespace Sufni.App.Tests.Sessions.Models;

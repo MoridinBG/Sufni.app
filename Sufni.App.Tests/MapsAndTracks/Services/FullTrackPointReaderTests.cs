@@ -1,5 +1,5 @@
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Services;
 
 namespace Sufni.App.Tests.MapsAndTracks.Services;

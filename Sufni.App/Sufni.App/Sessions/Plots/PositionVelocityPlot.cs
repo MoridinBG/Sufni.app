@@ -1,11 +1,9 @@
 using System.Collections.Generic;
 using ScottPlot;
 using ScottPlot.Plottables;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
 using Sufni.App.Infrastructure.Theming;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Shared.Plots;
-using Sufni.App.Theming;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Plots;

@@ -9,14 +9,14 @@ using Avalonia.Input;
 using NSubstitute;
 using ScottPlot;
 using ScottPlot.Plottables;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Shared.Common;
+using Sufni.App.Shared.Views.Controls;
+using Sufni.App.Shared.Views.Plots;
 using Sufni.Telemetry;
 using AvaloniaColor = Avalonia.Media.Color;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
 using static Sufni.App.Tests.TestSupport.Fixtures.PlotTestHelpers;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;

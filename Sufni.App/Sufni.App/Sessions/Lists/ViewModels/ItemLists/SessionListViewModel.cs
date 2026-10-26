@@ -11,8 +11,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using DynamicData.Binding;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
+using Sufni.App.Infrastructure;
 
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Lists.ViewModels.Rows;

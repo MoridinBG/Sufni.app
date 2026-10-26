@@ -1,9 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.TestSupport.Async;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Services.Imu;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Insights.Services.SessionInsights;

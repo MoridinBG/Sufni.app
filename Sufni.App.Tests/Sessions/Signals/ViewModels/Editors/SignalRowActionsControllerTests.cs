@@ -1,4 +1,4 @@
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.Shared.Views.Controls;
 using Sufni.Telemetry;
 
 using Sufni.App.Sessions.Signals.ViewModels.Editors;

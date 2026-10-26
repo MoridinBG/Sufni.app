@@ -3,7 +3,6 @@ using ScottPlot.Plottables;
 using Sufni.Telemetry;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
 using static Sufni.App.Tests.TestSupport.Fixtures.PlotTestHelpers;
-using Sufni.App.ExtensionHost.Contracts.Plots;
 
 using Sufni.App.Sessions.Plots;
 namespace Sufni.App.Tests.Sessions.Plots;

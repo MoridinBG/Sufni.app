@@ -10,7 +10,7 @@ using Avalonia.Media;
 using Avalonia.Media.Transformation;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.Shared.Views.Plots;
 using Sufni.App.Infrastructure;
 using Sufni.App.Infrastructure.Theming;
 using Sufni.App.Shared.Common;

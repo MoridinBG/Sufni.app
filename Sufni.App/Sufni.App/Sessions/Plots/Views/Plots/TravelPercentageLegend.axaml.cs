@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 
-using Sufni.App.Theming;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Sessions.Plots.Views.Plots;
 

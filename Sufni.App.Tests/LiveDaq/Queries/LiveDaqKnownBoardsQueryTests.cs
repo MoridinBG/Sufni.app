@@ -8,7 +8,6 @@ using Sufni.App.Bikes.Stores;
 using Sufni.App.LiveDaq.Queries;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
-using Sufni.App.ExtensionHost.TestSupport.Async;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Setups.Models.SensorConfigurations;

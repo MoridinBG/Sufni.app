@@ -3,7 +3,7 @@ using System.Reactive.Linq;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
-using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Views;
 using Sufni.App.Sessions.Media.DesktopViews.Items;

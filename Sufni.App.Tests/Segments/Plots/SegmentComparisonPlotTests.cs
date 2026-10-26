@@ -8,7 +8,6 @@ using Sufni.App.Segments.Plots;
 using Sufni.App.Sessions.Plots;
 using Sufni.App.Shared.Plots;
 using Sufni.App.Tests.TestSupport.Fixtures;
-using Sufni.App.Theming;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestSegmentComparisonRows;
 
 namespace Sufni.App.Tests.Segments.Plots;

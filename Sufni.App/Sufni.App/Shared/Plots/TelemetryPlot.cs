@@ -2,14 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.Telemetry;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
-using Sufni.App.Theming;
 using Sufni.App.Sessions.Plots;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Shared.Plots;

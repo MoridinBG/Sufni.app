@@ -1,6 +1,5 @@
 using System;
 using CommunityToolkit.Mvvm.ComponentModel;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
 namespace Sufni.App.Sessions.Signals.ViewModels.Editors;
 

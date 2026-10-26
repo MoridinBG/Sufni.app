@@ -6,7 +6,6 @@ using Sufni.App.Segments.Coordinators;
 using Sufni.App.Segments.Services;
 using Sufni.App.Segments.Stores;
 using Sufni.App.Segments.ViewModels;
-using Sufni.App.ExtensionHost.TestSupport.Async;
 namespace Sufni.App.Tests.TestSupport.Doubles;
 
 internal static class TestSegmentPickers

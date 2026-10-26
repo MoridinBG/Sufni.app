@@ -4,10 +4,8 @@ using System.Linq;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Plots;
 
 using Sufni.App.Shared.Plots;
-using Sufni.App.Theming;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Sessions.Plots;
 

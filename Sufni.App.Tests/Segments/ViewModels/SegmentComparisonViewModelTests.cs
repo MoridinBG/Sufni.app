@@ -1,9 +1,8 @@
 using System.Reactive.Subjects;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
-using Sufni.App.ExtensionHost.TestSupport.Async;
+using Sufni.App.Bikes.Models;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Segments.Coordinators;
 using Sufni.App.Segments.Models;
 using Sufni.App.Segments.Services;

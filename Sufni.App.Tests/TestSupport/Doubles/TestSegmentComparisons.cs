@@ -1,8 +1,7 @@
 using System.Reactive.Linq;
 using NSubstitute;
 
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.TestSupport.Async;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Segments.Coordinators;
 using Sufni.App.Segments.Services;
 using Sufni.App.Segments.ViewModels;

@@ -9,7 +9,7 @@ using Java.Security;
 using Javax.Crypto;
 using Javax.Crypto.Spec;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.Infrastructure;
 
 namespace Sufni.App.Android;
 

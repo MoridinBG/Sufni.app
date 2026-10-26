@@ -1,5 +1,5 @@
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Sessions.Models;
 using Sufni.App.Segments.Models;
 using Sufni.App.Segments.Services;
 using Sufni.App.Tests.TestSupport.Fixtures;

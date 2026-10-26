@@ -1,7 +1,6 @@
 using System;
 using System.Text.Json;
 using Sufni.Kinematics;
-using Sufni.App.ExtensionHost.Contracts.Models;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Infrastructure;

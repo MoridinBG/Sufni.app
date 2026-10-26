@@ -1,6 +1,5 @@
 using System;
 using System.Text.Json.Serialization;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;

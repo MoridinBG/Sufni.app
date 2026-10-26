@@ -12,7 +12,7 @@ using Serilog;
 using Sufni.Telemetry;
 
 using Sufni.App.MapsAndTracks.Models;
-using Sufni.App.Theming;
+using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Infrastructure;
 
 public sealed class AppPreferences : IAppPreferences

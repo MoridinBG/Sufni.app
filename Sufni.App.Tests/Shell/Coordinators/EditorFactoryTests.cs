@@ -1,6 +1,5 @@
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
 using Sufni.Telemetry;
 
 using Sufni.App.LiveDaq.Queries;

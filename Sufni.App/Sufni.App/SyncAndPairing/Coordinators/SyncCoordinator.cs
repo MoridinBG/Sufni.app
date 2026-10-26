@@ -2,7 +2,6 @@ using System;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Services;

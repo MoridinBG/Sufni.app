@@ -2,7 +2,6 @@ using System;
 using Avalonia;
 using Avalonia.Logging;
 using Microsoft.Extensions.DependencyInjection;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.SyncAndPairing.Coordinators;

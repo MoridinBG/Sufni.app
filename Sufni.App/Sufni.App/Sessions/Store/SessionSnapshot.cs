@@ -1,5 +1,5 @@
 using System;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
 using Sufni.App.Sessions.Models;
 namespace Sufni.App.Sessions.Store;

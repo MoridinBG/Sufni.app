@@ -1,7 +1,7 @@
 using ScottPlot;
 using ScottPlot.Plottables;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
-using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.MapsAndTracks.Models;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;

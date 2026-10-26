@@ -1,6 +1,6 @@
 using NSubstitute;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.Telemetry.Tests;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.Services;

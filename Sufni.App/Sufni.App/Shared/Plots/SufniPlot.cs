@@ -2,7 +2,6 @@ using System;
 using ScottPlot;
 using ScottPlot.Plottables;
 
-using Sufni.App.Theming;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Shared.Plots;
 

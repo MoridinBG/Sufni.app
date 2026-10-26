@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Foundation;
 using Security;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.Infrastructure;
 
 namespace Sufni.App.AppleShared;
 

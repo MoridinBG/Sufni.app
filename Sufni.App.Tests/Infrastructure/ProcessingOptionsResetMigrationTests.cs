@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
-using Sufni.App.ExtensionHost.TestSupport;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Coordination;

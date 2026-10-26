@@ -2,7 +2,7 @@ using System;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.Sessions.Signals.ViewModels.Editors;
 
 using Sufni.App.Video.Models;
 namespace Sufni.App.Video.ViewModels;

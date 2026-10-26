@@ -1,6 +1,5 @@
 using System;
 using DynamicData;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 

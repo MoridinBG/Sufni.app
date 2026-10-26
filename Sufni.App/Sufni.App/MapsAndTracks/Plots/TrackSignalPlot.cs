@@ -3,11 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.MapsAndTracks.Models;
 
 using Sufni.App.Sessions.Plots;
 using Sufni.App.Shared.Plots;
-using Sufni.App.Theming;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.MapsAndTracks.Plots;
 

@@ -5,7 +5,7 @@ using System.Linq;
 using ScottPlot;
 using Sufni.Telemetry;
 
-using Sufni.App.Theming;
+using Sufni.App.Infrastructure.Theming;
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
 namespace Sufni.App.Sessions.Plots;

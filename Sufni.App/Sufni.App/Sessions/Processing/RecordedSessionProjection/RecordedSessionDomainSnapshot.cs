@@ -1,4 +1,3 @@
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;

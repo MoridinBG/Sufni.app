@@ -1,4 +1,4 @@
-using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.Shared.Common;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Plots;
 using Sufni.App.Tests.TestSupport.Sessions;

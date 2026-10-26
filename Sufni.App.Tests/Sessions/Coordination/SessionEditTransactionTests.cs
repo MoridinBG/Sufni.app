@@ -1,6 +1,6 @@
 using SQLite;
 using Sufni.App.Infrastructure;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Models;

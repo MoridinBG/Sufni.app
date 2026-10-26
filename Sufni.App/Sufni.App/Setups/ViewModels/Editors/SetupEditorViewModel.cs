@@ -12,7 +12,6 @@ using DynamicData;
 using DynamicData.Binding;
 using Sufni.Kinematics;
 using BikeModel = Sufni.App.Bikes.Models.Bike;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Models;

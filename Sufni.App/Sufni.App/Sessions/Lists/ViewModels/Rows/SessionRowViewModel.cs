@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Shared.Base;

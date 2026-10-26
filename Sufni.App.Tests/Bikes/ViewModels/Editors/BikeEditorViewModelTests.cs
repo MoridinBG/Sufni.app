@@ -4,7 +4,6 @@ using Avalonia.Headless.XUnit;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.Kinematics;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Queries;

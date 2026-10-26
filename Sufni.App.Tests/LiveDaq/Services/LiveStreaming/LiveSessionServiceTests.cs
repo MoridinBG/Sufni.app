@@ -12,9 +12,9 @@ using System.Text.Json;
 using NSubstitute;
 using Serilog.Core;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Models;
 
 using Sufni.App.LiveDaq.Queries;
 #if SUFNI_PROFILING_DIAGNOSTICS

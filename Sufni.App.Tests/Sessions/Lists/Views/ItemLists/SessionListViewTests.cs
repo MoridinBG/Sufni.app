@@ -5,7 +5,6 @@ using Avalonia.Labs.Controls;
 using Avalonia.VisualTree;
 using DynamicData;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Lists.DesktopViews.Controls;

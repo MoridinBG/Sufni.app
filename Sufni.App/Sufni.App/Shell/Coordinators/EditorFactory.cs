@@ -1,7 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Acquisition.Services;
 using Sufni.App.Acquisition.ViewModels;

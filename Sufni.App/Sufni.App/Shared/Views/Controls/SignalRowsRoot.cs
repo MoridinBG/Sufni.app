@@ -14,7 +14,6 @@ using Avalonia.VisualTree;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Theming;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Shared.Views.Controls;
 

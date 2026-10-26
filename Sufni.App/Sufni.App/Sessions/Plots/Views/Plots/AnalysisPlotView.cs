@@ -7,7 +7,7 @@ using Avalonia.Input;
 using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
 
 using Sufni.App.Shared.Plots;
 using Sufni.App.Shared.Views.Plots;

@@ -5,7 +5,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.VisualTree;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.Shared.Views.Plots;
 using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Views.Overlays;
 using Sufni.App.Tests.TestSupport.Harness;

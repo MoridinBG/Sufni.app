@@ -1,7 +1,6 @@
 using System;
 using System.Threading.Tasks;
 
-using Sufni.App.Theming;
 namespace Sufni.App.Infrastructure.Theming;
 
 // Owns the persisted theme mode and applies it to the running Avalonia app.

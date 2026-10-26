@@ -8,7 +8,6 @@ using Mapsui.Projections;
 using MathNet.Numerics.Interpolation;
 using SQLite;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Models;
 
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Infrastructure;

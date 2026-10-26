@@ -1,7 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 using Avalonia.Headless.XUnit;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.Shared.Common;
 
 using Sufni.App.Shared.Views.Overlays;
 using Sufni.App.Shared.Views.Controls;
