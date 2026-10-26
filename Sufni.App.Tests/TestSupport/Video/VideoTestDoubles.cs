@@ -133,10 +133,11 @@ internal sealed class VideoFixture : IDisposable
     public async Task<VideoPaneViewModel> CreatePaneAsync(
         Guid sessionId,
         IRecordedSessionTimeline timeline,
+        IObservable<VideoSessionTiming> sessionTiming,
         params SessionVideoClip[] clips)
     {
         var store = await CreateStoreAsync(clips);
-        return new VideoPaneViewModel(sessionId, timeline, store, Coordinator, PlayerFactory);
+        return new VideoPaneViewModel(sessionId, timeline, sessionTiming, store, Coordinator, PlayerFactory);
     }
 
     public void Dispose() => directory.Dispose();

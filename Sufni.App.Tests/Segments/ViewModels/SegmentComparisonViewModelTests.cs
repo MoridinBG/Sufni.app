@@ -1,3 +1,4 @@
+using System.Reactive.Subjects;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
@@ -21,13 +22,14 @@ public class SegmentComparisonViewModelTests
     private readonly List<(double Start, double End)> visibleRanges = [];
     private readonly List<string> errors = [];
     private readonly List<string> notifications = [];
+    private readonly Subject<SegmentComparisonSessionState> sessionState = new();
 
     [Fact]
     public void MatchCommand_CannotExecute_WithoutAnAnalysisRange()
     {
         using var comparison = CreateComparison();
 
-        comparison.SetSessionState(State() with { AnalysisRange = null });
+        sessionState.OnNext(State() with { AnalysisRange = null });
 
         Assert.False(comparison.MatchCommand.CanExecute(null));
     }
@@ -61,13 +63,13 @@ public class SegmentComparisonViewModelTests
     }
 
     [Fact]
-    public async Task SetSessionState_WithAnotherAnalysisRange_DiscardsTheMatches()
+    public async Task SessionState_WithAnotherAnalysisRange_DiscardsTheMatches()
     {
         using var comparison = CreateComparison();
         MatchReturns(Comparison(TestSegmentMatches.Match(10, 13)));
         await comparison.MatchCommand.ExecuteAsync(null);
 
-        comparison.SetSessionState(State() with { AnalysisRange = new TelemetryTimeRange(3, 6) });
+        sessionState.OnNext(State() with { AnalysisRange = new TelemetryTimeRange(3, 6) });
 
         Assert.Empty(comparison.TravelRows);
         Assert.Equal(0, comparison.MatchCount);
@@ -133,7 +135,7 @@ public class SegmentComparisonViewModelTests
     }
 
     [Fact]
-    public async Task SetSessionState_WithOtherDampingCutoffs_RebuildsTheAnalysisComparison()
+    public async Task SessionState_WithOtherDampingCutoffs_RebuildsTheAnalysisComparison()
     {
         using var comparison = CreateComparison();
         var compared = Comparison(TestSegmentMatches.Match(10, 13));
@@ -143,7 +145,7 @@ public class SegmentComparisonViewModelTests
         CompareAction(comparison.TravelRows[0]).Command!.Execute(null);
         var before = comparison.AnalysisComparison;
 
-        comparison.SetSessionState(State() with
+        sessionState.OnNext(State() with
         {
             DampingSpeedCutoffs = new DampingSpeedCutoffs(new DampingSpeedCutoffSide(10, 10), DampingSpeedCutoffSide.Default),
         });
@@ -190,12 +192,13 @@ public class SegmentComparisonViewModelTests
     {
         var comparison = new SegmentComparisonViewModel(
             Guid.NewGuid(),
+            sessionState,
             coordinator,
             new InlineBackgroundTaskRunner(),
             (start, end) => visibleRanges.Add((start, end)),
             errors.Add,
             notifications.Add);
-        comparison.SetSessionState(State());
+        sessionState.OnNext(State());
         return comparison;
     }
 

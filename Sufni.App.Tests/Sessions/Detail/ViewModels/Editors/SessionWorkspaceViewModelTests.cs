@@ -1,3 +1,5 @@
+using Sufni.App.Video.Models;
+using System.Reactive.Linq;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Reactive.Subjects;
@@ -256,6 +258,7 @@ public class SessionWorkspaceViewModelTests
         using var videoPane = new VideoPaneViewModel(
             sessionId,
             new TestRecordedSessionTimeline(),
+            Observable.Never<VideoSessionTiming>(),
             store,
             videoFixture.Coordinator,
             videoFixture.PlayerFactory);

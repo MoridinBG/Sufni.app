@@ -1,3 +1,6 @@
+using Sufni.App.Video.Models;
+using System.Reactive.Subjects;
+using System.Reactive.Linq;
 using Sufni.App.Tests.TestSupport.Video;
 using Sufni.App.Video.ViewModels;
 
@@ -16,7 +19,7 @@ public class VideoPaneViewModelTests : IDisposable
     {
         var missing = fixture.CreateClip(sessionId, SessionTimestamp, durationSeconds: 60, fileExists: false);
 
-        using var pane = await fixture.CreatePaneAsync(sessionId, timeline, missing);
+        using var pane = await fixture.CreatePaneAsync(sessionId, timeline, Observable.Never<VideoSessionTiming>(), missing);
 
         Assert.False(pane.HasVideo);
         Assert.Null(pane.VideoUri);
@@ -27,7 +30,7 @@ public class VideoPaneViewModelTests : IDisposable
     {
         var other = fixture.CreateClip(Guid.NewGuid(), SessionTimestamp, durationSeconds: 60);
 
-        using var pane = await fixture.CreatePaneAsync(sessionId, timeline, other);
+        using var pane = await fixture.CreatePaneAsync(sessionId, timeline, Observable.Never<VideoSessionTiming>(), other);
 
         Assert.False(pane.HasVideo);
     }
@@ -36,7 +39,7 @@ public class VideoPaneViewModelTests : IDisposable
     public async Task HasVideo_BecomesTrue_WhenClipIsLinkedLater()
     {
         var store = await fixture.CreateStoreAsync();
-        using var pane = new VideoPaneViewModel(sessionId, timeline, store, fixture.Coordinator, fixture.PlayerFactory);
+        using var pane = new VideoPaneViewModel(sessionId, timeline, Observable.Never<VideoSessionTiming>(), store, fixture.Coordinator, fixture.PlayerFactory);
 
         await store.PublishClipsAsync([fixture.CreateClip(sessionId, SessionTimestamp, durationSeconds: 60)]);
 
@@ -48,8 +51,12 @@ public class VideoPaneViewModelTests : IDisposable
     {
         var first = fixture.CreateClip(sessionId, SessionTimestamp, durationSeconds: 20);
         var second = fixture.CreateClip(sessionId, SessionTimestamp + 20, durationSeconds: 20);
-        using var pane = await fixture.CreatePaneAsync(sessionId, timeline, first, second);
-        pane.SetSessionTiming(SessionTimestamp, durationSeconds: 40);
+        using var pane = await fixture.CreatePaneAsync(
+            sessionId,
+            timeline,
+            Observable.Return(new VideoSessionTiming(SessionTimestamp, DurationSeconds: 40)),
+            first,
+            second);
 
         timeline.SetCursorPosition(0.25);
         var firstUri = pane.VideoUri;
@@ -63,10 +70,11 @@ public class VideoPaneViewModelTests : IDisposable
     public async Task Playback_CannotSync_UntilTelemetryDurationIsKnown()
     {
         var clip = fixture.CreateClip(sessionId, SessionTimestamp, durationSeconds: 60);
-        using var pane = await fixture.CreatePaneAsync(sessionId, timeline, clip);
+        using var timing = new Subject<VideoSessionTiming>();
+        using var pane = await fixture.CreatePaneAsync(sessionId, timeline, timing, clip);
 
         var canSyncBeforeTiming = pane.Playback.CanSync;
-        pane.SetSessionTiming(SessionTimestamp, durationSeconds: 30);
+        timing.OnNext(new VideoSessionTiming(SessionTimestamp, DurationSeconds: 30));
 
         Assert.False(canSyncBeforeTiming);
         Assert.True(pane.Playback.CanSync);

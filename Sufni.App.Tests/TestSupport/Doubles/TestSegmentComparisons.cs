@@ -1,3 +1,4 @@
+using System.Reactive.Linq;
 using NSubstitute;
 
 using Sufni.App.ExtensionHost.Contracts.Models;
@@ -18,7 +19,7 @@ internal static class TestSegmentComparisons
             new InlineBackgroundTaskRunner());
 
     public static SegmentComparisonViewModel Create() =>
-        CreateFactory().Create(Guid.NewGuid(), (_, _) => { }, _ => { }, _ => { });
+        CreateFactory().Create(Guid.NewGuid(), Observable.Never<SegmentComparisonSessionState>(), (_, _) => { }, _ => { }, _ => { });
 
     /// <summary>
     /// A comparison that shows one match; its compare action loads the matched
@@ -34,13 +35,18 @@ internal static class TestSegmentComparisons
             new SegmentComparisonPage([comparison], [])));
         coordinator.LoadComparisonDetailAsync(comparison, Arg.Any<CancellationToken>())
             .Returns(SegmentComparisonBuilder.BuildDetail(telemetry, [new TrackPoint(0, 0, 0, null), new TrackPoint(1, 1, 1, null)]));
-        var segmentComparison = CreateFactory(coordinator).Create(Guid.NewGuid(), (_, _) => { }, _ => { }, _ => { });
-        segmentComparison.SetSessionState(SegmentComparisonSessionState.Empty with
+        var sessionState = SegmentComparisonSessionState.Empty with
         {
             AnalysisRange = new TelemetryTimeRange(2, 5),
             Telemetry = telemetry,
             TrackTimeline = new TrackTimeRange(1000, telemetry.Metadata.Duration),
-        });
+        };
+        var segmentComparison = CreateFactory(coordinator).Create(
+            Guid.NewGuid(),
+            Observable.Return(sessionState),
+            (_, _) => { },
+            _ => { },
+            _ => { });
         await segmentComparison.MatchCommand.ExecuteAsync(null);
         return segmentComparison;
     }

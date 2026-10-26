@@ -14,7 +14,11 @@ public interface ISegmentPickerFactory
     /// <summary>
     /// <paramref name="setAnalysisRange"/> receives null to clear the analysis range.
     /// </summary>
-    SegmentPickerViewModel Create(Guid sessionId, Action<TelemetryTimeRange?> setAnalysisRange, Action<string> reportError);
+    SegmentPickerViewModel Create(
+        Guid sessionId,
+        IObservable<SegmentPickerSessionState> sessionState,
+        Action<TelemetryTimeRange?> setAnalysisRange,
+        Action<string> reportError);
 }
 
 internal sealed class SegmentPickerFactory(
@@ -22,6 +26,10 @@ internal sealed class SegmentPickerFactory(
     ISegmentCoordinator segmentCoordinator,
     IDialogService dialogService) : ISegmentPickerFactory
 {
-    public SegmentPickerViewModel Create(Guid sessionId, Action<TelemetryTimeRange?> setAnalysisRange, Action<string> reportError) =>
-        new(sessionId, segmentStore, segmentCoordinator, dialogService, setAnalysisRange, reportError);
+    public SegmentPickerViewModel Create(
+        Guid sessionId,
+        IObservable<SegmentPickerSessionState> sessionState,
+        Action<TelemetryTimeRange?> setAnalysisRange,
+        Action<string> reportError) =>
+        new(sessionId, sessionState, segmentStore, segmentCoordinator, dialogService, setAnalysisRange, reportError);
 }

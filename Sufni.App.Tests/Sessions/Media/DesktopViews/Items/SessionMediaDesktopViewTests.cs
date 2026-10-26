@@ -1,3 +1,5 @@
+using Sufni.App.Video.Models;
+using System.Reactive.Linq;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
@@ -73,6 +75,7 @@ public class SessionMediaDesktopViewTests : IDisposable
         return videoFixture.CreatePaneAsync(
             sessionId,
             new TestRecordedSessionTimeline(),
+            Observable.Never<VideoSessionTiming>(),
             videoFixture.CreateClip(sessionId, startTimestamp: 1_000, durationSeconds: 60));
     }
 

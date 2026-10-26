@@ -52,6 +52,7 @@ using Sufni.App.Sessions.Media.ViewModels.Editors;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Insights.ViewModels.Editors;
 using Sufni.App.Sessions.Presentation;
+using Sufni.App.Video.Models;
 using Sufni.App.Video.ViewModels;
 using Sufni.App.Segments.ViewModels;
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
@@ -1513,11 +1514,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         this.recordedSessionProjection = recordedSessionProjection;
         this.processedTelemetryReader = processedTelemetryReader;
         this.recordedSessionProcessingOptionCache = recordedSessionProcessingOptionCache;
-        segmentComparison = segmentComparisonFactory.Create(
-            snapshot.Id,
-            (start, end) => Timeline.SetVisibleRange(start, end, this),
-            ErrorMessages.Add,
-            Notifications.Add);
         analysisResultState = analysisResultStateFactory.Create(() => telemetryData);
         analysisInputs = CreateCurrentAnalysisInputs();
         analysisResultState.Invalidate(analysisInputs);
@@ -1553,6 +1549,19 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 signalPlotContextMenuActionsInput,
                 domainInput));
         editorStateSubscription = editorStateController.State.Subscribe(ApplyEditorState);
+        segmentComparison = segmentComparisonFactory.Create(
+            snapshot.Id,
+            editorStateController.State.Select(state => new SegmentComparisonSessionState(
+                state.Intent.AnalysisRange,
+                state.TelemetryData,
+                state.TrackTimelineContext,
+                state.Intent.SelectedTravelDistributionMode,
+                state.Intent.SelectedVelocityAverageMode,
+                state.Intent.DampingSpeedCutoffs,
+                state.Presentation.DampingPercentages)),
+            (start, end) => Timeline.SetVisibleRange(start, end, this),
+            ErrorMessages.Add,
+            Notifications.Add);
         this.editorFactory = editorFactory;
         this.sessionEditingCoordinator = sessionEditingCoordinator;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
@@ -1652,6 +1661,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         BaselineUpdated = snapshot.Updated;
         segmentPicker = segmentPickerFactory.Create(
             Id,
+            editorStateController.State.Select(state => new SegmentPickerSessionState(
+                state.Session?.Timestamp,
+                state.TelemetryData?.Metadata.Duration,
+                state.Intent.AnalysisRange)),
             range =>
             {
                 if (range is { } value)
@@ -1677,7 +1690,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             editorActions,
             segmentPicker,
             segmentComparison);
-        videoPane = videoPaneFactory?.Create(Id, Timeline);
+        videoPane = videoPaneFactory?.Create(
+            Id,
+            Timeline,
+            editorStateController.State.Select(state => new VideoSessionTiming(
+                state.Session?.Timestamp,
+                state.TelemetryData?.Metadata.Duration ?? state.Session?.DurationSeconds)));
         MediaWorkspace = new SessionMediaWorkspaceViewModel(
             editorStateController.State,
             () => MapViewModel,
@@ -1843,32 +1861,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             NotesPage.SetTemperatureAverages(state.TelemetryData?.TemperatureAverages ?? []);
             OnPropertyChanged(nameof(CurrentTelemetryData));
         }
-
-        if (previous.Session != state.Session || previous.TelemetryData != state.TelemetryData)
-        {
-            videoPane?.SetSessionTiming(
-                state.Session?.Timestamp,
-                state.TelemetryData?.Metadata.Duration ?? state.Session?.DurationSeconds);
-        }
-
-        if (previous.Session != state.Session ||
-            previous.TelemetryData != state.TelemetryData ||
-            previous.Intent.AnalysisRange != state.Intent.AnalysisRange)
-        {
-            segmentPicker.SetSessionState(
-                state.Session?.Timestamp,
-                state.TelemetryData?.Metadata.Duration,
-                state.Intent.AnalysisRange);
-        }
-
-        segmentComparison.SetSessionState(new SegmentComparisonSessionState(
-            state.Intent.AnalysisRange,
-            state.TelemetryData,
-            state.TrackTimelineContext,
-            state.Intent.SelectedTravelDistributionMode,
-            state.Intent.SelectedVelocityAverageMode,
-            state.Intent.DampingSpeedCutoffs,
-            state.Presentation.DampingPercentages));
 
         if (previous.FullTrackPoints != state.FullTrackPoints)
         {

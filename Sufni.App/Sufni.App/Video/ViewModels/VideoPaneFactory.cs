@@ -12,7 +12,7 @@ namespace Sufni.App.Video.ViewModels;
 /// </summary>
 public interface IVideoPaneFactory
 {
-    VideoPaneViewModel? Create(Guid sessionId, IRecordedSessionTimeline timeline);
+    VideoPaneViewModel? Create(Guid sessionId, IRecordedSessionTimeline timeline, IObservable<VideoSessionTiming> sessionTiming);
 }
 
 internal sealed class VideoPaneFactory(
@@ -20,8 +20,8 @@ internal sealed class VideoPaneFactory(
     IVideoCoordinator videoCoordinator,
     IVideoPlayerFactory? playerFactory = null) : IVideoPaneFactory
 {
-    public VideoPaneViewModel? Create(Guid sessionId, IRecordedSessionTimeline timeline) =>
+    public VideoPaneViewModel? Create(Guid sessionId, IRecordedSessionTimeline timeline, IObservable<VideoSessionTiming> sessionTiming) =>
         playerFactory is null
             ? null
-            : new VideoPaneViewModel(sessionId, timeline, videoStore, videoCoordinator, playerFactory);
+            : new VideoPaneViewModel(sessionId, timeline, sessionTiming, videoStore, videoCoordinator, playerFactory);
 }

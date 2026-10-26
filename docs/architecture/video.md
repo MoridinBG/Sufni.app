@@ -59,7 +59,7 @@ The video time of a telemetry time is `session timestamp - clip start + alignmen
 
 ## Video Pane
 
-`SessionDetailViewModel` creates its pane through `IVideoPaneFactory`. The factory returns null when no `IVideoPlayerFactory` is registered, so the editor has no pane on Android. The pane lives as long as the editor. It follows the session clips in the store, feeds the session timestamp and the telemetry duration into playback, and changes `VideoUri` when the cursor moves into a different clip. `HasVideo` is true while at least one clip file exists.
+`SessionDetailViewModel` creates its pane through `IVideoPaneFactory`. The factory returns null when no `IVideoPlayerFactory` is registered, so the editor has no pane on Android. The pane lives as long as the editor. It follows the session clips in the store and a `VideoSessionTiming` stream (session timestamp and telemetry duration) that the editor projects from its state, feeds that timing into playback, and changes `VideoUri` when the cursor moves into a different clip. `HasVideo` is true while at least one clip file exists.
 
 `ISessionMediaWorkspace.Video` is the pane while `HasVideo` is true, otherwise null. The views template the pane only when it is not null, so no native player exists for sessions without a playable clip:
 

@@ -1,3 +1,4 @@
+using System.Reactive.Linq;
 using NSubstitute;
 
 using Sufni.App.Infrastructure;
@@ -20,5 +21,5 @@ internal static class TestSegmentPickers
             dialogService ?? Substitute.For<IDialogService>());
 
     public static SegmentPickerViewModel Create() =>
-        CreateFactory().Create(Guid.NewGuid(), _ => { }, _ => { });
+        CreateFactory().Create(Guid.NewGuid(), Observable.Never<SegmentPickerSessionState>(), _ => { }, _ => { });
 }

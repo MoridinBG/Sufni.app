@@ -704,6 +704,19 @@ public class SessionDetailViewModelTests
         Assert.False(FindSignalAction(editor, "save-current-selection").Command.CanExecute(outside));
     }
 
+    [AvaloniaFact]
+    public async Task SegmentPicker_CanOpen_OnceTheTelemetryIsLoaded()
+    {
+        var harness = new SessionDetailHarness();
+        var editor = harness.CreateLoadedRecordedSession(TestSnapshots.Session(hasProcessedData: true));
+        var canOpenBeforeLoad = editor.SignalsWorkspace.SegmentPicker.CanOpen;
+
+        await harness.LoadAsync(editor);
+
+        Assert.False(canOpenBeforeLoad);
+        Assert.True(editor.SignalsWorkspace.SegmentPicker.CanOpen);
+    }
+
     private static async Task<(SessionDetailHarness Harness, SessionDetailViewModel Editor)> CreateLoadedEditorAsync(
         SessionSnapshot snapshot)
     {

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -55,6 +56,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
     private readonly Action<double, double> setTimelineVisibleRange;
     private readonly Action<string> reportError;
     private readonly Action<string> reportNotification;
+    private readonly IDisposable sessionStateSubscription;
     private SegmentComparisonSessionState state = SegmentComparisonSessionState.Empty;
     private IReadOnlyList<SegmentMatch> matches = [];
     private int pageIndex;
@@ -79,6 +81,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
 
     public SegmentComparisonViewModel(
         Guid sessionId,
+        IObservable<SegmentComparisonSessionState> sessionState,
         ISegmentCoordinator segmentCoordinator,
         IBackgroundTaskRunner backgroundTaskRunner,
         Action<double, double> setTimelineVisibleRange,
@@ -91,6 +94,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         this.setTimelineVisibleRange = setTimelineVisibleRange;
         this.reportError = reportError;
         this.reportNotification = reportNotification;
+        sessionStateSubscription = sessionState.Subscribe(OnSessionStateChanged);
     }
 
     public bool HasMultiplePages => MatchCount > SegmentComparisonPage.Size;
@@ -100,7 +104,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         ? $"Comparing analysis with {comparison.Match.SessionName}{FormatLocalTime(comparison)}  match error {comparison.Match.NormalizedCostMeters:0.0}m"
         : null;
 
-    public void SetSessionState(SegmentComparisonSessionState next)
+    private void OnSessionStateChanged(SegmentComparisonSessionState next)
     {
         if (next == state)
         {
@@ -141,6 +145,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
 
     public void Dispose()
     {
+        sessionStateSubscription.Dispose();
         Cancel(ref pageLoad);
         Cancel(ref analysisLoad);
     }

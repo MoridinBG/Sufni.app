@@ -1,3 +1,5 @@
+using Sufni.App.Video.Models;
+using System.Reactive.Linq;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Sufni.App.Tests.TestSupport.Harness;
@@ -62,8 +64,8 @@ public class VideoPaneViewTests : IDisposable
         var pane = await fixture.CreatePaneAsync(
             sessionId,
             timeline,
+            Observable.Return(new VideoSessionTiming(SessionTimestamp, DurationSeconds: 30)),
             fixture.CreateClip(sessionId, SessionTimestamp, durationSeconds: 60));
-        pane.SetSessionTiming(SessionTimestamp, durationSeconds: 30);
         timeline.SetCursorPosition(0);
         return pane;
     }

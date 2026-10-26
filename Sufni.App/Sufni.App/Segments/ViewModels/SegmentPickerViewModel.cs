@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -13,6 +14,15 @@ using Sufni.App.Segments.Coordinators;
 using Sufni.App.Segments.Models;
 using Sufni.App.Segments.Stores;
 namespace Sufni.App.Segments.ViewModels;
+
+/// <summary>
+/// The open session's start (unix seconds), processed telemetry duration, and
+/// analysis range.
+/// </summary>
+public sealed record SegmentPickerSessionState(
+    long? Timestamp,
+    double? TelemetryDurationSeconds,
+    TelemetryTimeRange? AnalysisRange);
 
 /// <summary>
 /// Segments picker of one open recorded session. It lives as long as the
@@ -32,6 +42,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     private readonly Action<TelemetryTimeRange?> setAnalysisRange;
     private readonly Action<string> reportError;
     private readonly IDisposable segmentsSubscription;
+    private readonly IDisposable sessionStateSubscription;
     private IReadOnlyCollection<SessionSegmentSnapshot> segments = [];
     private long? sessionTimestamp;
     private double? telemetryDurationSeconds;
@@ -57,6 +68,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
 
     public SegmentPickerViewModel(
         Guid sessionId,
+        IObservable<SegmentPickerSessionState> sessionState,
         ISessionSegmentStore segmentStore,
         ISegmentCoordinator segmentCoordinator,
         IDialogService dialogService,
@@ -76,21 +88,19 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
                 segments = value;
                 RefreshSavedSegments();
             });
+        sessionStateSubscription = sessionState.DistinctUntilChanged().Subscribe(OnSessionStateChanged);
     }
 
     public bool CanOpen => telemetryDurationSeconds is not null;
     public bool HasSavedSegments => SavedSegments.Count > 0;
     public bool HasStravaMessage => StravaMessage is not null;
 
-    /// <summary>
-    /// The session start, the processed telemetry duration, and the analysis
-    /// range of the open session. The picker closes when the telemetry is gone.
-    /// </summary>
-    public void SetSessionState(long? timestamp, double? durationSeconds, TelemetryTimeRange? range)
+    // The picker closes when the telemetry is gone.
+    private void OnSessionStateChanged(SegmentPickerSessionState state)
     {
-        sessionTimestamp = timestamp;
-        telemetryDurationSeconds = durationSeconds is > 0 ? durationSeconds : null;
-        analysisRange = range;
+        sessionTimestamp = state.Timestamp;
+        telemetryDurationSeconds = state.TelemetryDurationSeconds is > 0 ? state.TelemetryDurationSeconds : null;
+        analysisRange = state.AnalysisRange;
         OnPropertyChanged(nameof(CanOpen));
         OpenCommand.NotifyCanExecuteChanged();
         if (!CanOpen)
@@ -333,6 +343,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     public void Dispose()
     {
         segmentsSubscription.Dispose();
+        sessionStateSubscription.Dispose();
         CancelStravaLoad();
     }
 }

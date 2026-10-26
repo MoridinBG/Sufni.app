@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
+using System.Reactive.Linq;
 using DynamicData;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 
@@ -22,6 +23,7 @@ public sealed partial class VideoPaneViewModel : ObservableObject, IDisposable
     private readonly IRecordedSessionTimeline timeline;
     private readonly IVideoCoordinator videoCoordinator;
     private readonly IDisposable clipsSubscription;
+    private readonly IDisposable timingSubscription;
     private IReadOnlyList<SessionVideoSnapshot> clips = [];
     private long? sessionTimestamp;
     private double? telemetryDurationSeconds;
@@ -32,6 +34,7 @@ public sealed partial class VideoPaneViewModel : ObservableObject, IDisposable
     public VideoPaneViewModel(
         Guid sessionId,
         IRecordedSessionTimeline timeline,
+        IObservable<VideoSessionTiming> sessionTiming,
         ISessionVideoStore videoStore,
         IVideoCoordinator videoCoordinator,
         IVideoPlayerFactory playerFactory)
@@ -45,22 +48,12 @@ public sealed partial class VideoPaneViewModel : ObservableObject, IDisposable
             .Filter(clip => clip.SessionId == sessionId)
             .ToCollection()
             .Subscribe(OnClipsChanged);
+        timingSubscription = sessionTiming.DistinctUntilChanged().Subscribe(OnSessionTimingChanged);
     }
 
     public VideoPlaybackViewModel Playback { get; }
 
     public IVideoPlayerFactory PlayerFactory { get; }
-
-    /// <summary>
-    /// The session start and the processed telemetry duration that map the
-    /// telemetry cursor to video time.
-    /// </summary>
-    public void SetSessionTiming(long? timestamp, double? durationSeconds)
-    {
-        sessionTimestamp = timestamp;
-        telemetryDurationSeconds = durationSeconds is > 0 ? durationSeconds : null;
-        RefreshActiveClip();
-    }
 
     /// <summary>
     /// Observes the presence of every linked file again.
@@ -84,6 +77,13 @@ public sealed partial class VideoPaneViewModel : ObservableObject, IDisposable
     {
         clips = [.. value];
         HasVideo = clips.Any(clip => clip.FileExists);
+        RefreshActiveClip();
+    }
+
+    private void OnSessionTimingChanged(VideoSessionTiming timing)
+    {
+        sessionTimestamp = timing.Timestamp;
+        telemetryDurationSeconds = timing.DurationSeconds is > 0 ? timing.DurationSeconds : null;
         RefreshActiveClip();
     }
 
@@ -120,6 +120,7 @@ public sealed partial class VideoPaneViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         clipsSubscription.Dispose();
+        timingSubscription.Dispose();
         timeline.PropertyChanged -= OnTimelinePropertyChanged;
         Playback.Dispose();
     }

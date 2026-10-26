@@ -1,3 +1,4 @@
+using System.Reactive.Subjects;
 using DynamicData;
 using NSubstitute;
 using Sufni.App.Infrastructure;
@@ -20,6 +21,7 @@ public class SegmentPickerViewModelTests
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly List<TelemetryTimeRange?> analysisRanges = [];
     private readonly List<string> errors = [];
+    private readonly Subject<SegmentPickerSessionState> sessionState = new();
 
     public SegmentPickerViewModelTests()
     {
@@ -186,12 +188,12 @@ public class SegmentPickerViewModelTests
     }
 
     [Fact]
-    public void SetSessionState_WithoutTelemetry_ClosesThePicker()
+    public void SessionState_WithoutTelemetry_ClosesThePicker()
     {
         using var picker = CreateLoadedPicker();
         picker.OpenCommand.Execute(null);
 
-        picker.SetSessionState(SessionTimestamp, durationSeconds: null, range: null);
+        sessionState.OnNext(new SegmentPickerSessionState(SessionTimestamp, TelemetryDurationSeconds: null, AnalysisRange: null));
 
         Assert.False(picker.IsOpen);
         Assert.False(picker.CanOpen);
@@ -201,12 +203,13 @@ public class SegmentPickerViewModelTests
     {
         var picker = new SegmentPickerViewModel(
             sessionId,
+            sessionState,
             segmentStore,
             segmentCoordinator,
             dialogService,
             analysisRanges.Add,
             errors.Add);
-        picker.SetSessionState(SessionTimestamp, durationSeconds, analysisRange);
+        sessionState.OnNext(new SegmentPickerSessionState(SessionTimestamp, durationSeconds, analysisRange));
         return picker;
     }
 

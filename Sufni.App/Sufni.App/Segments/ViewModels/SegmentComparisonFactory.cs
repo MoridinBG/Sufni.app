@@ -14,6 +14,7 @@ public interface ISegmentComparisonFactory
     /// </summary>
     SegmentComparisonViewModel Create(
         Guid sessionId,
+        IObservable<SegmentComparisonSessionState> sessionState,
         Action<double, double> setTimelineVisibleRange,
         Action<string> reportError,
         Action<string> reportNotification);
@@ -25,8 +26,9 @@ internal sealed class SegmentComparisonFactory(
 {
     public SegmentComparisonViewModel Create(
         Guid sessionId,
+        IObservable<SegmentComparisonSessionState> sessionState,
         Action<double, double> setTimelineVisibleRange,
         Action<string> reportError,
         Action<string> reportNotification) =>
-        new(sessionId, segmentCoordinator, backgroundTaskRunner, setTimelineVisibleRange, reportError, reportNotification);
+        new(sessionId, sessionState, segmentCoordinator, backgroundTaskRunner, setTimelineVisibleRange, reportError, reportNotification);
 }
