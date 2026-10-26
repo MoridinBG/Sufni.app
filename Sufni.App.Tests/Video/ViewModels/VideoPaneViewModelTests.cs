@@ -80,5 +80,27 @@ public class VideoPaneViewModelTests : IDisposable
         Assert.True(pane.Playback.CanSync);
     }
 
+    [Fact]
+    public async Task TimelinePlayback_WithSync_DoesNotSeekWhileTheCursorFollowsTheVideo()
+    {
+        var clip = fixture.CreateClip(sessionId, SessionTimestamp, durationSeconds: 60);
+        using var pane = await fixture.CreatePaneAsync(
+            sessionId,
+            timeline,
+            Observable.Return(new VideoSessionTiming(SessionTimestamp, DurationSeconds: 30)),
+            clip);
+        var backend = new FakeVideoPlaybackBackend();
+        timeline.SetCursorPosition(0);
+        pane.Playback.SetBackend(backend);
+        pane.Playback.IsSyncEnabled = true;
+        timeline.RequestPlaybackToggle();
+        backend.SeekedPositions.Clear();
+
+        backend.RaisePositionChanged(TimeSpan.FromSeconds(10));
+        backend.RaisePositionChanged(TimeSpan.FromSeconds(11));
+
+        Assert.Empty(backend.SeekedPositions);
+    }
+
     public void Dispose() => fixture.Dispose();
 }

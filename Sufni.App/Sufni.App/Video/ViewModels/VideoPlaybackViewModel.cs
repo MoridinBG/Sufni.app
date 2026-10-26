@@ -68,8 +68,17 @@ public sealed partial class VideoPlaybackViewModel : ObservableObject, IDisposab
         PlayPauseCommand.NotifyCanExecuteChanged();
     }
 
+    /// <summary>
+    /// Sets how the active clip maps to telemetry time. An equal context does
+    /// nothing, so it can be set on every cursor move without seeking.
+    /// </summary>
     public void SetPlaybackContext(VideoPlaybackContext? value)
     {
+        if (value == playbackContext)
+        {
+            return;
+        }
+
         playbackContext = value;
         CanSync = value?.CanSync == true;
 

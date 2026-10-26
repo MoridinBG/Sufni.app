@@ -72,7 +72,7 @@ The video time of a telemetry time is `session timestamp - clip start + alignmen
 
 `VideoPlaybackViewModel` holds play, sync, and timeline-playback state for one editor.
 
-- Sync: while sync is on and the video is paused, the video follows the telemetry cursor.
+- Sync: while sync is on and the video is paused, the video follows the telemetry cursor. The pane sets the playback context on every cursor move; only a changed context (another clip, timing, or alignment) seeks the player.
 - Timeline playback: the pane subscribes to the timeline's `PlaybackToggleRequested` (Space over a plot) and `PlaybackStopRequested` (primary click in a plot). While timeline playback is active, the video position drives the telemetry cursor and `IRecordedSessionTimeline.SetPlaybackActive(true)` stops the plots from moving the cursor on pointer input.
 
 Sync and timeline playback need a known telemetry duration.
