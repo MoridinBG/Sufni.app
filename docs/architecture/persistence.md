@@ -288,7 +288,8 @@ live only while its session is live: `ISessionVideoRepository` reads the clips
 of live sessions, and no delete cascades to clips. Builds that
 ran the old video extension have their `private_session_video_clip` rows copied
 once into `session_video` (`core_migration` id `session-video`); the copy drops the source table and its
-`extension_schema_version` row. See [video.md](video.md).
+`extension_schema_version` row, and also drops `private_session_video`, the
+extension's first table, which it abandoned without a copy. See [video.md](video.md).
 
 `session_segment` holds saved segments: a name and a time range in seconds
 from the session's telemetry start. It is a `Synchronizable` table. A segment

@@ -140,7 +140,9 @@ internal sealed class DatabaseMigrationRunner(
     }
 
     // One-time copy of the video links kept by the former private video
-    // extension. The source table exists only on databases that ran it.
+    // extension. The source table exists only on databases that ran it. The
+    // extension's first table, `private_session_video`, was abandoned without a
+    // copy when the extension moved to clips, so it is dropped as is.
     private async Task MigrateSessionVideosAsync()
     {
         const string migrationId = "session-video";
@@ -151,9 +153,9 @@ internal sealed class DatabaseMigrationRunner(
 
         var hasSourceTable = await connection.ExecuteScalarAsync<int>(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'private_session_video_clip'") > 0;
-        if (hasSourceTable)
+        await connection.RunInTransactionAsync(transaction =>
         {
-            await connection.RunInTransactionAsync(transaction =>
+            if (hasSourceTable)
             {
                 transaction.Execute(
                     """
@@ -164,8 +166,10 @@ internal sealed class DatabaseMigrationRunner(
                     """);
                 transaction.Execute("DROP TABLE private_session_video_clip");
                 transaction.Execute("DELETE FROM extension_schema_version WHERE extension_id = 'sufni.private.video'");
-            });
-        }
+            }
+
+            transaction.Execute("DROP TABLE IF EXISTS private_session_video");
+        });
 
         await coreMigrations.MarkAppliedAsync(migrationId);
     }

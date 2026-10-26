@@ -1135,6 +1135,23 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
+    public async Task Initialization_DropsTheAbandonedVideoTable()
+    {
+        using var tempDatabase = new TempDatabase("abandoned-video-table.db");
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.Execute("CREATE TABLE private_session_video (session_id TEXT PRIMARY KEY, path TEXT NOT NULL)");
+            connection.Execute("INSERT INTO private_session_video VALUES (?, ?)", Guid.NewGuid(), "/videos/ride.mp4");
+        }
+
+        await new TestPersistenceHarness(tempDatabase.DatabasePath).GetInitializedConnectionAsync();
+
+        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
+        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE name = 'private_session_video'"));
+    }
+
+    [Fact]
     public async Task Initialization_CopiesSessionSourceRanges_AndDropsRangeTable()
     {
         using var tempDatabase = new TempDatabase("session-source-range-copy.db");
